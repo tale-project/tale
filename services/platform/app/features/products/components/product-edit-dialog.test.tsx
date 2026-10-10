@@ -11,7 +11,7 @@ import {
   lapsedSessionRefusal,
   saveLocale,
 } from '@/tests/utils/lapsed-session';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 // Verifies the user-facing half of the duplicate-name fix in the edit flow: a
 // AppError with code `DUPLICATE_PRODUCT_NAME` surfaces as a field error on
@@ -280,6 +280,40 @@ describe('ProductEditDialog — price and stock', () => {
     );
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  // `1e3` passed Save's check as 1000 and was saved as stock 1: the form
+  // judged it with `Number`, the submit sent `parseInt` (#3616). A browser
+  // keeps the spelling as the input's value; `user.type` would hand the form
+  // `1000` instead, so the value is set the way the browser leaves it.
+  it.each([
+    ['stock', '1000', 1000],
+    ['stock', '1e3', 1000],
+    ['stock', '2.5e2', 250],
+    ['price', '12.5', 12.5],
+    ['price', '1.25e1', 12.5],
+  ])('saves %s %s as the %d it accepted', async (field, entered, sent) => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onSuccess();
+    });
+    const { user } = render(
+      <ProductEditDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        product={{ ...PRODUCT, price: 10, stock: 5 }}
+      />,
+    );
+    fireEvent.change(
+      screen.getByLabelText(`products.edit.labels.${field}`, {
+        exact: false,
+      }),
+      { target: { value: entered } },
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+    expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({ [field]: sent });
   });
 });
 

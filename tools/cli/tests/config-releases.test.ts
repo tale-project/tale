@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import type { DeployOptions } from '../src/lib/config/releases/deploy';
 import { loadClient } from '../src/lib/config/releases/identity';
@@ -13,15 +12,9 @@ import {
 } from '../src/lib/config/releases/tests/command-fixture';
 import { temporary } from '../src/lib/config/releases/tests/fixture';
 import { nativeServer } from '../src/lib/config/releases/tests/native-fixture';
+import { commandTargets } from './fixtures/command-targets';
 
-const source = fileURLToPath(new URL('../src/index.ts', import.meta.url));
-const binary = process.env.TALE_BINARY
-  ? path.resolve(process.env.TALE_BINARY)
-  : undefined;
-const modes = [
-  ['source', [process.execPath, source]],
-  ...(binary ? [['compiled', [binary]]] : []),
-] as [string, string[]][];
+const modes = commandTargets(process.env.TALE_BINARY);
 
 function start(
   command: string[],

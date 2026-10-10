@@ -92,24 +92,32 @@ export function MemberRowActions({
     <>
       <EntityRowActions actions={actions} contentWidth="w-[11.5rem]" />
 
-      <EditMemberDialog
-        open={dialogs.isOpen.edit}
-        onOpenChange={dialogs.setOpen.edit}
-        member={member}
-        currentUserMemberId={memberContext?.member?._id}
-      />
+      {/* Each dialog mounts from its first open: every row of the list
+          carries all three. */}
+      {dialogs.mounted.edit && (
+        <EditMemberDialog
+          open={dialogs.isOpen.edit}
+          onOpenChange={dialogs.setOpen.edit}
+          member={member}
+          currentUserMemberId={memberContext?.member?._id}
+        />
+      )}
 
-      <DeleteMemberDialog
-        open={dialogs.isOpen.delete}
-        onOpenChange={dialogs.setOpen.delete}
-        member={member}
-      />
+      {dialogs.mounted.delete && (
+        <DeleteMemberDialog
+          open={dialogs.isOpen.delete}
+          onOpenChange={dialogs.setOpen.delete}
+          member={member}
+        />
+      )}
 
-      <TransferOwnershipDialog
-        open={dialogs.isOpen.transferOwnership}
-        onOpenChange={dialogs.setOpen.transferOwnership}
-        member={member}
-      />
+      {dialogs.mounted.transferOwnership && (
+        <TransferOwnershipDialog
+          open={dialogs.isOpen.transferOwnership}
+          onOpenChange={dialogs.setOpen.transferOwnership}
+          member={member}
+        />
+      )}
     </>
   );
 }

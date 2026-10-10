@@ -12,6 +12,7 @@ import {
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
+import { VendorIcon } from '@tale/ui/vendor-icon';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -25,7 +26,6 @@ import {
 } from './adapter';
 import { CredentialAddDialog } from './credential-add-dialog';
 import { CredentialRowActions } from './credential-row-actions';
-import { VendorIcon } from './vendor-icon';
 
 /** The per-surface copy the shared table cannot name for itself. */
 export interface CredentialTableLabels {
@@ -173,8 +173,6 @@ export function CredentialTable<
       .sort((a, b) => a.localeCompare(b));
   }, [adapter, credentials, vendorsByKey]);
 
-  // Only vendors actually represented in the table are worth offering: a facet
-  // that can only ever narrow to zero rows is noise.
   const vendorFacets = useMemo(() => {
     const seen = new Map<string, string>();
     for (const credential of credentials) {
@@ -183,13 +181,18 @@ export function CredentialTable<
         seen.set(key, vendorsByKey.get(key)?.displayName ?? key);
       }
     }
+    for (const key of vendorFilter) {
+      if (!seen.has(key)) {
+        seen.set(key, vendorsByKey.get(key)?.displayName ?? key);
+      }
+    }
     return [...seen.entries()]
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [adapter, credentials, vendorsByKey]);
+  }, [adapter, credentials, vendorFilter, vendorsByKey]);
 
   const filterConfigs: FilterConfig[] =
-    vendorFacets.length > 1
+    vendorFacets.length > 1 || vendorFilter.length > 0
       ? [
           {
             key: 'vendor',

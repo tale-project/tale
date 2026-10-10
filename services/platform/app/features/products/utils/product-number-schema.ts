@@ -10,6 +10,16 @@ export interface ProductNumberMessages {
 }
 
 /**
+ * The number a price or stock the form holds stands for: the reading the rule
+ * below judges and the one the dialogs send, so a submit never sends another
+ * value than the one the form accepted. A number input keeps an exponent as
+ * typed; `parseInt` sent stock `1e3` as 1 after the rule passed it as 1000.
+ */
+export function parseProductNumber(value: string): number {
+  return Number(value);
+}
+
+/**
  * The form's rule for a price or a stock count, as the string a number input
  * holds: blank is "not given"; otherwise a finite number, zero or more, within
  * the safe-integer range the door stores exactly — a stock count a whole
@@ -22,7 +32,7 @@ export function productNumberSchema(messages: ProductNumberMessages) {
     .trim()
     .superRefine((value, ctx) => {
       if (value === '') return;
-      const parsed = Number(value);
+      const parsed = parseProductNumber(value);
       if (!Number.isFinite(parsed)) {
         ctx.addIssue({ code: 'custom', message: messages.number });
         return;

@@ -1,5 +1,7 @@
 import type { PgBoss } from 'pg-boss';
+import type { Sql } from 'postgres';
 
+import { addJobInTx } from './enqueue.ts';
 import type { TaskIdentifier } from './tasks.ts';
 
 /**
@@ -23,6 +25,8 @@ export const SCHEDULES: CronSchedule[] = [
   // loginAttempts carry a 30-day retention (GDPR minimization); the hourly
   // block counters age out after 90 days. Daily sweep.
   { name: 'maintenance.login_attempts_ttl', cron: '40 3 * * *' },
+  // An MCP client's daily call counters are kept 90 days. Daily sweep.
+  { name: 'maintenance.mcp_activity_ttl', cron: '50 3 * * *' },
   // Realtime hints are reclaimed lazily by the `/events` poll loops, which
   // only run while a browser is connected: a headless deployment (REST and
   // automation use, nights, weekends) inserts hints on every write and
@@ -95,6 +99,10 @@ export const SCHEDULES: CronSchedule[] = [
   // host down with it.
   { name: 'watchdog.transcriptions', cron: '*/5 * * * *' },
   { name: 'watchdog.rag_indexing', cron: '2-59/5 * * * *' },
+  // Knowledge work a usage limit parked: tried again hourly, as the limit
+  // may have reset or been raised (work still over it is parked again by
+  // its budget check, before any bytes are read).
+  { name: 'knowledge.resume_usage_limited', cron: '33 * * * *' },
   { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
   // Repeating tasks that continue on their due date: the next task appears
   // within five minutes of the due day's start in the rule's zone. Offset so
@@ -135,5 +143,25 @@ export async function registerSchedules(boss: PgBoss): Promise<void> {
   }
   for (const name of RETIRED_SCHEDULES) {
     await boss.unschedule(name);
+  }
+}
+
+/**
+ * One liveness sweep as a worker starts, beside the minute schedule: a
+ * worker restarted after a crash pokes the runs the dead one left — their
+ * leases lapsed half a minute after its last heartbeat — at once, instead
+ * of at the next minute. Every booting worker sends one; the sweep re-checks
+ * each run in its own write, so two overlapping sweeps poke a run once. A
+ * send that fails is logged and never fails the boot: the schedule sweeps
+ * within the minute anyway.
+ */
+export async function sweepRunsAtBoot(sql: Sql): Promise<void> {
+  try {
+    await addJobInTx(sql, 'automation.liveness', {});
+  } catch (error) {
+    console.warn(
+      '[backend] could not queue the boot liveness sweep; the minute schedule runs it:',
+      error,
+    );
   }
 }

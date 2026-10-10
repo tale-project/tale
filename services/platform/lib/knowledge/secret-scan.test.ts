@@ -12,7 +12,7 @@ import { isPlaceholder, scanForSecrets } from './secret-scan';
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
 
-describe('credentials are refused', () => {
+describe('credentials are refused [KNOW-R8]', () => {
   const secrets: Array<[string, string, string]> = [
     [
       'an AWS access key id',
@@ -79,7 +79,7 @@ describe('documentation is not a credential', () => {
     ['a lookalike identifier', 'api_key = AKIA_NOT_A_REAL_KEY\n'],
   ];
 
-  it.each(allowed)('allows %s', (_name, content) => {
+  it.each(allowed)('allows %s [KNOW-R8]', (_name, content) => {
     expect(scanForSecrets(bytes(content))).toEqual({
       rejected: false,
       reason: null,

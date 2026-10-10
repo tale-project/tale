@@ -6,6 +6,7 @@ import { CatalogCard, CatalogCardIcon } from '@tale/ui/catalog/catalog-grid';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { ThreadHeader } from '@tale/ui/thread-header';
+import { ThreadDayDivider } from '@tale/ui/thread/thread-day-divider';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,10 +16,7 @@ import { MessageThread } from '@/app/features/chat/components/message-thread';
 import { toSettledItems } from '@/app/features/chat/lib/thread-view-core';
 import { ContactInitials } from '@/app/features/conversations/components/contact-initials';
 import { ConversationHeaderSkeleton } from '@/app/features/conversations/components/conversation-header';
-import {
-  ConversationDateHeader,
-  MessageTimestamp,
-} from '@/app/features/conversations/components/conversation-message-layout';
+import { MessageTimestamp } from '@/app/features/conversations/components/conversation-message-layout';
 import { Message as InboxMessage } from '@/app/features/conversations/components/message';
 import { documentPageClasses } from '@/app/features/documents/components/document-prose-classes';
 import {
@@ -73,6 +71,8 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@/app/features/tasks/hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
@@ -107,6 +107,7 @@ vi.mock('@/app/features/tasks/hooks/use-task-status-choreography', () => ({
 }));
 vi.mock('@/app/features/tasks/hooks/use-task-subject-contract', () => ({
   useTaskSubjectContract: () => null,
+  resolveTaskSubjectContract: () => null,
   useTaskContractAutomations: () => [],
   taskSubjectEntries: () => [],
 }));
@@ -416,13 +417,13 @@ describe('page skeleton geometry in Chromium', () => {
       const fixture = (loading: boolean) => (
         <div data-testid="fixture" style={{ width }}>
           <Skeletonize loading={loading} className="contents">
-            <ConversationDateHeader>
+            <ThreadDayDivider>
               {loading ? (
                 <span className="inline-block w-20">{'\u00a0'}</span>
               ) : (
                 'Sep 14, 2026'
               )}
-            </ConversationDateHeader>
+            </ThreadDayDivider>
           </Skeletonize>
           <div data-testid="message-start" />
         </div>
@@ -430,7 +431,8 @@ describe('page skeleton geometry in Chromium', () => {
       const { rerender } = render(fixture(false));
       const live = requireElement(
         screen.getByTestId('fixture'),
-        '.rounded-full',
+        // The pill, not the band that cuts the hairline around it.
+        '[data-slot="thread-day-divider"] .border-border',
       );
       const liveHeight = size(live).height;
       const liveRadius = getComputedStyle(live).borderRadius;
@@ -440,7 +442,8 @@ describe('page skeleton geometry in Chromium', () => {
       rerender(fixture(true));
       const placeholder = requireElement(
         screen.getByTestId('fixture'),
-        '.rounded-full',
+        // The pill, not the band that cuts the hairline around it.
+        '[data-slot="thread-day-divider"] .border-border',
       );
       expect(size(placeholder).height).toBe(liveHeight);
       expect(getComputedStyle(placeholder).borderRadius).toBe(liveRadius);

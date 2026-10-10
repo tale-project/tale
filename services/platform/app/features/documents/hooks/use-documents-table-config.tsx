@@ -31,7 +31,6 @@ interface DocumentsTableConfigParams {
   onDocumentClick: (item: DocumentItem, e: React.MouseEvent) => void;
   /** Opens a file's preview from its row menu. */
   onDocumentView: (documentId: string, opener: HTMLElement | null) => void;
-  onFolderDeleted: () => void;
   isLoadingTeams: boolean;
   /** Resolves a team id to its directory name; `undefined` = no longer known. */
   nameOf: (teamId: string) => string | undefined;
@@ -51,7 +50,6 @@ export function useDocumentsTableConfig({
   onDocumentClick,
   onDocumentView,
   currentFolderId,
-  onFolderDeleted,
   isLoadingTeams,
   nameOf,
   parentFolderTeamId,
@@ -337,7 +335,6 @@ export function useDocumentsTableConfig({
               // writes. `documents-table.tsx` already resolves it this way for
               // folders.
               teamIds={[...scopeTeamIds(row.original)]}
-              onFolderDeleted={onFolderDeleted}
               parentFolderTeamId={parentFolderTeamId}
               currentFolderId={currentFolderId}
               ragStatus={row.original.ragStatus}
@@ -352,7 +349,6 @@ export function useDocumentsTableConfig({
       currentFolderId,
       onDocumentClick,
       onDocumentView,
-      onFolderDeleted,
       isLoadingTeams,
       nameOf,
       parentFolderTeamId,

@@ -21,9 +21,17 @@ Two inputs have no CLI flag and must be ON DISK before the CLI starts:
     prompt (GEMINI_SYSTEM_MD would replace it). The per-exec filename keeps
     concurrent execs sharing this HOME from reading each other's append.
 
-The prompt itself rides the child's stdin — Gemini CLI's native headless
+The prompt itself rides the CLI's stdin — Gemini CLI's native headless
 prompt source — never argv (process lists leak argv, and a leading-dash
 prompt would parse as a flag).
+
+The wrapper then becomes the CLI (exec, same pid) instead of waiting for it,
+so no Python process stays resident for the turn: the CLI's exit status and
+signals are the exec's own. The context file has to sit under ~/.gemini/,
+the only place Gemini reads a global context file from, and HOME persists
+across container starts, so nothing can remove it when the CLI exits.
+Its name carries the exec's pid instead, and the next wrapper to start
+removes every context file whose pid no longer runs.
 """
 
 from __future__ import annotations
@@ -32,15 +40,19 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import signal
-import subprocess
 import sys
+import tempfile
 import uuid
 from pathlib import Path
+from typing import NoReturn
 
 
 SETTINGS_DIR = Path(__file__).resolve().parent.parent / "share/tale/gemini-settings"
 BRIDGE_URL_VAR = "${TALE_GEMINI_BRIDGE_URL}"
+# tale-context-<pid of the exec that staged it>-<uuid4 hex>.md
+CONTEXT_FILE = re.compile(r"tale-context-(?P<pid>[1-9][0-9]{0,6})-[0-9a-f]{32}\.md")
 
 
 def select_settings(settings: dict, env: dict) -> str:
@@ -107,6 +119,70 @@ def read_stdin_payload() -> dict | None:
     return payload
 
 
+def pid_running(pid: int) -> bool:
+    """Whether a process with this pid runs in this container. One owned by
+    another user counts as running."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def remove_ended_context_files(gemini_dir: str) -> None:
+    """Remove the context files of execs that have ended. A file whose pid
+    runs stays: it is a live exec's, or a pid reused since a container
+    restart, which only keeps the file until that process ends. Best effort:
+    a failure is logged and never stops this exec."""
+    try:
+        names = os.listdir(gemini_dir)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        print(f"[tale-gemini-run] context cleanup failed: {exc}", file=sys.stderr)
+        return
+    for name in names:
+        match = CONTEXT_FILE.fullmatch(name)
+        if match is None or pid_running(int(match["pid"])):
+            continue
+        try:
+            # Another wrapper starting at the same time may get there first.
+            Path(gemini_dir, name).unlink(missing_ok=True)
+        except OSError as exc:
+            print(
+                f"[tale-gemini-run] context cleanup failed: {exc}", file=sys.stderr
+            )
+
+
+def stdin_from(prompt: str) -> None:
+    """Make the prompt this process's stdin, for the CLI to read to its end.
+    An anonymous temporary file holds it: nothing named is left to remove,
+    and unlike a pipe nobody reads yet it takes a prompt of any size."""
+    with tempfile.TemporaryFile() as staged:
+        staged.write(prompt.encode("utf-8"))
+        staged.flush()
+        staged.seek(0)
+        os.dup2(staged.fileno(), 0)
+
+
+def become(cmd: list[str], workdir: str, env: dict) -> NoReturn:
+    """Replace this process with the CLI. Raises when the CLI cannot be
+    started; never returns."""
+    os.chdir(workdir)
+    # Python ignores SIGPIPE and SIGXFSZ for itself, and an ignored signal
+    # stays ignored across exec; the CLI gets their defaults, as a
+    # subprocess child would.
+    for name in ("SIGPIPE", "SIGXFSZ"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), signal.SIG_DFL)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # nosemgrep: tools.opengrep.rules.python.lang.security.audit.dangerous-os-exec-tainted-env-args.dangerous-os-exec-tainted-env-args -- fixed gemini argv plus adapter-provided flags, list-form exec (no shell); launching the agent CLI inside the sandbox is this runner's purpose, same trust model as the sibling tale-*-run launchers
+    os.execvpe(cmd[0], cmd, env)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Gemini CLI for Tale sandbox")
     parser.add_argument("--workdir", default="/user/workspace")
@@ -134,9 +210,11 @@ def main() -> int:
     try:
         env = dict(os.environ)
         env["GEMINI_CLI_SYSTEM_SETTINGS_PATH"] = select_settings(settings, env)
+        remove_ended_context_files(gemini_dir)
         # A unique nonexistent filename also keeps an exec without appended
-        # instructions from loading another exec's context.
-        context_name = f"tale-context-{uuid.uuid4().hex}.md"
+        # instructions from loading another exec's context. The pid is this
+        # exec's for as long as it runs: the CLI takes it over.
+        context_name = f"tale-context-{os.getpid()}-{uuid.uuid4().hex}.md"
         env["TALE_GEMINI_CONTEXT_FILE"] = context_name
         if system_prompt is not None:
             # Per-exec context file: ~/.gemini/<name> is a global context path
@@ -167,28 +245,19 @@ def main() -> int:
         for directory in args.include_directories:
             cmd += ["--include-directories", directory]
 
-        proc = subprocess.Popen(
-            # nosemgrep: tools.opengrep.rules.python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- fixed gemini argv plus adapter-provided flags, list-form exec (no shell); launching the agent CLI inside the sandbox is this runner's purpose, same trust model as the sibling tale-*-run launchers
-            cmd,
-            cwd=args.workdir,
-            env=env,
-            stdin=subprocess.PIPE,
-            # stdout/stderr inherit: the CLI's stream-json goes straight to the
-            # platform's stdout reader; human-oriented noise stays on stderr.
-        )
-        try:
-            proc.stdin.write(prompt.encode("utf-8"))
-            proc.stdin.close()
-        except BrokenPipeError:
-            print(
-                "[tale-gemini-run] gemini exited before reading stdin", file=sys.stderr
-            )
-        return proc.wait()
+        # stdout/stderr stay as they are: the CLI's stream-json goes straight
+        # to the platform's stdout reader; human-oriented noise stays on
+        # stderr. Once `become` succeeds the CLI runs in this process, and
+        # nothing below happens.
+        stdin_from(prompt)
+        become(cmd, args.workdir, env)
     except FileNotFoundError as exc:
         return fail(f"gemini-cli not installed or file missing: {exc}")
     except Exception as exc:  # noqa: BLE001 — surface anything as a run error
         return fail(f"wrapper failure: {exc}")
     finally:
+        # Reached only when the CLI never started: once it runs, the file is
+        # its until it ends, and a later wrapper removes it.
         if context_path is not None:
             try:
                 os.unlink(context_path)
@@ -199,11 +268,12 @@ def main() -> int:
 
 
 class Cancelled(BaseException):
-    """Raised when runnerd ends the exec (a process-group SIGTERM on cancel,
-    at the exec's deadline or when it exits). Python's default SIGTERM
-    disposition runs no `finally`, which left the per-exec context file
-    behind; a BaseException unwinds through its cleanup and
-    past the generic `except Exception` in main()."""
+    """Raised when runnerd ends the exec (a process-group SIGTERM on cancel
+    or at the exec's deadline) before the CLI has replaced the wrapper.
+    Python's default SIGTERM disposition runs no `finally`, which would leave
+    the per-exec context file behind; a BaseException unwinds through its
+    cleanup and past the generic `except Exception` in main(). The exec
+    resets these handlers, so once the CLI runs the signal is its own."""
 
     def __init__(self, signum: int) -> None:
         super().__init__(signum)

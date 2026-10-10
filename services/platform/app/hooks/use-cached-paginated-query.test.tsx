@@ -67,6 +67,103 @@ afterEach(() => {
 });
 
 describe('useCachedPaginatedQuery — a failed read and its retry', () => {
+  it('retains loaded row references through unrelated renders and fetching another page', async () => {
+    let answerNextPage = (): void => {};
+    const cursors = listDoor([
+      () =>
+        json(200, {
+          items: [row('c1'), row('c2')],
+          isDone: false,
+          continueCursor: 'after-c2',
+        }),
+      () =>
+        new Promise((resolve) => {
+          answerNextPage = () =>
+            resolve(
+              json(200, {
+                items: [row('c3')],
+                isDone: true,
+                continueCursor: '',
+              }),
+            );
+        }),
+    ]);
+    const { result, rerender } = renderListing();
+    await waitFor(() => expect(result.current.status).toBe('CanLoadMore'));
+    const loaded = result.current.results;
+
+    rerender();
+    expect(result.current.results).toBe(loaded);
+    expect(cursors).toHaveLength(1);
+
+    act(() => result.current.loadMore(2));
+    await waitFor(() => expect(result.current.status).toBe('LoadingMore'));
+    expect(result.current.results).toBe(loaded);
+
+    act(() => answerNextPage());
+    await waitFor(() => expect(result.current.results).toHaveLength(3));
+    expect(result.current.results).not.toBe(loaded);
+    expect(result.current.results[0]).toBe(loaded[0]);
+    const complete = result.current.results;
+    rerender();
+    expect(result.current.results).toBe(complete);
+  });
+
+  it('retains its empty row reference while the first page is pending', async () => {
+    let answerFirstPage = (): void => {};
+    listDoor([
+      () =>
+        new Promise((resolve) => {
+          answerFirstPage = () =>
+            resolve(json(200, { items: [], isDone: true, continueCursor: '' }));
+        }),
+    ]);
+    const { result, rerender } = renderListing();
+    const pending = result.current.results;
+    rerender();
+    expect(result.current.results).toBe(pending);
+    act(() => answerFirstPage());
+    await waitFor(() => expect(result.current.status).toBe('Exhausted'));
+    const empty = result.current.results;
+    rerender();
+    expect(result.current.results).toBe(empty);
+  });
+
+  it('keeps loaded results stable through parent renders and a pending next page', async () => {
+    let answerNext = (): void => {};
+    listDoor([
+      () =>
+        json(200, {
+          items: [row('c1'), row('c2')],
+          isDone: false,
+          continueCursor: 'after-c2',
+        }),
+      () =>
+        new Promise((resolve) => {
+          answerNext = () =>
+            resolve(
+              json(200, {
+                items: [row('c3')],
+                isDone: true,
+                continueCursor: '',
+              }),
+            );
+        }),
+    ]);
+    const { result, rerender } = renderListing();
+    await waitFor(() => expect(result.current.status).toBe('CanLoadMore'));
+    const loaded = result.current.results;
+    rerender();
+    expect(result.current.results).toBe(loaded);
+    act(() => result.current.loadMore(2));
+    await waitFor(() => expect(result.current.status).toBe('LoadingMore'));
+    expect(result.current.results).toBe(loaded);
+    act(() => answerNext());
+    await waitFor(() => expect(result.current.results).toHaveLength(3));
+    expect(result.current.results).not.toBe(loaded);
+    expect(result.current.results[0]).toBe(loaded[0]);
+  });
+
   it('hands over the error of a first page every attempt failed, then loads it again on retry', async () => {
     let answerRetry = (): void => {};
     const cursors = listDoor([
@@ -222,5 +319,42 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
     await waitFor(() => expect(result.current.results).toHaveLength(3));
     expect(result.current.isRetrying).toBe(false);
     expect(cursors).toHaveLength(6);
+  });
+});
+
+// Live hints refetch every loaded listing. A refetch that answers the rows the
+// listing already shows must not hand out a new array or re-render the list:
+// a task's 200-comment discussion re-rendered twice per hint for nothing.
+describe('useCachedPaginatedQuery — a refetch of the same rows', () => {
+  it('keeps the rows array and does not re-render its consumer', async () => {
+    const page = () =>
+      json(200, {
+        items: [row('c1'), row('c2')],
+        isDone: true,
+        continueCursor: '',
+      });
+    const cursors = listDoor([page, page]);
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useCachedPaginatedQuery(LIST, ARGS, { initialNumItems: 2 });
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.results).toHaveLength(2));
+    const rows = result.current.results;
+    const rendersBefore = renders;
+
+    await act(() => client.invalidateQueries());
+    await waitFor(() => expect(cursors).toHaveLength(2));
+    await act(async () => {});
+
+    expect(result.current.results).toBe(rows);
+    expect(renders).toBe(rendersBefore);
   });
 });

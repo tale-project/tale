@@ -2,8 +2,8 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { dispatch, METHODS, type DispatchStore } from '../api/dispatch';
 import { DOC_EXAMPLE } from '../api/docs';
-import { setCodeRunner } from '../core/slots';
-import type { Automation, RunResult } from '../core/types';
+import { registerNodeType, setCodeRunner } from '../core/slots';
+import type { Automation, Issue, RunResult } from '../core/types';
 import { nodeVmRunner } from '../runners/node-vm';
 import { memoryStore } from './memory-store';
 
@@ -135,6 +135,30 @@ describe('dispatch — the shared method table', () => {
     }
   });
 
+  it('get_docs serves a topic the host provides, the authoring reference for "authoring", and refuses any other', async () => {
+    const docs = vi.fn((topic: string) =>
+      topic === 'triggers' ? '# Triggers reference' : undefined,
+    );
+    const ctx = { store: dispatchStore(), docs };
+    expect(await dispatch('get_docs', { topic: 'triggers' }, ctx)).toEqual({
+      docs: '# Triggers reference',
+    });
+    const authoring = await dispatch('get_docs', { topic: 'authoring' }, ctx);
+    expect(authoring).toEqual(await dispatch('get_docs', {}, ctx));
+    expect(docs).toHaveBeenCalledTimes(1);
+    expect(
+      await dispatch('get_docs', { topic: 'settings' }, ctx),
+    ).toMatchObject({ code: 'INVALID_PARAMS' });
+    // A host that serves no further references answers the same refusal.
+    expect(
+      await dispatch(
+        'get_docs',
+        { topic: 'triggers' },
+        { store: dispatchStore() },
+      ),
+    ).toMatchObject({ code: 'INVALID_PARAMS' });
+  });
+
   it('get_catalog lists the built-in node types with their output kind', async () => {
     const { node_types } = (await dispatch(
       'get_catalog',
@@ -184,6 +208,34 @@ describe('dispatch — the shared method table', () => {
     )) as RunResult & { version: number };
     expect(run.version).toBe(1);
     expect(run.status).toBe('success');
+  });
+
+  it('run_deployed keeps the run with its input and its record, and serves no record', async () => {
+    const base = dispatchStore();
+    const recordRun = vi.fn(
+      (...args: Parameters<NonNullable<DispatchStore['recordRun']>>) =>
+        base.recordRun!(...args),
+    );
+    const store: DispatchStore = { ...base, recordRun };
+    await deployedExample(store);
+
+    const run = (await dispatch(
+      'run_deployed',
+      { name: 'order-report', input: DOC_EXAMPLE.input },
+      { store },
+    )) as RunResult & { version: number };
+    expect(run.status).toBe('success');
+    expect(run).not.toHaveProperty('record');
+    const kept = recordRun.mock.calls[0]?.[4];
+    expect(kept?.input).toEqual(DOC_EXAMPLE.input);
+    const paths = kept?.nodeRuns.map((row) => row.record.key.path) ?? [];
+    expect(paths[0]).toBe('__start');
+    expect(paths.at(-1)).toBe('__end');
+    expect(paths).toEqual(
+      expect.arrayContaining(
+        (DOC_EXAMPLE.automation as Automation).nodes.map((node) => node.id),
+      ),
+    );
   });
 
   it('run_deployed with live enabled and no connector host hands the run to the durable runner, never to the mocks', async () => {
@@ -260,8 +312,9 @@ describe('dispatch — the shared method table', () => {
     const store: DispatchStore = {
       ...base,
       startRun: async () => {
-        throw new Error(
-          'Role "member" lacks the developer-settings capability',
+        throw Object.assign(
+          new Error('Role "member" lacks the developer-settings capability'),
+          { name: 'ActorAuthError', code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
         );
       },
     };
@@ -300,7 +353,7 @@ describe('dispatch — the shared method table', () => {
     expect(result.hint).toContain('run_deployed');
   });
 
-  it('the deploy gate refuses a version whose tests fail', async () => {
+  it('the deploy gate refuses a version whose tests fail [AUTO-R4]', async () => {
     const store = dispatchStore();
     const broken: Automation = {
       version: 1,
@@ -356,6 +409,33 @@ describe('dispatch — the shared method table', () => {
       { store },
     )) as { ok?: boolean };
     expect(result.ok).toBe(true);
+  });
+
+  it('set_trigger records a schedule given as a repeat rule, and refuses one with both or neither', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    const set = async (trigger: Record<string, unknown>) =>
+      (await dispatch(
+        'set_trigger',
+        { name: 'order-report', trigger },
+        { store },
+      )) as { ok?: boolean; error?: string };
+    const repeat = { frequency: 'daily', interval: 1, times: ['09:00'] };
+    expect(
+      await set({ kind: 'schedule', repeat, timezone: 'Europe/Zurich' }),
+    ).toMatchObject({ ok: true });
+    const listed = (await dispatch(
+      'list_triggers',
+      { name: 'order-report' },
+      { store },
+    )) as { triggers?: { repeat?: unknown }[] };
+    expect(listed.triggers?.[0]?.repeat).toEqual(repeat);
+    expect(
+      (await set({ kind: 'schedule', repeat, cron: '0 9 * * *' })).error,
+    ).toContain('a repeat rule or a cron expression, not both');
+    expect((await set({ kind: 'schedule' })).error).toContain(
+      'a repeat rule or a cron expression',
+    );
   });
 
   it('set_trigger refuses the retired api-key kind', async () => {
@@ -579,10 +659,21 @@ describe('dispatch — run and trigger management', () => {
     const result = (await dispatch(
       'start_run',
       { name: 'order-report' },
-      { store },
+      { store, allowLive: true },
     )) as { error?: string; hint?: string };
     expect(result.error).toContain('has no version to run');
     expect(result.hint).toContain('deploy_automation');
+  });
+
+  it('start_run on the mocks refuses an automation nothing was saved under', async () => {
+    const store = dispatchStore();
+    const result = (await dispatch(
+      'start_run',
+      { name: 'order-report', mode: 'mock' },
+      { store },
+    )) as { code?: string; hint?: string };
+    expect(result.code).toBe('AUTOMATION_NOT_FOUND');
+    expect(result.hint).toContain('list_automations');
   });
 
   it('get_run and cancel_run answer for an unknown run instead of throwing', async () => {
@@ -759,11 +850,15 @@ describe('automation names are "/"-separated slug paths', () => {
       },
       { store },
     );
-    // The example document carries tests, so the save records their run.
+    // The example document carries tests, so the save records their run;
+    // it keeps no warning.
     expect(saved).toEqual({
       name: 'billing/dunning-reminder',
       version: 1,
       testsPassed: true,
+      warnings: [],
+      carried: [],
+      baseVersionChecked: false,
     });
 
     const read = (await dispatch(
@@ -789,8 +884,9 @@ describe('automation names are "/"-separated slug paths', () => {
   it("the host's own refusal on save comes back as data, not a throw", async () => {
     const store = dispatchStore();
     store.save = async () => {
-      throw new Error(
-        '"runs/nightly" starts with a word the platform reserves',
+      throw Object.assign(
+        new Error('"runs/nightly" starts with a word the platform reserves'),
+        { code: 'AUTOMATION_NAME_RESERVED', status: 400 },
       );
     };
     const result = await dispatch(
@@ -798,8 +894,9 @@ describe('automation names are "/"-separated slug paths', () => {
       { automation: { ...DOC_EXAMPLE.automation, name: 'runs/nightly' } },
       { store },
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       error: '"runs/nightly" starts with a word the platform reserves',
+      code: 'AUTOMATION_NAME_RESERVED',
     });
   });
 });
@@ -825,5 +922,183 @@ describe('hints point where the answer lives', () => {
         hint: expect.stringContaining(method),
       });
     }
+  });
+});
+
+/**
+ * What a validation answers beyond its verdict: every issue says where it is
+ * and what its sentence is built from, `validate_automation` adds the flow
+ * analysis and the types, and a save hands back the warnings a document
+ * keeps — the facts an agent reads instead of parsing English.
+ */
+describe('dispatch — validation results carry the analysis', () => {
+  interface Validation {
+    valid: boolean;
+    errors: Issue[];
+    warnings: Issue[];
+    analysis?: {
+      version: number;
+      nodes: Record<string, { reachable: boolean; maySkip: unknown[] }>;
+      paths: { count: number; truncated: boolean };
+    };
+    types?: { nodes: Record<string, { ts: string }> };
+  }
+
+  it('validate_automation answers the analysis and the types', async () => {
+    const result = (await dispatch(
+      'validate_automation',
+      { automation: DOC_EXAMPLE.automation },
+      { store: dispatchStore() },
+    )) as Validation;
+    expect(result.valid).toBe(true);
+    expect(result.analysis?.version).toBe(1);
+    // `summary` runs only when its condition holds; its elseOf partner
+    // covers the other runs.
+    expect(result.analysis?.nodes.summary?.reachable).toBe(true);
+    expect(result.analysis?.nodes.summary?.maySkip).toContainEqual(
+      expect.objectContaining({ reason: 'when' }),
+    );
+    expect(result.analysis?.paths).toMatchObject({
+      count: 2,
+      truncated: false,
+    });
+    expect(result.types?.nodes.calc?.ts).toContain('count');
+  });
+
+  it('every issue says where it is and what its sentence is built from', async () => {
+    const result = (await dispatch(
+      'validate_automation',
+      {
+        automation: {
+          version: 1,
+          name: 'typo',
+          nodes: [
+            { id: 'calc', type: 'transform', code: 'return { n: 1 };' },
+            {
+              id: 'use',
+              type: 'transform',
+              input: { v: '{{ nodes.calc.output.m }}' },
+              code: 'return input.v;',
+            },
+          ],
+          output: '{{ nodes.use.output }}',
+        },
+      },
+      { store: dispatchStore() },
+    )) as Validation;
+    const issue = result.warnings.find((w) => w.code === 'REF_UNKNOWN_FIELD');
+    expect(issue).toMatchObject({
+      nodeId: 'use',
+      at: { pointer: '/nodes/1/input/v', range: [3, 22] },
+      params: { source: 'calc', key: 'm', known: ['n'] },
+    });
+  });
+
+  it('validate_automation returns only the detail a host asks for', async () => {
+    const analysisOnly = (await dispatch(
+      'validate_automation',
+      { automation: DOC_EXAMPLE.automation, detail: ['analysis'] },
+      { store: dispatchStore() },
+    )) as Validation;
+    expect(analysisOnly.analysis).toBeDefined();
+    expect(analysisOnly).not.toHaveProperty('types');
+
+    const issuesOnly = (await dispatch(
+      'validate_automation',
+      { automation: DOC_EXAMPLE.automation, detail: [] },
+      { store: dispatchStore() },
+    )) as Validation;
+    expect(Object.keys(issuesOnly).sort()).toEqual([
+      'errors',
+      'valid',
+      'warnings',
+    ]);
+
+    expect(
+      await dispatch(
+        'validate_automation',
+        { automation: DOC_EXAMPLE.automation, detail: ['everything'] },
+        { store: dispatchStore() },
+      ),
+    ).toMatchObject({ code: 'INVALID_PARAMS', hint: expect.any(String) });
+  });
+
+  it('save_automation answers the warnings the saved version keeps', async () => {
+    const { version: _version, ...unversioned } = DOC_EXAMPLE.automation;
+    const saved = (await dispatch(
+      'save_automation',
+      { automation: unversioned },
+      { store: dispatchStore() },
+    )) as { name: string; version: number; warnings: Issue[] };
+    expect(saved).toMatchObject({ name: 'order-report', version: 1 });
+    expect(saved.warnings.map((w) => w.code)).toEqual(['VERSION_MISSING']);
+
+    const clean = (await dispatch(
+      'save_automation',
+      { automation: DOC_EXAMPLE.automation },
+      { store: dispatchStore() },
+    )) as { warnings: Issue[] };
+    expect(clean.warnings).toEqual([]);
+  });
+
+  it('a refused save names its warnings beside its errors', async () => {
+    const refused = (await dispatch(
+      'save_automation',
+      {
+        automation: {
+          name: 'half-done',
+          nodes: [{ id: 'a', type: 'transform' }],
+        },
+      },
+      { store: dispatchStore() },
+    )) as { code: string; errors: Issue[]; warnings: Issue[] };
+    expect(refused.code).toBe('AUTOMATION_INVALID');
+    expect(refused.errors.map((e) => e.code)).toContain('NODE_MISSING_FIELD');
+    expect(refused.warnings.map((w) => w.code)).toContain('VERSION_MISSING');
+  });
+
+  it('get_catalog gives a capability its output as a JSON Schema', async () => {
+    registerNodeType({
+      type: 'probe.lookup',
+      kind: 'connector',
+      outputKind: 'structured',
+      description: 'test connector: look rows up',
+      allowedFields: ['input'],
+      requiredFields: ['input'],
+      connector: {
+        name: 'probe.lookup',
+        description: 'look rows up',
+        inputSchema: { type: 'object', properties: {} },
+        outputSignature: '{ rows: Array<{ id: string }>, more?: boolean }',
+        hasEffect: false,
+        mock: () => ({ rows: [] }),
+      },
+    });
+    const full = (await dispatch(
+      'get_catalog',
+      { kind: 'connector' },
+      { store: bareStore() },
+    )) as { node_types: Array<Record<string, unknown>> };
+    const probe = full.node_types.find((t) => t.type === 'probe.lookup');
+    expect(probe).toMatchObject({
+      output: '{ rows: Array<{ id: string }>, more?: boolean }',
+      outputSchema: {
+        type: 'object',
+        properties: {
+          rows: { type: 'array', items: { type: 'object' } },
+          more: { type: 'boolean' },
+        },
+        required: ['rows'],
+      },
+    });
+
+    const compact = (await dispatch(
+      'get_catalog',
+      { kind: 'connector', compact: true },
+      { store: bareStore() },
+    )) as { node_types: Array<Record<string, unknown>> };
+    expect(
+      compact.node_types.find((t) => t.type === 'probe.lookup'),
+    ).not.toHaveProperty('outputSchema');
   });
 });

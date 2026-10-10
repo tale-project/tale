@@ -7,6 +7,4 @@
 # across files, enum-driven dispatch, etc.) — or when a static key is consumed
 # from outside this service's scanned source tree.
 
-entries:
-  # Three guide-map steps resolved from PROGRESSION in home-page.tsx.
-  - 'home.map'
+entries: []

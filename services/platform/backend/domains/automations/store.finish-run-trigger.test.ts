@@ -11,6 +11,11 @@
  * of any trigger row, here as in an event dispatch, so a finish and a
  * producer stamping the same trigger queue on the chain instead of
  * deadlocking (`trigger-lock-order.integration.ts` proves it on Postgres).
+ *
+ * The terminal write itself is ONE statement fenced by the walker's epoch
+ * and a live status, so a stop that committed first wins: the finish then
+ * changes nothing and writes nothing else — no audit row, no trigger
+ * outcome, no second close of what the stop already closed.
  */
 
 import type { Sql } from 'postgres';
@@ -33,7 +38,13 @@ interface Statement {
   inTx: boolean;
 }
 
-function fakeSql(row: Record<string, unknown>): {
+/** `fenced`: whether the fenced terminal write matches nothing — by default
+ * when the run already ended; a superseded claim on a live run is the other
+ * case. */
+function fakeSql(
+  row: Record<string, unknown>,
+  fenced = !['queued', 'running', 'waiting'].includes(String(row.status)),
+): {
   sql: Sql;
   statements: Statement[];
 } {
@@ -45,6 +56,11 @@ function fakeSql(row: Record<string, unknown>): {
   ): Promise<unknown[]> => {
     const text = strings.join('?');
     statements.push({ text, values, inTx: depth > 0 });
+    // The terminal write is fenced by a live status: a run that already
+    // landed matches nothing, and the read after it says why.
+    if (text.includes('UPDATE app.automation_runs')) {
+      return Promise.resolve(fenced ? [] : [row]);
+    }
     return Promise.resolve(
       text.includes('FROM app.automation_runs') ? [row] : [],
     );
@@ -178,7 +194,7 @@ describe('finishRun — the trigger failure streak', () => {
     expect(hints[0]?.inTx).toBe(true);
   });
 
-  it('leaves triggers alone for a mock run', async () => {
+  it('leaves triggers alone for a mock run [AUTO-R13]', async () => {
     const fake = fakeSql(runRow({ mode: 'mock', startedBy: 'user:u_1' }));
     await finish(fake.sql);
     expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
@@ -187,6 +203,44 @@ describe('finishRun — the trigger failure streak', () => {
   it('leaves triggers alone when the run already landed', async () => {
     const fake = fakeSql(runRow({ status: 'failed' }));
     await expect(finish(fake.sql)).resolves.toEqual({ status: 'failed' });
+    expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
+  });
+});
+
+describe('finishRun — a stop that committed first wins', () => {
+  it('lands nothing and writes nothing else once the run was stopped [AUTO-R17]', async () => {
+    // Ada pressed Stop as the last step finished: the cancel committed, and
+    // the walker's finish arrives second.
+    const fake = fakeSql(runRow({ status: 'cancelled' }));
+    await expect(finish(fake.sql, { status: 'success' })).resolves.toEqual({
+      status: 'cancelled',
+    });
+    const [setup, write] = fake.statements;
+    expect(setup?.text).toContain(
+      "set_config('tale.automation_writer_protocol'",
+    );
+    expect(write?.text).toContain('UPDATE app.automation_runs');
+    expect(write?.text).toContain('AND claim_epoch = ?');
+    expect(write?.text).toContain(
+      "AND status IN ('queued', 'running', 'waiting')",
+    );
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
+    // Protocol setup, the fenced write and the read that explains it: no
+    // session stop, approval or question closed, or hint.
+    expect(fake.statements.map((s) => s.text.trim().split(/\s+/)[0])).toEqual([
+      'SELECT',
+      'UPDATE',
+      'SELECT',
+    ]);
+  });
+
+  it('answers stale to a walker whose claim was superseded, and lands nothing', async () => {
+    // Another walker claimed the run after this one: the row is live under
+    // a newer epoch.
+    const fake = fakeSql(runRow({ claimEpoch: 2 }), true);
+    await expect(finish(fake.sql)).resolves.toEqual({ status: 'stale' });
+    expect(createAuditLog).not.toHaveBeenCalled();
     expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
   });
 });

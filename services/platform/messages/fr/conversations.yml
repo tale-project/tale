@@ -1,0 +1,255 @@
+availabilityError: Impossible de vérifier les sources de ta boîte de réception. Réessaie pour actualiser sa disponibilité.
+title: Boîte de réception
+unknownContact: Contact inconnu
+messagePlaceholder: Saisis un message
+searchPlaceholder: Rechercher dans les conversations
+suggestEditsPlaceholder: Suggère des modifications au texte (optionnel)
+fallbackImageAttachment: Pièce jointe image
+fallbackAttachment: Pièce jointe
+status:
+  open: Ouvert
+  closed: Fermé
+  spam: Spam
+  archived: Archivé
+improvement:
+  title: Aperçu de l'amélioration du message
+  description: Examine la version améliorée par l'IA et accepte ou rejette les
+    modifications
+  original: Original
+  improved: Amélioré
+  reject: Rejeter
+  accept: Accepter les modifications
+bulkSend:
+  title: Envoyer {count, plural, one {# message} other {# messages}}
+  description:
+    Tu es sur le point d'envoyer des réponses pour {count, plural, one
+    {# conversation} other {# conversations}}. Cette action est irréversible.
+  messageLabel: Message
+  messagePlaceholder: Saisis ta réponse...
+  send: Envoyer
+compose:
+  compose: Rédiger
+  newEmail: Nouvel e-mail
+  title: Nouvel e-mail
+  description: Démarre une nouvelle conversation par e-mail avec un contact.
+  to: À
+  toPlaceholder: Sélectionne un contact
+  searchContacts: Rechercher des contacts
+  contactsLoading: Chargement des contacts…
+  noContacts: Aucun contact avec une adresse e-mail pour l'instant
+  noContactsFound: Aucun contact ne correspond à « {query} »
+  noContactsFoundAddHint: Aucun contact ne correspond à « {query} ». Saisis
+    une adresse e-mail complète pour ajouter un nouveau contact.
+  addContact: Ajouter « {email} » comme contact
+  contactExistsSelected: Déjà un contact — sélectionné
+  inboxLabel: Boîte
+  inboxPlaceholder: Sélectionne une boîte
+  fromLabel: Expéditeur
+  fromDomainHint: N'importe quelle adresse sur {domain}
+  fromLocalPlaceholder: support
+  from: 'Expéditeur : {from}'
+  noEmailConnectorTitle: Envoi pas encore possible
+  noEmailConnector: Connecte une boîte e-mail sous Paramètres > Connectors.
+  noEmailConnectorAskAdmin: Demande à un admin de l'organisation de connecter
+    une boîte e-mail avant de pouvoir envoyer.
+  emailConnectorReadErrorTitle: Connexion e-mail indisponible
+  emailConnectorReadError: Nous n'avons pas pu charger tes connexions e-mail. Ton
+    brouillon est conservé. Réessaie.
+  retryEmailConnectorRead: Réessayer
+  openConnectorSettings: Ouvrir les paramètres des connectors
+  subject: Objet
+  subjectPlaceholder: De quoi s'agit-il ?
+  assignLabel: Responsable
+  assignPlaceholder: Choisir une personne ou une équipe
+  assignSearch: Rechercher des personnes et des équipes
+  assignYou: Toi
+  bodyPlaceholder: Écris ton message…
+  fillRequired: Choisis un contact, une boîte et un objet pour envoyer.
+  discard: Supprimer
+  discardConfirm:
+    title: Supprimer le brouillon ?
+    description:
+      Ce brouillon d'e-mail sera définitivement supprimé. Cette action
+      est irréversible.
+  sent: E-mail envoyé
+  sending: Envoi en cours… Le brouillon est verrouillé jusqu'à la fin de l'envoi.
+updating: Mise à jour des conversations...
+bulk:
+  progress: 'Mise à jour des conversations... {settled} sur {total}'
+  outcomeWithReason: '{outcome} — {reason}'
+  sendMessages: Envoyer les messages
+  close: Fermer
+  reopen: Rouvrir
+  messagesSent: Messages envoyés
+  messagesSentDescription: '{successCount} messages envoyés{failedCount, plural, =0 {} other {, {failedCount} échoués}}'
+  sendFailed: Échec de l'envoi des messages
+  resolved: Conversations résolues
+  resolvedDescription: '{successCount} conversations résolues avec
+    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  resolveFailed: Échec de la résolution des conversations
+  reopened: Conversations rouvertes
+  reopenedDescription: '{successCount} conversations rouvertes avec
+    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  reopenFailed: Échec de la réouverture des conversations
+  selectedCount: '{count, plural, one {# sélectionné} other {# sélectionnés}}'
+  archive: Archiver
+  unarchive: Désarchiver
+  archived: Conversations archivées
+  archivedDescription: '{successCount} conversations archivées avec
+    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  archiveFailed: Échec de l'archivage des conversations
+  unarchived: Conversations désarchivées
+  unarchivedDescription: '{successCount} conversations désarchivées avec
+    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  unarchiveFailed: Échec du désarchivage des conversations
+  markSpam: Marquer comme spam
+  markedAsSpam: Conversations marquées comme spam
+  markedAsSpamDescription:
+    '{successCount} conversations marquées comme spam avec
+    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  spamFailed: Échec du marquage des conversations comme spam
+header:
+  moreActions: Plus d'actions
+  copyLink: Copier le lien
+  linkCopied: Lien copié
+  contactInfo: Informations contact
+  closeConversation: Fermer la conversation
+  closing: Fermeture...
+  reopenConversation: Rouvrir la conversation
+  reopening: Réouverture...
+  markAsSpam: Marquer comme spam
+  markingAsSpam: Marquage comme spam...
+  assignee: Responsable
+  assign: Assigner
+  assignedTo: Attribué à {name}
+  unassign: Retirer l'attribution
+  assignError: Impossible de mettre à jour le responsable
+  inboxSource: 'Boîte de réception : {inbox}'
+  toast:
+    closed: Conversation fermée
+    closeFailed: Impossible de fermer la conversation — réessaie.
+    reopened: La conversation a été rouverte avec succès.
+    reopenFailed:
+      Une erreur inattendue s'est produite lors de la réouverture de la
+      conversation.
+    markedAsSpam: La conversation a été marquée comme spam avec succès.
+    markAsSpamFailed:
+      Une erreur inattendue s'est produite lors du marquage de la
+      conversation comme spam.
+  assignedTeam: Équipe
+  assignedToTeam: Assignée à {name}
+  unassignTeam: Retirer l'équipe
+  reclickToUnassign: Choisis à nouveau pour retirer l'attribution
+  peopleSection: Personnes
+  teamsSection: Équipe
+  assignSearchAll: Rechercher des personnes et des équipes
+  noAssignees: Aucune personne ou équipe trouvée
+  autoAssignSettings: Assignation auto
+  apiSource: 'API : {source}'
+  apiSourceShort: API
+  replyVia: 'La réponse part via {source}'
+  replyViaApi: 'La réponse repart via {source}'
+  replyViaUnknown: Cette conversation n'a aucun canal pour répondre
+editor:
+  noContent: Aucun contenu à améliorer
+  improveFailed: Impossible d'améliorer le contenu. Réessaie.
+  improveUnavailable: Aucun fournisseur d'IA ne peut encore réécrire les messages — connecte-en un dans Paramètres › Fournisseurs d'IA.
+  improveLimitReached: Limite d'utilisation atteinte
+  improveLimitReachedDescription: Une limite d'utilisation qui s'applique à toi a été atteinte. Tu peux voir dans Paramètres > Utilisation quand elle sera réinitialisée, et ton administrateur peut l'augmenter.
+  improveNoModelAccess: Aucun des modèles qui pourraient réécrire ce message ne t'est ouvert. Un admin peut en autoriser un sous Paramètres → Gouvernance → Modèles → Accès aux modèles.
+  sendFailed: Impossible d'envoyer le message. Réessaie.
+  backToEditor: Retour à l'éditeur
+  improving: Amélioration...
+  improveWithAi: Améliorer avec l'IA
+  generateImprovement: Générer une amélioration
+  replyImproved: Réponse améliorée
+  attachFile: Joindre un fichier
+  send: Envoyer le message
+attachment:
+  download: Télécharger
+  unavailable: Plus disponible
+  attachments: '{count, plural, one {# pièce jointe} other {# pièces jointes}}'
+panel:
+  uploadFailed: Impossible de téléverser les pièces jointes. Réessaie.
+  noSelected: Aucune conversation sélectionnée
+  selectToView: Sélectionne une conversation pour voir les détails
+  notFound: Conversation introuvable
+  noMessages: Aucun message pour l'instant
+  invalidFileAttachment: Pièce jointe de fichier invalide
+  contactEmailNotFound: "Impossible d'envoyer l'email : adresse email du contact introuvable"
+  loadFailed: Échec du chargement de la conversation
+  loadFailedDescription: Une erreur s'est produite lors du chargement de cette conversation.
+  tryAgain: Réessayer
+  closedBanner: Cette conversation a été fermée le {date}
+  closedBannerNoDate: Cette conversation a été fermée
+  archivedBanner: Cette conversation a été archivée
+  spamBanner: Cette conversation a été marquée comme spam
+  unarchive: Désarchiver
+  notSpam: Pas du spam
+  delete: Supprimer
+  deleting: Suppression...
+  deleteSuccess: Conversation supprimée avec succès.
+  deleteFailed: Échec de la suppression de la conversation.
+  showEarlierMessages: Afficher {count} {count, plural, one {message} other
+    {messages}} précédent(s)
+  undoSendFailed: Impossible d'annuler l'envoi — le message est peut-être déjà parti.
+  retrySendFailed: Impossible de relancer l'envoi.
+  discardMessageFailed: Impossible de supprimer le message.
+suggestedReply:
+  title: Réponse suggérée
+  description: Rédigée par une automatisation et en attente de ta décision — rien n’a été envoyé.
+  use: Mettre dans l’éditeur
+  discard: Ignorer
+  used: La suggestion est dans l’éditeur. Modifie-la à ta guise ; l’envoi la clôt.
+  discardFailed: Impossible d’ignorer la suggestion.
+message:
+  sendingIn: Envoi dans {seconds}s
+  undoSend: Annuler
+  notDelivered: Non remis
+  retrySend: Réessayer
+  discard: Supprimer
+list:
+  empty: Aucune conversation dans cet onglet
+  loadFailed: Échec du chargement des conversations
+  loadFailedDescription: Une erreur s'est produite lors du chargement de ces conversations.
+activate:
+  title: Aucune conversation pour le moment
+  description: Les conversations entrantes de vos canaux connectés apparaîtront ici.
+  noAutomationTitle: Configure ta boîte de réception
+  noAutomationDescription:
+    Installe une automatisation e-mail (Gmail, Outlook ou
+    IMAP) pour commencer à lire et à répondre aux conversations ici.
+  composeNotice: Pour écrire à {name}, installe d'abord une automatisation e-mail.
+  composeNoticeReader: Tu pourras écrire à {name} dès qu’une automatisation e-mail sera en service.
+  browseAutomations: Parcourir les automatisations
+  noAutomationReaderDescription:
+    Dès qu’une personne ayant le rôle Propriétaire, Admin ou Développeur met
+    en service une automatisation e-mail (Gmail, Outlook ou IMAP), tu peux
+    lire les conversations et y répondre ici.
+filter:
+  all: Tous
+  read: Lus
+  unread: Non lus
+  readStatus: Statut de lecture
+  channel: Canal
+  allChannels: Tous les canaux
+  mailboxInactive: '{name} (inactive)'
+  assignee: Responsable
+  assigneeMe: Assignées à moi
+  assigneeMyTeams: Mes équipes
+  assigneeUnassigned: Non assignées
+  assigneePeople: Personnes
+  assigneeTeams: Équipes
+  assigneeUnknownPerson: Personne inconnue
+queue:
+  unknownTeam: Équipe inconnue
+category:
+  churnSurvey: Enquête de désabonnement
+  productRecommendation: Recommandation de produit
+  serviceRequest: Demande de service
+priority:
+  high: Haute
+  low: Basse
+  medium: Moyenne
+history:
+  loadingMore: Recherche d'autres conversations…

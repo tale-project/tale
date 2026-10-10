@@ -62,6 +62,15 @@ export interface UsageTopVoiceModel {
   costCents: number;
 }
 
+/** An API key that is not a person, booking under its own identity
+ * (`domains/api_keys/owners.ts`): the team, project or organization it
+ * belongs to. */
+export interface UsageApiKeyIdentity {
+  kind: 'team' | 'project' | 'organization';
+  teamName: string | null;
+  projectName: string | null;
+}
+
 export interface UsageUserRow {
   userId: string;
   displayName: string;
@@ -71,6 +80,8 @@ export interface UsageUserRow {
   tokens: number;
   costCents: number;
   requests: number;
+  /** Set when the row is an API key's own identity, not a person. */
+  apiKey?: UsageApiKeyIdentity;
 }
 
 export interface UsageSummary {
@@ -122,8 +133,9 @@ function buildWindowKeys(
   return keys;
 }
 
-/** One ledger row as the fold consumes it — the 0.4 doc's fold-relevant
- * fields, host-neutral so the 0.5 backend can feed SQL rows. */
+/** A daily ledger row or SQL aggregate as the fold consumes it. Aggregates
+ * must keep reporting windows and chart buckets separate; periodKey is a
+ * representative daily key inside both. Fields stay host-neutral. */
 export interface UsageLedgerFoldRow {
   userId: string;
   teamId?: string;
@@ -146,17 +158,9 @@ export function scanStartKeyFor(
   args: Pick<GetOrgUsageMetricsArgs, 'granularity' | 'periodDays'>,
   now: number,
 ): string {
-  const seen = new Set<string>();
-  let first: string | null = null;
-  for (let i = args.periodDays * 2 - 1; i >= args.periodDays; i--) {
-    const key = buildPeriodKeyFromTimestamp(args.granularity, now - i * DAY_MS);
-    if (!seen.has(key)) {
-      seen.add(key);
-      first ??= key;
-    }
-  }
-  return (
-    first ?? buildWindowKeys(args.granularity, args.periodDays, now)[0] ?? ''
+  return buildPeriodKeyFromTimestamp(
+    'daily',
+    now - (args.periodDays * 2 - 1) * DAY_MS,
   );
 }
 
@@ -168,26 +172,20 @@ export async function foldOrgUsageMetrics(
   now: number,
   resolveUserNames: (userIds: string[]) => Promise<Map<string, string>>,
   resolveAgentNames?: (agentSlugs: string[]) => Promise<Map<string, string>>,
+  /** Which of the subjects are API keys rather than people: no active user,
+   * and a row the table labels as a key. */
+  resolveApiKeyIdentities?: (
+    userIds: string[],
+  ) => Promise<Map<string, UsageApiKeyIdentity>>,
 ): Promise<OrgUsageMetrics> {
   const windowKeys = buildWindowKeys(args.granularity, args.periodDays, now);
 
-  // Prior equal-length window keys, for period-over-period deltas. We widen the
-  // ledger scan back to this window's start and bucket those rows separately.
-  const prevKeys: string[] = [];
-  {
-    const seen = new Set<string>();
-    for (let i = args.periodDays * 2 - 1; i >= args.periodDays; i--) {
-      const key = buildPeriodKeyFromTimestamp(
-        args.granularity,
-        now - i * DAY_MS,
-      );
-      if (!seen.has(key)) {
-        seen.add(key);
-        prevKeys.push(key);
-      }
-    }
-  }
-  const prevKeySet = new Set(prevKeys);
+  // Reporting windows use daily keys. SQL aggregates carry a representative
+  // key after splitting windows and chart buckets; raw rows are grouped here.
+  const currentKeySet = new Set(buildWindowKeys('daily', args.periodDays, now));
+  const prevKeySet = new Set(
+    buildWindowKeys('daily', args.periodDays, now - args.periodDays * DAY_MS),
+  );
 
   let prevTotalRequests = 0;
   let prevTotalTokens = 0;
@@ -246,42 +244,52 @@ export async function foldOrgUsageMetrics(
     // (`user:<id>`, `api-key:<id>`, `trigger:<id>`); they are the same
     // member's spend (or the automation bucket's) and fold onto one row.
     const subjectId = usageLedgerSubject(row.userId);
+    // Classify by schema discriminator (connectorName / audioDurationSec /
+    // model) so connector and transcription rows route to their own buckets
+    // instead of collapsing under the LLM "Direct API" sentinel.
+    const kind = classifyUsageRow(row);
+    // A connector call is counted as one, never as a model request: rows
+    // booked before that rule carry a request, and fold to none like the
+    // rest, as the request caps read them.
+    const requests = kind === 'connector' ? 0 : row.requestCount;
 
-    const seriesPoint = seriesMap.get(row.periodKey);
-    if (!seriesPoint) {
+    if (!currentKeySet.has(row.periodKey)) {
       // Rows outside the current window but inside the prior one feed deltas.
       if (prevKeySet.has(row.periodKey)) {
-        prevTotalRequests += row.requestCount;
+        prevTotalRequests += requests;
         prevTotalTokens += row.totalTokens;
         prevTotalCostCents += row.costEstimate;
-        if (row.requestCount > 0 && !isAutomationSubject(subjectId)) {
+        if (requests > 0 && !isAutomationSubject(subjectId)) {
           prevActiveUserIds.add(subjectId);
         }
       }
       continue;
     }
 
-    seriesPoint.requests += row.requestCount;
+    const chartKey = buildPeriodKeyFromTimestamp(
+      args.granularity,
+      Date.parse(`${row.periodKey}T00:00:00Z`),
+    );
+    const seriesPoint = seriesMap.get(chartKey);
+    if (!seriesPoint) continue;
+
+    seriesPoint.requests += requests;
     seriesPoint.inputTokens += row.inputTokens;
     seriesPoint.outputTokens += row.outputTokens;
     seriesPoint.tokens += row.totalTokens;
     seriesPoint.costCents += row.costEstimate;
 
-    totalRequests += row.requestCount;
+    totalRequests += requests;
     totalInputTokens += row.inputTokens;
     totalOutputTokens += row.outputTokens;
     totalTokens += row.totalTokens;
     totalCostCents += row.costEstimate;
     // The automation sentinel is a bucket, not a member — it holds the spend
     // of trigger-started runs and never counts as an active user.
-    if (row.requestCount > 0 && !isAutomationSubject(subjectId)) {
+    if (requests > 0 && !isAutomationSubject(subjectId)) {
       activeUserIds.add(subjectId);
     }
 
-    // Classify by schema discriminator (connectorName / audioDurationSec /
-    // model) so connector and transcription rows route to their own buckets
-    // instead of collapsing under the LLM "Direct API" sentinel.
-    const kind = classifyUsageRow(row);
     const agentSlugForBucket = bucketAgentSlug(row, kind);
     let agentBucket = agentBuckets.get(agentSlugForBucket);
     if (!agentBucket) {
@@ -293,7 +301,7 @@ export async function foldOrgUsageMetrics(
       };
       agentBuckets.set(agentSlugForBucket, agentBucket);
     }
-    agentBucket.requests += row.requestCount;
+    agentBucket.requests += requests;
     agentBucket.tokens += row.totalTokens;
     agentBucket.costCents += row.costEstimate;
 
@@ -318,7 +326,7 @@ export async function foldOrgUsageMetrics(
         };
         modelBuckets.set(modelKey, modelBucket);
       }
-      modelBucket.requests += row.requestCount;
+      modelBucket.requests += requests;
       modelBucket.tokens += row.totalTokens;
       modelBucket.costCents += row.costEstimate;
     }
@@ -343,7 +351,7 @@ export async function foldOrgUsageMetrics(
         };
         voiceModelBuckets.set(voiceKey, voiceBucket);
       }
-      voiceBucket.requests += row.requestCount;
+      voiceBucket.requests += requests;
       voiceBucket.characters += row.characterCount ?? 0;
       voiceBucket.costCents += row.costEstimate;
     }
@@ -368,7 +376,7 @@ export async function foldOrgUsageMetrics(
     userBucket.outputTokens += row.outputTokens;
     userBucket.tokens += row.totalTokens;
     userBucket.costCents += row.costEstimate;
-    userBucket.requests += row.requestCount;
+    userBucket.requests += requests;
   }
 
   // Sort by cost descending — it's the only metric that compares fairly across
@@ -424,16 +432,37 @@ export async function foldOrgUsageMetrics(
       a.userId.localeCompare(b.userId),
   );
   const userNameMap = await resolveUserNames(sortedUsers.map((u) => u.userId));
-  const users: UsageUserRow[] = sortedUsers.map((u) => ({
-    userId: u.userId,
-    displayName: userNameMap.get(u.userId) ?? u.userId,
-    teamId: u.teamId,
-    inputTokens: u.inputTokens,
-    outputTokens: u.outputTokens,
-    tokens: u.tokens,
-    costCents: u.costCents,
-    requests: u.requests,
-  }));
+  // A key that is not a person spends under an identity of its own: it is no
+  // active user, and its row says which team, project or organization it
+  // belongs to.
+  const apiKeyIdentities =
+    resolveApiKeyIdentities === undefined
+      ? new Map<string, UsageApiKeyIdentity>()
+      : await resolveApiKeyIdentities([
+          ...new Set([
+            ...sortedUsers.map((u) => u.userId),
+            ...prevActiveUserIds,
+          ]),
+        ]);
+  for (const identity of apiKeyIdentities.keys()) {
+    activeUserIds.delete(identity);
+    prevActiveUserIds.delete(identity);
+  }
+  const users: UsageUserRow[] = sortedUsers.map((u) => {
+    const row: UsageUserRow = {
+      userId: u.userId,
+      displayName: userNameMap.get(u.userId) ?? u.userId,
+      teamId: u.teamId,
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      tokens: u.tokens,
+      costCents: u.costCents,
+      requests: u.requests,
+    };
+    const apiKey = apiKeyIdentities.get(u.userId);
+    if (apiKey !== undefined) row.apiKey = apiKey;
+    return row;
+  });
 
   return {
     summary: {

@@ -1,7 +1,10 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 
+import { gotoClientPage } from '../helpers/client-page';
+
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
+test.describe.configure({ mode: 'parallel' });
 
 const demoFields = {
   connect: [
@@ -17,21 +20,37 @@ const demoFields = {
     'model5',
   ],
   knowledge: ['source1', 'source2', 'source3', 'source4'],
-  arena: [
+  hero: [
     'prompt',
-    'modelA',
-    'modelB',
-    'replyA1',
-    'replyA2',
-    'replyA3',
-    'replyB1',
-    'replyB2',
-    'replyB3',
+    'routedTitle',
+    'routedDetail',
+    'reply1',
+    'reply2',
+    'reply3',
+    'reply4',
+    'citation1',
+    'citation2',
+    'composerModel',
+  ],
+  projects: [
+    'project1',
+    'project2',
+    'project3',
+    'project4',
+    'agents1',
+    'agents2',
+    'agents3',
+    'agents4',
+    'members1',
+    'members2',
+    'members3',
+    'members4',
   ],
   automation: [
     'trigger',
     'llm',
     'condition',
+    'branchYes',
     'action',
     'actionAlt',
     'run1',
@@ -90,7 +109,8 @@ const demoFields = {
 const demoChrome = {
   connect: ['statusReady'],
   knowledge: ['statusIndexed'],
-  arena: ['vs'],
+  hero: ['thought', 'inputPlaceholder'],
+  projects: ['colName', 'colAgents', 'colMembers'],
   automation: [
     'kindTrigger',
     'kindLlm',
@@ -100,8 +120,9 @@ const demoChrome = {
     'logColRun',
     'logColStatus',
     'logColDuration',
+    // The retained governance scenario has two completed runs and one running
+    // run. Awaiting approval belongs to the removed homepage scenario.
     'statusCompleted',
-    'statusAwaiting',
     'statusRunning',
   ],
   govern: ['approved', 'auditTitle', 'budgetLabel'],
@@ -160,40 +181,48 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         {
           path: '/',
           namespace: 'home',
-          demos: ['tasks', 'sandbox', 'govern'],
+          demos: ['projects', 'sandbox'],
+        },
+        {
+          path: '/platform',
+          namespace: 'platformHub',
+          demos: ['projects', 'connect'],
         },
         {
           path: '/platform/projects',
           namespace: 'platformProjects',
-          demos: ['tasks'],
+          demos: ['tasks', 'hero'],
         },
         {
           path: '/platform/agents',
           namespace: 'platformAgents',
-          demos: ['connect', 'sandbox'],
+          demos: ['projects', 'knowledge'],
         },
         {
           path: '/platform/knowledge',
           namespace: 'platformKnowledge',
-          demos: ['knowledge'],
+          demos: ['hero', 'projects'],
         },
         {
           path: '/platform/chat',
           namespace: 'platformChat',
-          demos: ['arena'],
+          demos: ['projects', 'knowledge'],
         },
         {
           path: '/platform/automations',
           namespace: 'platformAutomations',
-          demos: ['automation', 'govern'],
+          demos: ['govern', 'connect'],
         },
         {
           path: '/platform/governance',
           namespace: 'platformGovernance',
-          demos: ['govern'],
+          demos: ['automation', 'connect'],
         },
       ] as const) {
-        await page.goto(`${prefix}${route.path}`);
+        await gotoClientPage(
+          page,
+          `${prefix}${prefix && route.path === '/' ? '' : route.path}`,
+        );
         await page.evaluate(() => document.fonts.ready);
         for (const name of route.demos) {
           const key = `${route.namespace}.demos.${name}`;
@@ -204,7 +233,8 @@ for (const locale of ['en', 'de', 'fr'] as const) {
           await demo.scrollIntoViewIfNeeded();
           for (const field of demoFields[name]) {
             const labels = demo.getByText(t(`${key}.${field}`), {
-              exact: true,
+              // The routing detail shares its paragraph with the bold title.
+              exact: field !== 'routedDetail',
             });
             await expect(labels.first()).toBeVisible();
             for (const label of await labels.all()) {
@@ -261,7 +291,7 @@ test('the mobile GitHub link has a 44px touch target', async ({ page }) => {
     new URL('../../../messages/en.yml', import.meta.url),
   );
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.goto('/');
+  await gotoClientPage(page, '/');
   await page
     .getByRole('button', { name: t('nav.openMenu'), exact: true })
     .click();

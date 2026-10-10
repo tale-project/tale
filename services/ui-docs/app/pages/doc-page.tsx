@@ -15,7 +15,6 @@ import { useMemo } from 'react';
 
 import { Demo } from '@/app/components/demo/demo';
 import { expandDemoTags } from '@/app/components/demo/expand-demo-tags';
-import { UiDocsLayout } from '@/app/components/docs/ui-docs-layout';
 import { docEditUrl } from '@/lib/content/edit-url';
 import { getDocPage } from '@/lib/content/loader';
 import { firstNavSlug, navGroupTrail } from '@/lib/content/nav';
@@ -127,7 +126,7 @@ export function DocPage({ slug }: DocPageProps) {
   if (!doc) return <NotFoundPage />;
 
   return (
-    <UiDocsLayout activeHref={path}>
+    <>
       <DocsHeader
         crumbs={crumbs}
         actions={
@@ -150,6 +149,6 @@ export function DocPage({ slug }: DocPageProps) {
           {renderedBody}
         </RoutedMarkdown>
       </DocsArticle>
-    </UiDocsLayout>
+    </>
   );
 }

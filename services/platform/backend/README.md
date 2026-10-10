@@ -10,9 +10,10 @@ workspace and its build/test commands.
 
 | Area | Location |
 | --- | --- |
-| Process startup, shutdown and roles | `main.ts`, `env.ts`, `http-shutdown.ts` |
+| Process startup, shutdown and roles | `main.ts`, `env.ts`, `http-shutdown.ts`, `shutdown-sequence.ts`, `lib/shutdown.ts` |
 | Browser-facing domain routes and SQL services | `domains/` |
 | Who a billable call is booked under (the usage ledger's billing subject) | [`domains/governance/README.md`](domains/governance/README.md) |
+| What a domain guarantees, rule by rule, and the test that holds each rule | [`domains/spec-template.md`](domains/spec-template.md); every domain has its own `domains/<domain>/spec.md`, [`domains/tasks/spec.md`](domains/tasks/spec.md) being the first |
 | Public REST resources and error contracts | `rest/` |
 | Accounts, sessions, membership and native identity | `auth/` |
 | Durable jobs, schedules and queue policies | `jobs/` |
@@ -56,7 +57,10 @@ can fail before the application starts.
 | `WORKER_CONCURRENCY` | Jobs one worker process runs at once per queue, default `5` (1–64); agent turn starts get at least 8 and drive windows at least 16 per queue (`slotQueueSlots`); raise `KNOWLEDGE_DB_POOL_MAX` with it |
 | `AGENT_START_SLOTS` | Agent turn starts one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 8 (1–256) |
 | `AGENT_DRIVE_SLOTS` | Live agent turns' drive windows one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 16 (1–256); a worker drains about 2.5× this many live turns per lane before their windows wait past the recovery horizon |
+| `AUTOMATION_ORG_CONCURRENCY` | Automation steps one organization runs at once across every worker, default `8` (0–256, `0` = no limit); counted by pg-boss per job group (`queueGroupConcurrency`), so workers fetching at the same instant can briefly pass it by one or two |
+| `AUTOMATION_RUNNER_PROCESSES` | Runner processes one backend process evaluates automation code in (1–16); unset, `2` for the api and one per core but one (at most `4`) for a worker. Each starts only while the others are busy; one beyond the first stops after five idle minutes (`backend/lib/code-runner.ts`) |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
+| `SHUTDOWN_DRAIN_MS` | How long a stopping process waits for its jobs, default `15000` for `api` and `90000` for `worker` and `all` (1000–600000); keep the container's stop grace at least 15 seconds above it |
 | `SENTRY_DSN` | Optional error reporting |
 | `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | Manual HTTP and worker trace sample rate, `0` (disabled) by default, `0`–`1`; requires `SENTRY_DSN` and transaction support at the destination |
 
@@ -64,6 +68,15 @@ An `api` process serves HTTP/SSE and can enqueue work; a `worker` consumes jobs
 and runs schedules. `all` combines both for local development. Every role runs
 application migrations under the same advisory lock. Auth migrations run where
 auth is configured, and pg-boss manages its own schema when it starts.
+
+On `SIGTERM` a process first tells its work that it is stopping
+(`lib/shutdown.ts`), then closes HTTP and stops fetching jobs
+(`shutdown-sequence.ts`). A worker's automation walkers hand their runs on at
+their next step, a step still running after the grace (20 seconds, or a third of
+a shorter `SHUTDOWN_DRAIN_MS`) is cut and handed on unrecorded, and the worker
+releases any run it still holds, so another worker continues it at once. Agent
+turns' drive windows end and leave the turn to its next window. The process then
+waits out its other jobs for up to `SHUTDOWN_DRAIN_MS` and closes its pools.
 
 ## Preserve transaction and tenant boundaries
 
@@ -176,6 +189,27 @@ you need to retain. It creates users and fixtures; some probes deliberately
 revoke sessions or make storage unavailable. Reusing a previous run's state can
 invalidate the proof.
 
+The automation protocol proofs also require `CREATE DATABASE` on this disposable
+server. They create nonce-named databases, use every real pre-cutover migration
+and the normal boot migrator, and remove only their own databases after closing
+their connections. Missing privileges fail the proof; there is no fallback to an
+existing application database. They exercise old transaction snapshots, the
+actual `app_migrations` relation (including a `tale,public` search path), conditional
+held-task/evidence refusal and the CLI's installed protocol query. The retained
+legacy function fixtures are excluded from production images. Complete released
+start/resume bodies run over their original run/ask SQL, with external sandbox and
+provider ports recording requests only. A resume whose retarget already committed
+can still execute after cutover. A requested session-token expiry does not prove
+gateway-key retirement; these fixtures do not claim real credential cleanup.
+
+Protocol 2 intentionally refuses old automation execution writers during the
+first roll; this is not a claim of uninterrupted old automation compatibility.
+Ordinary old reads and canonical queued inserts remain usable. Existing unfinished
+work is quarantined with unknown outcomes, not cancelled or replayed. The one
+operator stop-request transition preserves the hold and task exclusion; it is
+not a proof of external termination. A complete restore retains both the migration
+ledger and held rows; a missing ledger cannot disable the fence.
+
 `ITEST_LANES=checkWatchdogs,checkDevSeed` runs only the named lanes — to prove one
 lane on the real schema while an unrelated earlier lane truncates the full run. The
 tally names the filter; a filtered run is never full coverage.
@@ -226,6 +260,24 @@ Prometheus request labels use a finite vocabulary of HTTP methods and mounted ap
 domains. Unknown methods and paths share fallback labels. Concurrent `/metrics`
 scrapes share one render and one round of collectors; the next scrape reads afresh.
 
+`tale_backend_automation_trigger_scan_last_success_timestamp_seconds` reads
+the database completion time of an actually executed schedule scan. It is zero
+when no verified completion exists in the last ten minutes or the read fails.
+A queued job, drain handover, failed/aborted attempt or unavailable organization
+table cannot refresh it. The stamp survives process restarts; a healthy API
+process alone does not prove that its workers are scanning.
+
+The scan runs each minute with a 120-second attempt budget and one retry. An
+external alert can allow three minutes of stamp age and five continuous
+unhealthy minutes before firing, with two healthy minutes before resolving.
+That gives bootstrap/retry grace without resetting on every process restart.
+Treat a missing series and materially future timestamp as unhealthy. Enable
+the consumer only after this producer is deployed and its advancing stamp is
+observed. The native queue retains completed jobs for seven days; the query
+uses the queue's existing `(name,id)` index and a ten-minute evidence window.
+This measures scanner execution, not individual trigger or agent success;
+per-role liveness, useful results and deliberate pauses need separate evidence.
+
 Set `BACKEND_SENTRY_TRACES_SAMPLE_RATE` above `0` to sample backend operations
 independently of browser tracing. HTTP spans measure handler completion, excluding
 response-body streaming and health/metrics probes. Worker spans measure each job
@@ -236,3 +288,20 @@ URLs, inherited user context or breadcrumbs. Automatic performance integrations
 stay disabled and outgoing requests receive no trace headers. See the
 [operator guide](https://docs.tale.dev/self-hosted/configuration/observability-config)
 for configuration and sampling limits.
+
+Agent progress keeps one active database write and one combined pending text/
+timeline snapshot. Slow storage therefore drops superseded progress snapshots
+without retaining a growing promise chain. Drain windows rebuild bounded UI
+projections from the runtime journal, publishing resumed progress only after
+replay catches up. Missing journal history is an explicit `REPLAY_UNAVAILABLE`
+failure, output beyond the journal budget fails with `OUTPUT_LIMIT`, and a
+journal the sandbox host's full disk refused fails with `REPLAY_DISK_FULL`, read as
+"the sandbox host ran out of disk space" (`ExecDiskFullError`); none can be
+booked as a successful turn with incomplete usage or tools.
+
+Task and workflow recovery claim candidates with `FOR UPDATE SKIP LOCKED` and a
+separate recovery timestamp. Unreachable sandboxes rotate behind other runs
+without refreshing agent liveness. Each sweep has a 60-second budget and at
+most four concurrent five-second probes; worker cancellation propagates to
+those probes. Direct chat uses independent worker slots at
+`WORKER_CONCURRENCY`, so a slow answer does not hold completed slots in a batch.

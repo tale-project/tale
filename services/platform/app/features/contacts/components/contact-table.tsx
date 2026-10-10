@@ -2,17 +2,20 @@
 
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import { useDebounce } from '@tale/ui/use-debounce';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import type { SortingState } from '@/lib/pagination/types';
+import { CONTACT_SOURCES } from '@/lib/shared/contact-sources';
 
 import { useDeleteContact } from '../hooks/mutations';
 import {
@@ -20,6 +23,7 @@ import {
   useListContactsPaginated,
 } from '../hooks/queries';
 import { useContactsTableConfig } from '../hooks/use-contacts-table-config';
+import { canEditContact, getContactSourceLabel } from '../lib/contact-data';
 import { ContactViewDialog } from './contact-view-dialog';
 import { ContactsActionMenu } from './contacts-action-menu';
 
@@ -37,6 +41,8 @@ export function ContactsTable({
   locale,
 }: ContactsTableProps) {
   const navigate = useNavigate();
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tContacts } = useT('contacts');
@@ -44,8 +50,11 @@ export function ContactsTable({
 
   const { data: count } = useApproxContactCount(organizationId);
   const { columns, searchPlaceholder, pageSize } = useContactsTableConfig();
+  const [searchValue, setSearchValue] = useState('');
+  const debouncedSearch = useDebounce(searchValue.trim(), 250);
   const paginatedResult = useListContactsPaginated({
     organizationId,
+    search: debouncedSearch || undefined,
     source,
     locale,
     initialNumItems: pageSize,
@@ -92,15 +101,10 @@ export function ContactsTable({
       {
         key: 'source',
         title: tTables('headers.source'),
-        options: [
-          { value: 'manual_import', label: tContacts('filter.source.manual') },
-          { value: 'file_upload', label: tContacts('filter.source.upload') },
-          { value: 'api_import', label: tContacts('filter.source.api') },
-          {
-            value: 'conversation',
-            label: tContacts('filter.source.conversation'),
-          },
-        ],
+        options: CONTACT_SOURCES.map((value) => ({
+          value,
+          label: getContactSourceLabel(value, tContacts, value),
+        })),
         selectedValues: source ? [source] : [],
         onChange: handleSourceChange,
       },
@@ -158,6 +162,33 @@ export function ContactsTable({
     setRowSelection({});
   }, []);
 
+  // Only a contact whose row menu offers Delete gets a checkbox: a synced
+  // contact belongs to its source, and a member who cannot write deletes
+  // nothing (#3623).
+  const canSelectRow = useCallback(
+    (row: Row<Contact>) => canEditContact(ability, row.original),
+    [ability],
+  );
+
+  // The bar deletes every id it is handed. A contact selected before a sync
+  // took it over (or before this member lost write access) keeps its id in the
+  // selection once its checkbox is gone, so the table and the bar get the
+  // selection without it. An id no longer loaded stays, as before: it passed
+  // the rule when it was picked, and dropping it would shrink the count while a
+  // delete's own refetch removes rows.
+  const deletableSelection = useMemo(() => {
+    if (Object.keys(rowSelection).length === 0) return rowSelection;
+    const loaded = new Map(
+      paginatedResult.results.map((contact) => [contact._id, contact]),
+    );
+    return Object.fromEntries(
+      Object.entries(rowSelection).filter(([id]) => {
+        const contact = loaded.get(id);
+        return contact === undefined || canEditContact(ability, contact);
+      }),
+    );
+  }, [rowSelection, paginatedResult.results, ability]);
+
   const handleDeleteItem = useCallback(
     async (id: string) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type from row selection key
@@ -177,8 +208,11 @@ export function ContactsTable({
     },
     pageSize,
     sorting,
+    sortingColumns: columns,
     search: {
-      fields: ['name', 'email', 'externalId'],
+      serverSide: true,
+      value: searchValue,
+      onChange: setSearchValue,
       placeholder: searchPlaceholder,
     },
     filters: {
@@ -198,10 +232,14 @@ export function ContactsTable({
         columns={columns}
         stickyLayout
         onRowClick={handleRowClick}
-        enableRowSelection
-        rowSelection={rowSelection}
+        enableRowSelection={canSelectRow}
+        rowSelection={deletableSelection}
         onRowSelectionChange={setRowSelection}
-        sorting={{ initialSorting: sorting, onSortingChange: setSorting }}
+        sorting={{
+          manual: true,
+          initialSorting: sorting,
+          onSortingChange: setSorting,
+        }}
         actionMenu={
           <ContactsActionMenu
             organizationId={organizationId}
@@ -216,13 +254,20 @@ export function ContactsTable({
           headingLevel: 2,
         }}
         footer={
-          <BulkDeleteBar
-            rowSelection={rowSelection}
-            onClearSelection={handleClearSelection}
-            onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
-            describeFailure={firstFailureDetail}
-          />
+          canWrite && (
+            <BulkDeleteBar
+              rowSelection={deletableSelection}
+              onRowSelectionChange={setRowSelection}
+              getItemLabel={(id) =>
+                paginatedResult.results.find((item) => item._id === id)?.name ??
+                id
+              }
+              onClearSelection={handleClearSelection}
+              onDeleteItem={handleDeleteItem}
+              onDeleteComplete={handleClearSelection}
+              describeFailure={firstFailureDetail}
+            />
+          )
         }
         {...list.tableProps}
       />

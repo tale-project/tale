@@ -62,6 +62,7 @@ import {
   type GuardrailRefusal,
 } from './guardrails';
 import type { TaskHandover } from './handover';
+import { createServingTally, mergeServedBy } from './serving';
 import {
   type ChatToolExecutor,
   type ToolCallRequest,
@@ -73,6 +74,7 @@ import {
   estimateTokens,
   type ChatMessage,
   type MessagePart,
+  type ServedBy,
   type TurnFinishReason,
   type TurnUsage,
 } from './types';
@@ -160,6 +162,10 @@ export interface ModelStreamChunk {
   readonly toolCalls?: readonly ToolCallRequest[];
   /** Why the model stopped, when the dialect said — on the settle chunk. */
   readonly finishReason?: TurnFinishReason;
+  /** Where the answer is served, when the response said: its headers before
+   * the first byte, its body when a chunk names something new. A chunk
+   * carrying only this carries no answer. */
+  readonly serving?: ServedBy;
 }
 
 export interface ModelCallRequest {
@@ -221,6 +227,12 @@ export interface TurnStore {
     /** Older history was dropped assembling this turn's context — recorded
      * silently on the reply row for telemetry; never rendered. */
     truncation?: { droppedMessages: number };
+    /** The API key that sent a user message: naming the thread it opens is
+     * the key's spend too. */
+    apiKeyId?: string;
+    /** A guardrail refused this user message: a thread it opens is named
+     * from its own words, never by sending them to a model. */
+    nameWithoutModel?: boolean;
   }): Promise<{ id: string; sequence: number }>;
   /** Persist streaming progress: the full cleared text (and reasoning) so
    * far, which doubles as the turn's proof of life. Called once per cleared
@@ -237,6 +249,9 @@ export interface TurnStore {
      * flush after transform.flush(), and the tail RESET at a tool-round
      * boundary, which must land before the round's text lands on the parts. */
     flush?: boolean;
+    /** A stalled stream asking whether the user hit Stop: held only to the
+     * store's shortest write gap, never the longer one a long reply earns. */
+    poll?: boolean;
   }): Promise<void | { cancelRequested?: boolean }>;
   /**
    * Persist the turn's settled parts so far — the text segments, tool calls,
@@ -308,6 +323,21 @@ export interface TurnStore {
     /** The placeholder the turn streams into. */
     assistantMessage: { id: string; sequence: number };
   }>;
+  /**
+   * Raise the turn's hold before a further tool round: the opening held the
+   * first round's worst case, and every round is booked only when the turn
+   * settles, so each later round adds its own — the transcript as it now
+   * stands plus the round's output reserve — and a send racing this turn
+   * counts what it may still spend. A turn admitted at its open runs to its
+   * end; the hold is not a second admission. Optional: a host that enforces
+   * no budget caps holds nothing.
+   */
+  holdNextRound?(round: {
+    organizationId: string;
+    threadId: string;
+    tokens: number;
+    costCents: number;
+  }): Promise<void>;
   /** Deletes the row: its absence is what tells every reader the turn
    * settled. Runs whether the turn succeeded, refused, or threw. */
   endGeneration(generation: {
@@ -322,6 +352,9 @@ export interface TurnStore {
  * booked usage replaces it once the turn settles. */
 export interface TurnSpend {
   readonly userId: string;
+  /** The projects captured with this request, also used by its settlement.
+   * An empty array is authoritative: refiling never changes a live bill. */
+  readonly projectIds?: readonly string[];
   /** The API key that authenticated the turn, when one did. */
   readonly apiKeyId?: string;
   readonly tokens: number;
@@ -365,6 +398,10 @@ export interface UsageLedgerEntry {
   /** The prompt-cache hits among `inputTokens`, when the provider reported
    * them — priced at the catalog's cache-hit rate by the ledger. */
   readonly cachedInputTokens?: number;
+  /** The projects the spend belongs to — a chat's thread's, an automation
+   * step's run's: it is theirs too, which their `project` budget rules
+   * measure. */
+  readonly projectIds?: readonly string[];
 }
 
 export interface UsageLedger {
@@ -395,6 +432,9 @@ export interface TurnRequest {
   /** The API key that authenticated the turn (REST); absent in the app. */
   readonly apiKeyId?: string;
   readonly threadId: string;
+  /** The project the thread belongs to, when it belongs to one: the turn's
+   * spend is booked as the project's too. */
+  readonly projectId?: string;
   /** What the user just sent. */
   readonly userText: string;
   /** Files riding the user's message, oldest gesture first. The HOST owns
@@ -673,12 +713,15 @@ interface RoundObservation {
   reasoning: string;
   /** The last usage the provider reported on this round. */
   reportedUsage?: TurnUsage;
+  /** Where the round was served, as far as the response said. */
+  servedBy?: ServedBy;
 }
 
 /** How often a stalled stream re-asks the store whether the user hit Stop.
- * Longer than the store's write throttle, so nearly every poll is a real
- * read; short enough that Stop answers within a second even when the
- * provider is between bytes. */
+ * Longer than the store's shortest write gap — which is all a poll is held
+ * to, however long the reply — so nearly every poll is a real read; short
+ * enough that Stop answers within a second even when the provider is
+ * between bytes. */
 const CANCEL_POLL_INTERVAL_MS = 750;
 
 const CANCEL_POLL_TICK = Symbol('cancel-poll-tick');
@@ -738,6 +781,8 @@ async function streamWithOutputGuardrails(
   firstReasoningAtMs?: number;
   /** When this round dispatched its model call — the setup boundary. */
   roundStartedAtMs: number;
+  /** Where the round was served, when the response said. */
+  servedBy?: ServedBy;
 }> {
   const transform = createOutputTransform(deps.outputFilters ?? [], {
     ...deps.guardrailOptions,
@@ -751,6 +796,7 @@ async function streamWithOutputGuardrails(
   let finishReason: TurnFinishReason | undefined;
   let firstChunkAtMs: number | undefined;
   let firstReasoningAtMs: number | undefined;
+  let servedBy: ServedBy | undefined;
   let cancelled = false;
   let persistedNonEmpty = false;
   const observed: RoundObservation = round.observed ?? {
@@ -792,6 +838,7 @@ async function streamWithOutputGuardrails(
         text: cleared,
         ...(reasoning.length > 0 ? { reasoning } : {}),
         ...(flush ? { flush: true } : {}),
+        ...(options.poll === true ? { poll: true } : {}),
       });
       if (isNonEmpty) persistedNonEmpty = true;
       if (progress?.cancelRequested === true && !cancelled) {
@@ -877,6 +924,10 @@ async function streamWithOutputGuardrails(
       if (chunk.reasoning !== undefined) observed.reasoning += chunk.reasoning;
       if (chunk.usage) observed.reportedUsage = chunk.usage;
       if (chunk.usage) reportedUsage = chunk.usage;
+      if (chunk.serving !== undefined) {
+        servedBy = mergeServedBy(servedBy, chunk.serving);
+        observed.servedBy = servedBy;
+      }
       if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
       if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
       // Reasoning bypasses the output guardrails: it is display-only, never
@@ -906,6 +957,7 @@ async function streamWithOutputGuardrails(
           firstChunkAtMs,
           firstReasoningAtMs,
           roundStartedAtMs,
+          ...(servedBy !== undefined ? { servedBy } : {}),
         };
       }
       await persistProgress();
@@ -936,6 +988,7 @@ async function streamWithOutputGuardrails(
       firstChunkAtMs,
       firstReasoningAtMs,
       roundStartedAtMs,
+      ...(servedBy !== undefined ? { servedBy } : {}),
     };
   }
 
@@ -949,6 +1002,7 @@ async function streamWithOutputGuardrails(
       firstChunkAtMs,
       firstReasoningAtMs,
       roundStartedAtMs,
+      ...(servedBy !== undefined ? { servedBy } : {}),
     };
   }
   // Flush may have just cleared a short tail that never hit minFlushChars.
@@ -967,6 +1021,7 @@ async function streamWithOutputGuardrails(
     firstChunkAtMs,
     firstReasoningAtMs,
     roundStartedAtMs,
+    ...(servedBy !== undefined ? { servedBy } : {}),
   };
 }
 
@@ -1176,6 +1231,9 @@ async function recordUsage(
     organizationId: request.organizationId,
     userId: request.userId,
     ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
+    ...(request.projectId !== undefined
+      ? { projectIds: [request.projectId] }
+      : {}),
     agentSlug: request.agent?.slug,
     model: request.model.id,
     provider: request.model.provider,
@@ -1256,6 +1314,11 @@ export async function runTurn(
         threadId: request.threadId,
         role: 'user',
         parts: userTurnParts(userText, request.attachments),
+        ...(request.apiKeyId !== undefined
+          ? { apiKeyId: request.apiKeyId }
+          : {}),
+        // What a guardrail refused never reaches a model, a title's either.
+        ...(refusal !== undefined ? { nameWithoutModel: true } : {}),
       });
     }
     await deps.store.appendMessage({
@@ -1310,6 +1373,7 @@ export async function runTurn(
     // alone says has room.
     spend: {
       userId: request.userId,
+      projectIds: request.projectId !== undefined ? [request.projectId] : [],
       ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
       tokens:
         context.estimatedTokens + (request.budget?.reserveOutputTokens ?? 0),
@@ -1353,6 +1417,13 @@ export async function runTurn(
    * a turn that fails still owes what its rounds consumed. */
   const summed: RoundSum = { input: 0, output: 0 };
   let roundsSummed = 0;
+  /** Where the rounds were served, as their responses said — stamped beside
+   * the counts, on a failed reply too. */
+  const serving = createServingTally(request.model.id);
+  const servingStamp = (): { serving?: NonNullable<TurnUsage['serving']> } => {
+    const stamp = serving.stamp();
+    return stamp !== undefined ? { serving: stamp } : {};
+  };
   const addRound = (round: ReturnType<typeof roundUsage>): void => {
     summed.input += round.input;
     summed.output += round.output;
@@ -1509,6 +1580,7 @@ export async function runTurn(
       firstReasoningAtMs ??= streamed.firstReasoningAtMs;
       firstRoundStartedAtMs ??= streamed.roundStartedAtMs;
       addRound(roundUsage(streamed, wire));
+      serving.add(streamed.servedBy);
 
       const calls = streamed.toolCalls ?? [];
       if (
@@ -1646,6 +1718,35 @@ export async function runTurn(
       }
       if (streamed.cancelled === true) break;
       toolRounds += 1;
+      // The next round spends on top of what is held: its worst case joins
+      // the turn's hold before it runs. Best-effort — the reply is never
+      // cut over its own bookkeeping.
+      if (deps.store.holdNextRound !== undefined) {
+        const promptTokens =
+          context.estimatedTokens +
+          estimateMessageTokens({
+            role: 'assistant',
+            parts: [...settledParts],
+          });
+        const reserveOutput = request.budget?.reserveOutputTokens ?? 0;
+        await deps.store
+          .holdNextRound({
+            organizationId: request.organizationId,
+            threadId: request.threadId,
+            tokens: promptTokens + reserveOutput,
+            costCents: estimateCostCents(
+              promptTokens,
+              reserveOutput,
+              request.model.pricing,
+            ),
+          })
+          .catch((error: unknown) => {
+            console.warn(
+              `[chat] raising the hold of thread ${request.threadId} for its next round failed:`,
+              error,
+            );
+          });
+      }
       // The caller's `maxOutputTokens` bounds the TURN, not each round: the
       // next round gets what this one and its predecessors left of the cap,
       // and a round that would start with nothing left is not run — the
@@ -1695,6 +1796,7 @@ export async function runTurn(
       ...(toolRounds >= MAX_TOOL_ROUNDS ? { stepLimitHit: true } : {}),
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
+      ...servingStamp(),
     };
 
     // The settled record of the whole turn: earlier rounds' parts, then the
@@ -1822,9 +1924,13 @@ export async function runTurn(
             inFlight.wire,
           ),
         );
+        serving.add(inFlight.observed.servedBy);
       }
       if (roundsSummed > 0) {
-        consumed = summedUsage(summed, request.model.pricing);
+        consumed = {
+          ...summedUsage(summed, request.model.pricing),
+          ...servingStamp(),
+        };
         try {
           await recordUsage(request, consumed, deps);
         } catch (bookingError) {

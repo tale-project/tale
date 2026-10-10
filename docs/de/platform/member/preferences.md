@@ -11,9 +11,13 @@ Die Kontoeinstellungen bestimmen, welchen Namen deine Kollegen sehen und wie du 
 
 Dein Name ist für Kollegen sichtbar und darf höchstens 100 Zeichen lang sein. Er ist keine persönliche Anweisung an den Assistenten.
 
+## Wenn eine Passwortänderung erforderlich ist
+
+Wenn ein Administrator dein Passwort festlegt oder zurücksetzt oder es gemäß der Rotationsrichtlinie deiner Organisation abläuft, erscheint bei der Anmeldung die Seite **Passwortänderung erforderlich**. Gib ein neues Passwort ein, das die angezeigten Anforderungen erfüllt, bestätige es und wähle **Passwort aktualisieren**, um fortzufahren. Die genauen Meldungen stehen unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+
 ## Die Anmeldung absichern
 
-Unter **Passwort** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Sie stammen aus der Passwort-Richtlinie deiner Organisation. Gehörst du mehreren Organisationen an, muss dein Passwort die Anforderungen aller dieser Organisationen erfüllen. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst.
+Unter **Passwort** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Sie stammen aus der Passwort-Richtlinie deiner Organisation. Gehörst du mehreren Organisationen an, muss dein Passwort die Anforderungen aller dieser Organisationen erfüllen. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst. Ein falsches aktuelles Passwort zählt wie eine fehlgeschlagene Anmeldung zur vorübergehenden Sperre.
 
 Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder ergänze unter **Passkeys** einen Passkey. Bewahre Wiederherstellungscodes an einem Ort auf, den du ohne Tale-Anmeldung erreichst. [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) erklärt Einrichtung, Wiederherstellung und Organisationsvorgaben.
 
@@ -29,7 +33,7 @@ Unter **Einstellungen > Konto > Deine Rolle** steht deine Rolle in dieser Organi
 
 ## Deine Teams sehen {#teams}
 
-Unter **Einstellungen > Konto > Deine Teams** stehen die Teams, zu denen du gehörst. Teams bestimmen, welche Team-Dokumente, Projekte und Posteingangs-Warteschlangen du siehst; was mit der ganzen Organisation geteilt ist, siehst du in jedem Fall. Bist du in keinem Team, sagt der Abschnitt das.
+Unter **Einstellungen > Konto > Deine Teams** stehen die Teams, zu denen du gehörst. Teams bestimmen, welche Team-Dokumente, Projekte und Posteingangs-Warteschlangen du siehst; was mit der ganzen Organisation geteilt ist, siehst du in jedem Fall. Bist du in keinem Team, sagt der Abschnitt das. Können deine Teams nicht geladen werden, sagt der Abschnitt das, statt zu behaupten, du seist in keinem Team. Wähle **Erneut versuchen**, um sie zu laden. Schlägt eine Aktualisierung fehl, bleiben die angezeigten Teams stehen, und ein Hinweis sagt, dass sie womöglich veraltet sind.
 
 Um eine Liste auf bestimmte Arbeit einzugrenzen, nutze ihren Filter **Teams**: **Organisationsweit** zeigt nur Einträge ohne Team, **Meine Teams** zeigt Einträge, die eines deiner Teams sehen darf, und jedes Team steht mit Namen zur Wahl. Der Posteingang bietet hinter seinem Suchfeld den Filter **Zuständig**, der Personen und Teams gemeinsam aufführt. Ein Filter ändert die Ansicht, erweitert aber nicht deinen Zugriff auf Daten anderer Teams.
 
@@ -53,7 +57,7 @@ Deine Anweisungen überschreiben weder die verbindlichen Anweisungen der Organis
 
 ## Nutzungslimits prüfen {#usage-limits}
 
-Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbraucht hast, die deine Organisation für dich festlegt. Gilt kein Limit für dich, zeigt die Seite das an.
+Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbraucht hast, die deine Organisation für dich festlegt. Gilt kein Limit für dich, zeigt die Seite das an. Das Limit eines Projekts, das alles begrenzt, was in diesem Projekt ausgegeben wird, steht nicht hier: In den Chats des Projekts warnt das Banner über dem Eingabefeld davor, und eine Anfrage, die es ablehnt, nennt es.
 
 <Frame caption="Unter Einstellungen > Nutzung steht jedes Limit, das für dich gilt, mit Verbrauch und nächstem Zurücksetzen.">
 
@@ -65,7 +69,7 @@ Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbrauc
 - **Geteilte Limits** zählen die Nutzung aller, für die sie gelten, etwa eines Teams, zu dem du gehörst, oder der gesamten Organisation. Sie können deshalb vor deinen eigenen Limits erreicht sein.
 - **Speicherplatz** vergleicht die Dateien, die du hochgeladen hast, mit deinem Speicherlimit. Ist es erreicht, werden neue Dokument-Uploads abgelehnt.
 
-Jedes Nutzungslimit zeigt den Verbrauch, das Limit und den Zeitpunkt des Zurücksetzens in deiner Ortszeit. Die Zeiträume richten sich nach UTC: Tageslimits beginnen um Mitternacht neu, Wochenlimits am Montag und Monatslimits am Ersten des Monats. Hat ein Admin eine Warnschwelle festgelegt, färbt sich der Balken orange, sobald deine Nutzung sie erreicht. Warnt ein Banner über dem Eingabefeld vor einem Limit, öffnet **Nutzung anzeigen** diese Seite. Admins sehen zusätzlich **Limits verwalten**, das **Richtlinien > Richtlinien & Limits** öffnet.
+Jedes Nutzungslimit zeigt den Verbrauch, das Limit und den Zeitpunkt des Zurücksetzens in deiner Ortszeit. Die Zeiträume richten sich nach UTC: Tageslimits beginnen um Mitternacht neu, Wochenlimits am Montag und Monatslimits am Ersten des Monats. Hat ein Admin eine Warnschwelle festgelegt, färbt sich der Balken orange, sobald deine Nutzung sie erreicht. Warnt ein Banner über dem Eingabefeld vor einem Limit, öffnet **Nutzung anzeigen** diese Seite; ein Banner zum Limit eines Projekts nennt stattdessen das Projekt. Admins sehen zusätzlich **Limits verwalten**, das **Richtlinien > Richtlinien & Limits** öffnet.
 
 ## Alte Chats archivieren oder abmelden
 

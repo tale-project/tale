@@ -171,3 +171,27 @@ describe('carried skills shared with the whole organization', () => {
     });
   });
 });
+
+describe('the store an upload validates against', () => {
+  it('leaves the organization checks out: the upload checks its own skills, and a release stops on a warning it does not know', async () => {
+    let store: unknown;
+    vi.mocked(uploadAutomationImpl).mockImplementationOnce(async (host) => {
+      store = host.validationStore;
+      return { ok: true, name: 'flow', version: 1, warnings: [], skills: [] };
+    });
+    await uploadAutomationPg(
+      oneConnectionPool(),
+      {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        userId: 'user-1',
+        role: 'developer',
+      },
+      { storageId: 's3:acme/staged.zip' },
+    );
+    expect(store).toBeDefined();
+    expect(store).not.toHaveProperty('orgFacts');
+    // The model check still rides along, as on every other validating door.
+    expect(store).toHaveProperty('modelAvailable');
+  });
+});

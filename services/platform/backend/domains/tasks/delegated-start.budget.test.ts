@@ -2,7 +2,10 @@ import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AutoRetryRunFacts } from '../../core/tasks/task_auto_retry.ts';
-import { admitAutomatedStart } from './delegated-start.ts';
+import {
+  admitAutomatedStart,
+  automatedStartWindow,
+} from './delegated-start.ts';
 import { recordActivity } from './service.ts';
 
 vi.mock('./service.ts', () => ({ recordActivity: vi.fn() }));
@@ -51,7 +54,7 @@ afterEach(() => {
   vi.mocked(recordActivity).mockClear();
 });
 
-describe('automated start budget after a broker cooldown', () => {
+describe('automated start budget after a broker cooldown [TASK-R12]', () => {
   it('does not count a cooldown after its own 429 as another automated start', async () => {
     await expect(
       admit([
@@ -127,5 +130,33 @@ describe('automated start budget after a broker cooldown', () => {
         run(NOW - 3_000),
       ]),
     ).resolves.toEqual({ admitted: false, retryAfter: NOW - 3_000 + HOUR_MS });
+  });
+});
+
+describe('the circuit window the wake scan reads (#4540) [TASK-R12]', () => {
+  it('answers the admission’s own refusal and retryAfter, without the row lock or a refusal row', async () => {
+    const history = [run(NOW - 1_000), run(NOW - 2_000), run(NOW - 3_000)];
+    const statements: string[] = [];
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    const query = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      const text = strings.join('?');
+      statements.push(text);
+      return Promise.resolve(
+        text.includes('FROM app.project_agent_runs') ? history : [],
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the window uses only the SQL tag; rows model its ordered history read
+    const window = await automatedStartWindow(
+      query as unknown as TransactionSql,
+      task,
+    );
+    expect(window).toEqual({
+      admitted: false,
+      retryAfter: NOW - 3_000 + HOUR_MS,
+    });
+    expect(statements.some((text) => text.includes('FOR UPDATE'))).toBe(false);
+    expect(recordActivity).not.toHaveBeenCalled();
+    await expect(admit(history)).resolves.toEqual(window);
+    expect(recordActivity).toHaveBeenCalledTimes(1);
   });
 });

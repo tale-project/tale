@@ -1,0 +1,206 @@
+title: Sandboxes
+sessionsTitle: Workspaces
+description:
+  A project agent works each task it runs at the same time in a worker of its
+  own, a sandbox with its own workspace that later tasks reuse. Workflow runs
+  share one workspace across their steps. A worker's workspace stays until it
+  goes unused for longer than Workspace cleanup allows, or until its agent,
+  project or member is removed. Runtime status and organization quota
+  allocation are shown separately; a released allocation can still have a
+  running container.
+limits:
+  title: Organization limits
+  description:
+    Set the number of sessions each workload can use at once. Allocated sessions
+    count against these limits while work starts or runs. The total updates
+    automatically and must fit within the deployment capacity.
+  usage: 'Allocated: {used} / {limit}'
+  usageUnavailable: Allocation data unavailable
+  # Under the agent workers limit: the runs a higher limit would start now.
+  waitingForWorkers: '{count, plural, one {# agent run is waiting for a free worker.} other {# agent runs are waiting for a free worker.}}'
+  usageLoadFailed: Couldn't load sandbox allocation data
+  usageRetry: Retry
+  invalidSessions: Must be a whole number between 1 and 500.
+  total: Total organization sessions
+  totalValue: '{total} / {maxSessions}'
+  totalHint: Sum of the three limits / deployment capacity. Other organizations share this capacity.
+  totalHintWithDevices: Sum of the three limits / deployment capacity plus the {deviceSessions} sandboxes your devices run. Other organizations share the deployment capacity.
+  totalExceedsDeployment: The total of {total} sessions exceeds the deployment capacity of {maxSessions}. Reduce one or more limits to save.
+  totalExceedsCapacity: 'The total of {total} sessions exceeds the capacity of {maxSessions}: {deploymentSessions} on the deployment and {deviceSessions} on your devices. Reduce one or more limits to save.'
+  capacityUnavailable: Deployment capacity is unavailable. Lowering limits still saves; refresh the infrastructure data before raising one.
+  capacityLoading: Checking deployment capacity…
+  saveFailed: Couldn't save sandbox limits
+quota:
+  budgets:
+    project: Agent workers
+    workflow: Workflow sessions
+    render: Render sessions
+  budgetHints:
+    project: Each task an agent works on at the same time runs in a sandbox of its own.
+    workflow: Agent and script steps share one sandbox per workflow run.
+    render: Temporary sandboxes render web pages during website crawling.
+cleanup:
+  title: Workspace cleanup
+  description:
+    Project agents keep their files in workspaces between runs. A workspace is
+    deleted right away when its agent, project or member is removed. Workspaces
+    under a legal hold are kept.
+  deleteUnused: Delete unused workspaces
+  deleteUnusedHint: Deletes a workspace after the number of days without use set below. Pinned workspaces are kept.
+  unusedDays: Days without use
+  unusedDaysHint: Counted from the last time the agent worked in the workspace. After you turn deletion on or shorten the period, no workspace is deleted until the full number of days has passed.
+  invalidDays: Must be a whole number between 1 and 3650.
+  loadFailed: Couldn't load the workspace cleanup settings. Reload the page to try again.
+  saveFailed: Couldn't save the workspace cleanup settings
+capacity:
+  title: Infrastructure capacity
+  description:
+    Actual running environments and measured host resources. These counts can
+    differ from organization allocations because idle environments can stay
+    running after a task ends.
+  refresh: Refresh
+  hostSessions: Deployment sandboxes
+  namespaceSessions: Deployment sandboxes (namespace)
+  organizationSessions: Your organization's sandboxes
+  slots: '{used} / {limit}'
+  sessionStates: '{running} running · {starting} starting'
+  sessionSlotsHint: Currently running or starting / deployment capacity, shared by all organizations.
+  organizationSessionsHint: Currently running or starting, including idle sandboxes kept for reuse.
+  cpu: Host CPU usage
+  cpuUsage: '{used} / {total} cores'
+  cpuHint: Measured across all host workloads.
+  memory: Host memory usage
+  memoryUsage: '{used} / {total} GiB'
+  memoryHint: Used memory and total memory across the host, including other services.
+  unknownValue: Unavailable
+  operatorLimits:
+    All organizations share the deployment capacity set by the operator.
+    A free place does not guarantee enough CPU or memory for a new sandbox.
+  observedAt: 'Observed: {time}'
+  scopes:
+    host: Host scope
+    namespace: Kubernetes namespace scope; host resource measurements unavailable
+  notConfigured: Sandbox infrastructure is not configured for this deployment.
+  unreachable: Couldn't refresh infrastructure data. Runtime state and resource usage are unknown.
+columns:
+  owner: Workspace
+  agent: Agent
+  status: Status
+  task: Current tasks
+  spend: Spend
+  created: Created
+status:
+  runtime:
+    running: Running
+    starting: Starting
+    stopped: Stopped
+    unknown: Unknown
+  quotaInUse: Quota allocated
+  quotaReleased: Quota released
+  pausedBudget: Paused (budget)
+  pinned: Pinned
+  deletesOn: Deleted on {date} unless used again
+  destroying: Destroying
+  destroyFailed: Destroy failed
+task:
+  none: No active task
+  project: '{count, plural, one {Project task} other {# project tasks}}'
+  workflow: '{count, plural, one {Workflow run} other {# workflow runs}}'
+  active: '{count, plural, one {Active execution} other {# active executions}}'
+actions:
+  stop: Stop task
+  pin: Pin
+  unpin: Unpin
+  destroy: Destroy
+destroyConfirm:
+  title: Destroy sandbox?
+  description: This deletes the sandbox and its workspace. Any running task is cancelled. The agent's next run takes another free worker, or a fresh sandbox once this one is gone.
+  confirm: Destroy
+toast:
+  stopped: Task stopped
+  pinned: Sandbox pinned
+  unpinned: Sandbox unpinned
+  destroying: Destroying sandbox
+  destroyingDescription: It leaves the list once its workspace is deleted.
+  error: Action failed
+empty:
+  title: No workspaces yet
+  description:
+    A project agent's worker appears with its first task, one for each task it
+    works on at the same time. Its workspace stays until it goes unused for
+    longer than Workspace cleanup allows, or until its agent, project or member
+    is removed. A workflow run's workspace is reclaimed once the run ends.
+    Temporary crawler sessions are included in capacity counts above.
+accessDenied: You need developer or admin access to manage sandboxes.
+# Which of its agent's workers a workspace is: the agent's own, or one that
+# runs the agent for a member who started it.
+worker:
+  agent: Worker {number}
+  member: Member worker {number}
+deletedAgent: Deleted agent
+devices:
+  title: Devices
+  description:
+    Run your organization's sandboxes on your own machines. New agent and
+    automation workspaces start on a connected device that has room, otherwise
+    on the server. A workspace stays on the machine where it started.
+  add: Add device
+  columns:
+    name: Device
+    status: Status
+    sandboxes: Sandboxes
+    machine: Machine
+    version: Version
+    lastSeen: Last seen
+  status:
+    online: Online
+    updating: Updating
+    outdated: Update needed
+    update_failed: Update failed
+    offline: Offline
+  platform: '{os} · {arch}'
+  sandboxCount: '{used} / {limit}'
+  lastSeenNow: Now
+  machine: '{cpus, plural, one {# CPU} other {# CPUs}} · {memory} GiB'
+  updatingTo: 'Updating to {version}'
+  updateFailedHint: The update to {version} failed. The device tries again on its own.
+  outdatedHint: Runs a different release than Tale ({version}). Run tale sandbox update on the machine.
+  empty:
+    title: No devices yet
+    description: Add a Linux or macOS machine with Docker to run your organization's sandboxes on it.
+  hub:
+    notConfigured: This deployment's sandbox service doesn't accept devices. Ask your operator to turn on the device hub.
+    unavailable: Couldn't reach the sandbox service. Device status may be out of date.
+  actions:
+    remove: Remove
+  removeConfirm:
+    title: 'Remove {name}?'
+    description:
+      The device stops running sandboxes for your organization right away. Its
+      workspaces stay on the machine but can no longer be reached from Tale.
+    confirm: Remove device
+  toast:
+    removed: Device removed
+    error: Couldn't remove the device
+  addDialog:
+    title: Add a device
+    description:
+      Run this command in a terminal on the machine you want to add. It installs
+      the Tale CLI and connects the machine to your organization.
+    commandLabel: Install and connect
+    copyCommand: Copy command
+    copied: Copied
+    requirements:
+      Needs Docker on Linux or macOS and outbound HTTPS access to this site. The
+      device keeps running after a restart and updates itself when Tale is updated.
+    expires: The command works once, within an hour.
+    cliInstalled: Already have the Tale CLI? Run this instead
+    generating: Creating a connect command…
+    generateFailed: Couldn't create a connect command.
+    retry: Try again
+    waiting: Waiting for the device to connect…
+    connected: '{name} is connected.'
+runsOn:
+  server: On the server
+  device: 'On {name}'
+  deviceOffline: 'On {name} (offline)'

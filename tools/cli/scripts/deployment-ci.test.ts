@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -165,6 +166,33 @@ describe('release candidate validation', () => {
     parse(
       await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),
     ) as Workflow;
+
+  test.each([
+    ['push', 'refs/heads/main', false],
+    ['push', 'refs/heads/other', true],
+    ['pull_request', 'refs/pull/1/merge', true],
+    ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', true],
+    ['workflow_dispatch', 'refs/heads/main', false],
+    ['repository_dispatch', 'refs/heads/main', false],
+  ] as const)(
+    '%s on %s cancels an admitted Build only when supersedable',
+    async (eventName, ref, expected) => {
+      const policy = (await workflow()).concurrency['cancel-in-progress'];
+      expect(typeof policy).toBe('string');
+      // This source-owned expression uses only string comparisons and boolean
+      // operators, with the same semantics for these lowercase event/ref values
+      // in JavaScript and Actions. Evaluate the parsed workflow's actual policy,
+      // not a second implementation of the intended event mapping.
+      const expression = String(policy).match(/^\$\{\{ (.+) \}\}$/)?.[1];
+      expect(expression).toBeDefined();
+      const actual: unknown = runInNewContext(
+        expression!,
+        { github: { event_name: eventName, ref } },
+        { timeout: 100 },
+      );
+      expect(actual).toBe(expected);
+    },
+  );
   const step = (job: Job, name: string) => {
     const found = (job.steps ?? []).find((entry) => entry.name === name);
     if (!found) throw new Error(`build.yml step "${name}" is missing`);
@@ -210,6 +238,31 @@ describe('release candidate validation', () => {
       join(bin, 'docker'),
       `#!/bin/sh
 printf 'docker %s\\n' "$*" >> "$TEST_COMMAND_LOG"
+if [ "$1" = pull ] && [ "$TEST_TRACK_PULLS" = true ]; then
+  printf 'pull-start %s\\n' "$2" >> "$TEST_COMMAND_LOG"
+  service="\${2##*/}"
+  service="\${service#tale-}"
+  service="\${service%%@*}"
+  # The prioritized first batch joins at a barrier: all three starts must
+  # be logged before any finish, so overlap never depends on host scheduling.
+  case "$service" in
+    sandbox-runtime|platform|db)
+      touch "$TEST_COMMAND_LOG.$service"
+      attempts=0
+      while [ ! -f "$TEST_COMMAND_LOG.sandbox-runtime" ] ||
+            [ ! -f "$TEST_COMMAND_LOG.platform" ] ||
+            [ ! -f "$TEST_COMMAND_LOG.db" ]; do
+        attempts=$((attempts + 1))
+        if [ "$attempts" -gt 1000 ]; then exit 1; fi
+        sleep 0.01
+      done
+      ;;
+  esac
+  printf 'pull-end %s\\n' "$2" >> "$TEST_COMMAND_LOG"
+fi
+if [ "$1" = "$TEST_FAIL_COMMAND" ]; then
+  case "$*" in *tale-"$TEST_FAIL_SERVICE"@*) exit 37 ;; esac
+fi
 if [ "$1 $2" = 'image inspect' ]; then
   case "$5" in
     *tale-"$TEST_FOREIGN_SERVICE"@*) printf '%s\\n' "$TEST_FOREIGN_REVISION" ;;
@@ -291,13 +344,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       "(github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')";
     const candidate =
       'inputs.candidate_sha || github.event.client_payload.candidate_sha';
-    // A push or pull request keeps `Build-<ref>` and cancels what it
-    // supersedes; either dispatch of one SHA shares `Build-candidate-<sha>`,
+    // Ordinary events keep `Build-<ref>`; main pushes finish the admitted run
+    // while superseded pending runs coalesce. Either dispatch of one SHA shares
+    // `Build-candidate-<sha>`,
     // which only another dispatch of that SHA can enter, and cancels nothing.
     expect(build.concurrency).toEqual({
       group: `\${{ github.workflow }}-\${{ ${dispatched} && format('candidate-{0}', ${candidate}) || github.ref }}`,
       'cancel-in-progress':
-        "${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' }}",
+        "${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' && !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}",
     });
     // The title the release gate finds the run by; empty (GitHub's default
     // title) for every other event.
@@ -409,22 +463,32 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     async () => {
       const changes = (await workflow()).jobs.changes!;
       const filters = Object.keys(
-        parse(String(step(changes, 'Filter paths').with?.filters)) as Record<
-          string,
-          unknown
-        >,
-      );
+        parse(
+          await readFile(
+            join(
+              repository,
+              String(step(changes, 'Filter paths').with?.filters),
+            ),
+            'utf8',
+          ),
+        ) as Record<string, unknown>,
+      )
+        .filter((name) => name.startsWith('build_'))
+        .map((name) => name.slice(6));
       expect(step(changes, 'Filter paths').if).toBe(
-        "needs.candidate-source.outputs.candidate_sha == ''",
+        "needs.candidate-source.outputs.candidate_sha == '' && github.event_name != 'pull_request' && github.event_name != 'merge_group' && needs.pr-scope.outputs.full != 'true'",
       );
       const matrix = step(changes, 'Compute service matrix').run;
       const candidate = outputs(
         (
           await execute(matrix, {
             CANDIDATE_SHA: CANDIDATE,
+            EVENT_NAME: 'repository_dispatch',
+            FULL_SCOPE: '',
             CHANGES: '',
             CI_TESTS: '',
             STORYBOOK: '',
+            IMAGE_INPUTS: '',
           })
         ).output,
       );
@@ -438,6 +502,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           ...(JSON.parse(candidate.list!) as string[]),
           'ci_tests',
           'storybook',
+          'image_inputs',
         ].toSorted(),
       ).toEqual(filters.toSorted());
       expect(JSON.parse(candidate.list!)).toEqual(
@@ -453,19 +518,235 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       // Any other run keeps what the filter found.
       const pushed = await execute(matrix, {
         CANDIDATE_SHA: '',
-        CHANGES: '["platform","web","ci_tests"]',
+        EVENT_NAME: 'push',
+        FULL_SCOPE: '',
+        CHANGES:
+          '["build_platform","build_web","build_ci_tests","all","build"]',
         CI_TESTS: 'true',
         STORYBOOK: 'false',
+        IMAGE_INPUTS: '',
       });
       expect(pushed.code, pushed.stdout + pushed.stderr).toBe(0);
       expect(outputs(pushed.output)).toEqual({
         list: '["platform","web"]',
         scannable: '["platform"]',
         ci_tests: 'true',
+        stack: 'true',
         storybook: 'false',
       });
+      for (const [event, full] of [
+        ['merge_group', ''],
+        ['pull_request', 'true'],
+      ]) {
+        const complete = await execute(matrix, {
+          CANDIDATE_SHA: '',
+          EVENT_NAME: event!,
+          FULL_SCOPE: full!,
+          CHANGES: '',
+          CI_TESTS: '',
+          STORYBOOK: '',
+        });
+        expect(complete.code, complete.stderr).toBe(0);
+        const all = outputs(complete.output);
+        expect(all.list).toBe(candidate.list);
+        expect(all.ci_tests).toBe('true');
+        expect(all.storybook).toBe('true');
+        expect(JSON.parse(all.scannable!)).toEqual(
+          expect.arrayContaining(BUILT),
+        );
+      }
+      // Even if the live PR has moved while this job waited, consume the
+      // one frozen scope decision; do not run a second PR files query.
+      const frozen = await execute(matrix, {
+        CANDIDATE_SHA: '',
+        EVENT_NAME: 'pull_request',
+        FULL_SCOPE: 'false',
+        PR_CHANGES: '["platform","ci_tests"]',
+        PR_CI_TESTS: 'true',
+        PR_STORYBOOK: 'false',
+        CHANGES: '["build_docs"]',
+        CI_TESTS: 'false',
+        STORYBOOK: 'false',
+      });
+      expect(frozen.code, frozen.stderr).toBe(0);
+      expect(outputs(frozen.output).list).toBe('["platform"]');
+      expect(outputs(frozen.output).ci_tests).toBe('true');
     },
   );
+
+  test('a fork relies on its local smoke and image-validation jobs, never an isolated build matrix', async () => {
+    const build = await workflow();
+    expect(build.jobs.build?.if).toContain(
+      'github.event.pull_request.head.repo.fork != true',
+    );
+    for (const id of ['smoke-test-fork', 'image-validate-fork']) {
+      expect(build.jobs[id]?.needs).toBe('changes');
+      expect(build.jobs[id]?.if).toContain(
+        'github.event.pull_request.head.repo.fork == true',
+      );
+    }
+    const fork = build.jobs['image-validate-fork']!;
+    const catalog = step(fork, 'Validate builtin configs');
+    expect(catalog.run).toBe(
+      'bun run --filter @tale/platform configs:validate',
+    );
+    expect(fork.steps.indexOf(catalog)).toBeGreaterThan(
+      fork.steps.indexOf(step(fork, 'Setup toolchain')),
+    );
+    expect(fork.steps.indexOf(catalog)).toBeLessThan(
+      fork.steps.indexOf(step(fork, 'Run image validation (local build)')),
+    );
+    const validate = step(build.jobs.build!, 'Setup toolchain');
+    expect(validate.with?.['turbo-cache']).toBe('false');
+  });
+
+  test.skipIf(process.platform === 'win32')(
+    'stack gates omit static-only work and duplicate fork publication',
+    async () => {
+      const build = await workflow();
+      for (const stack of [true, false]) {
+        for (const fork of [true, false]) {
+          for (const id of [
+            'build',
+            'smoke-test',
+            'image-validate',
+            'smoke-test-fork',
+            'image-validate-fork',
+          ]) {
+            const runs = runInNewContext(
+              build.jobs[id]!.if!,
+              {
+                cancelled: () => false,
+                needs: {
+                  changes: {
+                    result: 'success',
+                    outputs: {
+                      services: '["docs"]',
+                      ci_tests: 'false',
+                      stack: String(stack),
+                    },
+                  },
+                  build: { result: 'success' },
+                },
+                github: {
+                  event: {
+                    pull_request: { draft: false, head: { repo: { fork } } },
+                  },
+                },
+              },
+              { timeout: 100 },
+            );
+            expect(runs, `${id}, stack=${stack}, fork=${fork}`).toBe(
+              stack && (id.endsWith('-fork') ? fork : !fork),
+            );
+          }
+        }
+      }
+    },
+  );
+
+  test('hosted builders publish shared cache only on main and skip teardown', async () => {
+    const build = await workflow();
+    const job = build.jobs.build!;
+    for (const entry of Object.values(build.jobs)) {
+      for (const builder of entry.steps ?? []) {
+        if (builder.uses?.startsWith('docker/setup-buildx-action@')) {
+          expect(builder.with?.cleanup).toBe(false);
+        }
+      }
+    }
+    expect(
+      String(step(job, 'Build and push').with?.['cache-from'])
+        .trim()
+        .split('\n'),
+    ).toEqual([
+      'type=gha,scope=${{ matrix.service }}',
+      'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}-buildcache:amd64',
+    ]);
+    const cache = String(step(job, 'Build and push').with?.['cache-to']);
+    for (const [event, ref, expected] of [
+      [
+        'push',
+        'refs/heads/main',
+        'type=gha,scope=platform,mode=max,ghtoken=test-github-token,repository=tale-project/tale',
+      ],
+      ['pull_request', 'refs/pull/1/merge', ''],
+      ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', ''],
+      ['workflow_dispatch', 'refs/heads/main', ''],
+      ['repository_dispatch', 'refs/heads/main', ''],
+    ]) {
+      expect(
+        runInNewContext(
+          cache.slice(3, -2),
+          {
+            github: { event_name: event, ref, repository: 'tale-project/tale' },
+            matrix: { service: 'platform' },
+            secrets: { GITHUB_TOKEN: 'test-github-token' },
+            format: (template: string, ...values: string[]) =>
+              values.reduce(
+                (result, value, index) =>
+                  result.replaceAll(`{${index}}`, value),
+                template,
+              ),
+          },
+          { timeout: 100 },
+        ),
+      ).toBe(expected);
+    }
+  });
+
+  test('fork validation still builds every published compose and spawner image', async () => {
+    const compose = parse(
+      await readFile(join(repository, 'compose.yml'), 'utf8'),
+    ) as {
+      services: Record<string, { build?: { dockerfile: string } }>;
+    };
+    const imageTest = await readFile(
+      join(
+        repository,
+        'services/platform/tests/integration/container-image-test.ts',
+      ),
+      'utf8',
+    );
+    const spawnerImages = imageTest
+      .match(/const SPAWNER_IMAGES = new Set\(\[([^\]]+)\]/)?.[1]
+      .match(/'([^']+)'/g)
+      ?.map((value) => value.slice(1, -1));
+    expect(spawnerImages).toBeDefined();
+    const builds = new Set(
+      Object.values(compose.services).flatMap((service) =>
+        service.build ? [service.build.dockerfile] : [],
+      ),
+    );
+    for (const service of BUILT) {
+      expect(
+        builds.has(`services/${service}/Dockerfile`) ||
+          spawnerImages!.includes(service),
+        service,
+      ).toBe(true);
+    }
+    expect(imageTest).toContain("compose.run(['build', '--parallel'])");
+    expect(imageTest).toContain('for (const svc of SPAWNER_IMAGES)');
+    const forkJob = (await workflow()).jobs['image-validate-fork']!;
+    const configGuard = step(forkJob, 'Validate builtin configs');
+    expect(
+      forkJob.steps.filter(
+        (entry) => entry.name === 'Validate builtin configs',
+      ),
+    ).toHaveLength(1);
+    expect(configGuard.run).toBe(
+      'bun run --filter @tale/platform configs:validate',
+    );
+    expect(
+      forkJob.steps.indexOf(step(forkJob, 'Setup toolchain')),
+    ).toBeLessThan(forkJob.steps.indexOf(configGuard));
+    expect(
+      step(
+        (await workflow()).jobs['image-validate-fork']!,
+        'Run image validation (local build)',
+      ).env?.SKIP_BUILD,
+    ).toBeUndefined();
+  });
 
   test.skipIf(process.platform === 'win32')(
     'candidate images carry their own SHA tag',
@@ -512,11 +793,56 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     );
     expect(checkouts.length).toBeGreaterThan(10);
     for (const { id, job, entry } of checkouts) {
+      if (entry.name === 'Checkout CI image pull helper') {
+        expect(['smoke-test', 'image-validate']).toContain(id);
+        expect(entry.if).toBe("needs.changes.outputs.candidate_sha != ''");
+        expect(entry.with).toEqual({
+          ref: '${{ github.workflow_sha }}',
+          path: '.ci-workflow',
+          'persist-credentials': false,
+          'sparse-checkout': '.github/scripts/pull-ci-images.sh',
+          'sparse-checkout-cone-mode': false,
+        });
+        continue;
+      }
+      if (['pr-scope', 'ci-ready'].includes(id)) {
+        expect(job.if).toContain("github.event_name == 'pull_request'");
+        expect(entry.with?.ref).toBeUndefined();
+        continue;
+      }
+      if (entry.name === 'Checkout SBOM hash guard') {
+        expect(id).toBe('vulnerability-scan');
+        const once =
+          'matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]';
+        expect(entry.if).toBe(once);
+        expect(entry.uses).toBe(
+          'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd',
+        );
+        expect(entry.with).toEqual({
+          ref: '${{ github.workflow_sha }}',
+          path: '.ci-workflow',
+          'persist-credentials': false,
+          'sparse-checkout': 'tools/cli/scripts/check-sbom-hashes.ts',
+          'sparse-checkout-cone-mode': false,
+        });
+        expect(
+          job.steps.filter((item) => item.name === entry.name),
+        ).toHaveLength(1);
+        const runner = step(job, 'Verify SBOM package hashes');
+        expect(runner.if).toBe(once);
+        expect(runner.run).toBe(
+          'bun .ci-workflow/tools/cli/scripts/check-sbom-hashes.ts',
+        );
+        expect(job.steps.indexOf(entry)).toBeLessThan(
+          job.steps.indexOf(runner),
+        );
+        continue;
+      }
       if (id === 'changes') {
         expect(entry.with?.ref).toBe(
           '${{ needs.candidate-source.outputs.candidate_sha }}',
         );
-        expect(changes.needs).toBe('candidate-source');
+        expect(changes.needs).toEqual(['candidate-source', 'pr-scope']);
         expect(build.jobs['candidate-source']?.uses).toBe(
           './.github/workflows/release-candidate-source.yml',
         );
@@ -539,6 +865,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         '${{ needs.changes.outputs.source_sha }}',
       );
       const checkout = await tempDirectory('tale-candidate-checkout-');
+      const protocolPath = 'services/platform/lib/engine/core/protocol.ts';
+      await mkdir(join(checkout, 'services/platform/lib/engine/core'), {
+        recursive: true,
+      });
+      await writeFile(
+        join(checkout, protocolPath),
+        await readFile(join(repository, protocolPath), 'utf8'),
+      );
       const git = (...args: string[]) =>
         Bun.spawnSync(['git', ...args], {
           cwd: checkout,
@@ -551,7 +885,8 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           },
         });
       git('init', '-q');
-      git('commit', '-q', '--allow-empty', '-m', 'candidate');
+      git('add', protocolPath);
+      git('commit', '-q', '-m', 'candidate');
       const head = git('rev-parse', 'HEAD').stdout.toString().trim();
       expect(head).toMatch(/^[a-f0-9]{40}$/);
       const run = async (source: string) => {
@@ -569,21 +904,29 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           stdout: 'pipe',
           stderr: 'pipe',
         });
-        const [code, stdout] = await Promise.all([
+        const [code, stdout, stderr] = await Promise.all([
           child.exited,
           new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
         ]);
-        return { code, stdout, output: await readFile(output, 'utf8') };
+        return { code, stdout, stderr, output: await readFile(output, 'utf8') };
       };
       const labelled = await run(head);
-      expect(labelled.code).toBe(0);
+      expect(labelled.code, labelled.stdout + labelled.stderr).toBe(0);
       expect(outputs(labelled.output).revision).toBe(head);
+      expect(outputs(labelled.output)['automation-protocol']).toBe('2');
       const elsewhere = await run(HEAD);
       expect(elsewhere.code).not.toBe(0);
       expect(elsewhere.stdout).toContain(
         `::error::Checked out ${head}, expected ${HEAD}`,
       );
       expect(elsewhere.output).toBe('');
+      await rm(join(checkout, protocolPath));
+      const missingProtocol = await run(head);
+      expect(missingProtocol.code).not.toBe(0);
+      expect(
+        outputs(missingProtocol.output)['automation-protocol'],
+      ).toBeUndefined();
     },
   );
 
@@ -594,7 +937,11 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       expect(step(job, 'Build and push').id).toBe('image');
       const record = step(job, 'Record image receipt');
       const upload = step(job, 'Upload image receipt');
-      expect(record.if).toBe("steps.pushmode.outputs.push == 'true'");
+      expect(job.if).toContain(
+        'github.event.pull_request.head.repo.fork != true',
+      );
+      expect(step(job, 'Build and push').with?.push).toBe(true);
+      expect(record.if).toBeUndefined();
       expect(upload.if).toBe(record.if);
       expect(record.env).toMatchObject({
         DIGEST: '${{ steps.image.outputs.digest }}',
@@ -657,6 +1004,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       const setup = job.steps[setupIndex]!;
       expect(setup.if).toBeUndefined();
       expect(setup.with?.['start-turbo-cache']).toBe('false');
+      expect(setup.with?.['turbo-cache']).toBe('false');
       // Inherit the shared Bun pin and its frozen install. The conformance
       // helpers import workspace packages, which Bun alone cannot resolve.
       expect(setup.with?.['bun-version']).toBeUndefined();
@@ -689,20 +1037,37 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         'merge-multiple': true,
       });
       expect(pulling.env).toEqual({
+        PULL_HELPER:
+          "${{ needs.changes.outputs.candidate_sha != '' && '.ci-workflow/.github/scripts/pull-ci-images.sh' || '.github/scripts/pull-ci-images.sh' }}",
+        REGISTRY_PATH: '${{ env.REGISTRY }}/${{ github.repository }}',
         SOURCE_SHA: '${{ needs.changes.outputs.source_sha }}',
         RECEIPTS: '${{ runner.temp }}/image-receipts',
       });
       return async (
         directory: string,
-        foreign: { service?: string; revision?: string } = {},
+        foreign: {
+          service?: string;
+          revision?: string;
+          failCommand?: string;
+          failService?: string;
+          trackPulls?: boolean;
+        } = {},
       ) => {
         const tools = await standIns();
-        const result = await execute(expand(pulling.run), {
+        const script = expand(pulling.run)?.replace(
+          'bash "$PULL_HELPER"',
+          `bash '${join(repository, '.github/scripts/pull-ci-images.sh')}'`,
+        );
+        const result = await execute(script, {
           PATH: tools.path,
           TEST_COMMAND_LOG: tools.log,
           TEST_REVISION: CANDIDATE,
           TEST_FOREIGN_SERVICE: foreign.service ?? '-',
           TEST_FOREIGN_REVISION: foreign.revision ?? '',
+          TEST_FAIL_COMMAND: foreign.failCommand ?? '-',
+          TEST_FAIL_SERVICE: foreign.failService ?? '-',
+          TEST_TRACK_PULLS: String(foreign.trackPulls ?? false),
+          REGISTRY_PATH: 'ghcr.io/tale-project/tale',
           SOURCE_SHA: CANDIDATE,
           RECEIPTS: directory,
         });
@@ -720,18 +1085,115 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const image = (service: string) =>
           `ghcr.io/tale-project/tale/tale-${service}@${digest(service)}`;
-        expect(result.calls).toEqual([
-          ...BUILT.flatMap((service) => [
-            `docker pull ${image(service)}`,
-            `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
-            `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
-          ]),
-          'docker tag ghcr.io/tale-project/tale/tale-sandbox-runtime:latest tale-sandbox-runtime:latest',
-        ]);
+        expect(result.calls.toSorted()).toEqual(
+          [
+            ...BUILT.flatMap((service) => [
+              `docker pull ${image(service)}`,
+              `docker image inspect --format {{ index .Config.Labels "org.opencontainers.image.revision" }} ${image(service)}`,
+              `docker tag ${image(service)} ghcr.io/tale-project/tale/tale-${service}:latest`,
+            ]),
+            ...['sandbox-runtime', 'sandbox-buildkitd'].map(
+              (service) =>
+                `docker tag ${image(service)} tale-${service}:latest`,
+            ),
+          ].toSorted(),
+        );
+        // Independent service workers may interleave, but each service must
+        // finish pulling and pass source validation before its local tag.
+        for (const service of BUILT) {
+          const calls = result.calls.filter((call) =>
+            call.includes(image(service)),
+          );
+          expect(calls[0]).toBe(`docker pull ${image(service)}`);
+          expect(calls[1]).toStartWith('docker image inspect ');
+          expect(
+            calls.slice(2).every((call) => call.startsWith('docker tag ')),
+          ).toBe(true);
+        }
         // The loop pulls exactly what the build matrix builds.
         expect(BUILT.toSorted()).toEqual(
           (await workflow()).jobs.build!.strategy!.matrix!.service!.toSorted(),
         );
+      },
+    );
+
+    test.skipIf(process.platform === 'win32')(
+      'overlaps pulls, never exceeds three workers and waits before exposing the runtime tag',
+      async () => {
+        const run = await pull();
+        const result = await run(await receipts(CANDIDATE, 'tag'), {
+          trackPulls: true,
+        });
+        expect(result.code, result.stdout + result.stderr).toBe(0);
+        let active = 0;
+        let peak = 0;
+        for (const call of result.calls) {
+          if (call.startsWith('pull-start ')) {
+            active += 1;
+            peak = Math.max(peak, active);
+          } else if (call.startsWith('pull-end ')) {
+            active -= 1;
+          } else if (call.endsWith(' tale-sandbox-runtime:latest')) {
+            expect(active).toBe(0);
+          }
+          expect(active).toBeGreaterThanOrEqual(0);
+          expect(active).toBeLessThanOrEqual(3);
+        }
+        expect(peak).toBe(3);
+        expect(active).toBe(0);
+        expect(
+          result.calls.filter((call) => call.startsWith('pull-end ')),
+        ).toHaveLength(BUILT.length);
+      },
+    );
+
+    test
+      .skipIf(process.platform === 'win32')
+      .each(
+        ['db', 'sandbox-buildkitd'].flatMap((service) =>
+          ['pull', 'image', 'tag'].map(
+            (command) => [service, command] as const,
+          ),
+        ),
+      )(
+      'propagates a %s %s failure from a worker, including its final image',
+      async (service, command) => {
+        const run = await pull();
+        const result = await run(await receipts(CANDIDATE, 'tag'), {
+          failService: service,
+          failCommand: command,
+          trackPulls: true,
+        });
+        expect(result.code).not.toBe(0);
+        expect(result.stdout).toContain(
+          `::error::Could not ${command === 'image' ? 'inspect' : command} tale-${service}`,
+        );
+        expect(
+          result.calls.some((call) =>
+            / tale-sandbox-(runtime|buildkitd):latest$/.test(call),
+          ),
+        ).toBe(false);
+        expect(
+          result.calls.filter((call) => call.startsWith('pull-end ')),
+        ).toHaveLength(service === 'db' ? BUILT.length - 1 : BUILT.length);
+        if (command === 'pull') {
+          expect(
+            result.calls.some(
+              (call) =>
+                call.startsWith('docker image inspect ') &&
+                call.includes(`/tale-${service}@`),
+            ),
+          ).toBe(false);
+        }
+        if (command !== 'tag') {
+          expect(
+            result.calls.some((call) =>
+              call.startsWith(
+                `docker tag ghcr.io/tale-project/tale/tale-${service}@`,
+              ),
+            ),
+          ).toBe(false);
+        }
       },
     );
 
@@ -748,9 +1210,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         expect(missing.stdout).toContain(
           '::error::No image receipt with a digest for tale-proxy',
         );
-        expect(missing.calls.some((call) => call.includes('tale-proxy'))).toBe(
-          false,
-        );
+        expect(missing.calls).toEqual([]);
         const malformed = await run(
           await receipts(CANDIDATE, 'tag', (service): Record<string, string> =>
             service === 'db' ? { digest: 'latest' } : {},
@@ -846,6 +1306,8 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
       // A new job in build.yml must be a candidate check or named here.
       const notCandidateChecks = new Set([
         'candidate-gate',
+        'pr-scope',
+        'ci-ready',
         'smoke-test-fork',
         'image-validate-fork',
         'vulnerability-scan',
@@ -1016,10 +1478,21 @@ const GH_STAND_IN = `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_COMMAND_LOG"
 if [ "$2" = -X ]; then
   replies=$TEST_DELETE_REPLIES
-  call=$(grep -c '^api -X DELETE ' "$TEST_COMMAND_LOG")
-else
+  version_id=\${4##*/}
+  call=$(jq -r --argjson id "$version_id" 'map(select(.metadata.container.tags | length > 0 and all(.[]; test("^pr-7-sha-[a-f0-9]{40}$")))) | map(.id) | index($id) + 1' "$TEST_VERSIONS")
+elif printf '%s\\n' "$*" | grep -q ' --paginate '; then
   replies=$TEST_LIST_REPLIES
   call=$(grep -c ' --paginate ' "$TEST_COMMAND_LOG")
+else
+  # Recheck ownership immediately before deletion through the real jq filter.
+  endpoint=$2
+  version_id=\${endpoint##*/}
+  while [ $# -gt 1 ]; do
+    [ "$1" = --jq ] && filter=$2
+    shift
+  done
+  jq --argjson id "$version_id" '.[] | select(.id == $id)' "$TEST_VERSIONS" | jq -r "$filter"
+  exit $?
 fi
 reply=$(printf '%s\\n' $replies | sed -n "\${call}p")
 case "$reply" in
@@ -1144,13 +1617,86 @@ test.skipIf(process.platform === 'win32')(
       ],
     );
     expect(result.code, result.stdout + result.stderr).toBe(0);
-    expect(result.deletions).toEqual(['1', '5']);
+    expect(result.deletions.sort()).toEqual(['1', '5']);
     // A version gone before its delete (a duplicate run, say) is no failure.
     expect(result.summary).toContain(
-      '- Deleted: 1\n- Already gone (404): 1\n- Failures: 0',
+      '- Deleted: 1\n- Already gone (404): 1\n- Shared versions preserved: 0\n- Failures: 0',
     );
   },
 );
+
+describe('standalone container CI efficiency', () => {
+  const SERVICES = ['web', 'docs', 'ui-docs', 'ai-gateway'] as const;
+  const workflow = async () =>
+    parse(
+      await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),
+    ) as {
+      jobs: Record<string, { steps: Step[] }>;
+    };
+
+  test.skipIf(process.platform === 'win32').each([
+    ['ample space', '25000000', false],
+    ['low space', '2000000', true],
+    ['just below 20 GiB', '20971519', true],
+    ['the 20 GiB threshold', '20971520', false],
+  ] as const)(
+    'only reclaims preinstalled SDKs with %s',
+    async (_, available, reclaim) => {
+      const jobs = (await workflow()).jobs;
+      const diskStep = jobs['web-test']?.steps.find(
+        (step) => step.name === 'Reclaim disk space if needed',
+      );
+      for (const service of SERVICES) {
+        const step = jobs[`${service}-test`]?.steps.find(
+          (entry) => entry.name === 'Reclaim disk space if needed',
+        );
+        expect(step?.env).toEqual({ MIN_FREE_GIB: '20' });
+        expect(step?.run).toBe(diskStep?.run);
+      }
+      const result = await execute(
+        diskStep?.run,
+        { ...diskStep?.env, TEST_AVAILABLE: available },
+        {
+          df: '#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted on\\nsynthetic 10000000 1000000 %s 10%% /\\n" "$TEST_AVAILABLE"\n',
+          sudo: '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/reclaim-calls"\n',
+        },
+      );
+      expect(result.code, result.stdout + result.stderr).toBe(0);
+      const calls = Bun.file(join(result.root, 'reclaim-calls'));
+      expect(await calls.exists()).toBe(reclaim);
+      if (reclaim) {
+        expect(await calls.text()).toBe(
+          [
+            'rm -rf -- /usr/share/dotnet',
+            'rm -rf -- /usr/local/lib/android',
+            'rm -rf -- /opt/ghc',
+            'rm -rf -- /opt/hostedtoolcache/CodeQL',
+            'docker image prune -af',
+            '',
+          ].join('\n'),
+        );
+      }
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each([
+    ['#!/bin/sh\nexit 27\n', 27],
+    ['#!/bin/sh\nprintf "unreadable free space\\n"\n', 1],
+  ] as const)(
+    'fails when free disk space cannot be measured',
+    async (df, code) => {
+      const diskStep = (await workflow()).jobs['web-test']?.steps.find(
+        (step) => step.name === 'Reclaim disk space if needed',
+      );
+      const result = await execute(diskStep?.run, diskStep?.env ?? {}, {
+        df,
+        sudo: '#!/bin/sh\nexit 99\n',
+      });
+      expect(result.code, result.stdout + result.stderr).toBe(code);
+      expect(result.stderr).not.toContain('MIN_FREE_GIB');
+    },
+  );
+});
 
 test.skipIf(process.platform === 'win32')(
   'setup action selects the host binary, honours linux-baseline on x64 only and seals only the final Mac executable',
@@ -1347,29 +1893,15 @@ describe('the Backend integration check', () => {
       await readFile(join(repository, '.github/workflows/checks.yml'), 'utf8'),
     ) as { jobs: Record<string, Job> };
 
-  test.skipIf(process.platform === 'win32')(
-    'is owed by every push, merge group and candidate, and by a pull request that touches what the suite runs',
-    async () => {
-      const script = (await checks()).jobs['integration-scope']?.steps.find(
-        (step) => step.id === 'decide',
-      )?.run;
-      for (const [event, touched, owed] of [
-        ['pull_request', 'true', 'true'],
-        ['pull_request', 'false', 'false'],
-        ['pull_request', '', 'false'],
-        ['push', '', 'true'],
-        ['merge_group', '', 'true'],
-        ['repository_dispatch', '', 'true'],
-      ] as const) {
-        const result = await execute(script, {
-          EVENT_NAME: event,
-          TOUCHED: touched,
-        });
-        expect(result.code, `${event}/${touched}`).toBe(0);
-        expect(result.output, `${event}/${touched}`).toBe(`run=${owed}\n`);
-      }
-    },
-  );
+  test('is owed by every push, merge group and candidate, and by a pull request that touches what the suite runs', async () => {
+    const decision = (await checks()).jobs['integration-scope']?.steps.find(
+      (step) => step.id === 'decide',
+    );
+    // The shared action's executable before/after API and event fixtures
+    // live in ci-ready-workflows.test.ts. Empty scope now fails closed.
+    expect(decision?.uses).toBe('./.github/actions/ci-scope');
+    expect(decision?.with?.filter).toBe('integration');
+  });
 
   test.skipIf(process.platform === 'win32')(
     "starts the object store the CLI deploys, read from the CLI's own pin",
@@ -1396,6 +1928,23 @@ describe('the Backend integration check', () => {
     // Straight through the script: no turbo cache can replay the verdict.
     expect(run?.run).toContain('bun run backend:integration');
     expect(run?.run).not.toContain('turbo');
+    const acceptance = steps.findIndex(
+      (step) => step.name === 'Verify current deployment acceptance ledgers',
+    );
+    expect(acceptance).toBeGreaterThan(steps.indexOf(run as Step));
+    expect(steps[acceptance]?.run).toBe(
+      'bun tools/cli/scripts/check-deployment-acceptance.ts tale-itest-db',
+    );
+    const scopes = parse(
+      await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+    ) as Record<string, string[]>;
+    for (const path of [
+      'tools/cli/scripts/check-deployment-acceptance.ts',
+      'tools/cli/src/lib/deployment/acceptance-migrations.ts',
+      'tools/cli/src/lib/deployment/migration-model.ts',
+      'tools/cli/src/lib/deployment/source-migrations.ts',
+    ])
+      expect(scopes.integration).toContain(path);
     expect(run?.env?.ITEST_REQUIRE_ALL_LANES).toBe('1');
     expect(run?.env?.ITEST_S3_ENDPOINT).toBeTruthy();
     expect(job?.env?.ITEST_S3_ACCESS_KEY).toBeTruthy();
@@ -1447,10 +1996,9 @@ describe('the Backend integration check', () => {
   );
 
   test('owes the proof to a pull request that touches the backend, the database image or the pin', async () => {
-    const filter = (await checks()).jobs['integration-scope']?.steps.find(
-      (step) => step.id === 'filter',
-    );
-    const { integration } = parse(String(filter?.with?.filters)) as {
+    const { integration } = parse(
+      await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+    ) as {
       integration: string[];
     };
     // The whole list is held to the harness's module graph by the platform's
@@ -1881,5 +2429,144 @@ describe('Playwright diagnostics', () => {
     } finally {
       await chmod(results, 0o755);
     }
+  });
+});
+
+/** Keep runner savings independent of test coverage and build-cache freshness. */
+describe('E2E efficiency', () => {
+  const e2e = async () =>
+    parse(
+      await readFile(join(repository, '.github/workflows/e2e.yml'), 'utf8'),
+    ) as {
+      on: { pull_request: { paths: string[] } };
+      jobs: Record<
+        string,
+        {
+          name?: string;
+          steps: Step[];
+          strategy?: {
+            'fail-fast': boolean;
+            matrix: { shard: number[] };
+          };
+        }
+      >;
+    };
+
+  test('four isolated single-worker shards retain every test partition', async () => {
+    const platform = (await e2e()).jobs.e2e!;
+    const shards = platform.strategy?.matrix.shard;
+    expect(shards).toEqual([1, 2, 3, 4]);
+    expect(platform.strategy?.['fail-fast']).toBe(false);
+    expect(platform.name).toBe('Playwright (platform ${{ matrix.shard }}/4)');
+    const suite = platform.steps.find((step) =>
+      step.run?.includes('playwright test'),
+    );
+    expect(suite?.run).toBe(
+      'bunx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}',
+    );
+    expect(suite?.env?.E2E_WORKERS).toBe('1');
+    // No grep/test-file selectors: Playwright partitions the whole discovered
+    // suite. The candidate graph suite holds all four names to its receipt.
+    expect(suite?.if).toBeUndefined();
+    expect(suite?.['continue-on-error']).toBeUndefined();
+  });
+
+  test.each(['e2e', 'static-sites'])(
+    '%s caches the installed headless browser revision while always installing system dependencies',
+    async (job) => {
+      const steps = (await e2e()).jobs[job]!.steps;
+      const version = steps.find((step) => step.id === 'playwright-version');
+      expect(version?.run).toContain(
+        'require("@playwright/test/package.json").version',
+      );
+      const cache = steps.find(
+        (step) => step.name === 'Cache Playwright browsers',
+      );
+      expect(steps.indexOf(version!)).toBeLessThan(steps.indexOf(cache!));
+      expect(cache?.with?.key).toBe(
+        'playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}',
+      );
+      expect(cache?.with?.['restore-keys']).toBeUndefined();
+      const install = steps.find(
+        (step) => step.name === 'Install Playwright Chromium',
+      );
+      expect(install?.run).toContain(
+        'bunx playwright install --with-deps --only-shell chromium',
+      );
+      // Linux shared libraries are runner state, never part of browser cache.
+      expect(install?.if).toBeUndefined();
+      expect(install?.run).toContain('Acquire::http::Timeout "30"');
+      expect(install?.run).toContain('Acquire::Retries "1"');
+      for (const service of ['platform', 'web', 'docs']) {
+        const config = await readFile(
+          join(repository, 'services', service, 'playwright.config.ts'),
+          'utf8',
+        );
+        expect(config).not.toMatch(/\bchannel\s*:/);
+        expect(config).not.toMatch(/\bheadless\s*:\s*false/);
+      }
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each([
+    ['installed version', '1.58.2', 0, true],
+    ['failed resolver with valid output', '1.58.2', 9, false],
+    ['empty version', '', 0, false],
+    ['invalid version', 'latest', 0, false],
+    ['multiline version', '1.58.2\nother=true', 0, false],
+  ])(
+    'browser cache identity fails closed for %s',
+    async (_, version, code, ok) => {
+      const steps = (await e2e()).jobs.e2e!.steps;
+      const resolver = steps.find((step) => step.id === 'playwright-version');
+      const result = await execute(
+        resolver?.run,
+        { PROOF_VERSION: String(version), PROOF_EXIT: String(code) },
+        {
+          bun: '#!/bin/sh\nprintf "%s\\n" "$PROOF_VERSION"\nexit "$PROOF_EXIT"\n',
+        },
+      );
+      if (ok) {
+        expect(result.code, result.stderr).toBe(0);
+        expect(result.output).toBe(`version=${version}\n`);
+      } else {
+        expect(result.code).not.toBe(0);
+        expect(result.output).toBe('');
+      }
+    },
+  );
+
+  test('the preview build reuses the native build task cache without a second dist cache', async () => {
+    const workflow = await e2e();
+    const { jobs } = workflow;
+    const steps = jobs.build?.steps ?? [];
+    const setup = steps.find((step) => step.name === 'Setup toolchain');
+    expect(setup?.with?.['cache-scope']).toBe('build');
+    expect(setup?.with?.['turbo-cache']).not.toBe('false');
+    expect(
+      steps.some(
+        (step) =>
+          step.id === 'dist-cache' || step.name === 'Cache platform dist',
+      ),
+    ).toBe(false);
+    const build = steps.find((step) => step.name?.startsWith('Build platform'));
+    expect(build?.run).toBe('bunx turbo run build --filter=@tale/platform');
+    expect(build?.if).toBeUndefined();
+    for (const input of [
+      'packages/shared/src/index.ts',
+      'configs/platform/system/harnesses/gemini/harness.yml',
+      'docs/en/index.md',
+      'patches/postgres.patch',
+      'tsconfig.dom.json',
+      'bunfig.toml',
+    ])
+      expect(
+        (
+          parse(
+            await readFile(join(repository, '.github/ci-scope.yml'), 'utf8'),
+          ) as Record<string, string[]>
+        ).e2e!.some((pattern) => new Bun.Glob(pattern).match(input)),
+        input,
+      ).toBe(true);
   });
 });

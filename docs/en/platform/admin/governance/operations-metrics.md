@@ -3,7 +3,7 @@ title: Operations metrics
 description: Check failed and blocked chat replies, agent turns in the sandbox, automation run outcomes, and project delivery under Settings > Metrics.
 ---
 
-Beside [Usage](/platform/admin/governance/usage-analytics) and [Feedback](/platform/admin/governance/feedback-analytics), **Settings > Metrics** holds four dashboards for Owners and Admins. **Chat health** shows whether assistant replies fail or are blocked, **Harness turns** whether agents working in the sandbox finish their turns, **Automations** how live automation runs end, and **Projects** how one project's tasks move. Each dashboard recomputes its figures from the records Tale still keeps for the period you choose.
+Beside [Usage](/platform/admin/governance/usage-analytics) and [Feedback](/platform/admin/governance/feedback-analytics), **Settings > Metrics** holds four dashboards for Owners and Admins. **Chat health** shows whether assistant replies fail or are blocked, **Agent runtime turns** whether agents working in the sandbox finish their turns, **Automations** how live automation runs end, and **Projects** how one project's tasks move. Each dashboard recomputes its figures from the records Tale still keeps for the period you choose.
 
 <Frame caption="Settings > Metrics > Chat health: the turn counts and rates, the daily outcome chart, and the breakdown by agent and model.">
 
@@ -23,11 +23,13 @@ Under **Errors**, **By error type** groups the failures, for example **Rate limi
 
 **Guardrails** breaks the guardrail events down by kind and by filter and charts detections, blocks, and filter errors per day. Those events come from the filters on [Guardrails](/platform/admin/governance/guardrails) and cover only the events retention still keeps.
 
-## Watch harness turns
+## Watch agent runtime turns {#watch-harness-turns}
 
-A harness turn is one piece of work an agent harness, such as Claude Code or Codex, carries out in the sandbox: a [project agent](/platform/projects/project-agents) working on a task, or an agent step in an automation. **Harness turns** shows whether those turns finish. Choose 7, 30, or 90 days; the page opens on 30 days.
+An agent runtime turn is one piece of work an agent runtime, such as Claude Code or Codex, carries out in the sandbox: a [project agent](/platform/projects/project-agents) working on a task, or an agent step in an automation. **Agent runtime turns** shows whether those turns finish. Choose 7, 30, or 90 days; the page opens on 30 days.
 
-The cards report **Total turns**, the **Success rate**, the **Timeout rate**, the **p95 duration**, which 95% of the turns finished within, and the turns **Stopped by user**. **By harness** repeats the turns, success rate, and timeouts for each harness, so a rising timeout rate points to the harness it comes from. [Harnesses](/platform/agents/harnesses) explains how each one runs, and [Sandboxes](/platform/admin/sandboxes) where their capacity is set.
+The cards report **Total turns**, the **Success rate**, the **Timeout rate**, the **p95 duration**, which 95% of the turns finished within, and the turns **Stopped by user**. **By agent runtime** repeats the turns, success rate, and timeouts for each agent runtime, so a rising timeout rate points to the agent runtime it comes from. [Agent runtimes](/platform/agents/harnesses) explains how each one runs, and [Sandboxes](/platform/admin/sandboxes) where their capacity is set.
+
+If the figures cannot be loaded, the page says so and offers **Try again** instead of showing zero turns or an empty **By agent runtime** table; the period you chose stays. If a refresh fails, the figures already shown stay, with a note that they may be out of date.
 
 ## Follow automation runs
 
@@ -46,12 +48,12 @@ The cards report **Total turns**, the **Success rate**, the **Timeout rate**, th
 | **Intervention rate** | Changes requested in review plus escalations (questions that agent steps in automations asked people), per agent run started in the period. |
 | **Spend** | The cost of the project's agent runs, with how many started and how many failed. |
 
-The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, each day's completions split into **Agents** and **Humans**, and the daily spend. That split, like the one under **Completed**, goes by each task's assignee as it is now, not by who completed the task. A task assigned to an agent counts for agents, although a person moved it to Done; a task assigned to a person, an automation, or no one counts for humans. Past days change too: when a task is later assigned to an agent or loses its agent, for example because the agent was deleted, its completion moves to the other side.
+The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, each day's completions split into **Agents** and **Humans**, and the daily spend. That split, like the one under **Completed**, goes by each task's assignee as it is now, not by who completed the task. A task assigned to an agent counts for agents, although a person moved it to Done; a task assigned to a person, an automation, or no one counts for humans. Past days change too: when a task is later assigned to an agent or loses its agent, for example because the agent was deleted, its completion moves to the other side. A task created directly in Done or Cancelled gets a completion timestamp at creation, but daily completion throughput counts status-change events only, so that creation is not counted as a completion event.
 
 A rising intervention rate with a steady number of runs means people are sending more work back or agents are asking more questions. Escalations come from agent steps in automations working on the project, and each one counts on the day it is raised, whether or not anyone answers. For work sent back, read the tasks in review before changing an agent's instructions under [Project agents](/platform/projects/project-agents); for questions, read the runs of the automation that asked them, as [Read automation runs](/platform/automations/execution-logs) explains.
 
 ## Read the figures correctly
 
 - Every dashboard works from the records Tale keeps. Retention settings and deletions shorten the history, so an empty period can mean the records are gone rather than that nothing happened.
-- A busy period can exceed what one pass reads: Chat health, Harness turns, Automations, and Projects each count at most the 5,000 most recent records of a kind in the period. When Tale shows a notice about recent activity, narrow the period before drawing conclusions.
+- A busy period can exceed what one pass reads: Chat health, Agent runtime turns, Automations, and Projects each count at most the 5,000 most recent records of a kind in the period. When Tale shows a notice about recent activity, narrow the period before drawing conclusions.
 - Cost figures are recorded application usage, not a provider's invoice; [Usage analytics](/platform/admin/governance/usage-analytics) explains the difference.

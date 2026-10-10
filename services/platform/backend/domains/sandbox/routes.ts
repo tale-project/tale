@@ -34,6 +34,7 @@ import {
 import { getSandboxDeploymentLimits } from './limits.ts';
 import { pinSession } from './service.ts';
 import {
+  countWaitingAgentRuns,
   getAgentNodeSandboxOp,
   listRunningOpsBySession,
   listSandboxViewsForOrg,
@@ -101,6 +102,7 @@ export function createSandboxRoutes(deps: {
         // Developers can see aggregate infrastructure pressure without
         // learning ids belonging to a project they cannot access.
         runtimeSessions: hasAdminCapability(c) ? snapshot.runtimeSessions : [],
+        placements: hasAdminCapability(c) ? snapshot.placements : [],
       });
     } catch (error) {
       console.warn(
@@ -306,8 +308,13 @@ export function createSandboxRoutes(deps: {
       role: c.get('orgMember').role,
     });
     if (!(await canReadRun(deps.sql, auth, run))) return c.json({ op: null });
+    const nodeId = c.req.query('nodeId');
     return c.json({
-      op: await getAgentNodeSandboxOp(deps.sql, { organizationId, runId }),
+      op: await getAgentNodeSandboxOp(deps.sql, {
+        organizationId,
+        runId,
+        ...(nodeId !== undefined ? { nodeId } : {}),
+      }),
     });
   });
 
@@ -385,7 +392,10 @@ export function createSandboxRoutes(deps: {
       session.deletesAt = deletions.get(session.sessionId) ?? null;
       session.destroyState = destroys.get(session.sessionId) ?? null;
     }
-    return c.json({ sessions });
+    // The runs waiting for room, every one counted: what an admin weighs
+    // raising the limit of agent workers against.
+    const waitingRuns = await countWaitingAgentRuns(deps.sql, organizationId);
+    return c.json({ sessions, waitingRuns });
   });
 
   /** Cancel every running op on one session (the 0.4 `stopSandboxTask`). */

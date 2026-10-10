@@ -373,6 +373,7 @@ const taskStore: WorkflowTaskStore = {
           authorType: 'user' as const,
           authorId: 'usr_double',
           body: 'Please re-check page 3.',
+          bodyText: 'Please re-check page 3.',
           createdAt: 1_750_000_000_000,
         },
       ],

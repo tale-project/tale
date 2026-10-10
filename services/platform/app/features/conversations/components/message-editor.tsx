@@ -49,6 +49,7 @@ function MilkdownEditorInner({
   placeholder,
   disabled = false,
   sendDisabledReason,
+  sending = false,
   onSave,
   messageId,
   conversationId: _conversationId,
@@ -85,7 +86,8 @@ function MilkdownEditorInner({
   const setAttachedFiles = onAttachmentsChange ?? setLocalAttachedFiles;
   const [isImproveMode, setIsImproveMode] = useState(false);
   const [isImproving, startImprovingTransition] = useTransition();
-  const [isSending, startSendingTransition] = useTransition();
+  const [isSendPending, startSendingTransition] = useTransition();
+  const isSending = isSendPending || sending;
   const [isFocused, setIsFocused] = useState(false);
 
   const initialHasContent =
@@ -226,14 +228,23 @@ function MilkdownEditorInner({
         setIsImproveMode(false);
       } catch (error) {
         console.error('Failed to improve content:', error);
-        // No provider is a configuration fact the person can act on; every
-        // other refusal carries the door's own sentence.
+        // No provider, a model access rule and a reached usage limit are
+        // facts the person can act on, said in their language; every other
+        // refusal carries the door's own sentence.
+        const code = backendErrorCode(error);
         const description =
-          backendErrorCode(error) === 'IMPROVE_UNAVAILABLE'
+          code === 'IMPROVE_UNAVAILABLE'
             ? tConversations('editor.improveUnavailable')
-            : backendErrorMessage(error, '');
+            : code === 'IMPROVE_NO_MODEL_ACCESS'
+              ? tConversations('editor.improveNoModelAccess')
+              : code === 'BUDGET_EXCEEDED'
+                ? tConversations('editor.improveLimitReachedDescription')
+                : backendErrorMessage(error, '');
         toast({
-          title: tConversations('editor.improveFailed'),
+          title:
+            code === 'BUDGET_EXCEEDED'
+              ? tConversations('editor.improveLimitReached')
+              : tConversations('editor.improveFailed'),
           ...(description ? { description } : {}),
           variant: 'destructive',
         });
@@ -366,6 +377,9 @@ function MilkdownEditorInner({
               isSending && 'pointer-events-none opacity-50',
               (isImproveMode || isImproving) && 'hidden',
             )}
+            // The send carries the body as it was and its success clears it:
+            // keep the keyboard and assistive tech out until it settles too.
+            inert={isSending || undefined}
           >
             <style>{`
               .milkdown {
@@ -441,6 +455,7 @@ function MilkdownEditorInner({
         <FileAttachmentsList
           files={attachedFiles}
           onRemove={handleRemoveFile}
+          disabled={isSending}
         />
 
         <EditorActionBar

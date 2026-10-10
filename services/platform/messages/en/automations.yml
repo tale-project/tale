@@ -1,0 +1,919 @@
+issueImport:
+  description: Import issues into Tale tasks. Repeating an import reuses the linked tasks and preserves their status and description. Configure the source credential in Settings > Connectors first.
+  chooseProject: Choose a Tale project
+  noProjects: No projects found. Create a project before importing issues.
+  limitHint: 'Read between 1 and 500 source issues per run. Continue from the result if more issues match.'
+  fields:
+    projectId: Tale project
+    owner: GitHub owner or organization
+    repo: GitHub repository
+    labels: GitHub labels (comma-separated)
+    organization: GlitchTip organization slug
+    project: GlitchTip project slug
+    query: GlitchTip search
+    limit: Maximum issues
+  resultTitle: Imported tasks
+  summary: 'Processed issues: {imported}. New tasks: {created}. Existing tasks: {updated}.'
+  mockResult: This is a test result. No issues were fetched and no tasks were written.
+  openTask: 'Open task {id}'
+  truncated: 'More issues match. Continue the import to read the next batch. Previously linked issues reuse their Tale tasks.'
+  continuing: 'Continue from the next batch. Changing the source filters or Tale project starts a new scan.'
+  continue: 'Continue import'
+  skipped: 'Issues skipped: {count}. Closed or resolved issues without a linked Tale task are not imported.'
+  refreshHasMore: 'More linked tasks need a source refresh. Run the import again to refresh the next group; Tale prioritizes the oldest checks.'
+title: Automations
+entityLabel: automations
+entityLabelOne: automation
+navigation:
+  editor: Editor
+  general: General
+  runs: Runs
+switcher:
+  title: Switch automation
+  searchPlaceholder: Search automations
+  empty: No automations found
+  ariaLabel: 'Switch automation, current: {name}'
+list:
+  createButton: Create automation
+  searchPlaceholder: Search automations
+  columnName: Name
+  columnProjects: Projects
+  columnVersions: Versions
+  columnStatus: Status
+  versionCount: '{count, plural, one {# version} other {# versions}}'
+  notDeployed: Not deployed
+  projectBound: Project
+  loadFailed: "Couldn't load automations: {error}"
+  empty:
+    title: No automations yet
+    description: Choose Create automation to start from a trigger and an agent, or to upload a package.
+createMenu:
+  blank: Blank (trigger + agent)
+blank:
+  title: New automation
+  stepAgent: Define the agent — what it does on every run.
+  stepTrigger: Choose when it runs.
+  nameLabel: Name
+  namePlaceholder: e.g. Triage GlitchTip issues
+  slugHint: 'Saved as: {slug}'
+  nameTaken: An automation with that name already exists.
+  nameReserved: That name starts with a word the platform keeps for its own pages. Start it with a different word.
+  modelLabel: Agent model
+  modelPlaceholder: Choose the model the agent calls
+  modelSearchPlaceholder: Search models
+  modelSearchEmpty: No models found
+  promptLabel: What should it do?
+  promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
+    new one.
+  equipmentLabel: Equipment
+  webhookHint: The webhook URL is shown once, right after the automation is
+    created — copy it before opening the editor.
+  stepWebhook: Copy the webhook URL — it is shown only now.
+  copyWebhookUrl: Copy the webhook URL
+  openAutomation: Open the automation
+  enableNow: Enable now
+  enableNowHint: Off keeps the trigger paused — nothing starts until you switch it on from the Trigger card.
+  deployNow: Deploy v1 now
+  deployNowHint: v1 goes live at once, so its trigger starts runs while it is enabled. Off keeps v1 a draft you deploy from the editor.
+  deployFailed: 'The automation was created, but v1 could not go live: {error}. Deploy it from the editor.'
+  triggerFailed: 'The automation was created, but its trigger could not be
+    set: {error}. Set it from the Trigger card.'
+  cancel: Cancel
+  back: Back
+  next: Next
+  submit: Create automation
+  submitting: Creating…
+  initialMessage: Initial version
+  kindQuestion: 'When does it run?'
+notFound:
+  title: Automation not found
+  description: It may have been renamed, or it may belong to another
+    organization.
+detail:
+  loading: Loading the automation…
+  loadFailed:
+    title: Couldn't load the automation
+  # A deleted automation keeps its run history until retention removes
+  # it; the Runs pages still open under this banner.
+  deleted:
+    banner: 'This automation was deleted on {date}. Its run history stays until retention removes it.'
+    title: Automation deleted
+    description: There is nothing left to edit or deploy; the runs it recorded are still readable.
+    openRuns: Open the run history
+  deployedVersion: 'Live: v{version}'
+  versionSelect: Version
+  deployVersion: 'Deploy v{version}'
+  runMock: Test run
+  saveVersion: Save version
+  saveMessageLabel: Version message
+  saveMessageDescription: What changed, so the version list stays readable.
+  saveDialog:
+    title: Save a new version
+    description: Saves a new version. Any run already in progress keeps using the deployed version.
+  switchVersion:
+    title: Show another version?
+    description: Switching versions discards any unsaved changes you've made.
+    confirm: Discard and switch
+  staleVersion:
+    title: This automation changed while you were editing
+    description: "{message}"
+    reload: Discard my changes and reload
+    saveAnyway: Save anyway
+  showLastRun: Show last run
+  hideLastRun: Hide last run
+  runLive: Run live
+  runLiveNeedsDeploy: Deploy a version first — a live run executes the
+    deployed version.
+  deployedReadFailed: Couldn't load the deployed version
+  runLiveNeedsDeployedRead: Couldn't load the deployed version — try again.
+  runLiveTitle: Run live?
+  runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
+  runInput:
+    label: Run input (JSON)
+    description: 'Input for saved version {version}. It does not change the automation.'
+    schema: Input schema
+    invalidJson: Enter valid JSON for the run input.
+    invalid: 'The input does not match the schema. Check these fields: {paths}.'
+    mockDescription: Test the saved version with mock responses. No external actions run.
+  runScope:
+    label: Project scope
+    orgWide: Organization-wide
+    confirmOrgWide: This run operates organization-wide, across every project.
+    confirmProject: This run operates in the {project} project — its task and document tools act there.
+  delete:
+    title: Delete automation
+    description: Delete "{name}"? Triggers stop immediately. Run history stays until retention removes it.
+    done: Automation deleted
+    failed: Could not delete the automation
+trigger:
+  title: Trigger
+  description: What starts this automation. A trigger always runs the live version.
+  none: No trigger — this automation runs only when started by hand or through the API.
+  add: Add trigger
+  kindLabel: Trigger type
+  kinds:
+    schedule: Schedule
+    webhook: Webhook
+    event: Platform event
+  cronLabel: Cron
+  cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
+  cronInvalid: That cron expression is not valid.
+  cronInvalidReason: 'That cron expression is not valid: {reason}'
+  timezoneLabel: Timezone
+  timezoneSearch: Search timezones
+  timezoneEmpty: No timezones match
+  eventLabel: Event name
+  eventPlaceholder: Select an event
+  enabledLabel: Enabled
+  failures:
+    pausedTitle: 'Paused after repeated failures'
+    pausedBody: '{count, plural, one {# run} other {# runs}} in a row failed with an error a retry won''t fix, so the schedule turned itself off. Fix the automation, then turn the trigger back on and save.'
+    streak: '{count, plural, one {The last run} other {The last # runs}} failed with an error a retry won''t fix.'
+    streakSchedule: 'After {limit} in a row, the schedule turns itself off.'
+    last: 'Last failure {at}:'
+    viewRun: 'View run'
+  remove: Remove trigger
+  removeTitle: Remove the trigger?
+  removeBody: Removes the trigger. The automation and its version history are unaffected.
+  tokenTitle: Webhook URL — copy it now
+  tokenHint: The token is the last part of the URL, shown once and stored only as a hash.
+  webhookEndpointLabel: Webhook endpoint
+  noToken: Save to mint the token; the full URL is shown once.
+  rotate: Rotate token
+  revokeConfirm:
+    title: Replace the webhook?
+    body: Switching the trigger type revokes the webhook URL immediately — senders still using it get 404, and configuring a webhook again later mints a different URL.
+    confirm: Replace and revoke
+  rotateConfirm:
+    title: Rotate the webhook token?
+    body: The current URL stops working the moment the new token is minted. Copy the new URL and update every sending system.
+  revokedToast: The previous webhook URL has been revoked — senders using it now get 404.
+  loadFailed: 'Couldn''t load the trigger.'
+  retry: 'Try again'
+  kindHint:
+    schedule: 'At the times you choose.'
+    webhook: 'When another system sends a request to its URL.'
+    event: 'When something happens in Tale, such as a new task.'
+  schedule:
+    label: 'Schedule'
+    description: 'When the automation starts.'
+    format: 'Schedule format'
+    formatRepeat: 'Repeat'
+    formatCron: 'Cron (advanced)'
+    inZone: 'Times in {zone}'
+    savedAsCron: 'Stored as the cron expression {cron}. Saving a change to the schedule stores it as a repeat rule.'
+    cronNotConvertible: 'This cron expression can''t be shown as a repeat. Saving in Repeat replaces it.'
+    repeatNoCron: '"{sentence}" has no single cron expression. Enter one, or go back to Repeat.'
+    cronReadsAs: 'Reads as: {sentence}'
+    anchor:
+      daily: 'Counted from {date}.'
+      weekly: 'Counted from the week of {date}.'
+      monthly: 'Counted from {month}.'
+      yearly: 'Counted from {year}.'
+  timezoneYours: 'Your time zone'
+  catchUp:
+    label: 'Missed runs'
+    description: 'When Tale was unavailable at the due time, for example during an update.'
+    latest: 'Start the latest one when Tale is back'
+    skip: 'Skip them'
+    latestHint: 'Runs once for the most recent time it missed, however late. Earlier missed times are counted, not run.'
+    skipHint: 'A run more than 10 minutes late doesn''t start; it''s counted as missed.'
+  nextRuns:
+    title: 'Next runs'
+    titleUnsaved: 'Next runs (unsaved)'
+    wouldRun: 'Would run at'
+    paused: 'Paused: turn on Enabled and save to start these runs.'
+    notDeployed: 'Nothing starts until a version is deployed.'
+    unavailable: 'Fix the schedule above to see the next runs.'
+  health:
+    lastRun: 'Last run {at}'
+    noRunYet: 'Hasn''t started a run yet.'
+  skip:
+    technicalDetails: 'Technical details'
+    openEditor: 'Open the editor'
+    editSchedule: 'Edit the schedule'
+    editProjects: 'Edit the projects'
+    alsoMissed: '{count, plural, one {An earlier run was missed too.} other {# earlier runs were missed too.}}'
+    notDeployed:
+      title: 'Skipped: no version is deployed'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but no version is deployed, so no run started. Deploy a tested version in the editor.'
+    inputRefused:
+      title: 'Skipped: the run''s input was refused'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but version {version} refused what the trigger sends. Change the automation''s inputs, or the trigger''s fixed input, so they match.'
+    projectRefused:
+      title: 'Skipped: its project can''t start runs'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but {reason, select, archived {its project is archived} other {its project is missing or no longer allows this automation}}, so no run started. Check the automation''s projects.'
+    startRefused:
+      title: 'Skipped: the run couldn''t start'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but the run couldn''t start. The technical details say why.'
+    unusableSchedule:
+      title: 'Skipped: the schedule can''t be read'
+      body: 'It came due on {at}, but its schedule or time zone couldn''t be read. Correct it and save; nothing starts until then.'
+    missed:
+      title: '{count, plural, one {# run was missed} other {# runs were missed}}'
+      titleCapped: 'More than {count, number} runs were missed'
+      body: '{count, plural, one {A run was due on {from} while Tale was unavailable.} other {Runs were due between {from} and {to} while Tale was unavailable.}} {policy}'
+      policyLatest: 'The latest one started when Tale was back.'
+      policySkip: 'They were skipped, as set under Missed runs.'
+  input:
+    title: 'This run receives'
+    copy: 'Copy the input'
+    firedAt: 'firedAt: the due time in milliseconds since 1970 (UTC). Here, {at}.'
+    webhook: 'Your request body arrives as payload: JSON stays structured, anything else arrives as text.'
+    event: 'The event data arrives as payload. It holds IDs; read the full record with a step.'
+    accepted: 'Version {version} accepts this input.'
+    refusedTitle: 'Version {version} doesn''t accept this input'
+    refusedBody: 'Its inputs refuse what this trigger sends, so every start would be skipped. Add the missing fields to the fixed input, or change the inputs in the editor.'
+  runNow:
+    label: 'Run now'
+    unsaved: 'Save your trigger changes first.'
+    body: 'Runs version {version} for real with the input below, as the trigger would — emails send, records change. The schedule doesn''t change.'
+    confirm: 'Start run'
+    started: 'Run started.'
+    failed: 'Couldn''t start the run: {error}'
+  webhook:
+    projectUrls: 'Project URLs'
+    orgUnused: 'This automation is installed in projects, so it runs only through a project URL.'
+    tokenHidden: 'Webhook URL, token hidden'
+    tokenHiddenHint: 'The token was shown once, when it was created. Rotate it to get a new URL.'
+    sampleTitle: 'Send a test request'
+    sampleCopy: 'Copy the request'
+    sampleHint: 'Send a new Idempotency-Key for each event: repeating one within 24 hours returns the first run.'
+    sampleEnv: 'Keep the URL in TALE_WEBHOOK_URL in the sending system; it works like a password.'
+    deliveries:
+      title: 'Recent deliveries'
+      empty: 'No deliveries yet. Send a test request to see one here.'
+      loadFailed: 'Couldn''t load the deliveries.'
+      byHeader: 'ID from {header}'
+      byBody: 'No delivery ID'
+      refusedNote: 'Refused requests aren''t listed; the sender sees why in its response.'
+  events:
+    search: 'Search events'
+    empty: 'No events match'
+    scopeOrg: 'Starts for matching events in every project, and for events that belong to no project.'
+    scopeProjects: 'Starts for matching events in {projects}, and for events that belong to no project, such as contacts.'
+    loopBounded: 'Its own runs never start it again, and a run that an event started doesn''t start other automations.'
+    group:
+      tasks: 'Tasks'
+      comments: 'Comments'
+      conversations: 'Conversations'
+      contacts: 'Contacts'
+      projects: 'Projects'
+    contactCreated:
+      label: 'Contact created'
+      description: 'A contact is added through the API, the app or an import.'
+    contactUpdated:
+      label: 'Contact updated'
+      description: 'A contact''s details change.'
+    contactDeleted:
+      label: 'Contact deleted'
+      description: 'A contact is deleted.'
+    conversationCreated:
+      label: 'Conversation started'
+      description: 'A conversation opens in Inbox: an email arrives, or an external conversation is mirrored in.'
+    conversationMessageReceived:
+      label: 'Message received'
+      description: 'A message lands on an existing conversation.'
+    projectCreated:
+      label: 'Project created'
+      description: 'A project is created.'
+    taskCreated:
+      label: 'Task created'
+      description: 'A task is created on a board, through the API or by an import.'
+    taskStatusChanged:
+      label: 'Task status changed'
+      description: 'A person moves a task to another status. An agent''s own moves don''t count.'
+    commentCreated:
+      label: 'Comment added'
+      description: 'A comment is posted on a task.'
+    commentMentioned:
+      label: 'Mentioned in a comment'
+      description: 'A task comment mentions someone with @.'
+  deployNotice:
+    title: 'Its trigger is off'
+    body: '{kind, select, schedule {The schedule starts no runs until you turn it on.} webhook {Requests to its URL start no runs until you turn it on.} other {Events start no runs until you turn it on.}}'
+    turnOn: 'Turn on the trigger'
+    review: 'Review the trigger'
+    turnedOn: 'The trigger is on.'
+    turnOnFailed: 'Couldn''t turn on the trigger: {error}'
+  issues:
+    keyOtherKind: 'This setting belongs to a different trigger type.'
+    schedule:
+      cronOrRepeat: 'Give the schedule either a repeat rule or a cron expression, not both.'
+      cronUnreadable: 'This cron expression can''t be read.'
+      cronImpossibleDate: 'This cron expression names a date that never comes.'
+      timesRequired: 'Add at least one time of day.'
+      timeFormat: 'Write times as HH:MM, for example 09:30.'
+      timesTooMany: 'Use at most {max} times a day.'
+      intervalUnsupported: 'Pick one of the offered intervals.'
+      monthDayImpossible: 'That month never has this day.'
+      windowHoursEqual: 'Start and end are the same. Leave out the hours to run all day.'
+      startDate: 'The start date isn''t a calendar date.'
+    input:
+      notObject: 'The fixed input must be a JSON object.'
+      reservedKey: 'Remove {keys}: the trigger sets these fields itself.'
+      tooLarge: 'The fixed input is larger than 16 KiB.'
+      unstorableText: 'The fixed input contains a character that can''t be stored: a NUL character or half of an emoji.'
+    event:
+      required: 'Pick an event.'
+      unknown: 'Tale doesn''t raise this event.'
+  fixedInput:
+    label: 'Fixed input'
+    description: 'Values this trigger adds to every run''s input, as JSON. The trigger''s own fields (trigger, firedAt, event, payload) are set over them.'
+    add: 'Add fixed input'
+    fillMissing: '{count, plural, one {Add the missing field} other {Add the # missing fields}}'
+    notJson: 'This isn''t valid JSON.'
+  timezoneInvalid: 'Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).'
+canvas:
+  ariaLabel: Automation canvas
+  unpinnedModel: No pinned provider — each run picks one automatically.
+  empty:
+    title: This version has no nodes
+    description: An automation does its work in nodes. Ask your coding agent to add them.
+  cycle:
+    title: These nodes reference each other in a circle
+    description:
+      The order shown is the order the nodes are written in, not the
+      order they would run in — the engine cannot run a cycle. Remove one of
+      the references to break it.
+  view:
+    label: View
+    canvas: Canvas
+    list: List
+    source: Source
+  legend:
+    data: 'Solid line: reads the output of the node above'
+    control: 'Dashed line: runs after it, without reading its output'
+    gate: 'Condition: decides whether the node below runs'
+    yes: 'Yes: runs when the condition holds'
+    no: "No: runs when the condition doesn't hold"
+    completion: 'Dotted line: the run ends after this node'
+    conditional: "Dashed box: may not run, or didn't run"
+    loop: 'Frame: runs once per item, or repeats'
+  readsNothing: Reads no other node
+  node:
+    returnsUnknown: Shape known after a run
+    returns: 'Returns {shape}'
+    writes: Changes data in {connector}. A live run may wait for approval.
+    asks: May ask a question and wait for the answer.
+    catalog:
+      transform: Transform
+      llm: Language model
+      agent: Agent
+      subautomation: 'Calls {automation}'
+      subautomationUnset: Calls an automation
+      connector: '{connector} · {action}'
+      withModel: '{type} · {model}'
+      unknown: 'Unknown type {type}'
+    source:
+      input: 'run input ({keys})'
+      inputAll: run input
+      item: each item
+  gate:
+    asCode: Written as code
+  edge:
+    carries: 'Carries {fields}'
+  controlFlow:
+    forEach: 'For each item of {list}'
+    forEachRaw: For each item of its list
+    repeatUntilCapped: 'Repeats until {condition}, at most {maxRepeats}×'
+    repeatRaw: 'Repeats until its condition holds, at most {maxRepeats}×'
+    onError: Continues on error
+  updated: 'Now showing v{version}.'
+  selectionRemoved: '{node} is no longer in this version.'
+  newerVersion:
+    title: A newer version was saved
+    body: 'v{version} was saved while you were editing. Your draft is based on v{base}.'
+    show: 'Show v{version} and discard my draft'
+  start:
+    manual: By hand, the API or MCP
+    manualOnly: Only by hand, the API or MCP — no trigger
+    webhook: A request to its webhook URL
+    event: 'When {event}'
+    scheduleZone: '{schedule} · {zone}'
+    off: 'Off'
+    notLive: Waits for a live version
+    paused: Paused — no runs start
+    nextRun: 'Next run {at}'
+    anyInput: Any JSON input
+    noFields: No input fields
+    fromTrigger: from the trigger
+    description: '{triggers}. Input: {fields}.'
+  end:
+    returnsNode: 'The output of {node}'
+    returnsNothing: Nothing — this automation has no output
+    fieldFrom: 'from {nodes}'
+    maybeEmpty: may be empty
+    emptyOnPath: empty on this path
+    succeeded: returns the output
+    failed: '{count, plural, =0 {no node stops the run} one {when # node fails} other {when one of # nodes fails}}'
+    stopped: when someone stops it
+    someEmpty: Some runs return empty values
+    failedAt: 'Failed at {node}'
+editor:
+  unknownType: 'Unknown node type: {type}'
+  catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
+  invalidJson: This is not valid JSON yet, so the node was not changed.
+  fixSuggestion: 'Replace with {name}'
+  jsonMustBeObject: This must be a JSON object, in curly braces.
+  jsonMustBeList: This must be a JSON list, in square brackets.
+  inspector:
+    copyId: Copy node ID
+    tabs:
+      fields: Fields
+      shape: Shape
+      run: Last run
+  start:
+    title: Start
+    description: What starts this automation and what each run receives.
+    trigger: Trigger
+    editTrigger: Change in General
+    inputs: Inputs
+    inputsDescription: "The data each run receives, as a JSON Schema. A run whose input doesn't match is refused before any node runs."
+  end:
+    title: End
+    description: What a successful run returns, and how a run can end.
+    outputDescription: A JSON value. Read node outputs with templates, such as '{{' nodes.report.output '}}'.
+    outcomes: How a run ends
+  flow:
+    title: When it runs
+    always: On every run
+    some: 'On {count} of {total} paths'
+    never: 'Never: no combination of conditions lets it run'
+    skipWhen: Skipped when its condition is false
+    skipElse: 'Skipped when {node} runs'
+    skipUpstream: 'Skipped when {node} is skipped'
+    skipError: Skipped when it fails
+    failHalts: If it fails, the run stops with its error.
+    failContinues: '{count, plural, =0 {If it fails, the run goes on without it.} one {If it fails, the run goes on without it and skips # node that reads it.} other {If it fails, the run goes on without it and skips # nodes that read it.}}'
+    failsWhen: 'Fails when {reasons}.'
+  explain:
+    when: "Runs only if {condition}. Otherwise it's skipped, and so is every node that reads its output."
+    whenRaw: "Runs only if this condition holds. Otherwise it's skipped, and so is every node that reads its output."
+    forEach: 'Runs once for each item of {list}. Its output is the list of results.'
+    repeatUntil: 'Runs again until {condition}, at most {max} times in all.'
+    elseOf: 'Runs only when {node} is skipped by its own condition.'
+  shape:
+    receives: Receives
+    receivesCode: What its code reads as input
+    item: Each item
+    returns: Returns
+    readBy: Read by
+    readByOutput: The automation output
+    notRead: Nothing reads its output.
+    checking: Updating…
+    unavailable: "Couldn't work out the shapes. They appear after the next successful check."
+    origin:
+      declared: From its output schema
+      signature: 'As {connector} describes it'
+      inferred: Worked out from its code
+      fixed: 'Every node of this type ({type}) returns this'
+      child: 'What {automation} returns'
+      unknown: "Tale can't tell what this returns. A test run shows the real data."
+  versionNotFound:
+    title: "Version {version} doesn't exist"
+    description: This automation has no version with that number — the link may be stale, or the number mistyped.
+    openLatest: Open latest
+  controlFlowTitle: Control flow
+  nodeSheetDescription: Edit the node's fields, then save or discard the change.
+  agent:
+    equipmentLabel: Equipment
+    harnessDefault: Default (Claude Code)
+    modelUnlisted: 'No connected provider offers the saved model "{model}"
+      for this agent runtime — pick one from the list.'
+  # The llm node's model picker: what the organization's providers serve,
+  # with a typed escape for a model whose provider is not connected yet.
+  llm:
+    modelPlaceholder: Choose the model to call
+    modelUnlisted: 'No connected provider serves "{model}" — a live run
+      would fail at this node. Pick a listed model, or keep the id if you
+      will connect its provider.'
+    typeUnlisted: Type a model that is not listed
+    modelIdLabel: Model id
+    modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
+  resolvedInput: Resolved input
+  output: Output
+  fields:
+    input: Input
+    inputDescription: A JSON object. A string value may reference another
+      node's output, and that reference is exactly what draws an edge on the
+      canvas.
+    code: Code
+    prompt: Prompt
+    system: System prompt
+    model: Model
+    outputSchema: Output schema
+    automation: Automation
+    credential: Credential
+    harness: Agent runtime
+    skills: Skills
+    connectors: Connectors
+    tools: Platform tools
+    secrets: Secrets
+    files: Staged files
+    when: When
+    whenDescription: Skip this node when the expression is falsy.
+    elseOf: Else of
+    elseOfDescription: Run only when the named node was skipped by its own condition.
+    forEach: For each
+    forEachDescription: Run once per item of the array the expression resolves to.
+    repeatUntil: Repeat until
+    repeatUntilDescription: Re-run this node until the expression is truthy.
+    maxRepeats: Maximum repeats
+    onError: On error
+    onErrorStop: Stop the run
+    onErrorContinue: Continue without it
+    onErrorDescription: What happens when this node fails. Continuing skips every node that reads its output.
+    maxRepeatsDescription: At most this many passes, from 1 to 20. Empty means 5.
+    maxRepeatsRange: Enter a whole number from 1 to 20.
+    elseOfNone: None
+    elseOfEmpty: No other node has a condition.
+    output: Output
+    type: Type
+    id: ID
+    modelProvider: Provider
+bindings:
+  title: Projects
+  countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
+  hint: Restrict to specific projects, or leave empty for all.
+  placeholder: Select projects
+  searchPlaceholder: Search projects
+  empty: No projects match
+  noProjects: This organization has no projects yet.
+versions:
+  title: Versions
+  empty: No versions saved yet.
+  versionLabel: v{version}
+  deployed: Live
+  deployRefused: This version was not deployed
+  testsPassed: Tests passed
+  testsFailed: Tests failed
+  noMessage: No message
+upload:
+  trigger: Upload package
+  title: Upload package
+  description: Upload a workflow file or pack zip to add it to your automations.
+  filesLabel: Package files
+  filesHelp: workflow.yml (+ automation.yml), or a pack .zip.
+  uploading: Uploading the package…
+  zipOnly: Upload the zip on its own — it already carries the whole pack.
+  zipTooLarge: The zip is over the 20 MiB package cap.
+  skillsSummary: 'Skills: {created} installed, {replaced} replaced, {unchanged} unchanged.'
+  skillConflictTitle: '{count, plural, one {# skill already exists with different content} other {# skills already exist with different content}}'
+  skillConflictDescription: Confirming replaces each listed skill with the package's version. The superseded SKILL.md stays in the skill's history.
+  skillConflictConfirm: '{count, plural, one {Replace the skill} other {Replace # skills}}'
+  skillConflictCancel: Keep the existing skills
+  removeFile: 'Remove {name}'
+  targetLabel: Install into
+  targetOrg: Organization
+  targetHelp: Project binds it to that board; Organization shares it org-wide.
+  submit: Upload package
+  submitting: Validating and saving…
+  successTitle: Package uploaded
+  successNote: '{name} v{version} is saved as a draft.'
+  successHint: Drafts never run — triggers and task boards only use the deployed version. Deploy now to make this version live, or do it later from the automation's page.
+  deployNow: 'Deploy v{version}'
+  deployLater: Later
+  deployed: '{name} v{version} is live.'
+  warnings: '{count, plural, one {# validation warning} other {# validation warnings}}'
+runs:
+  agentLog:
+    title: Agent log
+    starting: The agent is starting up in the sandbox…
+    empty: The agent produced no log for this run.
+    readFailed: Could not load the agent log.
+    readFailedDescription: The transcript is temporarily unavailable. Try again to reload it.
+    retry: Try again
+    servedBy: 'This turn ran on {model}.'
+    visionModel: 'Images in this run were read by {model}.'
+  approval:
+    title: 'Waiting for your approval: {operation}'
+    node: 'Requested by node "{node}" — approving lets it act right away; rejecting fails it.'
+    pending: Approving lets the parked step act right away; rejecting fails it.
+    approved: '{operation} approved — the run resumes right away.'
+    rejected: '{operation} rejected — the step fails and the run stops.'
+    input: The step would call with
+    approve: Approve
+    reject: Reject
+    loading: Loading the approval…
+    loadFailed: "Couldn't load this approval."
+    retry: Try again
+    decideFailed: "Couldn't record your decision."
+  ask:
+    title: The agent needs your answer to continue
+    answerLabel: Your answer
+    placeholder: Type your answer — plain text is fine.
+    submit: Send answer & resume
+  # A run handed to another server — after its own was updated or restarted,
+  # or stopped responding.
+  resumed:
+    label: '{count, plural, one {Resumed after a restart} other {Resumed after # restarts}}'
+    shutdown: 'Last on {date}: the server running it was being updated or restarted and handed it on.'
+    lease_expired: 'Last on {date}: the server running it stopped responding, and another one took over.'
+  # A write that may already have reached its service when the run was
+  # interrupted: Tale cannot tell, so a person decides how to continue.
+  quarantine:
+    title: "Outcome unknown"
+    reason: "On hold: the outcome of earlier work is unknown."
+    body: "This run started before the upgrade. Tale cannot verify whether its earlier work stopped or reached an external service. It stays on hold and will not be replayed automatically."
+    missing: "The hold details could not be loaded. Reload before requesting a stop."
+    stop: "Request stop"
+    requested: "Stop requested. The run stays on hold until its earlier work is confirmed to have stopped. Actions already taken are not undone."
+    confirmTitle: "Request a stop for this run?"
+    confirmBody: "Tale will request a stop for the sessions it can identify. This does not confirm that earlier work has stopped or undo anything an external service received. The run will remain on hold."
+    changed: "The hold changed. Close this dialog and review its current details before deciding."
+    failed: "The stop request could not be saved."
+    reload: "Reload details"
+  inDoubt:
+    title: 'This step may already have run: {node}'
+    body: "{item, select, none {The run was interrupted while this step was sending to {connector}.} other {The run was interrupted while this step was sending item {item} to {connector}.}} Tale can't tell whether {connector} received it. Check {connector}: if it received it, skip the step; if not, run it again."
+    input: The step was sending
+    retry: Run it again
+    retryConfirm:
+      title: Run this step again?
+      body: 'If {connector} already received it, it happens twice.'
+    skip: Skip it
+    skipHint: 'Skip it: the run continues as if the step returned nothing.'
+    fail: Fail the run
+    failConfirm:
+      title: Fail this run?
+      body: The run stops here. Nothing it already did is undone.
+    resolved:
+      retry: Running the step again.
+      skip: Skipped — the run continues.
+      fail: The run was failed.
+    settled: This step no longer waits for a decision.
+    loading: Loading the step…
+    loadFailed: "Couldn't load this step."
+    reload: Try again
+    decideFailed: "Couldn't record your choice."
+  title: Runs
+  description: Every run of this automation, newest first — test runs and live runs alike. Open one for its steps, effects and output.
+  breadcrumb: Run
+  heading: 'Run of {automation}'
+  empty: This automation has not run yet.
+  loading: Loading the run…
+  loadFailed: "Couldn't load this run."
+  # The engine's own retry of a failed agent turn — the user must be able
+  # to tell the platform's retry from their own rerun.
+  autoRetrying: 'Auto-retry {n} of {max}'
+  cancel: Stop the run
+  # Asked before a stop: it is final, and it withdraws whatever the run is
+  # waiting on (an approval card, a question).
+  cancelConfirm:
+    title: Stop this run?
+    body:
+      The run stops at its next step boundary and cannot be resumed. Work
+      already done stays; a pending approval or question is withdrawn.
+  # Who or what started the run — never the `user:<id>` / `trigger:<id>`
+  # door the record carries.
+  starter:
+    you: Started by you
+    youApi: Started by you (API)
+    member: 'Started by {name}'
+    apiKey: 'Started by {name} (API)'
+    formerMember: Started by a former member
+    formerMemberApi: Started by a former member (API)
+    schedule: Started by the schedule
+    webhook: Started by a webhook
+    event: Started by a platform event
+    trigger: Started by a trigger
+    unknown: Starter not recorded
+  # What a waiting run is parked on, in words.
+  waiting:
+    approval: Waiting for approval
+    ask: Waiting for your answer
+    agent: Agent working
+    room: Waiting for a sandbox slot
+    repeat: 'Polling — step {node}'
+    in_doubt: 'Waiting for a decision — step {node} may already have run'
+  startedAt: 'Started {date}'
+  finishedAt: 'Finished {date}'
+  inputTitle: Run input
+  outputTitle: Run output
+  notFound:
+    title: Run not found
+    description: It may have been removed, or it may belong to another
+      organization.
+  mode:
+    mock: Test
+    live: Live
+  status:
+    quarantined: On hold
+    queued: Queued
+    running: Running
+    waiting: Waiting
+    success: Succeeded
+    failed: Failed
+    cancelled: Stopped
+    # A running run whose server stopped, before another one takes it over.
+    stalled: Interrupted — resuming
+  nodeStatus:
+    ok: Ran
+    skipped: Skipped
+    error: Failed
+    not_run: Never reached
+    pending: Not reached yet
+    running: Running now
+    stopped: Stopped here
+    # The node a parked run waits on a person at.
+    waiting: Waiting here
+    # The node a run was on when its server stopped, before another one
+    # takes it over.
+    interrupted: Interrupted here
+  effects:
+    title: '{count, plural, one {# effect} other {# effects}}'
+    description:
+      Everything this run changed outside the platform, in the order it
+      happened.
+    none: This run changed nothing outside the platform.
+    noneForNode: This node changed nothing outside the platform.
+    noneYetForNode: This node has not changed anything outside the platform yet.
+    byNode: 'from {node}'
+    inputLabel: Called with
+  timeline:
+    label: Run steps
+    current: Current step
+    empty: The run has not reached any step yet.
+    actions: '{count, plural, one {# action} other {# actions}}'
+settings:
+  loading: Loading settings…
+  loadFailed: Couldn't load settings — close the dialog and try again.
+  save: Save
+  saveAndContinue: Save and continue
+  dialogTitle: '{name} — settings'
+  tabsLabel: Settings sections
+  moreTabs: More settings sections
+  unsavedTab: Unsaved changes
+  saved: Settings saved.
+  saveFailed: Couldn't save settings — try again.
+  errors:
+    required: This field is required.
+    number: Enter a number.
+    pattern: This doesn't match the expected format.
+  uploads:
+    empty: No files yet.
+    loading: Loading files…
+    treeLabel: Uploaded files
+    addButton: Drop files here or click to upload
+    addToFolder: 'Drop files here — they go to "{folder}"'
+    pickFolderHint: Create or pick a folder above — uploads go into the selected folder.
+    newFolderButton: New folder
+    newFolderTitle: Create a folder
+    newFolderCreate: Create
+    newFolderPlaceholder: e.g. Invoices
+    newFolderParent: 'Created inside "{folder}"'
+    newFolderFailed: Couldn't create the folder — try again.
+    uploading: Uploading…
+    uploaded: '{count} file(s) uploaded.'
+    uploadedPartial: '{ok} of {total} file(s) uploaded.'
+    uploadFailed: Couldn't upload the file — try again.
+    uploadFailedDetail: '{name}: {reason}'
+    wrongType: 'Only these file types are accepted: {types}'
+    wrongName: The file name doesn't match the expected pattern for this form.
+    tooLarge: File exceeds the {max} MB limit.
+    remove: Delete {name}
+    removeTitle: Delete this file?
+    removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
+    removeConfirm: Delete
+    removeFailed: Couldn't delete the file — try again.
+problems:
+  title: Problems
+  hide: Hide problems
+  saveBlocked: '{count, plural, one {Fix # error to save} other {Fix # errors to save}}'
+  checkingDraft: Checking your changes…
+  checkFailed: Couldn't check this draft, so the list may be out of date. You can still save, and every save is checked.
+  refusedSave: Saving was refused
+  refusedDeploy: This version has problems that block deploying it. Problems lists them.
+  refusedDeployDraft: This version has problems that block deploying it. Discard your draft to see them in Problems.
+  open: Show problems
+  notEditableHere: Change this with your coding agent.
+  nodeTitle: Problems in this node
+  filter:
+    label: Show problems
+    all: All
+    errors: Errors
+    warnings: Warnings
+  emptyFiltered: '{filter, select, errors {No errors} warnings {No warnings} other {No problems}}'
+  fieldPart: '{part}: {message}'
+condition:
+  group: '({parts})'
+  gt: '{a} is greater than {b}'
+  gte: '{a} is at least {b}'
+  lt: '{a} is less than {b}'
+  lte: '{a} is at most {b}'
+  eq: '{a} is {b}'
+  neq: '{a} is not {b}'
+  empty: '{a} is empty'
+  notEmpty: '{a} is not empty'
+  set: '{a} counts as yes'
+  notSet: '{a} counts as no'
+  contains: '{a} contains {b}'
+  notContains: "{a} doesn't contain {b}"
+  startsWith: '{a} starts with {b}'
+  endsWith: '{a} ends with {b}'
+  notGt: '{a} is not greater than {b}'
+  notGte: '{a} is not at least {b}'
+  notLt: '{a} is not less than {b}'
+  notLte: '{a} is not at most {b}'
+  notStartsWith: "{a} doesn't start with {b}"
+  notEndsWith: "{a} doesn't end with {b}"
+  withValue: '{operand} ({value})'
+  ref:
+    node: '{path} of {node}'
+    nodeOutput: 'the output of {node}'
+    input: '{path} of the run input'
+    inputWhole: the run input
+    item: '{path} of the item'
+    itemWhole: the item
+    index: "the item's position"
+    output: "{path} of this pass's result"
+    outputWhole: "this pass's result"
+    length: 'the number of {inner}'
+  literal:
+    valueTrue: 'true'
+    valueFalse: 'false'
+    valueNull: empty
+  quote: '"{text}"'
+paths:
+  button: '{count, plural, one {# path} other {# paths}}'
+  title: Possible paths
+  description: Every way a successful run can go. Point at one, or select it, to see it on the canvas.
+  single: 'Every run takes the same path: {count, plural, one {its # node runs} other {all # nodes run}}.'
+  row: 'Path {index}'
+  rowRuns: '{ran, plural, one {# of {total} nodes runs} other {# of {total} nodes run}}'
+  clause:
+    runs: '{node} runs'
+    skipped: '{node} is skipped'
+    fails: '{node} fails, the run goes on'
+    succeeds: '{node} succeeds'
+  more: "{count, plural, one {# more path isn't listed} other {# more paths aren't listed}}"
+  truncated: This automation has {count} conditions, too many to list every path. Each node still says when it runs.
+  halts:
+    title: Ends the run when it fails
+    row: '{node} fails when {reasons}'
+  showing: 'Showing path {index}: {ran, plural, one {# of {total} nodes runs} other {# of {total} nodes run}}.'
+  pill: 'Path {index} · {ran, plural, one {# of {total} nodes runs} other {# of {total} nodes run}}'
+  skip:
+    when: 'Skipped: condition false'
+    else: 'Skipped: {node} runs'
+    upstream: 'Skipped: {node} is skipped'
+    error: Fails, the run goes on
+failureReason:
+  external: a service it calls fails
+  code: its code throws an error
+  expression: one of its expressions fails
+  iteration: "its list can't be gone through"
+  inputContract: its input is refused
+  subautomation: the automation it calls fails
+source:
+  ariaLabel: Source of this automation (YAML)
+  copy: Copy YAML
+  download: Download YAML
+  readOnlyHint: To change the document, use the fields or your coding agent.
+codingAgent:
+  button: Edit with your coding agent
+  body: Coding agents such as Claude Code, Codex and Cursor change automations through Tale's MCP server. They read this automation, change and check it, and save a new version, which then appears here.
+  nameLabel: Name of this automation
+  setUp: Set up MCP
+  learnMore: How to connect a coding agent

@@ -1,10 +1,10 @@
 import type { Sql } from 'postgres';
 
 /**
- * The sweep of settled model-endpoint requests.
+ * The sweep of settled model-endpoint and direct automation LLM requests.
  *
  * Every request through the model endpoints for API keys is one row in
- * `app.sandbox_session_ops` (`kind = 'model-api'`, `metering.ts`), so the
+ * `app.sandbox_session_ops` (`kind = 'model-api'` or `automation-llm`), so the
  * table grows by a row per request. The usage ledger is the durable record
  * of a request's spend: the op row only carries the request's budget hold
  * and its virtual key to the settlement. Once both are done — the spend
@@ -41,22 +41,28 @@ export async function sweepSettledModelApiOps(
   const cutoff = (options.now ?? Date.now()) - SETTLED_OP_RETENTION_MS;
   let deleted = 0;
   for (let round = 0; round < maxBatches; round += 1) {
-    // `kind = 'model-api'` (`MODEL_API_OP_KIND`) is written as a literal,
-    // never a bound parameter: the planner matches a partial index only
-    // against a predicate it can prove, and
-    // `sandbox_session_ops_model_api_started` holds exactly these rows in
-    // `started_at_ms` order.
+    // Literal predicates retain both kinds' partial started-at indexes.
+    // Each input and the combined result are bounded; the existing total
+    // statement/row budget remains shared by both direct-call lanes.
     const rows = await sql<{ id: string }[]>`
       DELETE FROM app.sandbox_session_ops
       WHERE id IN (
-        SELECT id FROM app.sandbox_session_ops
-        WHERE kind = 'model-api'
-          AND status <> 'running'
-          AND spend_settled_at_ms IS NOT NULL
-          AND (key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL)
-          AND started_at_ms < ${cutoff}
-        ORDER BY started_at_ms
-        LIMIT ${batch}
+        SELECT id FROM (
+          (SELECT id, started_at_ms FROM app.sandbox_session_ops
+            WHERE kind = 'model-api' AND status <> 'running'
+              AND spend_settled_at_ms IS NOT NULL
+              AND (key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL)
+              AND started_at_ms < ${cutoff}
+            ORDER BY started_at_ms LIMIT ${batch})
+          UNION ALL
+          (SELECT id, started_at_ms FROM app.sandbox_session_ops
+            WHERE kind = 'automation-llm' AND status <> 'running'
+              AND spend_settled_at_ms IS NOT NULL
+              AND (key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL)
+              AND started_at_ms < ${cutoff}
+            ORDER BY started_at_ms LIMIT ${batch})
+        ) AS settled_direct_ops
+        ORDER BY started_at_ms LIMIT ${batch}
       )
       RETURNING id
     `;

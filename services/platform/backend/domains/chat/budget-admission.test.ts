@@ -116,7 +116,56 @@ describe('assertChatTurnBudget', () => {
     ]);
   });
 
-  it('refuses a reached cap with BUDGET_EXCEEDED, naming the cap and its reset', async () => {
+  it('measures a turn in a project’s thread against the project’s caps too [GOV-R14]', async () => {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const threadSql = ((
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => {
+      statements.push({ text: strings.join('?'), values });
+      return Promise.resolve(
+        values.includes('thread_in_project')
+          ? [{ projectId: 'project_1' }]
+          : [],
+      );
+    }) as never;
+    await assertChatTurnBudget(threadSql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      threadId: 'thread_in_project',
+    });
+    await assertChatTurnBudget(threadSql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      threadId: 'thread_alone',
+    });
+    expect(gate.subjects).toEqual([
+      expect.objectContaining({ userId: 'user_1', projectIds: ['project_1'] }),
+      expect.not.objectContaining({ projectIds: expect.anything() }),
+    ]);
+    // The thread is read within the sender's organization.
+    expect(statements[0]?.text).toContain('FROM app.thread_metadata');
+    expect(statements[0]?.values).toEqual(['thread_in_project', 'org_1']);
+  });
+
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    'measures the captured projects without following a moved thread: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      const threadSql = vi
+        .fn()
+        .mockResolvedValue([{ projectId: 'moved-project' }]);
+      await assertChatTurnBudget(threadSql as never, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'moved-thread',
+        projectIds,
+      });
+      expect(gate.subjects).toEqual([expect.objectContaining({ projectIds })]);
+      expect(threadSql).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a reached cap with BUDGET_EXCEEDED, naming the cap and its reset [CHAT-R6]', async () => {
     gate.violation = {
       scope: 'team',
       teamId: 'team_1',
@@ -151,7 +200,7 @@ describe('assertChatTurnBudget', () => {
 
   it('names the bucket that is spent in the sentence', async () => {
     const sentences: string[] = [];
-    for (const scope of ['user', 'org', 'apiKey'] as const) {
+    for (const scope of ['user', 'org', 'apiKey', 'project'] as const) {
       gate.violation = {
         scope,
         code: 'REQUEST_LIMIT',
@@ -173,6 +222,7 @@ describe('assertChatTurnBudget', () => {
       'Usage limit reached. Your monthly request limit is used up until 2026-09-16T00:00:00.000Z.',
       "Usage limit reached. The organization's monthly request limit is used up until 2026-09-16T00:00:00.000Z.",
       "Usage limit reached. This API key's monthly request limit is used up until 2026-09-16T00:00:00.000Z.",
+      "Usage limit reached. This project's monthly request limit is used up until 2026-09-16T00:00:00.000Z.",
     ]);
   });
 });

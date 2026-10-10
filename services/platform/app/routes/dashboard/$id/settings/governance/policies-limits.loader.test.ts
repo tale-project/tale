@@ -61,6 +61,7 @@ type Role = 'member' | 'editor' | 'developer' | 'admin' | 'owner';
  * non-admin (`backend/domains/governance/routes.ts`). */
 const ADMIN_ONLY = [
   'budgets',
+  'project_budgets',
   'retention_policy',
   'voice_output',
   'conversation_routing',

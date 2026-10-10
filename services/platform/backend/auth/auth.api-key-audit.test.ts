@@ -258,6 +258,39 @@ describe('Better Auth after-hook — API-key lifecycle audit', () => {
     expect(apiKeyHints(statements)).toEqual([]);
   });
 
+  // The app's own door mints a key bound to one organization as a server
+  // call (no request) and writes that organization's row itself, naming the
+  // admin who made it; recorded here, the key's holder would read as its
+  // maker in every organization they belong to.
+  it('leaves a server-side create to the door that made the key', async () => {
+    const { sql, statements } = recordingSql();
+    const after = createAuth({ ...BASE, sql }).options.hooks?.after;
+    if (after === undefined) throw new Error('the after-hook is not wired');
+
+    await after({
+      path: '/api-key/create',
+      body: { name: 'Billing sync', userId: 'user-2' },
+      context: {
+        returned: {
+          id: 'key-9',
+          name: 'Billing sync',
+          start: 'tale_xyz',
+          key: 'tale_xyzxyzxyz9876',
+          expiresAt: null,
+          referenceId: 'user-2',
+        },
+      },
+    } as never);
+
+    expect(audited()).toEqual([]);
+    expect(apiKeyHints(statements)).toEqual([]);
+    // Its suffix is still kept for the masked display.
+    expect(
+      statements.find((s) => s.text.startsWith('UPDATE "apikey" SET "suffix"'))
+        ?.values,
+    ).toEqual(['9876', 'key-9']);
+  });
+
   // The key already exists (or is already gone) when the hook runs: a row
   // that cannot be written is logged, never surfaced as a failed request.
   it('never fails the caller when the audit rows cannot be written', async () => {

@@ -19,6 +19,14 @@ Pour un déploiement dans un workspace, commence par `tale status` et `tale logs
 
 Une interface chargée mais vide oriente d’abord vers les requêtes applicatives, pas forcément le serveur web. Examine les requêtes échouées et les journaux `backend-api`. Proxy, session expirée, refus de permission et panne backend demandent des corrections différentes. [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains) et [Authentification](/fr/self-hosted/configuration/authentication) décrivent leur configuration.
 
+### Distinguer le processus web de la disponibilité de l’application
+
+`/api/health` vérifie le processus web. `/api/health/ready` atteint `backend-api` et effectue une requête vers la base de données ; une réponse saine est HTTP 200 avec `{"ok":true,"service":"backend"}`. Teste les deux routes par l’URL publique, en incluant son chemin de base. Une page d’erreur HTML, une redirection ou une ancienne réponse en cache ne prouve pas que l’application est prête.
+
+Le navigateur vérifie la disponibilité toutes les 30 secondes en fonctionnement normal et réessaie cinq secondes après un échec, avec un délai maximal de huit secondes par requête. Après une panne, les lectures ayant échoué sont actualisées automatiquement. Les écritures demandent une nouvelle tentative explicite. Un Service Worker déjà installé affiche la page de connexion en cache lorsqu’une navigation échoue, dépasse le délai ou reçoit un 5xx du proxy, puis vérifie automatiquement le retour du service. Une première visite pendant une panne dépend de la page d’indisponibilité du proxy, car aucun Service Worker n’a encore été installé.
+
+Si un ancien onglet ne charge plus un module après un déploiement, vérifie que chaque réplique web monte le même volume `static-assets` et a fini de publier ses fichiers avant d’être prête. Voir [Mettre à niveau et récupérer un déploiement](/fr/self-hosted/operate/upgrades).
+
 ## Échec d’envoi ou de téléchargement des fichiers
 
 Compare la réponse du serveur à la requête du navigateur vers l’URL présignée. Une seule organisation peut avoir une connexion de stockage défaillante alors que le bucket par défaut reste accessible.
@@ -67,7 +75,7 @@ Cette commande non concurrente peut bloquer du travail. Coordonne-la avec l’ex
 
 Lis l’erreur du chat ou de l’exécution et les journaux API/worker correspondants. Un `429` fournisseur, un refus d’identifiants, un timeout, une attente d’approbation et une déconnexion du flux navigateur sont des états différents. Une approbation attend une décision, pas un redémarrage. Un flux coupé peut masquer une opération toujours active ; lis son résultat enregistré avant de relancer.
 
-Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec de harness, examine `sandbox`, `sandbox-llm-gateway`, l’image d’exécution et les journaux de session.
+Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec d’environnement d’agent, examine `sandbox`, `sandbox-llm-gateway`, l’image d’exécution et les journaux de session.
 
 ## L’accès réseau de la sandbox est refusé
 
@@ -76,6 +84,10 @@ Examine `sandbox-egress` et l’URL cible. Une `SANDBOX_EGRESS_ALLOWLIST` config
 Un processus de sortie sain ne prouve pas la disponibilité de l’hôte distant, du DNS, du certificat ou du compte. Conserve l’erreur précise dans le rapport d’incident.
 
 Quand de nombreuses sessions installent des paquets ou chargent des pages en même temps et que des connexions échouent sur des réinitialisations alors que le proxy reste sain, il a peut-être atteint `SANDBOX_EGRESS_MAX_CLIENTS`, les connexions qu’il sert en même temps pour toutes les sessions réunies. Son journal indique alors que le nombre maximal de connexions est atteint. Augmente la valeur, avec les limites de processus et de fichiers ouverts du conteneur de sortie, puis recrée le service de sortie.
+
+Quand les connexions d’une seule session échouent sur des réinitialisations alors que d’autres sessions atteignent encore les mêmes hôtes, cette session détient peut-être déjà `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connexions (256 par défaut), et le proxy refuse les suivantes jusqu’à ce que certaines se ferment. Augmente la valeur, ou mets `0` pour désactiver la limite, puis recrée le service de sortie.
+
+Un service `sandbox-egress` recréé (après un déploiement ou un redémarrage de la pile) peut revenir à une autre adresse, alors que les sessions qui tournaient déjà continuent d’envoyer leur trafic à l’ancienne et perdent l’accès réseau. Le service `sandbox` recycle chacune de ces sessions dès qu’elle est libérée et inactive, et consigne `recycling <session>` ; la prochaine utilisation la redémarre avec son espace de travail intact. Une session encore utilisée continue d’échouer jusqu’à la fin de son travail, et une session épinglée continue de tourner jusqu’à ce que tu l’arrêtes ou ne l’épingles plus.
 
 ## Les écritures échouent ou le stockage se remplit
 

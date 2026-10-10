@@ -1,12 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Trash2, Undo2 } from 'lucide-react';
@@ -18,6 +19,8 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import {
   TRASH_LISTED_RESOURCE_TYPES,
   type SoftDeleteResourceType,
@@ -106,6 +109,7 @@ export function TrashPage({ organizationId }: Props) {
     [selectedTypes, cursor],
   );
   const trash = useListTrashedRows(organizationId, queryArgs, true);
+  const { refetch: refetchTrash } = trash;
   const restoreMutation = useRestoreSoftDeletedRow();
 
   const resetPagination = useCallback(() => {
@@ -163,6 +167,29 @@ export function TrashPage({ organizationId }: Props) {
     () => [...loadedPages.flat(), ...(trash.data?.rows ?? [])],
     [loadedPages, trash.data],
   );
+
+  // A failed read is named, never passed off as an empty trash (#3641).
+  // Rows already on screen — earlier pages, or the page a refresh failed to
+  // renew — stay, and the failure is named above them.
+  const retry = useCallback(() => void refetchTrash(), [refetchTrash]);
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery({
+      error: trash.error,
+      results: visibleRows,
+      retry,
+    });
+  // How the page being read stands; the flags hold through a retry, which
+  // react-query starts from `pending` for a page that never answered.
+  const read = readStateOf(trash);
+  // The first page never answered: nothing about the trash is known, so an
+  // alert stands where the table would be — announced, with a Try again
+  // that stays focused and busy through its retry.
+  const firstPageFailed = read.unavailable && visibleRows.length === 0;
+  // The page after the loaded ones never answered: the rows end there, not
+  // because the trash does.
+  const nextPageFailed = failedWithRows && trash.data === undefined;
+  // A refresh failed over what the trash last answered — rows, or none.
+  const refreshFailed = failedWithRows || read.stale;
 
   const handleRestore = async () => {
     if (!restoreTarget) return;
@@ -365,49 +392,87 @@ export function TrashPage({ organizationId }: Props) {
           page — the same fixed frame the Logs table renders in. */}
       <SettingsPage fitToContainer fullWidth>
         <SettingsSection
+          // The list's region: a retry that takes its control away hands the
+          // focus here, not to the page.
+          ref={regionRef}
+          tabIndex={-1}
           title={t('trash.title', 'Trash')}
           description={t(
             'trash.description',
             'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
           )}
-          className="min-h-0 flex-1"
+          className="min-h-0 flex-1 outline-none"
         >
-          <DataTable<TrashRow>
-            columns={columns}
-            stickyLayout
-            data={visibleRows}
-            isLoading={isFirstPageLoading}
-            // `undefined` while the first page (or a filter change) is in
-            // flight — DataTable shows its standard skeleton instead of
-            // flashing the empty state before the count is known.
-            approxRowCount={
-              trash.data === undefined ? undefined : visibleRows.length
-            }
-            getRowId={(row) => `${row.resourceType}:${row.id}`}
-            filters={filterConfigs}
-            onClearFilters={handleClearFilters}
-            infiniteScroll={{
-              // Keep the affordance up while a page fetch is in flight so the
-              // footer doesn't flash "showing all" between pages.
-              hasMore: hasMore || isLoadingMore,
-              onLoadMore: handleLoadMore,
-              isLoadingMore,
-              isInitialLoading: isFirstPageLoading,
-              entityLabel: {
-                one: t('trash.entityLabelOne', 'record'),
-                other: t('trash.entityLabel', 'records'),
-              },
-            }}
-            emptyState={{
-              icon: Trash2,
-              title: t('trash.emptyTitle', 'Trash is empty'),
-              description: t(
-                'trash.empty',
-                'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
-              ),
-            }}
-            caption={t('trash.title', 'Trash')}
-          />
+          {firstPageFailed ? (
+            <CatalogLoadError
+              // Each failure is announced again. Try again keeps its node,
+              // and the focus on it, through the retry; once the records
+              // answer, the focus goes to the section.
+              failureKey={read.failureCount}
+              onFocusLost={focusRegion}
+              message={t(
+                'trash.loadFailed',
+                "Couldn't load the records in Trash.",
+              )}
+              onRetry={retry}
+              isRetrying={read.retrying}
+            />
+          ) : (
+            <>
+              {refreshFailed && (
+                <CatalogLoadError
+                  // Each failure is announced again; Try again keeps its node.
+                  failureKey={trash.errorUpdateCount}
+                  onFocusLost={focusRegion}
+                  message={t(
+                    'trash.refreshFailed',
+                    "Couldn't load the latest records. What's listed may be incomplete or out of date.",
+                  )}
+                  onRetry={retryRead}
+                  isRetrying={trash.isFetching}
+                />
+              )}
+              <DataTable<TrashRow>
+                columns={columns}
+                stickyLayout
+                data={visibleRows}
+                isLoading={isFirstPageLoading}
+                // `undefined` while the first page (or a filter change) is in
+                // flight — DataTable shows its standard skeleton instead of
+                // flashing the empty state before the count is known.
+                approxRowCount={
+                  trash.data === undefined ? undefined : visibleRows.length
+                }
+                getRowId={(row) => `${row.resourceType}:${row.id}`}
+                filters={filterConfigs}
+                onClearFilters={handleClearFilters}
+                infiniteScroll={{
+                  // Keep the affordance up while a page fetch is in flight so the
+                  // footer doesn't flash "showing all" between pages.
+                  hasMore: hasMore || isLoadingMore,
+                  onLoadMore: handleLoadMore,
+                  isLoadingMore,
+                  isInitialLoading: isFirstPageLoading,
+                  // Scrolling asks for nothing until Try again, and the footer
+                  // says the rest could not be loaded instead of "Showing all".
+                  loadFailed: nextPageFailed,
+                  entityLabel: {
+                    one: t('trash.entityLabelOne', 'record'),
+                    other: t('trash.entityLabel', 'records'),
+                  },
+                }}
+                emptyState={{
+                  icon: Trash2,
+                  title: t('trash.emptyTitle', 'Trash is empty'),
+                  description: t(
+                    'trash.empty',
+                    'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
+                  ),
+                }}
+                caption={t('trash.title', 'Trash')}
+              />
+            </>
+          )}
         </SettingsSection>
       </SettingsPage>
 

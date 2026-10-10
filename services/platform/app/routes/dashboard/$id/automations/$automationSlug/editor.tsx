@@ -2,7 +2,10 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useCallback } from 'react';
 
 import { AutomationEditor } from '@/app/features/automations/components/automation-editor';
-import { automationEditorSearchSchema } from '@/app/features/automations/lib/editor-search';
+import {
+  automationEditorSearchSchema,
+  type AutomationEditorView,
+} from '@/app/features/automations/lib/editor-search';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
 
 export const Route = createFileRoute(
@@ -17,15 +20,36 @@ export const Route = createFileRoute(
 
 function AutomationEditorPage() {
   const { id: organizationId, automationSlug } = Route.useParams();
-  const { version, history } = Route.useSearch();
+  const { version, history, view, node } = Route.useSearch();
   const navigate = Route.useNavigate();
   const onSelectVersion = useCallback(
     (next: number | undefined) => {
       void navigate({
-        search: next === undefined ? {} : { version: next },
+        // The view and the open node stay with the reader across versions.
+        search: (previous) => ({
+          ...(previous.view !== undefined && { view: previous.view }),
+          ...(previous.node !== undefined && { node: previous.node }),
+          ...(next !== undefined && { version: next }),
+        }),
         // Returning to the latest (after a save appends one) corrects the URL
         // rather than adding a history entry; picking a version is a move.
         replace: next === undefined,
+      });
+    },
+    [navigate],
+  );
+  const onSearchChange = useCallback(
+    (change: { view?: AutomationEditorView; node?: string | null }) => {
+      void navigate({
+        search: (previous) => {
+          const next = { ...previous };
+          if (change.view !== undefined) next.view = change.view;
+          if (change.node === null) delete next.node;
+          else if (change.node !== undefined) next.node = change.node;
+          return next;
+        },
+        // Following the reader's view and selection is no move of its own.
+        replace: true,
       });
     },
     [navigate],
@@ -37,6 +61,9 @@ function AutomationEditorPage() {
       {...(version !== undefined && { version })}
       showVersionHistory={history}
       onSelectVersion={onSelectVersion}
+      {...(view !== undefined && { view })}
+      {...(node !== undefined && { node })}
+      onSearchChange={onSearchChange}
     />
   );
 }

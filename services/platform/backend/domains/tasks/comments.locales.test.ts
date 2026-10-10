@@ -5,7 +5,21 @@ import { updateMessageText } from '../threads/store.ts';
 import { editTaskComment } from './comments.ts';
 
 vi.mock('../collab/mention-directory.ts', () => ({
-  resolveSurfaceMentions: vi.fn().mockResolvedValue({ mentions: [] }),
+  prepareSurfaceText: vi.fn(
+    async (
+      _sql: unknown,
+      args: { body: string; bodyByLocale?: Record<string, string> },
+    ) => ({
+      text: args.body,
+      mentions: [],
+      added: [],
+      unresolvedMentionTokens: [],
+      invalidTokens: [],
+      ...(args.bodyByLocale !== undefined
+        ? { bodyByLocale: args.bodyByLocale }
+        : {}),
+    }),
+  ),
 }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
@@ -26,6 +40,7 @@ vi.mock('./service.ts', async (importOriginal) => ({
     organizationId: 'org-1',
     projectId: 'p-1',
     title: 'Check figures',
+    archivedAt: null,
   }),
   assertTaskWorkable: vi.fn(),
 }));

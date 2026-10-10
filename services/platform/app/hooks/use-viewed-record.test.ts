@@ -8,6 +8,7 @@ import { useViewedRecord } from './use-viewed-record';
 interface Row {
   _id: string;
   name: string;
+  documentId?: string;
 }
 
 function setup(initial: { results: Row[]; status: PaginatedStatus }) {
@@ -34,6 +35,37 @@ describe('useViewedRecord', () => {
 
     act(() => result.current.close());
     expect(result.current.record).toBeNull();
+  });
+
+  it('follows a replaced version when the enduring identity is unchanged', () => {
+    const { result, rerender } = renderHook(
+      ({ results, status }) =>
+        useViewedRecord(
+          results,
+          status,
+          (record) => record.documentId ?? record._id,
+        ),
+      {
+        initialProps: {
+          results: [
+            { _id: 'version-1', documentId: 'document-1', name: 'Old' },
+          ],
+          status: 'Exhausted' as PaginatedStatus,
+        },
+      },
+    );
+
+    act(() => result.current.open('document-1'));
+    rerender({
+      results: [{ _id: 'version-2', documentId: 'document-1', name: 'New' }],
+      status: 'Exhausted',
+    });
+
+    expect(result.current.record).toEqual({
+      _id: 'version-2',
+      documentId: 'document-1',
+      name: 'New',
+    });
   });
 
   it('forgets a record that left the settled list, so it cannot reopen', () => {

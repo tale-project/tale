@@ -14,6 +14,13 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
+// The definition writes' audit rows are their own concern (`audit.ts`,
+// `audit.test.ts`); this double answers no audit-chain query.
+vi.mock('./audit.ts', () => ({
+  auditDefinitionWrite: vi.fn(async () => undefined),
+  listDeployments: vi.fn(async () => []),
+}));
+
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(async () => undefined),
 }));
@@ -112,7 +119,7 @@ describe('deploy — the tests verdict', () => {
     expect(deployed(fake.statements)).toBe(false);
   });
 
-  it('stamps nothing when the gate ran no tests', async () => {
+  it('stamps nothing when the gate ran no tests [AUTO-R4]', async () => {
     const fake = fakeStore(null);
     await deploy(fake.sql, args);
     expect(stamp(fake.statements)).toBeUndefined();
@@ -142,5 +149,95 @@ describe('setTestsVerdict / recordTestVerdict — the gate’s refusal persists'
     await recordTestVerdict(fake.sql, { ...args, testsPassed: false });
     expect(stamp(fake.statements)?.values[0]).toBe(false);
     expect(deployed(fake.statements)).toBe(false);
+  });
+});
+
+/**
+ * A deploy answers the trigger that starts the automation — whether it is
+ * on, when it next runs, and what it would meet in the version just
+ * deployed — so the editor can offer to turn on a trigger that is off, or
+ * to review one whose runs would be refused.
+ */
+describe('deploy — the trigger it answers [AUTO-R36]', () => {
+  function fakeWithTrigger(trigger: Record<string, unknown> | null): Sql {
+    const tx = (strings: TemplateStringsArray, ..._values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FROM app.automation_triggers')) {
+        return Promise.resolve(trigger === null ? [] : [trigger]);
+      }
+      if (text.includes('FROM app.automation_deployments')) {
+        return Promise.resolve([{ version: 1 }]);
+      }
+      if (text.includes('FROM app.automations WHERE org_id')) {
+        return Promise.resolve([
+          {
+            name: 'github/triage-issues',
+            version: 1,
+            document: {
+              inputs: {
+                type: 'object',
+                required: ['owner', 'repo'],
+                properties: {
+                  owner: { type: 'string' },
+                  repo: { type: 'string' },
+                },
+              },
+            },
+            testsPassed: true,
+            createdAt: 2,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    };
+    const sql = Object.assign(tx, {
+      json: (value: unknown) => value,
+      begin: (callback: (handle: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return sql as unknown as Sql;
+  }
+
+  it('names a trigger that is off, and what its runs would be refused for', async () => {
+    const answer = await deploy(
+      fakeWithTrigger({
+        id: 't1',
+        name: 'github/triage-issues',
+        kind: 'schedule',
+        cron: '0 7 * * *',
+        timezone: 'UTC',
+        scheduleRule: null,
+        catchUp: null,
+        nextDueAt: null,
+        input: null,
+        event: null,
+        hasToken: false,
+        enabled: false,
+        lastSkipReason: null,
+        lastSkipDetail: null,
+      }),
+      { ...args, name: 'github/triage-issues' },
+    );
+    expect(answer).toMatchObject({
+      name: 'github/triage-issues',
+      version: 1,
+      trigger: {
+        kind: 'schedule',
+        enabled: false,
+        nextRunAt: null,
+        warnings: [
+          expect.objectContaining({
+            code: 'TRIGGER_INPUT_MISMATCH',
+            params: expect.objectContaining({ missing: ['owner', 'repo'] }),
+          }),
+        ],
+      },
+    });
+  });
+
+  it('answers no trigger for an automation nothing starts', async () => {
+    const answer = await deploy(fakeWithTrigger(null), args);
+    expect(answer.trigger).toBeNull();
   });
 });

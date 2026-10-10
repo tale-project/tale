@@ -32,6 +32,10 @@ export interface RegistrySession {
   /** runnerd's activity clock as the last sweep read it — how pressure
    * reclamation picks the session idle longest. */
   lastActivityAtMs?: number;
+  /** The egress proxy address this incarnation pinned at boot, as its
+   * backend recorded it; the sweep recycles the session once the proxy has
+   * moved away from it. */
+  egressAddress?: string;
 }
 
 export class SessionRegistry {

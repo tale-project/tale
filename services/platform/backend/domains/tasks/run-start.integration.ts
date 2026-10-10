@@ -1,5 +1,3 @@
-/** Real Postgres proof: task agents and workflows share one start fence,
- * including a loser whose SERIALIZABLE snapshot predates the winner. */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,6 +6,9 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+/** Real Postgres proof: task agents and workflows share one start fence,
+ * including a loser whose SERIALIZABLE snapshot predates the winner. */
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { completeAgentRunInTx } from './agent-run-completion.ts';
 import { kickAgentRun } from './agent-runs.ts';
 import { addTaskComment } from './comments.ts';
@@ -134,10 +135,13 @@ export async function checkTaskRunStartFence(
         `loser=${result}, live agents=${row?.agents}, automations=${row?.automations}`,
       );
       await sql`UPDATE app.project_agent_runs SET status = 'cancelled' WHERE task_id = ${taskId}`;
-      await sql`
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`
         UPDATE app.automation_runs SET status = 'cancelled'
         WHERE org_id = ${orgId} AND input -> 'task' ->> 'id' = ${taskId}
       `;
+      });
     }
   }
 

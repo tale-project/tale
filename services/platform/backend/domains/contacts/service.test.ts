@@ -28,6 +28,7 @@ import {
   ContactError,
   createContact,
   findOrCreateContactByEmail,
+  listContacts,
 } from './service.ts';
 
 type Statement = { text: string; values: unknown[] };
@@ -87,7 +88,7 @@ beforeEach(() => {
 });
 
 describe('createContact — the member door', () => {
-  it('locks the (org, email) key before it looks, and only at live rows', async () => {
+  it('locks the (org, email) key before it looks, and only at live rows [CONTACT-R3]', async () => {
     const { sql, statements } = recordingSql(twinAnswer(''));
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- begin() hands the same tag back as the tx
     const id = await createContact(sql as never, SCOPE, {
@@ -120,7 +121,7 @@ describe('createContact — the member door', () => {
     expect(emitHintInTx).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses a live twin with 409 CONTACT_DUPLICATE_EMAIL and inserts nothing', async () => {
+  it('refuses a live twin with 409 CONTACT_DUPLICATE_EMAIL and inserts nothing [CONTACT-R3]', async () => {
     const { sql, statements } = recordingSql(twinAnswer('ada@example.com'));
     await expect(
       createContact(sql as never, SCOPE, {
@@ -136,7 +137,7 @@ describe('createContact — the member door', () => {
     expect(createAuditLog).not.toHaveBeenCalled();
   });
 
-  it('takes no lock and runs no lookup for a contact without an email', async () => {
+  it('takes no lock and runs no lookup for a contact without an email [CONTACT-R3]', async () => {
     const { sql, statements } = recordingSql(twinAnswer(''));
     await createContact(sql as never, SCOPE, {
       name: 'Phone only',
@@ -148,7 +149,7 @@ describe('createContact — the member door', () => {
     expect(statements.some(isInsert)).toBe(true);
   });
 
-  it('still refuses a role without contacts write', async () => {
+  it('still refuses a role without contacts write [CONTACT-R1]', async () => {
     const { sql } = recordingSql();
     await expect(
       createContact(
@@ -160,7 +161,7 @@ describe('createContact — the member door', () => {
   });
 });
 
-describe('findOrCreateContactByEmail — the mail-ingest door', () => {
+describe('findOrCreateContactByEmail — the mail-ingest door [CONTACT-R6]', () => {
   it('adopts the live row under the same lock and writes nothing', async () => {
     const { sql, statements } = recordingSql(twinAnswer('carla@ext.test'));
     await expect(
@@ -238,7 +239,7 @@ describe('findOrCreateContactByEmail — the mail-ingest door', () => {
 });
 
 describe('bulkCreateContacts — the import door', () => {
-  it('runs each item in its own locked transaction and accounts the duplicate alone', async () => {
+  it('runs each item in its own locked transaction and accounts the duplicate alone [CONTACT-R8]', async () => {
     const { sql, statements, begins } = recordingSql(
       twinAnswer('beta@door.test'),
     );
@@ -271,5 +272,41 @@ describe('bulkCreateContacts — the import door', () => {
     ]);
     // Rows land without per-contact audit rows (the import is the audited act).
     expect(createAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+describe('listContacts — the Locale facet', () => {
+  /** The values bound to the listing's three locale comparisons. */
+  function localeSlots(statements: Statement[]): unknown[] {
+    const listing = statements.find((s) => s.text.includes('ORDER BY'));
+    const segments = listing?.text.split('?') ?? [];
+    return (listing?.values ?? []).filter((_, index) => {
+      const after = segments[index + 1] ?? '';
+      return (
+        after.startsWith('::text IS NULL OR lower(replace(locale') ||
+        after.startsWith(" OR starts_with(lower(replace(locale, '_', '-'))") ||
+        after.startsWith("::text || '-')")
+      );
+    });
+  }
+
+  // #3618: the listing had no locale predicate at all. A facet names a
+  // language (`fr`), the directory stores tags (`fr-CH`, `fr_CA`, `FR`), so
+  // the range is compared as RFC 4647 basic filtering compares it.
+  it('compares a lower-case, hyphenated range against the tag and its subtags', async () => {
+    const { sql, statements } = recordingSql();
+    await listContacts(sql, SCOPE, { locale: ' FR_ca ' });
+    expect(statements[0]?.text).toContain(
+      "AND (?::text IS NULL OR lower(replace(locale, '_', '-')) = ? OR starts_with(lower(replace(locale, '_', '-')), ?::text || '-'))",
+    );
+    expect(localeSlots(statements)).toEqual(['fr-ca', 'fr-ca', 'fr-ca']);
+  });
+
+  it('filters nothing without a Locale, or with a blank one', async () => {
+    for (const options of [{}, { locale: '  ' }]) {
+      const { sql, statements } = recordingSql();
+      await listContacts(sql, SCOPE, options);
+      expect(localeSlots(statements)).toEqual([null, null, null]);
+    }
   });
 });

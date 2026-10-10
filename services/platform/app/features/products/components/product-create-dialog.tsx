@@ -13,7 +13,7 @@ import { type WizardStepMeta } from '@tale/ui/wizard/use-wizard';
 import { Wizard, WizardStep } from '@tale/ui/wizard/wizard';
 import { WizardFooter } from '@tale/ui/wizard/wizard-footer';
 import { WizardProgress } from '@tale/ui/wizard/wizard-progress';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { Image } from '@/app/components/image';
@@ -35,7 +35,10 @@ import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useCreateProduct } from '../hooks/mutations';
 import { productImageUrlSchema } from '../utils/product-image-url-schema';
-import { productNumberSchema } from '../utils/product-number-schema';
+import {
+  parseProductNumber,
+  productNumberSchema,
+} from '../utils/product-number-schema';
 import { ProductImageField } from './product-image-field';
 
 function isProductStatus(value: string): value is ProductStatus {
@@ -72,7 +75,18 @@ function ReviewRow({ label, value }: { label: string; value?: string }) {
   );
 }
 
-export function ProductCreateDialog({
+// The host stays mounted, but each external close/reopen or organization
+// change replaces the draft, including RHF and mutation observer state.
+export function ProductCreateDialog(props: ProductCreateDialogProps) {
+  return (
+    <ProductCreateDraft
+      key={`${props.organizationId}:${props.isOpen ? 'open' : 'closed'}`}
+      {...props}
+    />
+  );
+}
+
+function ProductCreateDraft({
   isOpen,
   onClose,
   organizationId,
@@ -201,7 +215,21 @@ export function ProductCreateDialog({
     [trigger],
   );
 
+  // One abort per draft. This dialog stays mounted across close and reopen,
+  // so an image upload still running at close would otherwise land in the
+  // next draft (#3626); closing stops it and drops its answer.
+  const [draftAbort, setDraftAbort] = useState(() => new AbortController());
+
+  useLayoutEffect(() => {
+    // StrictMode replays setup after cleanup without replacing hook state.
+    // Renew the controller before the replayed draft becomes interactive.
+    if (draftAbort.signal.aborted) setDraftAbort(new AbortController());
+    return () => draftAbort.abort();
+  }, [draftAbort]);
+
   const handleClose = () => {
+    draftAbort.abort();
+    setDraftAbort(new AbortController());
     reset();
     setActiveIndex(0);
     onClose();
@@ -214,19 +242,15 @@ export function ProductCreateDialog({
       name: data.name.trim(),
       description: data.description.trim() || undefined,
       imageUrl: data.imageUrl.trim() || undefined,
-      stock: data.stock ? parseInt(data.stock) : undefined,
-      price: data.price ? parseFloat(data.price) : undefined,
+      stock: data.stock ? parseProductNumber(data.stock) : undefined,
+      price: data.price ? parseProductNumber(data.price) : undefined,
       currency: data.currency || undefined,
       category: data.category.trim() || undefined,
       status:
         statusValue && isProductStatus(statusValue) ? statusValue : undefined,
     }).then(
       () => {
-        toast({
-          title: tProducts('create.toast.success'),
-          variant: 'success',
-        });
-        handleClose();
+        return true;
       },
       (err: unknown) => {
         console.error('Create error:', err);
@@ -241,8 +265,22 @@ export function ProductCreateDialog({
           description: isDuplicate ? undefined : backendRefusalReason(err),
           variant: 'destructive',
         });
+        return false;
       },
     );
+  };
+
+  const handleFinish = async () => {
+    let succeeded = false;
+    await handleSubmit(async (data) => {
+      succeeded = await onSubmit(data);
+    })();
+    // RHF sets isSubmitted after onSubmit returns. Reset only after that
+    // settles, and never let an old draft's response close its replacement.
+    if (succeeded && !draftAbort.signal.aborted) {
+      toast({ title: tProducts('create.toast.success'), variant: 'success' });
+      handleClose();
+    }
   };
 
   const steps: WizardStepMeta[] = [
@@ -269,17 +307,14 @@ export function ProductCreateDialog({
       description={stepHints[activeIndex]}
       size="entity"
     >
-      {/* Keyed on open so each fresh open starts at step 1 (form reset lives in
-          handleClose). Remounts only the wizard subtree, not the dialog. The
-          wizard fills the frame so its footer stays on the bottom edge while
-          steps of different lengths come and go. */}
+      {/* The wizard fills the frame so its footer stays on the bottom edge
+          while steps of different lengths come and go. */}
       <Wizard
-        key={isOpen ? 'open' : 'closed'}
         className="flex-1"
         steps={steps}
         activeIndex={activeIndex}
         onIndexChange={setActiveIndex}
-        onFinish={handleSubmit(onSubmit)}
+        onFinish={handleFinish}
         formatProgress={(current, total, label) =>
           tCommon('stepProgress', { current, total, label })
         }
@@ -311,6 +346,7 @@ export function ProductCreateDialog({
             onChange={(v) => setValue('imageUrl', v, { shouldDirty: true })}
             disabled={isSubmitting}
             errorMessage={errors.imageUrl?.message}
+            signal={draftAbort.signal}
           />
         </WizardStep>
 

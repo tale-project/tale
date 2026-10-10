@@ -1,0 +1,340 @@
+aria:
+  filterBy: Filter by {name}
+automations:
+  title: Automation metrics
+  description: Run counts, success rates, and average duration across your automations.
+  errors:
+    loadFailed: Couldn't load automation metrics.
+    refreshFailed: Couldn't refresh automation metrics. The figures shown may be out of date.
+  cappedNotice: Showing the most recent 5,000 runs in this window. Older
+    runs in this period are not included in these totals.
+  cards:
+    totalRuns: Total runs
+    successRate: Success rate
+    avgDuration: Avg duration
+    failedRuns: Failed runs
+  chart:
+    trendTitle: Runs over time
+    trendTooltip: Number of automation runs over the selected time period
+    statusTitle: Status breakdown
+    statusTooltip: Distribution of automation run outcomes
+    totalLabel: Total runs
+    noData: No data
+    noDataDescription: Run an automation to see its outcomes here.
+    success: Succeeded
+    failed: Failed
+    running: Running
+    waiting: Waiting
+    queued: Queued
+    cancelled: Cancelled
+  table:
+    title: Top automations
+    automation: Automation
+    runs: Runs
+    successRate: Success rate
+    avgDuration: Avg duration
+    failed: Failed
+    lastRun: Last run
+  empty:
+    title: No automation runs
+    description: No automations have run in the selected period.
+externalTurns:
+  title: Agent runtime turns
+  description: Reliability of agent runtime turns running in the sandbox.
+  errors:
+    loadFailed: Couldn't load agent runtime turn metrics.
+    refreshFailed: Couldn't refresh agent runtime turn metrics. The figures shown may be out of date.
+  cappedNotice: Showing the most recent 5,000 turns in this window. Older
+    turns in this period are not included in these totals.
+  cards:
+    total: Total turns
+    successRate: Success rate
+    timeoutRate: Timeout rate
+    durationP95: p95 duration
+    cancelled: Stopped by user
+    recovered: Recovered
+  byHarness:
+    title: By agent runtime
+    harness: Agent runtime
+    turns: Turns
+    successRate: Success rate
+    timeouts: Timeouts
+    empty: No agent runtime turns have run in the selected period.
+usage:
+  title: Usage metrics
+  description: Token consumption, requests, and active users over time.
+  cappedNotice: Results are capped because the time range contains too many
+    records. Narrow the range for complete data.
+  activeUsersTooltip: Users who made AI requests during this period.
+  directApi: Direct API
+  connector: Connector
+  transcription: Transcription
+  tts: Voice output
+  embedding: Knowledge indexing and search
+  granularity:
+    label: Granularity
+    daily: Daily
+    weekly: Weekly
+    monthly: Monthly
+  metric:
+    label: Metric
+    requests: Requests
+    tokens: Tokens
+    cost: Cost
+  cards:
+    totalRequests: Total requests
+    totalTokens: Total tokens
+    totalCost: Total cost
+    activeUsers: Active users
+  chart:
+    inputTokens: Input
+    outputTokens: Output
+  tables:
+    topAgents:
+      title: Top assistants
+      agent: Assistant
+      requests: Requests
+      tokens: Tokens
+      cost: Cost
+    topModels:
+      title: Top models
+      model: Model
+      requests: Requests
+      tokens: Tokens
+      cost: Cost
+    topVoiceModels:
+      title: Top voice models
+      model: Model
+      requests: Requests
+      characters: Characters
+      cost: Cost
+    users:
+      title: Per-user usage
+      user: User
+      automations: Automations (triggers)
+      teamKey: API key of team {name}
+      projectKey: API key of project {name}
+      organizationKey: API key of the organization
+      note: Each row is the member who sent the chat or started the agent
+        run, or an API key that belongs to a team, a project or the
+        organization rather than to a person. Runs that a schedule, a
+        webhook, or an event started share the Automations (triggers) row.
+      inputTokens: Input tokens
+      outputTokens: Output tokens
+      requests: Requests
+      cost: Cost
+  filterChips:
+    agent: 'Assistant: {value}'
+    model: 'Model: {value}'
+    provider: 'Provider: {value}'
+    clear: Clear filters
+  empty:
+    title: No usage yet
+    description: No AI usage has been recorded for the selected period.
+  emptyModels:
+    title: No model usage yet
+    description: No LLM calls have been recorded for the selected period.
+      Connector and transcription usage is shown under Top Assistants.
+  emptyVoiceModels:
+    title: No voice usage yet
+    description: No TTS synthesis has been recorded for the selected period.
+  errors:
+    loadFailed: Couldn't load usage metrics.
+    refreshFailed: Couldn't refresh usage metrics. The figures shown may be out of date.
+feedback:
+  title: Feedback metrics
+  description: User-submitted thumbs up/down and arena verdicts on assistant responses.
+  commentsOnly: Comments only
+  errors:
+    loadFailed: Couldn't load feedback metrics
+    unauthorized: You don't have access to this page
+  kind:
+    label: Type
+    all: All types
+    message: Message thumbs
+    arena: Arena verdicts
+  cards:
+    sentiment: Sentiment
+    sentimentAriaLabel: '{pct} helpful, {helpful} of {total}'
+    sentimentCapped: Sentiment unavailable while results are partial
+    sentimentDenominator: '{helpful} / {total}'
+    helpful: Helpful
+    notHelpful: Not helpful
+  arena:
+    title: Arena verdicts
+    cells:
+      decisive: Decisive
+      tie: Tie
+      bothBad: Both bad
+      sameModel: Same model
+  tables:
+    topAgents:
+      title: Top Assistants by feedback
+      agent: Assistant
+      helpful: Helpful
+      notHelpful: Not helpful
+      sentiment: Sentiment
+      unattributed: Unattributed
+      emptyTitle: No assistant feedback yet
+      emptyDescription: Per-assistant breakdown appears here once users rate assistant replies.
+    topModels:
+      title: Top Models by feedback
+      model: Model
+      helpful: Helpful
+      notHelpful: Not helpful
+      sentiment: Sentiment
+      emptyTitle: No model feedback yet
+      emptyDescription:
+        Per-model breakdown appears here once users rate replies whose
+        model is captured.
+    topMatchups:
+      title: Top model matchups
+      matchup: Matchup
+      vs: vs
+      score: Score
+      ties: Ties
+      bothBad: Both bad
+      total: Verdicts
+      emptyTitle: No model matchups yet
+      emptyDescription:
+        Per-pair head-to-head wins appear here once users compare two
+        models in arena mode.
+  filterChips:
+    agent: 'Assistant: {value}'
+    model: 'Model: {value}'
+    provider: 'Provider: {value}'
+    clear: Clear filters
+  empty:
+    title: No feedback collected yet
+    description:
+      When users tap thumbs up/down on a chat reply or pick a winner in
+      arena mode, it shows up here.
+  periodEmpty:
+    title: No feedback in this window
+    description: Try widening the period.
+    expand: Show all time
+  filterEmpty:
+    title: No feedback matches your filters
+    description: Try removing or relaxing the active filters.
+    clear: Clear filters
+  cappedNotice:
+    title: Showing partial results
+    description:
+      Your organization has more than 50,000 entries in the selected
+      window. Narrow the window for accurate counts.
+  recent:
+    title: Recent feedback
+    entityLabel: feedback entries
+    entityLabelOne: feedback entry
+    emptyTitle: No feedback in this window
+    emptyDescription: Adjust the period or filters to see more.
+    noComment: (no comment)
+    loadingComment: Loading full comment…
+    commentLoadFailed: Couldn't load the full comment.
+    loadFailed: Couldn't load recent feedback.
+    retry: Retry
+    helpfulAria: Helpful
+    notHelpfulAria: Not helpful
+    types:
+      message: Chat
+      arena: Arena
+    columns:
+      time: Time
+      user: User
+      type: Type
+      rating: Rating
+      agent: Assistant
+      model: Model
+      comment: Comment
+    expanded:
+      comment: Comment
+      arena: Arena pairing
+      attribution: Attribution
+  sentimentTrend: Sentiment over time
+chatHealth:
+  chart:
+    trendTitle: Turns over time
+    trendTooltip: Assistant turns per day, split by outcome
+    ok: Successful
+    errors: Errors
+    blocked: Blocked
+    noData: No data
+    noDataDescription: Chat with an assistant to see turns here.
+  breakdown:
+    title: Breakdown
+  guardrails:
+    title: Guardrails
+    byKind: By kind
+    byFilter: By filter
+    eventsTooltip: '{count} events'
+    chart:
+      title: Guardrail events over time
+      tooltip: Detections, blocks, and filter errors per day
+      detected: Detected
+      blocked: Blocked
+      errors: Errors
+      noData: No guardrail events
+      noDataDescription: Detections from flag / mask / block modes will
+        appear here once chat traffic starts flowing.
+  title: Chat health
+  description: Error rate, blocked turns, and guardrail activity across
+    your organization's assistant replies.
+  cards:
+    blockedRate: Blocked rate
+    blockedRateDetail: '{blocked} of {total} turns'
+    guardrailEvents: Guardrail events
+    guardrailEventsDetail: '{blocked} blocked'
+    errorRate: Error rate
+    errorRateDetail: '{errors} of {total} turns'
+    messages: Assistant turns
+  routing:
+    byAgent: By agent
+    byModel: By model
+    unattributed: Unattributed
+    turnsTooltip: '{count} turns'
+  cappedNotice:
+    title: Showing recent activity
+    description: This window has more assistant turns than one pass can scan.
+      Figures cover the most recent turns; narrow the window for full
+      coverage.
+  periodEmpty:
+    title: No activity in this window
+    description:
+      No assistant replies were recorded in the selected period. Try a
+      longer window.
+  empty:
+    title: No chat activity yet
+    description:
+      Once your team chats with assistants, response-time, error, and
+      routing metrics appear here.
+  errors:
+    loadFailed: Couldn't load chat health metrics
+    unauthorized: You don't have access to chat health metrics
+  errorType:
+    missing_api_key: Missing API key
+    credit_exhausted: Credit exhausted
+    model_not_entitled: Model not in plan
+    auth_error: Auth error
+    model_not_found: Model not found
+    unsupported_parameter: Unsupported parameter
+    output_cap_too_high: Output cap too high
+    token_limit: Token limit
+    rate_limited: Rate limited
+    content_filter: Content filter
+    context_length: Context length
+    tool_failure: Tool failure
+    provider_unreachable: Provider unreachable
+    provider_error: Provider error
+    thread_busy: Chat busy
+    budget_exceeded: Usage limit reached
+    generic: Other
+  errorBreakdown:
+    title: Errors
+    byType: By error type
+    recentTitle: Recent errors
+    noRecent: No recent errors in this window
+    columns:
+      time: Time
+      type: Type
+      model: Model
+      agent: Agent

@@ -1,0 +1,431 @@
+taskReview:
+  title: "Task reviews"
+  description: "Choose who reviews completed agent work in this project."
+  defaultReviewer: "Default reviewer"
+  humanDefault: "Person"
+  humanDefaultHint: "The task creator, then the project creator, if they can edit the project."
+  agentHint: "Reviews completed work independently."
+  existingReviews: "Applies when a new review starts. Reviews already waiting keep their recorded reviewer."
+  permissionRequired: "This agent needs the task review permission before it can decide."
+  unavailable: "The selected reviewer agent is unavailable. Choose another reviewer."
+  stale: "The project reviewer changed while you were editing. Discard this draft and choose again."
+  search: "Search reviewer agents"
+
+title: Projects
+entityLabel: projects
+entityLabelOne: project
+loadFailed: "Couldn't load this project."
+switcher:
+  title: Switch project
+  searchPlaceholder: Search projects
+  empty: No projects found
+  ariaLabel: 'Switch project, current: {name}'
+  allProjects: All projects
+  retry: Retry
+  retrying: Retrying…
+  readError: Project list unavailable
+navigation:
+  overview: General
+  files: Knowledge
+  threads: Chats
+  agents: Agents
+list:
+  createButton: Create project
+  emptyTitle: No projects yet
+  emptyDescription: Create one to share files, instructions, and chats
+  emptyReaderDescription: A project appears here once someone shares it with you or one of your teams.
+  searchPlaceholder: Search projects
+  showArchived: Show archived
+  columnName: Name
+  columnTasks: Tasks
+  columnOverdue: Overdue
+  columnAgents: Agents
+  columnSharing: Sharing
+  columnActivity: Last activity
+  sharingOrgWide: Org-wide
+  sharingMoreTeams: '+{count}'
+  filterMyTeams: My teams
+  unknownTeam: Unknown team
+  taskProgressA11y: '{done} of {total} tasks done'
+  noTasks: No tasks yet
+  overdueA11y: '{count, plural, one {# overdue task} other {# overdue tasks}}'
+  agentsA11y: '{count, plural, one {# agent} other {# agents}}'
+  countTruncated: '{count}+'
+create:
+  title: Create project
+  nameLabel: Project name
+  namePlaceholder: e.g. Acme AG
+  keyLabel: Project key
+  keyDescription:
+    Short prefix for task IDs — letters and digits only (e.g. TAL
+    becomes TAL-1). Fixed — it can't be changed after the project is created.
+  descriptionLabel: Description
+  descriptionPlaceholder: What belongs in this project
+  audienceLabel: Who can see it
+  audienceHelp: Leave empty for everyone in the organization, or pick the
+    teams this project is for. Admins always see it.
+  submit: Create project
+  submitting: Creating…
+  successToast: Project created
+  errorToast: Couldn't create project
+overview:
+  newChatCta: New chat
+  projectSection: Project
+  projectSectionDescription: Name, description, and standing instructions for
+    this project.
+  sharingHeading: Sharing
+identity:
+  label: Icon and color
+  hint: Shown next to the project name in lists and the chat sidebar.
+  trigger: Change icon and color
+  colorLabel: Color
+  iconLabel: Icon
+  colors:
+    gray: Gray
+    slate: Slate
+    red: Red
+    orange: Orange
+    amber: Amber
+    yellow: Yellow
+    lime: Lime
+    green: Green
+    emerald: Emerald
+    teal: Teal
+    cyan: Cyan
+    sky: Sky
+    blue: Blue
+    indigo: Indigo
+    violet: Violet
+    purple: Purple
+    fuchsia: Fuchsia
+    pink: Pink
+    rose: Rose
+  icons:
+    FolderKanban: Kanban folder
+    Folder: Folder
+    FolderOpen: Open folder
+    FolderTree: Folder tree
+    FolderGit2: Git folder
+    Briefcase: Briefcase
+    Building2: Building
+    Layers: Layers
+    Box: Box
+    BookOpen: Open book
+    GraduationCap: Graduation cap
+    Lightbulb: Light bulb
+    Rocket: Rocket
+    Target: Target
+    Flag: Flag
+    Compass: Compass
+    Map: Map
+    Star: Star
+    Beaker: Beaker
+    FlaskConical: Flask
+    Microscope: Microscope
+    Atom: Atom
+    Cpu: Chip
+    Code: Code
+    Heart: Heart
+    Users: People
+    MessageSquare: Speech bubble
+    Phone: Phone
+    Mail: Envelope
+    Globe: Globe
+instructions:
+  label: Instructions
+  hint: Every chat in this project starts with these instructions.
+  placeholder: Write context that should apply to every chat in this project…
+  charCount: '{count} / {max}'
+  tokenCapWarning: Approaching the {cap}-character limit
+  tokenCapError: Exceeds the {cap}-character limit
+files:
+  title: Files
+  addButton: Add file
+  emptyTitle: Add files for this project
+  emptyDescription: Upload docs, specs, or any context — every chat in this project can reference them.
+  ragStatusQueued: Queued
+  ragStatusQueuedHint: Waiting to become searchable in chat.
+  ragStatusRunning: Indexing…
+  ragStatusRunningHint: Making this file searchable in chat…
+  ragStatusCompleted: Indexed
+  ragStatusFailed: Failed
+  ragStatusNotIndexed: Not indexed
+  ragStatusNotIndexedHint: Not searchable in chat until it is indexed.
+  detachAction: Remove from project
+  detachConfirm: Remove this file from the project? It moves to Knowledge and
+    becomes visible to everyone in the organization.
+  previewAction: Preview file
+  detachSuccess: Document removed from project
+  detachError: Couldn't remove document
+  attachSuccess: Document added to project
+  attachError: Couldn't add document
+  unknownTitle: Untitled document
+  indexingRetry: Retry indexing
+  indexingRetryQueued: Indexing retry queued
+  indexingRetryFailed: Couldn't retry indexing
+  indexingStart: Index now
+  indexingStartQueued: Indexing queued
+  indexingStartFailed: Couldn't start indexing
+  treeLabel: Project files
+  addToFolder: Add file to "{folder}"
+  addFolderButton: Upload folder
+  batchTooLarge: A folder upload is capped at {maxFiles} files / {maxSize} MB — split the folder and retry.
+  moreSkipped: +{count} more file(s) were skipped.
+  attachPartial: '{ok, plural, one {# file} other {# files}} of {total} added'
+  skippedList: 'Skipped: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+  failedList: 'Not added: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+  folderGone: That folder no longer exists.
+  folderDeleted: Folder deleted
+  folderDeleteFailed: Couldn't delete the folder
+  folderDeleteHeld: A file in this folder is on legal hold — release it first.
+  folderDeleteProtected:
+    A controlled file in this folder has an approved version, which is a
+    retained record — move it out first.
+  folderDeleteAction: Delete folder
+  folderDeleteConfirm:
+    Delete "{folder}" and everything inside it? The files are
+    removed from the project and from the knowledge index. This cannot be
+    undone.
+  newSubfolderAction: New folder inside
+  uploadingIndicator: Uploading…
+  historyAction: Version history
+  loadFailed: "Couldn't load this project's files."
+  foldersLoadFailed: "Couldn't load this project's folders. Files inside folders are listed separately until the folders load."
+  treeLoadFailed: "Couldn't load this project's files and folders."
+  refreshFailed: "Couldn't refresh this project's files. What's shown may be out of date."
+  unplacedGroup: Files inside folders
+threads:
+  yourChats: Your chats
+  subtitle: Chats you've started in this project.
+  sharedWithProject: Shared with project
+  emptyYours: You haven't started any chats in this project yet.
+  emptyShared: No shared chats yet.
+  shareToggle: Share with project
+  shareToggleDisclosure: Sharing hides your custom instructions from other members.
+  shareSuccess: Chat shared with project
+  unshareSuccess: Chat hidden from project
+  shareError: Couldn't update sharing
+  loadFailed: Couldn't load this project's chats.
+  refreshFailed: Couldn't refresh this project's chats. What's shown may be out of date.
+agents:
+  loadFailed: Couldn't load this project's agents.
+  refreshFailed: Couldn't refresh this project's agents. What's shown may be out of date.
+  agentsHeading: Agents
+  sectionDescription: Agents assigned to this project, each with their own model, skills, and instructions.
+  newAgent: New agent
+  emptyTitle: Add an agent to this project
+  emptyBody: Agents run tasks on your behalf — give one a model, skills, and instructions to get started.
+  sectionDescriptionReader: The agents that work this project's tasks, each with their own model, skills, and instructions. Editors and Admins add and change them.
+  emptyReaderTitle: No agents in this project yet
+  emptyReaderBody: Agents work tasks on your behalf. Ask an Editor or Admin to add one to this project.
+  equippedCount: '{count} equipped'
+  rowView: "View agent details"
+  detailsTitle: "Agent details"
+  providerLabel: "Provider"
+  providerUnpinned: "Not pinned"
+  detailsUnavailable: "Not specified"
+  detailsSkills: "Skills"
+  detailsConnectors: "Connectors"
+  detailsTools: "Platform tools"
+  detailsNone: "None"
+  detailsMoreCount: "+{count} more"
+  detailsProviderCurrently: "The provider is resolved for future runs and may change."
+  detailsStandardSnapshot: "Saved configuration. The standard agent resolves its model, skills, and instructions again when a run starts."
+  rowEdit: Edit agent
+  rowDelete: Delete agent
+  dialogCreateTitle: New agent
+  dialogEditTitle: Edit agent
+  nameLabel: Name
+  namePlaceholder: e.g. PR reviewer
+  handleHint: Mention it with @{handle}. Renaming the agent changes this.
+  harnessLabel: Agent runtime
+  harnessPlaceholder: Choose the agent runtime
+  modelLabel: Model
+  modelPlaceholder: Choose the model it calls
+  modelSearchPlaceholder: Search models
+  modelSearchEmpty: No models found
+  modelProviderSubscription: '{provider} · Subscription'
+  modelUnpinnedResolving: 'Saved as "{model}" without a pinned provider —
+    checking which provider runs would use…'
+  modelUnpinnedResolved: 'Saved as "{model}" without a pinned provider —
+    runs currently resolve to {provider}. Pick an entry to pin it.'
+  modelUnpinnedUnserved: 'Saved as "{model}" without a pinned provider —
+    and no run could serve it right now: {reason}'
+  equipmentLabel: Skills, connectors & tools
+  equipmentHint: Skills, connectors, and platform tools this agent can use.
+  equipmentVisibilityHint: Skills offered here follow the project’s
+    team access, not your personal visibility.
+  tool:
+    readBadge: Read
+    writeBadge: Writes data
+    module:
+      tasks: Tasks
+      documents: Documents
+      knowledge: Knowledge
+      contacts: Contacts
+      products: Products
+      websites: Websites
+    task_find: Find tasks
+    task_get: Read a task
+    task_create: Create tasks
+    task_comment: Comment on tasks
+    task_update_status: Move tasks between columns
+    task_update_metadata: Change task priority and agent assignment
+    task_review: "Review other agents’ task results"
+    task_delegate_review: "Delegate pending agent reviews"
+    task_start_agent: Start other agents on tasks
+    task_upsert_by_external_ref: Sync an external item to a task
+    document_find: Find documents
+    knowledge_entry_find: Find knowledge entries
+    knowledge_entry_write: Add and edit knowledge entries
+    knowledge_search: Search the knowledge base
+    alwaysOn: Always on — no grant needed
+    contact_find: Find contacts
+    product_find: Find products
+    website_find: List websites
+    document_create: Create documents
+  secrets:
+    label: Secrets
+    hint: Environment variables this agent can read — use a scoped,
+      rotatable token.
+    addButton: Add secret
+    saveButton: Save secret
+    cancelButton: Cancel
+    nameLabel: Name (environment variable)
+    nameInvalid: Use letters, digits, and underscores; don't start with a digit.
+    valueLabel: Value
+    valuePlaceholder: Paste the token — it is stored encrypted and never shown again
+    valueRequired: Enter the secret's value.
+    descriptionLabel: What it's for (optional)
+    descriptionPlaceholder: e.g. GlitchTip read-only API token
+    saved: Secret saved
+    saveError: Couldn't save the secret
+    deleted: Secret deleted
+    deleteError: Couldn't delete the secret
+    deleteAria: Delete secret {name}
+    deleteTitle: Delete secret
+    deleteConfirm: 'Delete "{name}"? Every agent and automation node in the organization that uses it stops receiving it on its next run.'
+    deleteConfirmButton: Delete secret
+  instructionsLabel: Instructions
+  instructionsPlaceholder:
+    What this agent owns, how it should work, and the boundaries it must
+    respect.
+  instructionsHint: Rides along as a standing instruction on every run of this agent.
+  createSubmit: Create agent
+  createSubmitting: Creating…
+  editSubmit: Save changes
+  editSubmitting: Saving…
+  createSuccess: Agent created
+  editSuccess: Agent updated
+  deleteSuccess: Agent deleted
+  deleteError: Couldn't delete the agent
+  mutationError: Couldn't save the agent
+  deleteTitle: Delete agent
+  deleteBody: 'Delete "{name}"? Tasks that referenced it keep their history.'
+  standard:
+    name: Standard agent
+    badge: Standard
+    managedNote: Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance.
+    emptyTitle: The standard agent takes this project's tasks
+    emptyBody: Until this project has agents of its own, its tasks can go to the organization's standard agent. Add one with New agent to give this project its own agent runtime, model and instructions.
+    emptyReaderBody: Until this project has agents of its own, you can hand its tasks to the organization's standard agent. An Editor or Admin can add agents of its own.
+settings:
+  name: Name
+  nameHint: Shown in the projects list and the Home panel.
+  description: Description
+  descriptionHint: A short summary that tells teammates what belongs here.
+  audience: Audience
+  audienceHelp: The teams that can see this project. Empty means everyone
+    in the organization. Admins always see it.
+  archiveButton: Archive project
+  archiveSuccess: Project archived
+  archiveError: Couldn't archive project
+  restoreButton: Restore project
+  restoreSuccess: Project restored
+  restoreError: Couldn't restore project
+  deleteDialogTitle: Delete project
+  deleteDialogDescription: This project will be deleted. Decide what happens to its files and chats.
+  deleteCascadeCheckbox: Also delete attached files and project-shared chats
+  deleteConfirmPhrase: Type the project name to confirm
+  deleteSubmit: Delete project
+  deleteSuccess: Project deleted
+  deleteError: Couldn't delete project
+  saveSuccess: Saved
+  saveError: Couldn't save settings
+  archiveDescription: Hide this project from members. Files and chats are
+    preserved; restore anytime.
+  restoreDescription: Make this project visible to members again.
+  sharingNarrowingWarning: This change narrows access. Members who lose access
+    will no longer see this project.
+dangerZone:
+  title: Danger zone
+  description: Destructive actions for this project.
+  archiveSectionTitle: Archive
+  archiveHelp: Archiving hides the project and its chats from everyday lists; you can restore it here at any time.
+  restoreHelp: Restoring returns the project and its chats to the everyday lists.
+  deleteHelp: Permanently removes the project, its files, and its settings. This can't be undone.
+rowActions:
+  duplicate: Duplicate
+  rename: Rename
+  archive: Archive
+  restore: Restore
+  delete: Delete
+  duplicateSuccess: Project duplicated
+  duplicateError: Couldn't duplicate project
+  renameDialogTitle: Rename project
+  renameSubmit: Save
+  renameSubmitting: Saving…
+readOnlyBanner:
+  title: You're viewing this project
+  description: Contact a project editor to make changes.
+  archivedTitle: This project is archived
+  archivedDescription: It's read-only until someone restores it. Project
+    administrators can restore it from the Archive section below.
+archived:
+  badge: Archived
+errors:
+  PROJECT_FORBIDDEN: You don't have access to this project.
+  PROJECT_ARCHIVED: This project is archived. Restore it to make changes.
+  PROJECT_NOT_FOUND: We couldn't find that project. It may have been deleted.
+  PROJECT_MISMATCH: This chat is in a different project. Switch context to continue.
+  PROJECT_AGENT_NOT_ALLOWED: "{agentName} isn't available in this project. Pick another agent."
+  PROJECT_MODEL_NOT_ALLOWED: "{modelName} isn't available in this project. Pick another model."
+  PROJECT_NAME_INVALID: Project name must be 1–80 characters.
+  PROJECT_KEY_INVALID: Use 2–6 letters or digits, starting with a letter (e.g. TAL).
+  PROJECT_KEY_TAKEN: That key is already used by another project. Pick a different one.
+  PROJECT_EXTERNAL_ITEM_ID_INVALID: External ID must be 1–256 characters.
+  PROJECT_DUPLICATE_EXTERNAL_ID: Another project already uses that external ID.
+  PROJECT_DESCRIPTION_INVALID: Description is too long.
+  PROJECT_INSTRUCTIONS_TOO_LONG: Instructions exceed the {cap}-character limit. Trim before saving.
+  PROJECT_AGENT_NAME_INVALID: Agent name must be 1–120 characters.
+  PROJECT_AGENT_NAME_TAKEN: Another agent in this project already has that name.
+  PROJECT_AGENT_HARNESS_INVALID: That agent runtime can't be used for project agents.
+  PROJECT_AGENT_MODEL_INVALID: Pick a model for this agent.
+  PROJECT_AGENT_INSTRUCTIONS_TOO_LONG: Instructions exceed the 20,000-character limit. Trim before saving.
+  PROJECT_AGENT_LIMIT: This project has reached its agent limit.
+  PROJECT_AGENT_NOT_FOUND: We couldn't find that agent. It may have been deleted.
+  PROJECT_LEGAL_HOLD: This project is under legal hold and cannot be deleted.
+  PROJECT_CONFIRM_PHRASE_MISMATCH: Type the project name exactly to confirm.
+  PROJECT_SHARING_INVALID: Sharing settings are invalid.
+  PROJECT_TEAM_INVALID: Team not found in your organization.
+  TEAM_ACCESS_DENIED: You can only scope a project to teams you belong to.
+  PROJECT_ORG_MISMATCH: That project belongs to a different organization.
+  DOCUMENT_SCOPE_CONFLICT: This document is already in a team library. Detach it first.
+  DOCUMENT_NOT_FOUND: Document not found.
+  ORG_FORBIDDEN: That resource belongs to a different organization.
+  THREAD_NO_ORG: This chat isn't linked to an organization yet.
+  RBAC_FORBIDDEN: Editor or admin role required to make this change.
+  ROLE_FORBIDDEN: Only admins can change sharing or delete the project.
+  THREAD_FORBIDDEN: You can only modify your own chats.
+  THREAD_NOT_FOUND: Chat not found.
+  THREAD_NOT_IN_PROJECT: This chat isn't in a project.
+  RATE_LIMITED: You're doing that too often. Try again in a moment.
+  PROJECT_HAS_BOUND_AUTOMATIONS: Remove this project from the automations bound to it first, then delete it.
+  PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Remove this project from these
+    automations first, then delete it: {automations}.'
+  PROJECT_HAS_PROTECTED_RECORDS: Resolve or move the controlled records in this project first, then delete it. They are in review, approved, or retain an approved version.
+sharing:
+  effectiveAudience: Effective audience
+  noTeamsHint: No teams yet.
+  noTeamsCreateLink: Create a team
+  teamsLoadError: Couldn't load teams.

@@ -511,4 +511,46 @@ describe('createDirectModelCall — the wire a direct chat turn takes', () => {
     expect(seen[0]?.body).not.toHaveProperty('input');
     expect(chunks.map((chunk) => chunk.text).join('')).toBe('Hi.');
   });
+
+  it('names the regional endpoint it sent the request to, and only that one', async () => {
+    const answer = () =>
+      new Response(
+        `data: ${JSON.stringify({
+          model: 'gpt-5.6-sol-2026-08-01',
+          choices: [
+            { index: 0, delta: { content: 'Hi.' }, finish_reason: 'stop' },
+          ],
+        })}\n\ndata: [DONE]\n\n`,
+        { headers: { 'content-type': 'text/event-stream' } },
+      );
+    stubProvider(answer);
+    const regional = createDirectModelCall(ctx, 'org_a', openai, {
+      ...wire,
+      baseUrl: 'https://eu.api.openai.com/v1',
+    });
+    const chunks = [];
+    for await (const chunk of regional(request({ model: 'gpt-5.6-sol' }))) {
+      chunks.push(chunk);
+    }
+    expect(chunks.filter((chunk) => chunk.serving !== undefined)).toEqual([
+      {
+        text: '',
+        serving: { endpoint: { host: 'eu.api.openai.com', region: 'europe' } },
+      },
+      expect.objectContaining({
+        text: 'Hi.',
+        serving: { model: 'gpt-5.6-sol-2026-08-01' },
+      }),
+    ]);
+
+    stubProvider(answer);
+    const global = createDirectModelCall(ctx, 'org_a', openai, wire);
+    const globalChunks = [];
+    for await (const chunk of global(request({ model: 'gpt-5.6-sol' }))) {
+      globalChunks.push(chunk);
+    }
+    expect(
+      globalChunks.some((chunk) => chunk.serving?.endpoint !== undefined),
+    ).toBe(false);
+  });
 });

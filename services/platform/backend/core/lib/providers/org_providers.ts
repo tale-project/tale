@@ -29,7 +29,7 @@
  * provider invisibly.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -77,10 +77,74 @@ export function loadOrgCustomProviders(
   );
 }
 
+/**
+ * One custom provider file as last parsed, keyed by its path and valid while
+ * the file's stamp (mtime + size) is unchanged. Provider resolution runs on
+ * every chat turn, composer listing and cost estimate; reading, YAML-parsing
+ * and validating every file of the org on each of those calls was a
+ * measurable share of an API process's CPU under load, all of it
+ * synchronous on the event loop. The directory is still listed and each
+ * file still stat-ed on every call, so an edit is seen on the very next
+ * call exactly as before — only an unchanged file skips the parse.
+ */
+interface ParsedProviderFile {
+  mtimeMs: number;
+  size: number;
+  outcome:
+    | { ok: true; provider: ProviderDefinition; hash: string }
+    | { ok: false; reason: string };
+}
+
+const parsedProviderFiles = new Map<string, ParsedProviderFile>();
+
+function parseProviderFile(file: string): ParsedProviderFile['outcome'] {
+  let stat;
+  try {
+    stat = statSync(file);
+  } catch (err) {
+    parsedProviderFiles.delete(file);
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+  const cached = parsedProviderFiles.get(file);
+  if (
+    cached !== undefined &&
+    cached.mtimeMs === stat.mtimeMs &&
+    cached.size === stat.size
+  ) {
+    return cached.outcome;
+  }
+  let outcome: ParsedProviderFile['outcome'];
+  try {
+    const content = readFileSync(file, 'utf8');
+    const parsed = parseYaml(content);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const validated = providerDefinitionSchema.safeParse(parsed.data);
+    if (!validated.success) {
+      throw new Error(zodErrorMessage('Invalid provider', validated.error));
+    }
+    outcome = { ok: true, provider: validated.data, hash: sha256(content) };
+  } catch (err) {
+    outcome = {
+      ok: false,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+  parsedProviderFiles.set(file, {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    outcome,
+  });
+  return outcome;
+}
+
 /** {@link loadOrgCustomProviders}, each definition with the hash of its file. */
 export function loadOrgCustomProviderSnapshots(
   orgSlug: string,
   options: LoadSystemConfigOptions = {},
+  shipped: readonly ProviderDefinition[] = loadProviderDefinitions(options),
 ): OrgCustomProviderSnapshot[] {
   const dir = resolveProvidersDir(orgSlug);
   let entries: string[];
@@ -92,32 +156,21 @@ export function loadOrgCustomProviderSnapshots(
     throw err;
   }
 
-  const shippedNames = new Set(
-    loadProviderDefinitions(options).map((provider) => provider.name),
-  );
+  const shippedNames = new Set(shipped.map((provider) => provider.name));
   const providers: OrgCustomProviderSnapshot[] = [];
   for (const entry of entries.sort()) {
     if (!entry.endsWith('.yml') || entry.endsWith('.secrets.yml')) continue;
     const file = path.join(dir, entry);
     const stem = entry.slice(0, -'.yml'.length);
-    let provider: ProviderDefinition;
-    let content: string;
-    try {
-      content = readFileSync(file, 'utf8');
-      const parsed = parseYaml(content);
-      if (!parsed.ok) throw new Error(parsed.error);
-      const outcome = providerDefinitionSchema.safeParse(parsed.data);
-      if (!outcome.success) {
-        throw new Error(zodErrorMessage('Invalid provider', outcome.error));
-      }
-      provider = outcome.data;
-    } catch (err) {
+    const outcome = parseProviderFile(file);
+    if (!outcome.ok) {
       console.error(
         `[org-providers] skipping unreadable provider ${file}:`,
-        err instanceof Error ? err.message : err,
+        outcome.reason,
       );
       continue;
     }
+    const { provider } = outcome;
     if (provider.name !== stem) {
       console.error(
         `[org-providers] skipping ${file}: provider name "${provider.name}" must match the file name "${stem}"`,
@@ -130,7 +183,7 @@ export function loadOrgCustomProviderSnapshots(
       );
       continue;
     }
-    providers.push({ provider, hash: sha256(content) });
+    providers.push({ provider, hash: outcome.hash });
   }
   return providers;
 }
@@ -143,9 +196,14 @@ export function resolveProvidersForOrg(
   orgSlug: string,
   options: LoadSystemConfigOptions = {},
 ): ProviderDefinition[] {
+  // The shipped set is loaded once and handed to the custom loader, which
+  // needs it only to refuse a name that would shadow a shipped provider.
+  const shipped = loadProviderDefinitions(options);
   return [
-    ...loadProviderDefinitions(options),
-    ...loadOrgCustomProviders(orgSlug, options),
+    ...shipped,
+    ...loadOrgCustomProviderSnapshots(orgSlug, options, shipped).map(
+      (snapshot) => snapshot.provider,
+    ),
   ];
 }
 

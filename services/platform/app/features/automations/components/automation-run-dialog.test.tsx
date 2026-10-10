@@ -256,3 +256,56 @@ it('keeps a custom required cursor editable through the generic JSON form', () =
     screen.getByRole('textbox', { name: 'Run input (JSON)' }),
   ).toBeVisible();
 });
+
+it('takes the run input in the code editor and starts the run on Mod-Enter', async () => {
+  const onConfirm = vi.fn();
+  const { user } = render(
+    <AutomationRunDialog
+      request={{
+        mode: 'mock',
+        version: 3,
+        scopeText: 'Organization-wide',
+        schema: {
+          type: 'object',
+          properties: { owner: { type: 'string' } },
+          required: ['owner'],
+        },
+      }}
+      onClose={() => {}}
+      onConfirm={onConfirm}
+    />,
+  );
+  const input = screen.getByRole('textbox', { name: 'Run input (JSON)' });
+  expect(input).toHaveAttribute('data-language', 'json');
+  // Not yet what the schema takes: Mod-Enter starts nothing.
+  await user.click(input);
+  await user.keyboard('{Control>}{Enter}{/Control}');
+  expect(onConfirm).not.toHaveBeenCalled();
+  await user.clear(input);
+  await user.type(input, '{{"owner": "acme"}');
+  await user.keyboard('{Control>}{Enter}{/Control}');
+  expect(onConfirm).toHaveBeenCalledWith({ owner: 'acme' });
+});
+
+it('shows the input schema as a tree of its fields', async () => {
+  const { user } = render(
+    <AutomationRunDialog
+      request={{
+        mode: 'mock',
+        version: 3,
+        scopeText: 'Organization-wide',
+        schema: {
+          type: 'object',
+          properties: { owner: { type: 'string' } },
+          required: ['owner'],
+        },
+      }}
+      onClose={() => {}}
+      onConfirm={() => {}}
+    />,
+  );
+  await user.click(screen.getByText('Input schema'));
+  const tree = screen.getByRole('list', { name: 'Input schema' });
+  expect(tree).toHaveTextContent('owner');
+  expect(tree).toHaveTextContent('required');
+});

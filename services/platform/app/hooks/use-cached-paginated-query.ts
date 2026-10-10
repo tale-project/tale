@@ -1,11 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useReactInfiniteQuery } from '@/app/hooks/use-react-query';
 import {
   activeOrganizationId,
   PAGINATED_ADAPTERS,
-  retryAdaptedRead,
-  runAdapted,
   type AdaptedPage,
   type AdaptedPaginatedOptions,
 } from '@/app/lib/backend/adapters';
@@ -15,6 +13,7 @@ import type {
   PaginatedName,
 } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
+import { adaptedInfiniteQueryOptions } from '@/app/lib/backend/prefetch';
 import { readStateOf } from '@/app/lib/backend/read-state';
 
 /** How far a listing has walked. Kept as the 0.4 vocabulary because every
@@ -48,6 +47,10 @@ export interface UsePaginatedQueryReturnType<Item> {
   errorCount: number;
 }
 
+/** One empty listing for every read without pages, so a consumer's memo of
+ *  the rows holds while nothing has loaded. */
+const NO_RESULTS: never[] = [];
+
 /** The listing lane: react-query `useInfiniteQuery` over the backend's keyset
  * cursors. Always called (hook-order stability) — a listing with no adapter
  * row passes `opts: null` and the underlying query stays disabled. */
@@ -55,24 +58,23 @@ function useBackendPaginatedQuery<Item>(
   opts: AdaptedPaginatedOptions | null,
   options: { initialNumItems: number },
 ): UsePaginatedQueryReturnType<Item> {
-  const fetchPage = opts?.fetchPage;
-  const infinite = useReactInfiniteQuery<AdaptedPage>({
-    queryKey: opts?.queryKey ?? ['backend', 'paginated', 'disabled'],
-    enabled: fetchPage !== undefined,
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => {
-      if (fetchPage === undefined) {
-        return Promise.reject(new Error('paginated adapter disabled'));
-      }
-      return runAdapted(() =>
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- react-query types pageParam as unknown; this lane only ever stores string|null cursors
-        fetchPage(pageParam as string | null, options.initialNumItems),
-      );
-    },
-    getNextPageParam: (last: AdaptedPage) =>
-      last.isDone ? undefined : last.continueCursor,
-    retry: retryAdaptedRead,
-  });
+  const infinite = useReactInfiniteQuery<AdaptedPage>(
+    opts !== null
+      ? adaptedInfiniteQueryOptions(opts, options.initialNumItems)
+      : {
+          queryKey: ['backend', 'paginated', 'disabled'],
+          enabled: false,
+          initialPageParam: null as string | null,
+          queryFn: () =>
+            Promise.reject(new Error('paginated adapter disabled')),
+          getNextPageParam: (last: AdaptedPage) =>
+            last.isDone ? undefined : last.continueCursor,
+        },
+  );
+  // `isFetching` is left out on purpose: react-query re-renders a consumer
+  // only for the properties it read, and a list that read it re-rendered on
+  // the start and the end of every refetch a live hint caused. It is read
+  // below only while the listing is failing, where it says a retry runs.
   const {
     fetchNextPage,
     hasNextPage,
@@ -80,7 +82,6 @@ function useBackendPaginatedQuery<Item>(
     isFetchNextPageError,
     data,
     isLoading,
-    isFetching,
     isError,
     error,
     errorUpdateCount,
@@ -97,7 +98,12 @@ function useBackendPaginatedQuery<Item>(
     },
     [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError],
   );
-  const results = data?.pages.flatMap((page) => page.page) ?? [];
+  // The same array until the pages change: react-query keeps `data` when a
+  // refetch answers the same rows, so the rows' memos downstream hold.
+  const results = useMemo(
+    () => data?.pages.flatMap((page) => page.page) ?? NO_RESULTS,
+    [data?.pages],
+  );
   // A failed first page reads as an exhausted empty list (never an eternal
   // skeleton) — the retry policy has already given up on a deterministic 4xx.
   // Asking for it again clears the error, so it loads like the first time.
@@ -117,7 +123,15 @@ function useBackendPaginatedQuery<Item>(
     if (isFetchNextPageError) void fetchNextPage();
     else void refetch();
   }, [isFetchNextPageError, fetchNextPage, refetch]);
-  const read = readStateOf({ data, isError, isFetching, errorUpdateCount });
+  const failing =
+    (data === undefined && errorUpdateCount > 0) ||
+    (data !== undefined && isError);
+  const read = readStateOf({
+    data,
+    isError,
+    isFetching: failing && infinite.isFetching,
+    errorUpdateCount,
+  });
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter's page rows are the contract's page item by construction (both keyed by the same name)
     results: results as Item[],

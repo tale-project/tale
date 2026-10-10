@@ -30,6 +30,14 @@
 // group known to be the exec's is signalled before the table is read, a scan
 // answers with what it read once its deadline passes, and a process whose
 // read did not come back is skipped until it is gone or the read returns.
+//
+// A process in the middle of an execve has no environment to read: from the
+// moment the new image's memory replaces the old until its arguments and
+// environment are laid out, the kernel answers an empty one. A leftover is
+// often right there when a round comes (`cmd &` and the command's exit are
+// an instant apart, and `setsid cmd` is two execs), so an empty read is read
+// again a few times before the process counts as untagged. A process whose
+// environment really is empty (`env -i`) costs a scan that long.
 
 import { readdir, readFile } from 'node:fs/promises';
 
@@ -38,6 +46,11 @@ export const EXEC_TAG_ENV = 'TALE_EXEC_ID';
 
 /** How long one scan of the process table waits for its reads. */
 const SCAN_DEADLINE_MS = 2_000;
+/** How many times an empty environment is read again before the process
+ * counts as untagged, and how long between reads: a process in the middle
+ * of an execve answers an empty one. */
+const EMPTY_ENVIRON_REREADS = 4;
+const EMPTY_ENVIRON_REREAD_MS = 10;
 
 export interface ReaperDeps {
   /** Where the process table is read (Linux `/proc`); absent elsewhere. */
@@ -69,6 +82,8 @@ export interface ReapTarget {
    * its last descendant is gone, so until it has exited its pid names it. */
   rootPid?: number;
   rootAlive?: () => boolean;
+  rootComplete?: () => boolean;
+  groupOnly?: boolean;
   /** The group is certainly still the exec's: the round comes as its leader
    * exits (or while it runs), before the number can be reused. Otherwise the
    * group is signalled only while a process tagged with the exec, or one of
@@ -134,17 +149,40 @@ const stalledByRoot = new Map<string, Map<number, StalledRead>>();
 const environReads = new Map<string, Promise<string>>();
 let readsInFlight = 0;
 
+const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 /** How many reads of the process table have not come back. Each holds one
  * thread of libuv's pool, which `process.exit` waits for. */
 export function pendingProcReads(): number {
   return readsInFlight;
 }
 
-function tracked<T>(read: Promise<T>): Promise<T> {
+/** Count a read of the process table as out until it settles: the stall
+ * watch's reads (exec-stall.ts) hold the same pool threads. */
+export function tracked<T>(read: Promise<T>): Promise<T> {
   readsInFlight += 1;
   return read.finally(() => {
     readsInFlight -= 1;
   });
+}
+
+/** One process's environment — one read, shared by the scans that run at
+ * once. */
+function readEnviron(
+  root: string,
+  name: string,
+  startTime: string,
+): Promise<string> {
+  const key = `${root}/${name}@${startTime}`;
+  let read = environReads.get(key);
+  if (read === undefined) {
+    read = tracked(readFile(`${root}/${name}/environ`, 'latin1')).finally(() =>
+      environReads.delete(key),
+    );
+    environReads.set(key, read);
+  }
+  return read;
 }
 
 /** Every readable process, each with the exec it is tagged with, or null
@@ -227,44 +265,47 @@ async function scanProcessTable(
       const parsed = parseStat(stat);
       if (parsed === null) return;
       const entry: ProcessEntry = { pid, ...parsed };
+      found.push(entry);
       if (!withTags) {
-        found.push(entry);
         return;
       }
       if (mark !== undefined) {
         if (mark.startTime === parsed.startTime) {
           // Its environment read has not come back: known by its group.
-          found.push(entry);
           return;
         }
         // The pid names a new process now.
         known.delete(pid);
       }
       unsettled.set(pid, { startTime: parsed.startTime });
-      const key = `${root}/${name}@${parsed.startTime}`;
-      let read = environReads.get(key);
-      if (read === undefined) {
-        read = tracked(readFile(`${root}/${name}/environ`, 'latin1')).finally(
-          () => environReads.delete(key),
-        );
-        environReads.set(key, read);
-      }
       let environ: string;
       try {
-        environ = await read;
+        environ = await readEnviron(root, name, parsed.startTime);
+        // Empty: the process may be in the middle of an execve, its
+        // environment not laid out yet. Read again before counting it
+        // untagged.
+        for (
+          let again = 0;
+          environ.length === 0 && again < EMPTY_ENVIRON_REREADS;
+          again += 1
+        ) {
+          await pause(EMPTY_ENVIRON_REREAD_MS);
+          environ = await readEnviron(root, name, parsed.startTime);
+        }
       } catch (err) {
         const code = errorCode(err) ?? '';
         if (!VANISHED.has(code)) {
           console.warn(`[runnerd] cannot read process ${pid}:`, err);
         }
+        if (code !== 'EACCES' && code !== 'EPERM') {
+          found.splice(found.indexOf(entry), 1);
+        }
         // One whose environment is not ours to read still stands in its
         // parent's line: a shim's descendants are walked through it.
-        if (code === 'EACCES' || code === 'EPERM') found.push(entry);
         return;
       }
       const tag = environ.split('\0').find((e) => e.startsWith(prefix));
       if (tag !== undefined) entry.execId = tag.slice(prefix.length);
-      found.push(entry);
     } finally {
       unsettled.delete(pid);
       const left = marks.get(pid);
@@ -289,7 +330,7 @@ async function scanProcessTable(
     );
   }
   // A copy: reads that come back later must not change this scan's answer.
-  return found.slice();
+  return found.map((entry) => Object.assign({}, entry));
 }
 
 /** The processes whose environment carries the tag of `execId`. */
@@ -387,6 +428,7 @@ function descendantsOf(root: number, index: ProcessIndex): ProcessEntry[] {
 /** A target's processes in the table: the ones tagged with the exec and
  * the descendants of its shim, each once. */
 function processesOf(target: ReapTarget, index: ProcessIndex): ProcessEntry[] {
+  if (target.rootComplete?.() === true) return [];
   const owned = new Map<number, ProcessEntry>();
   for (const proc of index.byExec.get(target.execId) ?? []) {
     owned.set(proc.pid, proc);
@@ -396,13 +438,17 @@ function processesOf(target: ReapTarget, index: ProcessIndex): ProcessEntry[] {
     for (const proc of descendantsOf(root, index)) owned.set(proc.pid, proc);
   }
   owned.delete(root ?? -1);
-  return [...owned.values()];
+  return [...owned.values()].filter(
+    (proc) => target.groupOnly !== true || proc.pgrp === groupOf(target),
+  );
 }
 
 /** Whether every target is found by its shim: the scan then reads `stat`
  * alone and takes no process's memory lock. */
 function rootsSuffice(targets: readonly ReapTarget[]): boolean {
-  return targets.every((target) => rootOf(target) !== null);
+  return targets.every(
+    (target) => target.rootComplete?.() === true || rootOf(target) !== null,
+  );
 }
 
 /** Per target, whether any of its processes is left: one tagged with the
@@ -412,6 +458,9 @@ export async function processesLeft(
   targets: readonly ReapTarget[],
   deps: ReaperDeps = {},
 ): Promise<boolean[] | null> {
+  if (targets.every((target) => target.rootComplete?.() === true)) {
+    return targets.map(() => false);
+  }
   const [table, recorded] = await Promise.all([
     readProcessTable(deps, !rootsSuffice(targets)),
     Promise.all(targets.map(recordedMembers)),
@@ -419,6 +468,7 @@ export async function processesLeft(
   if (table === null) return null;
   const indexed = indexProcesses(table);
   return targets.map((target, index) => {
+    if (target.rootComplete?.() === true) return false;
     if (processesOf(target, indexed).length > 0) return true;
     const group = groupOf(target);
     return (
@@ -447,18 +497,6 @@ function deliver(
   }
 }
 
-/** Signal an exec's process group, and nothing else, without reading the
- * process table: for a group certainly the exec's (its leader still runs).
- * True when the signal was delivered. */
-export function signalGroup(
-  groupId: number | undefined,
-  signal: NodeJS.Signals,
-  deps: ReaperDeps = {},
-): boolean {
-  if (groupId === undefined || groupId <= 1) return false;
-  return deliver(deps, -groupId, signal, `pgroup ${groupId}`);
-}
-
 /** What a round did. */
 export interface RoundResult {
   /** How many signals were delivered. */
@@ -483,6 +521,9 @@ export async function signalExecProcesses(
   deps: ReaperDeps = {},
 ): Promise<RoundResult> {
   if (targets.length === 0) return { reached: 0, members: [] };
+  if (targets.every((target) => target.rootComplete?.() === true)) {
+    return { reached: 0, members: targets.map(() => []) };
+  }
   let reached = 0;
   const send = (target: number, label: string) => {
     if (deliver(deps, target, signal, label)) reached += 1;
@@ -490,6 +531,7 @@ export async function signalExecProcesses(
   // Negative pid: the whole process group. Sent before the scan, which can
   // wait on a stuck process for as long as its deadline.
   const groupSent = targets.map((target) => {
+    if (target.rootComplete?.() === true) return false;
     const group = groupOf(target);
     if (group === null || target.groupKnown !== true) return false;
     send(-group, `pgroup ${group}`);
@@ -501,15 +543,17 @@ export async function signalExecProcesses(
   ]);
   const indexed = table === null ? null : indexProcesses(table);
   const members = targets.map((target, index) => {
+    if (target.rootComplete?.() === true) return [];
     const group = groupOf(target);
     const owned = indexed === null ? [] : processesOf(target, indexed);
     let groupReached = groupSent[index] === true;
     if (
       !groupReached &&
       group !== null &&
-      (indexed === null ||
-        owned.some((proc) => proc.pgrp === group) ||
-        memberStillIn(group, recorded[index] ?? [], indexed))
+      (indexed === null
+        ? target.groupOnly !== true
+        : owned.some((proc) => proc.pgrp === group) ||
+          memberStillIn(group, recorded[index] ?? [], indexed))
     ) {
       send(-group, `pgroup ${group}`);
       groupReached = true;

@@ -17,11 +17,12 @@ const mocks = vi.hoisted(() => ({
   classifyEmbeddingFailure: vi.fn(),
   getKnowledgePoolForOrg: vi.fn(),
   resolveOrgUrl: vi.fn(),
-  pinDimensions: vi.fn(),
   indexWholeDocument: vi.fn(),
   resolveOrgSlug: vi.fn(),
   readGovernancePolicy: vi.fn(),
   isMessageCorpusLive: vi.fn(),
+  directCallBlocked: vi.fn(),
+  addJobInTx: vi.fn(),
 }));
 
 vi.mock('../../core/knowledge/connection.ts', () => ({
@@ -40,12 +41,6 @@ vi.mock('../../core/knowledge/pool.ts', () => ({
   getKnowledgePoolForOrg: mocks.getKnowledgePoolForOrg,
   resolveOrgUrl: mocks.resolveOrgUrl,
 }));
-vi.mock('../../core/knowledge/dimensions.ts', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../../core/knowledge/dimensions.ts')
-  >()),
-  pinDimensions: mocks.pinDimensions,
-}));
 vi.mock('../../core/knowledge/indexing.ts', () => ({
   indexWholeDocument: mocks.indexWholeDocument,
 }));
@@ -57,11 +52,16 @@ vi.mock('./liveness.ts', () => ({
   isMessageCorpusLive: mocks.isMessageCorpusLive,
 }));
 vi.mock('./service.ts', () => ({ knowledgeShimHandlers: () => ({}) }));
+vi.mock('../governance/direct-calls.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../governance/direct-calls.ts')>()),
+  directCallBlocked: mocks.directCallBlocked,
+}));
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: mocks.addJobInTx }));
 
 const { indexConversationMessage } = await import('./message-index.ts');
-const { EmbeddingNotConfigured } =
+const { EmbeddingBudgetExceeded, EmbeddingNotConfigured } =
   await import('../../core/knowledge/embedding.ts');
-const { EmbeddingDimensionMismatch } =
+const { EmbeddingDimensionMismatch, UnsupportedVectorWidth } =
   await import('../../core/knowledge/dimensions.ts');
 
 const MESSAGE_ID = '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a';
@@ -107,13 +107,22 @@ function row(overrides: Partial<MessageRow> = {}): MessageRow {
   };
 }
 
-function fakeSql(message: MessageRow | null): {
+function fakeSql(
+  message: MessageRow | null,
+  options: { waitingJob?: boolean } = {},
+): {
   sql: Sql;
   reads: unknown[][];
 } {
   const reads: unknown[][] = [];
-  const fn = (_strings: TemplateStringsArray, ...values: unknown[]) => {
+  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     reads.push(values);
+    // The queue, asked whether a job for the message already waits.
+    if (strings.join('?').includes('FROM pgboss.job')) {
+      return Promise.resolve(
+        options.waitingJob === true ? [{ id: 'j-1' }] : [],
+      );
+    }
     return Promise.resolve(message === null ? [] : [message]);
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
@@ -127,7 +136,6 @@ beforeEach(() => {
   mocks.embedderForOrg.mockResolvedValue({ dimensions: 3 });
   mocks.getKnowledgePoolForOrg.mockResolvedValue('pool');
   mocks.resolveOrgUrl.mockResolvedValue('postgres://corpus');
-  mocks.pinDimensions.mockResolvedValue(undefined);
   mocks.readGovernancePolicy.mockResolvedValue(null);
   mocks.classifyEmbeddingFailure.mockReturnValue(null);
   mocks.indexWholeDocument.mockResolvedValue({
@@ -138,6 +146,8 @@ beforeEach(() => {
     partial: false,
   });
   mocks.isMessageCorpusLive.mockResolvedValue(true);
+  mocks.directCallBlocked.mockResolvedValue(null);
+  mocks.addJobInTx.mockResolvedValue('job-1');
 });
 
 function indexedArgs(): Record<string, unknown> {
@@ -285,8 +295,14 @@ describe('indexConversationMessage', () => {
   it('ends quietly on a refusal every retry would repeat', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { sql } = fakeSql(row());
-    mocks.pinDimensions.mockRejectedValueOnce(
+    mocks.indexWholeDocument.mockRejectedValueOnce(
       new EmbeddingDimensionMismatch(1536, 3, 'the embedding model'),
+    );
+    await expect(indexConversationMessage(sql, MESSAGE_ID)).resolves.toBe(
+      undefined,
+    );
+    mocks.indexWholeDocument.mockRejectedValueOnce(
+      new UnsupportedVectorWidth(1000, 'organization "acme"'),
     );
     await expect(indexConversationMessage(sql, MESSAGE_ID)).resolves.toBe(
       undefined,
@@ -314,6 +330,79 @@ describe('indexConversationMessage', () => {
     await expect(indexConversationMessage(sql, MESSAGE_ID)).rejects.toBe(
       upstream,
     );
+  });
+
+  it('books the body’s embedding to the organization, request by request [GOV-R5]', async () => {
+    const { sql } = fakeSql(row());
+    await indexConversationMessage(sql, MESSAGE_ID);
+    // Asked as its first request will be: a cent and a chunk's tokens.
+    expect(mocks.directCallBlocked).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      subject: { userId: '__automation__', agentSlug: '__embedding__' },
+      worstCase: { cents: 1, tokens: 1_024 },
+    });
+    expect(mocks.embedderForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter: expect.any(Object) }),
+    );
+  });
+
+  it('waits for a usage limit: its job comes back later, nothing read meanwhile [GOV-R4] [KNOW-R18]', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const resetsAt = Date.now() + 10 * 60_000;
+    mocks.directCallBlocked.mockResolvedValueOnce({
+      scope: 'org',
+      code: 'COST_LIMIT',
+      period: 'daily',
+      used: 100,
+      limit: 100,
+      reason: 'x',
+      resetsAt,
+    });
+    const { sql } = fakeSql(row());
+    await expect(
+      indexConversationMessage(sql, MESSAGE_ID),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.embedderForOrg).not.toHaveBeenCalled();
+    expect(mocks.addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'rag.index_message',
+      { messageId: MESSAGE_ID },
+      {
+        // The period resets sooner than an hour: just after it.
+        startAfter: new Date(resetsAt + 60_000),
+      },
+    );
+
+    mocks.indexWholeDocument.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.'),
+    );
+    await expect(
+      indexConversationMessage(sql, MESSAGE_ID),
+    ).resolves.toBeUndefined();
+    expect(mocks.addJobInTx).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the wait to a job for the message that is already queued', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    mocks.directCallBlocked.mockResolvedValueOnce({
+      scope: 'org',
+      code: 'COST_LIMIT',
+      period: 'monthly',
+      used: 100,
+      limit: 100,
+      reason: 'x',
+      resetsAt: Date.now() + 86_400_000,
+    });
+    const { sql } = fakeSql(row(), { waitingJob: true });
+
+    await expect(
+      indexConversationMessage(sql, MESSAGE_ID),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.embedderForOrg).not.toHaveBeenCalled();
+    expect(mocks.addJobInTx).not.toHaveBeenCalled();
   });
 
   it('throws once pg-boss gave up on the job, whatever the cause', async () => {

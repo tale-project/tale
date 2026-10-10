@@ -1,0 +1,52 @@
+retentionPolicy:
+  workflowLogs:
+    description:
+      Einträge zu Automatisierungsläufen, die älter als die Aufbewahrungsfrist
+      sind, automatisch löschen. Schliesst pro Ausführung gespeicherte
+      Variablen-/Output-Blobs ein.
+passwordPolicy:
+  requireUpper: Grossbuchstabe erforderlich
+guardrailsOverview:
+  eventDetails:
+    close: Schliessen
+contentSafety:
+  wordsDescription:
+    Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung
+    egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching
+    verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen.
+legalHold:
+  sections:
+    releaseRequests:
+      description:
+        Ausstehende Anträge müssen von einem anderen Admin genehmigt
+        werden. Genehmigte Anträge warten anschliessend die Cooldown-Phase ab.
+    matters:
+      description:
+        Holds nach Fall gruppieren. Beim Schliessen eines Falls werden
+        Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit
+        Vier-Augen-Genehmigung).
+  actions:
+    closeMatter: Fall schliessen
+  dialogs:
+    rejectRelease:
+      description: Die Ablehnung schliesst den Antrag, ohne den Hold freizugeben.
+    upsertMatter:
+      description: Verwandte Holds unter einem Fall gruppieren. Beim späteren
+        Schliessen werden Freigabeanträge für alle verknüpften Holds
+        eingereicht.
+    closeMatter:
+      title: Fall schliessen
+      description: Beim Schliessen werden Freigabeanträge für {count} aktive
+        verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin
+        Vier-Augen-Genehmigung.
+      submit: Fall schliessen
+dataSubjectRequests:
+  reasonCodes:
+    unlawful_processing:
+      label: Unrechtmässige Verarbeitung
+dsarPolicy:
+  ownerOnlyNotice:
+    Nur der Inhaber kann diese Richtlinie ändern. Admins können sie
+    lesen. Jede Lockerung der Schutzmassnahmen (kürzere Karenzzeit,
+    Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24
+    Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann.

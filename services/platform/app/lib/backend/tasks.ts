@@ -12,6 +12,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import type { TaskStatusWriteResult } from '@/app/lib/backend/contract/tasks';
+import { isAgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
 import { parseTaskRepeat } from '@/lib/shared/task-repeat';
 
 import type {
@@ -32,8 +33,8 @@ import {
 // ---------------------------------------------------------------------------
 
 type TasksByProjectResult = ReturnsOf<'tasks/queries:listTasksByProject'>;
-type TaskItem = TasksByProjectResult['tasks'][number];
 type GetTaskResult = ReturnsOf<'tasks/queries:getTask'>;
+type TaskItem = NonNullable<GetTaskResult>['task'];
 type TaskLabelItem = ItemOf<'tasks/queries:listTaskLabels'>;
 type TaskDependenciesResult = ReturnsOf<'tasks/queries:listTaskDependencies'>;
 type ProjectDependencyEdge = ItemOf<'tasks/queries:listProjectDependencies'>;
@@ -48,9 +49,11 @@ interface TaskWire {
   organizationId: string;
   projectId: string;
   title: string;
-  description: string | null;
-  attachments: unknown;
-  outputs: unknown;
+  /** Absent on a board row: the board leaves out the long columns no card
+   * shows (the description, attachments, outputs and external issue). */
+  description?: string | null;
+  attachments?: unknown;
+  outputs?: unknown;
   number: number | null;
   status: string;
   priority: string | null;
@@ -108,7 +111,7 @@ function taskView(row: TaskWire): TaskItem {
     organizationId: row.organizationId,
     projectId: row.projectId,
     title: row.title,
-    ...(row.description !== null ? { description: row.description } : {}),
+    ...(row.description != null ? { description: row.description } : {}),
     ...(row.attachments !== null && row.attachments !== undefined
       ? { attachments: row.attachments }
       : {}),
@@ -193,7 +196,18 @@ interface BoardWire {
 
 function boardView(body: BoardWire): TasksByProjectResult {
   return {
-    tasks: body.tasks.map(taskView),
+    tasks: body.tasks.map((row) => {
+      // An older backend may still answer with full content during a roll.
+      // Never retain those unused bodies in the board's metadata cache.
+      const {
+        description: _description,
+        attachments: _attachments,
+        outputs: _outputs,
+        externalIssue: _externalIssue,
+        ...summary
+      } = row;
+      return taskView(summary);
+    }),
     truncated: body.truncated,
     canEdit: body.canEdit,
     canCreate: body.canCreate,
@@ -266,6 +280,7 @@ function boardFilterParams(args: Record<string, unknown>): {
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   const params = new URLSearchParams({
     includeArchived: String(includeArchived),
+    summary: 'true',
     ...(status.length > 0 ? { status } : {}),
     ...(statuses.length > 0 ? { statuses: statuses.join(',') } : {}),
     ...(assigneeId.length > 0 ? { assigneeId } : {}),
@@ -288,6 +303,18 @@ function boardFilterParams(args: Record<string, unknown>): {
 }
 
 export const taskReadAdapters: Record<string, ReadAdapter> = {
+  'tasks/queries:getExternalStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'external-status', taskId),
+      queryFn: () =>
+        backendFetch(`/tasks/${encodeURIComponent(taskId)}/external-status`, {
+          orgId,
+        }),
+    };
+  },
   'tasks/queries:getTaskReviewer': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const taskId = args.taskId;
@@ -481,6 +508,9 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
             error: string | null;
             failureCode: string | null;
             trigger: string | null;
+            waitingForCapacityAt: number | null;
+            waitingReason?: string | null;
+            worker?: number;
             startedAt: number;
             launchedAt: number | null;
             settledAt: number | null;
@@ -500,6 +530,15 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               ...(run.failureCode !== null
                 ? { failureCode: run.failureCode }
                 : {}),
+              // A run parked for room says so, and why, while it waits: the
+              // timeline reads it instead of a bare "Queued".
+              ...(run.status === 'queued' && run.waitingForCapacityAt !== null
+                ? { waitingForCapacity: true }
+                : {}),
+              ...(isAgentRunWaitingReason(run.waitingReason)
+                ? { waitingReason: run.waitingReason }
+                : {}),
+              ...(typeof run.worker === 'number' ? { worker: run.worker } : {}),
               // A run an automation step started links to that automation
               // run; one another agent started names that agent.
               ...(run.startedVia === 'automation' &&
@@ -872,6 +911,18 @@ function statusWriteView(body: unknown): TaskStatusWriteResult {
 }
 
 export const taskWriteAdapters: Record<string, WriteAdapter> = {
+  'tasks/mutations:requestExternalStatus': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      const { organizationId: _org, taskId: _task, ...body } = args;
+      return backendFetch(
+        `/tasks/${encodeURIComponent(taskId)}/external-status-request`,
+        { method: 'POST', body, orgId },
+      );
+    },
+    invalidate: taskWriteInvalidate,
+  },
   'tasks/mutations:createTask': {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);

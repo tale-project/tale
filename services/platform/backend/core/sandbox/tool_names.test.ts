@@ -5,6 +5,7 @@ import {
   IMAGE_GENERATION_TOOL,
   imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
+  KNOWLEDGE_TOOLS_GUIDANCE,
   normalizeToolGrants,
   PROJECT_AGENT_ONLY_TOOLS,
   readTurnOpRef,
@@ -76,7 +77,7 @@ describe('normalizeToolGrants', () => {
 });
 
 describe('the catalog', () => {
-  it('classifies task_* creates and document_create as writes', () => {
+  it('classifies task_* creates, document_create and knowledge_entry_write as writes', () => {
     for (const name of [
       'task_create',
       'task_comment',
@@ -84,6 +85,7 @@ describe('the catalog', () => {
       'task_start_agent',
       'task_upsert_by_external_ref',
       'document_create',
+      'knowledge_entry_write',
     ]) {
       expect(WRITE_EFFECT_TOOLS).toContain(name);
     }
@@ -98,6 +100,18 @@ describe('the catalog', () => {
 });
 
 describe('grantedToolsGuidance', () => {
+  it('names discovery as a separate MCP tool, never a grantable operation', () => {
+    for (const guidance of [
+      KNOWLEDGE_TOOLS_GUIDANCE,
+      grantedToolsGuidance(['task_get']),
+      imageGenerationGuidance('/agent/output/task_1'),
+    ]) {
+      expect(guidance).toContain('separate workspace_status MCP tool with {}');
+    }
+    expect(normalizeToolGrants(['workspace_status', 'task_get'])).toEqual([
+      'task_get',
+    ]);
+  });
   it('is undefined when nothing beyond the baseline is granted', () => {
     expect(grantedToolsGuidance([])).toBeUndefined();
   });
@@ -106,6 +120,15 @@ describe('grantedToolsGuidance', () => {
     const guidance = grantedToolsGuidance(['task_find', 'task_create']);
     expect(guidance).toContain('task_find');
     expect(guidance).toContain('task_create');
+    expect(guidance).toContain('change real organization data');
+  });
+
+  it('warns that a knowledge entry write changes real organization data', () => {
+    const guidance = grantedToolsGuidance([
+      'knowledge_entry_find',
+      'knowledge_entry_write',
+    ]);
+    expect(guidance).toContain('knowledge_entry_write');
     expect(guidance).toContain('change real organization data');
   });
 

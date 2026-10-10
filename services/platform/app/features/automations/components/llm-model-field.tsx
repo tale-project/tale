@@ -22,8 +22,8 @@ import { SearchableSelect } from '@tale/ui/searchable-select';
 import { useId, useMemo, useState } from 'react';
 
 import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
-import { toModelOptions } from '@/app/features/projects/lib/model-options';
 import { useT } from '@/lib/i18n/client';
+import { toModelOptions } from '@/lib/shared/harness-offer';
 
 export function LlmModelField({
   organizationId,

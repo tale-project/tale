@@ -1,4 +1,4 @@
-import { BackendApiError } from './api-client';
+import { BackendApiError, isPlatformUnavailableAnswer } from './api-client';
 
 /**
  * The answers that say the platform is briefly not there — restarting, or a
@@ -10,11 +10,6 @@ import { BackendApiError } from './api-client';
  *   database restarts (`backend/error-reporting.ts`) and does not report
  *   itself.
  */
-const PLATFORM_UNAVAILABLE: ReadonlyMap<string, readonly number[]> = new Map([
-  ['UPSTREAM_UNAVAILABLE', [502, 503, 504]],
-  ['DATABASE_UNAVAILABLE', [503]],
-]);
-
 /**
  * Whether a request failed because the platform, or its database, was
  * briefly gone. Every request in flight meets such an answer at once, so the
@@ -24,7 +19,6 @@ const PLATFORM_UNAVAILABLE: ReadonlyMap<string, readonly number[]> = new Map([
 export function isPlatformUnavailable(error: unknown): boolean {
   return (
     error instanceof BackendApiError &&
-    error.code !== undefined &&
-    PLATFORM_UNAVAILABLE.get(error.code)?.includes(error.status) === true
+    isPlatformUnavailableAnswer(error.status, error.code)
   );
 }

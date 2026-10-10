@@ -140,6 +140,22 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     deleteBlob.mockReset();
   });
 
+  it('uploads the original file backing store without copying the payload', async () => {
+    const read = textBytes('the original payload');
+    sessionListFiles.mockResolvedValue([
+      outputEntry('report.txt', read.bytes.byteLength),
+    ]);
+    sessionReadFile.mockResolvedValue(read);
+    const result = await harvestSessionOutput(harvestCtx({}), {
+      organizationId: ORG,
+      sessionId: 'sid',
+    });
+    expect(result.files).toHaveLength(1);
+    const uploaded = putBlob.mock.calls[0]?.[1] as Uint8Array;
+    expect(uploaded.buffer).toBe(read.bytes);
+    expect(new TextDecoder().decode(uploaded)).toBe('the original payload');
+  });
+
   const harvestArgs = { organizationId: ORG, sessionId: 'sid' };
 
   it('fails LOUD before touching the session when the org has no bucket', async () => {
@@ -225,6 +241,33 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     await expect(harvestSessionOutput(ctx, harvestArgs)).rejects.toThrow(
       /mid-harvest/,
     );
+  });
+
+  it('re-reads an empty listing while the exec may still be writing', async () => {
+    // A reaped linger can still be inside its kill grace: a deliverable it
+    // was writing lands on a later listing.
+    sessionListFiles
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([outputEntry('late.txt')]);
+    sessionReadFile.mockResolvedValue(textBytes('late'));
+    const { files } = await harvestSessionOutput(harvestCtx({}), harvestArgs);
+    expect(files.map((file) => file.path)).toEqual(['/agent/output/late.txt']);
+    expect(sessionListFiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('takes an empty listing at once when the exec already exited', async () => {
+    // Nothing is left writing to the box, so a turn that delivered no file
+    // settles without the 1.5 s of re-reads.
+    sessionListFiles.mockResolvedValue([]);
+    const started = Date.now();
+    const { files, harvestSkipped } = await harvestSessionOutput(
+      harvestCtx({}),
+      { ...harvestArgs, execExited: true },
+    );
+    expect(files).toEqual([]);
+    expect(harvestSkipped).toEqual([]);
+    expect(sessionListFiles).toHaveBeenCalledTimes(1);
+    expect(Date.now() - started).toBeLessThan(400);
   });
 
   it('skips an over-cap output without reading it and keeps the harvest green', async () => {

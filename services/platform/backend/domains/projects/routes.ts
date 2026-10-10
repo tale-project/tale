@@ -1,4 +1,11 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { configurationHashSchema } from '@tale/shared/schemas/configuration';
+import {
+  managedProjectInstructionsSchema,
+  managedAgentInstructionsSchema,
+  managedAgentToolsSchema,
+  managedAgentModelSchema,
+} from '@tale/shared/schemas/managed-configuration';
 import {
   createProjectInputSchema,
   deleteProjectInputSchema,
@@ -15,13 +22,19 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
+import { readOptionalAppJsonBody } from '../../lib/app-json-body.ts';
+import {
+  invalidBodyResponse,
+  invalidBodyIssuesResponse,
+} from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { syncRagDocumentScopes } from '../knowledge/service.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import { ensureDefaultProjectLabels } from '../tasks/service.ts';
 import {
   deleteProjectSecret,
@@ -40,11 +53,18 @@ import {
   getProject,
   getProjectAuthContext,
   listAccessibleUserIds,
-  listProjectAgents,
+  listProjectAgentsForApp,
   listProjects,
   listProjectsOverview,
   listSidebarProjects,
   ProjectError,
+  readProjectInstructionsConfiguration,
+  readAgentInstructionsConfiguration,
+  readAgentToolsConfiguration,
+  updateAgentToolsConfiguration,
+  readAgentModelConfiguration,
+  updateAgentModelConfiguration,
+  updateAgentInstructionsConfiguration,
   restoreProject,
   searchProjects,
   setProjectPinned,
@@ -76,6 +96,19 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  if (error instanceof ConfigurationError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  if (error instanceof LegalHoldError) {
+    return c.json(
+      {
+        error: error.code,
+        message: error.message,
+        ...(error.data !== undefined ? { data: error.data } : {}),
+      },
+      error.status,
+    );
+  }
   if (error instanceof ProjectError) {
     return c.json(
       {
@@ -110,12 +143,211 @@ export function createProjectRoutes(deps: {
       c.get('sessionBundle').user.email,
     );
 
+  const readOptions = (c: Context<OrgEnv>) =>
+    c.req.query('summary') === 'true' ? { summary: true } : {};
+
   app.get('/', async (c) => {
     const auth = await authCtx(c);
     const includeArchived = c.req.query('includeArchived') === 'true';
     return c.json({
-      projects: await listProjects(deps.sql, auth, { includeArchived }),
+      projects: await listProjects(deps.sql, auth, {
+        includeArchived,
+        ...readOptions(c),
+      }),
     });
+  });
+
+  app.get('/:id/configuration/instructions', async (c) => {
+    try {
+      return c.json(
+        await readProjectInstructionsConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/configuration/instructions', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedProjectInstructionsSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.config.projectId !== c.req.param('id'))
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateProjectInstructions(
+          tx,
+          auth,
+          body.data.config.projectId,
+          body.data.config.instructions,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:id/agents/:agentId/configuration/instructions', async (c) => {
+    try {
+      return c.json(
+        await readAgentInstructionsConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          c.req.param('agentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/agents/:agentId/configuration/instructions', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedAgentInstructionsSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('id') ||
+      body.data.config.agentId !== c.req.param('agentId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateAgentInstructionsConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:id/agents/:agentId/configuration/tools', async (c) => {
+    try {
+      return c.json(
+        await readAgentToolsConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          c.req.param('agentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/agents/:agentId/configuration/tools', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedAgentToolsSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('id') ||
+      body.data.config.agentId !== c.req.param('agentId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateAgentToolsConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:id/agents/:agentId/configuration/model', async (c) => {
+    try {
+      return c.json(
+        await readAgentModelConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          c.req.param('agentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/agents/:agentId/configuration/model', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedAgentModelSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('id') ||
+      body.data.config.agentId !== c.req.param('agentId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateAgentModelConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.get('/overview', async (c) => {
@@ -126,6 +358,7 @@ export function createProjectRoutes(deps: {
     return c.json(
       await listProjectsOverview(deps.sql, auth, {
         includeArchived,
+        ...readOptions(c),
         ...(Number.isFinite(asOf) && asOf > 0 ? { asOf } : {}),
       }),
     );
@@ -133,13 +366,17 @@ export function createProjectRoutes(deps: {
 
   app.get('/sidebar', async (c) => {
     const auth = await authCtx(c);
-    return c.json({ projects: await listSidebarProjects(deps.sql, auth) });
+    return c.json({
+      projects: await listSidebarProjects(deps.sql, auth, 50, readOptions(c)),
+    });
   });
 
   app.get('/search', async (c) => {
     const auth = await authCtx(c);
     const query = c.req.query('q') ?? '';
-    return c.json({ projects: await searchProjects(deps.sql, auth, query) });
+    return c.json({
+      projects: await searchProjects(deps.sql, auth, query, 20, readOptions(c)),
+    });
   });
 
   app.post('/', async (c) => {
@@ -202,7 +439,7 @@ export function createProjectRoutes(deps: {
   app.post('/:id/duplicate', async (c) => {
     const body = z
       .object({ name: z.string().max(200).optional() })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .safeParse(await readOptionalAppJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }
@@ -374,7 +611,11 @@ export function createProjectRoutes(deps: {
     try {
       const auth = await authCtx(c);
       return c.json({
-        agents: await listProjectAgents(deps.sql, auth, c.req.param('id')),
+        agents: await listProjectAgentsForApp(
+          deps.sql,
+          auth,
+          c.req.param('id'),
+        ),
       });
     } catch (error) {
       return handleError(c, error);

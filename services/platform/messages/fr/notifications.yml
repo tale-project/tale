@@ -1,0 +1,87 @@
+title: Notifications
+ariaUnread: Non lu
+emptyCaughtUpTitle: Tout est à jour
+emptyCaughtUpDescription: Nous vous préviendrons dès qu'il y aura du nouveau.
+emptyOlderUnreadTitle: Tu as des notifications non lues plus anciennes
+emptyOlderUnreadDescription: Charge plus de notifications pour les voir.
+emptyAllTitle: Aucune notification pour l'instant
+emptyAllDescription: Les alertes et mises à jour système apparaîtront ici à
+  mesure qu'elles arriveront.
+markAsRead: Marquer comme lu
+markAllAsRead: Tout marquer comme lu
+expand: Agrandir
+filterLabel: Afficher
+filterUnread: Non lus
+filterAll: Tous
+sortLabel: Trier
+sortRecent: Plus récentes
+sortPriority: Priorité
+loadMore: Charger plus
+loading: Chargement…
+newNotifications: Nouvelles notifications
+creditRequestTitle: "Crédits d'utilisation demandés"
+creditRequestBody: '{name} a atteint sa limite et demande plus de crédits.'
+accountLocked: 'Compte temporairement verrouillé : {email}'
+lockoutDetails: '{consecutiveFailures} tentatives de connexion échouées depuis {ip}.'
+auditIntegrityFailed: Échec du contrôle d'intégrité du journal d'audit
+auditIntegrityFailedDetails: "Nous n'avons pas pu vérifier l'intégrité du
+  journal d'audit de cette organisation : {reason}. Cela peut indiquer une
+  altération — examine la situation dès que possible."
+websiteScanPaused: 'Analyses du site web suspendues : {domain}'
+websiteScanPausedDetails: "Les analyses de {domain} ont été suspendues après
+  {failures} tentatives consécutives sans parvenir à joindre la base de
+  connaissances de cette organisation. Vérifie la connexion sous Paramètres →
+  Résidence des données, puis reprends l'analyse depuis la page Sites web."
+knowledgeIndexRepaired: 'Index de recherche de la base de connaissances réparé : {index}'
+knowledgeIndexRepairedDetails: "L'index de recherche {index} de la base de connaissances de cette organisation était corrompu au démarrage et a été reconstruit automatiquement ({size}). Rien n'a été perdu — l'index se déduit des documents stockés — et la recherche comme les téléversements continuent comme avant. Des réparations répétées pointent vers la façon dont le conteneur de base de données est arrêté."
+knowledgeIndexRebuilding: 'Index de recherche de la base de connaissances en reconstruction : {index}'
+knowledgeIndexRebuildingDetails: "L'index de recherche {index} de la base de connaissances de cette organisation est corrompu et se reconstruit en arrière-plan ({size}). Les nouveaux documents ne peuvent pas être indexés avant la fin ; chaque document refusé entre-temps est indexé automatiquement ensuite."
+knowledgeIndexRepairFailed: "Échec de la réparation de l'index de recherche : {index}"
+knowledgeIndexRepairFailedDetails: "L'index de recherche {index} de la base de connaissances de cette organisation est corrompu et la reconstruction automatique n'a rien changé : {reason}. L'indexation des nouveaux documents reste en pause pour cette base jusqu'à ce que l'opérateur de l'instance reconstruise l'index (REINDEX) ou restaure la base — relance ensuite l'indexation des documents concernés."
+dsarScheduled: Demande d'effacement planifiée
+dsarScheduledBody: Une demande d'effacement a été déposée concernant un membre
+  de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre
+  le reçu pour la consulter ou l'annuler.
+dsarApprovalNeeded: Demande d'effacement en attente de ton approbation
+dsarApprovalNeededBody: Une demande d'effacement nécessite l'approbation d'un
+  second admin avant de pouvoir s'exécuter.
+dsarCancelled: Demande d'effacement annulée
+dsarCancelledBody:
+  Une demande d'effacement en attente a été annulée pendant son
+  délai de réflexion ; elle ne s'exécutera pas.
+dsarScheduledByBody: "{actor} a déposé une demande d'effacement concernant
+  {subject}. Elle s'exécute dans {coolingOffHours} heures — ouvre le reçu pour
+  la consulter ou l'annuler."
+dsarApprovalNeededByBody:
+  "{actor} a déposé une demande d'effacement concernant
+  {subject}. Elle nécessite l'approbation d'un second admin avant de pouvoir
+  s'exécuter."
+dsarCancelledByBody: "{actor} a annulé la demande d'effacement en attente
+  concernant {subject} ; elle ne s'exécutera pas."
+dsarPolicyTightened: Politique d'effacement renforcée
+dsarPolicyTightenedBody:
+  La politique d'effacement (DSAR) de cette organisation
+  a été renforcée. Elle prend effet immédiatement.
+dsarPolicyLoosenProposed: Assouplissement proposé de la politique d'effacement
+dsarPolicyLoosenProposedBody: Un assouplissement de la politique d'effacement
+  (DSAR) a été proposé. Tout admin peut l'annuler dans le délai de grâce de 24
+  heures avant qu'il ne prenne effet.
+dsarPolicyLoosenApplied: Politique d'effacement assouplie
+dsarPolicyLoosenAppliedBody:
+  Une politique d'effacement (DSAR) assouplie a pris
+  effet après le délai de grâce de 24 heures.
+dsarPolicyLoosenCancelled: Modification en attente de la politique d'effacement annulée
+dsarPolicyLoosenCancelledBody: Une modification en attente de la politique
+  d'effacement (DSAR) a été annulée avant de prendre effet.
+agentBudgetWarnTitle: L'agent approche de son budget
+agentBudgetWarnBody: '{agentSlug} a utilisé {pct} % de son budget mensuel
+  ({spent} sur {monthly}).'
+agentBudgetExceededTitle: Budget de l'agent dépassé — exécutions en pause
+agentBudgetExceededBody:
+  '{agentSlug} a atteint son budget mensuel ({spent} sur
+  {monthly}) et a été mis en pause. Les exécutions reprennent le mois prochain
+  ou lorsque tu augmentes la limite.'
+agentCircuitTrippedTitle: Exécutions de l'agent en pause — limite de sécurité atteinte
+agentCircuitTrippedBody: "{agentSlug} a atteint la limite de sécurité de
+  {windowRuns} exécutions en {windowHours} h sur « {taskTitle} ». Change le
+  statut de la tâche pour reprendre l'automatisation."

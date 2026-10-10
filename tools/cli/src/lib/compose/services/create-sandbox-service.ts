@@ -1,6 +1,8 @@
+import { isAbsolute } from 'node:path';
+
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING, imageRef } from '../types';
+import { BUILDKITD_MIRROR_IMAGE, DEFAULT_LOGGING, imageRef } from '../types';
 
 /**
  * Sandbox spawner — thin stateless docker-run service.
@@ -29,6 +31,21 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
  * install gVisor on the host; the spawner picks the runtime via env.
  */
 export function createSandboxService(config: ServiceConfig): ComposeService {
+  // Opt-in: a Linux daemon data-root path is not a valid host bind on every
+  // Docker Desktop or remote installation. loadEnv has read the project .env.
+  const dockerDataRoot = process.env.SANDBOX_DOCKER_DATA_ROOT?.trim();
+  const dockerDataPath =
+    process.env.SANDBOX_DOCKER_DATA_PATH?.trim() ||
+    '/var/lib/tale-sandbox/docker-data';
+  if (dockerDataRoot) {
+    for (const path of [dockerDataRoot, dockerDataPath]) {
+      if (!isAbsolute(path) || /[:,\r\n\0]/.test(path)) {
+        throw new Error(
+          'sandbox Docker data mount must use absolute paths without mount separators',
+        );
+      }
+    }
+  }
   return {
     image: imageRef(config, 'sandbox'),
     container_name: `${getProjectId()}-sandbox`,
@@ -60,6 +77,12 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     },
     env_file: ['.env'],
     environment: {
+      ...(dockerDataRoot
+        ? {
+            SANDBOX_DOCKER_DATA_ROOT: dockerDataRoot,
+            SANDBOX_DOCKER_DATA_PATH: dockerDataPath,
+          }
+        : {}),
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
       // The device hub: organizations connect their own machines here to run
       // their sandboxes (Settings → Sandboxes → Devices). The proxy publishes
@@ -81,13 +104,13 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // deployment.json sandboxRuntime section) to force it. The image refs the
       // spawner `docker run`s for the shared buildkitd + its pull-through
       // registry mirror; defaults match `tale deploy`'s re-tag (deploy.ts) and
-      // stock `registry:2`, overridable for a pinned/mirrored ref in fenced
-      // deploys (the spawner pulls the mirror at runtime — deploy.ts does not).
+      // the digest-pinned stock registry (BUILDKITD_MIRROR_IMAGE), overridable
+      // for a mirrored ref in fenced deploys (the spawner pulls the mirror at
+      // runtime — deploy.ts does not).
       SANDBOX_DOCKER_BUILD_CACHE: '${SANDBOX_DOCKER_BUILD_CACHE:-}',
       SANDBOX_BUILDKITD_IMAGE:
         '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
-      SANDBOX_BUILDKITD_MIRROR_IMAGE:
-        '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`,
       // Shared sandbox network; the egress sidecar is addressed by its bare
       // `sandbox-egress` alias so spawned runtime containers route outbound
       // through it.
@@ -100,18 +123,23 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // visible to the docker daemon at the same host path when it mounts
       // them into the runtime container.
       '/var/lib/tale-sandbox:/var/lib/tale-sandbox',
+      ...(dockerDataRoot ? [`${dockerDataRoot}:${dockerDataPath}:ro`] : []),
       // Read-only deployment config so loadConfig reads the sandboxRuntime tier
       // from deployment.json (same shared volume as rag/platform; R2-B11 lockstep
       // with compose.yml).
       '${PLATFORM_SHARED_CONFIG:-config-data}:/app/platform-config:ro',
     ],
     restart: 'unless-stopped',
+    // Each probe is a runc exec of curl, every 30 s, so a booting spawner
+    // reads healthy up to 30 s after it starts. No `start_interval`: Docker
+    // Compose refuses it on Engine 24, the oldest engine Tale supports.
+    // Mirrors compose.yml and the image's HEALTHCHECK.
     healthcheck: {
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health'],
-      interval: '10s',
+      interval: '30s',
       timeout: '5s',
       retries: 3,
-      start_period: '15s',
+      start_period: '30s',
     },
     depends_on: {
       'sandbox-egress': { condition: 'service_healthy' },

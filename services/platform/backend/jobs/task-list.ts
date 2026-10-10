@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import type { Json } from '../../lib/engine/core/types.ts';
 import { parseRunStarter } from '../../lib/shared/run-starter.ts';
 import {
   driveWorkflowAgentTurnImpl,
@@ -8,17 +9,16 @@ import {
   startWorkflowAgentTurnImpl,
 } from '../core/automations/agent_host.ts';
 import { stepRunImpl } from '../core/automations/stepper.ts';
-import { generateThreadTitleImpl } from '../core/chat/generate_title.ts';
+import {
+  generateThreadTitleImpl,
+  TITLE_AGENT_SLUG,
+} from '../core/chat/generate_title.ts';
 import {
   driveTaskAgentTurnImpl,
   startTaskAgentTurnImpl,
   steerTaskAgentTurnImpl,
 } from '../core/tasks/agent_run_host.ts';
-import {
-  AGENT_BUSY_RETRY_MAX_WAITS,
-  planAgentBusyWait,
-  resolveAutoRetryBudget,
-} from '../core/tasks/task_auto_retry.ts';
+import { resolveAutoRetryBudget } from '../core/tasks/task_auto_retry.ts';
 import {
   automationShimHandlers,
   automationShimScheduler,
@@ -28,11 +28,14 @@ import {
   sweepOverdueRuns,
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
+import { fireDueProjectWakes } from '../domains/automations/wakes.ts';
 import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
-import { createPgUsageLedger } from '../domains/chat/store.ts';
+import { readThreadProjectId } from '../domains/chat/threads.ts';
+import { titleMeter } from '../domains/chat/title-meter.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
+import { isBackendDraining } from '../domains/control/service.ts';
 import { runTranscribeJob } from '../domains/files/transcription.ts';
 import {
   runGoogleDriveSyncConfigJob,
@@ -47,8 +50,10 @@ import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import {
   recreatePinnedSession,
+  syncSessionPin,
   teardownSession,
 } from '../domains/sandbox/service.ts';
+import { releaseProjectAgentSessionSlot } from '../domains/sandbox/sessions.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import {
@@ -70,10 +75,11 @@ import {
   taskAgentShimScheduler,
 } from '../domains/tasks/agent-turn-shim.ts';
 import {
+  agentRunWorkDeadline,
+  claimAgentWorker,
+} from '../domains/tasks/agent-workers.ts';
+import {
   admitAutomatedStart,
-  findAgentBusyRun,
-  lockAgentForStart,
-  retireBusyRetry,
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from '../domains/tasks/delegated-start.ts';
 import { TaskError } from '../domains/tasks/errors.ts';
@@ -85,10 +91,7 @@ import {
   runStarterMayEditProject,
   sessionIdForAgentRun,
 } from '../domains/tasks/run-authority.ts';
-import {
-  announceAgentRunFailed,
-  retireAutoRetry,
-} from '../domains/tasks/run-failure-notice.ts';
+import { retireAutoRetry } from '../domains/tasks/run-failure-notice.ts';
 import { readInPlaceRetryState } from '../domains/tasks/run-start.ts';
 import { deferredAgentKickRefusal } from '../domains/tasks/service.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
@@ -104,7 +107,8 @@ import {
   runWebsitesScanDue,
 } from '../domains/websites/service.ts';
 import { createCtxShim } from '../lib/ctx-shim.ts';
-import { addJobInTx } from './enqueue.ts';
+import { createDrainProbe } from '../lib/drain-probe.ts';
+import { processShutdown } from '../lib/shutdown.ts';
 
 /** What the worker hands a handler beside its payload. */
 export interface TaskContext {
@@ -125,9 +129,15 @@ export interface TaskContext {
 export type TaskHandler = (
   payload: unknown,
   context?: TaskContext,
-) => Promise<void>;
+) => Promise<void | { output: Record<string, Json> }>;
 
 export type BackendTaskList = Record<string, TaskHandler>;
+
+/** Who asked for a website scan: the scan's embeddings are their spend. */
+const SCAN_REQUESTER = z.object({
+  userId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
+});
 
 const orgScaffoldSchema = z.object({
   orgSlug: z.string().min(1),
@@ -180,6 +190,7 @@ const startWorkflowSchema = z.object({
   taskId: z.string().min(1),
   workflowSlug: z.string().min(1),
   startedByUserId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
 });
 
 const driveSchema = z.object({
@@ -195,6 +206,10 @@ const driveSchema = z.object({
   // drive continuation carries it or a later kick's resume check degrades
   // to the op-recovered leg.
   sessionCreatedAt: z.number().optional(),
+  // Since when the turn's spawner has been out of reach: the continuation
+  // carries it while the spawner stays away, so the outage budget counts
+  // from its start rather than from each window.
+  spawnerOutageSince: z.number().optional(),
 });
 
 const steerSchema = z.object({
@@ -217,6 +232,7 @@ const steerSchema = z.object({
   mentionSource: z.enum(['comment', 'description']).optional(),
   author: z.string(),
   authorId: z.string(),
+  authorApiKeyId: z.string().optional(),
   attempt: z.number(),
 });
 
@@ -237,19 +253,22 @@ export interface TaskDeps {
  * the boundary.
  */
 /**
- * The key every later check of one failed run's automatic retry carries on
- * the `short` `task.agent_retry_recheck` queue — at most one of them is
- * queued at a time, whichever delivery sent it.
+ * The signal a turn's drive window ends on: the job's own (pg-boss gave up
+ * on it) or the process's shutdown. A window ended either way leaves the
+ * turn running and hands it to its next window, which another process
+ * drains.
  */
-export function agentRetryRecheckKey(retry: {
-  organizationId: string;
-  taskId: string;
-  expectedRunId: string;
-}): string {
-  return `agent-retry:${retry.organizationId}:${retry.taskId}:${retry.expectedRunId}`;
+function driveWindowSignal(context: TaskContext | undefined): AbortSignal {
+  return context === undefined
+    ? processShutdown.signal
+    : AbortSignal.any([context.signal, processShutdown.signal]);
 }
 
 export function createTaskList(deps: TaskDeps): BackendTaskList {
+  // Read at most every few seconds, by every walker this process runs: a
+  // walker on a replica a deploy is draining hands its run on at its next
+  // step boundary.
+  const draining = createDrainProbe(() => isBackendDraining(deps.sql));
   const agentRetry: TaskHandler = async (payload) => {
     const input = z
       .object({
@@ -258,7 +277,6 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         agentId: z.string().min(1),
         expectedRunId: z.string().min(1),
         startAfterMs: z.number().optional(),
-        agentBusyWaits: z.number().int().min(0).optional(),
       })
       .parse(payload);
     // The 0.5 port of `kickAutoRetryRun`: every guard re-derived in ONE
@@ -272,27 +290,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     // Attribution stays with the failed run's own starter — the retry
     // continues THEIR kick.
     // A run an automation step or another agent started is retried under
-    // the delegated start's admission too (#3977): the agent row is taken
-    // before the task row, the order every start that holds both keeps,
-    // and the retry starts only into a free workspace. While the agent
-    // works another task there, the retry waits — a later check of itself
-    // on `task.agent_retry_recheck`, at most one queued per failed run,
-    // every guard above re-derived at each check — until the workspace is
-    // free or the wait is over (`planAgentBusyWait`); then it is refused
-    // on the task's timeline and retired on the failed run, and no later
-    // delivery of it starts anything. A person's run, and its retries, are
-    // left as they were.
-    // The arm (`task.agent_retry`) and every check share this handler.
+    // the delegated start's per-task budget too (`admitAutomatedStart`). The
+    // retry is kicked at once, its agent busy on other tasks or not: the run
+    // it starts takes a worker of its own, or waits for one like any start
+    // (`domains/tasks/agent-workers.ts`). The arm (`task.agent_retry`) and a
+    // check an earlier image queued on `task.agent_retry_recheck` share this
+    // handler, so such a check simply kicks the retry.
     const outcome = await deps.sql.begin(async (tx) => {
-      // Written once, at the failed run's kick: read before any lock.
+      // Written once, at the failed run's kick.
       const startedVia = await startedViaOfRun(tx, input.expectedRunId);
-      const lockedAgent =
-        startedVia === undefined
-          ? undefined
-          : await lockAgentForStart(tx, {
-              organizationId: input.organizationId,
-              agentId: input.agentId,
-            });
       const tasks = await tx<
         {
           status: string;
@@ -324,10 +330,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         return 'superseded';
       }
       if (newest.status !== 'failed') return 'not_failed';
-      // Refused for good once (`retireBusyRetry`): every later delivery —
-      // the arm, a check queued before the refusal, the same job again —
-      // stands down, the agent busy or free by now. A newer run is a new
-      // decision and carries no mark.
+      // Refused for good once (`markAutoRetryRetired`, also by an earlier
+      // image that refused a retry whose agent stayed busy): every later
+      // delivery stands down. A newer run is a new decision and carries no
+      // mark.
       if (newest.autoRetryRefusedAt !== undefined) return 'retry_refused';
       // From here on, a refusal is this failed run's last word: nothing
       // starts the task again by itself, so the run is retired and the
@@ -375,23 +381,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         return 'budget_exhausted';
       }
       const agent =
-        lockedAgent !== undefined
-          ? lockedAgent
-          : ((
-              await tx<
-                {
-                  harness: string;
-                  model: string;
-                  modelProvider: string | null;
-                }[]
-              >`
-                SELECT harness, model, model_provider AS "modelProvider"
-                FROM app.project_agents
-                WHERE id = ${input.agentId}
-                  AND org_id = ${input.organizationId}
-                LIMIT 1
-              `
-            )[0] ?? null);
+        (
+          await tx<
+            {
+              harness: string;
+              model: string;
+              modelProvider: string | null;
+            }[]
+          >`
+            SELECT harness, model, model_provider AS "modelProvider"
+            FROM app.project_agents
+            WHERE id = ${input.agentId}
+              AND org_id = ${input.organizationId}
+            LIMIT 1
+          `
+        )[0] ?? null;
       if (!agent) {
         await retire(true);
         return 'agent_gone';
@@ -411,80 +415,25 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // A run an automation step or another agent started stays one when
       // retried: it still counts as automated and may not delegate, and
       // the retry is an automated start the per-task budget admits like
-      // any other (`admitAutomatedStart`) — once its workspace is free,
-      // the order the delegated start judges them in. A person's run
-      // carries no provenance, so its retries are never counted or
-      // refused there.
+      // any other (`admitAutomatedStart`). A person's run carries no
+      // provenance, so its retries are never counted or refused there.
       let sessionId: string | undefined;
       if (startedVia !== undefined) {
-        const taskKeys = {
-          id: input.taskId,
-          organizationId: input.organizationId,
-          projectId: task.projectId,
-        };
-        // The workspace the retry would join: the standing one, or the
-        // member's own for a starter who may no longer edit the project
-        // but still works the task.
+        // The workspace family the retry works in: the standing one, or the
+        // member's own for a starter who may no longer edit the project but
+        // still works the task. Its worker is claimed when it starts.
         sessionId = await sessionIdForAgentRun(tx, {
           organizationId: input.organizationId,
           projectId: task.projectId,
           agentId: input.agentId,
           startedBy: newest.startedBy,
         });
-        const busy = await findAgentBusyRun(tx, {
-          organizationId: input.organizationId,
-          agentId: input.agentId,
-          sessionId,
-          taskId: input.taskId,
-        });
-        if (busy !== null) {
-          const wait = planAgentBusyWait({
-            waits: input.agentBusyWaits ?? 0,
-            failedAt: newest.settledAt,
-            now: Date.now(),
-          });
-          if (!wait.wait) {
-            const retired = await retireBusyRetry(tx, {
-              task: taskKeys,
-              agentId: input.agentId,
-              failedRunId: newest.id,
-            });
-            if (retired) {
-              await announceAgentRunFailed(tx, {
-                organizationId: input.organizationId,
-                runId: newest.id,
-              });
-            }
-            return 'agent_busy';
-          }
-          // In the same transaction as the check that found the agent
-          // busy: the retry is never lost between two checks. Keyed by
-          // the failed run on a `short` queue, so at most one check is
-          // queued for it: a second send — the arm or a check delivered
-          // again, two deliveries at once — finds that one and is
-          // dropped, and the one queued still re-derives everything.
-          const queued = await addJobInTx(
-            tx,
-            'task.agent_retry_recheck',
-            {
-              organizationId: input.organizationId,
-              taskId: input.taskId,
-              agentId: input.agentId,
-              expectedRunId: input.expectedRunId,
-              ...(input.startAfterMs !== undefined
-                ? { startAfterMs: input.startAfterMs }
-                : {}),
-              agentBusyWaits: wait.waits,
-            },
-            {
-              startAfter: new Date(wait.lookAt),
-              singletonKey: agentRetryRecheckKey(input),
-            },
-          );
-          return { busy, waits: wait.waits, queued: queued !== null };
-        }
         const admitted = await admitAutomatedStart(tx, {
-          task: taskKeys,
+          task: {
+            id: input.taskId,
+            organizationId: input.organizationId,
+            projectId: task.projectId,
+          },
           agentId: input.agentId,
         });
         if (!admitted.admitted) {
@@ -504,9 +453,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             ? { modelProvider: agent.modelProvider }
             : {}),
           startedBy: newest.startedBy,
+          ...(newest.apiKeyId !== undefined
+            ? { apiKeyId: newest.apiKeyId }
+            : {}),
           trigger: 'auto_retry',
           ...(startedVia !== undefined
             ? { startedVia, inPlace: newest.inPlace }
+            : {}),
+          ...(newest.reviewBatchId !== undefined
+            ? { reviewBatchId: newest.reviewBatchId }
             : {}),
           autoRetryAttempt: budget.attempt,
           // Queued now, so the card shows the retry; started once the
@@ -538,16 +493,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       }
       return 'kicked';
     });
-    if (typeof outcome === 'object') {
-      console.log(
-        `[task-agent] auto-retry waiting: agent_busy (${outcome.queued ? `check ${outcome.waits} of ${AGENT_BUSY_RETRY_MAX_WAITS} queued` : 'a check is already queued'}: run ${outcome.busy.id} on task ${outcome.busy.taskId})`,
-      );
-    } else if (outcome !== 'kicked') {
+    if (outcome !== 'kicked') {
       console.log(`[task-agent] auto-retry skipped: ${outcome}`);
     }
   };
 
   return {
+    'sandbox.sync_pin': async (payload) => {
+      await syncSessionPin(deps.sql, destroySessionSchema.parse(payload));
+    },
     'sandbox.release_idle': async (payload) => {
       await releaseIdleSession(
         deps.sql,
@@ -624,6 +578,19 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const { recoverStuckRagIndexing } =
         await import('../domains/file_metadata/watchdogs.ts');
       await recoverStuckRagIndexing(deps.sql);
+    },
+    'knowledge.resume_usage_limited': async () => {
+      const { requeueUsageLimitedFiles } =
+        await import('../domains/knowledge/usage-limit-resume.ts');
+      const { resumeUsageLimitedScans } =
+        await import('../domains/websites/service.ts');
+      const requeued = await requeueUsageLimitedFiles(deps.sql);
+      const rescanned = await resumeUsageLimitedScans(deps.sql);
+      if (requeued + rescanned > 0) {
+        console.info(
+          `[knowledge] resumed ${requeued} file(s) and ${rescanned} website scan(s) a usage limit had parked`,
+        );
+      }
     },
     'watchdog.erasures': async () => {
       const { recoverStuckErasureRequests } =
@@ -725,6 +692,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters, ${twoFactor.count} 2fa attempts`,
       );
     },
+    'maintenance.mcp_activity_ttl': async () => {
+      const { sweepMcpActivity } = await import('../domains/mcp/activity.ts');
+      const deleted = await sweepMcpActivity(deps.sql);
+      console.log(`[maintenance] mcp_activity_ttl removed ${deleted} rows`);
+    },
     'rag.index_file': async (payload, context) => {
       const input = z.object({ fileId: z.string().min(1) }).parse(payload);
       // A document can take longer than the job's budget (a slow embedding
@@ -778,13 +750,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'automation.step': async (payload) => {
+    'automation.step': async (payload, context) => {
       const input = z
         .object({ organizationId: z.string().min(1), runId: z.string().min(1) })
         .parse(payload);
       // The REUSED 0.4 stepper on the ctx shim. Claim-fenced and idempotent:
       // a retried job either wins a fresh claim or no-ops. The scheduler seam
-      // lets the agent node's kick schedule its turn as a pg-boss job.
+      // lets the agent node's kick schedule its turn as a pg-boss job. The
+      // walker hands its run on when this process starts shutting down or
+      // its replica is drained, and a step still running at the shutdown
+      // grace (or when pg-boss gives up on the job) is cut.
       const shim = createCtxShim(automationShimHandlers(deps.sql), {
         scheduler: automationShimScheduler(deps.sql),
       });
@@ -792,15 +767,44 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 stepper; every ctx facility it touches is covered by automationShimHandlers
         shim as unknown as Parameters<typeof stepRunImpl>[0],
         input,
+        {
+          ...(context !== undefined && { signal: context.signal }),
+          draining,
+        },
       );
     },
     'automation.trigger_scan': async () => {
-      const result = await scanScheduledTriggers(deps.sql);
+      // A stopping process ends the scan between schedules; what it did
+      // not reach stays due for the next minute's scan, on any worker.
+      const result = await scanScheduledTriggers(deps.sql, {
+        signal: processShutdown.signal,
+      });
       if (result.fired > 0) {
         console.log(
           `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
         );
       }
+      // After the schedule walk: a project whose opted-in schedule has a
+      // pending slot release fires it early (`automations/wakes.ts`). Its
+      // failure is logged and never costs the scan its marker below.
+      try {
+        const wakes = await fireDueProjectWakes(deps.sql);
+        if (wakes.fired > 0 || wakes.failed > 0) {
+          console.log(
+            `[wakes] fired ${wakes.fired}/${wakes.examined} pending (waiting ${wakes.waiting}, busy ${wakes.busy}, failed ${wakes.failed})`,
+          );
+        }
+      } catch (error) {
+        console.error('[wakes] wake scan failed:', error);
+      }
+      // A missing organization table returns before examining any page.
+      // That bootstrap/connection state is not proof the scanner is working.
+      // pg-boss persists this only when the actual handler's claim completes;
+      // a draining worker's handover must never produce this marker.
+      // A scan the shutdown stopped part-way did not finish either.
+      return result.pages > 0 && !processShutdown.signal.aborted
+        ? { output: { triggerScanCompleted: true } }
+        : undefined;
     },
     'automation.liveness': async () => {
       const swept = await sweepOverdueRuns(deps.sql);
@@ -879,13 +883,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'watchdog.task_agents': async () => {
+    'watchdog.task_agents': async (_payload, context) => {
       // Re-attach BEFORE the deadline pass: a turn whose chain died is
       // still doing work, and failing it for a stale heartbeat would throw
       // away a live agent's output.
       const { recoverStalledTaskAgentTurns, recoverStuckQueuedTaskAgentRuns } =
         await import('../domains/tasks/reattach.ts');
-      const reattached = await recoverStalledTaskAgentTurns(deps.sql);
+      const reattached = await recoverStalledTaskAgentTurns(deps.sql, {
+        signal: context?.signal,
+      });
       if (reattached.resumed > 0) {
         console.log(
           `[watchdog] task agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
@@ -894,6 +900,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // The queued-start twin: a start job lost before setAgentRunRunning
       // leaves the run 'queued' with no op row and no capacity stamp — invisible
       // to the re-attach above and the deadline sweep below until the 12h wall.
+      if (context?.signal?.aborted) return;
       const queued = await recoverStuckQueuedTaskAgentRuns(deps.sql);
       if (queued.requeued > 0 || queued.failed > 0) {
         console.log(
@@ -907,13 +914,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'watchdog.automation_agents': async () => {
+    'watchdog.automation_agents': async (_payload, context) => {
       // The workflow twin of the task-agent re-attach: a drive chain that
       // died mid-turn is resurrected from the run cursor, never failed —
       // the agent in the sandbox is still doing (or has finished) the work.
       const { recoverAnsweredAskResumes, recoverStalledWorkflowAgentTurns } =
         await import('../domains/automations/reattach.ts');
-      const reattached = await recoverStalledWorkflowAgentTurns(deps.sql);
+      const reattached = await recoverStalledWorkflowAgentTurns(deps.sql, {
+        signal: context?.signal,
+      });
       if (reattached.resumed > 0) {
         console.log(
           `[watchdog] automation agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
@@ -923,6 +932,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // parks on the asking exec (the re-attach above spares it as
       // awaiting_human) is re-enqueued instead of stranding to the 7-day ask
       // deadline.
+      if (context?.signal?.aborted) return;
       const asks = await recoverAnsweredAskResumes(deps.sql);
       if (asks.requeued > 0) {
         console.log(
@@ -1007,21 +1017,41 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           threadId: z.string().min(1),
           userId: z.string().min(1),
           firstMessage: z.string().min(1),
+          /** The API key that sent the message, when one did. */
+          apiKeyId: z.string().min(1).optional(),
+          /** A guardrail refused the message: no model may see it. */
+          nameWithoutModel: z.boolean().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 naming attempt on the chat shim — one small model
       // call raced against its timeout; any miss falls back to the derived
       // title, and the write fills only an absent title.
       const shim = createCtxShim(chatShimHandlers(deps.sql));
+      // Naming a thread is a model call the organization pays for, held
+      // against the member's limits — the key's that sent the message and
+      // the thread's project's too — and booked under its own agent slug, so
+      // analytics can separate "what the conversation cost" from "what
+      // naming it cost".
+      const projectId = await readThreadProjectId(
+        deps.sql,
+        input.organizationId,
+        input.threadId,
+      );
       await generateThreadTitleImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 action; every ctx facility it touches is covered by chatShimHandlers
         shim as unknown as Parameters<typeof generateThreadTitleImpl>[0],
         input,
-        // Naming a thread is a model call the org pays for. The shim has no
-        // ledger of its own, so the door hands it the same one the turn
-        // writes through — booked under its own agent slug so analytics can
-        // separate "what the conversation cost" from "what naming it cost".
-        (entry) => createPgUsageLedger(deps.sql).record(entry),
+        titleMeter(deps.sql, {
+          organizationId: input.organizationId,
+          subject: {
+            userId: input.userId,
+            agentSlug: TITLE_AGENT_SLUG,
+            ...(input.apiKeyId !== undefined
+              ? { apiKeyId: input.apiKeyId }
+              : {}),
+            ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+          },
+        }),
       );
     },
     'chat.api_turn': async (payload) => {
@@ -1079,6 +1109,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               }),
             )
             .optional(),
+          sentBy: z.object({ userId: z.string().min(1) }).optional(),
         })
         .parse(payload);
       const { runSendMessageJob } =
@@ -1165,6 +1196,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           continuation: z.number().int().min(0).optional(),
           scanStartedAt: z.string().optional(),
           takeover: z.string().min(1).optional(),
+          requestedBy: SCAN_REQUESTER.optional(),
         })
         .parse(payload);
       await runWebsitesScan(deps.sql, input, context);
@@ -1177,6 +1209,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           scanInterval: z.string().min(1),
           organizationId: z.string().min(1),
           urls: z.array(z.string()).optional(),
+          requestedBy: SCAN_REQUESTER.optional(),
         })
         .parse(payload);
       await runWebsiteRegister(deps.sql, input);
@@ -1249,10 +1282,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         task,
         workflowSlug: input.workflowSlug,
         startedByUserId: input.startedByUserId,
+        ...(input.apiKeyId !== undefined
+          ? { startedVia: 'api-key' as const, apiKeyId: input.apiKeyId }
+          : {}),
       });
     },
 
-    'task.agent_drive': async (payload) => {
+    'task.agent_drive': async (payload, context) => {
       const input = driveSchema.parse(payload);
       // The REUSED 0.4 drive window on the ctx shim: it replays the exec's
       // ring buffer, streams the turn, and runs the settle choreography —
@@ -1265,6 +1301,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof driveTaskAgentTurnImpl>[0],
         input,
+        { signal: driveWindowSignal(context) },
       );
     },
 
@@ -1295,7 +1332,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await wakeParkedAgentRun(deps.sql, input);
     },
 
-    'task.agent_turn': async (payload) => {
+    'task.agent_turn': async (payload, context) => {
       const input = z
         .object({
           organizationId: z.string().min(1),
@@ -1314,6 +1351,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           feedback: string | null;
           mentionSource: 'comment' | 'description' | null;
           deadlineAt: number;
+          startedAt: number;
+          launchedAt: number | null;
           status: string;
           execId: string;
           startedVia: string | null;
@@ -1328,7 +1367,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
                r.session_id AS "sessionId", r.harness, r.model,
                r.model_provider AS "modelProvider", r.feedback,
                r.mention_source AS "mentionSource",
-               r.deadline_at_ms::float8 AS "deadlineAt", r.status,
+               r.deadline_at_ms::float8 AS "deadlineAt",
+               r.started_at_ms::float8 AS "startedAt",
+               r.launched_at_ms::float8 AS "launchedAt", r.status,
                r.exec_id AS "execId", r.started_via AS "startedVia",
                r.started_via_automation AS "viaAutomation",
                via_agent.name AS "viaAgentName"
@@ -1390,6 +1431,37 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
         return;
       }
+      // The worker the run starts in: each run of the agent working at the
+      // same time as another works in a sandbox of its own. A run no worker
+      // can take now is parked with its reason and starts on its own when
+      // one frees; every start funnels through this job, so the kick, the
+      // wake, the retry and the recovery all choose here.
+      const claim = await claimAgentWorker(deps.sql, input);
+      if (claim === null) {
+        console.warn(
+          `[task-agent] turn job for ${input.execId} skipped (run no longer queued under it)`,
+        );
+        return;
+      }
+      if ('parked' in claim) {
+        console.warn(
+          `[task-agent] no free worker for ${input.execId} — parked (${claim.parked})`,
+        );
+        return;
+      }
+      if (claim.moved) {
+        // The workspace the run named before may now hold no run: give its
+        // slot back rather than waiting for the watchdog's backstop.
+        await releaseProjectAgentSessionSlot(deps.sql, {
+          organizationId: input.organizationId,
+          agentId: run.agentId,
+        }).catch((error: unknown) => {
+          console.warn(
+            `[task-agent] releasing idle workers after ${input.execId} moved failed:`,
+            error,
+          );
+        });
+      }
       // The kick-time resume plan (reused decision core over PG): does the
       // previous harness conversation continue, is the box swept, which
       // broker accounts rotate out. Every start scheduler funnels through
@@ -1399,7 +1471,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         taskId: run.taskId,
         agentId: run.agentId,
         harness: run.harness,
-        sessionId: run.sessionId,
+        sessionId: claim.sessionId,
       });
       // The REUSED 0.4 turn host on the ctx shim — the whole start: session
       // ensure, staging, key mint, exec, drain, settle choreography.
@@ -1415,9 +1487,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           taskId: run.taskId,
           agentId: run.agentId,
           execId: input.execId,
-          sessionId: run.sessionId,
+          sessionId: claim.sessionId,
           harness: run.harness,
-          deadlineAt: run.deadlineAt,
+          // Waiting for a worker used none of the run's working time.
+          deadlineAt: agentRunWorkDeadline(run, Date.now()),
           model: run.model,
           ...(run.modelProvider !== null
             ? { modelProvider: run.modelProvider }
@@ -1452,6 +1525,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               : {}),
           ...plan,
         },
+        context !== undefined ? { signal: context.signal } : undefined,
       );
     },
     'task.agent_retry': agentRetry,
@@ -1472,6 +1546,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
+    // The start and the answered-ask resume take no shutdown signal: their
+    // windows launch the exec, and cutting one before its launch request is
+    // sent would lose the turn. They finish inside the stop budget, or the
+    // agent watchdog re-attaches the turn as it does after any crash.
     'automation.agent_turn': async (payload) => {
       const input = z
         .looseObject({
@@ -1491,7 +1569,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         input as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[1],
       );
     },
-    'automation.agent_drive': async (payload) => {
+    'automation.agent_drive': async (payload, context) => {
       const input = z
         .object({
           organizationId: z.string().min(1),
@@ -1503,6 +1581,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           providerSlug: z.string().min(1),
           gatewayModel: z.string().min(1),
           deadlineAt: z.number(),
+          // See the task lane's drive schema.
+          spawnerOutageSince: z.number().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 drive window on the ctx shim: it replays the exec's
@@ -1515,6 +1595,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
         shim as unknown as Parameters<typeof driveWorkflowAgentTurnImpl>[0],
         input,
+        { signal: driveWindowSignal(context) },
       );
     },
     'automation.ask_resume': async (payload) => {

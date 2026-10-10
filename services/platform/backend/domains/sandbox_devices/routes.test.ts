@@ -8,6 +8,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 const {
   caller,
   createJoinToken,
+  getJoinTokenStatus,
   describeDevice,
   grantTicket,
   joinDevice,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createJoinToken: vi.fn(),
+  getJoinTokenStatus: vi.fn(),
   describeDevice: vi.fn(),
   grantTicket: vi.fn(),
   joinDevice: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('../../lib/rate-limit.ts', async (importOriginal) => ({
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   createJoinToken,
+  getJoinTokenStatus,
   describeDevice,
   grantTicket,
   joinDevice,
@@ -96,8 +99,46 @@ beforeEach(() => {
 });
 
 describe('settings routes', () => {
+  it('reads a grant through the authenticated membership and creator, without caching [SBXDEV-R4]', async () => {
+    getJoinTokenStatus.mockResolvedValue({ deviceId: 'dev-own' });
+    const res = await admin().request('/join-tokens/grant-1?orgId=foreign');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ deviceId: 'dev-own' });
+    expect(getJoinTokenStatus).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'member-org',
+      tokenId: 'grant-1',
+      actor: { userId: 'u1', email: 'u@example.test' },
+    });
+  });
+
+  it.each(['developer', 'member'])(
+    '%s cannot read grant status [SBXDEV-R2]',
+    async (role) => {
+      caller.role = role;
+      expect((await admin().request('/join-tokens/grant-1')).status).toBe(403);
+      expect(getJoinTokenStatus).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns the same refusal for a missing or inaccessible grant [SBXDEV-R4]', async () => {
+    getJoinTokenStatus.mockRejectedValue(
+      new SandboxDeviceError(
+        'JOIN_TOKEN_NOT_FOUND',
+        'Device command not found',
+        404,
+      ),
+    );
+    const res = await admin().request('/join-tokens/other');
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Device command not found',
+      code: 'JOIN_TOKEN_NOT_FOUND',
+    });
+  });
+
   it.each(['owner', 'admin', 'developer'])(
-    '%s may list devices',
+    '%s may list devices [SBXDEV-R1]',
     async (role) => {
       caller.role = role;
       const res = await admin().request('/?orgId=foreign');
@@ -107,13 +148,13 @@ describe('settings routes', () => {
     },
   );
 
-  it('a member may not list devices', async () => {
+  it('a member may not list devices [SBXDEV-R1]', async () => {
     caller.role = 'member';
     expect((await admin().request('/')).status).toBe(403);
     expect(listDevices).not.toHaveBeenCalled();
   });
 
-  it('only admins mint a connect command or remove a device', async () => {
+  it('only admins mint a connect command or remove a device [SBXDEV-R2]', async () => {
     caller.role = 'developer';
     expect(
       (await admin().request('/join-tokens', { method: 'POST' })).status,
@@ -183,7 +224,7 @@ describe('machine door', () => {
     });
   });
 
-  it('charges a refused credential to its source IP, and says so when over', async () => {
+  it('charges a refused credential to its source IP, and says so when over [SBXDEV-R6]', async () => {
     joinDevice.mockRejectedValue(
       new SandboxDeviceError('JOIN_TOKEN_INVALID', 'expired', 401),
     );
@@ -206,7 +247,7 @@ describe('machine door', () => {
     expect((await join(body)).status).toBe(429);
   });
 
-  it('a spoofed forwarded-for from an untrusted peer is not the client', async () => {
+  it('a spoofed forwarded-for from an untrusted peer is not the client [SBXDEV-R6]', async () => {
     joinDevice.mockRejectedValue(
       new SandboxDeviceError('JOIN_TOKEN_INVALID', 'expired', 401),
     );
@@ -232,7 +273,7 @@ describe('machine door', () => {
     );
   });
 
-  it('a ticket needs the device secret as a bearer credential', async () => {
+  it('a ticket needs the device secret as a bearer credential [SBXDEV-R7]', async () => {
     const missing = await door().request('/ticket', {
       method: 'POST',
       body: JSON.stringify({ version: '0.5.60' }),
@@ -256,7 +297,7 @@ describe('machine door', () => {
     });
   });
 
-  it('self status and self removal use the same credential', async () => {
+  it('self status and self removal use the same credential [SBXDEV-R7]', async () => {
     describeDevice.mockResolvedValue({ deviceId: 'dev-1', connected: true });
     const status = await door().request('/self', {
       headers: { authorization: 'Bearer tsd_secret' },

@@ -1,5 +1,7 @@
 import {
   taskAgentResumeFromSchema,
+  taskDelegateReviewInputSchema,
+  type TaskDelegateReviewReceipt,
   taskAgentReviewInputSchema,
   taskAgentReviewStageFileSchema,
   type AgentReviewBlockedReason,
@@ -7,6 +9,10 @@ import {
   type PendingReviewIdentity,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
+import {
+  taskReviewBatchStartSchema,
+  taskReviewBatchReadSchema,
+} from '@tale/shared/schemas/task-review-batch';
 /**
  * First-party DOMAIN handlers of the workspace-tool bridge: the task family
  * and `document_create`. The dispatch (`workspace_tools_bridge.ts`) resolves
@@ -29,6 +35,7 @@ import {
  * creates no labels, and it neither syncs external items nor saves project
  * documents.
  */
+import { z } from 'zod';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { extractExtension } from '../../../../lib/shared/file-types';
@@ -66,6 +73,7 @@ export const WORKSPACE_TASK_TOOLS = [
   'task_update_status',
   'task_update_metadata',
   'task_review',
+  'task_delegate_review',
   'task_start_agent',
   'task_upsert_by_external_ref',
 ] as const;
@@ -147,7 +155,7 @@ const RELAYED_MESSAGE_MAX_CHARS = 400;
  * it is left behind. Anything else (a transient failure) reads as its
  * message, truncated — these carry validator prose, never secrets.
  */
-function toolResultFromError(error: unknown): ToolResult {
+export function toolResultFromError(error: unknown): ToolResult {
   if (error instanceof AppError) {
     const data: unknown = error.data;
     const code =
@@ -248,6 +256,7 @@ interface TaskWorkStateAnswer {
   workflowRun: WorkflowRunAnswer | null;
   pendingReview: PendingReviewAnswer | null;
   reviewDecision?: TaskAgentReviewReceipt | null;
+  reviewDelegation?: TaskDelegateReviewReceipt | null;
 }
 
 interface AgentRunAnswer {
@@ -261,11 +270,61 @@ interface AgentRunAnswer {
   launchedAt: number | null;
   settledAt: number | null;
   waitingForCapacity: boolean;
+  /** Why a parked run waits (`org_limit`, `host`, `destroy_pending`,
+   * `exec_limit`); null otherwise. */
+  waitingReason?: string | null;
   failureCode: string | null;
   retryPending?: boolean;
   feedback: string | null;
   feedbackTruncated: boolean;
 }
+
+// Compact mode is a new wire contract: malformed/missing state is unknown,
+// never a successful empty observation. Zod strips fields this view omits.
+const occupancyTimestampSchema = z
+  .number()
+  .finite()
+  .refine((value) => modelTimestamp(value) !== undefined);
+const occupancyRunSchema = z.object({
+  id: z.string().min(1).max(200),
+  agentId: z.string().min(1).max(200),
+  status: z.enum(['queued', 'running', 'settled', 'failed', 'cancelled']),
+  startedAt: occupancyTimestampSchema,
+  launchedAt: occupancyTimestampSchema.nullable(),
+  settledAt: occupancyTimestampSchema.nullable(),
+  waitingForCapacity: z.boolean(),
+  failureCode: z.string().max(200).nullable(),
+  retryPending: z.boolean(),
+});
+const occupancySchema = z.object({
+  currentRun: occupancyRunSchema.nullable(),
+  requestedRun: occupancyRunSchema.optional(),
+  workflowRun: z
+    .object({
+      runId: z.string().min(1).max(200),
+      status: z.enum([
+        'queued',
+        'running',
+        'waiting',
+        'success',
+        'failed',
+        'cancelled',
+        'quarantined',
+      ]),
+      live: z.boolean(),
+      waitingFor: z
+        .enum(['approval', 'ask', 'in_doubt', 'agent', 'room', 'repeat'])
+        .optional(),
+    })
+    .nullable(),
+});
+const occupancyTaskSchema = z.object({
+  taskId: z.string().min(1).max(200),
+  projectId: z.string().min(1).max(200),
+  status: z.enum(TASK_STATUSES),
+  assigneeType: z.string().max(100).nullish(),
+  assigneeId: z.string().max(200).nullish(),
+});
 
 interface WorkflowRunAnswer {
   runId: string;
@@ -327,7 +386,12 @@ function agentComment(comment: {
 /** One project-agent run of the task: `live` while it is queued or running —
  * the platform starts no other run on the task until it is not. Terminal
  * runs carry `settledAt`; a failed one its `failureCode` when classified. */
-function agentRunView(run: AgentRunAnswer): Record<string, unknown> {
+function agentRunOccupancyView(
+  run: Omit<
+    AgentRunAnswer,
+    'seq' | 'trigger' | 'feedback' | 'feedbackTruncated'
+  >,
+): Record<string, unknown> {
   const startedAt = modelTimestamp(run.startedAt);
   const launchedAt = modelTimestamp(run.launchedAt ?? undefined);
   const settledAt = modelTimestamp(run.settledAt ?? undefined);
@@ -336,17 +400,29 @@ function agentRunView(run: AgentRunAnswer): Record<string, unknown> {
     agentId: run.agentId,
     status: run.status,
     live: run.status === 'queued' || run.status === 'running',
-    ...(run.trigger !== null ? { trigger: run.trigger } : {}),
     ...(startedAt !== undefined ? { startedAt } : {}),
     ...(launchedAt !== undefined ? { launchedAt } : {}),
     ...(settledAt !== undefined ? { settledAt } : {}),
     ...(run.waitingForCapacity ? { waitingForCapacity: true } : {}),
+    // A started run that waits for a free worker says why, so a manager
+    // knows the agent it chose is not working yet.
+    ...(run.waitingForCapacity &&
+    run.waitingReason !== undefined &&
+    run.waitingReason !== null
+      ? { waitingReason: run.waitingReason }
+      : {}),
     ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
     ...(typeof run.retryPending === 'boolean'
       ? { retryPending: run.retryPending }
       : {}),
-    // What the start asked the run to address first — a person's comment,
-    // or the message of the agent that restarted it.
+  };
+}
+
+function agentRunView(run: AgentRunAnswer): Record<string, unknown> {
+  return {
+    ...agentRunOccupancyView(run),
+    ...(run.trigger !== null ? { trigger: run.trigger } : {}),
+    // The full view retains the bounded start-message excerpt.
     ...(run.feedback !== null ? { feedback: run.feedback } : {}),
     ...(run.feedbackTruncated ? { feedbackTruncated: true } : {}),
   };
@@ -690,7 +766,7 @@ async function loadTaskInScope(
 /** The one blocker a run a member started answers for a write beyond its
  * own task: the model is told what it may still do, and what an editor
  * would have to do instead. */
-function memberRunRefusal(guidance: string): ToolResult {
+export function memberRunRefusal(guidance: string): ToolResult {
   return {
     status: 'unavailable',
     blockers: [
@@ -755,9 +831,9 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'The task is closed (taskStatus); nothing started. An in-place start ' +
     'never works under a Done or Cancelled card: start it without ' +
     'moveToInProgress: false to reopen it deliberately, or report it.',
-  agent_busy:
-    'That agent is working another task (busyTaskId) in its workspace; ' +
-    'nothing started. Wait for it to finish or work on another task.',
+  self_start:
+    'You cannot start yourself on another task; nothing started. Hand it ' +
+    'to another agent, or report that it needs doing.',
   blocked:
     'Open tasks block this one (blockedBy); nothing started. Start it once ' +
     'they are done.',
@@ -768,6 +844,14 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'Do not try before retryAfter. Report the refusal and re-read the task ' +
     'and every admission constraint before a later attempt.',
 };
+
+/** What a model is told when the run it started waits for a worker. */
+const STARTED_WAITING_GUIDANCE =
+  'Started, but the run waits for room (waitingReason: org_limit, every ' +
+  'agent worker is busy; host, the sandbox host is full; destroy_pending, ' +
+  'its workspace is being deleted; exec_limit, its sandbox is still ending ' +
+  'an earlier process) and starts by itself once room frees. Do not start ' +
+  'it again; go on with other work.';
 
 /** `task_start_agent`: a project agent's live run puts another agent of the
  * project to work (`domains/tasks/delegated-start.ts`). A confined run — one
@@ -870,9 +954,24 @@ async function runTaskStartAgent(
   if (!isRecord(answer) || typeof answer.outcome !== 'string') {
     return { status: 'error', message: 'The start answered nothing usable.' };
   }
-  const { outcome, ...rest } = answer;
+  const { outcome, waiting, ...rest } = answer;
   if (outcome === 'started') {
-    return { status: 'ok', output: { started: true, ...rest } };
+    // A run that waits for a free worker is started all the same; the
+    // model learns the agent is not working yet.
+    const waitingReason =
+      isRecord(waiting) && typeof waiting.reason === 'string'
+        ? waiting.reason
+        : undefined;
+    return {
+      status: 'ok',
+      output: {
+        started: true,
+        ...rest,
+        ...(waitingReason !== undefined
+          ? { waitingReason, guidance: STARTED_WAITING_GUIDANCE }
+          : {}),
+      },
+    };
   }
   return {
     status: 'ok',
@@ -1031,6 +1130,31 @@ export async function runTaskTool(
           message: 'task_get needs a "taskId" string.',
         };
       }
+      const occupancy = callArgs.view === 'occupancy';
+      const requestedRunId = readString(callArgs.requestedRunId);
+      if (
+        (callArgs.view !== undefined && !occupancy) ||
+        (occupancy && taskId.length > 200) ||
+        (callArgs.requestedRunId !== undefined &&
+          (!occupancy ||
+            requestedRunId === undefined ||
+            requestedRunId.length > 200)) ||
+        (occupancy &&
+          [
+            'commentLimit',
+            'commentCursor',
+            'runLimit',
+            'runCursor',
+            'reviewFileCursor',
+          ].some((key) => callArgs[key] !== undefined))
+      ) {
+        return {
+          status: 'invalid_args',
+          message:
+            'task_get occupancy accepts only taskId, view: "occupancy" and an optional non-empty requestedRunId (identifiers at most 200 UTF-16 code units); omit all paging arguments. requestedRunId requires occupancy view.',
+        };
+      }
+      const readStartedAt = Date.now();
       // A project-bound run may only read tasks on its own board — check
       // before the full context read leaks another project's discussion.
       const scoped = await loadTaskInScope(
@@ -1040,6 +1164,63 @@ export async function runTaskTool(
         authority,
       );
       if ('refusal' in scoped) return scoped.refusal;
+      if (occupancy) {
+        const raw: unknown = await ctx.runQuery(
+          internal.tasks.internal_queries.getTaskOccupancyForAgent,
+          {
+            organizationId,
+            projectId: String(scoped.task.projectId),
+            taskId,
+            ...(requestedRunId !== undefined ? { requestedRunId } : {}),
+          },
+        );
+        if (raw === null && requestedRunId !== undefined) {
+          return {
+            status: 'not_found',
+            message:
+              'The requested run is unavailable on this task; occupancy is unknown.',
+          };
+        }
+        const work = occupancySchema.safeParse(raw);
+        const task = occupancyTaskSchema.safeParse({
+          taskId: scoped.task._id,
+          projectId: scoped.task.projectId,
+          status: scoped.task.status,
+          assigneeType: scoped.task.assigneeType,
+          assigneeId: scoped.task.assigneeId,
+        });
+        if (
+          !work.success ||
+          !task.success ||
+          task.data.taskId !== taskId ||
+          work.data.requestedRun?.id !== requestedRunId
+        ) {
+          return {
+            status: 'error',
+            message:
+              'The task occupancy could not be read; whether work is running is unknown. Do not treat it as idle.',
+          };
+        }
+        return {
+          status: 'ok',
+          output: {
+            view: 'occupancy',
+            task: task.data,
+            observed: {
+              startedAt: modelTimestamp(readStartedAt),
+              completedAt: modelTimestamp(Date.now()),
+            },
+            currentRun:
+              work.data.currentRun === null
+                ? null
+                : agentRunOccupancyView(work.data.currentRun),
+            ...(work.data.requestedRun !== undefined
+              ? { requestedRun: agentRunOccupancyView(work.data.requestedRun) }
+              : {}),
+            workflowRun: work.data.workflowRun,
+          },
+        };
+      }
       // Both continuations are bound to this task and judged before the
       // task is read: a cursor it did not answer is refused, never taken
       // for its newest page.
@@ -1196,6 +1377,7 @@ export async function runTaskTool(
           workflowRun: workflowRunView(work.workflowRun),
           pendingReview: pendingReviewView(work.pendingReview),
           reviewDecision: work.reviewDecision ?? null,
+          reviewDelegation: work.reviewDelegation ?? null,
           reviewFiles,
         },
       };
@@ -1473,6 +1655,42 @@ export async function runTaskTool(
       return { status: 'ok', output };
     }
 
+    if (args.tool === 'task_delegate_review') {
+      if (
+        confinedTo !== undefined ||
+        authority.scope.kind !== 'project' ||
+        args.session?.taskRunExecId === undefined
+      ) {
+        return {
+          status: 'unavailable',
+          blockers: [
+            {
+              code: 'not_a_project_agent_run',
+              guidance:
+                'Only a live project agent run with project-wide authority can delegate a captured agent review.',
+            },
+          ],
+        };
+      }
+      const parsed = taskDelegateReviewInputSchema.safeParse(callArgs);
+      if (!parsed.success)
+        return {
+          status: 'invalid_args',
+          message:
+            'task_delegate_review needs only {taskId, reviewerAgentId, expected: {approvalId, runId, evidenceRevision, reviewer: {kind: "agent", agentId}}, reason}. Copy full native IDs and current evidence from task_get. No execution, grants or future routing fields are accepted.',
+        };
+      const output = await ctx.runMutation(
+        internal.tasks.internal_mutations.agentDelegateTaskReview,
+        {
+          organizationId,
+          sessionId: args.session.sessionId,
+          taskRunExecId: args.session.taskRunExecId,
+          review: parsed.data,
+        },
+      );
+      return { status: 'ok', output };
+    }
+
     if (args.tool === 'task_review') {
       if (
         confinedTo !== undefined ||
@@ -1489,6 +1707,32 @@ export async function runTaskTool(
             },
           ],
         };
+      }
+      if (
+        callArgs.operation === 'start_batch' ||
+        callArgs.operation === 'read_batch'
+      ) {
+        const parsed = (
+          callArgs.operation === 'start_batch'
+            ? taskReviewBatchStartSchema
+            : taskReviewBatchReadSchema
+        ).safeParse(callArgs);
+        if (!parsed.success)
+          return {
+            status: 'invalid_args',
+            message:
+              'Use {operation:"start_batch",requestId,contextTaskId,targets:[{taskId,expected:{approvalId,runId,evidenceRevision}}]} with 1–20 distinct tasks, or {operation:"read_batch",batchId}. Copy exact native IDs. No other fields are accepted.',
+          };
+        const output = await ctx.runMutation(
+          internal.tasks.internal_mutations.agentReviewBatch,
+          {
+            organizationId,
+            sessionId: args.session.sessionId,
+            taskRunExecId: args.session.taskRunExecId,
+            request: parsed.data,
+          },
+        );
+        return { status: 'ok', output };
       }
       if (callArgs.operation === 'stage_file') {
         const stage = taskAgentReviewStageFileSchema.safeParse(callArgs);

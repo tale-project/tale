@@ -48,7 +48,7 @@ import {
 } from '@tale/ui/i18n/negotiate';
 
 import redirectsJson from '../../../docs/redirects.json';
-import { flattenNav } from './content/nav';
+import { firstNavSlug, flattenNav } from './content/nav';
 import { docPath } from './content/paths';
 import { BASE_LOCALES } from './i18n/locales';
 
@@ -101,6 +101,14 @@ export function resolveRedirect(
   paths: ReadonlyMap<string, string>,
 ): string | null {
   const path = normalizeRequestPath(pathname);
+  // The root now renders the first guide. Its retired Markdown twin keeps
+  // answering at that guide's export, without creating a second SEO page.
+  for (const locale of BASE_LOCALES) {
+    const root = docPath(locale, 'index');
+    if (path === (root === '/' ? '/index.md' : `${root}.md`)) {
+      return `${docPath(locale, firstNavSlug())}.md`;
+    }
+  }
   const moved = lookupRedirect(path, paths);
   if (moved) return moved;
 

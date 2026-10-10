@@ -14,9 +14,10 @@ import { ChevronRight, Plus } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { BOARD_TASK_STATUSES } from '../lib/display';
+import { BOARD_TASK_STATUSES, type TaskStatus } from '../lib/display';
 import type { TaskView } from '../lib/view';
 import { TaskStatusBadge } from './task-status-badge';
+import { TaskStatusGlyph } from './task-status-glyph';
 
 /** One masked task-card placeholder mirroring the real card's footprint
  *  (identifier line · title · footer glyph row). */
@@ -88,6 +89,27 @@ function StatusLabel({
   );
 }
 
+/** A board lane's name, known before the tasks: the live header's status
+ * glyph and word, so the lane does not change its look when the cards land. */
+function LaneLabel({
+  status,
+}: {
+  status: (typeof BOARD_TASK_STATUSES)[number];
+}) {
+  const { t } = useT('tasks');
+  return (
+    <Skeletonize loading={false} className="contents">
+      <TaskStatusGlyph status={status} className="size-3.5" />
+      <Text
+        as="span"
+        className="text-foreground min-w-0 truncate text-sm font-medium"
+      >
+        {t(`status.${status}`)}
+      </Text>
+    </Skeletonize>
+  );
+}
+
 /**
  * First-load placeholder that fills the same `min-h-0 flex-1` slot as the real
  * board/list. Every status lane / section uses the live row geometry. Task
@@ -100,9 +122,13 @@ function StatusLabel({
 export function TasksSkeleton({
   view,
   canEdit = false,
+  collapsedLanes,
 }: {
   view: TaskView;
   canEdit?: boolean;
+  /** Lanes the board keeps folded: a rail here too, so nothing moves when
+   * the cards land. */
+  collapsedLanes?: ReadonlySet<TaskStatus>;
 }) {
   if (view === 'board') {
     return (
@@ -112,37 +138,52 @@ export function TasksSkeleton({
           align="stretch"
           className="min-h-0 flex-1 overflow-hidden px-0.5 pb-4"
         >
-          {BOARD_TASK_STATUSES.map((status, col) => (
-            <Stack
-              key={status}
-              as="section"
-              gap={0}
-              className="bg-muted/40 w-[80vw] max-w-72 shrink-0 rounded-lg sm:w-72"
-            >
-              <Row gap={2} justify="between" className="px-2.5 py-2">
-                <StatusLabel status={status} />
-                <Text
-                  as="span"
-                  variant="caption"
-                  className="w-4 pr-1 tabular-nums"
-                >
-                  <SkeletonText />
-                </Text>
-              </Row>
-              <Stack
-                gap={2}
-                className="min-h-24 flex-1 overflow-hidden px-2 pt-0.5 pb-2"
+          {BOARD_TASK_STATUSES.map((status, col) =>
+            collapsedLanes?.has(status) ? (
+              <section
+                key={status}
+                className="bg-muted/40 flex w-11 shrink-0 flex-col items-center gap-2 rounded-lg py-2.5"
               >
-                {Array.from({ length: 5 }).map((_, card) => (
-                  <TaskCardSkeleton
-                    key={card}
-                    titleWidth={`${55 + (((col + card) * 17) % 36)}%`}
-                    canEdit={canEdit}
-                  />
-                ))}
+                <span className="size-4" />
+                <Skeletonize loading={false} className="contents">
+                  <TaskStatusGlyph status={status} className="size-3.5" />
+                </Skeletonize>
+                <span className="w-3">
+                  <SkeletonText />
+                </span>
+              </section>
+            ) : (
+              <Stack
+                key={status}
+                as="section"
+                gap={0}
+                className="bg-muted/40 w-[80vw] max-w-72 shrink-0 rounded-lg sm:w-72"
+              >
+                <Row gap={2} align="center" className="h-9 px-2.5">
+                  <LaneLabel status={status} />
+                  <Text
+                    as="span"
+                    variant="caption"
+                    className="w-4 tabular-nums"
+                  >
+                    <SkeletonText />
+                  </Text>
+                </Row>
+                <Stack
+                  gap={2}
+                  className="min-h-24 flex-1 overflow-hidden px-2 pt-0.5 pb-2"
+                >
+                  {Array.from({ length: 5 }).map((_, card) => (
+                    <TaskCardSkeleton
+                      key={card}
+                      titleWidth={`${55 + (((col + card) * 17) % 36)}%`}
+                      canEdit={canEdit}
+                    />
+                  ))}
+                </Stack>
               </Stack>
-            </Stack>
-          ))}
+            ),
+          )}
         </Row>
       </Skeletonize>
     );
@@ -210,6 +251,7 @@ export function TasksPageSkeleton({
   canEdit = false,
   canCreate = false,
   allProjects = false,
+  collapsedLanes,
 }: {
   view: TaskView;
   /** The viewer edits every task: the cards' pickers are live. */
@@ -217,6 +259,8 @@ export function TasksPageSkeleton({
   /** The viewer may create a task here: the create action is there. */
   canCreate?: boolean;
   allProjects?: boolean;
+  /** The board's folded lanes, so the route's fallback matches the board. */
+  collapsedLanes?: ReadonlySet<TaskStatus>;
 }) {
   const { t } = useT('tasks');
   return (
@@ -260,7 +304,11 @@ export function TasksPageSkeleton({
           </Row>
         </Skeletonize>
       </Row>
-      <TasksSkeleton view={view} canEdit={canEdit} />
+      <TasksSkeleton
+        view={view}
+        canEdit={canEdit}
+        collapsedLanes={collapsedLanes}
+      />
     </ContentArea>
   );
 }

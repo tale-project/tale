@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { ContactSource } from '../../../lib/shared/contact-sources.ts';
 import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { toJson } from '../../db/sql.ts';
@@ -15,34 +16,8 @@ import { assertNotHeld } from '../legal_holds/service.ts';
  * REST/connector surfaces.
  */
 
-export const CONTACT_SOURCES = [
-  'manual_import',
-  'file_upload',
-  'api_import',
-  'conversation',
-  'shopify',
-  'woocommerce',
-  'magento',
-  'bigcommerce',
-  'prestashop',
-  'chargebee',
-  'stripe',
-  'recurly',
-  'salesforce',
-  'hubspot',
-  'pipedrive',
-  'zoho',
-  'sap',
-  'oracle',
-  'netsuite',
-  'mailchimp',
-  'klaviyo',
-  'sendgrid',
-  'webhook',
-  'zapier',
-  'custom',
-] as const;
-export type ContactSource = (typeof CONTACT_SOURCES)[number];
+export { CONTACT_SOURCES } from '../../../lib/shared/contact-sources.ts';
+export type { ContactSource } from '../../../lib/shared/contact-sources.ts';
 
 export class ContactError extends Error {
   readonly code: string;
@@ -320,6 +295,14 @@ export async function createContact(
 ): Promise<string> {
   assertContactAccess(scope, 'write');
   const email = normalizeContactEmail(input.email);
+  const externalId = normalizeContactExternalId(input.externalId);
+  const name = textOrNull(input.name);
+  if (name === null && email === undefined && externalId === undefined) {
+    throw new ContactError(
+      'CONTACT_IDENTITY_REQUIRED',
+      'A contact requires at least one of name, email or externalId',
+    );
+  }
   if (email !== undefined) {
     await lockContactEmail(tx, scope.organizationId, email);
     if (
@@ -334,7 +317,6 @@ export async function createContact(
   }
   // The external id is the import lane's second key, and the same rule
   // here: the single create used to admit a twin the bulk door refuses.
-  const externalId = normalizeContactExternalId(input.externalId);
   if (externalId !== undefined) {
     await lockContactExternalId(tx, scope.organizationId, externalId);
     if (
@@ -351,7 +333,6 @@ export async function createContact(
       );
     }
   }
-  const name = textOrNull(input.name);
   const id = await insertContactRow(tx, {
     organizationId: scope.organizationId,
     name,
@@ -759,12 +740,27 @@ export async function getContact(
   return contact;
 }
 
+/**
+ * A locale filter as the listing compares it: lower case, with `_` read as
+ * `-`, so `fr_CA` and `fr-ca` name the same tag. Null when blank.
+ */
+function localeRange(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toLowerCase().replaceAll('_', '-') : null;
+}
+
 export async function listContacts(
   sql: Sql,
   scope: ContactScope,
   options: {
     search?: string;
     source?: ContactSource;
+    /** A language (`fr`) or a regional tag (`fr-CH`), matched the way
+     * RFC 4647 basic filtering matches a language range: a tag equal to it,
+     * or one extending it by further subtags, case-insensitively — `fr`
+     * lists `fr`, `FR`, `fr-CH` and `fr_CA`, never `en`; `fr-CH` lists only
+     * `fr-CH`. */
+    locale?: string;
     tag?: string;
     cursor?: { updatedAt: number; id: string } | null;
     limit?: number;
@@ -776,14 +772,19 @@ export async function listContacts(
   assertContactAccess(scope, 'read');
   const limit = Math.min(options.limit ?? 50, 200);
   const search = options.search?.trim() ? `%${options.search.trim()}%` : null;
+  const locale = localeRange(options.locale);
   const cursor = options.cursor ?? null;
   const rows = await sql<ContactRow[]>`
     SELECT ${sql.unsafe(CONTACT_COLUMNS)} FROM app.contacts
     WHERE org_id = ${scope.organizationId}
       AND lifecycle_status IS DISTINCT FROM 'trashed'
       AND (${search}::text IS NULL OR name ILIKE ${search}
-        OR email ILIKE ${search} OR phone ILIKE ${search})
+        OR email ILIKE ${search} OR phone ILIKE ${search}
+        OR external_id ILIKE ${search})
       AND (${options.source ?? null}::text IS NULL OR source = ${options.source ?? null})
+      AND (${locale}::text IS NULL
+        OR lower(replace(locale, '_', '-')) = ${locale}
+        OR starts_with(lower(replace(locale, '_', '-')), ${locale}::text || '-'))
       AND (${options.tag ?? null}::text IS NULL OR ${options.tag ?? null} = ANY(tags))
       AND (${cursor?.updatedAt ?? null}::bigint IS NULL
         OR updated_at_ms < ${cursor?.updatedAt ?? null}

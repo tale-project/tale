@@ -62,6 +62,13 @@ const RAW: RawNavConfig = navJson as unknown as RawNavConfig;
 
 export const DOCS_NAV: readonly DocsNavGroup[] = RAW.groups.map(resolveGroup);
 
+/** The first guide in navigation order — the site's entry point. */
+export function firstNavSlug(): string {
+  const first = flattenNav()[0];
+  if (!first) throw new Error('Docs navigation must contain a guide');
+  return first.slug;
+}
+
 /** Sidebar group labels for a page, including groups without an index page. */
 export function navGroupTrail(slug: string): readonly string[] {
   const find = (

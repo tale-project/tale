@@ -8,6 +8,9 @@ const state = vi.hoisted(() => ({
   userId: 'second-admin',
   status: 'pending',
   effectiveAt: undefined as number | undefined,
+  errorMessage: undefined as string | undefined,
+  wfExecutionsErased: undefined as number | undefined,
+  perCategorySnapshot: undefined as Record<string, unknown> | undefined,
   holdBlock: undefined as
     | { orgHeld: boolean; userCustodianHeld: boolean; active: boolean }
     | undefined,
@@ -55,7 +58,10 @@ vi.mock('./hooks/queries', () => ({
         status: state.status,
         approvalId: 'approval-a',
         effectiveAt: state.effectiveAt,
-        errorMessage: state.status === 'blocked' ? 'org_hold' : undefined,
+        errorMessage:
+          state.status === 'blocked' ? 'org_hold' : state.errorMessage,
+        perCategorySnapshot: state.perCategorySnapshot,
+        wfExecutionsErased: state.wfExecutionsErased,
         holdBlock: state.holdBlock,
         targetUserId: 'subject-a',
         targetUserName: 'Test subject',
@@ -83,6 +89,9 @@ beforeEach(() => {
   state.userId = 'second-admin';
   state.status = 'pending';
   state.effectiveAt = undefined;
+  state.errorMessage = undefined;
+  state.wfExecutionsErased = undefined;
+  state.perCategorySnapshot = undefined;
   state.holdBlock = undefined;
   decide.mockResolvedValue(null);
   cancel.mockResolvedValue(null);
@@ -98,6 +107,30 @@ const show = () =>
   );
 
 describe('DSAR receipt decisions', () => {
+  it('explains a preserved legacy run without calling it erased or a legal hold', async () => {
+    state.status = 'partial';
+    state.errorMessage = 'legacy_automation_hold';
+    state.wfExecutionsErased = 1;
+    state.perCategorySnapshot = {
+      automationRuns: { rows: 1, skippedByHold: 2 },
+    };
+    const { user } = show();
+    expect(
+      screen.getByText('Automation runs erased').parentElement,
+    ).toHaveTextContent('Automation runs erased1');
+    expect(
+      screen.getByText(/earlier external actions have not been verified/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('legacy_automation_hold'),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByText('Full breakdown across all data categories'),
+    );
+    expect(
+      screen.getByText('1 erased · 2 skipped by hold'),
+    ).toBeInTheDocument();
+  });
   it.each([
     ['Approve request', 'executing'],
     ['Reject request', 'rejected'],

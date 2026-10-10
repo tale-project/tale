@@ -5,9 +5,7 @@ import {
   IMPORT_ROW_FIELDS,
   IMPORT_ROW_REASONS,
 } from '@/lib/utils/file-parsing';
-import deMessages from '@/messages/de.yml';
-import enMessages from '@/messages/en.yml';
-import frMessages from '@/messages/fr.yml';
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 import {
   importRowErrorLine,
@@ -20,6 +18,7 @@ type Bundle = {
     import: {
       fields: Record<string, string>;
       reasons: Record<string, string>;
+      unpairedQuotes: string;
     };
   };
 };
@@ -99,6 +98,21 @@ describe('importRowErrorMessage', () => {
       'import.rowError row=3 message=import.reasons.notOneOf options=active, draft field=import.fields.status',
     );
   });
+
+  it('translates a CSV row whose quotes do not pair up', () => {
+    expect(importRowErrorLine(tCommon, { row: 4, quotes: 'unpaired' })).toBe(
+      'import.rowError row=4 message=import.unpairedQuotes',
+    );
+  });
+
+  it.each(Object.entries(LOCALES))(
+    'has a %s sentence for unpaired quotes, with no placeholder',
+    (_locale, bundle) => {
+      const sentence = bundle.common.import.unpairedQuotes;
+      expect(sentence).toEqual(expect.any(String));
+      expect(sentence).not.toMatch(/\{\w+\}/);
+    },
+  );
 
   it('keeps a server refusal as the server text', () => {
     expect(

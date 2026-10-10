@@ -16,14 +16,14 @@ import { existsSync, writeFileSync } from 'node:fs';
 import {
   Compose,
   composeArgs,
-  dockerInspect,
+  imageMetadata,
   healthStatus,
   httpStatus,
-  imageSizeMb,
   nowSec,
+  nonRootImageUser,
   sleep,
 } from './lib/docker';
-import { projectRoot } from './lib/exec';
+import { capture, projectRoot } from './lib/exec';
 import { CYAN, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
 
 interface StaticSiteProbe {
@@ -125,29 +125,47 @@ export async function runStaticSiteTest(
     // 2. Image-level checks
     header('Image checks');
 
-    const labelsJson = await dockerInspect(image, '{{json .Config.Labels}}');
-    const title = parseLabel(labelsJson, 'org.opencontainers.image.title');
+    const metadata = await imageMetadata(image);
+    const title = metadata.labels['org.opencontainers.image.title'] ?? '';
     if (title.includes(`tale-${svc}`)) {
       r.pass(`${svc}: OCI title label present (tale-${svc})`);
     } else {
       r.fail(`${svc}: OCI title label missing or wrong`);
     }
 
-    const user = await dockerInspect(image, '{{.Config.User}}');
-    if (user && user !== 'root' && user !== '0') {
+    const user = metadata.user;
+    if (nonRootImageUser(user)) {
       r.pass(`${svc}: runs as non-root user '${user}'`);
     } else {
       r.fail(`${svc}: runs as root (expected non-root for static site)`);
     }
 
-    const healthcheck = await dockerInspect(image, '{{.Config.Healthcheck}}');
-    if (healthcheck && healthcheck !== '<nil>') {
+    if (metadata.hasHealthcheck) {
       r.pass(`${svc}: HEALTHCHECK defined`);
     } else {
       r.fail(`${svc}: no HEALTHCHECK instruction`);
     }
 
-    const sizeMb = await imageSizeMb(image);
+    const { packageManager } = await Bun.file(`${root}/package.json`).json();
+    const expectedBun = packageManager.replace('bun@', '');
+    const bun = await capture([
+      'docker',
+      'run',
+      '--rm',
+      '--network',
+      'none',
+      '--entrypoint',
+      'timeout',
+      image,
+      '10',
+      'bun',
+      '--version',
+    ]);
+    if (bun.exitCode === 0 && bun.stdout.trim() === expectedBun)
+      r.pass(`${svc}: Bun ${expectedBun} matches the workspace toolchain`);
+    else r.fail(`${svc}: Bun runtime does not match ${expectedBun}`);
+
+    const sizeMb = metadata.sizeMb;
     if (sizeMb <= sizeBudgetMb) {
       r.pass(`${svc}: ${sizeMb} MB ≤ ${sizeBudgetMb} MB budget`);
     } else {
@@ -195,6 +213,26 @@ export async function runStaticSiteTest(
     } else {
       r.fail(`${svc}: /api/health expected 200, got ${code}`);
     }
+
+    const processIdentities: Array<string | null> = [];
+    for (let probe = 0; probe < 2; probe++) {
+      const response = await fetch(`http://localhost:${hostPort}/api/health`, {
+        signal: AbortSignal.timeout(10_000),
+        redirect: 'error',
+      });
+      processIdentities.push(response.headers.get('Tale-Serving-Identity'));
+      await response.body?.cancel();
+    }
+    const identity = processIdentities[0];
+    if (
+      identity?.startsWith(`v1;service=${svc};instance=`) &&
+      /^v1;service=[a-z][a-z0-9-]{0,63};instance=[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+        identity,
+      ) &&
+      identity === processIdentities[1]
+    )
+      r.pass(`${svc}: stable serving process identity`);
+    else r.fail(`${svc}: missing or changed serving process identity`);
 
     for (const probe of opts.probes ?? []) {
       const url = `http://localhost:${hostPort}${probe.path}`;
@@ -245,15 +283,4 @@ export async function runStaticSiteTest(
     await cleanup(true);
     process.exit(1);
   }
-}
-
-/**
- * Pull a single label value out of `{{json .Config.Labels}}`. Mirrors the
- * bash `grep -o '"<key>":"[^"]*"'` extraction rather than parsing the JSON,
- * which keeps the matcher free of unsafe `any` assertions.
- */
-function parseLabel(json: string, key: string): string {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`"${escaped}":"([^"]*)"`).exec(json);
-  return match?.[1] ?? '';
 }

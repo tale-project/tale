@@ -822,10 +822,8 @@ describe('EnterpriseSsoForm IdP metadata import (#2652)', () => {
     });
     const { user } = renderForm(samlConfig);
 
-    await user.type(
-      screen.getByLabelText(/^metadata url$/i),
-      'https://idp.example.com/federationmetadata.xml',
-    );
+    await user.click(screen.getByLabelText(/^metadata url$/i));
+    await user.paste('https://idp.example.com/federationmetadata.xml');
     await user.click(screen.getByRole('button', { name: /^import$/i }));
 
     await waitFor(() =>
@@ -904,10 +902,8 @@ describe('EnterpriseSsoForm IdP metadata import (#2652)', () => {
     );
     const { user } = renderForm(samlConfig);
 
-    await user.type(
-      screen.getByLabelText(/^metadata url$/i),
-      'https://idp.example.com/meta.xml',
-    );
+    await user.click(screen.getByLabelText(/^metadata url$/i));
+    await user.paste('https://idp.example.com/meta.xml');
     await user.click(screen.getByRole('button', { name: /^import$/i }));
 
     await waitFor(() =>

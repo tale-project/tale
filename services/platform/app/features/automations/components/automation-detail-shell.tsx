@@ -12,9 +12,9 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { PageLayout } from '@tale/ui/page-layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { Link, useLocation } from '@tanstack/react-router';
 import { SearchX, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import {
   TabNavigation,
@@ -24,10 +24,6 @@ import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomation } from '../hooks/queries';
-import {
-  clearAutomationMemory,
-  persistAutomationMemory,
-} from '../lib/detail-memory';
 import { automationDetailPathname } from '../lib/detail-paths';
 import {
   DOCUMENT_DIRTY_KEY,
@@ -57,8 +53,9 @@ interface AutomationDetailShellProps {
 /**
  * The chrome every automation detail page shares, on the org route AND the
  * project-scoped one: the `PageLayout` scroll shell, the
- * `Automations / <name>` breadcrumb (the name doubling as the sibling
- * switcher), and the tab strip — **Editor**, **General**, **Runs** — exactly the composition a project detail carries. The strip's
+ * `Automations / <name>` breadcrumb — `<project> / Automations / <name>` on
+ * the project-scoped route — with the name doubling as the sibling
+ * switcher, and the tab strip — **Editor**, **General**, **Runs** — exactly the composition a project detail carries. The strip's
  * trailing slot is where the open tab puts its verbs and the Save/Discard
  * cluster, so the header row keeps only the name and the Live badge.
  *
@@ -92,8 +89,7 @@ function AutomationDetailFrame({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
-  const { pathname, state } = useLocation();
-  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [versionPickerTarget, setVersionPickerTarget] =
     useState<HTMLDivElement | null>(null);
   const automationQuery = useAutomation(organizationId, automationSlug);
@@ -113,33 +109,6 @@ function AutomationDetailFrame({
   const onEditor = pathname === `${root}/editor`;
   const onRuns =
     pathname === `${root}/runs` || pathname.startsWith(`${root}/runs/`);
-
-  // Remember this automation's detail page, org-scoped only — a
-  // project-scoped route (`projectId` set) belongs to that project's own
-  // memory instead (`features/home/lib/project-memory.ts`). Guarded on
-  // `pathname` still being under `root`: a route change updates `pathname`
-  // (and re-runs this effect) on the render just before this component
-  // unmounts, so an unguarded write would persist wherever the user
-  // navigated TO, under the automation's OWN key.
-  useEffect(() => {
-    if (projectId !== undefined || isMissing) return;
-    if (pathname !== root && !pathname.startsWith(`${root}/`)) return;
-    persistAutomationMemory(organizationId, pathname);
-  }, [projectId, isMissing, organizationId, pathname, root]);
-
-  // A remembered automation can be deleted between visits. When the rail
-  // RESTORED us here, forget the stale place and fall back to the list
-  // rather than leaving the user on a not-found they never asked for.
-  const wasRestored = state.navRestore === true;
-  useEffect(() => {
-    if (!isMissing || !wasRestored || projectId !== undefined) return;
-    clearAutomationMemory(organizationId);
-    void navigate({
-      to: '/dashboard/$id/automations',
-      params: { id: organizationId },
-      replace: true,
-    });
-  }, [isMissing, wasRestored, projectId, organizationId, navigate]);
 
   const tabs = useMemo<TabNavigationItem[]>(() => {
     const deleted = deletedAt !== undefined;

@@ -1,0 +1,39 @@
+success:
+  passwordChanged:
+    title: Password changed
+    description: Use your new password the next time you sign in.
+  passwordSet:
+    title: Password set
+    description: You can now sign in with your password.
+  newMemberCreated:
+    title: Member added
+    description: New member added to your organization.
+  existingUserAdded:
+    title: Member added
+    description: User added to your organization.
+  faviconGenerated:
+    title: Favicon generated
+    description: We created a favicon from your logo.
+error:
+  profileUpdateFailed:
+    title: Couldn't update profile
+    withReason: "Couldn't update profile: {reason}"
+  passwordChangeFailed:
+    title: Couldn't change password
+    description: Check your current password and try again.
+  organizationUpdateFailed:
+    title: Couldn't update organization
+  brandingUpdateFailed:
+    title: Couldn't update branding
+  imageUploadFailed: Couldn't upload image
+  logoTooSmall: The logo must be at least {min}×{min} pixels.
+  imageTooLarge: Image is too large. Maximum size is 2 MB.
+  imageMimeUnsupported: Unsupported image format. Use PNG, SVG, JPG, WebP, or ICO.
+  imageSvgActiveContent: The SVG contains scripts or event handlers. Remove them or upload a PNG.
+  imageTypeInvalid: Invalid image type
+  addMemberFailed:
+    title: Couldn't add member
+    description: Couldn't finish that action. Try again.
+  generic:
+    title: Couldn't finish that action
+    description: Try again.

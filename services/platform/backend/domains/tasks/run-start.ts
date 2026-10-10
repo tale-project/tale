@@ -94,3 +94,33 @@ export async function readInPlaceRetryState(
   `;
   return rows[0];
 }
+
+/** The agent row as a start locks it: what the kick needs to run it. */
+export interface LockedAgent {
+  id: string;
+  projectId: string;
+  harness: string;
+  model: string;
+  modelProvider: string | null;
+}
+
+/**
+ * Share delegated admission's agent row fence with managed review-context
+ * enrollment. A write invalidates an overlapping SERIALIZABLE snapshot too.
+ * Callers that lock both take the agent before the task; worker capacity is
+ * owned separately by agent-workers.ts. Null means no matching agent.
+ */
+export async function lockAgentForStart(
+  tx: TransactionSql,
+  args: { organizationId: string; agentId: string; projectId?: string },
+): Promise<LockedAgent | null> {
+  const agents = await tx<LockedAgent[]>`
+    UPDATE app.project_agents SET updated_at_ms = updated_at_ms
+    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+      AND (${args.projectId ?? null}::text IS NULL
+           OR project_id = ${args.projectId ?? null})
+    RETURNING id, project_id AS "projectId", harness, model,
+              model_provider AS "modelProvider"
+  `;
+  return agents[0] ?? null;
+}

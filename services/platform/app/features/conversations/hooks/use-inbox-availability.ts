@@ -8,9 +8,10 @@
  * (mail provider first) merged with active credentials.
  */
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { readStateOf, type ReadState } from '@/app/lib/backend/read-state';
 import { parseAutomationPresentation } from '@/lib/shared/schemas/automation_presentation';
 
 export interface InboxAutomationSummary {
@@ -31,15 +32,34 @@ function presentationRecord(value: unknown): {
 export function useInboxAvailability(organizationId: string): {
   isLoading: boolean;
   hasInbox: boolean;
+  showInbox: boolean;
+  readState: ReadState;
+  error: unknown;
+  retry: () => Promise<unknown>;
   inboxAutomations: InboxAutomationSummary[];
 } {
-  const { data, isLoading } = useBackendQuery(
+  const automationsQuery = useBackendQuery(
     'automations/queries:listAutomations',
     organizationId ? { organizationId, includeProjectBound: true } : 'skip',
   );
-  const { data: apiSources, isLoading: sourcesLoading } = useBackendQuery(
+  const sourcesQuery = useBackendQuery(
     'conversations/queries:apiSources',
     organizationId ? { organizationId } : 'skip',
+  );
+  const { data } = automationsQuery;
+  const automationsState = readStateOf(automationsQuery);
+  const sourcesState = readStateOf(sourcesQuery);
+  const readState: ReadState = {
+    unavailable: automationsState.unavailable || sourcesState.unavailable,
+    stale: automationsState.stale || sourcesState.stale,
+    retrying: automationsState.retrying || sourcesState.retrying,
+    failureCount: automationsState.failureCount + sourcesState.failureCount,
+  };
+  const { refetch: refetchAutomations } = automationsQuery;
+  const { refetch: refetchSources } = sourcesQuery;
+  const retry = useCallback(
+    () => Promise.all([refetchAutomations(), refetchSources()]),
+    [refetchAutomations, refetchSources],
   );
 
   const inboxAutomations = useMemo(() => {
@@ -58,9 +78,17 @@ export function useInboxAvailability(organizationId: string): {
     return out;
   }, [data]);
 
+  const hasInbox =
+    inboxAutomations.length > 0 || (sourcesQuery.data?.length ?? 0) > 0;
+  const failed = readState.unavailable || readState.stale;
   return {
-    isLoading: isLoading || sourcesLoading,
-    hasInbox: inboxAutomations.length > 0 || (apiSources?.length ?? 0) > 0,
+    isLoading:
+      !failed && (automationsQuery.isLoading || sourcesQuery.isLoading),
+    hasInbox,
+    showInbox: hasInbox || failed,
+    readState,
+    error: automationsQuery.error ?? sourcesQuery.error,
+    retry,
     inboxAutomations,
   };
 }

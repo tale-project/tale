@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 
 describe('task import authorization and reconciliation policy', () => {
-  it('reuses project dedupe and preserves local progress on every repeat', async () => {
+  it('reuses project dedupe and preserves local progress on every repeat [CONN-R12]', async () => {
     await expect(
       pgTaskStore(sql).upsert({ ...input, caller: workflow }),
     ).resolves.toEqual({ taskId: 'task-1', created: true, title: 'Issue' });
@@ -114,7 +114,7 @@ describe('task import authorization and reconciliation policy', () => {
   });
 
   it.each([null, { projectId: 'other-project' }])(
-    'refuses a missing run or cross-project workflow',
+    'refuses a missing run or cross-project workflow [CONN-R11]',
     async (run) => {
       vi.mocked(getRun).mockResolvedValue(run as never);
       await expect(
@@ -197,7 +197,7 @@ describe('task import authorization and reconciliation policy', () => {
     expect(upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 
-  it("a member's run works within the member's reach instead of dying on an editor check", async () => {
+  it("a member's run works within the member's reach instead of dying on an editor check [CONN-R11]", async () => {
     // A member may start an automation built for their task; its task
     // natives create in the project and change only what the member may
     // work, naming only labels the catalog already has.

@@ -27,6 +27,7 @@ import {
   probeDurationMs,
   runFfmpeg,
 } from './ffmpeg';
+import { buildConcatList } from './frame-playlist';
 import { DOCS_PUBLIC_DIR } from './paths';
 import { framesDir, timelinePath, type RecordedTimeline } from './recorder';
 import { writeReviewSheet } from './review';
@@ -55,22 +56,6 @@ interface ComposeOptions {
 
 interface FramesLog {
   readonly frames: readonly { file: string; tMs: number }[];
-}
-
-/** Concat-demuxer playlist with per-frame durations, last frame held. */
-function buildConcatList(frames: FramesLog['frames'], totalMs: number): string {
-  if (frames.length === 0) throw new Error('No frames were recorded');
-  const lines = ['ffconcat version 1.0'];
-  for (let i = 0; i < frames.length; i++) {
-    const current = frames[i];
-    if (!current) continue;
-    const nextTMs = frames[i + 1]?.tMs ?? Math.max(totalMs, current.tMs + 33);
-    const durationSec = Math.max(nextTMs - current.tMs, 1) / 1000;
-    lines.push(`file '${current.file}'`, `duration ${durationSec.toFixed(4)}`);
-  }
-  const last = frames.at(-1);
-  if (last) lines.push(`file '${last.file}'`);
-  return `${lines.join('\n')}\n`;
 }
 
 function assertDrift(recorded: RecordedTimeline): void {

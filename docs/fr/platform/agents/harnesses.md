@@ -1,13 +1,13 @@
 ---
 title: Choisir un environnement d’agent
-description: Associe le harness aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche.
+description: Associe l’environnement d’agent aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche.
 ---
 
-Un harness est le programme de code qui exécute la session d’un agent dans une sandbox. Il interroge le modèle, lit et écrit des fichiers, lance des commandes et rend compte du travail. Tu le choisis pour un agent de projet ou un nœud `agent` d’automatisation. Le sélecteur de modèle du chat ordinaire ne choisit pas de harness.
+Un environnement d’agent est le programme de code qui exécute la session d’un agent dans une sandbox. Il interroge le modèle, lit et écrit des fichiers, lance des commandes et rend compte du travail. Tu le choisis pour un agent de projet ou un nœud `agent` d’automatisation. Le sélecteur de modèle du chat ordinaire ne choisit pas d’environnement d’agent.
 
 ## Choisir l’environnement et vérifier l’accès
 
-Dans l’onglet **Agents** d’un projet, ouvre un agent et choisis son **Harness**. Le nœud agent d’une automatisation utilise le même nom de champ. Choisis ensuite le modèle et le fournisseur. Sous **Paramètres > Fournisseurs IA**, la section **Harnesses** montre les voies d’exécution actuellement disponibles pour l’organisation.
+Dans l’onglet **Agents** d’un projet, ouvre un agent et choisis son **Environnement d'agent**. Le nœud agent d’une automatisation utilise le même nom de champ. Choisis ensuite le modèle et le fournisseur. Sous **Paramètres > Fournisseurs IA**, la section **Environnements d'agent** montre les voies d’exécution actuellement disponibles pour l’organisation.
 
 Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platform/admin/sandboxes). Un modèle qui fonctionne dans Chat ne suffit pas. Si un environnement manque ou ne propose aucun modèle, examine son état et les identifiants du fournisseur avant de modifier la demande de travail. Un modèle qui n’appelle des tools que via l’API Responses d’OpenAI, comme GPT-6 Astra ou GPT-6.1 Sol, ne fonctionne que sur Codex : le sélecteur de modèle ne le propose donc pour aucun autre environnement.
 
@@ -15,7 +15,7 @@ Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platfor
 
 « Géré » signifie que le programme appelle le modèle via la passerelle de Tale. « Direct » signifie que la session reçoit les identifiants destinés aux outils du fournisseur. Les définitions livrées prennent en charge les combinaisons suivantes ; leur disponibilité dépend du déploiement et des identifiants.
 
-| Harness | Voie d’accès | Nouvelles instructions dans le processus actif | Canal MCP de Tale |
+| Environnement d’agent | Voie d’accès | Nouvelles instructions dans le processus actif | Canal MCP de Tale |
 | --- | --- | --- | --- |
 | Claude Code | Gérée ou directe | Oui | Oui |
 | Codex | Gérée ou directe | Non | Oui |
@@ -37,13 +37,13 @@ Gemini CLI fait exception : Tale ne poursuit jamais une de ses conversations. Un
 
 Avec une clé API stockée ou fournie par l’environnement du déploiement, Tale remet une clé de passerelle limitée à la session. La clé d’origine du fournisseur de modèle reste dans la plateforme. Les appels de passerelle sont mesurés et soumis aux règles de dépense applicables, en tenant compte des montants déjà attribués aux autres échanges en cours.
 
-Les abonnements fournisseurs utilisent leur harness compatible et reçoivent les identifiants d’abonnement dans l’environnement de la session. Ils ne servent pas d’identifiants de chat ordinaire et ne fonctionnent pas avec un harness incompatible, car les fournisseurs n’autorisent les jetons d’abonnement que dans leur propre environnement ; la page [Fournisseurs IA](/fr/platform/admin/providers#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat) l’explique. Leurs appels directs échappent à la mesure et aux plafonds de la passerelle Tale. Examine la consommation auprès du fournisseur d’abonnement.
+Les abonnements fournisseurs utilisent leur environnement d’agent compatible et reçoivent les identifiants d’abonnement dans l’environnement de la session. Gemini fait exception : sa connexion Google est écrite dans un fichier du dossier personnel de la session pour l’échange, puis supprimée à la fin de l’échange. Ils ne servent pas d’identifiants de chat ordinaire et ne fonctionnent pas avec un environnement d’agent incompatible, car les fournisseurs n’autorisent les jetons d’abonnement que dans leur propre environnement ; la page [Fournisseurs IA](/fr/platform/admin/providers#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat) l’explique. Leurs appels directs échappent à la mesure et aux plafonds de la passerelle Tale. Examine la consommation auprès du fournisseur d’abonnement.
 
 Ces règles sur les identifiants de modèle ne signifient pas que la sandbox ne contient aucun secret. Les **Secrets** explicitement accordés et le jeton d’un accès GitHub équipé peuvent y être disponibles. Limite ces accès aux besoins de la tâche.
 
 ## Comprendre les fichiers et les outils connectés
 
-Un agent de projet réutilise son espace de travail persistant entre ses tâches. Les pièces jointes sont accessibles en lecture seule sous `/agent/inputs/<task>/attachments/`. Les fichiers écrits dans `/agent/output/<task>/` sont collectés comme **Fichiers produits** à la fin de l’échange. Un nœud agent collecte sa sortie sous `/agent/output/`.
+Un agent de projet réutilise son espace de travail persistant entre ses tâches. Les pièces jointes sont accessibles en lecture seule sous `/agent/inputs/<task>/attachments/`. L’espace de travail ne garde cette copie que tant que la tâche peut encore en avoir besoin : Tale la retire dès que la tâche passe à **Terminé** ou **Annulé**, est archivée ou supprimée, ou n’a pas changé depuis 30 jours, et la prochaine exécution de la tâche y recopie les fichiers. Les fichiers écrits dans `/agent/output/<task>/` sont collectés comme **Fichiers produits** à la fin de l’échange. Un nœud agent collecte sa sortie sous `/agent/output/`.
 
 Les bundles de skills sont préparés sous forme de fichiers et cités dans les instructions de l’exécution. Examine leurs consignes et scripts avant de les accorder. [Skills des agents](/fr/platform/agents/skills) explique cette préparation et la visibilité.
 

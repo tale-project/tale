@@ -46,6 +46,22 @@ container's pids (4096) and open files (8192/16384) for it; a higher value
 needs those raised with it. On Kubernetes the threads count against the
 node's `podPidsLimit`. The idle tunnel `Timeout` stays at 600 s.
 
+`SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` (256 by default) caps what one
+client address holds open on the proxy port at once, so a single session
+cannot take that whole pool from the others: `docker-entrypoint.sh` adds one
+`iptables` rule on `INPUT` for new TCP connections to port 3128
+(`-m connlimit --connlimit-above N --connlimit-mask 32 -j REJECT --reject-with tcp-reset`),
+only when the rule is not there yet. With transparent egress every connection
+of a session, its nested containers' included, comes from the session's one
+address (on Kubernetes, its Pod's, unless the cluster network rewrites source
+addresses: sessions behind one shared address share one cap, so set `0`
+there), and each build helper has an address of its own; a connection past
+the cap is reset at once instead of waiting out a timeout. `0` turns the cap
+off, and a value that is no whole number refuses the start. The cap is
+fairness, not a security boundary, so it fails open: a kernel without the
+`connlimit` match, or a development run without `NET_ADMIN`, starts the proxy
+without it and logs a warning.
+
 ```bash
 bun run --filter @tale/sandbox-egress serve         # docker compose up sandbox-egress
 bun run --filter @tale/sandbox-egress docker:build
@@ -53,12 +69,22 @@ bun run --filter @tale/sandbox-egress docker:build
 
 ## Container
 
-Runs as root so the entrypoint can `chown` the log dir and install `iptables`
-rules; `tinyproxy` drops privileges to `nobody` after binding. `docker-entrypoint.sh`
+Runs as root so the entrypoint can install `iptables` rules and dnsmasq can
+bind port 53; `tinyproxy` drops privileges to `nobody` after binding and logs
+to stdout (the container log), so no log file grows in the container's writable
+layer. `docker-entrypoint.sh`
 (PID 1) installs the SSRF firewall, then `exec`s `entrypoint.sh`. That shell renders
 the config, supervises foreground Tinyproxy and DNS, forwards shutdown signals,
-and reaps both children. It tracks the child PID directly, so Tinyproxy needs no
-PID file or write access to `/tmp`. The container smoke suite boots with a
+and reaps both children. It tracks the child PIDs directly, so Tinyproxy needs no
+PID file or write access to `/tmp`. When either daemon exits on its own, the
+shell stops the other and exits non-zero, so the restart policy brings the
+container back with both: nested containers and BuildKit `RUN` steps resolve
+names only through dnsmasq, so a proxy serving without it would be a silent DNS
+outage for every session. The health check asks both: an HTTP request to
+Tinyproxy and a busybox `nslookup` against 127.0.0.1 for
+`sandbox-egress-health.invalid`, a name dnsmasq answers from its own
+`--host-record` without an upstream lookup. dnsmasq caches 4096 names (its
+default is 150), since the whole fleet resolves through it. The container smoke suite boots with a
 read-only `/tmp` and checks startup, graceful stop and the same container's
 restart. The root supervisor needs `KILL` to signal Tinyproxy after it changes
 user to `nobody`; the proxy itself retains no effective capabilities.

@@ -1,331 +1,747 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
-import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
+import { flowCompareFromOverlays } from '@tale/ui/flow/compare';
+import type { FlowLegendEntry } from '@tale/ui/flow/flow-legend';
+import type { FlowHighlight } from '@tale/ui/flow/paths';
 import {
-  FLOW_EDGE_COLORS,
-  FLOW_EDGE_MARKER_SIZE,
-  FLOW_EDGE_STROKE_WIDTH,
-} from '@tale/ui/flow/edge-palette';
-import { FlowCanvas } from '@tale/ui/flow/flow-canvas';
-import { useElkLayout } from '@tale/ui/flow/use-elk-layout';
+  buildPlaybackTimeline,
+  usePlaybackClock,
+} from '@tale/ui/flow/playback';
+import { FlowPlaybackBar, formatFlowClock } from '@tale/ui/flow/playback-bar';
 import {
-  MarkerType,
-  Position,
-  ReactFlowProvider,
-  useReactFlow,
-  type Edge,
-  type Node,
-} from '@xyflow/react';
-import { AlertTriangle, Workflow } from 'lucide-react';
+  FlowRunTimeline,
+  flowTimelineRows,
+  type FlowTimelineRow,
+} from '@tale/ui/flow/run-timeline';
+import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
 import {
+  WorkflowCanvas,
+  type FlowView,
+  type WorkflowCanvasProps,
+} from '@tale/ui/flow/workflow-canvas';
+import { formatDuration } from '@tale/ui/format-duration';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
+import type { IssueCounts } from '@tale/ui/issue-summary';
+import { SegmentedControl } from '@tale/ui/segmented-control';
+import { useMediaQuery } from '@tale/ui/use-media-query';
+import { AlertTriangle, Hand, Workflow } from 'lucide-react';
+import {
+  type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
-  type CSSProperties,
-  type ReactNode,
+  useState,
 } from 'react';
 
+import type {
+  NodeRunPage,
+  RunRecordView,
+} from '@/app/lib/backend/contract/automations';
+import type { Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
+import type {
+  AnalysisView,
+  TypesView,
+} from '@/lib/shared/schemas/automation-issues';
 
-import { automationNodeElement } from '../hooks/use-deselect-on-escape';
-import type { NodePosition } from '../lib/document';
-import type { AutomationGraph } from '../lib/graph';
-import type { NodeRunStatus } from '../lib/run-view';
+import { useCanvasFlow } from '../hooks/use-canvas-flow';
+import type { NodeCatalogView, ReturnsSource } from '../lib/node-face';
+import { runOverlay } from '../lib/run-overlay';
 import {
-  AutomationNode,
-  CanvasNodeProvider,
-  type AutomationNodeData,
-  type CanvasNodeContextValue,
-} from './automation-node';
+  realRunOf,
+  type RunUnitRef,
+  type TimelineWords,
+  unitRefOf,
+  unitRefOfRow,
+  unitRowId,
+  withUnitSpans,
+} from '../lib/run-timeline';
+import type { NodeRunStatus, RunProjection, RunStatus } from '../lib/run-view';
+import { AUTOMATION_WORKBENCH_COMPACT_QUERY } from '../lib/workbench';
+import {
+  AutomationPathsButton,
+  AutomationPathsPanel,
+  AutomationPathsPill,
+  AutomationPathsSheet,
+} from './automation-paths';
+import { RunUnitsReader } from './run-units-reader';
 
-/** The box every node renders at. Fixed so the layout engine and the DOM
- * agree, and so a long node id cannot reflow the graph. */
-const NODE_WIDTH = 300;
-const NODE_HEIGHT = 116;
+/** A run laid over the canvas. */
+export interface CanvasRun {
+  statusByNode: ReadonlyMap<string, NodeRunStatus>;
+  projection: RunProjection;
+  status: RunStatus;
+  /** Who or what started it, for Start's strip. */
+  startedBy?: string;
+  /** The run step by step: with it, the canvas plays the run back. */
+  record?: RunRecordView;
+  /** What the playback says about a step or a wait. */
+  words?: TimelineWords;
+  /** The run is still going: the playback follows its end. */
+  live?: boolean;
+  /** Where the record's items and passes are read, a page at a time,
+   *  when the Steps view opens a step. */
+  items?: { organizationId: string; runId: string };
+}
 
-/** React Flow requires a stable node-type map; an inline object remounts every
- * node on each render. */
-const NODE_TYPES = { automation: AutomationNode };
+/** How a recorded run is shown: on the chart, or as its steps in time
+ *  order. */
+export type RunCanvasView = 'chart' | 'steps';
 
-/** React Flow computes `pointer-events: none` on a node wrapper that is
- * neither selectable nor draggable and has no flow-level mouse handlers —
- * which is every node here, because this canvas turns React Flow's own
- * interaction models off in favour of the real button inside each box. The
- * per-node style spreads after that computed value, handing pointer events
- * back so the button is clickable at all. */
-const NODE_STYLE: CSSProperties = { pointerEvents: 'all' };
+/** Two runs on one chart: how each left every step, side by side. */
+export interface CanvasCompare {
+  a: CanvasRun;
+  b: CanvasRun;
+  /** Steps of the document drawn (B's version) that A's version lacks. */
+  absentInA?: readonly string[];
+}
 
 export interface AutomationCanvasProps {
-  graph: AutomationGraph;
-  /** Hand-placed positions from the document's canvas metadata. Nodes without
-   * one are laid out automatically. */
-  positions: Record<string, NodePosition>;
-  selectedNodeId: string | null;
-  onSelectNode: (nodeId: string | null) => void;
-  /** Id of the inspector region a node button expands. */
-  inspectorId: string;
-  runStatusByNode?: ReadonlyMap<string, NodeRunStatus>;
+  /** The document on screen. */
+  automation: Automation;
+  /** What the canvas is a picture of: the automation and the version on
+   *  screen. The same key with a changed document glides to its new
+   *  layout; a new key is another picture. */
+  layoutKey: string;
+  catalog: NodeCatalogView;
+  modelLabel?: (id: string) => string | undefined;
+  /** Start's trigger rows; by hand, the API or MCP when left out. */
+  triggers?: readonly FlowRow[];
+  /** What the draft check answered, when the reader may have one. */
+  check?: {
+    status: ReturnsSource['status'];
+    analysis: AnalysisView | null;
+    types: TypesView | null;
+  };
+  /** Why a trigger's runs are refused, said on Start. */
+  startNotice?: string | null;
+  /** Problems per box: a node, its condition, Start or End. */
+  issueCounts?: ReadonlyMap<string, IssueCounts>;
+  /** The open box: a node, a condition, Start or End. */
+  selectedId: string | null;
+  /** The item or pass of the open box chosen in the run's Steps view. */
+  selectedUnit?: RunUnitRef | null;
+  onSelect: (id: string | null, unit?: RunUnitRef) => void;
+  /** Id of the inspector region a box opens; without one, a box opens
+   * nothing (a comparison's chart). */
+  inspectorId?: string;
+  run?: CanvasRun;
+  /** Two runs of this document side by side; wins over `run`. */
+  compare?: CanvasCompare;
+  /** A recorded run as a chart or as its steps in time order; the canvas
+   *  keeps the choice itself when left out. */
+  runView?: RunCanvasView;
+  onRunViewChange?: (view: RunCanvasView) => void;
+  /** The moment of a recorded run to open on, in real milliseconds since it
+   *  started; the run's end when left out. */
+  runMoment?: number;
+  /** Where the playback rests, 300 ms after it stops moving: real
+   *  milliseconds since the run started, or `null` at the run's end. */
+  onRunMomentChange?: (moment: number | null) => void;
+  /** Bring this box into view. */
+  revealId?: string | null;
+  /** Nodes another window or a coding agent changed, ringed once. */
+  changed?: { ids: ReadonlySet<string>; key: string | number };
   /**
-   * Draw the canvas as a bordered, rounded frame (a run's page, where it sits
-   * in the page inset). The Editor tab's edge-to-edge workbench turns it off:
-   * there the canvas meets the tab strip, the window and the inspector at
-   * their own borders.
+   * Draw the canvas as a bordered frame (a run's page). The Editor tab's
+   * edge-to-edge workbench turns it off.
    * @default true
    */
   framed?: boolean;
-  /** Mobile editor actions, kept inside the canvas toolbar. */
-  centerActions?: ReactNode;
+  view?: FlowView;
+  onViewChange?: (view: FlowView) => void;
+  /** The top-left corner (the view switch). */
+  topStart?: ReactNode;
+  /** Verbs after Paths in the top-right corner. */
+  topEnd?: ReactNode;
+  /** The bottom-centre toolbar. */
+  toolbar?: ReactNode;
+  /** The main action of an automation with no nodes yet. */
+  emptyAction?: ReactNode;
+  /** Each layout once it is on the page (tests measure it). */
+  onLayout?: (layout: FlowLayout) => void;
 }
 
-const EMPTY_STATUSES: ReadonlyMap<string, NodeRunStatus> = new Map();
-
-/** Room left between a box brought into view and the frame's edge. */
-const REVEAL_MARGIN = 24;
+const NO_CHECK: NonNullable<AutomationCanvasProps['check']> = {
+  status: 'off',
+  analysis: null,
+  types: null,
+};
 
 /**
- * How far to move the span `[start, end]` so it shows inside `[min, max]`:
- * nothing when it already does, otherwise the least shift that leaves the
- * margin — aligned to its start when the span is longer than the room.
+ * The automation canvas: the document, drawn by `@tale/ui`'s
+ * `WorkflowCanvas` and laid out by it — nobody places a node, and a
+ * document's stored positions are never read.
+ *
+ * Start says what starts a run and what it receives; End what a successful
+ * run returns and how a run ends; each condition sits above its node in
+ * words, with Yes and No when an `elseOf` partner hangs from it. The Paths
+ * list shows every way a run can go and lights one up on the chart. A run
+ * lays its outcome over every box.
  */
-function revealShift(
-  start: number,
-  end: number,
-  min: number,
-  max: number,
-): number {
-  if (start >= min && end <= max) return 0;
-  const lo = min + REVEAL_MARGIN;
-  const hi = max - REVEAL_MARGIN;
-  if (end - start > hi - lo) return lo - start;
-  if (end > hi) return hi - end;
-  return lo - start;
-}
-
-function CanvasInner({
-  graph,
-  positions,
-  selectedNodeId,
-  onSelectNode,
+export function AutomationCanvas({
+  automation,
+  layoutKey,
+  catalog,
+  modelLabel,
+  triggers,
+  check = NO_CHECK,
+  startNotice,
+  issueCounts,
+  selectedId,
+  selectedUnit = null,
+  onSelect,
   inspectorId,
-  runStatusByNode = EMPTY_STATUSES,
+  run,
+  compare,
+  runView,
+  onRunViewChange,
+  runMoment,
+  onRunMomentChange,
+  revealId,
+  changed,
   framed = true,
-  centerActions,
+  view,
+  onViewChange,
+  topStart,
+  topEnd,
+  toolbar,
+  emptyAction,
+  onLayout,
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
-  const { getViewport, setViewport } = useReactFlow();
-
-  const incomingByNode = useMemo(() => {
-    const grouped = new Map<string, typeof graph.edges>();
-    for (const edge of graph.edges) {
-      const bucket = grouped.get(edge.target);
-      if (bucket) bucket.push(edge);
-      else grouped.set(edge.target, [edge]);
-    }
-    return grouped;
-  }, [graph.edges]);
-
-  // Nodes are handed to React Flow in EXECUTION order, so Tab walks the graph
-  // the way the engine runs it — DOM order is the tab order, and this canvas
-  // switches React Flow's own focus handling off in favour of a real button
-  // inside every box.
-  const baseNodes = useMemo<Node[]>(
-    () =>
-      graph.nodes.map((node) => {
-        const data: AutomationNodeData = { node };
-        return {
-          id: node.id,
-          type: 'automation',
-          position: positions[node.id] ?? { x: 0, y: 0 },
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
-          sourcePosition: Position.Bottom,
-          targetPosition: Position.Top,
-          style: NODE_STYLE,
-          data,
-        };
-      }),
-    [graph.nodes, positions],
-  );
-
-  const flowEdges = useMemo<Edge[]>(
-    () =>
-      graph.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: 'smoothstep',
-        // One colour for every derived edge: the reference kind is carried by
-        // the LINE STYLE, so colour keeps its single documented meaning. A
-        // control reference only orders two nodes, so it is drawn dashed.
-        style: {
-          stroke: FLOW_EDGE_COLORS.flow,
-          strokeWidth: FLOW_EDGE_STROKE_WIDTH,
-          ...(edge.kind === 'control' && { strokeDasharray: '6 4' }),
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: FLOW_EDGE_MARKER_SIZE,
-          height: FLOW_EDGE_MARKER_SIZE,
-          color: FLOW_EDGE_COLORS.flow,
-        },
-        ariaLabel:
-          edge.kind === 'data'
-            ? t('canvas.edge.data', {
-                source: edge.source,
-                target: edge.target,
-              })
-            : t('canvas.edge.control', {
-                source: edge.source,
-                target: edge.target,
-              }),
-      })),
-    [graph.edges, t],
-  );
-
-  // Auto-layout runs only for a document that has not placed every node.
-  // Handing the shared layout engine an empty list is its documented no-op, so
-  // a fully placed document never loads it at all.
-  const needsLayout = graph.nodes.some((node) => !positions[node.id]);
-  const { nodes: laidOut, isLayouting } = useElkLayout(
-    needsLayout ? baseNodes : [],
-    needsLayout ? flowEdges : [],
-  );
-
-  const nodes = needsLayout ? laidOut : baseNodes;
-
-  // Bring a node's box fully into the frame with the least pan, at the zoom
-  // the author chose. Measured on the page, so it holds even right after the
-  // frame changed size — React Flow only learns its new size a frame later.
-  const frameRef = useRef<HTMLDivElement>(null);
-  const revealNode = useCallback(
-    (nodeId: string) => {
-      const frame = frameRef.current;
-      const box = frame === null ? null : automationNodeElement(nodeId, frame);
-      if (frame === null || box === null) return;
-      const bounds = frame.getBoundingClientRect();
-      const rect = box.getBoundingClientRect();
-      const dx = revealShift(rect.left, rect.right, bounds.left, bounds.right);
-      const dy = revealShift(rect.top, rect.bottom, bounds.top, bounds.bottom);
-      if (dx === 0 && dy === 0) return;
-      const viewport = getViewport();
-      // The pan resolves when the animation ends and there is nothing to do
-      // afterwards, so it is not awaited.
-      void setViewport(
-        { x: viewport.x + dx, y: viewport.y + dy, zoom: viewport.zoom },
-        { duration: 200 },
-      );
-    },
-    [getViewport, setViewport],
-  );
-
-  // A keyboard user tabbing through the graph must see the box that just
-  // took focus — without the viewport jumping scale, or moving at all when
-  // the box is already in sight.
-  const onFocusNode = revealNode;
-
-  // Picking a node opens the inspector beside the canvas and narrows it; a
-  // picked box the inspector now covers pans back into view.
-  useEffect(() => {
-    if (selectedNodeId !== null) revealNode(selectedNodeId);
-  }, [selectedNodeId, revealNode]);
-
-  const canvasContext = useMemo<CanvasNodeContextValue>(
-    () => ({
-      selectedNodeId,
-      inspectorId,
-      onSelect: onSelectNode,
-      onFocusNode,
-      runStatusByNode,
-      incomingByNode,
-    }),
-    [
-      selectedNodeId,
-      inspectorId,
-      onSelectNode,
-      onFocusNode,
-      runStatusByNode,
-      incomingByNode,
+  const compact = useMediaQuery(AUTOMATION_WORKBENCH_COMPACT_QUERY);
+  const panelId = useId();
+  const manualOnly = useMemo<readonly FlowRow[]>(
+    () => [
+      { id: 'trigger:manual', icon: Hand, label: t('canvas.start.manual') },
     ],
+    [t],
+  );
+  const [pathsOpen, setPathsOpen] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+
+  const flow = useCanvasFlow({
+    automation,
+    catalog,
+    ...(modelLabel !== undefined && { modelLabel }),
+    triggers: triggers ?? manualOnly,
+    check,
+    ...(startNotice !== undefined && { startNotice }),
+    pinnedPath: pinnedId,
+  });
+  const { graph, paths, hasCycle } = flow;
+
+  // A path that is no longer there (the document changed, another
+  // picture) is no longer shown.
+  const pinnedInfo = pinnedId === null ? undefined : paths?.rows.get(pinnedId);
+  useEffect(() => {
+    if (pinnedId !== null && pinnedInfo === undefined) setPinnedId(null);
+  }, [pinnedId, pinnedInfo]);
+  useEffect(() => {
+    setPinnedId(null);
+    setPreviewId(null);
+  }, [layoutKey]);
+
+  const shownRow = pinnedId ?? previewId;
+  const highlight = useMemo<FlowHighlight | null>(
+    () =>
+      shownRow === null || paths === null
+        ? null
+        : paths.highlightFor(shownRow, shownRow === pinnedId),
+    [shownRow, pinnedId, paths],
   );
 
-  if (graph.nodes.length === 0) {
+  const overlay = useMemo(
+    () =>
+      run === undefined || compare !== undefined
+        ? undefined
+        : runOverlay({
+            graph,
+            statusByNode: run.statusByNode,
+            projection: run.projection,
+            status: run.status,
+            t,
+            ...(run.startedBy !== undefined && { startedBy: run.startedBy }),
+          }),
+    [run, compare, graph, t],
+  );
+  // Two runs: each as one run's overlay, then how each left every step.
+  const compared = useMemo(() => {
+    if (compare === undefined) return undefined;
+    const overlayOf = (side: CanvasRun) =>
+      runOverlay({
+        graph,
+        statusByNode: side.statusByNode,
+        projection: side.projection,
+        status: side.status,
+        t,
+      });
+    return flowCompareFromOverlays(
+      graph,
+      overlayOf(compare.a),
+      overlayOf(compare.b),
+      {
+        labels: { a: 'A', b: 'B' },
+        absent: { a: [...(compare.absentInA ?? [])] },
+      },
+    );
+  }, [compare, graph, t]);
+
+  const legend = useMemo<FlowLegendEntry[]>(
+    () => [
+      { id: 'data', swatch: { edge: 'data' }, label: t('canvas.legend.data') },
+      {
+        id: 'control',
+        swatch: { edge: 'order' },
+        label: t('canvas.legend.control'),
+      },
+      { id: 'gate', swatch: { node: 'gate' }, label: t('canvas.legend.gate') },
+      {
+        id: 'yes',
+        swatch: { edge: 'branch-yes' },
+        label: t('canvas.legend.yes'),
+      },
+      { id: 'no', swatch: { edge: 'branch-no' }, label: t('canvas.legend.no') },
+      {
+        id: 'completion',
+        swatch: { edge: 'completion' },
+        label: t('canvas.legend.completion'),
+      },
+      {
+        id: 'conditional',
+        swatch: { node: 'dashed' },
+        label: t('canvas.legend.conditional'),
+      },
+      { id: 'loop', swatch: { node: 'frame' }, label: t('canvas.legend.loop') },
+    ],
+    [t],
+  );
+
+  const hasSteps = graph.nodes.some((node) => node.kind === 'step');
+  if (!hasSteps) {
     return (
       <EmptyState
         icon={Workflow}
         title={t('canvas.empty.title')}
         description={t('canvas.empty.description')}
-        action={centerActions}
+        action={emptyAction}
       />
     );
   }
 
+  const listProps =
+    paths === null
+      ? null
+      : {
+          paths,
+          previewId,
+          pinnedId,
+          onPreview: setPreviewId,
+          onPin: setPinnedId,
+          onActivate: (nodeId: string) => onSelect(nodeId),
+        };
+
+  const panel =
+    listProps !== null && pathsOpen && !compact ? (
+      <AutomationPathsPanel
+        id={panelId}
+        onClose={() => {
+          setPathsOpen(false);
+          setPreviewId(null);
+        }}
+        {...listProps}
+      />
+    ) : null;
+  const pill =
+    compact && pinnedInfo !== undefined ? (
+      <AutomationPathsPill
+        info={pinnedInfo}
+        onShowAll={() => {
+          setPinnedId(null);
+          setPreviewId(null);
+        }}
+      />
+    ) : null;
+  const corner =
+    panel !== null || pill !== null ? (
+      <div className="flex flex-col items-start gap-2">
+        {topStart}
+        {pill}
+        {panel}
+      </div>
+    ) : (
+      topStart
+    );
+
+  const canvasProps: WorkflowCanvasProps = {
+    graph,
+    'aria-label': t('canvas.ariaLabel'),
+    layoutKey,
+    selectedId,
+    onSelect,
+    ...(inspectorId !== undefined && { controlsId: inspectorId }),
+    ...(revealId !== undefined && { revealId }),
+    ...(issueCounts !== undefined && { issues: issueCounts }),
+    ...(overlay !== undefined && { overlay }),
+    ...(compared !== undefined && { compare: compared }),
+    ...(paths !== null && { paths: paths.flowPaths }),
+    highlight,
+    ...(changed !== undefined && { changed }),
+    ...(view !== undefined && { view }),
+    ...(onViewChange !== undefined && { onViewChange }),
+    framed,
+    topStart: corner,
+    topEnd: (
+      <>
+        {paths !== null && (
+          <AutomationPathsButton
+            count={paths.count}
+            open={pathsOpen}
+            controls={pathsOpen && !compact ? panelId : undefined}
+            onToggle={() => {
+              setPathsOpen((open) => !open);
+              setPreviewId(null);
+            }}
+          />
+        )}
+        {topEnd}
+      </>
+    ),
+    toolbar,
+    legend,
+    ...(onLayout !== undefined && { onLayout }),
+    notice: hasCycle ? (
+      <Alert
+        variant="warning"
+        icon={AlertTriangle}
+        title={t('canvas.cycle.title')}
+        description={t('canvas.cycle.description')}
+        // Unframed, the canvas has no inset of its own: the warning
+        // keeps the page's instead of running into the edges.
+        className={framed ? 'mb-3' : 'm-4 mb-0'}
+      />
+    ) : undefined,
+  };
+  // A run recorded step by step plays back; one recorded before records
+  // were kept shows where each step ended.
+  const record = run?.record?.source === 'record' ? run.record : undefined;
+
   return (
-    <CanvasNodeProvider value={canvasContext}>
-      {graph.hasCycle && (
-        <Alert
-          variant="warning"
-          icon={AlertTriangle}
-          title={t('canvas.cycle.title')}
-          description={t('canvas.cycle.description')}
-          // Unframed, the canvas has no inset of its own: the warning keeps
-          // the page's instead of running into the edges.
-          className={framed ? 'mb-3' : 'm-4 mb-0'}
+    <>
+      <RunCanvas
+        record={compare === undefined ? record : undefined}
+        words={run?.words ?? NO_WORDS}
+        live={run?.live === true}
+        canvasProps={canvasProps}
+        selectedId={selectedId}
+        selectedUnit={selectedUnit}
+        onSelect={onSelect}
+        {...(compare === undefined &&
+          run?.items !== undefined && { items: run.items })}
+        {...(runView !== undefined && { view: runView })}
+        {...(onRunViewChange !== undefined && {
+          onViewChange: onRunViewChange,
+        })}
+        {...(runMoment !== undefined && { moment: runMoment })}
+        {...(onRunMomentChange !== undefined && {
+          onMomentChange: onRunMomentChange,
+        })}
+      />
+      {listProps !== null && compact && (
+        <AutomationPathsSheet
+          open={pathsOpen}
+          onOpenChange={(open) => {
+            setPathsOpen(open);
+            if (!open) setPreviewId(null);
+          }}
+          {...listProps}
         />
       )}
-      <div
-        ref={frameRef}
-        // A definite height at mount matters: React Flow measures its frame
-        // once, and a `flex-1` box inside a scrolling column can start at
-        // zero — which paints an empty canvas that never re-fits.
-        className={cn(
-          'relative h-full min-h-[24rem] flex-1 overflow-hidden',
-          framed && 'border-border rounded-lg border',
-        )}
-        role="group"
-        aria-label={t('canvas.ariaLabel')}
-        aria-busy={isLayouting}
-      >
-        <FlowCanvas
-          centerActions={centerActions}
-          nodes={nodes}
-          edges={flowEdges}
-          nodeTypes={NODE_TYPES}
-          // Every node box owns a real button, so React Flow must not add a
-          // second tab stop around it or bind arrow keys that would fight the
-          // page's own scrolling.
-          nodesFocusable={false}
-          edgesFocusable={false}
-          disableKeyboardA11y
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          onPaneClick={() => {
-            onSelectNode(null);
-          }}
-          fitView
-          backgroundProps={{ gap: 16 }}
-        />
-      </div>
-    </CanvasNodeProvider>
+    </>
   );
 }
 
+const NO_WORDS: TimelineWords = {};
+
+/** The timeline of no run, for a chart whose record has not arrived. */
+const NO_TIMELINE = buildPlaybackTimeline({
+  startedAt: 0,
+  spans: [],
+  travels: [],
+});
+
+/** No step's items read yet. */
+const NO_UNITS: ReadonlyMap<string, readonly RecordedUnit[]> = new Map();
+
+type RecordedUnit = NodeRunPage['units'][number];
+
 /**
- * The automation canvas: the document, drawn.
+ * The chart, and once a run's record is there, the run playing on it: the
+ * record as moments on this chart (`realRunOf`), compressed into a timeline
+ * a reader can follow, and the playback bar in the toolbar — opening on the
+ * whole story, the run's end, with the clock on the run's real elapsed
+ * time. The same chart stays mounted while the record arrives, so it never
+ * lays itself out twice.
  *
- * Nodes come from the document in execution order and edges are DERIVED from
- * the `{{ nodes.<id>.output }}` references between them — the canvas keeps no
- * graph of its own, so what it draws is exactly what the engine will run.
- * Positions come from the document's canvas metadata when an author placed
- * them, and from the shared layout engine when they did not.
+ * The Steps view lists a step's items or passes once the reader opens it
+ * (or picks one of them): they are read from the record then, a page at a
+ * time, and join the timeline where they ran — on the same clock, so
+ * nothing else moves.
  */
-export function AutomationCanvas(props: AutomationCanvasProps) {
+function RunCanvas({
+  record,
+  words,
+  live,
+  canvasProps,
+  selectedId,
+  selectedUnit,
+  onSelect,
+  items,
+  view: viewProp,
+  onViewChange,
+  moment,
+  onMomentChange,
+}: {
+  record: RunRecordView | undefined;
+  words: TimelineWords;
+  live: boolean;
+  canvasProps: WorkflowCanvasProps;
+  selectedId: string | null;
+  selectedUnit: RunUnitRef | null;
+  onSelect: (id: string | null, unit?: RunUnitRef) => void;
+  items?: { organizationId: string; runId: string };
+  /** The view the page holds; the canvas holds its own when left out. */
+  view?: RunCanvasView;
+  onViewChange?: (view: RunCanvasView) => void;
+  /** The moment to open on, in real milliseconds since the run started. */
+  moment?: number;
+  onMomentChange?: (moment: number | null) => void;
+}) {
+  const { t } = useT('automationRuns');
+  const { locale } = useLocale();
+  const { graph } = canvasProps;
+  const [ownView, setOwnView] = useState<RunCanvasView>('chart');
+  const view = viewProp ?? ownView;
+  const setView = (next: RunCanvasView) => {
+    setOwnView(next);
+    onViewChange?.(next);
+  };
+  const timeline = useMemo(
+    () =>
+      record === undefined
+        ? NO_TIMELINE
+        : buildPlaybackTimeline(realRunOf(record, graph, words)),
+    [record, graph, words],
+  );
+  const clock = usePlaybackClock({ timeline, live });
+  const { setT } = clock;
+  // The chart opens on the moment a link names, or on the run's end — once
+  // the record is there, whether it was from the start or landed later; a
+  // live run follows its end by itself.
+  const positioned = useRef(false);
+  useEffect(() => {
+    if (record === undefined || positioned.current) return;
+    positioned.current = true;
+    if (moment !== undefined)
+      setT(timeline.fromReal(record.startedAt + moment));
+    else if (!live) setT(timeline.duration);
+  }, [record, live, moment, timeline, setT]);
+  // Where the playback rests follows into the page's link once it has
+  // rested 300 ms; the run's end, where it opens, needs no moment.
+  const { playing, following } = clock;
+  const restsAt = clock.t;
+  useEffect(() => {
+    if (record === undefined || onMomentChange === undefined) return undefined;
+    if (playing || (live && following)) return undefined;
+    const at =
+      restsAt >= timeline.duration
+        ? null
+        : Math.max(0, Math.round(timeline.toReal(restsAt) - record.startedAt));
+    const timer = window.setTimeout(() => onMomentChange(at), 300);
+    return () => window.clearTimeout(timer);
+  }, [record, onMomentChange, playing, following, live, restsAt, timeline]);
+
+  // The steps whose items are read: those the reader opened, and the step
+  // of an item picked elsewhere (a link, the inspector). A step once read
+  // stays read — the Steps view may still show it open after the
+  // selection moved on.
+  const [reading, setReading] = useState<readonly string[]>(() =>
+    selectedUnit !== null && selectedId !== null ? [selectedId] : [],
+  );
+  if (
+    selectedUnit !== null &&
+    selectedId !== null &&
+    !reading.includes(selectedId)
+  )
+    setReading([...reading, selectedId]);
+  // Each step's pages by where they start, in the order they were read.
+  const [pages, setPages] = useState<
+    ReadonlyMap<string, ReadonlyMap<string, readonly RecordedUnit[]>>
+  >(() => new Map());
+  const onPage = useCallback(
+    (
+      node: string,
+      cursor: string | undefined,
+      units: readonly RecordedUnit[],
+    ) =>
+      setPages((current) => {
+        // A page read again with nothing new changes nothing.
+        if (current.get(node)?.get(cursor ?? '') === units) return current;
+        const forNode = new Map(current.get(node));
+        forNode.set(cursor ?? '', units);
+        return new Map(current).set(node, forNode);
+      }),
+    [],
+  );
+  const unitsByNode = useMemo(() => {
+    if (pages.size === 0) return NO_UNITS;
+    const byNode = new Map<string, readonly RecordedUnit[]>();
+    for (const node of reading) {
+      const forNode = pages.get(node);
+      if (forNode !== undefined) byNode.set(node, [...forNode.values()].flat());
+    }
+    return byNode;
+  }, [pages, reading]);
+  const stepsTimeline = useMemo(
+    () => withUnitSpans(timeline, unitsByNode),
+    [timeline, unitsByNode],
+  );
+  // A step whose items were read holds what was read — none at all, too —
+  // so it no longer says they load.
+  const rows = useMemo(() => {
+    const listed = flowTimelineRows(graph, stepsTimeline);
+    for (const row of listed)
+      if (
+        row.kind === 'node' &&
+        row.children === undefined &&
+        unitsByNode.has(row.nodeId)
+      )
+        row.children = [];
+    return listed;
+  }, [graph, stepsTimeline, unitsByNode]);
+
+  if (record === undefined) return <WorkflowCanvas {...canvasProps} />;
+  // A run of under a minute reads in seconds ("0.4s"), a longer one on a
+  // clock face ("03:12").
+  const short = (record.finishedAt ?? Date.now()) - record.startedAt < 60_000;
+  const formatTime = (at: number) => {
+    const elapsed = Math.max(0, timeline.toReal(at) - record.startedAt);
+    return short
+      ? formatDuration(elapsed, locale, { style: 'narrow', maxUnits: 1 })
+      : formatFlowClock(elapsed);
+  };
+  // How long each step, item and pass worked; one that never ran has no
+  // duration.
+  const activeOf = new Map(
+    record.nodes
+      .filter((step) => step.status !== 'skipped')
+      .map((step) => [step.path, step.activeMs]),
+  );
+  // A pass of one item belongs to that item, and has no row of its own.
+  for (const [node, units] of unitsByNode)
+    for (const unit of units)
+      if (unit.status !== 'skipped' && !(unit.item >= 0 && unit.pass >= 0))
+        activeOf.set(unitRowId(node, unitRefOf(unit)), unit.activeMs);
+  const rowDuration = (row: FlowTimelineRow): string | undefined => {
+    if (row.kind !== 'node' && row.kind !== 'item') return undefined;
+    const active = activeOf.get(row.kind === 'node' ? row.nodeId : row.id);
+    return active === undefined
+      ? undefined
+      : formatDuration(active, locale, { style: 'narrow', maxUnits: 1 });
+  };
+  const bar = (
+    <FlowPlaybackBar
+      timeline={timeline}
+      t={clock.t}
+      onTChange={setT}
+      playing={clock.playing}
+      onPlayingChange={clock.setPlaying}
+      speed={clock.speed}
+      onSpeedChange={clock.setSpeed}
+      formatTime={formatTime}
+      {...(live && !clock.following && { onFollowLive: clock.follow })}
+    />
+  );
+  // The run as a chart or as its steps in time order: one clock, so both
+  // show the same moment, and switching keeps where the reader was.
+  const switcher = (
+    <SegmentedControl
+      aria-label={t('view.label')}
+      value={view}
+      onValueChange={(next) => {
+        if (next === 'chart' || next === 'steps') setView(next);
+      }}
+      options={[
+        { value: 'chart', label: t('view.chart') },
+        { value: 'steps', label: t('view.steps') },
+      ]}
+    />
+  );
   return (
-    <ReactFlowProvider>
-      <CanvasInner {...props} />
-    </ReactFlowProvider>
+    <>
+      {items !== undefined &&
+        reading.map((node) => (
+          <RunUnitsReader
+            key={node}
+            organizationId={items.organizationId}
+            runId={items.runId}
+            node={node}
+            onPage={onPage}
+          />
+        ))}
+      {view === 'steps' ? (
+        <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {switcher}
+            <div className="min-w-0 flex-1">{bar}</div>
+          </div>
+          <FlowRunTimeline
+            graph={graph}
+            timeline={stepsTimeline}
+            rows={rows}
+            t={clock.t}
+            onSeek={setT}
+            selectedId={
+              selectedId !== null && selectedUnit !== null
+                ? unitRowId(selectedId, selectedUnit)
+                : selectedId
+            }
+            onSelect={(row) => {
+              if (row.kind === 'item') onSelect(row.nodeId, unitRefOfRow(row));
+              else onSelect(row.nodeId ?? null);
+            }}
+            {...(items !== undefined && {
+              onExpand: (row) =>
+                setReading((current) =>
+                  current.includes(row.nodeId)
+                    ? current
+                    : [...current, row.nodeId],
+                ),
+            })}
+            formatTime={formatTime}
+            formatDuration={rowDuration}
+            live={live}
+            className="min-h-0 flex-1"
+          />
+        </div>
+      ) : (
+        <WorkflowCanvas
+          {...canvasProps}
+          playback={{ timeline, t: clock.t }}
+          toolbar={
+            <div className="flex flex-wrap items-center gap-2">
+              {switcher}
+              {bar}
+            </div>
+          }
+        />
+      )}
+    </>
   );
 }

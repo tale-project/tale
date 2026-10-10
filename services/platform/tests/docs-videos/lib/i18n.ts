@@ -16,9 +16,7 @@ const resolvers = new Map<Locale, (key: string) => string>();
 export function localeT(locale: Locale): (key: string) => string {
   let t = resolvers.get(locale);
   if (!t) {
-    t = createI18n(
-      new URL(`../../../messages/${locale}.json`, import.meta.url),
-    ).t;
+    t = createI18n(new URL(`../../../messages/${locale}/`, import.meta.url)).t;
     resolvers.set(locale, t);
   }
   return t;

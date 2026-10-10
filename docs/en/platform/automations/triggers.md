@@ -1,13 +1,13 @@
 ---
 title: Start automations automatically
-description: Configure schedules, webhooks and platform events, match their input shape and diagnose missed starts.
+description: Run an automation on a schedule, from a webhook or on a platform event, check what each run receives, and find out why a start was skipped.
 ---
 
-Use the **Trigger** section on the automation’s **General** tab when work should start on a schedule or in response to an event. Every trigger starts the deployed version in live mode. Before enabling one, test the workflow with the input shape it will receive and check that its external actions are ready.
+Use the **Trigger** section on the automation’s **General** tab when work should start on a schedule, when another system sends a request, or when something happens in Tale. Every trigger starts the deployed version in live mode. Before you turn one on, check what its runs will receive and that the workflow’s external actions are ready.
 
-<Frame caption="The General tab of a shipped package: its schedule trigger is enabled, but it starts nothing until a version is deployed.">
+<Frame caption="A shipped package’s trigger arrives switched off: its schedule is set and its next runs are listed, but nothing starts until you turn it on.">
 
-![The General tab of Triage the Gmail inbox with a Schedule trigger switched on, the cron expression 0 */6 * * * described as every six hours and not starting until a version is deployed, the UTC timezone, and an empty Projects selector below.](/images/platform/automation-general-trigger.webp)
+![The General tab of Triage the Gmail inbox with Enabled switched off, Schedule as the trigger type, the Repeat format with a schedule of every 6 hours, the UTC timezone, Start the latest one when Tale is back under Missed runs, and the next runs listed under Would run at.](/images/platform/automation-general-trigger.webp)
 
 </Frame>
 
@@ -15,9 +15,11 @@ Use the **Trigger** section on the automation’s **General** tab when work shou
 
 | Trigger type | Use it for | Input passed to the run |
 | --- | --- | --- |
-| **Schedule** | Periodic work at a local time or regular interval. | `{ trigger: "schedule", firedAt: <epoch ms> }` |
+| **Schedule** | Periodic work at local times of day or at a regular interval. | `{ trigger: "schedule", firedAt: <epoch ms> }` |
 | **Webhook** | A delivery from another system. | `{ trigger: "webhook", payload: … }` |
-| **Platform event** | A named event inside the organization. | `{ trigger: "event", event: "…", payload: … }` |
+| **Platform event** | Something that happens in the organization, such as a new task. | `{ trigger: "event", event: "…", payload: … }` |
+
+Every type can also add a [fixed input](#fixed-input): values each run receives beside these fields, such as the repository a scheduled triage reads.
 
 An automation has one configured trigger at a time. Changing its type replaces the previous binding. Replacing a webhook revokes its URL immediately; configuring another webhook later does not recover that credential.
 
@@ -29,23 +31,90 @@ An API or MCP client can also start work without a configured trigger. Its API k
 
 <Step title="Open the trigger settings">
 
-Open the automation, then its **General** tab. Without a binding, the **Trigger** section says that the automation runs only when started by hand or through the API; choose **Add trigger**, then **Schedule** under **Trigger type**. A new trigger starts with **Enabled** off — keep it off while preparing a workflow that should not start yet.
+Open the automation, then its **General** tab. Without a binding, the **Trigger** section says that the automation runs only when started by hand or through the API. Choose **Add trigger**. A new trigger is a **Schedule** that runs daily at 9:00 in your time zone, with **Enabled** switched off. Keep it off while you prepare a workflow that should not start yet.
 
 </Step>
 
-<Step title="Enter the timing">
+<Step title="Pick a repeat">
 
-Fill **Cron** and choose **Timezone**. A cron expression has five fields: minute, hour, day of month, month and day of week. Use an IANA timezone such as `Europe/Zurich` when local business hours matter; an unspecified timezone means UTC.
+Leave **Schedule format** on **Repeat** and open **Schedule**. The presets are **Every 15 minutes**, **Every hour**, and daily, weekday, weekly and monthly runs at a time of day. The weekly and monthly presets use today’s weekday and day of the month, and every preset with a time keeps the schedule’s earliest time. Choosing a preset closes the popover and puts it in the form. Under the presets and the custom views, the popover lists the next three runs of the schedule you are building.
+
+<Frame caption="The presets, the stored schedule’s own row with its sentence, and the next three runs.">
+
+![The Schedule popover on the General tab of Triage the Gmail inbox: the presets Every 15 minutes, Every hour, Daily at 9:00 AM, Every weekday at 9:00 AM, Weekly on Saturday at 9:00 AM and Monthly on day 10 at 9:00 AM; Custom interval, checked, reading Every 6 hours; Custom times; and the next three runs in UTC.](/images/platform/automation-trigger-schedule-presets.webp)
+
+</Frame>
 
 </Step>
 
-<Step title="Check and save">
+<Step title="Or build your own">
 
-Review the next occurrence shown for a valid expression: it is the minute the schedule will actually start, daylight-saving changes included. Then click **Save** beside the tabs. Confirm that the workflow’s deployed version accepts the schedule input above. When ready, turn on **Enabled** and save again. Check the next started run under **Runs**.
+Choose **Custom times** to run at times of day: pick **Day**, **Week**, **Month** or **Year**, the interval (for example every 2 weeks), the weekdays or the day, and up to 12 times under **At**. **Add time** adds a time one hour after the last one. A time that is already in the list runs once, and saving sorts the times.
+
+<Frame caption="Custom times: weekdays at 9:00 AM and 5:30 PM, with the runs they give.">
+
+![The Custom times view of the schedule picker: Week selected, every 1 week, Monday to Friday chosen, the times 9:00 AM and 5:30 PM with Add time below them, the next three runs in UTC, and Cancel and Save.](/images/platform/automation-trigger-schedule-custom-times.webp)
+
+</Frame>
+
+Choose **Custom interval** to start every few minutes or hours: up to every 30 minutes in steps that divide an hour, or up to every 12 hours in steps that divide a day, at a number of minutes past the hour. Keep the weekdays it should run on and, with **Only between**, limit it to the hours between two times. Under the hours, the picker names the day’s first and last run.
+
+<Frame caption="Custom interval: every 15 minutes on weekdays, only between 8:00 AM and 6:00 PM.">
+
+![The Custom interval view of the schedule picker: every 15 minutes, Monday to Friday chosen, Only between checked from 8:00 AM to 6:00 PM, the line Each day, the first run starts at 8:00 AM and the last at 5:45 PM, the next three runs in UTC, and Cancel and Save.](/images/platform/automation-trigger-schedule-interval.webp)
+
+</Frame>
+
+**Save**, Enter or Ctrl+Enter (Cmd+Enter on a Mac) applies the custom schedule; **Cancel** or Escape discards it.
+
+</Step>
+
+<Step title="Choose the timezone">
+
+**Timezone** is the zone the schedule’s times are read in. It starts as your own; search for another IANA zone such as `Europe/Zurich` when the work follows another office’s hours.
+
+</Step>
+
+<Step title="Read the next runs">
+
+**Next runs** lists the next five starts in the schedule’s zone and, when your own zone is different, the same moment in your time zone. While you have unsaved changes the heading reads **Next runs (unsaved)**. While the trigger is off or no version is deployed, it reads **Would run at**, and the line below says what is missing.
+
+</Step>
+
+<Step title="Save and turn it on">
+
+Click **Save** beside the tabs. Under [This run receives](#check-what-a-run-receives), check that the deployed version accepts the input. When you are ready, turn on **Enabled** and save again. The next started run appears under **Runs**, and the **Trigger** section shows it as the last run.
 
 </Step>
 
 </Steps>
+
+**Custom interval** counts from local midnight, so every 2 hours at 15 minutes past the hour starts at 00:15, 02:15 and so on. **Only between** includes the start and stops before the end: from 8:00 until 18:00, every 15 minutes runs last at 17:45. An end earlier than the start runs overnight, and the hours after midnight belong to the day the window started, so Friday from 22:00 until 06:00 runs into Saturday morning but not on Saturday evening. An end of 00:00 runs until midnight, and the same start and end means all day. When no run would fall between the two times, for example every 6 hours from 8:00 until 11:00, the picker says so and **Save** waits until you widen the hours or shorten the interval.
+
+### When the clocks change
+
+A schedule keeps its local times through daylight-saving changes:
+
+- A time the clock skips that day starts once, moved forward by the gap. In `Europe/Zurich`, a 02:30 run starts at 03:30 on 29 March 2026.
+- A time the clock repeats starts once, the first time it occurs.
+- **Every N minutes** and **Every N hours** keep their real-time spacing instead: they run twice in the hour the clock repeats, and not at all in the hour it skips.
+
+**Next runs** marks a start that meets a change with **Clock change** and explains what happens.
+
+### When runs are missed
+
+**Missed runs** decides what a schedule does with the times it was due while Tale was unavailable, for example during an update:
+
+| Choice | What happens when Tale is back |
+| --- | --- |
+| **Start the latest one when Tale is back** (default) | The most recent missed time runs once, however late. Earlier missed times are counted, not run. |
+| **Skip them** | A run more than 10 minutes late does not start; it is counted as missed. |
+
+For example, a schedule that runs daily at 09:00 misses its start while Tale is down from 08:30 to 10:15. With the default, a run starts at 10:15 for 09:00; with **Skip them**, nothing starts, and the **Trigger** section says that 1 run was missed. Whenever runs are counted as missed, the section says how many and between which times, counting up to 1,000. With the default, those are the times before the one that started, such as the earlier starts of an every-15-minutes schedule during the same outage. Time the schedule spent switched off or paused, and time before it was saved, is never counted as missed.
+
+## Use a cron expression
+
+Switch **Schedule format** to **Cron (advanced)** when you already have a cron expression or need a pattern that **Repeat** does not offer. A cron expression has five fields: minute, hour, day of month, month and day of week.
 
 ```text
 */15 * * * *     every fifteen minutes
@@ -54,15 +123,17 @@ Review the next occurrence shown for a valid expression: it is the minute the sc
 30 8 1 * 1       08:30 on the 1st and on every Monday
 ```
 
-Fields support `*`, numbers, ranges, steps and comma-separated lists. Both 0 and 7 mean Sunday. If both day-of-month and weekday are restricted, either match is enough; the last example runs on Mondays as well as the first day of each month.
+Fields support `*`, numbers, ranges, steps and comma-separated lists. Both 0 and 7 mean Sunday. If both day-of-month and weekday are restricted, either match is enough; the last example runs on Mondays as well as the first day of each month. When **Repeat** can say the same thing, the line under the field reads it back, such as “Reads as: Every weekday at 9:00 AM”. An expression that cannot be read, or one that names a date that never comes, such as `0 0 30 2 *`, shows why under the field; **Next runs** stays empty and **Save** waits until you correct it.
 
-Local time follows the timezone’s daylight-saving rules. A 09:00 Zurich schedule stays at 09:00 locally. Timing has one-minute resolution. Missed occurrences during an outage are not replayed; work resumes at the next occurrence. Impossible calendar dates are rejected when saving.
+A cron expression follows the same daylight-saving rules: one whose minute and hour are numbers names times of day, and one whose minute or hour starts with `*` keeps its real-time spacing.
+
+Switching between **Repeat** and **Cron (advanced)** converts the schedule when one says exactly what the other does. When it can’t, for example for a schedule at 9:00 and 17:30, the field says so, and both entries stay in the form until you save. A schedule saved earlier as a cron expression opens in **Repeat** when a repeat says exactly the same, with a note naming the stored expression. Saving it unchanged keeps the cron expression; saving a changed schedule stores it as a repeat. A cron expression that **Repeat** cannot express opens in **Cron (advanced)**.
 
 ## Receive a webhook
 
-Choose **Webhook**, then save to generate the credential. Copy the full URL when it appears: the token is shown once and only its hash is stored. The section supplies an organization URL and a project URL pattern. Use the project URL for an active project in which the automation is installed; an automation with project bindings cannot run through the organization-only URL.
+Choose **Webhook**, then save to create the URL. **Webhook URL — copy it now** shows it once: one URL for each project the automation is installed in, or one for the organization when it is installed in none. Copy each URL you need; the token at its end is stored only as a hash. After that, the section lists the addresses with the token hidden, under **Project URLs** or, for the organization, **Webhook endpoint**. **Rotate token** creates a new URL. An automation installed in projects runs only through a project URL.
 
-Post a small payload to the URL. JSON becomes `payload` inside the input wrapper, not the workflow’s top-level input. Other request bodies pass through as text. The limit is 256 KiB; upload large documents separately. An accepted request returns a run ID without waiting for completion.
+**Send a test request** holds a ready `curl` command. Right after the URL is created, the command contains it; later, it reads the URL from `TALE_WEBHOOK_URL`, the variable to keep it in on the sending system. It sends a small JSON body with an `Idempotency-Key`. JSON arrives as `payload` inside the input wrapper, not as the workflow’s top-level input; other request bodies arrive as text. The limit is 256 KiB; upload large documents separately. An accepted request returns a run ID without waiting for the run to finish.
 
 For example, a posted `{ "invoiceId": "inv-1" }` reaches the workflow as:
 
@@ -73,19 +144,94 @@ For example, a posted `{ "invoiceId": "inv-1" }` reaches the workflow as:
 }
 ```
 
-Use a delivery ID, such as `Idempotency-Key` or the sender’s supported delivery header. Repeating that ID within 24 hours returns the original run. Without an ID, an identical body on the same URL within two minutes is treated as a duplicate. Send distinct IDs if identical payloads represent separate work. [Webhooks](/develop/webhooks) lists supported headers, project routes, errors and response formats.
+Send a delivery ID, such as `Idempotency-Key` or the sender’s supported delivery header. Repeating that ID within 24 hours returns the original run. Without an ID, an identical body on the same URL within two minutes is treated as a duplicate. Send distinct IDs if identical payloads represent separate work. [Webhooks](/develop/webhooks) lists supported headers, project routes, errors and response formats.
+
+**Recent deliveries** lists the last ten runs the webhook started, newest first, with each run’s status and **View run**. While Tale still remembers a delivery, the row also says how it recognizes a repeat: **ID from** the header it read, or **No delivery ID**. A request Tale refused started no run and is not listed; the sender’s response says why.
+
+<Frame caption="A webhook installed in two projects: one URL per project, a test request, and the deliveries that started runs.">
+
+![The Trigger section of a webhook: the last run succeeded, Enabled is on, Project URLs lists Website relaunch and Customer onboarding portal with the token hidden, then Rotate token, a curl test request that reads the URL from TALE_WEBHOOK_URL, Recent deliveries with two succeeded runs, each ID from idempotency-key, and This run receives with the payload.](/images/platform/automation-trigger-webhook.webp)
+
+</Frame>
 
 <Warning>
 
-The URL authorizes a run. Store it as a credential and share it only with the sending system. **Rotate token** generates a replacement and invalidates the old URL; removing or replacing the trigger also revokes it. Update the sender after a rotation.
+The URL authorizes a run. Store it as a credential and share it only with the sending system. **Rotate token** asks for confirmation, then creates a replacement and invalidates the old URL; removing or replacing the trigger also revokes it. Update the sender after a rotation.
 
 </Warning>
 
 ## React to a platform event
 
-Choose **Platform event**, select **Event name**, then save and enable when ready. Match the workflow’s schema to the `trigger`, `event` and `payload` wrapper in the table. Events raised by automation runs do not fire triggers, preventing a workflow from repeatedly starting itself through its own changes.
+Choose **Platform event**, then pick the event under **Event name**. The list groups the events by what they concern and shows each one’s name, ID and when it is raised; type part of any of them to search. Save, and turn on **Enabled** when ready.
 
-A workflow expecting required top-level fields such as `owner` and `repo` cannot accept schedule metadata or a wrapped webhook unchanged. Adapt its input schema and references, or use an API-started run that supplies those fields. The trigger settings do not provide arbitrary saved input fields.
+<Frame caption="The events, grouped by what they concern, each with its name, ID and when it’s raised.">
+
+![The Event name list open for a Platform event trigger: a search field above the groups Tasks, with Task created and Task status changed, Comments, with Comment added and Mentioned in a comment, and Conversations, each event with its ID and a sentence saying when it is raised.](/images/platform/automation-trigger-event.webp)
+
+</Frame>
+
+| Event | ID | Raised when | `payload` holds |
+| --- | --- | --- | --- |
+| **Task created** | `task.created` | A task is created on a board, through the API or by an import. | `taskId`, `projectId`, `actorType`, `actorId` |
+| **Task status changed** | `task.status_changed` | A person moves a task to another status. An agent’s own moves don’t count. | `taskId`, `projectId`, `fromStatus`, `toStatus`, `actorType`, `actorId` |
+| **Comment added** | `comment.created` | A comment is posted on a task. | `comment` with its `body`, `taskId`, `projectId` and `mentions` |
+| **Mentioned in a comment** | `comment.mentioned` | A task comment mentions someone with @. | `comment`, `taskId`, `mentions`, `actorType`, `actorId` |
+| **Conversation started** | `conversation.created` | A conversation opens in Inbox: an email arrives, or an external conversation is mirrored in. | `conversationId`, `channel` |
+| **Message received** | `conversation.message_received` | A message lands on an existing conversation. | `conversationId`, `messageId`, `direction` |
+| **Contact created** | `contact.created` | A contact is added through the API, the app or an import. | `contactId` |
+| **Contact updated** | `contact.updated` | A contact’s details change. | `contactId` |
+| **Contact deleted** | `contact.deleted` | A contact is deleted. | `contactId` |
+| **Project created** | `project.created` | A project is created. | `projectId`, `name`, `actorId` |
+
+The payload carries IDs, not whole records: read the task, comment or contact with a step when the workflow needs more. A new task, for example, reaches the workflow as:
+
+```json
+{
+  "trigger": "event",
+  "event": "task.created",
+  "payload": {
+    "taskId": "5e2f9d34-8a71-4c6b-b0d2-91a7e3c4f815",
+    "projectId": "0b9c6a52-5d1e-4f0a-9c3e-2f6d8a1b7e40",
+    "actorType": "user",
+    "actorId": "c41d7e88-2b3a-4f95-8e60-7d5a9b1c0f23"
+  }
+}
+```
+
+Task, comment and project events belong to a project; contact and conversation events don’t. An event of a project starts the automations installed in that project and those installed in none, and their runs belong to that project. An automation installed only in other projects doesn’t react to it. An event without a project starts an automation installed in exactly one project in that project. When that project is archived, or the automation’s inputs refuse the event, no run starts and the trigger shows why. The other automations listening for the event still start. Under **Event name**, the field says which events start this automation.
+
+An event that an automation’s run raises never starts that same automation, and a run that an event started doesn’t start other automations, so a workflow cannot keep starting itself, or another one, through its own changes. This covers what the run itself does: its steps, its connector calls and its own agent’s tools. Work a step hands to a project agent belongs to that agent, so an event the agent raises can start the automation again: make sure such work doesn’t raise the event the automation listens for.
+
+## Check what a run receives
+
+**This run receives** shows the input the next run gets, exactly as the trigger builds it: the trigger’s own fields, its fixed input and, for a webhook or an event, a sample `payload`. For a schedule, `firedAt` is the due time in milliseconds since 1970 (UTC). Use **Copy the input** to paste it into a test run.
+
+Below it, the section compares the input with the deployed version’s inputs. It says **Version 3 accepts this input**, for example, or warns **Version 3 doesn’t accept this input** with a way to fix it: add the missing fields to the fixed input, or change the inputs in the editor. A webhook’s body is unknown until a request arrives, so it never counts against the version. Saving a trigger, and deploying a version, run the same check; the save goes through and names the problem.
+
+### Fixed input
+
+A fixed input adds the same values to every run the trigger starts, such as the `owner` and `repo` a scheduled GitHub triage needs. Open **Add fixed input** and enter a JSON object of up to 16 KiB. The trigger’s own fields (`trigger`, `firedAt`, `event` and `payload`) are set over it, so it cannot contain them. It is plain data: a template such as `{{ input.owner }}` arrives as text, and the save warns about it.
+
+When the deployed version requires fields the trigger doesn’t send, the section is already open, and **Add the 2 missing fields** (or as many as are missing) writes a placeholder of the right type for each one and puts the cursor in the first. Replace the placeholders and save. A scheduled run then receives:
+
+```json
+{
+  "owner": "acme",
+  "repo": "website",
+  "trigger": "schedule",
+  "firedAt": 1791529200000
+}
+```
+
+### Run now
+
+**Run now** starts the deployed version once, for real, with the input the saved trigger sends, as the trigger would. For a schedule, it shows that input and asks you to confirm with **Start run**. For a webhook or an event, it opens the run dialog with the sample to edit. It waits for a deployed version and for your trigger changes to be saved. The result appears under the button: **Run started.** with **View run**, or the reason no run started. The schedule, and the trigger’s own last run, don’t change.
+
+## Turn on the trigger after deploy
+
+A new trigger starts switched off, and so does the trigger of a shipped package. When you deploy a version, in the editor or by uploading a package, and its trigger is off, a notice says **Its trigger is off**. **Turn on the trigger** switches on the saved trigger exactly as it is, and the notice then reads **The trigger is on.**
+
+When the deployed version would refuse what the trigger sends, or a webhook has no URL yet, the notice offers **Review the trigger** instead. It opens the **Trigger** section on the **General** tab, where you can add the fixed input or create the URL first. The shipped GitHub packages are an example: their schedules need a repository, as [Built-in automations](/platform/automations/builtin) explains.
 
 ## Start a project agent on a schedule
 
@@ -101,15 +247,15 @@ nodes:
       feedback: 'Scheduled occurrence {{ input.firedAt }}.'
 ```
 
-The step answers the run it started, and the task's timeline lists that run as **automation** with a link to the automation run. When it starts nothing, the step still succeeds and says why, so the occurrence is recorded rather than queued:
+The step answers the run it started, and the task's timeline lists that run as **automation** with a link to the automation run. An agent that is working other tasks is started all the same: its run works in a [worker](/platform/projects/project-agents#run-one-agent-on-several-tasks) of its own, and when every agent worker of your organization is busy it waits for one and starts on its own. When the step starts nothing, it still succeeds and says why, so the occurrence is recorded rather than queued:
 
 | Answer | Meaning |
 | --- | --- |
-| `started: true` | The agent's run started; `runId` names it. |
+| `started: true` | The agent's run started; `runId` names it. With `waitingReason`, the run waits for room before it works: `org_limit` when every agent worker of your organization is busy, `host` when the sandbox host is full, `destroy_pending` when the workspace it would use is being deleted, `exec_limit` when its sandbox is still ending an earlier process. It starts on its own once room frees. |
 | `already_running` | The task's previous run is still working and carries the work. Nothing new starts, and the occurrence does not wait behind it. |
 | `in_review` | With `moveToInProgress: false`, the card waits for its captured reviewer, a person or an agent. Nothing is assigned or started, and the review keeps that recipient. |
 | `closed` | With `moveToInProgress: false`, the card is **Done** or **Cancelled** (`taskStatus`). Nothing is assigned or started. |
-| `agent_busy` | The agent is working another task (`busyTaskId`). An agent works one task at a time in its workspace. |
+| `agent_busy` | No longer answered: an agent working another task is started in a worker of its own, or waits for one. Older runs of an automation may still show it. |
 | `blocked` | A task this one depends on is still open (`blockedBy`). |
 | `paused` | The task took three starts by automations and agents within the last hour, ordinary automatic retries included. One broker cooldown immediately after the same agent’s HTTP 429 adds no start; consecutive cooldowns still count. `retryAfter` says when the hourly count permits another start; other admission checks still apply. |
 
@@ -118,6 +264,10 @@ A run a schedule starts answers to no person. It works with the agent's configur
 `moveToInProgress` decides what happens to the card. By default the card moves to **In progress** and the result waits at **In review** for its [configured reviewer](/platform/projects/tasks#review-default), as after **Start agent**; a review still pending on the earlier work is withdrawn, never approved. With `false` the card stays where it is and the run asks for no review, which suits a standing task in **To do**. The run keeps that choice to its end: when it completes, its report and files arrive as usual, and the card is neither moved nor sent for review, even if someone moved it to **In progress** meanwhile. That start only runs under open work (**Backlog**, **To do** or **In progress**): a card waiting at **In review** answers `in_review` and a closed one `closed`, so the card never presents earlier work for judgment, or as finished, while new work runs under it.
 
 A retryable failure can be retried automatically while the task keeps its original status and assignee, with no later status, assignment, archive or review decision. Changing a value and then changing it back still ends that retry; comments do not. The attempt limits, schedule permissions and workspace checks still apply. A later scheduled occurrence can start fresh work when eligible.
+
+### Wake the schedule when an agent frees its slot
+
+A schedule that runs a project's standing role, such as a manager that hands out work, can also fire as soon as an agent of its project finishes and one of its standing workers is free, instead of waiting for its next cron minute. Turn this on with `wakeOnSlotFreed: true` in the schedule's managed configuration, applied with the Tale CLI; only one enabled schedule per project can have it — a second one is refused, and so is installing its automation in a project another schedule already wakes — and the app has no switch for it. Each wake is one ordinary occurrence with the usual input `{ trigger: "schedule", firedAt }`, so the answers above still apply. Agents that finish while a wake is pending add up to one wake. A wake waits while the manager's own card has a live run or an armed retry, the card would refuse the start or is no longer assigned to the agent, until `retryAfter` when the task took three starts within the hour, and, after an occurrence that did not serve, for one minute, doubling up to an hour, with no limit on attempts. Other tasks of the same agent do not hold the wake; the manager's new run takes its own worker or waits for capacity as usual. It counts as served only once the agent's run it started has launched and settled. While the schedule is paused after failures, switched off or no longer opted in, the wake waits and fires once the schedule is saved again.
 
 ### Import every issue on a schedule
 
@@ -154,18 +304,32 @@ nodes:
 
 ## Diagnose a missing start
 
-First check **Enabled**, the deployed version and the last-fired information. Then inspect any recorded skip reason:
+The top of the **Trigger** section says how the trigger is doing: the time of the last run it started, with that run’s status and **View run**, or **Hasn’t started a run yet.** When the trigger last came due, or an event last arrived, and nothing started, a notice below it says why, with the fix and a way to get there:
 
-| Reason or symptom | What to check |
-| --- | --- |
-| `not_deployed` | Deploy a tested version. A saved draft is insufficient. |
-| `start_refused` | Compare the deployed input schema with the trigger’s actual wrapper and resolve the reported validation or start error. |
-| `unusable_cron` | Correct the expression or timezone and save it again. Other schedules continue while this one is skipped. |
-| `paused_after_failures` | The schedule turned itself off after repeated failures. See [When a schedule pauses itself](#when-a-schedule-pauses-itself). |
-| Webhook credential refused | Check the current URL and enabled state. Unknown and disabled tokens intentionally receive the same refusal. |
-| Run exists but did not finish | Open [execution logs](/platform/automations/execution-logs); the start succeeded and the issue is inside the run. |
+| Notice | What happened | What to do |
+| --- | --- | --- |
+| **Skipped: no version is deployed** | The trigger came due, but only drafts exist. | **Open the editor** and deploy a tested version. |
+| **Skipped: the run’s input was refused** | The deployed version refused what the trigger sends. | Add the missing fields to the [fixed input](#fixed-input), or change the inputs in the editor. |
+| **Skipped: its project can’t start runs** | Its project is archived, missing, or no longer allows the automation. | **Edit the projects** under **Projects** below. |
+| **Skipped: the run couldn’t start** | The start was refused for another reason. | Open **Technical details** to read the code and the message. |
+| **Skipped: the schedule can’t be read** | The schedule or its time zone could not be read. Nothing starts until it is corrected. | **Edit the schedule** and save. |
+| **3 runs were missed**, for example | Runs came due while Tale was unavailable. | Nothing; [Missed runs](#when-runs-are-missed) decided what started. |
+| **Paused after repeated failures** | The schedule turned itself off. | See [When a schedule pauses itself](#when-a-schedule-pauses-itself). |
 
-The last-fired timestamp advances when a run actually starts. A due trigger that cannot start work records a skip instead. This separates a broken schedule from a workflow that started and later failed.
+**Technical details**, closed at first, holds the raw facts in English: the code, the version that refused the start, its message and each problem with its field. When earlier runs were missed too, the notice says how many. The API reads the same facts as `lastSkipReason` and `lastSkipDetail`; see the [API reference](/develop/api-reference#check-trigger-health-and-pause-safely).
+
+<Frame caption="A start that was refused: the notice says why, offers the fix, and keeps the raw facts under Technical details.">
+
+![The Trigger section of a switched-on schedule with the notice Skipped: the run’s input was refused, saying it came due on October 10, 2026 11:00 AM but version 1 refused what the trigger sends, with Add the 2 missing fields and Open the editor; Technical details is open on owner and repo, both required, the code AUTOMATION_INPUT_INVALID and the message. Below, the schedule runs every 30 minutes, and This run receives ends with a warning that version 1 doesn’t accept this input.](/images/platform/automation-trigger-skip-reason.webp)
+
+</Frame>
+
+Some missing starts show no notice:
+
+- A webhook request Tale refused started no run and moved nothing on the trigger. Check the sender’s response; [Webhooks](/develop/webhooks) lists the answers. An unknown or switched-off URL gets the same refusal on purpose.
+- A run that exists but did not finish started fine. Open it from **Runs**; [execution logs](/platform/automations/execution-logs) explain what happened inside it.
+
+The last run moves only when a run actually starts. A trigger that comes due and cannot start one records the skip instead, which separates a broken trigger from a workflow that started and later failed.
 
 ## When a schedule pauses itself
 

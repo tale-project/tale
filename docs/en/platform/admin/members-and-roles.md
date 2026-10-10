@@ -27,6 +27,9 @@ You need an Owner or Admin account to manage members.
 
 The person appears in the member list. Tale does not send an invitation or password-reset email for this flow: adding someone is your confirmation of their address, so the account works everywhere at once — including applications people sign in to with their Tale account. If the address is already a member of this organization, the form reports that instead of adding a duplicate.
 
+A password set or reset by an administrator, or an expired password under the organization's rotation policy, requires the member to complete the change at sign-in. See [the member-facing password-change steps](/platform/member/preferences#when-a-password-change-is-required).
+
+
 <Tip>
 
 After adding a person, assign the teams they need. A role alone does not put them into a team's project access or conversation queue.
@@ -58,7 +61,7 @@ Audit-log viewing is restricted to Owners and Admins. Actions by other roles can
 
 Open the person's row menu, choose **Edit**, and change **Role**. Select **Save**, then check the role badge in the list. To restore a disabled member's access, explicitly select the role they should receive.
 
-The edit dialog also changes the display name. Email is read-only. To set a replacement password, enable **Update password**, enter a password that meets the displayed requirements, and save. Use your organization's identity-checking process before resetting an account.
+The edit dialog also changes the display name. Email is read-only. To set a replacement password, enable **Update password**, enter a password that meets the displayed requirements, and save. The member must choose a new password on their next sign-in; resetting the password signs the member out of all sessions. Use your organization's identity-checking process before resetting an account.
 
 You cannot edit your own role through this menu, assign Owner through the role picker, or demote the last administrator. Existing Owners and the organization creator also have protected roles. If a change is refused, check the relevant account before trying a different role.
 
@@ -68,6 +71,6 @@ An Owner can choose **Transfer ownership** from another member's row menu. Read 
 
 ## Remove or recover access
 
-Use **Disabled** when access should stop while the membership remains. Use the row's **Delete** action to remove the membership from this organization. Removing it also deletes the separate sandbox workspaces of the [agent runs the person started](/platform/projects/tasks#agent-runs-a-member-starts), with their files; **Disabled** keeps them. Review shared work and team responsibilities first; removing membership is different from a [data subject erasure request](/platform/admin/governance/data-subject-requests).
+Use **Disabled** when access should stop while the membership remains. Use the row's **Delete** action to remove the membership from this organization. Removing it also deletes the separate sandbox workspaces of the [agent runs the person started](/platform/projects/tasks#agent-runs-a-member-starts), with their files; **Disabled** keeps them. It also revokes the [API keys](/platform/admin/api-keys#create-a-key-for-someone-else) an Owner or Admin made for the person here, and the keys the person made here for other members. Review shared work and team responsibilities first; removing membership is different from a [data subject erasure request](/platform/admin/governance/data-subject-requests).
 
 If a member loses an authenticator or passkey, open **Edit** and use the relevant security controls. [Two-factor authentication](/platform/admin/two-factor-authentication) explains reset, recovery, and session consequences.

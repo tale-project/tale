@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { NodeFailure } from '../../core/automations/failure.ts';
+import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { WORKFLOW_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
@@ -24,6 +25,13 @@ import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
+  reserveLlmStepBudget,
+  type LlmStepUsage,
+  recordLlmStepUsage,
+} from './llm-metering.ts';
+import { beginNodeAttempt, finishNodeAttempt } from './node-attempts.ts';
+import { readOpenNodeRuns, recordNodeRunsStarted } from './node-runs.ts';
+import {
   claimRun,
   continueRun,
   deployedVersion,
@@ -34,6 +42,7 @@ import {
   suspendRun,
   versionRow,
 } from './store.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * ONE projection for every ask read the agent host consumes through
@@ -204,10 +213,41 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as Parameters<typeof continueRun>[1];
       return continueRun(sql, args);
     },
+    'automations/mutations:recordNodeRunsStarted': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof recordNodeRunsStarted>[1];
+      return recordNodeRunsStarted(sql, args);
+    },
     'automations/mutations:finishRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
       const args = raw as Parameters<typeof finishRun>[1];
       return finishRun(sql, args);
+    },
+    // The effect ledger: a walker begins a call that reaches outside the run
+    // before making it, and records how it ended after.
+    'automations/mutations:beginNodeAttempt': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof beginNodeAttempt>[1];
+      return beginNodeAttempt(sql, args);
+    },
+    'automations/mutations:finishNodeAttempt': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof finishNodeAttempt>[1];
+      return finishNodeAttempt(sql, args);
+    },
+
+    // An `llm` step's model call is its run's spend: measured against the
+    // caps that bind the run before the call, booked after it.
+    'automations/mutations:reserveLlmStepBudget': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
+      const args = raw as Parameters<typeof reserveLlmStepBudget>[1];
+      return reserveLlmStepBudget(sql, args);
+    },
+    'automations/mutations:recordLlmStepUsage': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
+      const args = raw as LlmStepUsage;
+      await recordLlmStepUsage(sql, args);
+      return null;
     },
 
     'automations/queries:loadRunForStep': async (raw) => {
@@ -225,11 +265,16 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
           input: unknown;
           checkpoints: unknown;
           startedAt: number;
+          recordBytes: number;
+          recordRows: number;
         }[]
       >`
         SELECT id, org_id AS "organizationId", name, version, status, mode,
                started_by AS "startedBy", input, checkpoints,
-               started_at_ms::float8 AS "startedAt"
+               started_at_ms::float8 AS "startedAt",
+               record_bytes AS "recordBytes",
+               (SELECT count(*)::int FROM app.automation_node_runs n
+                 WHERE n.run_id = ${args.runId}) AS "recordRows"
         FROM app.automation_runs
         WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         LIMIT 1
@@ -243,7 +288,20 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         run.version,
       );
       if (!version) return null;
-      return { run, document: version.document };
+      // The run's record as earlier turns left it: the units still open, and
+      // the bytes of values it already stored.
+      const openNodeRuns = await readOpenNodeRuns(
+        sql,
+        args.organizationId,
+        args.runId,
+      );
+      return {
+        run,
+        document: version.document,
+        openNodeRuns,
+        recordBytes: run.recordBytes,
+        recordRows: run.recordRows,
+      };
     },
 
     'automations/queries:loadAutomationDocument': async (raw) => {
@@ -381,6 +439,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         result: unknown;
       };
       return sql.begin(async (tx) => {
+        await markAutomationWriterInTx(tx);
         const rows = await tx<{ status: string; checkpoints: unknown }[]>`
           SELECT status, checkpoints FROM app.automation_runs
           WHERE id = ${args.runId} AND org_id = ${args.organizationId}
@@ -435,9 +494,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
                 executions: checkpoints.executions ?? 0,
               }),
             )},
-            wake_at_ms = ${Date.now()}
+            wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
           WHERE id = ${args.runId}
         `;
+        // The step job below continues the run; its promise gives that
+        // claim time to happen instead of reading as overdue at once.
         await addJobInTx(tx, 'automation.step', {
           organizationId: args.organizationId,
           runId: args.runId,
@@ -459,6 +520,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         brokerTokenHash?: string | null;
       };
       return sql.begin(async (tx) => {
+        await markAutomationWriterInTx(tx);
         const rows = await tx<
           { status: string; checkpoints: unknown; detail: string | null }[]
         >`
@@ -771,6 +833,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       // stale resume retargets nothing. FOR UPDATE serializes racing resumes
       // so exactly one wins the retarget.
       return sql.begin(async (tx) => {
+        await markAutomationWriterInTx(tx);
         const rows = await tx<{ status: string; checkpoints: unknown }[]>`
           SELECT status, checkpoints FROM app.automation_runs
           WHERE id = ${args.runId} AND org_id = ${args.organizationId}
@@ -806,13 +869,19 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         ) {
           return { retargeted: false };
         }
+        // The exec a turn moved away from is kept beside the new one: a walker
+        // that loaded the cursor before this write parks with the old exec,
+        // and the park keeps this cursor when it sees that (`suspendRun`).
         const patched = {
           ...checkpoints,
           cursor: {
             ...cursor,
             agent: {
               ...cursor.agent,
-              ...(args.toExecId !== undefined ? { execId: args.toExecId } : {}),
+              ...(args.toExecId !== undefined &&
+              args.toExecId !== args.fromExecId
+                ? { execId: args.toExecId, retargetedFrom: args.fromExecId }
+                : {}),
               ...(args.deadlineAt !== undefined
                 ? { deadlineAt: args.deadlineAt }
                 : {}),

@@ -21,7 +21,7 @@ The **Create automation** menu offers two routes:
 
 | Choice | Use it when | What happens next |
 | --- | --- | --- |
-| **Blank (trigger + agent)** | You want to configure the workflow yourself. | Set the name, model, instructions and equipment, then choose when it runs. Creation opens the editor for further changes. |
+| **Blank (trigger + agent)** | You want to configure the workflow yourself. | Set the name, model, instructions and equipment, then choose when it runs. **Deploy v1 now** (on by default) puts the first version live at once; otherwise it stays a draft you deploy from the editor. The agent receives what the trigger sends as its input. Creation opens the editor for further changes. |
 | **Upload package** | You already have a workflow file or a reusable pack. | Tale validates the files and saves a draft version. |
 
 Shipped automations are already installed when the organization is created. They still need configuration and a deployed version before automatic use. Follow [the workflow editor](/platform/automations/editor) to test inputs, inspect results and deploy deliberately.
@@ -114,7 +114,7 @@ settings:
               label: Strict checklist
 ```
 
-A required form appears before the task’s own fields if that project has not been configured. **Save and continue** writes the forms and proceeds to task creation. Later, **Settings** reopens them as tabs; a dot marks unsaved changes, and **Save** writes every changed form. Closing with unsaved edits asks for confirmation.
+A required form appears before the task’s own fields if that project has not been configured. **Save and continue** writes the forms and proceeds to task creation. Later, **Settings** reopens them as tabs; a dot marks unsaved changes, and **Save** writes every changed form. Closing with unsaved edits asks for confirmation. A form’s `description` stands above its fields; when it runs past three lines, its beginning shows with **Read more** to open the rest.
 
 Saving replaces the form’s flat YAML file, such as `Setup/validation-policy.yaml`. Existing values prefill the form, including values uploaded by hand. Supported field types are `text`, `number`, `boolean` and `select`; stored values are strings. Text fields can specify a `pattern`, and per-entry `i18n` blocks localize titles, labels, help and options. Keep nested structures and lists in separate files the workflow reads.
 

@@ -6,6 +6,7 @@ import { failureDetail, firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { bulkConversationBatches } from '@/lib/shared/conversations/bulk-limit';
+import { plaintextToEmailHtml } from '@/lib/shared/conversations/plaintext-email';
 
 import type { SelectionState } from '../types/selection';
 import { isAllSelection } from '../types/selection';
@@ -208,7 +209,9 @@ export function useBulkActions({
             return sendMessageViaConnector({
               conversationId: conversation._id,
               organizationId,
-              content: body,
+              content: plaintextToEmailHtml(body),
+              // API replies use the original text; email keeps escaped HTML.
+              sourceMarkdown: body,
             });
           }),
         );

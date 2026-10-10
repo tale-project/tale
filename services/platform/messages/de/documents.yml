@@ -1,0 +1,572 @@
+entityLabel: Dokumente
+entityLabelOne: Dokument
+tableCaption: Dokumente und Ordner
+searchPlaceholder: Dokumente suchen
+refreshFailed: Die neuesten Dokumente konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
+loadFailed: Die Dokumente hier konnten nicht geladen werden. Bis sie geladen sind, werden nur die Ordner angezeigt.
+foldersLoadFailed: Die Ordner hier konnten nicht geladen werden. Dokumente in Ordnern werden erst angezeigt, wenn die Ordner geladen sind.
+record:
+  badge: 'v{version} · {state}'
+  state:
+    draft: Entwurf
+    inReview: Im Review
+    approved: Freigegeben
+  waitingOn: 'Wartet auf {name}'
+  blockedByRecord: Geschütztes gelenktes Dokument
+  actions:
+    markControlled: Als gelenktes Dokument führen
+    replaceFile: Datei ersetzen
+    submitForReview: Zum Review einreichen
+    review: Review öffnen
+    changeReviewer: Reviewer wechseln
+    newRevision: Neue Revision
+  replace:
+    title: Datei ersetzen
+    description:
+      Ersetze die Datei in "{name}". Dokumentname und Revision bleiben
+      unverändert.
+    approvedDescription:
+      Ersetze die Datei in "{name}". Die freigegebene Version v{version} bleibt
+      unverändert. Nach dem Ersetzen öffnet sich Entwurf v{nextVersion}.
+    dropZoneAria: Ersatzdatei für {name} auswählen
+    dropZoneTitle: Ersatzdatei auswählen
+    dropZoneDescription: '{format}, bis zu {maxSize} MB'
+    sameFormat: Gleiches Format
+    oneFileOnly: Wähle genau eine Ersatzdatei aus
+    formatTitle: Dateiformat stimmt nicht überein
+    extensionMismatch: Wähle eine .{extension}-Datei, die zum Dokument passt.
+    formatMismatch: Wähle eine Datei im gleichen Format wie das Dokument.
+    unchanged: Die ausgewählte Datei hat denselben Inhalt wie die aktuelle Datei.
+    staleRevision:
+      Diese Revision hat sich geändert. Schließe den Dialog und versuche es
+      erneut.
+    staleDialog:
+      Dieser Entwurf hat sich geändert. Schließe den Dialog und öffne ihn
+      erneut, bevor du eine andere Datei auswählst.
+    approvedStaleDialog:
+      Dieses freigegebene Dokument hat sich geändert. Schließe den Dialog und
+      öffne ihn erneut, bevor du eine andere Datei auswählst.
+    stateChanged:
+      Der Status dieses Dokuments hat sich geändert. Schließe den Dialog und
+      öffne ihn erneut, bevor du die Datei ersetzt.
+    blockedByHold: Durch Legal Hold blockiert
+    contentMismatch: Der Dateiinhalt entspricht nicht dem ausgewählten Dokumentformat.
+    historyLimit:
+      Dieser Entwurf hat das Limit für frühere Ersatzdateien erreicht. Lege
+      ein neues gelenktes Dokument an, um fortzufahren.
+    finalizePending:
+      Das System bestätigt die Ersatzdatei noch. Warte, bis sich das Dokument
+      aktualisiert, bevor du es erneut versuchst.
+    intentExpired:
+      Dieser Ersatz-Upload ist abgelaufen. Schließe den Dialog und starte
+      erneut.
+    historyHint:
+      Beim Ersetzen bleiben Dokumentname und Revision erhalten. Freigegebene
+      Versionen bleiben im Verlauf.
+    approvedHistoryHint:
+      Die freigegebene Version v{version} bleibt unverändert im Verlauf. Mit
+      der Ersatzdatei öffnet sich Entwurf v{nextVersion} für das Review.
+    confirm: Datei ersetzen
+    approvedConfirm: Datei ersetzen und Entwurf v{version} öffnen
+    success: 'Datei in v{version} ersetzt'
+    approvedSuccess:
+      Entwurf v{version} mit neuer Datei geöffnet — freigegebene Version
+      v{approvedVersion} bleibt unverändert
+  submit:
+    title: Zum Review einreichen
+    reviewerLabel: Reviewer
+    reviewerPlaceholder: Reviewer wählen
+    reviewerSearch: Personen suchen
+    freezeHint: Während des Reviews ist das Dokument eingefroren — der
+      Reviewer entscheidet über genau diese Version.
+    lastFeedback: 'Änderungen zu v{version} angefordert von {name}:'
+    lastFeedbackNoName: 'Änderungen zu v{version} angefordert:'
+    confirm: Einreichen
+  reassign:
+    title: Reviewer wechseln
+    hint: 'Tale zieht die offene Anfrage an {name} zurück — der neue Reviewer
+      entscheidet über diese Version.'
+    hintNoName: Tale zieht die offene Anfrage zurück — der neue Reviewer
+      entscheidet über diese Version.
+    confirm: Reviewer wechseln
+  review:
+    title: 'Review (v{version})'
+    frozenHint: Die Freigabe schreibt diese Version unveränderlich fest;
+      forderst du Änderungen an, öffnet sich der Entwurf wieder.
+    approve: Freigeben
+    requestChanges: Änderungen anfordern
+    sendFeedback: Feedback senden
+    feedbackPlaceholder: Was soll sich ändern? Dein Feedback wird mit der
+      Entscheidung festgehalten.
+    onlyDesignee: 'Nur {name} kann dieses Review entscheiden.'
+    onlyDesigneeNoName: Nur der benannte Reviewer kann dieses Review entscheiden.
+  toast:
+    controlled: Dieses Dokument ist jetzt ein gelenktes Dokument
+    controlledFailed: Das Dokument konnte nicht als gelenktes Dokument geführt werden
+    submitted: Zum Review eingereicht — das Dokument ist eingefroren
+    submitFailed: Einreichen zum Review fehlgeschlagen
+    reviewerChanged: Reviewer gewechselt — die Anfrage liegt jetzt beim neuen
+      Reviewer
+    reviewerChangeFailed: Reviewer konnte nicht gewechselt werden
+    approved: 'Version {version} freigegeben'
+    changesRequested: Änderungen angefordert — das Dokument ist wieder ein Entwurf
+    respondFailed: Die Entscheidung konnte nicht gespeichert werden
+    revisionOpened: 'Revision v{version} geöffnet'
+    revisionFailed: Neue Revision konnte nicht geöffnet werden
+deleteFolder:
+  title: Ordner löschen
+  confirmation: 'Ordner „{name}" löschen?'
+  requirement: Alle Dateien und Unterordner in diesem Ordner werden ebenfalls
+    dauerhaft gelöscht.
+  deleteButton: Ordner löschen
+deleteSyncFolder:
+  title: Synchronisierungsordner löschen
+  confirmation: 'Synchronisierungsordner „{name}" löschen?'
+  thisWillDelete: 'Folgendes wird dauerhaft gelöscht:'
+  willDelete:
+    filesAndSubfolders: Alle Dateien und Unterordner
+    autoSyncConfig: Automatische Synchronisierungskonfiguration
+    syncHistory: Synchronisierungsverlauf
+  willNotDelete:
+    prefix: Dies wird
+    not: nicht
+    suffix: die Dateien aus deinem OneDrive löschen.
+  deleteButton: Synchronisierungsordner löschen
+noItemsFound: Keine Elemente gefunden
+noItemsMatchingSearch: Keine Elemente entsprechen deiner Suche.
+noItemsAvailable: Keine Elemente verfügbar
+noItemsSelected: Keine Elemente ausgewählt
+searchFilesAndFolders: Dateien und Ordner suchen
+emptyState:
+  title: Noch keine Dokumente
+  description: Lade Dokumente hoch, damit Agents sie im Chat nutzen können.
+actions:
+  rename: Umbenennen
+  deleteSyncFolder: Synchronisierungsordner löschen
+  deleteFolderFailed: Ordner konnte nicht gelöscht werden
+  deleteFolderProtectedRecord:
+    Ein kontrolliertes Dokument in diesem Ordner hat eine freigegebene
+    Version und ist damit ein aufbewahrter Datensatz — verschiebe es zuerst
+    aus dem Ordner.
+  deleteFileFailed: Datei konnte nicht gelöscht werden — versuch es erneut.
+  manageTeams: Team zuweisen
+  reindex: Neu indexieren
+  stopSync: Synchronisierung beenden
+  stopSyncDone: Synchronisierung beendet. Die importierten Dateien bleiben in
+    deinem Arbeitsbereich.
+  stopSyncFailed: Synchronisierung konnte nicht beendet werden
+  moveToFolder: In Ordner verschieben…
+folder:
+  renameFolder: Ordner umbenennen
+  renaming: Wird umbenannt...
+  renamed: Ordner umbenannt
+  renameFailed: Ordner konnte nicht umbenannt werden
+  renameSyncManaged: 'Die Synchronisierung bestimmt den Namen dieses Ordners: Er wird synchronisiert, enthält einen synchronisierten Ordner oder liegt in einem.'
+  invalidName: Verwende höchstens 128 Zeichen ohne Schrägstriche oder Steuerzeichen, und nicht nur einen oder zwei Punkte.
+  newFolder: Neuer Ordner
+  createFolder: Ordner erstellen
+  folderName: Ordnername
+  folderNamePlaceholder: Ordnername eingeben
+  nameRequired: Ordnername ist erforderlich
+  creating: Erstelle...
+  created: Ordner erstellt
+  createFailed: Ordner konnte nicht erstellt werden
+  duplicateName: Ein Ordner mit diesem Namen existiert bereits
+teamTags:
+  title: Teams verwalten
+  team: Team
+  updated: Teams aktualisiert
+  updateFailed: Teams konnten nicht aktualisiert werden
+  noTeamsTitle: Noch keine Teams
+  noTeamsDescription:
+    Erstelle Teams in den Einstellungen, um zu steuern, welche
+    Gruppen auf dieses Element zugreifen können.
+  goToSettings: Zu Einstellungen
+  orgWide: Organisationsweit
+  projectScoped: Projektgebunden
+  unknownTeam: Unbekanntes Team
+  moreTeams: '+{count}'
+deleteFile:
+  title: Dokument löschen
+  confirmation: '„{name}" löschen? Das lässt sich nicht rückgängig machen.'
+  thisDocument: dieses Dokument
+  deleteButton: Löschen
+breadcrumb:
+  navigation: Brotkrumennavigation
+  documents: Dokumente
+  loadFailed: Der Ordnerpfad konnte nicht geladen werden. Versuche es erneut.
+  oneDrive: OneDrive
+  googleDrive: Google Drive
+aria:
+  openFolder: Ordner {name} öffnen
+  openDocument: Dokument {name} öffnen
+  navigateToFolder: Zum Ordner {name} navigieren
+  selectFolder: Ordner {name} auswählen
+  selectFile: Datei {name} auswählen
+folderNotFound: Ordner nicht gefunden oder nicht mehr zugänglich
+filter:
+  ragStatus:
+    indexed: Indexiert
+    notIndexed: Nicht indexiert
+    indexing: Wird indexiert
+    failed: Fehlgeschlagen
+    unsupported: Nicht unterstützt
+    needsReindex: Neuindexierung nötig
+  source:
+    upload: Upload
+    oneDrive: OneDrive
+    sharePoint: SharePoint
+  teams:
+    orgWide: Organisationsweit
+    mine: Meine Teams
+preview:
+  loading: Lädt...
+  failedToLoad: Dokument konnte nicht geladen werden
+  downloadComplete: Download abgeschlossen
+  downloadFile: Datei herunterladen
+  closePreview: Vorschau schließen
+  downloadedSuccessfully: '{filename} heruntergeladen'
+  downloadFailed: Datei konnte nicht heruntergeladen werden
+  notAvailable: Vorschau nicht verfügbar
+  notAvailableDescription:
+    Dieser Dateityp kann nicht in der Vorschau angezeigt
+    werden. Lade die Datei herunter, um den Inhalt anzuzeigen.
+  truncatedNotice: Diese Datei ist zu groß für eine vollständige Vorschau —
+    angezeigt wird der Anfang. Lade die Datei herunter, um alles zu sehen.
+  download: Herunterladen
+  document: Dokument
+  title: Dokumentvorschau
+  dragToolbar: Werkzeugleiste verschieben
+  link:
+    copy: Link kopieren
+    copied: Kopiert
+    visit: Link öffnen
+  sidebar:
+    document: Dokument
+    source: Quelle
+    ragStatus: RAG-Status
+    teams: Teams
+    uploadedBy: Hochgeladen von
+    modified: Geändert
+    imagePages: Bildseiten
+upload:
+  cancelUpload: Upload abbrechen
+  importDocuments: Dokumente hochladen
+  fromYourDevice: Von deinem Gerät
+  fromMicrosoft365: Von Microsoft 365
+  fromGoogleDrive: Von Google Drive
+  uploadInProgress: Upload läuft
+  uploadingFileNamed: '{fileName} wird hochgeladen'
+  confirming: Schließt Upload ab…
+  confirmingFileNamed: Schließt Upload von {fileName} ab
+  binding: Verknüpft Datei mit Dokument…
+  bindingFileNamed: Verknüpft {fileName} mit dem Dokument
+  announcements:
+    uploading: Lädt {fileName} hoch
+    finalizing: Schließt Upload von {fileName} ab
+    binding: Verknüpft {fileName} mit dem Dokument
+    completed: Upload von {fileName} abgeschlossen
+  failedFileName: '{fileName} — Fehlgeschlagen'
+  pleaseWaitForUpload: Warte, bis der aktuelle Upload abgeschlossen ist
+  noFilesSelected: Keine Dateien ausgewählt
+  fileTooLarge: Datei zu groß
+  fileSizeExceeded: 'Datei {name} überschreitet das Limit von {maxSize} MB.
+    Aktuelle Größe: {currentSize} MB'
+  uploadCancelled: Upload abgebrochen
+  uploadFailed: Datei konnte nicht hochgeladen werden
+  uploadFailedRetry: Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es erneut.
+  quotaExceeded: Speicherkontingent voll — {used} von {limit} belegt. Lösche
+    Dateien, um Platz zu schaffen (fehlgeschlagene Uploads zählen mit).
+  quotaUsage: '{used} von {limit} belegt'
+  rateLimited: Zu viele Uploads auf einmal. Warte einen Moment und versuche es erneut.
+  fileTooLargeLimit: Datei überschreitet das Limit von {limit}.
+  uploadTimedOut: Zeitüberschreitung beim Upload. Prüfe deine Verbindung und
+    versuche es erneut.
+  storedButNotIndexed:
+    Gespeichert und herunterladbar, aber nicht für die Suche
+    indexiert (Altformat).
+  storedButNotIndexedNoExtension:
+    'Gespeichert und herunterladbar, aber nicht für die Suche indexiert:
+    Der Dateiname besteht nur aus einer Dateiendung.'
+  filesCompletedSummary: '{completed} von {total} Dateien abgeschlossen'
+  filesCompletedWithFailures: '{completed} von {total} Dateien abgeschlossen - {failed} fehlgeschlagen'
+  selectTeams: Teams zuweisen
+  teamLockedToFolder: Hier hochgeladene Dateien werden dem Team dieses Ordners zugewiesen.
+  selectTeamsDescription: Wähle, welchem Team die hochgeladenen Dokumente zugeordnet werden
+  noTeamsAvailable: Du bist kein Mitglied eines Teams
+  allMembersHint: Organisationsweite Dokumente sind für alle in der Organisation zugänglich.
+  dropZoneTitle: Datei hochladen
+  dropZoneDescription: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML bis zu {maxSize} MB
+  retryUpload: Upload erneut versuchen
+  retry: Erneut versuchen
+  documentsUploadedSuccessfully: '{count} {count, plural, one {Dokument} other
+    {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund'
+  unsupportedFileType: Nicht unterstützter Dateityp
+  unsupportedFileTypeDescription: '{name} ist kein unterstütztes Format.
+    Unterstützte Formate: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML, PY, AC2, Bilder.'
+  extensionBlocked: '{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.'
+  extensionNotAllowed: '{name}:.{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.'
+  uploadDocuments: Hochladen
+move:
+  title: In Ordner verschieben
+  description: Wähle, wo {name} liegen soll.
+  destinationLabel: Ziel
+  rootOption: Wissensdatenbank (kein Ordner)
+  confirm: Verschieben
+  moving: Wird verschoben…
+  moved: Dokument verschoben
+  moveFailed: Dokument konnte nicht verschoben werden
+ocr:
+  unavailable: OCR nicht verfügbar
+  processingWithOcr: Dokument mit OCR verarbeitet
+microsoft365:
+  title: Von Microsoft 365 importieren
+  myOneDrive: Mein OneDrive
+  sharePointSites: SharePoint-Websites
+  selectDescription: Wähle Dateien oder Ordner zum Importieren
+  noSites: Keine SharePoint-Websites gefunden
+  noSitesDescription: Du hast keinen Zugriff auf SharePoint-Websites oder die
+    Websites konnten nicht geladen werden.
+  noDrives: Keine Dokumentbibliotheken gefunden
+  noDrivesDescription: Diese Website hat keine Dokumentbibliotheken.
+  siteUrl: Website-URL
+  driveType: Typ
+cloudImport:
+  appNotConfigured:
+    Der Import von diesem Anbieter ist noch nicht eingerichtet. Bitte einen
+    Admin deiner Organisation, die OAuth-App unter Einstellungen >
+    Connectors zu hinterlegen.
+  appNotConfiguredAdmin:
+    Der Import von diesem Anbieter braucht zuerst eine OAuth-App. Richte
+    sie unter Einstellungen > Connectors > OAuth-Apps ein und verbinde
+    danach.
+  appStatusLoadFailed:
+    Es konnte nicht geprüft werden, ob der Import von {provider}
+    eingerichtet ist. Du kannst dich verbinden, sobald die Prüfung klappt.
+  openConnectorSettings: Connector-Einstellungen öffnen
+  importedPartial: '{imported} von {total} Dateien importiert'
+  syncedPartial: '{imported} von {total} Dateien synchronisiert'
+  failedFileDetail: '{name}: {reason}'
+  importInterrupted: >-
+    Der Zugriff auf dein {provider}-Konto endete während des Imports.
+    {imported, plural, =0 {Es wurden keine Dateien importiert.} one {# von
+    {total} Dateien wurde importiert und bleibt erhalten.} other {# von
+    {total} Dateien wurden importiert und bleiben erhalten.}}
+  reconnectToImportRest: >-
+    Verbinde dein Konto erneut und importiere dann dieselben Dateien oder
+    Ordner noch einmal, um den Rest zu holen. Bereits importierte Dateien
+    werden nicht doppelt importiert.
+onedrive:
+  importSettings: Importeinstellungen
+  settingsDescription:
+    Wähle, wie deine {count} ausgewählten {count, plural, one
+    {Element} other {Elemente}} importiert werden sollen.
+  microsoftNotConnected: Microsoft 365 verbinden
+  microsoftNotConnectedDescription:
+    Um Dateien hochzuladen, musst du deinem Microsoft 365-Konto Zugriff
+    gewähren.
+  connect: Microsoft 365 verbinden
+  reconnect: Microsoft 365 erneut verbinden
+  disconnect: Microsoft 365 trennen
+  disconnecting: Trenne Microsoft 365…
+  disconnectFailed: Microsoft 365 konnte nicht getrennt werden
+  grantPermissions: Microsoft 365-Berechtigungen erteilen
+  redirecting: Weiterleitung…
+  folderEmpty: Dieser Ordner ist leer.
+  loadFailed: Elemente konnten nicht geladen werden
+  noFilesSelected: Keine importierbaren Dateien in der Auswahl
+  listingTruncated: >-
+    Zeigt die ersten {count} Elemente — der Ordner enthält mehr. Öffne
+    einen Unterordner oder such gezielt, um an den Rest zu kommen.
+  folderTooLargeToImport: >-
+    "{name}" enthält mehr Elemente, als ein Import auflisten kann.
+    Importiere die Unterordner einzeln oder richte einen Sync-Import ein.
+  oneTimeImport: Einmaliger Import
+  oneTimeDescription: Dateien einmal importieren und in deinem Arbeitsbereich speichern
+  syncImport: Synchronisierungsimport
+  syncDescription: Dateien automatisch synchronisiert halten
+  importCount: Importieren ({count})
+  importing: Wird importiert...
+  syncing: Wird synchronisiert...
+  importStarted: Import gestartet
+  syncStarted: Synchronisierung gestartet
+  importingItems: '{count} Elemente werden in den Speicher importiert...'
+  syncingItems: '{count} Elemente werden in den Speicher synchronisiert...'
+  importCompleted: Import abgeschlossen
+  syncCompleted: Synchronisierung abgeschlossen
+  filesImportedCount: '{count} von {total} Dateien importiert'
+  filesSyncedCount: '{count} von {total} Dateien synchronisiert'
+  importFailed: Import fehlgeschlagen
+  syncFailed: Synchronisierung fehlgeschlagen
+  importItems: '{count} {count, plural, one {Element} other {Elemente}} importieren'
+  syncItems: '{count} {count, plural, one {Element} other {Elemente}} synchronisieren'
+googledrive:
+  title: Von Google Drive importieren
+  selectDescription: Wähle Dateien oder Ordner zum Importieren
+  notConnected: Google Drive verbinden
+  notConnectedDescription:
+    Um Dateien hochzuladen, musst du deinem Google Drive-Konto Zugriff
+    gewähren.
+  connect: Google Drive verbinden
+  reconnect: Google Drive erneut verbinden
+  disconnect: Google Drive trennen
+  disconnecting: Trenne Google Drive…
+  disconnectFailed: Google Drive konnte nicht getrennt werden
+  grantPermissions: Google Drive-Berechtigungen erteilen
+  redirecting: Weiterleitung…
+  loadFailed: Elemente konnten nicht geladen werden
+  noFilesSelected: Keine importierbaren Dateien in der Auswahl
+  oneTimeImport: Einmaliger Import
+  oneTimeDescription: Dateien einmal importieren und in deinem Arbeitsbereich speichern
+  syncImport: Synchronisierungsimport
+  syncDescription: Dateien automatisch synchronisiert halten
+  importSettings: Importeinstellungen
+  settingsDescription:
+    Wähle, wie deine {count} ausgewählten {count, plural, one
+    {Element} other {Elemente}} importiert werden sollen.
+  importCount: Importieren ({count})
+  importing: Importiert…
+  syncing: Synchronisiert…
+  importStarted: Import gestartet
+  syncStarted: Synchronisierung gestartet
+  importingItems: '{count} Elemente werden in den Speicher importiert…'
+  syncingItems: '{count} Elemente werden in den Speicher synchronisiert…'
+  importCompleted: Import abgeschlossen
+  syncCompleted: Synchronisierung abgeschlossen
+  filesImportedCount: '{count} von {total} Dateien importiert'
+  filesSyncedCount: '{count} von {total} Dateien synchronisiert'
+  importFailed: Import fehlgeschlagen
+  syncFailed: Synchronisierung fehlgeschlagen
+  importItems: '{count} {count, plural, one {Element} other {Elemente}} importieren'
+  syncItems: '{count} {count, plural, one {Element} other {Elemente}} synchronisieren'
+rag:
+  status:
+    queued: In Warteschlange
+    queuedHint: Wartet darauf, im Chat durchsuchbar zu werden.
+    indexing: Wird indexiert
+    indexingHint: Macht dieses Dokument im Chat durchsuchbar…
+    indexed: Indexiert
+    failed: Fehlgeschlagen
+    unsupported: Nicht unterstützt
+    notIndexed: Nicht indexiert
+    needsReindex: Neuindexierung nötig
+    usageLimit: Wartet auf ein Nutzungslimit
+    unknown: Unbekannt
+  retryIndexing: Indexierung erneut versuchen
+  toast:
+    documentIdRequired: Dokument-ID ist für den erneuten Versuch erforderlich
+    indexingStarted: Indexierung gestartet
+    retryFailed: Erneuter Versuch fehlgeschlagen
+    retryFailedDescription: RAG-Indexierung konnte nicht erneut gestartet werden
+    unexpectedError: Etwas ist schiefgelaufen
+  dialog:
+    indexed:
+      title: Dokument indexiert
+      description: Dieses Dokument ist indexiert und für die Wissenssuche verfügbar.
+      indexedOn: 'Indexiert am:'
+    usageLimit:
+      title: Wartet auf ein Nutzungslimit
+      description:
+        Ein Nutzungslimit, das für die Indexierung dieses Dokuments gilt, ist
+        erreicht. Die Indexierung läuft von selbst weiter, spätestens eine
+        Stunde nachdem das Limit zurückgesetzt oder erhöht wurde.
+    failed:
+      title: Indexierung fehlgeschlagen
+      description: Dieses Dokument konnte nicht für die Wissenssuche indexiert werden.
+      errorDetails: 'Fehlerdetails:'
+      unknownError: Unbekannter Fehler aufgetreten
+      embeddingNotConfigured:
+        hint: Die Indexierung braucht ein Embedding-Modell. Für diese
+          Organisation ist noch keines konfiguriert.
+        configureCta: Embedding-Modell konfigurieren
+        askAdmin:
+          Bitte einen Admin deiner Organisation, eines einzurichten, und
+          starte die Indexierung danach neu.
+    unsupported:
+      title: Dokument kann nicht indexiert werden
+      description:
+        Dieser Dateiinhalt lässt sich nicht indexieren. Lade eine lesbare
+        Textversion oder ein unterstütztes Dokument mit extrahierbarem Text hoch.
+      reasons:
+        unsupported_type: Für diesen Dateityp gibt es keinen unterstützten Textextraktor.
+        image_no_vision: Die Wissensindexierung extrahiert keinen Text aus Bildern.
+        empty: Die Datei enthält keinen indexierbaren Text. Sie ist leer, besteht nur aus Leerzeichen oder ist ein Scan ohne Textebene.
+        not_text: Die Datei enthält Binärdaten statt lesbarem Text. Exportiere sie als UTF-8-Text.
+        malformed: Die Datei lässt sich nicht im angegebenen Format lesen. Sie kann beschädigt oder kennwortgeschützt sein.
+sourceType:
+  confluence: Confluence
+  webDav: WebDAV
+  oneDriveSynced: OneDrive (synchronisiert)
+  oneDriveNotSynced: OneDrive (nicht synchronisiert)
+  googleDriveSynced: Google Drive (synchronisiert)
+  googleDriveNotSynced: Google Drive (nicht synchronisiert)
+  sharePointSynced: SharePoint (synchronisiert)
+  sharePointNotSynced: SharePoint (nicht synchronisiert)
+  uploaded: Upload
+  agent: Agent
+  knowledgeEntry: Wissenseintrag
+  api: API
+syncHealth:
+  badge:
+    failed: Sync-Fehler
+    needsReauth: Neu verbinden
+  dialog:
+    failedTitle: Synchronisierung fehlgeschlagen
+    failedDescription: >-
+      Die letzte Synchronisierung von „{name}“ ist fehlgeschlagen. Tale
+      versucht es etwa alle 15 Minuten erneut und entfernt diesen Hinweis,
+      sobald ein Durchlauf gelingt.
+    needsReauthTitle: Zugriff auf {provider} abgelaufen
+    needsReauthDescription: >-
+      Tale erreicht {provider} mit dem Konto, das „{name}“ synchronisiert,
+      nicht mehr. Die bisher synchronisierten Dateien bleiben erhalten;
+      Neues kommt erst an, wenn dieses Konto erneut verbunden ist.
+    failingSince: Fehlgeschlagen seit {time}
+    syncedBy: Synchronisiert über das Konto von {ownerName}
+    syncedByUnknown: Synchronisiert über das Konto eines Mitglieds, das inzwischen gegangen ist
+    errorDetails: Fehlerdetails
+    ownerNextStep: >-
+      Verbinde dein Konto erneut, um die Synchronisierung fortzusetzen. Der
+      nächste Durchlauf nimmt sie innerhalb von 15 Minuten wieder auf.
+    otherNextStep: >-
+      Bitte {ownerName}, das Konto erneut zu verbinden. Wer Dokumente
+      importieren darf, kann die Synchronisierung auch mit einem neuen
+      Synchronisierungsimport dieses Elements übernehmen.
+    otherNextStepUnknown: >-
+      Übernimm die Synchronisierung mit einem neuen Synchronisierungsimport
+      dieses Elements — das Konto, unter dem sie lief, gibt es nicht mehr.
+comparison:
+  statsSummary: Änderungsübersicht
+  statsAdded: '{count} hinzugefügt'
+  statsDeleted: '{count} gelöscht'
+  statsModified: '{count} geändert'
+  statsUnchanged: '{count} unverändert'
+  highDivergence: Diese Versionen unterscheiden sich stark — prüfe sorgfältig.
+  resultsTruncated: Zeigt eine Teilmenge der Änderungen.
+  noChanges: Keine Unterschiede gefunden.
+  changesList: Änderungen
+  changeBlockLabel: Änderung {index}
+  removedText: Entfernt
+  addedText: Hinzugefügt
+history:
+  dialogTitle: Versionsverlauf — {name}
+  dialogDescription: Wähle zwei Versionen zum Vergleich. Die aktuelle Datei steht zuerst.
+  versionsLabel: Versionen
+  currentBadge: Aktuell
+  loading: Lädt Versionen…
+  loadFailed: Versionsverlauf konnte nicht geladen werden
+  empty: Keine gespeicherten Versionen für diese Datei.
+  singleVersion:
+    Nur die aktuelle Version ist gespeichert — eine Revision baut den
+    Verlauf auf.
+  selectTwo: Zwei Versionen auswählen
+  compareSelected: Auswahl vergleichen
+  comparing: Vergleicht…
+  compareFailed: Versionen konnten nicht verglichen werden
+  compareOffline: Der Versionsvergleich ist derzeit nicht verfügbar.
+  backToList: Zurück zu den Versionen
+  versionLabel: Version vom {date}
+  selectAsCompare: Zum Vergleich wählen
+  baseSelected: Basis
+  compareSelectedBadge: Vergleich
+  notFound: Für diese Datei gibt es noch keinen Versionsverlauf.

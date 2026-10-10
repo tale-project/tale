@@ -4,12 +4,14 @@ import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { settleLiveTurns } from './core/automations/stepper.ts';
 import {
   closeKnowledgePools,
   knowledgePoolMax,
 } from './core/knowledge/pool.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { releaseOwnedRunLeases } from './domains/automations/store.ts';
 import { isBackendDraining } from './domains/control/service.ts';
 import {
   installCorpusHealthHook,
@@ -28,12 +30,19 @@ import { closeServerGracefully } from './http-shutdown.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
-import { registerSchedules } from './jobs/schedules.ts';
+import { registerSchedules, sweepRunsAtBoot } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import { configureCodeRunner } from './lib/code-runner.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
 } from './lib/http-hygiene.ts';
+import { processShutdown } from './lib/shutdown.ts';
+import {
+  runShutdownSequence,
+  shouldDeferJobs,
+  shutdownDrainMs,
+} from './shutdown-sequence.ts';
 import { initBackendTelemetry } from './telemetry.ts';
 
 async function main(): Promise<void> {
@@ -44,6 +53,10 @@ async function main(): Promise<void> {
     dsn: env.SENTRY_DSN,
     role: env.ROLE,
     tracesSampleRate: env.BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+  });
+  configureCodeRunner({
+    role: env.ROLE,
+    processes: env.AUTOMATION_RUNNER_PROCESSES,
   });
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);
@@ -59,6 +72,8 @@ async function main(): Promise<void> {
       databaseUrl: env.DATABASE_URL,
       secret: env.BETTER_AUTH_SECRET,
       baseUrl: env.SITE_URL,
+      totpClientName: env.TOTP_CLIENT_NAME,
+      totpEnvironment: env.TOTP_ENVIRONMENT,
       additionalOrigins: parseAdditionalSiteUrls(env.ADDITIONAL_SITE_URLS),
       sql,
     });
@@ -138,10 +153,14 @@ async function main(): Promise<void> {
       concurrency: env.WORKER_CONCURRENCY,
       agentStartSlots: env.AGENT_START_SLOTS,
       agentDriveSlots: env.AGENT_DRIVE_SLOTS,
-      shouldDefer: () => isBackendDraining(sql),
+      automationOrgConcurrency: env.AUTOMATION_ORG_CONCURRENCY,
+      shouldDefer: shouldDeferJobs(processShutdown, () =>
+        isBackendDraining(sql),
+      ),
       sql,
     });
     await registerSchedules(boss);
+    await sweepRunsAtBoot(sql);
   }
 
   // The deployment-default BLOB store. S3 is the only blob backend, so an
@@ -183,6 +202,9 @@ async function main(): Promise<void> {
           {
             fetch: createApp({ sql, auth }).fetch,
             port: env.PORT,
+            ...(env.BACKEND_LISTEN_HOST === undefined
+              ? {}
+              : { hostname: env.BACKEND_LISTEN_HOST }),
             // The header budget and the response class that keeps a
             // bodiless answer free of content headers — shared with the
             // integration harness (lib/http-hygiene.ts).
@@ -205,27 +227,36 @@ async function main(): Promise<void> {
     );
   }
 
+  const drainMs = shutdownDrainMs(env);
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) {
       return;
     }
     shuttingDown = true;
-    console.log(`[backend] ${signal} received — shutting down`);
-    if (server) {
+    console.log(
+      `[backend] ${signal} received — shutting down (drain ${drainMs} ms)`,
+    );
+    await runShutdownSequence(signal, {
+      role: env.ROLE,
+      drainMs,
+      shutdown: processShutdown,
       // Ends the never-ending SSE streams first and force-closes
       // stragglers on a deadline — a bare server.close() waits for every
       // open connection, so one connected browser used to park shutdown
-      // here until the orchestrator's SIGKILL, never reaching the graceful
-      // boss.stop below and killing in-flight jobs mid-write.
-      await closeServerGracefully(server);
-    }
-    // Graceful: in-flight jobs finish before the instance stops.
-    await boss.stop({ graceful: true });
-    // The knowledge pools outlive the jobs and requests that used them —
-    // drain them here rather than leaving their sockets to process.exit.
-    await closeKnowledgePools();
-    await sql.end({ timeout: 5 });
+      // there until the orchestrator's SIGKILL, never reaching the graceful
+      // job stop and killing in-flight jobs mid-write.
+      closeServer: server ? () => closeServerGracefully(server) : null,
+      stopBoss: (options) => boss.stop(options),
+      settleLiveTurns,
+      releaseOwnedRunLeases: () => releaseOwnedRunLeases(sql),
+      // The knowledge pools outlive the jobs and requests that used them —
+      // drain them here rather than leaving their sockets to process.exit.
+      closeStores: async () => {
+        await closeKnowledgePools();
+        await sql.end({ timeout: 5 });
+      },
+    });
     await flushErrorReporting();
     process.exit(0);
   };

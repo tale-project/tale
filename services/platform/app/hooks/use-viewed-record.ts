@@ -7,13 +7,15 @@ import type { PaginatedStatus } from './use-cached-paginated-query';
 /**
  * The record a list page shows in its details dialog. Only the id is held;
  * the record itself is read from the live page on every render, so open
- * details follow later changes to their row. A record that leaves the settled
+ * details follow later changes to their row. The key can be an enduring identity
+ * when row ids represent versions. A record that leaves the settled
  * list — deleted, or moved out of the filter — is forgotten, so its details
  * never reopen on their own if it comes back.
  */
 export function useViewedRecord<T extends { _id: string }>(
   results: readonly T[],
   status: PaginatedStatus,
+  getRecordKey: (record: T) => string = (record) => record._id,
 ) {
   const [viewingId, setViewingId] = useState<string | null>(null);
 
@@ -21,8 +23,9 @@ export function useViewedRecord<T extends { _id: string }>(
     () =>
       viewingId === null
         ? null
-        : (results.find((candidate) => candidate._id === viewingId) ?? null),
-    [viewingId, results],
+        : (results.find((candidate) => getRecordKey(candidate) === viewingId) ??
+          null),
+    [getRecordKey, viewingId, results],
   );
 
   const isGone =

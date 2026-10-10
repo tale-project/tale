@@ -45,6 +45,14 @@ export function useAnswerHumanAsk() {
   });
 }
 
+/** Decide how a run continues past a write that may already have happened:
+ * run it again, skip it, or fail the run. The card reports a refusal itself. */
+export function useResolveRunInDoubt() {
+  return useBackendMutation('automations/mutations:resolveRunInDoubt', {
+    errorToast: false,
+  });
+}
+
 /** Start a run — `mock` performs no IO, `live` may reach the outside world. */
 export function useStartAutomationRun() {
   return useBackendMutation('automations/mutations:startRun', {
@@ -86,6 +94,22 @@ export function useSetAutomationProjects() {
  * Refused while a run is still live; run history is kept. */
 export function useDeleteAutomation() {
   return useBackendMutation('automations/mutations:deleteAutomation', {
+    errorToast: false,
+  });
+}
+
+/** Request a stop without claiming that a legacy run has stopped. */
+export function useRequestLegacyRunStop() {
+  return useBackendMutation('automations/mutations:requestLegacyRunStop', {
+    errorToast: false,
+  });
+}
+
+/** Run a run again — whole, with an edited input, or from one of its
+ * steps. Its refusals (`REPLAY_*`, a live run's role or version) are the
+ * caller's to word. */
+export function useReplayRun() {
+  return useBackendMutation('automations/mutations:replayRun', {
     errorToast: false,
   });
 }

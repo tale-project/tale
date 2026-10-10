@@ -33,6 +33,8 @@ const {
   restoreSoftDeletedRow,
   syncRagDocumentScope,
   recordUnusedWorkspaceRule,
+  projectChatAccess,
+  readInFlightReservations,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createAuditLog: vi.fn(),
@@ -49,6 +51,8 @@ const {
   restoreSoftDeletedRow: vi.fn(),
   syncRagDocumentScope: vi.fn(),
   recordUnusedWorkspaceRule: vi.fn(),
+  projectChatAccess: vi.fn(),
+  readInFlightReservations: vi.fn(async () => ({})),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({ transactSerializable }));
@@ -77,6 +81,14 @@ vi.mock('./trash.ts', async (importOriginal) => ({
 vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
   syncRagDocumentScope,
+}));
+vi.mock('../chat/threads.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../chat/threads.ts')>()),
+  projectChatAccess,
+}));
+vi.mock('./budget-reservations.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./budget-reservations.ts')>()),
+  readInFlightReservations,
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -253,7 +265,7 @@ describe('POST /policies/:policyType — write order', () => {
     },
   );
 
-  it('writes the file LAST, inside the audited transaction', async () => {
+  it('writes the file LAST, inside the audited transaction [GOV-R11]', async () => {
     const res = await post('/policies/feature_flags?orgId=o1', NEXT);
 
     expect(res.status).toBe(200);
@@ -273,7 +285,7 @@ describe('POST /policies/:policyType — write order', () => {
     expect(getSandboxDeploymentLimits).not.toHaveBeenCalled();
   });
 
-  it('leaves the file untouched when the audit row cannot be written', async () => {
+  it('leaves the file untouched when the audit row cannot be written [GOV-R11]', async () => {
     createAuditLog.mockRejectedValue(new Error('audit chain unavailable'));
 
     const res = await post('/policies/feature_flags?orgId=o1', NEXT);
@@ -282,7 +294,7 @@ describe('POST /policies/:policyType — write order', () => {
     expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
   });
 
-  it('audits the config actually on disk, read fresh past the TTL cache', async () => {
+  it('audits the config actually on disk, read fresh past the TTL cache [GOV-R11]', async () => {
     await post('/policies/feature_flags?orgId=o1', NEXT);
 
     expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
@@ -641,11 +653,124 @@ describe('GET /my/api-keys', () => {
       }).request('/my/api-keys?orgId=o1');
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ mayCreate, holdsKeys });
-      // The person's right and keys, whichever organization's page asks.
+      // The person's right, whichever organization's page asks, and the keys
+      // that work here: their own, and the ones made for them in this one.
       expect(mayCreateApiKeys).toHaveBeenCalledWith(expect.anything(), 'u1');
-      expect(keyReads).toEqual([['u1']]);
+      expect(keyReads).toEqual([['u1', 'o1']]);
     },
   );
+});
+
+describe('GET /my/budget-status in a project’s chat', () => {
+  /** The ledger sums by the scope each query names (a project's own
+   * buckets, the caller's `user_id`, or the whole org), the member row and
+   * the project's name. */
+  function database(projectCostCents: number) {
+    const zero = { totalTokens: 0, costEstimate: 0, requestCount: 0 };
+    const sql = async (strings: TemplateStringsArray) => {
+      const text = strings.join('?');
+      if (text.includes('app.project_usage')) {
+        return [{ ...zero, costEstimate: projectCostCents }];
+      }
+      if (text.includes('FROM "member"')) {
+        return [
+          { id: 'm1', organizationId: 'o1', userId: 'u1', role: 'member' },
+        ];
+      }
+      if (text.includes('FROM app.projects')) {
+        return [{ name: 'Website relaunch' }];
+      }
+      return [zero];
+    };
+    return sql as never;
+  }
+
+  async function read(sql: never, query: string): Promise<Response> {
+    return await createGovernanceRoutes({ sql, auth: {} as never }).request(
+      `/my/budget-status?orgId=o1${query}`,
+    );
+  }
+
+  beforeEach(() => {
+    caller.role = 'member';
+    getUserTeamIds.mockResolvedValue([]);
+    projectChatAccess.mockReset().mockResolvedValue('ok');
+    readGovernancePolicyForOrg.mockImplementation(
+      async (_sql: unknown, _org: string, policyType: string) =>
+        policyType === 'budgets'
+          ? { enabled: true, rules: [] }
+          : policyType === 'project_budgets'
+            ? {
+                rules: [
+                  {
+                    scope: 'project',
+                    scopeId: 'project-1',
+                    period: 'monthly',
+                    maxCostCents: 1_000,
+                    warningThresholdPercent: 80,
+                  },
+                ],
+              }
+            : null,
+    );
+  });
+
+  it('warns about the project’s cap by name once its usage crosses the threshold [GOV-R6]', async () => {
+    const response = await read(database(850), '&projectId=project-1');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      status: {
+        exceeded: false,
+        code: null,
+        period: null,
+        used: null,
+        limit: null,
+        reason: null,
+        warnings: [
+          {
+            code: 'COST_WARNING',
+            scope: 'project',
+            projectId: 'project-1',
+            projectName: 'Website relaunch',
+            period: 'monthly',
+            used: 850,
+            limit: 1_000,
+            percent: 85,
+          },
+        ],
+      },
+    });
+    expect(projectChatAccess).toHaveBeenCalledWith(expect.anything(), {
+      projectId: 'project-1',
+      organizationId: 'o1',
+      userId: 'u1',
+    });
+  });
+
+  it('names the project whose reached cap blocks its chat [GOV-R14]', async () => {
+    const response = await read(database(1_000), '&projectId=project-1');
+
+    expect(await response.json()).toEqual({
+      status: expect.objectContaining({
+        exceeded: true,
+        code: 'COST_LIMIT',
+        scope: 'project',
+        projectId: 'project-1',
+        projectName: 'Website relaunch',
+      }),
+    });
+  });
+
+  it('leaves the project out of a chat outside it, and of a project the member cannot read', async () => {
+    expect(await (await read(database(1_000), '')).json()).toEqual({
+      status: null,
+    });
+    projectChatAccess.mockResolvedValue('forbidden');
+    expect(
+      await (await read(database(1_000), '&projectId=project-1')).json(),
+    ).toEqual({ status: null });
+  });
 });
 
 describe('GET /my/budget-usage', () => {
@@ -694,7 +819,7 @@ describe('GET /my/budget-usage', () => {
     };
   });
 
-  it('answers a plain member the caps that bind them with their usage', async () => {
+  it('answers a plain member the caps that bind them with their usage [GOV-R7]', async () => {
     readGovernancePolicyForOrg.mockImplementation(
       async (_sql: unknown, _org: string, policyType: string) =>
         policyType === 'budgets'
@@ -814,7 +939,7 @@ describe('GET /my/budget-usage', () => {
   });
 });
 
-describe('GET /policies/:policyType — who may read', () => {
+describe('GET /policies/:policyType — who may read [GOV-R10]', () => {
   // The app's route loaders warm these for a caller whose role they do not
   // know yet (`isPolicyReadableByMember`), so this door must answer a member
   // exactly them and refuse the rest (#3098).

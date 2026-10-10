@@ -1,0 +1,529 @@
+import { afterEach, expect, test } from 'bun:test';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+import { parseImageHistorySizeBytes } from '../../../services/platform/tests/integration/lib/docker';
+
+const repository = resolve(import.meta.dir, '../../..');
+const library = join(
+  repository,
+  'services/platform/tests/integration/lib/docker.ts',
+);
+const expectedBun: string = JSON.parse(
+  await readFile(join(repository, 'package.json'), 'utf8'),
+).packageManager.replace('bun@', '');
+const temporary: string[] = [];
+afterEach(async () => {
+  for (const directory of temporary.splice(0))
+    await rm(directory, { recursive: true, force: true });
+});
+async function fixture() {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-container-metadata-'));
+  temporary.push(directory);
+  await writeFile(
+    join(directory, 'docker'),
+    '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/calls"\nif [ "$2" = history ]; then printf "%s\\n" "$HISTORY"; else printf "%s\\n" "$METADATA"; fi\nexit "$DOCKER_EXIT"\n',
+    { mode: 0o755 },
+  );
+  return directory;
+}
+async function execute(
+  code: string,
+  directory: string,
+  env: Record<string, string> = {},
+) {
+  const child = Bun.spawn([process.execPath, '-e', code], {
+    cwd: repository,
+    env: {
+      ...process.env,
+      PATH: `${directory}:${process.env.PATH}`,
+      PROOF_DIR: directory,
+      DOCKER_EXIT: '0',
+      ...env,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [exit, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  return { exit, stdout, stderr };
+}
+const inspect = `import {imageMetadata} from ${JSON.stringify(library)}; console.log(JSON.stringify(await imageMetadata("test-image:latest")));`;
+const unpacked = `import {imageUnpackedSizeBytes} from ${JSON.stringify(library)}; console.log(await imageUnpackedSizeBytes("test-image:latest"));`;
+const metadata = {
+  Config: {
+    Labels: {
+      'org.opencontainers.image.source': 'https://github.com/tale-project/tale',
+    },
+    User: '10001:10001',
+    Env: ['OPENAI_API_KEY=test-key-not-real appended-secret'],
+    Healthcheck: { Test: ['CMD', 'true'] },
+  },
+  Size: 5 * 1024 * 1024,
+};
+
+test('unpacked image size sums every retained layer and zero-byte metadata layer', () => {
+  expect(parseImageHistorySizeBytes('0\n2048\n0\n3072\n')).toBe(5120);
+  expect(parseImageHistorySizeBytes('1\r\n2\r\n')).toBe(3);
+  expect(parseImageHistorySizeBytes('0\n')).toBe(0);
+});
+
+test.each([
+  '',
+  '1\n\n2',
+  '1.2MB',
+  '-1',
+  '1.5',
+  '1e6',
+  'NaN',
+  '9007199254740992',
+  '9007199254740991\n1',
+])(
+  'unpacked image size refuses missing, rounded or unsafe byte data: %j',
+  (output) => {
+    expect(() => parseImageHistorySizeBytes(output)).toThrow();
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'unpacked image reader requests exact byte sizes instead of compressed metadata',
+  async () => {
+    const directory = await fixture();
+    const result = await execute(unpacked, directory, {
+      HISTORY: '0\n2048\n3072',
+    });
+    expect(result.exit, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe('5120');
+    expect((await readFile(join(directory, 'calls'), 'utf8')).trim()).toBe(
+      'image history --no-trunc --human=false --format={{.Size}} test-image:latest',
+    );
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'failed unpacked image history cannot pass a budget with zero bytes',
+  async () => {
+    const directory = await fixture();
+    const result = await execute(unpacked, directory, {
+      HISTORY: '0',
+      DOCKER_EXIT: '7',
+    });
+    expect(result.exit).not.toBe(0);
+    expect(result.stderr).toContain('Could not read unpacked image size');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'one image-specific inspection supplies labels, user, exact env, health and size',
+  async () => {
+    const directory = await fixture();
+    const result = await execute(inspect, directory, {
+      METADATA: JSON.stringify(metadata),
+    });
+    expect(result.exit, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      labels: metadata.Config.Labels,
+      user: '10001:10001',
+      env: metadata.Config.Env,
+      hasHealthcheck: true,
+      sizeMb: 5,
+    });
+    expect(
+      (await readFile(join(directory, 'calls'), 'utf8')).trim().split('\n'),
+    ).toEqual(['image inspect --format={{json .}} test-image:latest']);
+  },
+);
+
+test.skipIf(process.platform === 'win32').each([
+  ['missing size', { Config: metadata.Config }],
+  ['negative size', { ...metadata, Size: -1 }],
+  ['invalid config', { ...metadata, Config: null }],
+  [
+    'nonstring label',
+    { ...metadata, Config: { ...metadata.Config, Labels: { source: 7 } } },
+  ],
+  ['invalid env', { ...metadata, Config: { ...metadata.Config, Env: [7] } }],
+  ['invalid user', { ...metadata, Config: { ...metadata.Config, User: 0 } }],
+  [
+    'invalid healthcheck',
+    {
+      ...metadata,
+      Config: { ...metadata.Config, Healthcheck: { Test: 'true' } },
+    },
+  ],
+])(
+  'metadata rejects %s rather than passing zero-size/empty-field checks',
+  async (_label, value) => {
+    const directory = await fixture();
+    const result = await execute(inspect, directory, {
+      METADATA: JSON.stringify(value),
+    });
+    expect(result.exit).not.toBe(0);
+    expect(result.stderr).toContain('Invalid image');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'Docker inspection failure preserves its diagnostic and fails closed',
+  async () => {
+    const directory = await fixture();
+    const result = await execute(inspect, directory, {
+      METADATA: JSON.stringify(metadata),
+      DOCKER_EXIT: '7',
+    });
+    expect(result.exit).not.toBe(0);
+    expect(result.stderr).toContain(
+      'Could not inspect image test-image:latest',
+    );
+  },
+);
+
+test
+  .skipIf(process.platform === 'win32')
+  .each([undefined, null, { Test: ['NONE'] }, { Test: [] }])(
+  'absent or disabled HEALTHCHECK is not accepted: %j',
+  async (healthcheck) => {
+    const directory = await fixture();
+    const result = await execute(inspect, directory, {
+      METADATA: JSON.stringify({
+        ...metadata,
+        Config: { ...metadata.Config, Healthcheck: healthcheck },
+      }),
+    });
+    expect(result.exit, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).hasHealthcheck).toBe(false);
+  },
+);
+
+async function imageHarness(
+  directory: string,
+  secret = '',
+  missing = '',
+  gateway = '',
+  metadataFailure = '',
+  gatewaySize = 255,
+  runtimeHistory: { stdout?: string; exitCode?: number } = {},
+  bunVersion = expectedBun,
+  bunExit = 0,
+) {
+  await writeFile(
+    join(directory, 'docker'),
+    `#!/usr/bin/env python3
+import json, os, sys
+args = sys.argv[1:]
+with open(os.environ['PROOF_DIR'] + '/calls', 'a') as stream: stream.write(json.dumps(args) + '\\n')
+if args[0] == 'compose':
+    if args[-2:] != ['config', '--images']: sys.exit(91)
+    for service in ['platform', 'db', 'proxy', 'sandbox-llm-gateway', 'sandbox', 'sandbox-egress']:
+        if service != os.environ.get('MISSING_SERVICE'): print('ghcr.io/tale-project/tale/tale-' + service + ':latest')
+elif args[:2] == ['image', 'inspect']:
+    if any(arg.startswith('--format=') for arg in args):
+        if os.environ.get('METADATA_FAILURE') == 'inspect':
+            print('Injected inspect failure', file=sys.stderr); sys.exit(7)
+        if os.environ.get('METADATA_FAILURE') == 'malformed':
+            print('{'); sys.exit(0)
+        gateway = 'tale-sandbox-llm-gateway:' in args[-1]
+        case = os.environ.get('GATEWAY_CASE') if gateway else ''
+        size = (301*1024*1024 if case == 'size' else int(os.environ['GATEWAY_SIZE'])) if gateway else 1024*1024
+        if gateway:
+            with open(os.environ['PROOF_DIR'] + '/gateway-size', 'w') as stream: stream.write(str(size))
+        print(json.dumps(dict(Config=dict(Labels={'org.opencontainers.image.source':'source'}, User=case if case in ('root', 'root:app', '0:10001') else '10001', Env=json.loads(os.environ['SECRET']) if os.environ['SECRET'].startswith('[') else [os.environ['SECRET']] if os.environ['SECRET'] else [], Healthcheck=dict(Test=['NONE'] if case == 'health' else ['CMD', 'true'])), Size=size)))
+elif args[:2] == ['image', 'history']:
+    print(os.environ['RUNTIME_HISTORY'])
+    sys.exit(int(os.environ['HISTORY_EXIT']))
+elif args[0] == 'run':
+    if args[-2:] == ['bun', '--version']:
+        print(os.environ['BUN_VERSION']); sys.exit(int(os.environ['BUN_EXIT']))
+    if args[-2:] == ['-c', 'ls /app/system/providers | head -1; ls /app/builtin | head -1; stat -c %U /app/data']:
+        print('provider\\nbuiltin\\napp')
+else:
+    sys.exit(92)
+`,
+    { mode: 0o755 },
+  );
+  const documentTools = join(
+    repository,
+    'services/platform/tests/integration/lib/document-tools.ts',
+  );
+  const harness = join(
+    repository,
+    'services/platform/tests/integration/container-image-test.ts',
+  );
+  // The expensive offline tool container has its own conformance gate. This
+  // fixture isolates actual image resolution/metadata/security checks.
+  const code = `import {mock} from 'bun:test'; mock.module(${JSON.stringify(documentTools)}, () => ({checkDocumentTools: async () => ({exitCode:0, combined:''})})); await import(${JSON.stringify(harness)});`;
+  return await execute(code, directory, {
+    SKIP_BUILD: 'true',
+    PULL_POLICY: 'never',
+    SECRET: secret,
+    MISSING_SERVICE: missing,
+    GATEWAY_CASE: gateway,
+    METADATA_FAILURE: metadataFailure,
+    GATEWAY_SIZE: String(gatewaySize * 1024 * 1024),
+    RUNTIME_HISTORY: runtimeHistory.stdout ?? '0\n1048576\n0',
+    HISTORY_EXIT: String(runtimeHistory.exitCode ?? 0),
+    BUN_VERSION: bunVersion,
+    BUN_EXIT: String(bunExit),
+  });
+}
+
+test.skipIf(process.platform === 'win32').each([
+  ['stale binary', '1.3.12', 0],
+  ['missing output', '', 0],
+  ['failed version command', expectedBun, 7],
+] as const)(
+  'native image checks refuse %s',
+  async (_label, version, exitCode) => {
+    const directory = await fixture();
+    const result = await imageHarness(
+      directory,
+      '',
+      '',
+      '',
+      '',
+      255,
+      {},
+      version,
+      exitCode,
+    );
+    expect(result.exit).toBe(1);
+    for (const service of ['platform', 'sandbox', 'sandbox-runtime'])
+      expect(result.stdout).toContain(
+        `${service}: Bun runtime does not match ${expectedBun}`,
+      );
+    expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32').each([
+  ['exact budget', `${6000 * 1024 * 1024}`, 0, '6000 MB ≤ 6000 MB budget'],
+  [
+    'one byte over budget',
+    `${6000 * 1024 * 1024}\n1`,
+    1,
+    '6001 MB exceeds 6000 MB budget',
+  ],
+  ['rounded bytes', '5.2GB', 1, 'Invalid unpacked image layer size'],
+  ['missing history', '', 1, 'Invalid unpacked image layer size'],
+] as const)(
+  'runtime disk gate judges retained unpacked layers with tiny packed metadata: %s',
+  async (_label, history, expectedExit, diagnostic) => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', '', '', 255, {
+      stdout: history,
+    });
+    expect(result.exit, result.stdout + result.stderr).toBe(expectedExit);
+    expect(result.stdout + result.stderr).toContain(diagnostic);
+    if (expectedExit !== 0)
+      expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'runtime disk gate fails closed when history lookup fails despite valid metadata',
+  async () => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', '', '', 255, {
+      exitCode: 7,
+    });
+    expect(result.exit).toBe(1);
+    expect(result.stderr).toContain('Could not read unpacked image size');
+    expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'the actual image harness resolves Compose once and inspects each image once',
+  async () => {
+    const directory = await fixture();
+    const result = await imageHarness(directory);
+    expect(result.exit, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      'sandbox-llm-gateway: 255 MB ≤ 300 MB budget',
+    );
+    const calls: string[][] = (await readFile(join(directory, 'calls'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(calls.filter((args) => args[0] === 'compose')).toHaveLength(1);
+    expect(
+      calls.filter(
+        (args) =>
+          args[0] === 'image' &&
+          args[1] === 'inspect' &&
+          args.some((arg) => arg.startsWith('--format=')),
+      ),
+    ).toHaveLength(8);
+    expect(calls.filter((args) => args[1] === 'history')).toEqual([
+      [
+        'image',
+        'history',
+        '--no-trunc',
+        '--human=false',
+        '--format={{.Size}}',
+        'tale-sandbox-runtime:latest',
+      ],
+    ]);
+    for (const image of [
+      'platform',
+      'db',
+      'proxy',
+      'sandbox-llm-gateway',
+      'sandbox',
+      'sandbox-egress',
+      'sandbox-buildkitd',
+      'sandbox-runtime',
+    ])
+      expect(result.stdout).toContain(`${image}: no secrets baked in`);
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'an ENV value cannot hide a secret after a permitted dummy prefix and a space',
+  async () => {
+    const directory = await fixture();
+    const result = await imageHarness(
+      directory,
+      'OPENAI_API_KEY=test-key-not-real appended-secret',
+    );
+    expect(result.exit, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout).toContain('secret OPENAI_API_KEY found in image env');
+  },
+);
+
+test('the static-site harness reuses the metadata snapshot instead of separate field inspections', async () => {
+  const source = await readFile(
+    join(repository, 'services/platform/tests/integration/static-site-test.ts'),
+    'utf8',
+  );
+  expect(source.match(/await imageMetadata\(image\)/g)).toHaveLength(1);
+  expect(source).not.toContain('await dockerInspect(');
+  expect(source).not.toContain('await imageSizeMb(');
+  for (const check of [
+    'metadata.labels',
+    'metadata.user',
+    'metadata.hasHealthcheck',
+    'metadata.sizeMb',
+  ])
+    expect(source).toContain(check);
+});
+
+test
+  .skipIf(process.platform === 'win32')
+  .each(['platform', 'db', 'proxy', 'sandbox', 'sandbox-egress'])(
+  'the required %s image cannot silently disappear from the Compose resolution',
+  async (service) => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', service);
+    expect(result.exit, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout).toContain(`${service}: required image not found`);
+    expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32').each([255, 300])(
+  'the measured gateway and budget edge pass at %i MiB with all image checks',
+  async (size) => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', '', '', size);
+    expect(result.exit, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      `sandbox-llm-gateway: ${size} MB ≤ 300 MB budget`,
+    );
+    expect(result.stdout).toContain('Tests: 50');
+    expect(result.stdout).toContain('Passed: 50');
+    for (const uid of [65534, 10001])
+      expect(result.stdout).toContain(
+        `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
+      );
+    expect(result.stdout).toContain('Failed: 0');
+    expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32').each([
+  ['packed baseline', 90_653_959, 86],
+  ['uncompressed baseline', 268_266_714, 255],
+])(
+  'the raw-byte gateway %s passes without truncating Docker image-store metadata',
+  async (_label, bytes, sizeMb) => {
+    const directory = await fixture();
+    const result = await imageHarness(
+      directory,
+      '',
+      '',
+      '',
+      '',
+      bytes / 1024 / 1024,
+    );
+    expect(await readFile(join(directory, 'gateway-size'), 'utf8')).toBe(
+      String(bytes),
+    );
+    expect(result.exit, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      `sandbox-llm-gateway: ${sizeMb} MB ≤ 300 MB budget`,
+    );
+    expect(result.stdout).toContain('Tests: 50');
+    expect(result.stdout).toContain('Passed: 50');
+    expect(result.stdout).toContain('Failed: 0');
+    expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32').each([
+  ['root', 'sandbox-llm-gateway: image must not run as root'],
+  ['health', 'sandbox-llm-gateway: no HEALTHCHECK instruction'],
+  ['size', 'sandbox-llm-gateway: 301 MB exceeds 300 MB budget'],
+])(
+  'gateway validation catches %s before reporting all images accepted',
+  async (policy, diagnostic) => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', policy);
+    expect(result.exit, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout).toContain(diagnostic);
+    expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);
+
+test.skipIf(process.platform === 'win32').each(['root:app', '0:10001'])(
+  'a group suffix cannot disguise gateway root user %s',
+  async (user) => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', user);
+    expect(result.exit, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout).toContain(
+      'sandbox-llm-gateway: image must not run as root',
+    );
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'a permitted dummy ENV entry cannot conceal a later secret under the same key',
+  async () => {
+    const directory = await fixture();
+    const result = await imageHarness(
+      directory,
+      JSON.stringify([
+        'OPENAI_API_KEY=test-key-not-real',
+        'OPENAI_API_KEY=real-secret',
+      ]),
+    );
+    expect(result.exit, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout).toContain('secret OPENAI_API_KEY found in image env');
+  },
+);
+
+test.skipIf(process.platform === 'win32').each(['inspect', 'malformed'])(
+  'an initial %s metadata failure cannot print an all-images-passed banner',
+  async (failure) => {
+    const directory = await fixture();
+    const result = await imageHarness(directory, '', '', '', failure);
+    expect(result.exit).toBe(1);
+    expect(result.stdout).toContain('Image validation could not complete');
+    expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
+  },
+);

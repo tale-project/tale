@@ -10,9 +10,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
   the Postgres backend), `web` (marketing site), `docs` (docs site at docs.tale.dev), `ui-docs`
-  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003: a
-  marketing-language front page on `@tale/marketing-ui`, app-language `/docs/*` pages with live
-  `<Demo>` examples), plus `db`, `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
+  (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003:
+  app-language documentation at `/` and `/docs/*` with live `<Demo>` examples), plus `db`,
+  `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
   one documentation frame, `@tale/ui/docs/*` (rail, header strip, article, outline, footer, 404,
   search); a site feeds it content and never forks a piece of it.
 - `packages/` — `ui` (the design system: every reusable platform component, hook and UI util —
@@ -83,7 +83,14 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   [`write-translations`](skills/write-translations/SKILL.md) skill. A key present in one catalog
   and missing in another full catalog is a defect, not a follow-up. Shared controls own their keys
   in `packages/ui`; marketing frames own theirs in `packages/marketing-ui`. Service catalogs
-  override package keys per leaf. The product docs ship EN/DE/FR; `services/ui-docs/content` is
+  override package keys per leaf. The platform keeps one file per topic and locale
+  (`services/platform/messages/<locale>/<topic>.yml`, a topic being one top-level namespace), and
+  every locale has the same topic files — `de-CH` only the ones it overrides; the i18n parity
+  tests enforce both. Every locale also loads per topic: English ships with the modules that name
+  a topic (the `messageTopics` plugin in `services/platform/vite.config.ts`), and the other
+  locales are fetched as the session's pages need them. So name a namespace literally where it is
+  read (`useT('tasks')`, `{ ns: 'tasks' }`); `lib/i18n/topic-references.test.ts` refuses a
+  computed one. The product docs ship EN/DE/FR; `services/ui-docs/content` is
   an English-only guide with complete EN/DE/FR chrome catalogs.
 - **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
   through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,
@@ -122,16 +129,43 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
   what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
   never renumber.** Ship new behaviour with its box, or with a row in `reference/automation.md`
-  when a spec owns it end to end. The platform's `tests/manual/scripts/check-guide.ts` is the
+  when a spec owns it end to end — a box a spec takes over moves to
+  `reference/automation/<suite>.md`, one file per suite so parallel PRs do not append to the same
+  lines. The platform's `tests/manual/scripts/check-guide.ts` is the
   content half of the gate: it resolves the i18n keys, routes and spec names a suite cites, and is
   an authoring aid rather than a CI job — run it on every suite you touch.
 - **Judge the platform against its user docs** — the pages under `docs/en/platform/` are the
   behaviour oracle for a manual round; a mismatch between the running app and its documented
   behaviour is a reportable defect of one or the other, never a silent judgment call.
+- **A domain's rules are a checked spec** — `services/platform/backend/domains/<domain>/spec.md`
+  states what a domain guarantees for a reader who has not opened the code, in the shape
+  [`spec-template.md`](../services/platform/backend/domains/spec-template.md) describes: a prefix
+  shared with the feature's manual suite (`TASK-R4` beside `TASK-F63`), topic headings a reader
+  would look up, one card per rule, then Not yet. A card's heading is the rule as one plain
+  sentence ("Only owners and admins can delete a task"); under it comes an example with a named
+  person. A spec carries rules and nothing about them: no status and no list of tests. Whether
+  a rule is the intended one is settled in the review of the change that adds it. Never guess
+  an intent: a question nobody has decided goes under Not yet as `**Undecided: …?**`, not into
+  a rule. A test holds every rule and says so in its title (`it('… [TASK-R4]', …)`, or the
+  `describe` when the whole block does). The guard,
+  `services/platform/tests/guards/domain-specs.guard.test.ts`, parses every spec and the test
+  titles of the workspace, and fails on a shape it does not know, a rule with no example, a
+  rule no running test names, and a title that names a rule no spec states. Change what a rule
+  says the code does, and its card and its test move in the same change. Every domain under
+  `backend/domains/` has a spec (2026-10). A spec covers part of its domain and says which
+  parts it leaves out; a rule the code keeps and no test holds is listed under its Not yet,
+  not as a rule.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
-  title must itself be commitlint-shaped.
+  title must itself be commitlint-shaped. **Land through the merge queue**: `gh pr merge --auto`
+  (the queue sets squash) queues a PR once its checks and review pass, and the queue re-runs CI on the PR stacked
+  on `main` plus the PRs ahead of it. A branch does not have to be up to date with `main` — never
+  rebase, merge `main` in or `gh pr update-branch` just because a PR reads *behind*; rebase only for
+  a real conflict (`git merge-tree --write-tree --name-only origin/main HEAD`), and never bypass
+  the queue with an admin merge. A PR's own CI is the fast tier (format, lint, types, knip, unit,
+  commitlint, SAST); E2E, Build, CLI, UI, Browser and backend integration run only in the queue —
+  run the ones your change touches locally before queueing ([CI guide](../.github/CI.md#merge-queue)).
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
@@ -163,15 +197,62 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-Every CI job is `setup-turbo` plus one root script, so most check results are **replays**:
+The seven workflow-specific **CI ready** terminal jobs judge complete native PR/merge-group
+dependencies and validated scope. Their source contract, conditional/advisory limits and
+separate required-check activation procedure are in [`.github/CI.md`](../.github/CI.md).
+They do not replace independent review or the release-candidate gate.
+
+Most CI check jobs use `setup-turbo` plus a root script, so many results are **replays**:
 `@tale/ui:test:browser`, for instance, actually executed four times in one recent stretch of
 forty `checks.yml` runs. Whichever run first executes a given input hash freezes its verdict for
 every later run that shares those inputs — so a task that is flaky but passed once reads green
 until its inputs change, and "it passes on `main`" is not evidence the suite ran there. Before
-concluding that a failure is yours, open the job log and look for `cache hit, replaying logs`
-beside the task; `--force` re-runs it locally. A task whose result depends on anything but its
+concluding that a failure is yours, inspect the task cache status in the job's `turbo-*`
+artifact. Most check jobs print only failing logs; the summary preserves per-task execution
+evidence. Type check retains full logs (`cache hit, replaying logs`); `--output-logs=full`
+restores that detail locally, and `--force` re-runs the task. A task whose result depends on anything but its
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
+
+For a candidate whose source C differs from workflow H, Turbo's summary `scm.sha`
+uses the CI environment's H. Verify C from the checkout log and the cache action's
+actual `git rev-parse HEAD` source key; keep task cache HIT/MISS evidence separate
+from source identity. [The CI guide](../.github/CI.md) records the upstream behavior
+and the observed C/H proof.
+
+The stable **Unit** check aggregates two platform unit shards and a separate job for
+every other workspace's unit tests. Both platform shards retain the live YouTube service
+and the PII project's isolation policy. The aggregate needs no dependency installation
+and rejects failed, cancelled, skipped or missing results. Candidate receipts require
+every individual unit job as well as the aggregate.
+
+The stable **UI** check aggregates four platform UI shards and fails unless all four
+succeed. It does not install dependencies. Shard 1 also runs every other workspace's
+`test:ui` once; the platform shards retain the suite's bounded worker pool. **E2E** uses
+four single-worker platform shards, each with its own stack, and builds the preview
+bundle once through the same Turbo task used by Checks. A run artifact carries those
+exact bytes to every shard through the build's validated immutable artifact ID.
+Full reruns publish a new attempt-specific artifact; failed-only reruns reuse the
+successful build's original ID. Unit and UI workers reuse a job-local Node bytecode
+cache without relaxing isolation. Static-site browser and web prerender suites also reuse
+one complete Turbo build, including client, SSR, SEO, frontmatter and translated search
+outputs. Native cache archives share a build scope but retain distinct workflow/job/matrix
+writers. Hosted jobs use Turbo's native 512 MiB startup eviction target. Eviction
+is best-effort; short runs or new outputs can leave a larger saved archive.
+Local shared caches keep their existing policy. Chromium caches use the installed Playwright version,
+runner OS and architecture. E2E and cold Browser jobs install its headless shell and
+native dependencies; a Browser task whose complete executable prerequisite graph has
+verified local hits can skip provisioning while still running its normal Turbo command.
+The probe and verdict disable archive eviction to keep those hits available. See [the CI scheduling guide](../.github/CI.md).
+
+Web E2E's SEO step runs the workspace script directly against its browser-tested build:
+release fetching rewrites a tracked snapshot, so another Turbo prerequisite invocation
+would rebuild different bytes. Historical candidates keep forced, uncached static builds
+because their browser configs can predate preview reuse and overwrite prerendered HTML.
+
+E2E pull requests first compute a fail-closed platform, web and docs service scope;
+candidates, nightly and manual runs select every service. Candidate receipts require
+the scope, the stable UI aggregate and every individual UI and E2E shard.
 
 The **Type check** job gives every `tsc` a 6 GiB Node heap (`NODE_OPTIONS`, #4005). The
 platform checks its frontend, backend and tests as one program, which outgrew V8's default of
@@ -209,19 +290,52 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
+  the shared automation-name grammar inspected by the engine purity guard,
   knowledge-db migrations, `packages/ui/src` (two suites read it as text), `checks.yml` (the
   integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
   component suites render it, and all three list `@tale/ui`'s `package.json` and every file
-  it exports from outside `src/` (`tailwind-preset.ts`). Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
+  it exports from outside `src/` (`tailwind-preset.ts`). Its `lint` and `typecheck` list the
+  sandbox runtime's `build-gemini-settings.ts` and daemon `file-ops.ts` and
+  `exec-replay.ts`, which suites import, plus the daemon modules' shared `protocol.ts`:
+  `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The capture-manifest test also
+  imports `services/web/app/content/product-screenshots.ts`; test, lint and typecheck hash
+  that registry through the same guard's reader and static-import tables. The catalog glob explicitly
+  excludes nested `.turbo/` output: explicit inputs include otherwise ignored task logs, so
+  running a catalog skill must not invalidate the platform test cache. The guard changes logs
+  and real catalog/skill source in an isolated Git fixture and checks the actual Turbo hashes.
+  Component tasks exclude unrelated backend trees and manual/E2E evidence; the same guard
+  follows runtime imports and re-exports and requires every visited module and source-text read
+  to remain hashed, including recursive workspace dependencies. Keep that proof green before
+  narrowing a component input list.
+- [`services/sandbox-runtime/daemon/turbo.json`](../services/sandbox-runtime/daemon/turbo.json)
+  gives daemon tests, type-aware lint and typecheck the sandbox client closure reached by
+  `src/exec-completion.test.ts`: `session/runnerd-client.ts`, `session/runnerd-protocol.ts`
+  and `operation-budget.ts` under `services/sandbox/src`. The dependency fixture in
+  `tools/cli/scripts/turbo-dependencies.test.ts` proves each edit invalidates those checks
+  while unrelated sandbox source and the daemon's production build retain their hashes.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
-  i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
-- [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
+  i18n catalogs and test framework (test). Its screenshot-manifest test also hashes the marketing
+  source registry at `services/web/app/content/product-screenshots.ts`. Its guard is
+  `services/docs/tests/turbo-inputs.test.ts`.
+- [`services/web/turbo.json`](../services/web/turbo.json) gives `@tale/web`'s product-capture tests
+  the docs capture manifest and registered EN/DE/FR source images. Its guard,
+  `services/web/tests/turbo-inputs.test.ts`, derives the source paths from the registry and verifies
+  their actual Turbo dry-run hashes. A newly registered source must enter the task's input glob.
+  Native motion recording also imports platform capture and video helpers: lint and typecheck
+  hash their full static dependency closure; unit tests hash the encoder's ffmpeg helper and
+  capture-options parser. The same guard checks the actual hashes for all three tasks.
+- [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
+  `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
+  and directly for its source-reading tests. The candidate contract refresh script
+  and existing graph guard own its admission assertions; `.github/RELEASING.md`
+  describes the reviewed Ops digest transition. It also gives `@tale/cli`'s tests the CLI install
   pages; the CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
   (`scripts/release-candidate-workflows.test.ts`) check: the `build.yml`, `checks.yml`,
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
-  `release-candidate-*` workflows and the `setup-cli` action; the files the compose parity
+  `release-candidate-*` workflows and the `setup-cli` action, plus the container image harness used to prove fork
+  build coverage; the files the compose parity
   suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
@@ -235,18 +349,62 @@ These guards ask `turbo --dry=json` whether the files are hashed. Each also read
 without `$TURBO_EXTENDS$` while no root task declares inputs. A suite that starts reading
 another outside file adds it to both the task's inputs and its guard.
 
-Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
-`test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
-package change is judged only by that package's own tasks until the consumer's own files
-change. The platform's `test`, `test:ui` and `test:browser` are the exception for `@tale/ui`:
-they hash `packages/ui/src` whole, the package's `package.json`, whose `exports` resolve every
-`@tale/ui/*` import, and every file an export names outside `src/` — today
-`tailwind-preset.ts` alone; the guard reads that list from the manifest. So a design-system
-change re-runs them — the i18n suite, and every component suite that renders the package or
-imports its test helpers (`@tale/ui/testing/flow`). The i18n suites of `services/web`,
-`services/ui-docs`, `services/ai-gateway` and `packages/marketing-ui` are still in that gap:
-they run `@tale/ui`'s i18n test framework (the first two also read the package catalogs)
-unhashed.
+Generic workspace checks depend on `^transit`: scriptless nodes recursively hash
+dependency workspaces. A shared package change therefore invalidates its consumers
+without serializing their actual test, lint or typecheck processes. Each check's
+effective inputs hash its own selected source, preserving component input narrowing.
+CLI checks also depend on their own `transit` to hash their extra outside-module closure.
+Explicit outside-file inputs remain necessary for imports and reads that are not
+workspace dependencies. The platform's UI input guards still hold its direct source
+reads and exported files to that contract. Every root `tsconfig*.json`, `bunfig.toml`,
+lint and formatter configuration, patch and the setup action participate in the global hash.
+The UI, marketing-UI and E2E transit lists omit only package-root `README.md` prose;
+package-owned checks and ordinary `^build` consumers keep their default inputs, and CLI
+publication tests explicitly hash the published READMEs. Source, catalogs, exports and
+toolchains still invalidate consumers. The dependency fixture also models the root's
+`@tale/shared` dependency: its README must retain global invalidation, since narrowing
+only shared transit would not change that separate hash.
+
+Checks skip echo-only setup tasks. The CLI keeps its real generation prerequisite explicitly;
+a workspace that adds substantive setup must attach it to its checks. The dependency fixture
+holds workspace setup scripts to this contract.
+
+CLI generation and builds record the checkout's Git revision and clean state; they are
+uncached because those values are not source-file hashes. CI generates that identity before
+changing the tracked package version and then compiles the same module on every target.
+The Windows CI entry `build:windows:compile` shares the compiler and bundle check with
+`build:windows`; only the public local entry regenerates identity. An older candidate/tag
+checkout may lack that helper: after generation and version injection, CI derives it only
+from the selected source's known `bun run generate && bun build --compile …` script,
+preserving its compiler arguments and bundle check. Unrecognized or invalid entries fail.
+Dirty local source must still record `clean: false`. CLI transit inputs cover its
+generator's embedded trees and the platform modules reached by relative imports;
+module-closure and generator-tree guards require those actual outside inputs to be hashed.
+CLI lint/test run generation directly and do not repeat the setup alias. External catalog
+inputs exclude nested `.turbo/` logs and `*.tsbuildinfo` incremental outputs; CLI embedding
+already omits both. The real Turbo fixture in
+`tools/cli/scripts/ci-cache-optimization.test.ts` proves creating and rewriting either
+artifact preserves consumer hashes while real catalog sources and toolchain inputs invalidate them.
+Do not cache these artifacts without including and
+verifying their complete source identity.
+
+`setup-turbo` always runs a frozen install. Its download cache separates OS,
+architecture, Bun version, manifests, lockfile and patches, and saves after a successful
+install so a later workload failure does not lose the downloaded packages.
+CLI's Windows native row keeps its Bun store beside the checkout, outside the source
+tree, to permit same-volume hardlinks; Linux/macOS native rows retain their home store.
+Native Windows skips download-archive restore/save; its normalized store still backs
+the complete frozen install. Other native and cross rows retain their archives.
+All native rows keep the full frozen install. Cross rows retain the separate CLI-only
+store and filtered frozen install.
+Browser checks and Playwright share an exact installed-version/OS/architecture
+headless-shell cache. Successful browser provisioning is saved before later suites can
+fail. Native dependencies are installed for every E2E runner and cold Browser run;
+fully cached Browser prerequisites use the guarded exception above.
+Shared setup pins Node from the production image and hashes actual Bun/Node/OS/architecture/
+distribution identity. Keep unknown or forced Browser plans on the cold path.
+The [CI guide](../.github/CI.md) documents task cache boundaries and the four-way
+UI and platform Playwright matrices, including their required release evidence.
 
 ## Skills index
 
@@ -297,6 +455,16 @@ default means deleting the override and fixing what surfaces:
 
 ## Contract debt ledger
 
+- **The session-bound connector runner has no caller** — agent connector calls through the
+  sandbox bridge run on the in-process live runner (2026-10), so nothing starts a live
+  connector body as a `node -e` program in a session any more. The machinery for it stays:
+  `engine_exec_runner.ts` (`sandboxProgramRunnerForSession`), the sandbox-exec runner, `lib/connectors/portable-live.ts`,
+  `core/connectors/hostcall_token.ts`, the `/api/connectors/hostcall` route in
+  `domains/connectors/bridge-routes.ts` with its body limit in
+  `domains/sandbox/door-body-limit.ts`, the dispatcher's portable branch, the hostcall secret
+  in `backend/env.ts`, and the device relay's allowance for the route
+  (`services/sandbox/src/devices/relay-policy.ts`). Paying it down means deleting them together
+  with their tests; `runConnectorAction` no longer accepts a session to run in.
 - **Unbounded named-array lists on `/api/v1`** — `GET /automations`,
   `GET /projects/{id}/automations`, the two `…/versions` listings, `GET /projects/{id}/folders`
   (per level) and `GET /browser-sessions` answer the whole set with no `LIMIT`; declared
@@ -339,16 +507,15 @@ default means deleting the override and fixing what surfaces:
   backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
   forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
   or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.
-- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block: an `llm`
-  node's spend is not metered at all (`backend/core/automations/llm_call.ts` → `model_call.ts`
-  parses no usage and writes no ledger row), and an `agent` node's cents settle on
-  `app.sandbox_session_ops` under the automation's name and user, never on the run
-  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`); the stepper drops the
-  agent settle's `usage` when it records the node. A `usage` that read `0` for every `llm` node
-  would be a fabricated figure, so the surface says a run carries none (2026-09, round g).
-  Paying it down means (1) parsing usage in `parseChatReply` and booking it through
-  `incrementUsageLedger({agentSlug: run.automation})` for `llm` nodes, (2) keeping
-  `settled.usage` in the agent checkpoint trace, then (3) `?include=usage` summing both.
+- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block. An `llm`
+  node's call is booked to the usage ledger under the run's subject and the automation's name
+  (`backend/domains/automations/llm-metering.ts`, 2026-10-08), and an `agent` node's cents
+  settle on `app.sandbox_session_ops` under the same subject
+  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`) — but neither lands on
+  the run itself: the stepper keeps no `llm` node's usage and drops the agent settle's `usage`
+  when it records the node, and the ledger's buckets sum across runs. Paying it down means
+  (1) keeping each `llm` node's usage and the agent's `settled.usage` in the node's checkpoint
+  trace, then (2) `?include=usage` summing them.
 - **Approvals have no REST twin** — a run parked on `waitingFor: approval` can only be decided
   in the app (`backend/domains/approvals/routes.ts`); over REST the `detail`
   (`approval:<approvalId>`) names something no door takes (2026-09, round g). The ask half was
@@ -377,14 +544,6 @@ default means deleting the override and fixing what surfaces:
   project, then `assertTaskWorkable` — an archived task stays deletable) so its
   `TASK_FORBIDDEN` never leaks, `deleteTask`'s owner/admin rule surfaced as 403
   `ROLE_FORBIDDEN`, and a contract bump.
-- **A webhook bind does not say whether the deployed `inputs` schema admits a delivery** — a
-  `PUT …/triggers` of kind `webhook` answers `deployed`, and every delivery then dies on 400
-  `AUTOMATION_INPUT_INVALID` when the version's `inputs` schema does not take
-  `{trigger: "webhook", payload}` at the top level (2026-09, round g). Paying it down means an
-  additive `inputsAcceptDelivery` on the bind: compile the deployed version's `inputs` with the
-  stepper's own `compileSchemaCached` key, check `{trigger: 'webhook', payload: {}}`, and
-  judge only issues at `trigger`/`payload` or a top-level `is required` (requirements inside
-  `payload.*` are not judged); absent without a schema or a deployment.
 - **An exhausted `repeatUntil` is only a trace note** — a `repeat` node that spends its
   `maxRepeats` budget without its condition becoming true finishes the run `success` with the
   last pass's output and a free-text `trace[].note`; nothing structured says the loop gave up
@@ -394,7 +553,7 @@ default means deleting the override and fixing what surfaces:
   `Run`/`RunSummary` (present only when true) in `toRunDetail`/`toRunSummary`; no migration.
 - **The crawler's clocks and knobs are not on the wire** — `Website` carries no
   `scanStartedAt` (the chain argument is never persisted), and the ceilings
-  the docs now state (10,000 URLs, 200 five-minute links, 25 MB / 30 s per page, five strikes)
+  the docs now state (10,000 URLs, 200 five-minute links, 100 MiB / 30 s per page, five strikes)
   are constants with no page cap, path filter, wall-clock cap or stop verb of the caller's
   (2026-09, round g). Paying it down means a `scan_started_at` column on the corpus website row
   (set in `claimScan`) surfaced as `Website.scanStartedAt`, and optional `maxPages` /
@@ -416,11 +575,11 @@ default means deleting the override and fixing what surfaces:
   the default hash covers the task's `title` and `status`, which the workflow itself moves, so
   an honest retry would otherwise answer 409 `IDEMPOTENCY_KEY_REUSED`.
 - **No queue position on a queued send** — the generation poll answers `queued` with no
-  count of the accepted sends ahead; the deployment-wide queue is one `pg-boss` queue worked in
-  batches of `WORKER_CONCURRENCY` (2026-09, round g). Paying it down means `queuedAhead` from
+  count of the accepted sends ahead; the deployment-wide queue is one `pg-boss` queue worked through
+  independent slots at `WORKER_CONCURRENCY` (2026-09, round g). Paying it down means `queuedAhead` from
   `count(*) … WHERE generation_queued_since_ms < ${thread.queuedSince}` on
   `app.thread_metadata` behind a partial index (create-migration skill), an additive field on
-  the poll and a contract bump; no ETA — batch waves times a turn's own length make any figure
+  the poll and a contract bump; no ETA — turn durations and provider capacity make any figure
   dishonest.
 - **A corrupt Office document still fails as a raw parse error** — a PDF that does not parse
   now lands `unsupported` with `errorCode: malformed`, but `docx`/`pptx`/`xlsx`/`odt` parse
@@ -477,11 +636,14 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   refusing every delivery reads as never called (2026-09, round i). The reference says so.
   Paying it down means a `delivery_refused` skip reason stamped from the webhook door beside
   `start_refused`.
-- **A page is fetched three to four times a scan** — the plain probe, the render pass and, for
-  the homepage, a create-time metadata probe. The robots parser now honours group selection by
-  product token (`User-agent: TaleBot` > `*`), `Allow` with longest-match precedence, `$`
-  end-anchors and `Crawl-delay` (`lib/knowledge/crawl-parse.ts`, 2026-09 round J); paying down the
-  remaining fetch count means one fetch per page per scan.
+- **A changed page is fetched twice a scan** — the plain probe and the render pass — and the
+  homepage once more at create, for its metadata. A page that did not change is asked for once
+  and not rendered (2026-10: the probe's validators and the text of its plain HTML decide,
+  `core/knowledge/crawl_action.ts`); a page built by its JavaScript is still rendered on every
+  scan. The robots parser honours group selection by product token (`User-agent: TaleBot` >
+  `*`), `Allow` with longest-match precedence, `$` end-anchors and `Crawl-delay`
+  (`lib/knowledge/crawl-parse.ts`, 2026-09 round J). Paying down the rest means one fetch per
+  changed page: a server-rendered page read from the probe's own bytes, without the browser.
 - **A cancelled run answers `trace: null` and `effects: null`** where a failed run answers both,
   so what a cancel did not undo is readable only through `checkpoints` (2026-09, round i).
   Paying it down means keeping the partial trace the way the failed path does.
@@ -496,10 +658,25 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   means a migration that drops both once a release has run without them, with the erasure pass
   and its breakdown category going in the same change.
 - **`private_knowledge.semantic_cache` is an empty table** — the knowledge baseline creates it, and
-  `backend/core/knowledge/dimensions.ts` and `teardown.ts` still keep it in step, but the cache
-  seam that could have filled it was removed without ever shipping an implementation
-  (2026-09-27). Paying it down means a knowledge-db migration that drops it, with that upkeep
-  removed in the same change.
+  `backend/core/knowledge/teardown.ts` still keeps it in step, but the cache seam that could have
+  filled it was removed without ever shipping an implementation (2026-09-27). Paying it down means
+  a knowledge-db migration that drops it, with that upkeep removed in the same change.
+- **`chunks.embedding` is retired, not dropped** — vectors live in a table per width beside the
+  chunks (`chunk_vectors_<width>`, knowledge-db migrations `15` and `16`, 2026-10-06), and nothing
+  reads the old column in either corpus schema. It stays for one release, with its HNSW index and
+  `create_chunks_hnsw_index()`, because the previous image still uses it while a deployment
+  rolls: the `chunks_mirror_legacy_embedding` trigger copies what that image writes into the
+  table of its width, and this image writes the column too whenever it is declared at the width
+  being written (`legacyColumnWidth` in `backend/core/knowledge/dimensions.ts`, asked of the
+  catalog per document slice and per crawl link), so the previous image finds what this one
+  indexes, during the roll and after a rollback. The mirror trigger names no column, because
+  the previous image pins an undeclared column with `ALTER COLUMN ... TYPE vector(<width>)`,
+  which Postgres refuses for a column a trigger definition uses. Until the column goes, a migrated corpus stores the vectors of that one width twice,
+  and maintains the old HNSW index for them. Paying it down means one knowledge-db migration per
+  schema, a release after every image has stopped writing the column, that copies any row the
+  trigger missed, then drops the trigger and its function, the index,
+  `create_chunks_hnsw_index()` and the column — and, in the same change, `legacyColumnWidth`
+  with its writers in `indexing.ts` and `crawl_action.ts`.
 - **Nine `app.projects` settings columns are retired, not dropped** — `knowledge_mode`,
   `agent_mode`, `recommended_agent_slugs`, `allowed_agent_slugs`, `model_mode`,
   `recommended_models`, `allowed_models`, `connectors_mode` and `allowed_connector_slugs` lost
@@ -545,3 +722,53 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
   the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
   holds the two coherent).
+- **An in-doubt step is decided in the app only** — a run parked on `waitingFor: in_doubt` (a
+  write its server was making when it stopped may already have reached the service) is read and
+  decided through `GET`/`POST /api/app/automations/runs/{runId}/in-doubt[/{attemptId}]`
+  (`backend/domains/automations/routes.ts`) and the card on the run page and in the task
+  panel: `/api/v1` and MCP name the wait but offer no door, and the card names a write inside a
+  subautomation by its raw path (`batch[1:0]/send`) (2026-10). Paying it down means
+  `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, attempt, actor?}` in both
+  scopes of `backend/rest/v1-automations.ts` beside the ask doors (the stop's write gate,
+  `rest:execute` charged, the store's 409s re-coded at the door), an MCP tool, a contract bump,
+  and a readable name for a nested path.
+- **An in-doubt park is silent** — nothing tells anyone that a run waits on an in-doubt step: no
+  bell, no email; the run list and the run's status say it waits for a decision only to someone
+  who opens them, so an unattended scheduled run can wait until somebody does (2026-10). Paying it down
+  means a notification kind with its preferences, emitted in the park's transaction to the
+  run's starter (an organization run's owners when a trigger started it) and marked read when
+  the step is decided.
+- **No shipped connector action is marked `idempotent`** — the connector schema takes
+  `idempotent: true` (`packages/shared/src/schemas/connectors.ts`), and a write so marked is
+  sent again after an interruption instead of waiting for a person; no catalog action declares
+  it yet, so every write cut mid-call parks in doubt, even one whose service dedupes by the
+  idempotency key Tale sends (2026-10). Paying it down means a review of each action's vendor
+  call (does the service honour the key, or a natural key such as a message id), then the flag
+  on the actions that pass, with a test per action.
+- **An erasure leaves the subject's id on decisions in other people's runs** —
+  `app.automation_human_asks.answered_by` and `app.automation_node_attempts.resolved_by` keep
+  the bare user id of whoever answered an agent's question or decided an in-doubt step; the
+  erasure pass deletes only the runs the subject started (`automationRuns` in
+  `backend/domains/erasure/service.ts`), so the id stays on a run someone else started
+  (2026-10). Paying it down means a pass that pseudonymises both columns the way review
+  decisions are, with its breakdown category and a case in the erasure tests.
+- **Legacy execution holds need a proven retirement before release** — migration 0163 preserves
+  pre-protocol queued/running/waiting runs as `quarantined`, fences legacy database writers and
+  keeps their task subjects occupied. An already-admitted legacy external call can still finish;
+  the database cannot establish its outcome. The app and REST stop-request doors record an
+  explicit acknowledgement and request owned session cancellation, but deliberately keep the
+  run, asks and task exclusion on hold (2026-10). Paying this down requires source-bound proof
+  that the old execution is retired, an authorized decision about unknown external effects, and
+  a guarded release contract. Never clear the hold or manufacture node-attempt evidence merely
+  because a stop was requested, a lease expired, or the old containers disappeared.
+  Erasure deletes other eligible subject runs and records the held runs separately on a partial
+  receipt; organization deletion returns an explicit conflict. These are containment, not a
+  retirement contract or a release of the holds.
+- **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
+  30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
+  read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by
+  more than about 30 s read each other's live leases as lapsed and take runs over (the epoch
+  fence and the ledger keep that from repeating a write, but every such takeover of a write in
+  flight parks it in doubt), so a multi-host deployment needs synchronised clocks (2026-10).
+  Paying it down means stamping and comparing leases with the database's clock
+  (`clock_timestamp()`) in the claim, heartbeat, progress, park and sweep statements.

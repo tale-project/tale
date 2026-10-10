@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import type { JSONValue, Sql } from 'postgres';
+import type { JSONValue, Parameter, Sql, TransactionSql } from 'postgres';
 
 import { resolvePostgresConnection } from './ssl.ts';
 
@@ -13,6 +13,21 @@ import { resolvePostgresConnection } from './ssl.ts';
 export function toJson(value: unknown): JSONValue {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON-shaped by the caller's contract (see doc comment)
   return value as JSONValue;
+}
+
+/**
+ * Any JSON value bound as ONE json/jsonb parameter, or SQL NULL for
+ * `undefined` and `null`. Serialized here, so the passthrough serializer below
+ * sends it verbatim — a bare string becomes a JSON string, where
+ * `sql.json(string)` would read the string itself as JSON text.
+ */
+export function jsonParam(
+  sql: Sql | TransactionSql,
+  value: unknown,
+): Parameter | null {
+  return value === undefined || value === null
+    ? null
+    : sql.json(toJson(JSON.stringify(value)));
 }
 
 /**
@@ -71,6 +86,21 @@ export function appPoolMax(
   const raw = env.DATABASE_POOL_MAX;
   const parsed = raw ? Number(raw) : Number.NaN;
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
+}
+
+/**
+ * How many connections ONE process opens for Better Auth's own pool — the
+ * pool every session lookup on every authenticated request goes through.
+ * Five is enough for a quiet deployment; a replica serving thousands of
+ * requests a second queues on it, so the size is the operator's to raise
+ * (and to count against `max_connections` beside `DATABASE_POOL_MAX`).
+ */
+export function authPoolMax(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.AUTH_DATABASE_POOL_MAX;
+  const parsed = raw ? Number(raw) : Number.NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 5;
 }
 
 export function createSql(databaseUrl: string): Sql {

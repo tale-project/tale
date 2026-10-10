@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
+import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { beginRun } from './store.ts';
 
@@ -60,7 +61,7 @@ const args = {
 beforeEach(() => vi.clearAllMocks());
 
 describe('durable run admission', () => {
-  it('refuses a saved but undeployed live version before enqueuing work', async () => {
+  it('refuses a saved but undeployed live version before enqueuing work [AUTO-R5]', async () => {
     const { sql, writes } = fakeStore();
     await expect(beginRun(sql, { ...args, version: 2 })).rejects.toMatchObject({
       code: 'AUTOMATION_VERSION_NOT_DEPLOYED',
@@ -71,7 +72,7 @@ describe('durable run admission', () => {
   });
 
   it.each([{}, 'wrong', { orderId: 9 }, null])(
-    'refuses invalid input %j before any run or job exists',
+    'refuses invalid input %j before any run or job exists [AUTO-R6]',
     async (input) => {
       const { sql, writes } = fakeStore();
       await expect(beginRun(sql, { ...args, input })).rejects.toMatchObject({
@@ -107,16 +108,19 @@ describe('durable run admission', () => {
     ],
     ['wrong', 'must be object', [{ path: '', message: 'must be object' }]],
     [null, 'must be object', [{ path: '', message: 'must be object' }]],
-  ])('names the problems of input %j', async (input, sentence, issues) => {
-    const { sql } = fakeStore();
-    await expect(beginRun(sql, { ...args, input })).rejects.toMatchObject({
-      code: 'AUTOMATION_INPUT_INVALID',
-      message: `Run input does not match the automation inputs schema: ${sentence}`,
-      data: { issues },
-    });
-  });
+  ])(
+    'names the problems of input %j [AUTO-R6]',
+    async (input, sentence, issues) => {
+      const { sql } = fakeStore();
+      await expect(beginRun(sql, { ...args, input })).rejects.toMatchObject({
+        code: 'AUTOMATION_INPUT_INVALID',
+        message: `Run input does not match the automation inputs schema: ${sentence}`,
+        data: { issues },
+      });
+    },
+  );
 
-  it('starts the deployed live version and accepts repeated schema ids', async () => {
+  it('starts the deployed live version and accepts repeated schema ids [AUTO-R5]', async () => {
     const { sql, writes } = fakeStore();
     await expect(beginRun(sql, args)).resolves.toEqual({
       runId: 'run-1',
@@ -130,7 +134,20 @@ describe('durable run admission', () => {
     expect(addJobInTx).toHaveBeenCalledTimes(2);
   });
 
-  it('allows an explicitly saved version in mock mode', async () => {
+  it('is born with the claim promise, never overdue for the sweep', async () => {
+    const { sql, writes } = fakeStore();
+    await beginRun(sql, args);
+    // version, then the promise, then the start: the promise lies one claim
+    // window past the start the step job continues from.
+    const [version, wakeAt, startedAt] = (writes[0] ?? []).filter(
+      (value): value is number => typeof value === 'number',
+    );
+    expect(version).toBe(1);
+    expect(wakeAt).toBe((startedAt ?? 0) + RUN_CLAIM_PROMISE_MS);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows an explicitly saved version in mock mode [AUTO-R5]', async () => {
     const { sql } = fakeStore();
     await expect(
       beginRun(sql, { ...args, mode: 'mock', version: 2 }),
@@ -141,7 +158,7 @@ describe('durable run admission', () => {
   });
 
   it.each([['p-1'], ['p-1', 'p-2']])(
-    'refuses org execution when bindings would infer or hide a project: %j',
+    'refuses org execution when bindings would infer or hide a project: %j [AUTO-R7]',
     async (...projects) => {
       const { sql, writes } = fakeStore(1, projects);
       await expect(
@@ -155,7 +172,7 @@ describe('durable run admission', () => {
     },
   );
 
-  it('keeps a new org run unscoped when the automation is not installed in a project', async () => {
+  it('keeps a new org run unscoped when the automation is not installed in a project [AUTO-R7]', async () => {
     const { sql, writes } = fakeStore();
     await beginRun(sql, { ...args, requireOrgScope: true });
     expect(writes[0]?.[3]).toBeNull();
@@ -198,7 +215,7 @@ describe('durable run admission', () => {
    * `workflowSlug` — what the caller sent. It names no automation now; the
    * caller knows the one it asked for.
    */
-  it('refuses a project the automation is not bound to without naming it', async () => {
+  it('refuses a project the automation is not bound to without naming it [AUTO-R7]', async () => {
     const { sql, writes } = fakeStore(1, ['p-2']);
     const refusal = await beginRun(sql, { ...args, projectId: 'p-1' }).then(
       () => undefined,

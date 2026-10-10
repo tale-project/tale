@@ -13,8 +13,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const createAuditLog = vi.hoisted(() => vi.fn(() => Promise.resolve('log')));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
+const addJobInTx = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 
 import { ensureArenaPair, settleArenaPair } from './arena.ts';
+import { setThreadTitleIfAbsent } from './threads.ts';
 
 interface Statement {
   text: string;
@@ -128,7 +131,7 @@ function settleSql(
 const writes = (statements: Statement[]) =>
   statements.filter((s) => /^\s*(UPDATE|INSERT)\b/.test(s.text));
 
-describe('settleArenaPair verdict integrity', () => {
+describe('settleArenaPair verdict integrity [CHAT-R11]', () => {
   it('refuses a verdict when one column holds only an error row, writing nothing', async () => {
     const { sql, statements } = settleSql((threadId) =>
       threadId === 'thread_a'
@@ -203,7 +206,7 @@ describe('settleArenaPair verdict integrity', () => {
 });
 
 describe('ensureArenaPair', () => {
-  it("gives column B the conversation's project filing and effort pick", async () => {
+  it("gives column B the conversation's project filing and effort pick [CHAT-R12]", async () => {
     const { sql, statements } = fakeSql((statement) => {
       if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
       if (statement.text.includes('SELECT arena FROM'))
@@ -251,7 +254,7 @@ function trashWrites(statements: Statement[]) {
  * hidden archived row no list, search or delete can reach (2026-09-26
  * evaluation, A-09).
  */
-describe('settleArenaPair discards the loser into Trash', () => {
+describe('settleArenaPair discards the loser into Trash [CHAT-R12]', () => {
   beforeEach(() => {
     createAuditLog.mockClear();
   });
@@ -468,5 +471,99 @@ describe('settleArenaPair', () => {
       'thread_a',
       'org_1',
     ]);
+  });
+});
+
+/**
+ * The hidden column is never named on its own (CHAT-F24): a winning B takes
+ * A's name as it stands at the verdict — its title or the name the person
+ * gave it since — and a B that wins while A's title is still being made is
+ * named from its own first message, since that title lands on A alone.
+ */
+describe('settleArenaPair names a winning B', () => {
+  beforeEach(() => {
+    addJobInTx.mockClear();
+  });
+
+  /** A pair whose A carries a name (`titleOfA`) or none yet. */
+  const settleForB = (titleOfA: string | null) =>
+    fakeSql((statement) => {
+      if (statement.text.includes('UPDATE app.threads b SET title = a.title')) {
+        return titleOfA === null ? [] : [{ id: 'thread_b' }];
+      }
+      if (statement.text.includes('SELECT text FROM app.messages')) {
+        return [{ text: '  Plan the launch  ' }];
+      }
+      if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
+      if (statement.text.includes('FOR UPDATE')) {
+        return ['thread_a', 'thread_b'].map((threadId) => ({
+          threadId,
+          arena: PAIR_OF(threadId),
+        }));
+      }
+      if (statement.text.includes('SELECT arena FROM')) {
+        return [{ arena: PAIR_OF(statement.values[0]) }];
+      }
+      if (statement.text.includes('SELECT role, model, error, status')) {
+        return [FRESH_REPLY];
+      }
+      return [];
+    });
+
+  it('with A’s name as it stands, a rename included, whatever B was called', async () => {
+    const { sql, statements } = settleForB('Renamed launch');
+
+    await settleArenaPair(sql, { ...ARGS, verdict: 'b_better' });
+
+    const rename = statements.find((s) =>
+      s.text.includes('UPDATE app.threads b SET title = a.title'),
+    );
+    expect(rename?.text).toContain('a.title IS NOT NULL');
+    expect(rename?.text).not.toContain('b.title IS NULL');
+    expect(rename?.values).toEqual(['thread_b', 'org_1', 'thread_a', 'org_1']);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('from its own first message while A’s title is still being made', async () => {
+    const { sql } = settleForB(null);
+
+    await settleArenaPair(sql, { ...ARGS, verdict: 'b_better' });
+
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'chat.generate_title',
+      {
+        organizationId: 'org_1',
+        threadId: 'thread_b',
+        userId: 'user_1',
+        firstMessage: 'Plan the launch',
+      },
+    );
+  });
+
+  it('never names B when A wins', async () => {
+    const { sql, statements } = settleForB(null);
+
+    await settleArenaPair(sql, { ...ARGS, verdict: 'a_better' });
+
+    expect(
+      statements.some((s) =>
+        s.text.includes('UPDATE app.threads b SET title = a.title'),
+      ),
+    ).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('setThreadTitleIfAbsent', () => {
+  it('names the thread it is given alone, never a comparison partner', async () => {
+    const { sql, statements } = fakeSql(() => []);
+
+    await setThreadTitleIfAbsent(sql, 'org_1', 'thread_a', '  Launch plan ');
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.text).not.toContain('partnerThreadId');
+    expect(statements[0]?.values).toEqual(['Launch plan', 'thread_a', 'org_1']);
   });
 });

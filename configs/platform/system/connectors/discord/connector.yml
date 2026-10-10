@@ -19,6 +19,12 @@ auth:
     scheme: Bot
 actions:
   - name: list_guilds
+    title: List servers
+    i18n:
+      de:
+        title: Server auflisten
+      fr:
+        title: Lister les serveurs
     description: List the guilds (servers) the bot is a member of.
     effects: read
     input:
@@ -46,6 +52,12 @@ actions:
         return { guilds: r.json() };
     exampleInput: { limit: 50 }
   - name: get_guild
+    title: Get server
+    i18n:
+      de:
+        title: Server abrufen
+      fr:
+        title: Récupérer un serveur
     description: Get a single guild (server) by ID.
     effects: read
     input:
@@ -66,6 +78,12 @@ actions:
         return { guild: r.json() };
     exampleInput: { guild_id: '100000000000000001' }
   - name: list_channels
+    title: List channels
+    i18n:
+      de:
+        title: Kanäle auflisten
+      fr:
+        title: Lister les salons
     description: List all channels in a guild.
     effects: read
     input:
@@ -86,6 +104,12 @@ actions:
         return { channels: r.json() };
     exampleInput: { guild_id: '100000000000000001' }
   - name: list_messages
+    title: List messages
+    i18n:
+      de:
+        title: Nachrichten auflisten
+      fr:
+        title: Lister les messages
     description: Fetch recent messages from a channel.
     effects: read
     input:
@@ -120,6 +144,12 @@ actions:
         return { messages: r.json() };
     exampleInput: { channel_id: '300000000000000001', limit: 20 }
   - name: send_message
+    title: Send message
+    i18n:
+      de:
+        title: Nachricht senden
+      fr:
+        title: Envoyer un message
     description: Send a message to a channel.
     effects: write
     input:
@@ -154,6 +184,12 @@ actions:
     exampleInput:
       { channel_id: '300000000000000001', content: 'Deploy finished ✅' }
   - name: get_user
+    title: Get user
+    i18n:
+      de:
+        title: Benutzer abrufen
+      fr:
+        title: Récupérer un utilisateur
     description: Get a Discord user by ID.
     effects: read
     input:
@@ -174,6 +210,12 @@ actions:
         return { user: r.json() };
     exampleInput: { user_id: '200000000000000001' }
   - name: list_members
+    title: List members
+    i18n:
+      de:
+        title: Mitglieder auflisten
+      fr:
+        title: Lister les membres
     description: List the members of a guild.
     effects: read
     input:
@@ -202,6 +244,12 @@ actions:
         return { members: r.json() };
     exampleInput: { guild_id: '100000000000000001', limit: 100 }
   - name: create_channel
+    title: Create channel
+    i18n:
+      de:
+        title: Kanal erstellen
+      fr:
+        title: Créer un salon
     description: Create a new channel in a guild.
     effects: write
     input:

@@ -30,7 +30,7 @@ import {
 } from '@tale/ui/table';
 import { useToast } from '@tale/ui/use-toast';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   SettingsFieldList,
@@ -44,14 +44,17 @@ import {
   ModelInfoPopover,
 } from '@/app/features/shared/models/model-info-popover';
 import { useAbility } from '@/app/hooks/use-ability';
+import { usePolicySettling } from '@/app/lib/backend/policy-write-order';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { stripQualifier } from './model-id';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
@@ -109,24 +112,16 @@ interface ModelAccessEditorProps {
   organizationId: string;
 }
 
-const SCOPE_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'user', label: 'User' },
-  { value: 'team', label: 'Team' },
-  { value: 'role', label: 'Role' },
-];
+const SCOPE_VALUES = ['default', 'user', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is ModelAccessRule['scope'] {
-  return SCOPE_OPTIONS.some((o) => o.value === v);
+  return SCOPE_VALUES.some((value) => value === v);
 }
 
-const MODE_OPTIONS = [
-  { value: 'allowlist', label: 'Allowlist' },
-  { value: 'blocklist', label: 'Blocklist' },
-];
+const MODE_VALUES = ['allowlist', 'blocklist'] as const;
 
 function isModeValue(v: string): v is ModelAccessConfig['mode'] {
-  return MODE_OPTIONS.some((o) => o.value === v);
+  return MODE_VALUES.some((value) => value === v);
 }
 
 function emptyRule(): ModelAccessRule {
@@ -177,6 +172,22 @@ function RuleDialog({
   mode,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((value) => ({
+        value,
+        label: t(`modelAccess.scopeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`modelAccess.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initialRule);
 
@@ -221,11 +232,12 @@ function RuleDialog({
       title={title}
       onSubmit={handleSubmit}
       submitText={t('modelAccess.confirm')}
+      isValid={!cannotManage}
     >
       <Stack gap={4}>
         <Select
           label={t('modelAccess.scope')}
-          options={SCOPE_OPTIONS}
+          options={scopeOptions}
           value={draft.scope}
           onValueChange={(value: string) => {
             if (isScopeValue(value)) {
@@ -238,7 +250,7 @@ function RuleDialog({
         {draft.scope === 'role' && (
           <Select
             label={t('modelAccess.role')}
-            options={ROLE_OPTIONS}
+            options={roleOptions}
             value={draft.scopeId ?? ''}
             onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
@@ -319,8 +331,25 @@ function RuleDialog({
 // forced visible while loading so its placeholder rows can render even though
 // `enabled` is still its initial `false`.
 // =============================================================================
-export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
+function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
+  const modeOptions = useMemo(
+    () =>
+      MODE_VALUES.map((value) => ({
+        value,
+        label: t(`modelAccess.modeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`modelAccess.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -382,10 +411,17 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
   const savedConfig = useMemo(
     () => parseModelAccessConfig(policy?.config),
-    [policy],
+    [policy?.config],
   );
 
-  const initializedRef = useRef(false);
+  const [readback, setReadback] = useState<{
+    organizationId: string;
+    config: unknown;
+  } | null>(null);
+  // Track the promise too: mutation observers can stop reporting pending
+  // before this caller has finished reverting a rejected write.
+  const [saving, setSaving] = useState(false);
+  const policySettling = usePolicySettling(organizationId, 'model_access');
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<ModelAccessConfig['mode']>('blocklist');
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
@@ -415,19 +451,40 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     revert: () => void;
   } | null>(null);
 
-  if (!isLoading && !initializedRef.current) {
-    initializedRef.current = true;
+  if (
+    !isLoading &&
+    !upsertMutation.isPending &&
+    !saving &&
+    !pendingSave &&
+    (readback === null ||
+      readback.organizationId !== organizationId ||
+      readback.config !== policy?.config)
+  ) {
+    // Dialog targets are indexes into the previous rules array. A new
+    // authoritative snapshot requires a fresh selection and confirmation.
+    setDeletingIndex(null);
+    setEditingIndex(null);
+    setDialogOpen(false);
+    setReadback({ organizationId, config: policy?.config });
     setEnabled(savedConfig.enabled);
     setMode(savedConfig.mode);
     setRules(savedConfig.rules);
     setModelApiEnabled(savedConfig.modelApi?.enabled === true);
   }
 
-  const cannotManage = ability.cannot('write', 'orgSettings');
+  const cannotManage =
+    ability.cannot('write', 'orgSettings') ||
+    upsertMutation.isPending ||
+    saving ||
+    policySettling;
 
   /** Save the whole policy; answers whether it was written. */
   const saveConfig = useCallback(
-    async (configToSave: ModelAccessConfig): Promise<boolean> => {
+    async (
+      configToSave: ModelAccessConfig,
+      revert: () => void,
+    ): Promise<boolean> => {
+      setSaving(true);
       try {
         await upsertMutation.mutateAsync({
           organizationId,
@@ -441,6 +498,10 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         });
         return true;
       } catch (error: unknown) {
+        revert();
+        // Keep the consumed cache identity. Reapplying that unchanged cache
+        // would discard an earlier acknowledged save; a genuinely new
+        // readback will reconcile after this promise has settled.
         toast({
           title: t('toastSaveFailedTitle'),
           description: mapGovernanceSaveError(
@@ -451,6 +512,8 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           variant: 'destructive',
         });
         return false;
+      } finally {
+        setSaving(false);
       }
     },
     [organizationId, upsertMutation, toast, t],
@@ -464,13 +527,13 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   /**
    * Attempt to save; if the proposed config would deny any current
    * default-model rule, open a confirm dialog. `revert` restores local state
-   * if the admin cancels.
+   * if the admin cancels or the save fails.
    */
   const attemptSaveConfig = useCallback(
     (next: ModelAccessConfig, revert: () => void) => {
       const affected = findDefaultRulesDeniedBy(next, defaultRules);
       if (affected.length === 0) {
-        void saveConfig(next);
+        void saveConfig(next, revert);
         return;
       }
       setPendingSave({ next, affected, revert });
@@ -496,14 +559,10 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     (checked: boolean) => {
       const prev = modelApiEnabled;
       setModelApiEnabled(checked);
-      void saveConfig({
-        enabled,
-        mode,
-        rules,
-        modelApi: { enabled: checked },
-      }).then((saved) => {
-        if (!saved) setModelApiEnabled(prev);
-      });
+      void saveConfig(
+        { enabled, mode, rules, modelApi: { enabled: checked } },
+        () => setModelApiEnabled(prev),
+      );
     },
     [saveConfig, modelApiEnabled, enabled, mode, rules],
   );
@@ -581,14 +640,19 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           );
         }
         case 'role':
-          return rule.scopeId ?? '\u2014';
+          return (
+            roleOptions.find((option) => option.value === rule.scopeId)
+              ?.label ??
+            rule.scopeId ??
+            '\u2014'
+          );
         case 'default':
           return t('modelAccess.allUsers');
         default:
           return '\u2014';
       }
     },
-    [memberOptions, teamOptions, t],
+    [memberOptions, teamOptions, roleOptions, t],
   );
 
   const resolveModelNames = useCallback(
@@ -604,8 +668,8 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [allModelOptions],
   );
 
-  const loading = isLoading || !initializedRef.current;
-  const isPending = upsertMutation.isPending;
+  const loading = isLoading || readback === null;
+  const isPending = upsertMutation.isPending || saving || policySettling;
 
   // While loading, render fixed placeholder rows so the table occupies the
   // same height as real content and reads as "loading", not "empty".
@@ -639,7 +703,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
             <SettingsFieldList className="border-border border-b">
               <SettingsFieldRow label={t('modelAccess.mode')}>
                 <Select
-                  options={MODE_OPTIONS}
+                  options={modeOptions}
                   value={mode}
                   onValueChange={handleModeChange}
                   disabled={cannotManage || isPending}
@@ -721,7 +785,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                     rules.map((rule, index) => (
                       <TableRow key={index}>
                         <TableCell className="capitalize">
-                          {rule.scope}
+                          {t(`modelAccess.scopeLabels.${rule.scope}`)}
                         </TableCell>
                         <TableCell>{resolveTarget(rule)}</TableCell>
                         <TableCell>
@@ -772,7 +836,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
         {dialogOpen && (
           <RuleDialog
-            open={dialogOpen}
+            open={policyReadAvailable && dialogOpen}
             onOpenChange={setDialogOpen}
             rule={dialogRule}
             onSave={handleDialogSave}
@@ -792,7 +856,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         )}
 
         <ConfirmDialog
-          open={deletingIndex !== null}
+          open={policyReadAvailable && deletingIndex !== null}
           onOpenChange={(open) => {
             if (!open) setDeletingIndex(null);
           }}
@@ -800,17 +864,19 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           description={t('modelAccess.removeRuleConfirmDescription')}
           confirmText={t('modelAccess.removeRuleConfirmAction')}
           variant="destructive"
+          disableConfirm={cannotManage}
           onConfirm={confirmRemoveRule}
         />
 
         <ConfirmDialog
-          open={pendingSave !== null}
+          open={policyReadAvailable && pendingSave !== null}
           onOpenChange={(open) => {
             if (!open && pendingSave) {
               pendingSave.revert();
               setPendingSave(null);
             }
           }}
+          disableConfirm={cannotManage}
           title={t('modelAccess.removeDefaultConfirmTitle')}
           description={t('modelAccess.removeDefaultConfirmBody', {
             rules:
@@ -828,7 +894,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           variant="destructive"
           onConfirm={() => {
             if (pendingSave) {
-              void saveConfig(pendingSave.next);
+              void saveConfig(pendingSave.next, pendingSave.revert);
               setPendingSave(null);
             }
           }}
@@ -852,3 +918,8 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     </Skeletonize>
   );
 }
+
+export const ModelAccessEditor = withGovernancePolicyReadBoundary(
+  ModelAccessEditorContent,
+  'model_access',
+);

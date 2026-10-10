@@ -17,7 +17,7 @@ Ein Agent gehört genau einem Projekt. Seine ID und der Zugriff auf ein zweites 
 
 | Prüfung | Warum sie nötig ist | Wo du ein Problem klärst |
 | --- | --- | --- |
-| Harness, Modell und Provider | Die Zugangsdaten müssen diesen Ausführungsweg unterstützen. | [KI-Provider](/de/platform/admin/providers). |
+| Agent-Laufzeit, Modell und Provider | Die Zugangsdaten müssen diesen Ausführungsweg unterstützen. | [KI-Provider](/de/platform/admin/providers). |
 | Skills und ihre Freigabe | Der Team-Zugriff des Projekts bestimmt die verfügbaren Bundles. | [Skill-Bibliothek](/de/platform/workspace/skills) und Projektzugriff. |
 | Connectors und Plattform-Tools | Sie erlauben Dienste und unterstützte Datenoperationen. | [Connector-Zugangsdaten](/de/platform/admin/connectors) und Ausstattung des Agenten. |
 | Secrets | Die laufende Sitzung kann die zugeordneten Werte lesen. | **Secrets** im Agentendialog, für Inhaber und Admins. |

@@ -31,7 +31,7 @@ Les rôles applicatifs utilisent la même image Tale Platform. `TALE_ROLE=api` d
 | `config-data` | Fichiers de configuration des organisations : agents, skills, définitions de fournisseurs, règles de gouvernance, SSO et identité visuelle. |
 | `object-store-data` | Documents importés, pièces jointes, audio et fichiers générés. |
 | `caddy-data`, `caddy-config` | Certificats et état du proxy. |
-| `llm-gateway-data` | Configuration de la passerelle, état des accès de session et journal des requêtes de la passerelle (modèle, jetons, durée), sans prompts ni réponses. |
+| `llm-gateway-data` | Configuration de la passerelle, état des accès de session et journal des requêtes de la passerelle (modèle, jetons, durée), sans prompts ni réponses, conservé trois jours par défaut. |
 
 Le stack fourni place les deux bases dans un seul service Postgres et expose la connexion aux connaissances sous l’alias réseau `knowledge-db`. Les bases restent distinctes. Un déploiement Compose depuis les sources avec un service de connaissances séparé possède aussi `knowledge-db-data`.
 
@@ -49,4 +49,4 @@ Les rôles applicatifs acceptent plusieurs réplicas. La CLI les met à jour com
 
 Tu peux déplacer la base applicative, la base de connaissances ou les fichiers vers une infrastructure externe. Une organisation peut aussi choisir sa propre base de connaissances et son bucket. Changer une connexion ne transfère pas le contenu existant. Prépare la copie, la bascule, les vérifications et les sauvegardes avec [Résidence des données](/fr/self-hosted/configuration/data-residency).
 
-L’auto-hébergement détermine où Tale fonctionne. Les appels aux fournisseurs, connecteurs, récupérations web et accès réseau des sandbox dépendent toujours de ta configuration. Examine ces destinations avec les emplacements de stockage dans [Durcissement](/fr/self-hosted/operate/security/hardening).
+L’auto-hébergement détermine où Tale fonctionne. Les appels aux fournisseurs, connectors, récupérations web et accès réseau des sandbox dépendent toujours de ta configuration. Examine ces destinations avec les emplacements de stockage dans [Durcissement](/fr/self-hosted/operate/security/hardening).

@@ -60,6 +60,12 @@ export interface OrgApiKeyWire {
   createdAt: number | null;
   expiresAt: number | null;
   status: OrgApiKeyStatus;
+  /** Whose key it is: a person's own (`user`), one made for a member, or a
+   * team's, a project's or the organization's own. Absent from a backend
+   * that predates the owner kinds. */
+  ownerKind?: 'user' | 'member' | 'team' | 'project' | 'organization';
+  teamName?: string | null;
+  projectName?: string | null;
 }
 
 export interface GovernanceContract {
@@ -650,7 +656,9 @@ export interface GovernanceContract {
   };
   'governance/queries:getMyBudgetStatus': {
     kind: 'query';
-    args: { organizationId: string };
+    /** `projectId`: the project of the chat the reader writes in — its cap
+     * joins their standing there. */
+    args: { organizationId: string; projectId?: string };
     returns:
       | null
       | {
@@ -661,6 +669,12 @@ export interface GovernanceContract {
           limit: null | number;
           reason: null | string;
           warnings: null;
+          /** Whose cap is reached. */
+          scope?: 'user' | 'team' | 'org' | 'apiKey' | 'project';
+          /** The project whose cap it is — project scope only. */
+          projectId?: string;
+          /** Its name, resolved by the door; null when it is gone. */
+          projectName?: string | null;
         }
       | {
           exceeded: false;
@@ -672,13 +686,18 @@ export interface GovernanceContract {
           warnings: Array<{
             code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
             /** Whose bucket: the reader's own usage, one of their teams'
-             * shared usage, the organization's, or an API key's. Absent on
-             * rows written before the field shipped. */
-            scope?: 'user' | 'team' | 'org' | 'apiKey';
+             * shared usage, the organization's, an API key's, or the
+             * project's they write in. Absent on rows written before the
+             * field shipped. */
+            scope?: 'user' | 'team' | 'org' | 'apiKey' | 'project';
             /** The team whose shared cap this is — team scope only. */
             teamId?: string;
             /** Its name, resolved by the door; null when the team is gone. */
             teamName?: string | null;
+            /** The project whose cap this is — project scope only. */
+            projectId?: string;
+            /** Its name, resolved by the door; null when it is gone. */
+            projectName?: string | null;
             period: string;
             used: number;
             limit: number;
@@ -799,6 +818,13 @@ export interface GovernanceContract {
         tokens: number;
         costCents: number;
         requests: number;
+        /** Set when the row is an API key's own identity, not a person:
+         * the team, project or organization the key belongs to. */
+        apiKey?: {
+          kind: 'team' | 'project' | 'organization';
+          teamName: string | null;
+          projectName: string | null;
+        };
       }>;
     };
   };

@@ -8,11 +8,13 @@ A device is a machine you connect to your organization so its sandboxes run ther
 ## Check what the machine needs
 
 - Linux on x86_64 or arm64, or macOS on Apple silicon or Intel.
-- Docker: Docker Engine on Linux; Docker Desktop, OrbStack or Colima on macOS. If Docker is missing, the Tale CLI offers to install it.
+- Docker: Docker Engine 24.0 or later on Linux; Docker Desktop, OrbStack or Colima on macOS. If Docker is missing, the Tale CLI offers to install it. Tale's images have zstd-compressed layers, which older engines cannot download, so `tale sandbox connect` and `tale sandbox update` refuse an older engine before they use the connect command or download anything.
 - Outbound HTTPS to your Tale site. The device connects out to Tale; nothing has to reach the machine, so it works behind a router or firewall.
 - Disk space for the sandbox images, several gigabytes, and for the workspaces it will hold.
 
 By default a device runs one sandbox for every two CPUs and every 4 GiB of memory that Docker can use, up to 16 at a time, because each agent sandbox gets 2 CPUs and 4 GiB. You can choose another number when you connect the machine.
+
+This number is a ceiling. The device also checks available host memory and workspace disk space before admitting work, so a free slot alone does not guarantee capacity for another sandbox.
 
 <Warning>
 
@@ -64,6 +66,8 @@ The device keeps running after the machine restarts, as long as Docker starts wi
 ## Understand where sandboxes run
 
 New agent and automation workspaces start on a connected device that has room. When none has, they start on the Tale server. A workspace stays with its files on the machine where it started, so an agent that already has a workspace on the server keeps using it. Pages rendered for website crawling always stay on the server.
+
+When several devices have room, Tale considers both free slots and observed memory headroom. If a device refuses a create because it is full, another device or the server can take it. If the response is lost or the device returns a server error, retries stay on that device: it may already have created the workspace.
 
 Once your organization has a device, the **Workspaces** list shows where each workspace runs: **On the server** or on a device by name. While a device is offline, work that needs one of its workspaces fails with a message that the device is not connected. Start the work again once the device is back online; workspaces never move to another machine by themselves.
 

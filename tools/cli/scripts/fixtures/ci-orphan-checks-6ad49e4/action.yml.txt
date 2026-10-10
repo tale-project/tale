@@ -1,0 +1,23 @@
+name: CI readiness verdict
+description: Judge the existing native workflow graph without another scheduler
+inputs:
+  workflow:
+    description: Existing validation workflow stem
+    required: true
+  jobs:
+    description: Complete toJSON(needs) from this native workflow attempt
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Evaluate native results
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0; Node 24
+      env:
+        CI_WORKFLOW: ${{ inputs.workflow }}
+        CI_NEEDS: ${{ inputs.jobs }}
+      with:
+        script: |
+          const { evaluateReadiness } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
+          const verdict = evaluateReadiness({ workflow: process.env.CI_WORKFLOW, event: context.eventName, payload: context.payload, needs: JSON.parse(process.env.CI_NEEDS), source: context.sha });
+          await core.summary.addHeading(`CI readiness: ${verdict.passed ? 'passed' : 'held'}`).addRaw(`Run ${context.runId}, attempt ${process.env.GITHUB_RUN_ATTEMPT}, source ${context.sha}\n`).addTable([[{data:'Job',header:true},{data:'Native result',header:true},{data:'Policy',header:true}], ...verdict.jobs.map(job => [job.job, job.result, job.policy])]).addList(verdict.reasons).write();
+          if (!verdict.passed) core.setFailed(verdict.reasons.join('; '));

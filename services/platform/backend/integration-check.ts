@@ -31,25 +31,32 @@ import {
 import { request as httpRequest, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
+import { htmlToText } from '../lib/knowledge/html-to-text.ts';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
+import { checkPasswordConfirmationThrottle } from './auth/password-confirmations.integration.ts';
+import { checkStaleSessionReauthentication } from './auth/reauthenticate.integration.ts';
+import { checkSessionTrustFieldsAreServerOnly } from './auth/session-trust-fields.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
+import type { SessionExecResult } from './core/node_only/sandbox/helpers/session_client.ts';
 import {
   TASK_COMMENT_MAX,
   TASK_DESCRIPTION_MAX,
@@ -60,14 +67,24 @@ import {
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
+import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkEventScopeAndIsolation } from './domains/automations/event-scope.integration.ts';
+import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
+import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
+import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
+import { checkAutomationNodeRuns } from './domains/automations/node-runs.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
+import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-github-schedules.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
+import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
@@ -84,15 +101,28 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkImmutableBudgetProjects } from './domains/governance/immutable-projects.integration.ts';
+import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
+import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
+import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
+import {
+  checkAgentWriteBudget,
+  checkConcurrentAgentAndPersonEdits,
+  checkConcurrentAgentCreates,
+  checkConcurrentEntryCreation,
+  checkConcurrentEntryRenameAndCreate,
+  checkConcurrentEntryUpdates,
+} from './domains/knowledge_entries/write-races.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
+import { checkManagedInstructions } from './domains/projects/managed-instructions.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -110,7 +140,10 @@ import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integrati
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
+import { checkAgentRunApiKeys } from './domains/tasks/agent-run-keys.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts';
+import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
@@ -122,18 +155,26 @@ import {
   checkInPlaceCompletionCycle,
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
+import { checkTaskSubtreeDeletion } from './domains/tasks/delete-subtree.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
+import { checkExecLimitPark } from './domains/tasks/exec-limit-park.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkTaskExternalStatusProjection } from './domains/tasks/external-status.integration.ts';
 import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
+import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkTaskSearchPriority } from './domains/tasks/search-priority.integration.ts';
 import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
+import { checkStandingRoleWakeScenarios } from './domains/tasks/standing-role-wake-scenarios.integration.ts';
+import { checkStandingRoleWake } from './domains/tasks/standing-role-wake.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
+import { checkTtsBudgetReservations } from './domains/tts/budget.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
@@ -143,6 +184,7 @@ import {
   errorText,
   fullCoverageBlockers,
   isSkippedCheck,
+  ITEST_VECTOR_WIDTH,
   itestObjectStore,
   recordSkip,
   requestedLanes,
@@ -156,13 +198,19 @@ import {
   routeVendorFetch,
   startItestVendorStub,
 } from './integration-vendor-stub.ts';
+import { checkAutomationProtocolFloor } from './jobs/automation-floor.integration.ts';
+import {
+  checkAutomationProtocolQueues,
+  checkAutomationProtocolReadback,
+} from './jobs/automation-protocol.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
+import { checkTaskCompletionEvidence } from './jobs/task-completion.integration.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import type { TaskIdentifier } from './jobs/tasks.ts';
+import { physicalTaskQueue, type TaskIdentifier } from './jobs/tasks.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -1770,6 +1818,13 @@ async function checkProjects(
   const assignedTaskId = overdueTaskBody.success
     ? overdueTaskBody.data.taskId
     : '';
+  await checkManagedInstructions(
+    sql,
+    base,
+    ctx,
+    { projectId, agentId: agentIdToDelete, taskId: assignedTaskId },
+    record,
+  );
   const tasksApi = `${base}/api/app/tasks`;
   const assignedToAgent = await fetch(
     `${tasksApi}/${assignedTaskId}/assign?orgId=${orgId}`,
@@ -3041,7 +3096,9 @@ async function checkTasksOrgIsolation(
   // A live automation run on the victim task: the rival's cancel answers
   // 404 and the run keeps running (on the old org-blind guards the task
   // flipped to cancelled cross-org).
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, project_id, name, version, status, mode, started_by, input,
       started_at_ms
@@ -3050,6 +3107,7 @@ async function checkTasksOrgIsolation(
       ${userId}, ${sql.json({ task: { id: taskId } })}, ${now}
     )
   `;
+  });
   const crossCancel = await api(`/api/app/tasks/${taskId}/workflow/cancel`, {
     ...rival,
     method: 'POST',
@@ -3103,10 +3161,13 @@ async function checkTasksOrgIsolation(
       runAfterViewer[0]?.status === 'running',
     `read=${viewerRead.status} (want 200), start=${viewerStart.status}/cancel=${viewerCancel.status} (want 403), run=${runAfterViewer[0]?.status} (want running)`,
   );
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'failed'
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
+  });
 
   // Deciding a review is deciding the task: a member's move to Done (the
   // approve gesture) on someone else's task refuses on the task's work gate
@@ -7573,6 +7634,79 @@ async function checkSmallDomains(
     `listed created=${hopperListed?.createdAt} updated=${hopperListed?.updatedAt}, hit updatedAt=${hopperSearched?.updatedAt} (want = listed updatedAt, > createdAt)`,
   );
 
+  // The Contacts Locale facet narrows the listing (#3618): a language lists
+  // its regional tags in any case or separator, a regional tag only itself,
+  // and the Source facet still narrows beside it. The search pins the
+  // listing to this probe's rows.
+  const localeRun = `locale-${Date.now()}`;
+  const localeEmail = (locale: string): string =>
+    `${localeRun}-${locale.toLowerCase()}@example.com`;
+  const localeBulk = await send(
+    'POST',
+    `/api/app/contacts/bulk?orgId=${orgId}`,
+    {
+      contacts: ['fr-CH', 'FR_ca', 'en-US', 'en'].map((locale) => ({
+        email: localeEmail(locale),
+        name: `Locale ${locale}`,
+        locale,
+        source: 'file_upload',
+      })),
+    },
+  );
+  const localeManual = await send('POST', `/api/app/contacts?orgId=${orgId}`, {
+    email: localeEmail('fr'),
+    name: 'Locale fr',
+    locale: 'fr',
+    source: 'manual_import',
+  });
+  const localeRows = async (
+    facets: string,
+  ): Promise<{ id: string; locale: string | null }[] | null> => {
+    const page = z
+      .object({
+        items: z.array(
+          z.object({ id: z.string(), locale: z.string().nullable() }),
+        ),
+      })
+      .safeParse(
+        await get(
+          `/api/app/contacts?orgId=${orgId}&limit=200&search=${localeRun}${facets}`,
+        ),
+      );
+    return page.success ? page.data.items : null;
+  };
+  const localesOf = (rows: { locale: string | null }[] | null): string =>
+    rows === null
+      ? 'ERR'
+      : rows
+          .map((row) => row.locale ?? '')
+          .sort()
+          .join(',');
+  const localeAll = await localeRows('');
+  const localeFacets = {
+    all: localesOf(localeAll),
+    fr: localesOf(await localeRows('&locale=fr')),
+    frCH: localesOf(await localeRows('&locale=fr-CH')),
+    EN: localesOf(await localeRows('&locale=EN')),
+    frUploads: localesOf(await localeRows('&locale=fr&source=file_upload')),
+    de: localesOf(await localeRows('&locale=de')),
+  };
+  for (const row of localeAll ?? []) {
+    await send('DELETE', `/api/app/contacts/${row.id}?orgId=${orgId}`);
+  }
+  record(
+    'contacts: the Locale facet lists a language with its regional tags',
+    localeBulk.ok &&
+      localeManual.ok &&
+      localeFacets.all === 'FR_ca,en,en-US,fr,fr-CH' &&
+      localeFacets.fr === 'FR_ca,fr,fr-CH' &&
+      localeFacets.frCH === 'fr-CH' &&
+      localeFacets.EN === 'en,en-US' &&
+      localeFacets.frUploads === 'FR_ca,fr-CH' &&
+      localeFacets.de === '',
+    `seeded bulk=${localeBulk.status} manual=${localeManual.status}; ${JSON.stringify(localeFacets)} (want all=FR_ca,en,en-US,fr,fr-CH fr=FR_ca,fr,fr-CH frCH=fr-CH EN=en,en-US frUploads=FR_ca,fr-CH de=)`,
+  );
+
   // Message feedback lands on a REAL message the caller can read: a chat
   // thread this user owns, with one assistant reply in it.
   const fbNow = Date.now();
@@ -8663,7 +8797,7 @@ async function checkKnowledge(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -8796,6 +8930,92 @@ async function checkKnowledge(
       `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
     );
 
+    // Embeddings are spend: the indexing above is booked under
+    // `__embedding__` as its uploader's, and a search as the searcher's. A
+    // reached limit parks the next file (`usage_limit`) and refuses the
+    // search with the coded 429; once the limit is lifted, the hourly pass
+    // puts the file back in the queue and it indexes.
+    const embeddingUsers = await sql<{ userId: string; requests: number }[]>`
+      SELECT user_id AS "userId", sum(request_count)::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = '__embedding__'
+        AND granularity = 'monthly'
+      GROUP BY user_id
+    `;
+    const quarterlyUploader = await sql<{ uploadedBy: string | null }[]>`
+      SELECT uploaded_by AS "uploadedBy" FROM app.file_metadata
+      WHERE id = ${quarterlyFileId}
+    `;
+    const { clearOrgConfigCaches: clearLimitCaches } =
+      await import('./lib/org-config.ts');
+    const limitGovernanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(limitGovernanceDir, { recursive: true });
+    const limitBudgetsFile = path.join(limitGovernanceDir, 'budgets.yml');
+    await writeFile(
+      limitBudgetsFile,
+      [
+        'enabled: true',
+        'rules:',
+        '  - scope: org',
+        '    period: monthly',
+        '    maxRequests: 1',
+      ].join('\n'),
+    );
+    clearLimitCaches();
+    let parkedCode: string | null = null;
+    let refusedSearch = { status: 0, code: '' };
+    let resumed = false;
+    let requeued = 0;
+    try {
+      const limited = await uploadTextDocument(
+        'limited.txt',
+        'The limit probe: a document uploaded while the usage limit is reached.',
+      );
+      await waitFor(
+        async () => (await ragRow(limited.fileId)).code === 'usage_limit',
+        20_000,
+      );
+      parkedCode = (await ragRow(limited.fileId)).code;
+      const refused = await send(
+        'POST',
+        `/api/app/knowledge/search?orgId=${orgId}`,
+        { query: 'verdigris zeppelin ledger', limit: 5 },
+      );
+      const refusedBody = z
+        .object({ error: z.string() })
+        .loose()
+        .safeParse(await refused.json());
+      refusedSearch = {
+        status: refused.status,
+        code: refusedBody.success ? refusedBody.data.error : 'ERR',
+      };
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+      const { requeueUsageLimitedFiles } =
+        await import('./domains/knowledge/usage-limit-resume.ts');
+      requeued = await requeueUsageLimitedFiles(sql);
+      resumed = await waitFor(
+        async () => (await ragRow(limited.fileId)).status === 'completed',
+        20_000,
+      );
+    } finally {
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+    }
+    record(
+      'knowledge embeddings are booked, wait at a reached limit, and resume once it lifts',
+      embeddingUsers.some(
+        (row) =>
+          row.userId === quarterlyUploader[0]?.uploadedBy && row.requests > 0,
+      ) &&
+        parkedCode === 'usage_limit' &&
+        refusedSearch.status === 429 &&
+        refusedSearch.code === 'BUDGET_EXCEEDED' &&
+        requeued >= 1 &&
+        resumed,
+      `embedding usage=${JSON.stringify(embeddingUsers)} (want the uploader with requests), parked=${parkedCode} (want usage_limit), search=${refusedSearch.status}/${refusedSearch.code} (want 429/BUDGET_EXCEEDED), requeued=${requeued} (want >= 1), resumed=${resumed}`,
+    );
+
     // Round h, h4 (S2): a document of one repeated passage is embedded once
     // per DISTINCT passage — its repeats are stored without a vector and
     // flagged, out of both legs — so it neither crowds the shared vector
@@ -8824,9 +9044,11 @@ async function checkKnowledge(
     >`
       SELECT count(*)::text AS total,
              count(*) FILTER (WHERE c.passage_repeat)::text AS repeats,
-             count(*) FILTER (WHERE c.embedding IS NOT NULL)::text AS embedded
+             count(v.chunk_id)::text AS embedded
       FROM private_knowledge.chunks c
       JOIN private_knowledge.documents d ON d.id = c.document_id
+      LEFT JOIN private_knowledge.${dupPool(`chunk_vectors_${ITEST_VECTOR_WIDTH}`)} v
+        ON v.chunk_id = c.id
       WHERE d.org_slug = ${orgSlug} AND d.file_id = ${dup.storageRef}
     `;
     const dupTotal = Number(dupChunks[0]?.total ?? '0');
@@ -9440,7 +9662,7 @@ async function checkIndexingReleaseRace(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -9759,7 +9981,7 @@ async function checkEmbeddingCredentialRefusal(
       JSON.stringify({
         providerSlug,
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10009,7 +10231,7 @@ async function checkCorpusPurgeConsistency(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10708,15 +10930,20 @@ async function checkCorpusPurgeConsistency(
 }
 
 /** OpenAI-shaped embeddings response for a raw request body — deterministic
- * 8-dim vectors from character statistics; base64 Float32 when asked (the
- * OpenAI SDK's default decode path). */
+ * vectors from eight character statistics, repeated to the width the request
+ * asks for (`dimensions`; the fixtures' width without one — repeating a
+ * vector changes none of its cosines); base64 Float32 when asked (the OpenAI
+ * SDK's default decode path). */
 function fakeEmbeddingsPayload(rawBody: string): string {
   const parsed = z
     .object({
       input: z.union([z.string(), z.array(z.string())]),
       encoding_format: z.string().optional(),
+      dimensions: z.number().int().positive().optional(),
     })
     .safeParse(JSON.parse(rawBody || '{}'));
+  const width =
+    (parsed.success ? parsed.data.dimensions : undefined) ?? ITEST_VECTOR_WIDTH;
   const inputs = parsed.success
     ? Array.isArray(parsed.data.input)
       ? parsed.data.input
@@ -10725,13 +10952,17 @@ function fakeEmbeddingsPayload(rawBody: string): string {
   const wantsBase64 =
     parsed.success && parsed.data.encoding_format === 'base64';
   const data = inputs.map((text, index) => {
-    const vector = Array.from({ length: 8 }, (_, i) => {
+    const statistics = Array.from({ length: 8 }, (_, i) => {
       let acc = 0;
       for (let j = i; j < text.length; j += 8) {
         acc += text.charCodeAt(j) % 97;
       }
       return (acc % 1000) / 1000 + 0.001;
     });
+    const vector = Array.from(
+      { length: width },
+      (_, i) => statistics[i % statistics.length] ?? 0,
+    );
     const embedding = wantsBase64
       ? Buffer.from(new Float32Array(vector).buffer).toString('base64')
       : vector;
@@ -11099,7 +11330,7 @@ async function checkChat(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -12138,7 +12369,12 @@ async function checkAutomations(
           JSON.stringify({
             object: 'list',
             data: [
-              { id: 'itest-llm', object: 'model', context_length: 32_768 },
+              {
+                id: 'itest-llm',
+                object: 'model',
+                context_length: 32_768,
+                pricing: { prompt: '0.000001', completion: '0.000002' },
+              },
             ],
           }),
         );
@@ -12598,9 +12834,98 @@ async function checkAutomations(
       WHERE org_id = ${orgId} AND action = 'automation.run.success'
     `;
 
+    // The live run's llm step is its starter's spend, booked under the
+    // automation's name with the tokens the provider reported; once a cap
+    // is reached, the next run's step is refused before the provider is
+    // called (GOV-R14, GOV-R4).
+    const llmBooked = await sql<
+      { userId: string; tokens: number; requests: number }[]
+    >`
+      SELECT user_id AS "userId", total_tokens::float8 AS tokens,
+             request_count::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'ops/greet'
+        AND model = 'itest-llm' AND granularity = 'monthly'
+    `;
+    const budgetsFile = path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'governance',
+      'budgets.yml',
+    );
+    const priorBudgets = await readFile(budgetsFile, 'utf8').catch(() => null);
+    let capped:
+      | { status: string; failureCode: string | null; detail: string | null }
+      | undefined;
+    try {
+      await mkdir(path.dirname(budgetsFile), { recursive: true });
+      await writeFile(
+        budgetsFile,
+        [
+          'enabled: true',
+          'rules:',
+          '  - scope: org',
+          '    period: monthly',
+          '    maxRequests: 1',
+        ].join('\n'),
+      );
+      (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+      const cappedStart = z.object({ runId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/automations/ops/greet/start?orgId=${orgId}`, {
+            input: { who: 'ops' },
+            mode: 'live',
+          })
+        ).json(),
+      );
+      const cappedRunId = cappedStart.success ? cappedStart.data.runId : '';
+      await waitFor(async () => {
+        const rows = await sql<{ status: string }[]>`
+          SELECT status FROM app.automation_runs WHERE id = ${cappedRunId}
+        `;
+        return ['success', 'failed', 'cancelled'].includes(
+          rows[0]?.status ?? '',
+        );
+      }, 30_000);
+      [capped] = await sql<
+        { status: string; failureCode: string | null; detail: string | null }[]
+      >`
+        SELECT status, failure_code AS "failureCode", detail
+        FROM app.automation_runs WHERE id = ${cappedRunId}
+      `;
+    } finally {
+      if (priorBudgets !== null) {
+        await writeFile(budgetsFile, priorBudgets);
+      } else {
+        await rm(budgetsFile, { force: true });
+      }
+      (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+    }
+    const llmRequestsAfter = await sql<{ requests: number }[]>`
+      SELECT coalesce(sum(request_count), 0)::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'ops/greet'
+        AND model = 'itest-llm' AND granularity = 'monthly'
+    `;
+    record(
+      'automations: a live llm step books its tokens under the run’s starter, and a reached cap refuses the next before the provider',
+      llmBooked.length === 1 &&
+        llmBooked[0]?.userId === userId &&
+        llmBooked[0].tokens === 18 &&
+        llmBooked[0].requests === 1 &&
+        capped?.status === 'failed' &&
+        capped.failureCode === 'budget_exceeded' &&
+        /request limit/i.test(capped.detail ?? '') &&
+        /monthly/i.test(capped.detail ?? '') &&
+        llmRequestsAfter[0]?.requests === 1,
+      `booked=${JSON.stringify(llmBooked)} (want one row: the starter, 18 tokens, 1 request), capped run=${JSON.stringify(capped)} (want failed, budget_exceeded, naming the monthly request limit), llm requests after=${llmRequestsAfter[0]?.requests} (want still 1)`,
+    );
+
     // Liveness: a queued run whose step job was LOST (inserted directly, no
     // enqueue) is overdue — the sweep must re-poke it to completion.
-    const orphan = await sql<{ id: string }[]>`
+    const orphan = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input, checkpoints,
         wake_at_ms, claim_epoch, started_at_ms
@@ -12610,6 +12935,7 @@ async function checkAutomations(
         ${Date.now() - 60_000}, 0, ${Date.now() - 60_000}
       ) RETURNING id
     `;
+    });
     const automationsStore = await import('./domains/automations/store.ts');
     const swept = await automationsStore.sweepOverdueRuns(sql);
     const orphanSettled = await waitFor(async () => {
@@ -12619,6 +12945,55 @@ async function checkAutomations(
       `;
       return rows[0]?.status === 'success';
     }, 30_000);
+
+    // A synthetic current-protocol run with no lease and a lapsed promise
+    // still exercises the sweep's lease repair. This marked setup is not
+    // evidence of safe legacy takeover: the separate boot-cutover proof
+    // requires genuinely pre-protocol active runs to remain quarantined.
+    const leaseless = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input, checkpoints,
+        wake_at_ms, claim_epoch, claimed_at_ms, started_at_ms
+      ) VALUES (
+        ${orgId}, 'ops/greet', 1, 'running', 'mock', 'itest:leaseless',
+        ${sql.json('{"who":"leaseless"}')}, ${sql.json('{"nodes":{},"executions":0}')},
+        ${Date.now() - 60_000}, 3, ${Date.now() - 300_000},
+        ${Date.now() - 300_000}
+      ) RETURNING id
+    `;
+    });
+    const leaselessId = leaseless[0]?.id ?? '';
+    await automationsStore.sweepOverdueRuns(sql);
+    const leaselessSettled = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_runs WHERE id = ${leaselessId}
+      `;
+      return rows[0]?.status === 'success';
+    }, 30_000);
+    const leaselessRow = await sql<
+      { resumeCount: number; reason: string | null; claimEpoch: number }[]
+    >`
+      SELECT resume_count AS "resumeCount", last_resume_reason AS reason,
+             claim_epoch AS "claimEpoch"
+      FROM app.automation_runs WHERE id = ${leaselessId}
+    `;
+    const leaselessEvents = await sql<{ kind: string }[]>`
+      SELECT kind FROM app.automation_run_events
+      WHERE run_id = ${leaselessId} AND kind IN ('lease_expired', 'taken_over')
+      ORDER BY kind
+    `;
+    record(
+      'a current-protocol lease-less run is taken over once its promise lapses [AUTO-R16]',
+      leaselessSettled &&
+        leaselessRow[0]?.resumeCount === 1 &&
+        leaselessRow[0]?.reason === 'lease_expired' &&
+        (leaselessRow[0]?.claimEpoch ?? 0) >= 4 &&
+        leaselessEvents.map((event) => event.kind).join(',') ===
+          'lease_expired,taken_over',
+      `settled=${leaselessSettled}, resumes=${leaselessRow[0]?.resumeCount} (want 1), reason=${leaselessRow[0]?.reason} (want lease_expired), epoch=${leaselessRow[0]?.claimEpoch} (want ≥4), events=${leaselessEvents.map((event) => event.kind).join(',')} (want lease_expired,taken_over)`,
+    );
 
     // Webhook trigger: token minted once, kept on re-bind, rotated on ask.
     const minted = z.object({ token: z.string() }).safeParse(
@@ -12667,7 +13042,8 @@ async function checkAutomations(
     );
 
     // Schedule DELIVERY: retarget the trigger to a minute cron, backdate its
-    // fire stamp, and let the scan (the per-minute job's body) fire it.
+    // fire stamp and its next instant (a save counts from the save, 0170),
+    // and let the scan (the per-minute job's body) fire it.
     await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
       kind: 'schedule',
       cron: '* * * * *',
@@ -12675,7 +13051,8 @@ async function checkAutomations(
     });
     await sql`
       UPDATE app.automation_triggers
-      SET last_fired_at_ms = ${Date.now() - 120_000}
+      SET last_fired_at_ms = ${Date.now() - 120_000},
+          next_due_at_ms = ${Date.now() - 60_000}
       WHERE org_id = ${orgId} AND name = 'ops/greet'
     `;
     const triggersModule = await import('./domains/automations/triggers.ts');
@@ -12963,41 +13340,822 @@ async function checkAutomationRunLifecycle(
     `/start=${phantomStart.status} (want 404), webhook-bad=${hookBadProject.status} (want 403), webhook-none=${hookNoProject.status} (want 202)`,
   );
 
-  // ---- #4: concurrent claims of one run get DISTINCT epochs (atomic claim,
-  // no lost update). Insert a still run (no wake, no step job) so only these
-  // claims touch it.
-  const claimRun = await sql<{ id: string }[]>`
-    INSERT INTO app.automation_runs (
-      org_id, name, version, status, mode, started_by, input, checkpoints,
-      wake_at_ms, claim_epoch, started_at_ms
-    ) VALUES (
-      ${orgId}, 'ops/lifecycle', 1, 'queued', 'mock', 'itest:claim',
-      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
-      ${null}, 0, ${Date.now()}
-    ) RETURNING id
+  // ---- #4: one walker per run. Twelve concurrent claims of one queued run
+  // (a still run: no wake, no step job, so only these claims touch it)
+  // serialize on the row lock: exactly one takes the lease, the others read
+  // it live and are refused.
+  const instance = await import('./lib/instance.ts');
+  const ledger = await import('./domains/automations/node-attempts.ts');
+  const protocol = await import('../lib/engine/core/protocol.ts');
+  /** A run of the lifecycle automation inserted straight into the table, so
+   * nothing but the probe moves it. */
+  const insertProbeRun = async (
+    startedBy: string,
+    fields: {
+      status?: string;
+      mode?: string;
+      claimEpoch?: number;
+      /** A top-level checkpoint key this engine does not know. */
+      future?: string;
+    } = {},
+  ): Promise<string> => {
+    const rows = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input, checkpoints,
+        wake_at_ms, claim_epoch, started_at_ms
+      ) VALUES (
+        ${orgId}, 'ops/lifecycle', 1, ${fields.status ?? 'queued'},
+        ${fields.mode ?? 'mock'}, ${startedBy}, ${sql.json({ who: 'probe' })},
+        ${sql.json({
+          nodes: {},
+          executions: 0,
+          ...(fields.future !== undefined && { future: fields.future }),
+        })},
+        ${null}, ${fields.claimEpoch ?? 0}, ${Date.now()}
+      ) RETURNING id
+    `;
+    });
+    return rows[0]?.id ?? '';
+  };
+  const runEvents = async (runId: string, kind: string) =>
+    sql<{ detail: Record<string, unknown> | null }[]>`
+      SELECT detail FROM app.automation_run_events
+      WHERE run_id = ${runId} AND kind = ${kind}
+    `;
+  const stepJobs = async (runId: string): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = ${physicalTaskQueue('automation.step')} AND data->>'runId' = ${runId}
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+  /** Stop a probe run that is still live, so no queued job steps it later. */
+  const cancelProbeRun = (runId: string): Promise<unknown> =>
+    sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
+    UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL,
+      lease_owner = NULL, lease_expires_at_ms = NULL
+    WHERE id = ${runId} AND status IN ('queued', 'running', 'waiting')
   `;
-  const claimRunId = claimRun[0]?.id ?? '';
+    });
+
+  const claimRunId = await insertProbeRun('itest:claim');
   const claims = await Promise.all(
     Array.from({ length: 12 }, () => store.claimRun(sql, orgId, claimRunId)),
   );
-  const wonEpochs = claims
-    .filter((c) => c.claimed)
-    .map((c) => c.epoch)
-    .sort((a, b) => a - b);
-  const distinctEpochs = new Set(wonEpochs).size === wonEpochs.length;
-  await sql`
-    UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
+  const winners = claims.filter((c) => c.claimed);
+  const refusals = claims.filter((c) => !c.claimed).map((c) => c.status);
+  record(
+    'twelve concurrent claims of one run: exactly one walker wins, the rest read its lease [AUTO-R16]',
+    winners.length === 1 &&
+      winners[0]?.epoch === 1 &&
+      refusals.length === 11 &&
+      refusals.every((status) => status === 'leased'),
+    `won=${winners.length} (want 1) at epoch ${winners[0]?.epoch} (want 1), refused=[${[...new Set(refusals)].join(',')}] (want leased)`,
+  );
+
+  // ---- #4b: the lease itself — a live lease refuses a second claim; a lapsed
+  // one is taken over, counted on the run and recorded; the walker it was
+  // taken from is refused at its next write.
+  const leased = await sql<
+    {
+      owner: string | null;
+      leaseEpoch: number | null;
+      claimEpoch: number;
+      expiresAt: number | null;
+      wakeAt: number | null;
+    }[]
+  >`
+    SELECT lease_owner AS owner, lease_epoch AS "leaseEpoch",
+           claim_epoch AS "claimEpoch",
+           lease_expires_at_ms::float8 AS "expiresAt",
+           wake_at_ms::float8 AS "wakeAt"
+    FROM app.automation_runs WHERE id = ${claimRunId}
+  `;
+  const second = await store.claimRun(sql, orgId, claimRunId);
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET lease_expires_at_ms = ${Date.now() - 1}
     WHERE id = ${claimRunId}
   `;
+  });
+  const takeover = await store.claimRun(sql, orgId, claimRunId);
+  const resumed = await sql<
+    { resumeCount: number; reason: string | null; owner: string | null }[]
+  >`
+    SELECT resume_count AS "resumeCount", last_resume_reason AS reason,
+           lease_owner AS owner
+    FROM app.automation_runs WHERE id = ${claimRunId}
+  `;
+  const takenOver = await runEvents(claimRunId, 'taken_over');
+  const staleWrite = await store.recordProgress(sql, {
+    organizationId: orgId,
+    runId: claimRunId,
+    epoch: 1,
+    nodeId: 'echo',
+    checkpoint: { status: 'ok', output: 'late', trace: {}, effects: [] },
+    executions: 1,
+  });
+  await cancelProbeRun(claimRunId);
   record(
-    'concurrent automation claimRun yields distinct epochs (no lost update)',
-    wonEpochs.length >= 2 && distinctEpochs && (wonEpochs[0] ?? 0) >= 1,
-    `won=${wonEpochs.length}, distinct=${distinctEpochs}, epochs=[${wonEpochs.join(',')}]`,
+    'a run lease refuses a second walker, and a lapsed one is taken over and recorded [AUTO-R16]',
+    leased[0]?.owner === instance.instanceId() &&
+      leased[0]?.leaseEpoch === leased[0]?.claimEpoch &&
+      leased[0]?.expiresAt !== null &&
+      leased[0]?.expiresAt === leased[0]?.wakeAt &&
+      !second.claimed &&
+      second.status === 'leased' &&
+      takeover.claimed &&
+      takeover.epoch === 2 &&
+      resumed[0]?.resumeCount === 1 &&
+      resumed[0]?.reason === 'lease_expired' &&
+      takenOver.length === 1 &&
+      takenOver[0]?.detail?.previousOwner === instance.instanceId() &&
+      staleWrite.status === 'stale',
+    `owner=${leased[0]?.owner === instance.instanceId() ? 'this process' : String(leased[0]?.owner)}, leaseEpoch=${leased[0]?.leaseEpoch}/${leased[0]?.claimEpoch}, second=${second.status} (want leased), takeover=${takeover.claimed}@${takeover.epoch} (want true@2), resumeCount=${resumed[0]?.resumeCount} (want 1), reason=${resumed[0]?.reason}, takenOverEvents=${takenOver.length} (want 1), staleWrite=${staleWrite.status} (want stale)`,
+  );
+
+  // ---- #4c: a stop beats a finishing walker. Committed first, the stop
+  // wins and the finish lands nothing; raced, exactly one of the two lands
+  // and exactly one terminal audit row says which.
+  const terminalAudits = async (runId: string) => {
+    const rows = await sql<{ action: string }[]>`
+      SELECT action FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_id = ${runId}
+        AND action IN ('automation.run.cancelled', 'automation.run.success')
+    `;
+    return rows.map((row) => row.action);
+  };
+  const finishArgs = (runId: string, epoch: number) => ({
+    organizationId: orgId,
+    runId,
+    epoch,
+    status: 'success' as const,
+    output: 'finished',
+    trace: [],
+    effects: [],
+    executions: 1,
+  });
+  const stopFirstId = await insertProbeRun('itest:cancel-wins', {
+    mode: 'live',
+  });
+  const stopFirstClaim = await store.claimRun(sql, orgId, stopFirstId);
+  const stopped = await store.cancelRun(sql, orgId, stopFirstId);
+  const lateFinish = await store.finishRun(
+    sql,
+    finishArgs(stopFirstId, stopFirstClaim.epoch),
+  );
+  const stopFirstAudits = await terminalAudits(stopFirstId);
+  const stopFirstRow = await sql<{ status: string; output: unknown }[]>`
+    SELECT status, output FROM app.automation_runs WHERE id = ${stopFirstId}
+  `;
+  const racedId = await insertProbeRun('itest:cancel-race', { mode: 'live' });
+  const racedClaim = await store.claimRun(sql, orgId, racedId);
+  const [racedCancel, racedFinish] = await Promise.all([
+    store.cancelRun(sql, orgId, racedId),
+    store.finishRun(sql, finishArgs(racedId, racedClaim.epoch)),
+  ]);
+  const racedAudits = await terminalAudits(racedId);
+  const racedRow = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_runs WHERE id = ${racedId}
+  `;
+  const racedLanded = racedRow[0]?.status ?? '';
+  record(
+    'a stop that commits first wins over a finishing walker: one stop entry, no success entry [AUTO-R17]',
+    stopped.cancelled &&
+      lateFinish.status === 'cancelled' &&
+      stopFirstRow[0]?.status === 'cancelled' &&
+      stopFirstRow[0]?.output === null &&
+      stopFirstAudits.length === 1 &&
+      stopFirstAudits[0] === 'automation.run.cancelled' &&
+      racedAudits.length === 1 &&
+      racedAudits[0] ===
+        `automation.run.${racedLanded === 'cancelled' ? 'cancelled' : 'success'}` &&
+      racedCancel.cancelled === (racedLanded === 'cancelled') &&
+      (racedFinish.status === 'success') === (racedLanded === 'success'),
+    `stop-first: cancelled=${stopped.cancelled}, finish=${lateFinish.status} (want cancelled), row=${stopFirstRow[0]?.status}, audits=[${stopFirstAudits.join(',')}] (want one cancelled); raced: landed=${racedLanded}, cancel=${racedCancel.cancelled}, finish=${racedFinish.status}, audits=[${racedAudits.join(',')}] (want exactly one, matching)`,
+  );
+
+  // ---- #4d: progress merges in the database. Two commits of one claim,
+  // each with its own node, keep both; a key the engine does not know
+  // survives; a superseded walker writes nothing.
+  const mergeId = await insertProbeRun('itest:merge', { future: 'kept' });
+  const mergeClaim = await store.claimRun(sql, orgId, mergeId);
+  const commit = (nodeId: string, epoch: number) =>
+    store.recordProgress(sql, {
+      organizationId: orgId,
+      runId: mergeId,
+      epoch,
+      nodeId,
+      checkpoint: { status: 'ok', output: nodeId, trace: {}, effects: [] },
+      executions: 2,
+    });
+  const merged = await Promise.all([
+    commit('a', mergeClaim.epoch),
+    commit('b', mergeClaim.epoch),
+  ]);
+  const superseded = await commit('c', mergeClaim.epoch - 1);
+  const mergedRow = await sql<
+    {
+      checkpoints: {
+        nodes?: Record<string, unknown>;
+        future?: unknown;
+        executions?: unknown;
+      } | null;
+    }[]
+  >`
+    SELECT checkpoints FROM app.automation_runs WHERE id = ${mergeId}
+  `;
+  const mergedNodes = Object.keys(
+    mergedRow[0]?.checkpoints?.nodes ?? {},
+  ).sort();
+  await cancelProbeRun(mergeId);
+  record(
+    'two progress commits of one walker keep both nodes; a superseded walker writes none',
+    merged.every((result) => result.status === 'running') &&
+      superseded.status === 'stale' &&
+      mergedNodes.join(',') === 'a,b' &&
+      mergedRow[0]?.checkpoints?.future === 'kept' &&
+      mergedRow[0]?.checkpoints?.executions === 2,
+    `commits=[${merged.map((result) => result.status).join(',')}], superseded=${superseded.status} (want stale), nodes=[${mergedNodes.join(',')}] (want a,b), future=${String(mergedRow[0]?.checkpoints?.future)} (want kept)`,
+  );
+
+  // ---- #4e: a stopping process hands on exactly the runs it holds a lease
+  // on — counted, recorded, and stepped by whoever takes the job.
+  const leaseRun = async (
+    startedBy: string,
+    owner: string,
+  ): Promise<string> => {
+    const runId = await insertProbeRun(startedBy, {
+      status: 'running',
+      claimEpoch: 1,
+    });
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
+      UPDATE app.automation_runs SET
+        lease_owner = ${owner}, lease_epoch = 1,
+        lease_expires_at_ms = ${Date.now() + 30_000},
+        wake_at_ms = ${Date.now() + 30_000}
+      WHERE id = ${runId}
+    `;
+    });
+    return runId;
+  };
+  const ownedId = await leaseRun('itest:release-own', instance.instanceId());
+  const foreignId = await leaseRun(
+    'itest:release-foreign',
+    'another-host:7:0.5.0:blue',
+  );
+  const released = await store.releaseOwnedRunLeases(sql);
+  const releasedRows = await sql<
+    {
+      id: string;
+      owner: string | null;
+      expiresAt: number | null;
+      resumeCount: number;
+      reason: string | null;
+    }[]
+  >`
+    SELECT id, lease_owner AS owner,
+           lease_expires_at_ms::float8 AS "expiresAt",
+           resume_count AS "resumeCount", last_resume_reason AS reason
+    FROM app.automation_runs WHERE id IN (${ownedId}, ${foreignId})
+  `;
+  const ownedRow = releasedRows.find((row) => row.id === ownedId);
+  const foreignRow = releasedRows.find((row) => row.id === foreignId);
+  const handedOff = await runEvents(ownedId, 'handed_off');
+  const ownedSteps = await stepJobs(ownedId);
+  const foreignSteps = await stepJobs(foreignId);
+  const ownedSettled = await waitFor(async () => {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.automation_runs WHERE id = ${ownedId}
+    `;
+    return rows[0]?.status === 'success';
+  }, 30_000);
+  await cancelProbeRun(foreignId);
+  record(
+    'a stopping process hands on only the runs it holds a lease on, one step each',
+    released >= 1 &&
+      ownedRow?.owner === null &&
+      ownedRow.expiresAt === null &&
+      ownedRow.resumeCount === 1 &&
+      ownedRow.reason === 'shutdown' &&
+      handedOff.length === 1 &&
+      handedOff[0]?.detail?.reason === 'shutdown_release' &&
+      ownedSteps === 1 &&
+      ownedSettled &&
+      foreignRow?.owner === 'another-host:7:0.5.0:blue' &&
+      foreignRow.resumeCount === 0 &&
+      foreignSteps === 0,
+    `released=${released} (want >=1), own: owner=${String(ownedRow?.owner)} resumeCount=${ownedRow?.resumeCount} reason=${ownedRow?.reason} events=${handedOff.length} steps=${ownedSteps} settled=${ownedSettled}; foreign: owner kept=${foreignRow?.owner === 'another-host:7:0.5.0:blue'} resumeCount=${foreignRow?.resumeCount} steps=${foreignSteps}`,
+  );
+
+  // ---- #4f: a run a newer engine stepped is never read by this one; while
+  // the roll is recent its step goes back to the queue, recorded once.
+  const newerId = await insertProbeRun('itest:engine-protocol');
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET
+      engine_protocol = ${protocol.ENGINE_PROTOCOL + 98},
+      claimed_at_ms = ${Date.now() - 60_000}
+    WHERE id = ${newerId}
+  `;
+  });
+  const deferred = await store.claimRun(sql, orgId, newerId);
+  const deferredAgain = await store.claimRun(sql, orgId, newerId);
+  const deferredRow = await sql<{ status: string; claimEpoch: number }[]>`
+    SELECT status, claim_epoch AS "claimEpoch"
+    FROM app.automation_runs WHERE id = ${newerId}
+  `;
+  const deferredEvents = await runEvents(newerId, 'engine_deferred');
+  const requeued = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = ${physicalTaskQueue('automation.step')} AND data->>'runId' = ${newerId}
+      AND start_after > now()
+  `;
+  await cancelProbeRun(newerId);
+  record(
+    'a run stamped by a newer engine is not claimed; its step is re-queued and the deferral recorded once',
+    deferred.status === 'deferred' &&
+      deferredAgain.status === 'deferred' &&
+      deferredRow[0]?.status === 'queued' &&
+      deferredRow[0]?.claimEpoch === 0 &&
+      deferredEvents.length === 1 &&
+      Number(requeued[0]?.count ?? '0') === 2,
+    `claims=${deferred.status},${deferredAgain.status} (want deferred), row=${deferredRow[0]?.status}@${deferredRow[0]?.claimEpoch} (want queued@0), events=${deferredEvents.length} (want 1), delayed steps=${requeued[0]?.count} (want 2)`,
+  );
+
+  // ---- #4g: the effect ledger. Two walkers racing to begin one call meet
+  // on one row; a superseded walker begins nothing; a finished call is
+  // reused; a person's decision lands with the run row locked first and
+  // wakes the run.
+  const ledgerId = await insertProbeRun('itest:ledger', {
+    status: 'running',
+    mode: 'live',
+    claimEpoch: 2,
+  });
+  // The walker at epoch 2 holds a live lease: a begin needs one.
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET
+      lease_epoch = 2, lease_owner = ${instance.instanceId()},
+      lease_expires_at_ms = ${Date.now() + 60_000}
+    WHERE id = ${ledgerId}
+  `;
+  });
+  const beginArgs = (epoch: number, itemIndex: number) => ({
+    organizationId: orgId,
+    runId: ledgerId,
+    epoch,
+    nodeId: 'send',
+    itemIndex,
+    pass: 0,
+    kind: 'connector' as const,
+    nodeType: 'connector',
+    input: { to: 'mia@example.com', item: itemIndex },
+    recallable: false,
+  });
+  const raced = await Promise.all([
+    ledger.beginNodeAttempt(sql, beginArgs(2, 0)),
+    ledger.beginNodeAttempt(sql, beginArgs(2, 0)),
+  ]);
+  const raceKinds = raced.map((answer) => answer.kind).sort();
+  const staleBegin = await ledger.beginNodeAttempt(sql, beginArgs(1, 1));
+  const goneItem = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_node_attempts
+    WHERE run_id = ${ledgerId} AND item_index = 1
+  `;
+  const finishedItem = await ledger.beginNodeAttempt(sql, beginArgs(2, 2));
+  await ledger.finishNodeAttempt(sql, {
+    organizationId: orgId,
+    runId: ledgerId,
+    nodeId: 'send',
+    itemIndex: 2,
+    pass: 0,
+    attempt: finishedItem.kind === 'go' ? finishedItem.attempt : 0,
+    status: 'done',
+    output: { messageId: 'm-2' },
+  });
+  const reused = await ledger.beginNodeAttempt(sql, beginArgs(2, 2));
+  // Park the run on the undecided write, then decide it.
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET status = 'waiting', detail = 'in_doubt:send'
+    WHERE id = ${ledgerId}
+  `;
+  });
+  const open = await ledger.readOpenInDoubt(sql, orgId, ledgerId);
+  await sql.begin((tx) =>
+    ledger.resolveInDoubtInTx(tx, {
+      organizationId: orgId,
+      runId: ledgerId,
+      attemptId: open?.attemptId ?? '',
+      attempt: open?.attempt ?? 0,
+      resolution: 'skip',
+      actor: 'itest-user',
+    }),
+  );
+  const decidedAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${ledgerId}
+      AND action = 'automation.run.in_doubt_resolved'
+  `;
+  const decidedEvents = await runEvents(ledgerId, 'in_doubt_resolved');
+  const decidedSteps = await stepJobs(ledgerId);
+  let secondDecision = '';
+  try {
+    await sql.begin((tx) =>
+      ledger.resolveInDoubtInTx(tx, {
+        organizationId: orgId,
+        runId: ledgerId,
+        attemptId: open?.attemptId ?? '',
+        attempt: open?.attempt ?? 0,
+        resolution: 'retry',
+        actor: 'itest-user',
+      }),
+    );
+  } catch (error) {
+    secondDecision =
+      error instanceof store.AutomationError ? error.code : String(error);
+  }
+  await cancelProbeRun(ledgerId);
+  record(
+    'the effect ledger: one row per call under a race, no begin for a stale walker, a finished call reused, a decision recorded and the run woken',
+    raceKinds.join(',') === 'go,in_doubt' &&
+      staleBegin.kind === 'stale' &&
+      Number(goneItem[0]?.count ?? '1') === 0 &&
+      reused.kind === 'done' &&
+      JSON.stringify(reused.kind === 'done' ? reused.output : null) ===
+        JSON.stringify({ messageId: 'm-2' }) &&
+      open?.itemIndex === 0 &&
+      Number(decidedAudit[0]?.count ?? '0') === 1 &&
+      decidedEvents.length === 1 &&
+      decidedSteps === 1 &&
+      // Refused either way: already decided, or the woken run is no longer
+      // parked on it (the worker may have stepped it meanwhile).
+      ['IN_DOUBT_ALREADY_RESOLVED', 'RUN_NOT_IN_DOUBT'].includes(
+        secondDecision,
+      ),
+    `race=[${raceKinds.join(',')}] (want go,in_doubt), stale=${staleBegin.kind}, staleRows=${goneItem[0]?.count} (want 0), reused=${reused.kind} (want done), open item=${open?.itemIndex} (want 0), audit=${decidedAudit[0]?.count} (want 1), events=${decidedEvents.length}, steps=${decidedSteps} (want 1), second decision=${secondDecision} (want a refusal)`,
+  );
+
+  // ---- #4g3: a decision about an earlier attempt of a write [AUTO-R19].
+  // Run it again keeps the write's row and takes the next number; when that
+  // attempt is interrupted too, the run parks on the same row again. A
+  // choice made about attempt 1 that lands only now (a second tab, a slow
+  // network) is refused: it never sends the write once more, skips it (its
+  // output lost) or fails the run without anyone deciding about attempt 2.
+  // Stamped by a newer engine, so no worker of this one steps the run while
+  // the probe moves it by hand: a claim defers, and only records that once.
+  const staleId = await insertProbeRun('itest:stale-decision', {
+    status: 'running',
+    mode: 'live',
+  });
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    await fixtureTx`
+      UPDATE app.automation_runs SET
+        engine_protocol = ${protocol.ENGINE_PROTOCOL + 98}
+      WHERE id = ${staleId}
+    `;
+  });
+  /** The walker at `epoch` holds a live lease on the run. */
+  const holdStale = (epoch: number) =>
+    sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
+        UPDATE app.automation_runs SET
+          status = 'running', detail = NULL, wake_at_ms = NULL,
+          claim_epoch = ${epoch}, lease_epoch = ${epoch},
+          lease_owner = ${instance.instanceId()},
+          lease_expires_at_ms = ${Date.now() + 60_000}
+        WHERE id = ${staleId}
+      `;
+    });
+  /** A walker found the write open and parked the run on it. */
+  const parkStale = () =>
+    sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
+        UPDATE app.automation_runs SET
+          status = 'waiting', detail = 'in_doubt:send', lease_owner = NULL,
+          lease_expires_at_ms = NULL, wake_at_ms = ${Date.now() + 3_600_000}
+        WHERE id = ${staleId}
+      `;
+    });
+  /** The walker at `epoch` begins the write (or learns what it left). */
+  const beginStale = async (epoch: number) => {
+    await holdStale(epoch);
+    return ledger.beginNodeAttempt(sql, {
+      ...beginArgs(epoch, 0),
+      runId: staleId,
+    });
+  };
+  const firstSend = await beginStale(3);
+  const firstPark = await beginStale(4);
+  await parkStale();
+  const firstOpen = await ledger.readOpenInDoubt(sql, orgId, staleId);
+  const decideStale = async (
+    attempt: number,
+    resolution: 'retry' | 'skip' | 'fail',
+  ): Promise<string> => {
+    try {
+      await sql.begin((tx) =>
+        ledger.resolveInDoubtInTx(tx, {
+          organizationId: orgId,
+          runId: staleId,
+          attemptId: firstOpen?.attemptId ?? '',
+          attempt,
+          resolution,
+          actor: 'itest-user',
+        }),
+      );
+      return 'decided';
+    } catch (error) {
+      return error instanceof store.AutomationError
+        ? `${error.code}:${error.status}`
+        : String(error);
+    }
+  };
+  // Mia's tab: Run it again, about attempt 1. The next walker sends the
+  // write again as attempt 2, and its server stops mid-call as well.
+  const retried = await decideStale(1, 'retry');
+  const secondSend = await beginStale(5);
+  const secondPark = await beginStale(6);
+  await parkStale();
+  const secondOpen = await ledger.readOpenInDoubt(sql, orgId, staleId);
+  const staleEventsBefore = await runEvents(staleId, 'in_doubt_resolved');
+  const staleStepsBefore = await stepJobs(staleId);
+  // Noah's tab still shows attempt 1: each of its choices lands late.
+  const staleRefusals = [
+    await decideStale(1, 'retry'),
+    await decideStale(1, 'skip'),
+    await decideStale(1, 'fail'),
+  ];
+  const staleRow = await sql<
+    {
+      attempt: number;
+      status: string;
+      resolution: string | null;
+      output: unknown;
+    }[]
+  >`
+    SELECT attempt, status, resolution, output
+    FROM app.automation_node_attempts
+    WHERE id = ${firstOpen?.attemptId ?? ''}
+  `;
+  const staleAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${staleId}
+      AND action = 'automation.run.in_doubt_resolved'
+  `;
+  const staleEventsAfter = await runEvents(staleId, 'in_doubt_resolved');
+  const staleStepsAfter = await stepJobs(staleId);
+  const stillOpen = await ledger.readOpenInDoubt(sql, orgId, staleId);
+  // The next walker still finds attempt 2 undecided, and a choice about
+  // attempt 2 itself is taken.
+  const thirdPark = await beginStale(7);
+  await parkStale();
+  const current = await decideStale(2, 'skip');
+  const currentRow = await sql<
+    { attempt: number; resolution: string | null }[]
+  >`
+    SELECT attempt, resolution FROM app.automation_node_attempts
+    WHERE id = ${firstOpen?.attemptId ?? ''}
+  `;
+  await cancelProbeRun(staleId);
+  const staleAt = staleRow[0];
+  record(
+    'a decision about an earlier attempt of a write is refused once the run waits on a later one: no write, no output discarded, the later attempt still undecided [AUTO-R19]',
+    firstSend.kind === 'go' &&
+      firstSend.attempt === 1 &&
+      firstPark.kind === 'in_doubt' &&
+      firstOpen?.attempt === 1 &&
+      retried === 'decided' &&
+      secondSend.kind === 'go' &&
+      secondSend.attempt === 2 &&
+      secondPark.kind === 'in_doubt' &&
+      secondOpen?.attemptId === firstOpen.attemptId &&
+      secondOpen.attempt === 2 &&
+      staleRefusals.every(
+        (answer) => answer === 'IN_DOUBT_ALREADY_RESOLVED:409',
+      ) &&
+      staleAt?.attempt === 2 &&
+      staleAt.status === 'started' &&
+      staleAt.resolution === null &&
+      staleAt.output === null &&
+      Number(staleAudit[0]?.count ?? '0') === 1 &&
+      staleEventsBefore.length === 1 &&
+      staleEventsAfter.length === 1 &&
+      staleStepsAfter === staleStepsBefore &&
+      stillOpen?.attempt === 2 &&
+      thirdPark.kind === 'in_doubt' &&
+      thirdPark.attempt === 2 &&
+      current === 'decided' &&
+      currentRow[0]?.attempt === 2 &&
+      currentRow[0]?.resolution === 'skip',
+    `begins=${firstSend.kind},${firstPark.kind} (want go,in_doubt), open=${firstOpen?.attempt} (want 1), retry=${retried} (want decided), again=${secondSend.kind}@${secondSend.kind === 'go' ? secondSend.attempt : '-'},${secondPark.kind} (want go@2,in_doubt), reparked=${secondOpen?.attempt} same row=${secondOpen?.attemptId === firstOpen?.attemptId} (want 2 true), late choices=[${staleRefusals.join(',')}] (want IN_DOUBT_ALREADY_RESOLVED:409 x3), row=${staleAt?.attempt}/${staleAt?.status}/${String(staleAt?.resolution)}/${JSON.stringify(staleAt?.output)} (want 2/started/null/null), audit=${staleAudit[0]?.count} (want 1), events=${staleEventsBefore.length}→${staleEventsAfter.length} (want 1→1), steps=${staleStepsBefore}→${staleStepsAfter} (want unchanged), still open=${stillOpen?.attempt} (want 2), next walker=${thirdPark.kind}@${thirdPark.kind === 'in_doubt' ? thirdPark.attempt : '-'} (want in_doubt@2), current choice=${current} → ${currentRow[0]?.attempt}/${String(currentRow[0]?.resolution)} (want decided → 2/skip)`,
+  );
+
+  // ---- #4g2: a write that ends after another walker parked the run on it
+  // [AUTO-R19]. The walker making it outlived its lease; the one that took
+  // the run over found the write open and parked the run in doubt; then the
+  // write came back. Nothing is in doubt any more, so its finish wakes the
+  // run at once instead of leaving it to wait for a person. A walker whose
+  // own lease lapsed begins nothing at all.
+  const lateId = await insertProbeRun('itest:late-finish', {
+    status: 'running',
+    mode: 'live',
+    claimEpoch: 5,
+  });
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET
+      lease_epoch = 5, lease_owner = ${instance.instanceId()},
+      lease_expires_at_ms = ${Date.now() + 60_000}
+    WHERE id = ${lateId}
+  `;
+  });
+  const lateArgs = { ...beginArgs(5, 0), runId: lateId };
+  const lateBegin = await ledger.beginNodeAttempt(sql, lateArgs);
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET
+      lease_expires_at_ms = ${Date.now() - 1}
+    WHERE id = ${lateId}
+  `;
+  });
+  const lapsedBegin = await ledger.beginNodeAttempt(sql, {
+    ...lateArgs,
+    itemIndex: 1,
+  });
+  const parkedUntil = Date.now() + 3_600_000;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET
+      status = 'waiting', detail = 'in_doubt:send', lease_owner = NULL,
+      lease_expires_at_ms = NULL, wake_at_ms = ${parkedUntil}
+    WHERE id = ${lateId}
+  `;
+  });
+  const stepsBeforeFinish = await stepJobs(lateId);
+  const lateFinishWrite = await ledger.finishNodeAttempt(sql, {
+    organizationId: orgId,
+    runId: lateId,
+    nodeId: 'send',
+    itemIndex: 0,
+    pass: 0,
+    attempt: lateBegin.kind === 'go' ? lateBegin.attempt : 0,
+    status: 'done',
+    output: { messageId: 'm-late' },
+  });
+  const stepsAfterFinish = await stepJobs(lateId);
+  const lateWake = await sql<{ wakeAt: number | null }[]>`
+    SELECT wake_at_ms::float8 AS "wakeAt" FROM app.automation_runs
+    WHERE id = ${lateId}
+  `;
+  await cancelProbeRun(lateId);
+  const lateWakeAt = lateWake[0]?.wakeAt ?? null;
+  record(
+    'a write that ends after its run was parked on it wakes the run, and a walker whose lease lapsed begins nothing [AUTO-R19]',
+    lateBegin.kind === 'go' &&
+      lapsedBegin.kind === 'stale' &&
+      lateFinishWrite.recorded &&
+      stepsAfterFinish === stepsBeforeFinish + 1 &&
+      // Woken (a claim's promise), claimed (a lease), or already walked to
+      // its end by a worker — never left at the park's hour-long poll.
+      (lateWakeAt === null || lateWakeAt < parkedUntil),
+    `begin=${lateBegin.kind} (want go), lapsed begin=${lapsedBegin.kind} (want stale), recorded=${lateFinishWrite.recorded}, steps=${stepsBeforeFinish}→${stepsAfterFinish} (want +1), wake=${lateWakeAt} (want before ${parkedUntil})`,
+  );
+
+  // ---- #4h: what the run read says about a run that moved between servers
+  // [AUTO-R18]. A lapsed lease, and a shutdown hand-off nobody claimed yet,
+  // read stalled; a live lease, a budget hand-off after a takeover and a row
+  // a synthetic current-protocol run without a lease do not. The count and last
+  // move ride the read as `resumeCount` and `lastResume`, an in-doubt park
+  // as `waitingFor: in_doubt`, and no owner ever leaves the backend.
+  const readNow = Date.now();
+  const stalledProbe = async (
+    startedBy: string,
+    lease: {
+      leaseEpoch: number | null;
+      expiresAt: number | null;
+      resumedAt?: number;
+      reason?: 'shutdown' | 'lease_expired';
+      claimedAt: number;
+    },
+  ): Promise<string> => {
+    const runId = await insertProbeRun(startedBy, {
+      status: 'running',
+      claimEpoch: 1,
+    });
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
+      UPDATE app.automation_runs SET
+        lease_owner = ${lease.expiresAt === null ? null : 'probe-host:1:0.5.0:none'},
+        lease_epoch = ${lease.leaseEpoch},
+        lease_expires_at_ms = ${lease.expiresAt},
+        claimed_at_ms = ${lease.claimedAt},
+        wake_at_ms = ${readNow + 600_000},
+        resume_count = ${lease.reason === undefined ? 0 : 1},
+        last_resume_reason = ${lease.reason ?? null},
+        last_resumed_at_ms = ${lease.resumedAt ?? null}
+      WHERE id = ${runId}
+    `;
+    });
+    return runId;
+  };
+  const lapsedId = await stalledProbe('itest:stalled-lapsed', {
+    leaseEpoch: 1,
+    expiresAt: readNow - 1_000,
+    claimedAt: readNow - 60_000,
+  });
+  const liveId = await stalledProbe('itest:stalled-live', {
+    leaseEpoch: 1,
+    expiresAt: readNow + 30_000,
+    claimedAt: readNow - 5_000,
+  });
+  const handedOnId = await stalledProbe('itest:stalled-handed-on', {
+    leaseEpoch: 1,
+    expiresAt: null,
+    claimedAt: readNow - 60_000,
+    resumedAt: readNow - 2_000,
+    reason: 'shutdown',
+  });
+  const budgetId = await stalledProbe('itest:stalled-budget', {
+    leaseEpoch: 1,
+    expiresAt: null,
+    claimedAt: readNow - 60_000,
+    // A takeover stamps the resume with the claim's own instant.
+    resumedAt: readNow - 60_000,
+    reason: 'lease_expired',
+  });
+  const noLeaseId = await stalledProbe('itest:stalled-no-lease', {
+    leaseEpoch: null,
+    expiresAt: null,
+    claimedAt: readNow - 60_000,
+  });
+  const parkedId = await insertProbeRun('itest:in-doubt-read', {
+    status: 'waiting',
+  });
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
+    UPDATE app.automation_runs SET detail = 'in_doubt:send'
+    WHERE id = ${parkedId}
+  `;
+  });
+  const readRun = async (runId: string) => {
+    const row = await store.getRun(sql, orgId, runId);
+    return row === null ? null : store.toRunDetail(row);
+  };
+  const [lapsed, live, handedOn, budget, noLease, parked] = await Promise.all(
+    [lapsedId, liveId, handedOnId, budgetId, noLeaseId, parkedId].map(readRun),
+  );
+  const handedOnSummary = (await store.listRuns(sql, orgId, { limit: 200 }))
+    .filter((row) => row.id === handedOnId)
+    .map(store.toRunSummary)[0];
+  for (const runId of [lapsedId, liveId, handedOnId, budgetId, noLeaseId]) {
+    await cancelProbeRun(runId);
+  }
+  await cancelProbeRun(parkedId);
+  // The lapsed run still names its owner in the row: the read must not.
+  const wireKeys = JSON.stringify([lapsed, live, handedOn, handedOnSummary]);
+  record(
+    'the run read says a run stalled only while no server steps it, and when and why it last moved [AUTO-R18]',
+    lapsed?.stalled === true &&
+      live?.stalled === false &&
+      handedOn?.stalled === true &&
+      budget?.stalled === false &&
+      noLease?.stalled === false &&
+      handedOn?.resumeCount === 1 &&
+      handedOn?.lastResume?.reason === 'shutdown' &&
+      handedOn?.lastResume?.at === readNow - 2_000 &&
+      handedOnSummary?.stalled === true &&
+      handedOnSummary?.resumeCount === 1 &&
+      handedOnSummary?.lastResume?.reason === 'shutdown' &&
+      parked?.waitingFor === 'in_doubt' &&
+      !/probe-host|leaseOwner|lease_owner/.test(wireKeys),
+    `stalled: lapsed=${lapsed?.stalled} (want true), live=${live?.stalled} (want false), handedOn=${handedOn?.stalled} (want true), budget=${budget?.stalled} (want false), noLease=${noLease?.stalled} (want false); handedOn resumeCount=${handedOn?.resumeCount} lastResume=${JSON.stringify(handedOn?.lastResume)}; summary=${JSON.stringify(handedOnSummary === undefined ? null : { stalled: handedOnSummary.stalled, resumeCount: handedOnSummary.resumeCount })}; parked waitingFor=${parked?.waitingFor} (want in_doubt); owner on the wire=${/probe-host/.test(wireKeys)}`,
   );
 
   // ---- #5: the live-op query identifies an in-flight agent turn (adopt, not
   // re-kick) and returns null once it settles.
-  const opRun = await sql<{ id: string }[]>`
+  const opRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       wake_at_ms, claim_epoch, started_at_ms
@@ -13007,6 +14165,7 @@ async function checkAutomationRunLifecycle(
       ${null}, 1, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const opRunId = opRun[0]?.id ?? '';
   const opSessionId = naming.sessionIdForWorkflowExecution(opRunId);
   await sql`
@@ -13041,7 +14200,10 @@ async function checkAutomationRunLifecycle(
   const settledOp = opHandler
     ? await opHandler({ organizationId: orgId, runId: opRunId })
     : 'no-handler';
-  await sql`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
+  });
   record(
     'live-op query adopts an in-flight agent turn and clears once settled',
     liveOpView.success &&
@@ -13132,7 +14294,9 @@ async function checkAutomationRunLifecycle(
   );
 
   // ---- #6: cancelRun honors the terminal contract — audit row + session stop.
-  const cancelRun = await sql<{ id: string }[]>`
+  const cancelRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       wake_at_ms, claim_epoch, started_at_ms
@@ -13142,6 +14306,7 @@ async function checkAutomationRunLifecycle(
       ${null}, 1, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const cancelRunId = cancelRun[0]?.id ?? '';
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -13200,7 +14365,9 @@ async function checkAutomationRunLifecycle(
   await post(`/api/app/automations/ops/delguard/deploy?orgId=${orgId}`, {
     version: 1,
   });
-  const liveForDelete = await sql<{ id: string }[]>`
+  const liveForDelete = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       wake_at_ms, claim_epoch, started_at_ms
@@ -13210,6 +14377,7 @@ async function checkAutomationRunLifecycle(
       ${null}, 1, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const delRunId = liveForDelete[0]?.id ?? '';
   const deleteBlocked = await del(
     `/api/app/automations/ops/delguard?orgId=${orgId}`,
@@ -13218,10 +14386,13 @@ async function checkAutomationRunLifecycle(
     SELECT count(*)::text AS count FROM app.automations
     WHERE org_id = ${orgId} AND name = 'ops/delguard'
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
     WHERE id = ${delRunId}
   `;
+  });
   const deleteOk = await del(
     `/api/app/automations/ops/delguard?orgId=${orgId}`,
   );
@@ -13234,11 +14405,14 @@ async function checkAutomationRunLifecycle(
   );
 
   // Clean up the lifecycle automation's remaining live runs before delete.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
     WHERE org_id = ${orgId} AND name = 'ops/lifecycle'
       AND status IN ('queued', 'running', 'waiting')
   `;
+  });
   await del(`/api/app/automations/ops/lifecycle?orgId=${orgId}`);
 }
 
@@ -13281,10 +14455,13 @@ async function checkAutomationTriggerDelivery(
   // Both stamps: the scan's cursor is the later of the claim and the fire
   // (0096), so backdating one alone would leave a claimed occurrence in
   // the way.
+  // So does the instant the schedule is next due (0170): a save sets it
+  // ahead of the save, so the scan would otherwise wait for the next minute.
   const backdateStamp = (): Promise<unknown> => sql`
     UPDATE app.automation_triggers
     SET last_fired_at_ms = ${Date.now() - 120_000},
-        last_due_at_ms = ${Date.now() - 120_000}
+        last_due_at_ms = ${Date.now() - 120_000},
+        next_due_at_ms = ${Date.now() - 60_000}
     WHERE org_id = ${orgId} AND name = ${name}
   `;
 
@@ -13362,10 +14539,21 @@ async function checkAutomationTriggerDelivery(
     triggersModule.scanScheduledTriggers(sql),
   ]);
   const firedByOverlap = (await triggerRuns()) - runsBeforeOverlap;
+  const afterOverlap = await sql<
+    { lastFiredAt: number | null; nextDueAt: number | null }[]
+  >`
+    SELECT last_fired_at_ms::float8 AS "lastFiredAt",
+           next_due_at_ms::float8 AS "nextDueAt"
+    FROM app.automation_triggers
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const overlapRow = afterOverlap[0];
   record(
     'overlapping schedule scans fire one occurrence exactly once',
-    firedByOverlap === 1,
-    `three concurrent scans over one due trigger fired ${firedByOverlap} runs (want 1)`,
+    firedByOverlap === 1 &&
+      overlapRow?.lastFiredAt !== null &&
+      overlapRow?.nextDueAt === (overlapRow?.lastFiredAt ?? 0) + 60_000,
+    `three concurrent scans over one due trigger fired ${firedByOverlap} runs (want 1); next instant ${overlapRow?.nextDueAt} (want the fired minute ${overlapRow?.lastFiredAt} + 60 s)`,
   );
 
   // ---- #3a: fairness — 205 enabled schedules platform-wide; ONE scan must
@@ -13416,6 +14604,328 @@ async function checkAutomationTriggerDelivery(
       fairScan.undeployed === 205,
     `fire stamps=${stamped[0]?.fired} (want 0), not_deployed skips=${skipStamps[0]?.count}/205, scan.undeployed=${fairScan.undeployed}`,
   );
+
+  // ---- 0170: the next-due instant, the compat trigger and the catch-up.
+  // Each probe arranges the fence's own row; the scan reads every row, and
+  // its decisions about the fence's are what is checked.
+  interface FenceRow {
+    id: string;
+    cron: string | null;
+    timezone: string | null;
+    nextDueAt: number | null;
+    lastDueAt: number | null;
+    lastFiredAt: number | null;
+    lastSkipReason: string | null;
+    lastSkipDetail: unknown;
+    updatedAt: number;
+  }
+  const fenceRow = async (): Promise<FenceRow | undefined> =>
+    (
+      await sql<FenceRow[]>`
+        SELECT id, cron, timezone,
+               next_due_at_ms::float8 AS "nextDueAt",
+               last_due_at_ms::float8 AS "lastDueAt",
+               last_fired_at_ms::float8 AS "lastFiredAt",
+               last_skip_reason AS "lastSkipReason",
+               last_skip_detail AS "lastSkipDetail",
+               updated_at_ms::float8 AS "updatedAt"
+        FROM app.automation_triggers
+        WHERE org_id = ${orgId} AND name = ${name}
+      `
+    )[0];
+
+  // Probe 1 — a row the previous image inserted (no instant) is picked up
+  // by the uncomputed walk, fires its due occurrence once, and gets its
+  // next instant; a second scan at the same moment starts nothing more.
+  await sql`DELETE FROM app.automation_triggers WHERE org_id = ${orgId} AND name = ${name}`;
+  const oldWay = Date.now() - 120_000;
+  await sql`
+    INSERT INTO app.automation_triggers (
+      org_id, name, kind, cron, timezone, enabled,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${name}, 'schedule', '* * * * *', 'UTC', true,
+      'itest', ${oldWay}, ${oldWay}
+    )
+  `;
+  const oldWayAt = Date.now();
+  const runsBeforeOldWay = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql, { now: oldWayAt });
+  await triggersModule.scanScheduledTriggers(sql, { now: oldWayAt });
+  const firedOldWay = (await triggerRuns()) - runsBeforeOldWay;
+  const afterOldWay = await fenceRow();
+  record(
+    'a schedule the previous image inserted gets its instant, fires once, and moves on',
+    firedOldWay === 1 &&
+      afterOldWay?.lastFiredAt === Math.floor(oldWayAt / 60_000) * 60_000 &&
+      afterOldWay.nextDueAt === afterOldWay.lastFiredAt + 60_000,
+    `runs=${firedOldWay} (want 1), fired=${afterOldWay?.lastFiredAt} next=${afterOldWay?.nextDueAt} (want fired + 60 s)`,
+  );
+
+  // Probe 2 — the previous image saves a new cron the old way: the 0170
+  // trigger drops the instant, and the next scan computes it from the save.
+  await sql`
+    UPDATE app.automation_triggers SET cron = '*/5 * * * *'
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const afterOldSave = await fenceRow();
+  await triggersModule.scanScheduledTriggers(sql);
+  const recomputed = await fenceRow();
+  record(
+    'an old-image cron edit drops the next instant, and the scan recomputes it for the new cron',
+    afterOldSave?.nextDueAt === null &&
+      (recomputed?.nextDueAt ?? 0) > Date.now() - 60_000 &&
+      (recomputed?.nextDueAt ?? 1) % (5 * 60_000) === 0,
+    `after the old save next=${afterOldSave?.nextDueAt} (want null), after the scan next=${recomputed?.nextDueAt} (want a coming five-minute mark)`,
+  );
+
+  // Probe 4 — catch-up, through the real store and run insert. An hourly
+  // schedule whose latest occurrence is half an hour old (so it is late
+  // under either policy) and whose instant is backdated two hours further:
+  // `latest` starts that occurrence once and counts the two before it;
+  // `skip` starts nothing and counts all three.
+  const minute = (new Date().getUTCMinutes() + 30) % 60;
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: { kind: 'schedule', cron: `${minute} * * * *`, timezone: 'UTC' },
+    actor: 'itest',
+  });
+  const hour = 60 * 60_000;
+  const latestAt = (() => {
+    const now = Date.now();
+    const top = Math.floor(now / hour) * hour + minute * 60_000;
+    return top <= now ? top : top - hour;
+  })();
+  const backdateCatchUp = (): Promise<unknown> => sql`
+    UPDATE app.automation_triggers
+    SET next_due_at_ms = ${latestAt - 2 * hour},
+        last_due_at_ms = ${latestAt - 3 * hour},
+        last_fired_at_ms = ${latestAt - 3 * hour}
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  await backdateCatchUp();
+  const runsBeforeLatest = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql);
+  const firedLatest = (await triggerRuns()) - runsBeforeLatest;
+  const afterLatest = await fenceRow();
+  await sql`
+    UPDATE app.automation_triggers SET catch_up = 'skip'
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  await backdateCatchUp();
+  const runsBeforeSkip = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql);
+  const firedSkip = (await triggerRuns()) - runsBeforeSkip;
+  const afterSkip = await fenceRow();
+  const missedOf = (row: FenceRow | undefined) =>
+    z
+      .object({
+        reason: z.literal('missed_occurrences'),
+        missed: z.object({ count: z.number(), policy: z.string() }),
+        firedLatest: z.boolean(),
+      })
+      .safeParse(row?.lastSkipDetail);
+  const latestDetail = missedOf(afterLatest);
+  const skipDetail = missedOf(afterSkip);
+  record(
+    'a schedule back from an outage starts its latest occurrence once and counts the rest; skip starts none',
+    firedLatest === 1 &&
+      afterLatest?.lastFiredAt === latestAt &&
+      afterLatest.nextDueAt === latestAt + hour &&
+      latestDetail.success &&
+      latestDetail.data.missed.count === 2 &&
+      latestDetail.data.firedLatest &&
+      firedSkip === 0 &&
+      afterSkip?.lastSkipReason === 'missed_occurrences' &&
+      skipDetail.success &&
+      skipDetail.data.missed.count === 3 &&
+      skipDetail.data.missed.policy === 'skip' &&
+      !skipDetail.data.firedLatest,
+    `latest: runs=${firedLatest} (want 1) fired=${afterLatest?.lastFiredAt === latestAt} next=${afterLatest?.nextDueAt === latestAt + hour} detail=${JSON.stringify(afterLatest?.lastSkipDetail)}; skip: runs=${firedSkip} (want 0) detail=${JSON.stringify(afterSkip?.lastSkipDetail)}`,
+  );
+
+  // Probe 5 — daylight saving: "every day at 02:30" in Zurich, saved the
+  // day before the spring-forward, starts at 03:30 local (01:30Z), the
+  // time 02:30 moves to when the clock skips it. The scan's clock is the
+  // test seam; nothing else is due that early.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: {
+      kind: 'schedule',
+      repeat: { frequency: 'daily', interval: 1, times: ['02:30'] },
+      timezone: 'Europe/Zurich',
+      startDate: '2026-01-01',
+    },
+    actor: 'itest',
+  });
+  await sql`
+    UPDATE app.automation_triggers
+    SET next_due_at_ms = NULL, last_due_at_ms = NULL, last_fired_at_ms = NULL,
+        updated_at_ms = ${Date.parse('2026-03-28T12:00:00Z')}
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const runsBeforeDst = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql, {
+    now: Date.parse('2026-03-29T01:30:30Z'),
+  });
+  const firedDst = (await triggerRuns()) - runsBeforeDst;
+  const afterDst = await fenceRow();
+  record(
+    'a Zurich 02:30 rule starts at 03:30 on the spring-forward day, once',
+    firedDst === 1 &&
+      afterDst?.lastFiredAt === Date.parse('2026-03-29T01:30:00Z') &&
+      afterDst.nextDueAt === Date.parse('2026-03-30T00:30:00Z'),
+    `runs=${firedDst} (want 1), fired=${afterDst?.lastFiredAt === null ? 'none' : new Date(afterDst?.lastFiredAt ?? 0).toISOString()} (want 2026-03-29T01:30Z), next=${afterDst?.nextDueAt === null ? 'none' : new Date(afterDst?.nextDueAt ?? 0).toISOString()} (want 2026-03-30T00:30Z)`,
+  );
+
+  // Probe 6 — 0170's zone trim on rows planted before it: a blank zone and
+  // a padded one, both parked as unusable. Re-applying the file (it is
+  // idempotent) trims them, lifts the parking, and the scan claims them —
+  // in UTC — instead of stamping them unusable again.
+  const migrationsDir0170 = new URL('./db/migrations/', import.meta.url);
+  const { readdir: readMigrations } = await import('node:fs/promises');
+  const scheduleFile = (await readMigrations(migrationsDir0170)).find((file) =>
+    file.startsWith('0170_'),
+  );
+  const parked = Date.now() - 600_000;
+  const blankZones = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_triggers (
+      org_id, name, kind, cron, timezone, enabled, last_skip_reason,
+      last_skipped_at_ms, created_by, created_at_ms, updated_at_ms
+    ) VALUES
+      (${orgId}, 'zone/blank', 'schedule', '* * * * *', '', true,
+       'unusable_cron', ${parked}, 'itest', ${parked - 1000}, ${parked - 1000}),
+      (${orgId}, 'zone/padded', 'schedule', '* * * * *', ' UTC ', true,
+       'unusable_cron', ${parked}, 'itest', ${parked - 1000}, ${parked - 1000})
+    RETURNING id
+  `;
+  if (scheduleFile !== undefined) {
+    const ddl = await readFile(
+      new URL(scheduleFile, migrationsDir0170),
+      'utf8',
+    );
+    await sql.begin(async (tx) => {
+      await tx.unsafe(ddl);
+    });
+  }
+  // The trim resumes each schedule from now (the parked time is not made
+  // up): a scan at the same moment computes its next minute and claims
+  // nothing yet; a scan a minute later claims it — in UTC, with no
+  // deployment to run, so as not_deployed.
+  const resumedAt = Date.now();
+  const firstPass = await triggersModule.scanScheduledTriggers(sql, {
+    now: resumedAt,
+  });
+  await triggersModule.scanScheduledTriggers(sql, {
+    now: resumedAt + 61_000,
+  });
+  const zones = await sql<
+    {
+      name: string;
+      timezone: string | null;
+      lastSkipReason: string | null;
+      lastDueAt: number | null;
+    }[]
+  >`
+    SELECT name, timezone, last_skip_reason AS "lastSkipReason",
+           last_due_at_ms::float8 AS "lastDueAt"
+    FROM app.automation_triggers
+    WHERE id = ANY(${blankZones.map((row) => row.id)}::text[])
+    ORDER BY name
+  `;
+  await sql`
+    DELETE FROM app.automation_triggers
+    WHERE id = ANY(${blankZones.map((row) => row.id)}::text[])
+  `;
+  record(
+    'migration 0170 trims a blank or padded zone, and the scan claims the schedule in UTC',
+    scheduleFile !== undefined &&
+      zones.length === 2 &&
+      zones[0]?.timezone === null &&
+      zones[1]?.timezone === 'UTC' &&
+      zones.every(
+        (zone) =>
+          zone.lastSkipReason === 'not_deployed' && (zone.lastDueAt ?? 0) > 0,
+      ),
+    `file=${scheduleFile ?? 'missing'}, first pass undeployed=${firstPass.undeployed}, rows=${JSON.stringify(zones)} (want zones null and "UTC", each claimed as not_deployed a minute after the trim)`,
+  );
+
+  // Probe 7 — the due walk reads the partial index, not the table. On the
+  // harness's handful of rows the planner may prefer any index plus a sort,
+  // so sorting is ruled out as well: the plan must take the walk's order
+  // from an index, and only the partial index gives it.
+  const plan = await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    await tx`SET LOCAL enable_sort = off`;
+    return tx<{ 'QUERY PLAN': string }[]>`
+      EXPLAIN SELECT id, next_due_at_ms::float8 AS "nextDueAt"
+      FROM app.automation_triggers
+      WHERE kind = 'schedule' AND enabled AND next_due_at_ms IS NOT NULL
+        AND next_due_at_ms <= ${Date.now()}
+        AND (${true}::boolean
+             OR (next_due_at_ms, id) > (${0}::bigint, ${''}::text))
+      ORDER BY next_due_at_ms, id
+      LIMIT 200
+    `;
+  });
+  const planText = plan.map((row) => row['QUERY PLAN']).join('\n');
+  record(
+    'the due walk of the schedule scan uses the automation_triggers_next_due index',
+    planText.includes('automation_triggers_next_due'),
+    planText,
+  );
+
+  // 0172 — a fixed input rides into the run under the trigger's own
+  // fields, and the bind stores it; the column refuses a non-object.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: {
+      kind: 'schedule',
+      cron: '* * * * *',
+      timezone: 'UTC',
+      input: { fence: 'fixed' },
+    },
+    actor: 'itest',
+  });
+  await backdateStamp();
+  await triggersModule.scanScheduledTriggers(sql);
+  const fixedRun = await sql<{ input: unknown }[]>`
+    SELECT r.input FROM app.automation_runs r
+    JOIN app.automation_triggers t ON r.id = t.last_run_id
+    WHERE t.org_id = ${orgId} AND t.name = ${name}
+  `;
+  const fixedInput = z
+    .object({ fence: z.literal('fixed'), trigger: z.literal('schedule') })
+    .safeParse(store.decodeRunInput(fixedRun[0]?.input));
+  const refusedColumn = await sql
+    .begin(async (tx) => {
+      await tx`
+        UPDATE app.automation_triggers SET run_input = '[1, 2]'::jsonb
+        WHERE org_id = ${orgId} AND name = ${name}
+      `;
+      return 'stored';
+    })
+    .catch((error: unknown) =>
+      error instanceof Error && /check constraint/i.test(error.message)
+        ? 'refused'
+        : `failed: ${String(error)}`,
+    );
+  record(
+    'a schedule hands its run the fixed input under its own fields, and the column holds only an object',
+    fixedInput.success && refusedColumn === 'refused',
+    `run input=${JSON.stringify(fixedRun[0]?.input)} (want fence: "fixed" beside trigger: "schedule"), an array → ${refusedColumn} (want refused)`,
+  );
+
+  // Back to the fence's minute schedule for the webhook probes below.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
+    actor: 'itest',
+  });
 
   // ---- #2: webhook redelivery is idempotent — a vendor's delivery id, or a
   // byte-identical body inside the window, answers with the run it already
@@ -13486,6 +14996,78 @@ async function checkAutomationTriggerDelivery(
       b3.runId !== b1.runId &&
       hookRuns === 4,
     `same delivery id → ${h1.status}/${h2.status} dup=${h2.duplicate} same-run=${h2.runId === h1.runId}; new id → ${h3.status} dup=${h3.duplicate}; same body → ${b1.status}/${b2.status} dup=${b2.duplicate} same-run=${b2.runId === b1.runId}; new body → ${b3.status} dup=${b3.duplicate}; runs started=${hookRuns} (want 4)`,
+  );
+
+  // The runs the trigger started, as the trigger panel lists its recent
+  // deliveries: the four new runs first, newest first, each with the lane
+  // the door recognised its delivery by (the GitHub header, or the body),
+  // and the schedule runs the same binding started before as lane-less.
+  const listedRuns = await fetch(
+    `${base}/api/app/automations/${name}/trigger/runs?orgId=${orgId}&limit=10`,
+    { headers: { cookie } },
+  );
+  const triggerRunList = z
+    .object({
+      runs: z.array(
+        z.object({
+          runId: z.string(),
+          startedAt: z.number(),
+          deliverySource: z.enum(['header', 'body']).nullable(),
+          header: z.string().nullable(),
+        }),
+      ),
+    })
+    .safeParse(await listedRuns.json());
+  const listed = triggerRunList.success ? triggerRunList.data.runs : [];
+  const laneOf = (runId: string): string => {
+    const row = listed.find((candidate) => candidate.runId === runId);
+    return row === undefined
+      ? 'missing'
+      : `${row.deliverySource ?? 'none'}${row.header === null ? '' : `:${row.header}`}`;
+  };
+  const newestFirst = listed.every(
+    (row, index) =>
+      index === 0 || (listed[index - 1]?.startedAt ?? 0) >= row.startedAt,
+  );
+  const newest = new Set(listed.slice(0, 4).map((row) => row.runId));
+  // The read's plan, through the store's own query: with sequential scans
+  // priced out, it reaches the runs by an index — no further index needed.
+  let triggerRunsPlan: { 'QUERY PLAN': string }[] = [];
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    const explain = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const prefixed = Object.assign(
+        [`EXPLAIN ${strings[0] ?? ''}`, ...strings.slice(1)],
+        { raw: [`EXPLAIN ${strings.raw[0] ?? ''}`, ...strings.raw.slice(1)] },
+      );
+      return tx<{ 'QUERY PLAN': string }[]>(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
+        prefixed as unknown as TemplateStringsArray,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store's own parameters, passed through
+        ...(values as never[]),
+      ).then((rows) => {
+        triggerRunsPlan = [...rows];
+        return [];
+      });
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an EXPLAIN-prefixing tag standing in for the store's sql
+    await store.listTriggerRuns(explain as unknown as Sql, orgId, { name });
+  });
+  const triggerRunsPlanText = triggerRunsPlan
+    .map((row) => row['QUERY PLAN'])
+    .join('\n');
+  record(
+    'the trigger lists the runs it started, newest first, with each delivery’s lane, by index',
+    listedRuns.status === 200 &&
+      newestFirst &&
+      [h1.runId, h3.runId, b1.runId, b3.runId].every((id) => newest.has(id)) &&
+      laneOf(h1.runId) === 'header:x-github-delivery' &&
+      laneOf(h3.runId) === 'header:x-github-delivery' &&
+      laneOf(b1.runId) === 'body' &&
+      laneOf(b3.runId) === 'body' &&
+      listed.slice(4).every((row) => row.deliverySource === null) &&
+      !/Seq Scan on automation_runs/.test(triggerRunsPlanText),
+    `status=${listedRuns.status}, newest-first=${newestFirst}, lanes h1=${laneOf(h1.runId)} h3=${laneOf(h3.runId)} b1=${laneOf(b1.runId)} b3=${laneOf(b3.runId)} (want header:x-github-delivery ×2, body ×2), older=${JSON.stringify(listed.slice(4).map((row) => row.deliverySource))} (want null), plan:\n${triggerRunsPlanText}`,
   );
 
   // The 256 KB cap counts BYTES: 150k two-byte characters (300 KB) is over
@@ -13587,9 +15169,10 @@ async function checkAutomationTriggerDelivery(
 }
 
 /**
- * The platform MCP endpoint (/api/v1/mcp): the 0.4 protocol layer
- * (`handleMcpRequest`) reused whole over two pg-backed handlers — the engine
- * dispatch (org store, live) and the capability surface. Proves the frames
+ * The platform MCP endpoint (/api/v1/mcp): the MCP domain's protocol layer
+ * (`domains/mcp/protocol.ts`) over the two pg-backed surfaces its host binds
+ * (`domains/mcp/engine-host.ts`) — the engine dispatch (org store, live) and
+ * the capability surface. Proves the frames
  * (initialize, notification → 202, batch → -32600, unknown method → -32601,
  * GET → 405), the engine lane end-to-end (save → deploy → start_run, which
  * runs LIVE at this endpoint and settles through the durable stepper — the
@@ -13673,9 +15256,41 @@ async function checkMcp(
     method: 'initialize',
     params: {},
   });
+  // The newest revision, the server instructions within what clients keep,
+  // and the contract version as the server's.
+  const { API_CONTRACT_VERSION } =
+    await import('../lib/shared/constants/api-contract.ts');
+  const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');
   const initOk = z
-    .object({ result: z.object({ protocolVersion: z.literal('2025-06-18') }) })
+    .object({
+      result: z.object({
+        protocolVersion: z.literal('2025-11-25'),
+        instructions: z.string().min(1).max(2048),
+        serverInfo: z.object({ version: z.literal(API_CONTRACT_VERSION) }),
+      }),
+    })
     .safeParse(init.body).success;
+  const unsupported = await fetch(`${base}/api/v1/mcp`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+      'x-organization-slug': orgSlug,
+      'mcp-protocol-version': '2024-11-05',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 31, method: 'ping' }),
+  });
+  const unsupportedOk =
+    unsupported.status === 400 &&
+    z
+      .object({
+        id: z.literal(31),
+        error: z.object({
+          code: z.literal(-32022),
+          data: z.object({ supported: z.array(z.string()).min(3) }),
+        }),
+      })
+      .safeParse(await unsupported.json()).success;
   const note = await rpc({
     jsonrpc: '2.0',
     method: 'notifications/initialized',
@@ -13689,7 +15304,7 @@ async function checkMcp(
   const unknownMethod = await rpc({
     jsonrpc: '2.0',
     id: 3,
-    method: 'resources/list',
+    method: 'completion/complete',
   });
   const unknownCode = z
     .object({ error: z.object({ code: z.number() }) })
@@ -14123,9 +15738,115 @@ async function checkMcp(
     missingRunShape.success &&
     missingRunShape.data.code === 'RUN_NOT_FOUND';
 
+  // The call counters (0180, MCP-R21): an initialize that names its client
+  // and a refused call land in the day's row of the key that made them;
+  // nothing a call carried is kept; a day past the 90-day window is swept.
+  const sentinel = `SENTINEL-${randomUUID()}`;
+  await rpc({
+    jsonrpc: '2.0',
+    id: 93,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'itest\u202Eclient', version: '1.0.0' },
+    },
+  });
+  await rpc({
+    jsonrpc: '2.0',
+    id: 94,
+    method: 'tools/call',
+    params: { name: 'get_run', arguments: { runId: sentinel } },
+  });
+  const activity = await sql<
+    {
+      method: string;
+      tool: string;
+      calls: number;
+      refusals: number;
+      clientName: string | null;
+      credentialId: string;
+      userId: string;
+    }[]
+  >`
+    SELECT method, tool, calls, refusals, client_name AS "clientName",
+           credential_id AS "credentialId", user_id AS "userId"
+    FROM app.mcp_client_activity WHERE org_id = ${orgId}
+  `;
+  const initRow = activity.find(
+    (row) => row.method === 'initialize' && row.clientName === 'itestclient',
+  );
+  const getRunRow = activity.find(
+    (row) => row.method === 'tools/call' && row.tool === 'get_run',
+  );
+  const memberSaveRow = activity.find(
+    (row) =>
+      row.method === 'tools/call' &&
+      row.tool === 'save_automation' &&
+      row.userId === memberUserId,
+  );
+  const leaked = JSON.stringify(activity).includes(sentinel);
+  const oldDay = 20000101;
+  await sql`
+    INSERT INTO app.mcp_client_activity (
+      org_id, user_id, credential_kind, credential_id, method, tool, day,
+      calls, last_at_ms
+    ) VALUES (
+      ${orgId}, ${memberUserId}, 'api-key', 'itest-old-key', 'ping', '',
+      ${oldDay}, 1, 0
+    ) ON CONFLICT DO NOTHING
+  `;
+  const activitySweep = createTaskList({ sql })['maintenance.mcp_activity_ttl'];
+  if (activitySweep !== undefined) await activitySweep({});
+  const oldLeft = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.mcp_client_activity
+    WHERE org_id = ${orgId} AND day = ${oldDay}
+  `;
+  record(
+    'MCP calls are counted per key and day, never what they carried (MCP-R21)',
+    initRow !== undefined &&
+      initRow.credentialId !== '' &&
+      getRunRow !== undefined &&
+      getRunRow.calls >= 2 &&
+      getRunRow.refusals >= 1 &&
+      memberSaveRow !== undefined &&
+      memberSaveRow.refusals >= 1 &&
+      memberSaveRow.credentialId !== initRow.credentialId &&
+      !leaked &&
+      oldLeft[0]?.n === 0,
+    `init=${JSON.stringify(initRow ?? null)}, get_run=${JSON.stringify(getRunRow ?? null)}, memberSave=${JSON.stringify(memberSaveRow ?? null)}, leaked=${leaked}, oldLeft=${oldLeft[0]?.n} (want 0)`,
+  );
+
+  // The Origin rule ships log-only (MCP-R22): a browser origin the
+  // deployment does not list is answered like the deployment's own while
+  // TALE_MCP_ORIGIN_ENFORCE is unset, so no client breaks before the
+  // per-client survey decides the default.
+  const pingFrom = async (origin: string): Promise<number> =>
+    (
+      await fetch(`${base}/api/v1/mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'x-organization-slug': orgSlug,
+          origin,
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 41, method: 'ping' }),
+      })
+    ).status;
+  const foreignOriginStatus = await pingFrom('https://itest-foreign.example');
+  const ownOriginStatus = await pingFrom(base);
+  record(
+    'MCP answers a foreign browser origin while the Origin rule is log-only (MCP-R22)',
+    foreignOriginStatus === 200 && ownOriginStatus === 200,
+    `foreign→${foreignOriginStatus}, own→${ownOriginStatus} (want 200 both)`,
+  );
+
   record(
     'platform MCP endpoint (/api/v1/mcp)',
     initOk &&
+      unsupportedOk &&
+      toolNames.length === MCP_TOOLS.length &&
       note.status === 202 &&
       batch.status === 200 &&
       batchReplies.success &&
@@ -14158,12 +15879,1896 @@ async function checkMcp(
       knowledge.isError === (knowledgeShape.data.status === 'unavailable') &&
       annotationsOk &&
       refusalsOk,
-    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, annotations=${annotationsOk}, unknownName=${missingVersionsShape.success ? `${missingVersionsShape.data.code}+hint` : JSON.stringify(missingVersions.value).slice(0, 80)}, unknownRun=${missingRunShape.success ? `${missingRunShape.data.code}+hint` : JSON.stringify(missingRun.value).slice(0, 80)}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+    `init=${initOk}, unsupported→${unsupportedOk ? '-32022' : '?'}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, annotations=${annotationsOk}, unknownName=${missingVersionsShape.success ? `${missingVersionsShape.data.code}+hint` : JSON.stringify(missingVersions.value).slice(0, 80)}, unknownRun=${missingRunShape.success ? `${missingRunShape.data.code}+hint` : JSON.stringify(missingRun.value).slice(0, 80)}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
   );
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an
   // absent row re-initializes at full capacity).
+  // The run tools above drew from the execution budget too (MCP-R5).
   await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+}
+
+/**
+ * The MCP authoring tools at the editor's parity, on the real schema and the
+ * real HTTP door (MCP-R1–R4, R9, R14, R27; AUTO-R27, AUTO-R28; migration
+ * 0181): a save carries the version fields it leaves out and records its
+ * door, a stale base version or live version refuses as data, a member's
+ * agent starts a recorded mock run of any saved version but not a live one,
+ * a run waiting on a person names its question in get_run and takes the
+ * answer, an automation installed only in a team project the member cannot
+ * read is "not found" over MCP and REST and a developer outside the team
+ * cannot save onto it, installations and deletes go through, every one of
+ * those writes leaves an audit row stamped `via: mcp`, a re-created
+ * automation's history leaves out the deleted one's deploys, and a REST
+ * delete made with a key is audited as the key's.
+ */
+async function checkMcpAuthoringParity(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-parity');
+  let rpcId = 500;
+  /** One tool call: whether it was refused, and the JSON it answered. */
+  const tool = async (
+    name: string,
+    args: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{ isError: boolean; value: Record<string, unknown> }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: rpcId,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    });
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+          isError: z.boolean(),
+        }),
+      })
+      .safeParse(await res.json());
+    if (!parsed.success) return { isError: true, value: {} };
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return {
+      isError: parsed.data.result.isError,
+      value: value.success ? value.data : {},
+    };
+  };
+  const name = 'itest-parity/dunning';
+  const doc = { ...DOC_EXAMPLE.automation, name };
+  const settings = {
+    folder: 'Reports',
+    forms: [
+      {
+        file: 'settings.json',
+        title: 'Reminder settings',
+        fields: [{ key: 'days', label: 'Days', type: 'number' }],
+      },
+    ],
+  };
+  const taskContract = { workflow: name };
+
+  // MCP-R1: the editor saves v1 with its settings and task contract; the
+  // agent's v2 sends neither, and keeps both.
+  const appSave = await fetch(
+    `${base}/api/app/automations/${name}/save?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        document: doc,
+        message: 'app',
+        settings,
+        taskContract,
+      }),
+    },
+  );
+  const agentSave = await tool('save_automation', {
+    automation: doc,
+    message: 'agent',
+    baseVersion: 1,
+  });
+  const rows = await sql<
+    {
+      version: number;
+      settings: unknown;
+      taskContract: unknown;
+      createdVia: string | null;
+      apiKeyId: string | null;
+    }[]
+  >`
+    SELECT version, settings, task_contract AS "taskContract",
+           created_via AS "createdVia", api_key_id AS "apiKeyId"
+    FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    ORDER BY version
+  `;
+  const v2 = rows.find((row) => row.version === 2);
+  record(
+    'MCP save keeps the settings and task contract it leaves out, and records its door (MCP-R1, 0181)',
+    appSave.status === 201 &&
+      !agentSave.isError &&
+      agentSave.value.version === 2 &&
+      JSON.stringify(agentSave.value.carried) ===
+        JSON.stringify(['settings', 'taskContract']) &&
+      agentSave.value.baseVersionChecked === true &&
+      // jsonb stores object keys in its own order, so compare values.
+      isDeepStrictEqual(v2?.settings, settings) &&
+      isDeepStrictEqual(v2?.taskContract, taskContract) &&
+      v2?.createdVia === 'mcp' &&
+      typeof v2.apiKeyId === 'string' &&
+      rows.find((row) => row.version === 1)?.createdVia === 'app',
+    `app save → ${appSave.status} (want 201), agent save=${JSON.stringify(agentSave.value).slice(0, 160)}, v2=${JSON.stringify(v2 ?? null).slice(0, 200)}`,
+  );
+
+  // MCP-R1 under a race: agent saves that carry and editor saves that set
+  // the settings land in whatever order the name lock gives them, and each
+  // agent version carries exactly the version before it — read under the
+  // lock, never a copy that went stale while it waited.
+  const raceName = 'itest-parity/racing';
+  const raceDoc = { ...DOC_EXAMPLE.automation, name: raceName };
+  const formOf = (title: string) => ({
+    forms: [
+      {
+        file: 'settings.json',
+        title,
+        fields: [{ key: 'days', label: 'Days', type: 'number' }],
+      },
+    ],
+  });
+  const editorSave = (title: string) =>
+    fetch(`${base}/api/app/automations/${raceName}/save?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        document: raceDoc,
+        message: title,
+        settings: formOf(title),
+      }),
+    });
+  const raceStart = await editorSave('start');
+  const [editorRacers, agentRacers] = await Promise.all([
+    Promise.all(['editor 1', 'editor 2', 'editor 3'].map(editorSave)),
+    Promise.all(
+      [1, 2, 3].map(() =>
+        tool('save_automation', { automation: raceDoc, message: 'agent' }),
+      ),
+    ),
+  ]);
+  const raceRows = await sql<
+    { version: number; settings: unknown; createdVia: string | null }[]
+  >`
+    SELECT version, settings, created_via AS "createdVia"
+    FROM app.automations WHERE org_id = ${orgId} AND name = ${raceName}
+    ORDER BY version
+  `;
+  const carriedInOrder = raceRows.every(
+    (row, index) =>
+      row.createdVia !== 'mcp' ||
+      JSON.stringify(row.settings) ===
+        JSON.stringify(raceRows[index - 1]?.settings),
+  );
+  record(
+    'MCP saves racing editor saves each carry the version just before them (MCP-R1)',
+    raceStart.status === 201 &&
+      editorRacers.every((res) => res.status === 201) &&
+      agentRacers.every((answer) => !answer.isError) &&
+      raceRows.map((row) => row.version).join(',') === '1,2,3,4,5,6,7' &&
+      raceRows.filter((row) => row.createdVia === 'mcp').length === 3 &&
+      carriedInOrder,
+    `editor=${editorRacers.map((res) => res.status).join(',')}, agent=${agentRacers.map((answer) => String(answer.isError)).join(',')}, rows=${JSON.stringify(raceRows.map((row) => `${row.version}/${row.createdVia}/${JSON.stringify(row.settings).slice(32, 52)}`))}`,
+  );
+
+  // MCP-R2: a save from v1 after v2 landed is refused, naming v2; a version
+  // field that does not fit its reader is refused with every problem.
+  const stale = await tool('save_automation', {
+    automation: doc,
+    baseVersion: 1,
+  });
+  const invalid = await tool('save_automation', {
+    automation: doc,
+    baseVersion: 2,
+    settings: { bogus: true },
+  });
+  const afterRefusals = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automations
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const invalidIssues = z
+    .object({
+      data: z.object({ issues: z.array(z.object({ path: z.string() })) }),
+    })
+    .safeParse(invalid.value);
+  record(
+    'MCP save from a stale base version is refused with the latest (MCP-R2)',
+    stale.isError &&
+      stale.value.code === 'AUTOMATION_VERSION_STALE' &&
+      z.object({ latestVersion: z.literal(2) }).safeParse(stale.value.data)
+        .success &&
+      invalid.isError &&
+      invalid.value.code === 'INVALID_ARGUMENTS' &&
+      invalidIssues.success &&
+      invalidIssues.data.data.issues.some((issue) =>
+        issue.path.startsWith('settings'),
+      ) &&
+      afterRefusals[0]?.n === 2,
+    `stale=${JSON.stringify(stale.value).slice(0, 160)}, invalid=${JSON.stringify(invalid.value).slice(0, 160)}, versions=${afterRefusals[0]?.n} (want 2)`,
+  );
+
+  // MCP-R3: a deploy naming the wrong live version is refused; the right one
+  // answers what was live before, and an older version rolls back.
+  const first = await tool('deploy_automation', {
+    name,
+    version: 2,
+    expectedDeployedVersion: null,
+  });
+  const staleDeploy = await tool('deploy_automation', {
+    name,
+    version: 1,
+    expectedDeployedVersion: 1,
+  });
+  const rollback = await tool('deploy_automation', {
+    name,
+    version: 1,
+    expectedDeployedVersion: 2,
+  });
+  const restore = await tool('deploy_automation', {
+    name,
+    version: 2,
+    expectedDeployedVersion: 1,
+  });
+  const live = await sql<{ version: number }[]>`
+    SELECT version FROM app.automation_deployments
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  record(
+    'MCP deploy names the version it replaces and rolls back (MCP-R3)',
+    !first.isError &&
+      first.value.previousVersion === null &&
+      staleDeploy.isError &&
+      staleDeploy.value.code === 'AUTOMATION_DEPLOYMENT_STALE' &&
+      !rollback.isError &&
+      rollback.value.previousVersion === 2 &&
+      !restore.isError &&
+      live[0]?.version === 2,
+    `first=${JSON.stringify(first.value).slice(0, 120)}, stale=${String(staleDeploy.value.code)}, rollback=${JSON.stringify(rollback.value.previousVersion)}, live=v${live[0]?.version}`,
+  );
+
+  // The version view and the history.
+  const viewed = await tool('get_automation', { name });
+  const history = await tool('list_versions', { name });
+  const deployments = z
+    .object({ deployments: z.array(z.object({ version: z.number() })) })
+    .safeParse(history.value);
+  record(
+    'MCP get_automation answers the whole version, list_versions its deployments',
+    !viewed.isError &&
+      viewed.value.latestVersion === 2 &&
+      viewed.value.deployedVersion === 2 &&
+      viewed.value.createdVia === 'mcp' &&
+      isDeepStrictEqual(viewed.value.settings, settings) &&
+      deployments.success &&
+      deployments.data.deployments.length >= 3,
+    `view=${JSON.stringify(viewed.value).slice(0, 200)}, deployments=${deployments.success ? deployments.data.deployments.length : 'ERR'} (want ≥3)`,
+  );
+
+  // MCP-R4: a member's agent starts a recorded mock run of an undeployed
+  // version, and is refused a live one.
+  const v3 = await tool('save_automation', { automation: doc, baseVersion: 2 });
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-parity-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-parity-member'),
+  );
+  const mock = await tool(
+    'start_run',
+    { name, mode: 'mock', input: { min_total: 5, orders: [] } },
+    memberKey,
+  );
+  const liveRefused = await tool(
+    'start_run',
+    { name, mode: 'live', input: { min_total: 5, orders: [] } },
+    memberKey,
+  );
+  const mockRun = await sql<
+    { mode: string; version: number; startedBy: string }[]
+  >`
+    SELECT mode, version, started_by AS "startedBy" FROM app.automation_runs
+    WHERE org_id = ${orgId}
+      AND id = ${typeof mock.value.runId === 'string' ? mock.value.runId : ''}
+  `;
+  const page = await tool(
+    'list_runs',
+    { name, mode: 'mock', limit: 1 },
+    memberKey,
+  );
+  record(
+    "a member's agent starts a recorded mock run of any saved version, not a live one (MCP-R4)",
+    !v3.isError &&
+      !mock.isError &&
+      mockRun[0]?.mode === 'mock' &&
+      mockRun[0].version === 3 &&
+      mockRun[0].startedBy === `api-key:${memberId}` &&
+      liveRefused.isError &&
+      liveRefused.value.code === 'FORBIDDEN_DEVELOPER_SETTINGS' &&
+      !page.isError &&
+      'nextCursor' in page.value,
+    `mock=${JSON.stringify(mock.value).slice(0, 120)} row=${JSON.stringify(mockRun[0] ?? null)}, live=${String(liveRefused.value.code)}, page=${JSON.stringify(page.value).slice(0, 80)}`,
+  );
+
+  // MCP-R27: a run waiting on a person's answer names the question in
+  // get_run — the askId answer_run_ask needs — and the answer is recorded.
+  // A run of its own name, so the delete below never waits on it.
+  const { toJson } = await import('./db/sql.ts');
+  const askedAt = Date.now();
+  // A run row is written only by a writer that speaks the current protocol,
+  // so the fixture marks its transaction as the engine's writers do.
+  const askRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, detail, checkpoints,
+        started_at_ms
+      ) VALUES (
+        ${orgId}, 'itest-parity/asks', 1, 'waiting', 'live', ${`api-key:${userId}`},
+        'agent:ask_node',
+        ${sql.json(toJson({ nodes: {}, cursor: { node: 'ask_node', agent: { execId: 'exec-parity-ask', input: {}, harness: 'claude-code' } }, executions: {} }))},
+        ${askedAt}
+      ) RETURNING id
+    `;
+  });
+  const askRunId = askRun[0]?.id ?? '';
+  const plantedAsk = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_human_asks (
+      org_id, run_id, node_id, session_id, exec_id, question, status,
+      expires_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, ${askRunId}, 'ask_node', 'wf-parity-ask', 'exec-parity-ask',
+      'Send the reminder to Acme today?', 'pending', ${askedAt + 3_600_000},
+      ${askedAt}
+    ) RETURNING id
+  `;
+  const plantedAskId = plantedAsk[0]?.id ?? '';
+  const waitingRun = await tool('get_run', { runId: askRunId });
+  const polled = await tool('get_run', { runId: askRunId, detail: [] });
+  const askShape = z
+    .object({
+      run: z
+        .object({
+          waitingFor: z.literal('ask'),
+          ask: z.object({ askId: z.string(), question: z.string() }).loose(),
+        })
+        .loose(),
+    })
+    .safeParse(waitingRun.value);
+  const answeredAsk = await tool('answer_run_ask', {
+    runId: askRunId,
+    askId: askShape.success ? askShape.data.run.ask.askId : '',
+    answer: 'Yes, send it.',
+  });
+  const askRow = await sql<{ status: string; answer: string | null }[]>`
+    SELECT status, answer FROM app.automation_human_asks
+    WHERE org_id = ${orgId} AND id = ${plantedAskId}
+  `;
+  record(
+    "get_run names a waiting run's question and answer_run_ask answers it (MCP-R27)",
+    !waitingRun.isError &&
+      askShape.success &&
+      askShape.data.run.ask.askId === plantedAskId &&
+      askShape.data.run.ask.question === 'Send the reminder to Acme today?' &&
+      !polled.isError &&
+      !JSON.stringify(polled.value).includes('"input"') &&
+      JSON.stringify(polled.value).includes(plantedAskId) &&
+      !answeredAsk.isError &&
+      askRow[0]?.status === 'answered' &&
+      askRow[0].answer === 'Yes, send it.',
+    `get_run=${JSON.stringify(waitingRun.value).slice(0, 200)}, answer=${JSON.stringify(answeredAsk.value).slice(0, 120)}, row=${JSON.stringify(askRow[0] ?? null)}`,
+  );
+
+  // MCP-R9 / AUTO-R27: installed only in a team project the member is not
+  // in, the automation is "not found" to them over MCP and REST.
+  const now = Date.now();
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Parity HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Parity HR project', ${teamRows[0]?.id ?? ''}, ${userId},
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = projectRows[0]?.id ?? '';
+  const installed = await tool('set_automation_projects', {
+    name,
+    add: [hrProject],
+  });
+  const memberRead = await tool('get_automation', { name }, memberKey);
+  const memberList = await tool('list_automations', {}, memberKey);
+  const restRead = async (key: string) =>
+    (
+      await fetch(`${base}/api/v1/automations/itest-parity__dunning/versions`, {
+        headers: {
+          authorization: `Bearer ${key}`,
+          'x-organization-slug': orgSlug,
+        },
+      })
+    ).status;
+  const memberRest = await restRead(memberKey);
+  const ownerRest = await restRead(ownerKey);
+  const ownerRead = await tool('get_automation', { name });
+  record(
+    'an automation installed only in a project the member cannot read is hidden from them on MCP and REST (MCP-R9, AUTO-R27)',
+    !installed.isError &&
+      JSON.stringify(installed.value.added) === JSON.stringify([hrProject]) &&
+      memberRead.isError &&
+      memberRead.value.code === 'AUTOMATION_NOT_FOUND' &&
+      !JSON.stringify(memberList.value).includes(name) &&
+      memberRest === 404 &&
+      ownerRest === 200 &&
+      !ownerRead.isError,
+    `install=${JSON.stringify(installed.value).slice(0, 100)}, member get=${String(memberRead.value.code)}, member list hides=${!JSON.stringify(memberList.value).includes(name)}, REST member→${memberRest} owner→${ownerRest}`,
+  );
+
+  // MCP-R9: a developer outside the team cannot add a version to it — the
+  // save is refused as a taken name, create or not, and nothing is written.
+  const { cookie: devCookie, userId: devId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-parity-developer',
+    'developer',
+  );
+  const devKey = await asKeyCreator(sql, { orgId, userId: devId }, () =>
+    mintKey(devCookie, 'itest-mcp-parity-developer'),
+  );
+  const hiddenSave = await tool(
+    'save_automation',
+    { automation: doc, message: 'over a hidden one' },
+    devKey,
+  );
+  const hiddenCreate = await tool(
+    'save_automation',
+    { automation: doc, create: true },
+    devKey,
+  );
+  const afterHidden = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automations
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  record(
+    'a developer who cannot see an automation cannot save a version onto it (MCP-R9)',
+    hiddenSave.isError &&
+      hiddenSave.value.code === 'AUTOMATION_NAME_TAKEN' &&
+      hiddenCreate.isError &&
+      hiddenCreate.value.code === 'AUTOMATION_NAME_TAKEN' &&
+      !JSON.stringify(hiddenSave.value).includes('"version"') &&
+      afterHidden[0]?.n === 3,
+    `save=${JSON.stringify(hiddenSave.value).slice(0, 160)}, create=${String(hiddenCreate.value.code)}, versions=${afterHidden[0]?.n} (want 3)`,
+  );
+  const removed = await tool('set_automation_projects', {
+    name,
+    remove: [hrProject],
+  });
+  const notInstalled = await tool('set_automation_projects', {
+    name,
+    remove: [hrProject],
+  });
+  const metrics = await tool(
+    'get_automation_metrics',
+    { mode: 'mock' },
+    memberKey,
+  );
+
+  // delete_automation against the latest version — once the member's mock
+  // run has finished, since a run still going refuses the delete — then the
+  // audit trail.
+  const mockSettled = await waitFor(async () => {
+    const statuses = await sql<{ status: string }[]>`
+      SELECT status FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${name}
+        AND status IN ('queued', 'running', 'waiting')
+    `;
+    return statuses.length === 0;
+  }, 30_000);
+  const staleDelete = await tool('delete_automation', {
+    name,
+    expectedLatestVersion: 1,
+  });
+  const deleted = await tool('delete_automation', {
+    name,
+    expectedLatestVersion: 3,
+  });
+  const audit = await sql<
+    {
+      action: string;
+      via: string | null;
+      tool: string | null;
+      requestId: string | null;
+    }[]
+  >`
+    SELECT action, metadata->>'via' AS via, metadata->>'tool' AS tool,
+           request_id AS "requestId"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'automation'
+      AND resource_id = ${name}
+    ORDER BY ts
+  `;
+  const viaMcp = (action: string, toolName: string) =>
+    audit.some(
+      (row) =>
+        row.action === action &&
+        row.via === 'mcp' &&
+        row.tool === toolName &&
+        row.requestId !== null,
+    );
+  record(
+    'every MCP write to an automation leaves an audit row naming the coding agent (MCP-R14, AUTO-R28)',
+    !removed.isError &&
+      JSON.stringify(removed.value.removed) === JSON.stringify([hrProject]) &&
+      notInstalled.isError &&
+      notInstalled.value.code === 'AUTOMATION_NOT_INSTALLED' &&
+      !metrics.isError &&
+      mockSettled &&
+      staleDelete.isError &&
+      staleDelete.value.code === 'AUTOMATION_VERSION_STALE' &&
+      !deleted.isError &&
+      deleted.value.versions === 3 &&
+      audit.some(
+        (row) => row.action === 'automation.version.saved' && row.via === null,
+      ) &&
+      viaMcp('automation.version.saved', 'save_automation') &&
+      viaMcp('automation.deployed', 'deploy_automation') &&
+      viaMcp('automation.project.bound', 'set_automation_projects') &&
+      viaMcp('automation.project.unbound', 'set_automation_projects') &&
+      viaMcp('automation.deleted', 'delete_automation'),
+    `removed=${JSON.stringify(removed.value).slice(0, 80)}, notInstalled=${String(notInstalled.value.code)}, deleted=${JSON.stringify(deleted.value).slice(0, 80)}, audit=${JSON.stringify(audit.map((row) => `${row.action}/${row.via ?? '-'}/${row.tool ?? '-'}`))}`,
+  );
+
+  // Created again under the same name, it starts a history of its own: the
+  // deleted automation's deploys are no rollback targets.
+  const recreated = await tool('save_automation', {
+    automation: doc,
+    create: true,
+  });
+  const freshHistory = await tool('list_versions', { name });
+  const freshDeployments = z
+    .object({ deployments: z.array(z.unknown()) })
+    .safeParse(freshHistory.value);
+  record(
+    "a re-created automation's history leaves out the deleted one's deploys",
+    !recreated.isError &&
+      recreated.value.version === 1 &&
+      !freshHistory.isError &&
+      freshDeployments.success &&
+      freshDeployments.data.deployments.length === 0,
+    `recreated=${JSON.stringify(recreated.value).slice(0, 100)}, deployments=${freshDeployments.success ? freshDeployments.data.deployments.length : 'ERR'} (want 0)`,
+  );
+
+  // AUTO-R28: a delete made with a key through the REST API is the key's —
+  // actor type API, the key's id and the request id on the row.
+  const restDelete = await fetch(
+    `${base}/api/v1/automations/itest-parity__dunning`,
+    {
+      method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${ownerKey}`,
+        'x-organization-slug': orgSlug,
+      },
+    },
+  );
+  const restRow = await sql<
+    {
+      actorType: string;
+      via: string | null;
+      apiKeyId: string | null;
+      requestId: string | null;
+    }[]
+  >`
+    SELECT actor_type AS "actorType", metadata->>'via' AS via,
+           metadata->>'apiKeyId' AS "apiKeyId", request_id AS "requestId"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'automation.deleted'
+      AND resource_type = 'automation' AND resource_id = ${name}
+    ORDER BY ts DESC
+    LIMIT 1
+  `;
+  record(
+    "a REST delete made with a key is audited as the key's (AUTO-R28)",
+    restDelete.status === 204 &&
+      restRow[0]?.actorType === 'api' &&
+      restRow[0].via === 'api-key' &&
+      typeof restRow[0].apiKeyId === 'string' &&
+      restRow[0].apiKeyId !== '' &&
+      restRow[0].requestId !== null,
+    `DELETE → ${restDelete.status} (want 204), row=${JSON.stringify(restRow[0] ?? null)}`,
+  );
+
+  // The lanes after this one spend the same request and execution budgets.
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+}
+
+/**
+ * The MCP discovery tools and the validator's organization warnings on the
+ * real schema (MCP-R15, MCP-R23): connected vs not-connected connectors, the
+ * names of agent secrets for an owner and an empty list for a member — never
+ * a value — projects and skills a member cannot read answered as not found,
+ * another organization's project, secret and connector invisible, the raised
+ * events, and the five warnings on `validate_automation` and on the editor's
+ * own validate route (the Problems panel).
+ */
+async function checkMcpDiscovery(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { EMITTED_EVENT_TYPES } = await import('../lib/shared/event-types.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-discovery');
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-discovery-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-discovery-member'),
+  );
+  let rpcId = 900;
+  /** One tool call: whether it was refused, the JSON it answered, and the
+   * raw body (searched for a secret's value). */
+  const tool = async (
+    name: string,
+    args: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{
+    isError: boolean;
+    value: Record<string, unknown>;
+    raw: string;
+  }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: rpcId,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    });
+    const raw = await res.text();
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+          isError: z.boolean(),
+        }),
+      })
+      .safeParse(JSON.parse(raw));
+    if (!parsed.success) return { isError: true, value: {}, raw };
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return {
+      isError: parsed.data.result.isError,
+      value: value.success ? value.data : {},
+      raw,
+    };
+  };
+  const now = Date.now();
+  const sentinel = `SENTINEL-discovery-${randomUUID()}`;
+  const secretName = 'ITEST_DISCOVERY_TOKEN';
+
+  // The organization's state: GitHub connected, one agent secret stored, a
+  // team project the member is not in. Another organization holds its own
+  // project, secret and connector.
+  const githubRows = await sql<{ id: string }[]>`
+    INSERT INTO app.connector_credentials (
+      org_id, connector_slug, auth_method, name, encrypted_data, config,
+      status, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'github', 'bearer', 'itest-discovery', ${sql.json({})},
+      ${sql.json({})}, 'active', 'itest', ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const githubCredential = githubRows[0]?.id ?? '';
+  const storedSecret = await fetch(
+    `${base}/api/app/agent-secrets?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        name: secretName,
+        value: sentinel,
+        description: 'itest discovery secret',
+      }),
+    },
+  );
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Discovery HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const hrRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Discovery HR project', ${teamRows[0]?.id ?? ''},
+            ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = hrRows[0]?.id ?? '';
+  const foreignOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${foreignOrgId}, 'Discovery Foreign Tenant',
+            ${`discovery-foreign-${foreignOrgId.slice(0, 8)}`}, now())
+  `;
+  const foreignRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${foreignOrgId}, 'Foreign discovery project', 'itest', ${now},
+            ${now})
+    RETURNING id
+  `;
+  const foreignProject = foreignRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.agent_secrets (
+      org_id, name, encrypted_value, created_by, updated_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${foreignOrgId}, 'ITEST_FOREIGN_SECRET', ${sql.json({ v: sentinel })},
+      'itest', 'itest', ${now}, ${now}
+    )
+  `;
+  // A catalogued connector nobody in this organization connected — the
+  // foreign tenant connects it, which must not count here.
+  const activeHere = new Set(
+    (
+      await sql<{ slug: string }[]>`
+        SELECT DISTINCT connector_slug AS slug FROM app.connector_credentials
+        WHERE org_id = ${orgId} AND status = 'active'
+      `
+    ).map((row) => row.slug),
+  );
+  const unconnected =
+    ['shopify', 'confluence', 'discord', 'twilio', 'tavily', 'glitchtip'].find(
+      (slug) => !activeHere.has(slug),
+    ) ?? 'shopify';
+  await sql`
+    INSERT INTO app.connector_credentials (
+      org_id, connector_slug, auth_method, name, encrypted_data, config,
+      status, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${foreignOrgId}, ${unconnected}, 'bearer', 'itest-foreign',
+      ${sql.json({})}, ${sql.json({})}, 'active', 'itest', ${now}, ${now}
+    )
+  `;
+
+  try {
+    // list_connectors: connected here, not connected here (though connected
+    // in the other tenant), and the filter.
+    const connectors = await tool('list_connectors', {}, memberKey);
+    const connectorRows = z
+      .object({
+        connectors: z.array(
+          z.object({ slug: z.string(), connected: z.boolean() }).loose(),
+        ),
+      })
+      .safeParse(connectors.value);
+    const connectedOf = (slug: string) =>
+      connectorRows.success
+        ? connectorRows.data.connectors.find((row) => row.slug === slug)
+            ?.connected
+        : undefined;
+    const filtered = await tool('list_connectors', { query: 'GITHUB' });
+    record(
+      'MCP list_connectors says which connectors this organization connected, and no other organization’s (MCP-R23)',
+      !connectors.isError &&
+        connectedOf('github') === true &&
+        connectedOf(unconnected) === false &&
+        !filtered.isError &&
+        JSON.stringify(filtered.value).includes('"github"') &&
+        !JSON.stringify(filtered.value).includes(`"${unconnected}"`),
+      `github=${String(connectedOf('github'))} (want true), ${unconnected}=${String(connectedOf(unconnected))} (want false), filtered=${JSON.stringify(filtered.value).slice(0, 120)}`,
+    );
+
+    // list_agent_secrets: the owner reads the name and a masked preview,
+    // the member an empty list saying why; nobody a value, nobody another
+    // tenant's name.
+    const ownerSecrets = await tool('list_agent_secrets', {});
+    const memberSecrets = await tool('list_agent_secrets', {}, memberKey);
+    const ownerNames = z
+      .object({ secrets: z.array(z.object({ name: z.string() }).loose()) })
+      .safeParse(ownerSecrets.value);
+    record(
+      'MCP list_agent_secrets names secrets to an owner and nobody else, never a value or another organization’s (MCP-R23)',
+      storedSecret.status < 300 &&
+        !ownerSecrets.isError &&
+        ownerNames.success &&
+        ownerNames.data.secrets.some((row) => row.name === secretName) &&
+        !ownerSecrets.raw.includes(sentinel) &&
+        !ownerSecrets.raw.includes('ITEST_FOREIGN_SECRET') &&
+        !memberSecrets.isError &&
+        JSON.stringify(memberSecrets.value.secrets) === '[]' &&
+        typeof memberSecrets.value.note === 'string' &&
+        !memberSecrets.raw.includes(secretName),
+      `stored → ${storedSecret.status}, owner=${ownerSecrets.raw.includes(sentinel) ? 'VALUE LEAKED' : JSON.stringify(ownerSecrets.value).slice(0, 160)}, member=${JSON.stringify(memberSecrets.value).slice(0, 120)}`,
+    );
+
+    // list_projects and list_skills: the member's view leaves out the team
+    // project; the other tenant's project is nobody's here.
+    const memberProjects = await tool('list_projects', {}, memberKey);
+    const ownerProjects = await tool('list_projects', {});
+    const memberHrSkills = await tool(
+      'list_skills',
+      { projectId: hrProject },
+      memberKey,
+    );
+    const ownerHrSkills = await tool('list_skills', { projectId: hrProject });
+    const foreignSkills = await tool('list_skills', {
+      projectId: foreignProject,
+    });
+    const orgSkills = await tool('list_skills', {}, memberKey);
+    record(
+      'MCP list_projects and list_skills answer only projects the person can read in their organization (MCP-R23)',
+      !memberProjects.isError &&
+        !memberProjects.raw.includes(hrProject) &&
+        !ownerProjects.isError &&
+        ownerProjects.raw.includes(hrProject) &&
+        !ownerProjects.raw.includes(foreignProject) &&
+        memberHrSkills.value.code === 'PROJECT_NOT_FOUND' &&
+        !ownerHrSkills.isError &&
+        Array.isArray(ownerHrSkills.value.skills) &&
+        foreignSkills.value.code === 'PROJECT_NOT_FOUND' &&
+        !orgSkills.isError &&
+        Array.isArray(orgSkills.value.skills),
+      `member projects hide HR=${!memberProjects.raw.includes(hrProject)}, owner sees HR=${ownerProjects.raw.includes(hrProject)}, owner sees foreign=${ownerProjects.raw.includes(foreignProject)}, member HR skills=${String(memberHrSkills.value.code)}, foreign skills=${String(foreignSkills.value.code)}`,
+    );
+
+    // list_events, list_harnesses, list_models.
+    const events = await tool('list_events', {}, memberKey);
+    const eventNames = z
+      .object({
+        events: z.array(
+          z.object({ name: z.string(), description: z.string() }),
+        ),
+      })
+      .safeParse(events.value);
+    const harnesses = await tool('list_harnesses', {}, memberKey);
+    const harnessRows = z
+      .object({
+        harnesses: z.array(
+          z.object({ slug: z.string(), default: z.boolean() }).loose(),
+        ),
+      })
+      .safeParse(harnesses.value);
+    const models = await tool('list_models', {}, memberKey);
+    const noRuntime = await tool(
+      'list_models',
+      { harness: 'itest-no-such-runtime' },
+      memberKey,
+    );
+    record(
+      'MCP list_events, list_harnesses and list_models answer the raised events, the runtimes and the governed models',
+      eventNames.success &&
+        JSON.stringify(eventNames.data.events.map((e) => e.name).sort()) ===
+          JSON.stringify([...EMITTED_EVENT_TYPES].sort()) &&
+        harnessRows.success &&
+        harnessRows.data.harnesses.filter((row) => row.default).length === 1 &&
+        !models.isError &&
+        Array.isArray(models.value.models) &&
+        JSON.stringify(noRuntime.value.models) === '[]' &&
+        String(noRuntime.value.hint).includes('list_harnesses'),
+      `events=${eventNames.success ? eventNames.data.events.length : 'ERR'} (want ${EMITTED_EVENT_TYPES.length}), harnesses=${JSON.stringify(harnesses.value).slice(0, 160)}, models=${JSON.stringify(models.value).slice(0, 80)}, unknown runtime=${JSON.stringify(noRuntime.value).slice(0, 120)}`,
+    );
+
+    // The five warnings, on MCP for the owner and the member, and on the
+    // editor's validate route. A legacy trigger row waits for an event Tale
+    // does not raise (set_trigger refuses one today).
+    const name = 'itest-discovery/agent';
+    await sql`
+      INSERT INTO app.automation_triggers (
+        org_id, name, kind, event, enabled, created_by, created_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, 'event', 'invoice.paid', true, 'itest', ${now},
+        ${now}
+      )
+    `;
+    const doc = {
+      version: 1,
+      name,
+      nodes: [
+        {
+          id: 'reply',
+          type: 'agent',
+          model: 'test-model',
+          prompt: 'Draft the reply.',
+          harness: 'itest-no-such-runtime',
+          skills: ['itest-no-such-skill'],
+          connectors: ['github', unconnected, 'itest-gmial'],
+          secrets: [secretName, 'ITEST_NO_SUCH_SECRET'],
+        },
+      ],
+      output: '{{ nodes.reply.output.text }}',
+    };
+    const issueList = z.array(
+      z
+        .object({
+          code: z.string(),
+          params: z.record(z.string(), z.unknown()).optional(),
+        })
+        .loose(),
+    );
+    const verdict = z
+      .object({ errors: issueList, warnings: issueList })
+      .loose();
+    const ORG_CODES = new Set([
+      'SKILL_UNKNOWN',
+      'CONNECTOR_NOT_CONNECTED',
+      'SECRET_UNKNOWN',
+      'HARNESS_UNKNOWN',
+      'EVENT_UNKNOWN',
+    ]);
+    /** The org-state warnings of a verdict, as `CODE:subject` strings. */
+    const orgWarnings = (value: unknown): string[] | null => {
+      const parsed = verdict.safeParse(value);
+      if (!parsed.success) return null;
+      if (parsed.data.errors.some((issue) => ORG_CODES.has(issue.code))) {
+        return null;
+      }
+      return parsed.data.warnings
+        .filter((issue) => ORG_CODES.has(issue.code))
+        .map((issue) => {
+          const params = issue.params ?? {};
+          const subject =
+            params.skill ??
+            params.connector ??
+            params.secret ??
+            params.harness ??
+            params.event;
+          return `${issue.code}:${String(subject)}`;
+        })
+        .sort();
+    };
+    const expected = [
+      `CONNECTOR_NOT_CONNECTED:${unconnected}`,
+      'CONNECTOR_NOT_CONNECTED:itest-gmial',
+      'EVENT_UNKNOWN:invoice.paid',
+      'HARNESS_UNKNOWN:itest-no-such-runtime',
+      'SECRET_UNKNOWN:ITEST_NO_SUCH_SECRET',
+      'SKILL_UNKNOWN:itest-no-such-skill',
+    ].sort();
+    const ownerVerdict = await tool('validate_automation', {
+      automation: doc,
+      detail: [],
+    });
+    const memberVerdict = await tool(
+      'validate_automation',
+      { automation: doc, detail: [] },
+      memberKey,
+    );
+    const editor = await fetch(
+      `${base}/api/app/automations/${name}/validate?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ document: doc, detail: [] }),
+      },
+    );
+    const editorBody: unknown = await editor.json();
+    const ownerSeen = orgWarnings(ownerVerdict.value);
+    const memberSeen = orgWarnings(memberVerdict.value);
+    const editorSeen = orgWarnings(editorBody);
+    record(
+      'validation warns about a skill, connector, secret, runtime and event the organization lacks, over MCP and in the editor (MCP-R15)',
+      !ownerVerdict.isError &&
+        JSON.stringify(ownerSeen) === JSON.stringify(expected) &&
+        !('analysis' in ownerVerdict.value) &&
+        !('types' in ownerVerdict.value) &&
+        !ownerVerdict.raw.includes(sentinel) &&
+        // A member is told nothing about secret names.
+        JSON.stringify(memberSeen) ===
+          JSON.stringify(
+            expected.filter((entry) => !entry.startsWith('SECRET_UNKNOWN')),
+          ) &&
+        editor.status === 200 &&
+        JSON.stringify(editorSeen) === JSON.stringify(expected),
+      `owner=${JSON.stringify(ownerSeen)}, member=${JSON.stringify(memberSeen)}, editor ${editor.status}=${JSON.stringify(editorSeen)}, want ${JSON.stringify(expected)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name = 'itest-discovery/agent'
+    `;
+    await sql`
+      DELETE FROM app.connector_credentials
+      WHERE id = ${githubCredential} AND org_id = ${orgId}
+    `;
+    await fetch(`${base}/api/app/agent-secrets/${secretName}?orgId=${orgId}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+    await sql`DELETE FROM app.agent_secrets WHERE org_id = ${foreignOrgId}`;
+    await sql`
+      DELETE FROM app.connector_credentials WHERE org_id = ${foreignOrgId}
+    `;
+    await sql`DELETE FROM app.projects WHERE org_id = ${foreignOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrgId}`;
+    // The lanes after this one spend the same request budget.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  }
+}
+
+/**
+ * The MCP resources, prompts and the Tale skill on the real schema (MCP-R24,
+ * MCP-R25): `initialize` advertises resources and prompts; `resources/list`
+ * names the references, the catalog and the automations a person can see —
+ * a member never sees one installed only in a team project they are not in;
+ * `resources/read` answers each kind of address as its tool does (a
+ * reference as markdown, the catalog's agent section, an automation, its
+ * deployed version and a run), never the webhook token the automation's
+ * trigger holds, and answers a hidden automation and another organization's
+ * as -32002 with `AUTOMATION_NOT_FOUND`; `prompts/get` attaches the
+ * automation it is about, and refuses a member's prompt about the hidden one
+ * and a prompt about a run that does not exist; the skill reads the same as
+ * a resource and as the session download, which refuses a request without a
+ * session; and the reads are counted in `app.mcp_client_activity`.
+ */
+async function checkMcpResourcesPrompts(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-resources');
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-resources-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-resources-member'),
+  );
+  let rpcId = 1200;
+  /** One JSON-RPC request: its HTTP status and the reply's body. */
+  const rpc = async (
+    method: string,
+    params: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{ status: number; body: unknown; raw: string }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+        'mcp-protocol-version': '2025-11-25',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: rpcId, method, params }),
+    });
+    const raw = await res.text();
+    let body: unknown = null;
+    try {
+      body = JSON.parse(raw);
+    } catch (error) {
+      console.warn('[itest] MCP reply is not JSON:', error);
+    }
+    return { status: res.status, body, raw };
+  };
+  const toolValue = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    const reply = await rpc('tools/call', { name, arguments: args });
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+        }),
+      })
+      .safeParse(reply.body);
+    if (!parsed.success) return {};
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return value.success ? value.data : {};
+  };
+  const contentsShape = z.object({
+    result: z.object({
+      contents: z
+        .array(
+          z.object({ uri: z.string(), mimeType: z.string(), text: z.string() }),
+        )
+        .length(1),
+    }),
+  });
+  const errorShape = z.object({
+    error: z.object({
+      code: z.number(),
+      data: z.looseObject({ code: z.string().optional() }).optional(),
+    }),
+  });
+  /** One resource read: its text and type, or the error's codes. */
+  const read = async (
+    uri: string,
+    key = ownerKey,
+  ): Promise<{
+    text: string;
+    mimeType: string;
+    rpcCode?: number;
+    code?: string;
+    raw: string;
+  }> => {
+    const reply = await rpc('resources/read', { uri }, key);
+    const ok = contentsShape.safeParse(reply.body);
+    if (ok.success) {
+      const [contents] = ok.data.result.contents;
+      return {
+        text: contents?.text ?? '',
+        mimeType: contents?.mimeType ?? '',
+        raw: reply.raw,
+      };
+    }
+    const refused = errorShape.safeParse(reply.body);
+    return {
+      text: '',
+      mimeType: '',
+      raw: reply.raw,
+      ...(refused.success
+        ? {
+            rpcCode: refused.data.error.code,
+            ...(refused.data.error.data?.code === undefined
+              ? {}
+              : { code: refused.data.error.data.code }),
+          }
+        : {}),
+    };
+  };
+  const name = 'itest-resources/report';
+  const hidden = 'itest-resources/hr';
+  const foreignName = 'itest-resources/foreign';
+  const encoded = (automation: string) =>
+    `tale://automations/${encodeURIComponent(automation)}`;
+  const now = Date.now();
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Resources HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const hrRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Resources HR project', ${teamRows[0]?.id ?? ''},
+            ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = hrRows[0]?.id ?? '';
+  const foreignOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${foreignOrgId}, 'Resources Foreign Tenant',
+            ${`resources-foreign-${foreignOrgId.slice(0, 8)}`}, now())
+  `;
+  await sql`
+    INSERT INTO app.automations (
+      org_id, name, version, document, created_by, created_at_ms
+    ) VALUES (
+      ${foreignOrgId}, ${foreignName}, 1,
+      ${sql.json({ version: 1, name: foreignName, nodes: [] })},
+      'itest', ${now}
+    )
+  `;
+  try {
+    // The organization's state: a deployed automation with a webhook
+    // trigger and a mock run, and one installed only in the HR project.
+    const saved = await toolValue('save_automation', {
+      automation: { ...DOC_EXAMPLE.automation, name },
+      message: 'resources lane',
+    });
+    const deployed = await toolValue('deploy_automation', {
+      name,
+      version: 1,
+    });
+    const trigger = await toolValue('set_trigger', {
+      name,
+      trigger: { kind: 'webhook' },
+    });
+    const token = typeof trigger.token === 'string' ? trigger.token : '';
+    const started = await toolValue('start_run', {
+      name,
+      mode: 'mock',
+      input: DOC_EXAMPLE.input,
+    });
+    const runId = typeof started.runId === 'string' ? started.runId : '';
+    await toolValue('save_automation', {
+      automation: { ...DOC_EXAMPLE.automation, name: hidden },
+      message: 'resources lane',
+    });
+    const installed = await toolValue('set_automation_projects', {
+      name: hidden,
+      add: [hrProject],
+    });
+
+    const init = await rpc('initialize', {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'itest-resources', version: '1.0.0' },
+    });
+    const capabilitiesOk = z
+      .object({
+        result: z.object({
+          capabilities: z.object({
+            resources: z.object({ subscribe: z.literal(false) }),
+            prompts: z.object({ listChanged: z.literal(false) }),
+          }),
+        }),
+      })
+      .safeParse(init.body).success;
+    const listShape = z.object({
+      result: z.object({
+        resources: z.array(z.object({ uri: z.string() })),
+        nextCursor: z.string().optional(),
+      }),
+    });
+    const ownerList = listShape.safeParse(
+      (await rpc('resources/list', {})).body,
+    );
+    const memberList = listShape.safeParse(
+      (await rpc('resources/list', {}, memberKey)).body,
+    );
+    const uris = (list: typeof ownerList): string[] =>
+      list.success ? list.data.result.resources.map((entry) => entry.uri) : [];
+    record(
+      'resources: initialize advertises them, and the list names what the person can see (MCP-R24)',
+      capabilitiesOk &&
+        uris(ownerList).includes('tale://docs/authoring') &&
+        uris(ownerList).includes('tale://catalog/connector') &&
+        uris(ownerList).includes(encoded(name)) &&
+        uris(ownerList).includes(encoded(hidden)) &&
+        !uris(ownerList).includes(encoded(foreignName)) &&
+        uris(memberList).includes(encoded(name)) &&
+        !uris(memberList).includes(encoded(hidden)) &&
+        JSON.stringify(installed.added) === JSON.stringify([hrProject]),
+      `init=${init.status}/${capabilitiesOk}, owner=${uris(ownerList)
+        .filter((uri) => uri.includes('itest-resources'))
+        .join(',')}, member=${uris(memberList)
+        .filter((uri) => uri.includes('itest-resources'))
+        .join(',')}, installed=${JSON.stringify(installed).slice(0, 80)}`,
+    );
+
+    const authoring = await read('tale://docs/authoring');
+    const triggers = await read('tale://docs/triggers');
+    const skill = await read('tale://docs/skill');
+    const agentKind = await read('tale://catalog/agent');
+    const automation = await read(encoded(name));
+    const live = await read(`${encoded(name)}/versions/deployed`);
+    const run = await read(`tale://runs/${encodeURIComponent(runId)}`);
+    const viewShape = z.looseObject({
+      latestVersion: z.literal(1),
+      deployedVersion: z.literal(1),
+    });
+    const parseJson = (text: string): unknown => {
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        console.warn('[itest] resource text is not JSON:', error);
+        return null;
+      }
+    };
+    record(
+      'resources/read answers each address as its tool does, never a webhook token (MCP-R24)',
+      typeof saved.version === 'number' &&
+        z
+          .object({ deployed: z.object({ version: z.literal(1) }) })
+          .safeParse(deployed).success &&
+        token !== '' &&
+        authoring.mimeType === 'text/markdown' &&
+        authoring.text.startsWith('# Automation authoring reference') &&
+        triggers.text.includes('at most 256 KiB') &&
+        skill.text.startsWith('---\nname: tale\n') &&
+        z
+          .looseObject({ reference: z.string().min(1) })
+          .safeParse(parseJson(agentKind.text)).success &&
+        automation.mimeType === 'application/json' &&
+        viewShape.safeParse(parseJson(automation.text)).success &&
+        viewShape.safeParse(parseJson(live.text)).success &&
+        z
+          .object({ run: z.looseObject({ runId: z.literal(runId) }) })
+          .safeParse(parseJson(run.text)).success &&
+        !automation.raw.includes(token) &&
+        !live.raw.includes(token),
+      `saved=${JSON.stringify(saved).slice(0, 60)}, deployed=${JSON.stringify(deployed).slice(0, 60)}, token=${token !== ''}, authoring=${authoring.mimeType}, triggers=${triggers.text.length}, skill=${skill.text.slice(0, 20)}, agent=${agentKind.text.slice(0, 60)}, automation=${automation.text.slice(0, 80)}, live=${live.rpcCode ?? 'ok'}, run=${run.rpcCode ?? run.text.slice(0, 60)}, tokenLeak=${automation.raw.includes(token) || live.raw.includes(token)}`,
+    );
+
+    const memberHidden = await read(encoded(hidden), memberKey);
+    const ownerHidden = await read(encoded(hidden));
+    const foreign = await read(encoded(foreignName));
+    const unknown = await read('tale://projects/p1');
+    record(
+      "resources/read refuses an automation the person cannot see and another organization's as not found (MCP-R24)",
+      memberHidden.rpcCode === -32002 &&
+        memberHidden.code === 'AUTOMATION_NOT_FOUND' &&
+        ownerHidden.rpcCode === undefined &&
+        foreign.rpcCode === -32002 &&
+        foreign.code === 'AUTOMATION_NOT_FOUND' &&
+        unknown.rpcCode === -32002,
+      `member hidden=${memberHidden.rpcCode}/${memberHidden.code}, owner hidden=${ownerHidden.rpcCode ?? 'ok'}, foreign=${foreign.rpcCode}/${foreign.code}, unknown=${unknown.rpcCode}`,
+    );
+
+    const promptsList = z
+      .object({
+        result: z.object({ prompts: z.array(z.object({ name: z.string() })) }),
+      })
+      .safeParse((await rpc('prompts/list', {})).body);
+    const edit = z
+      .object({
+        result: z.object({
+          messages: z
+            .array(
+              z.object({
+                content: z.looseObject({
+                  type: z.string(),
+                  resource: z.object({ uri: z.string() }).optional(),
+                }),
+              }),
+            )
+            .min(2),
+        }),
+      })
+      .safeParse(
+        (
+          await rpc('prompts/get', {
+            name: 'edit_automation',
+            arguments: { name },
+          })
+        ).body,
+      );
+    const memberTrigger = errorShape.safeParse(
+      (
+        await rpc(
+          'prompts/get',
+          { name: 'add_trigger', arguments: { name: hidden } },
+          memberKey,
+        )
+      ).body,
+    );
+    const missingRun = errorShape.safeParse(
+      (
+        await rpc('prompts/get', {
+          name: 'debug_failed_run',
+          arguments: { runId: 'itest-run-that-never-was' },
+        })
+      ).body,
+    );
+    record(
+      'prompts attach what they are about, read with the caller’s rights (MCP-R24)',
+      promptsList.success &&
+        JSON.stringify(promptsList.data.result.prompts.map((p) => p.name)) ===
+          JSON.stringify([
+            'edit_automation',
+            'debug_failed_run',
+            'add_trigger',
+          ]) &&
+        edit.success &&
+        edit.data.result.messages[1]?.content.resource?.uri === encoded(name) &&
+        memberTrigger.success &&
+        memberTrigger.data.error.code === -32602 &&
+        memberTrigger.data.error.data?.code === 'AUTOMATION_NOT_FOUND' &&
+        missingRun.success &&
+        missingRun.data.error.code === -32602 &&
+        missingRun.data.error.data?.code === 'RUN_NOT_FOUND',
+      `prompts=${promptsList.success ? promptsList.data.result.prompts.map((p) => p.name).join(',') : 'ERR'}, edit=${edit.success ? edit.data.result.messages[1]?.content.resource?.uri : 'ERR'}, member trigger=${memberTrigger.success ? `${memberTrigger.data.error.code}/${memberTrigger.data.error.data?.code}` : 'ERR'}, missing run=${missingRun.success ? `${missingRun.data.error.code}/${missingRun.data.error.data?.code}` : 'ERR'}`,
+    );
+
+    const download = await fetch(`${base}/api/app/mcp/skill`, {
+      headers: { cookie },
+    });
+    const downloaded = await download.text();
+    const anonymous = await fetch(`${base}/api/app/mcp/skill`);
+    const counted = await sql<{ method: string; calls: number }[]>`
+      SELECT method, calls FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method IN ('resources/list', 'resources/read', 'prompts/get')
+    `;
+    record(
+      'the Tale skill downloads as SKILL.md for a signed-in person only, the same file the resource serves (MCP-R25), and reads are counted',
+      download.status === 200 &&
+        (download.headers.get('content-disposition') ?? '').includes(
+          'filename="SKILL.md"',
+        ) &&
+        downloaded === skill.text &&
+        anonymous.status === 401 &&
+        ['resources/list', 'resources/read', 'prompts/get'].every((method) =>
+          counted.some((row) => row.method === method && row.calls > 0),
+        ) &&
+        !JSON.stringify(counted).includes('tale://'),
+      `download=${download.status}/${downloaded === skill.text}, anonymous=${anonymous.status}, counted=${JSON.stringify(counted)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automation_deployments
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automations
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`DELETE FROM app.automations WHERE org_id = ${foreignOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrgId}`;
+    await sql`DELETE FROM app.projects WHERE id = ${hrProject} AND org_id = ${orgId}`;
+    await sql`DELETE FROM "team" WHERE "id" = ${teamRows[0]?.id ?? ''}`;
+    // The lanes after this one spend the same request and execution budgets.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+  }
+}
+
+/**
+ * Both MCP protocol eras on the real door, one key (MCP-R16, MCP-R26): a
+ * 2026-07-28 request — its revision and capabilities in `params._meta`,
+ * mirrored into `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` — is
+ * served without `initialize`: `server/discover` names the revisions and the
+ * contract version, the lists and reads answer `resultType`, the server and
+ * the cache hints, and a save names the client the request carries on the
+ * version row, the audit row and the call counter. Legacy `initialize`,
+ * calls and batches on the same key keep their 2025 answers. Refused before
+ * anything runs, each with HTTP 400: a revision it does not speak (-32022,
+ * in a header or in `_meta`), a header that does not say what the body says
+ * (-32020 — a delete whose `Mcp-Name` names a read leaves the automation in
+ * place), a missing envelope (-32602) and a batch on the modern revision
+ * (-32600); `initialize` and `ping` there are 404 -32601, and a read that
+ * finds nothing is -32602 with the tool's code.
+ */
+async function checkMcpEras(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const { API_CONTRACT_VERSION } =
+    await import('../lib/shared/constants/api-contract.ts');
+  const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');
+  const MODERN = '2026-07-28';
+  const CLIENT = 'itest-modern-agent';
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: 'itest-mcp-eras' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const door = {
+    authorization: `Bearer ${apiKey}`,
+    'x-organization-slug': orgSlug,
+    'content-type': 'application/json',
+  };
+  interface Reply {
+    readonly status: number;
+    readonly body: unknown;
+    readonly sessionId: string | null;
+  }
+  const send = async (
+    headers: Record<string, string>,
+    payload: unknown,
+  ): Promise<Reply> => {
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: { ...door, ...headers },
+      body: JSON.stringify(payload),
+    });
+    const raw = await res.text();
+    let body: unknown = null;
+    try {
+      body = raw === '' ? null : JSON.parse(raw);
+    } catch (error) {
+      console.warn('[itest] MCP reply is not JSON:', error);
+    }
+    return {
+      status: res.status,
+      body,
+      sessionId: res.headers.get('mcp-session-id'),
+    };
+  };
+  let rpcId = 1500;
+  /** One 2026-07-28 request with the headers its body implies, unless
+   * `headers` overrides one (an empty string leaves it out). */
+  const modern = async (
+    method: string,
+    params: Record<string, unknown> = {},
+    headers: Record<string, string> = {},
+    meta: Record<string, unknown> = {},
+  ): Promise<Reply> => {
+    rpcId += 1;
+    const named =
+      method === 'resources/read'
+        ? params.uri
+        : method === 'tools/call' || method === 'prompts/get'
+          ? params.name
+          : undefined;
+    const all: Record<string, string> = {
+      'mcp-protocol-version': MODERN,
+      'mcp-method': method,
+      ...(typeof named === 'string' ? { 'mcp-name': named } : {}),
+      ...headers,
+    };
+    return send(
+      Object.fromEntries(Object.entries(all).filter(([, v]) => v !== '')),
+      {
+        jsonrpc: '2.0',
+        id: rpcId,
+        method,
+        params: {
+          ...params,
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': MODERN,
+            'io.modelcontextprotocol/clientCapabilities': {},
+            'io.modelcontextprotocol/clientInfo': {
+              name: CLIENT,
+              version: '1.0.0',
+            },
+            ...meta,
+          },
+        },
+      },
+    );
+  };
+  /** One legacy (2025-11-25) request, or a batch. */
+  const legacy = async (payload: unknown): Promise<Reply> =>
+    send({ 'mcp-protocol-version': '2025-11-25' }, payload);
+  const errorShape = z.object({
+    error: z.object({
+      code: z.number(),
+      message: z.string(),
+      data: z.looseObject({}).optional(),
+    }),
+  });
+  const errorOf = (reply: Reply) => {
+    const parsed = errorShape.safeParse(reply.body);
+    return parsed.success ? parsed.data.error : undefined;
+  };
+  const toolText = (reply: Reply): Record<string, unknown> => {
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+        }),
+      })
+      .safeParse(reply.body);
+    if (!parsed.success) return {};
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return value.success ? value.data : {};
+  };
+  const name = 'itest-eras/report';
+  try {
+    const discovered = await modern('server/discover');
+    const discoverOk =
+      discovered.status === 200 &&
+      discovered.sessionId === null &&
+      z
+        .object({
+          result: z.object({
+            resultType: z.literal('complete'),
+            supportedVersions: z.array(z.string()),
+            capabilities: z.object({ tools: z.object({}) }),
+            instructions: z.string().min(1).max(2048),
+            _meta: z.object({
+              'io.modelcontextprotocol/serverInfo': z.looseObject({
+                version: z.literal(API_CONTRACT_VERSION),
+              }),
+            }),
+            ttlMs: z.number().int().min(0),
+            cacheScope: z.literal('private'),
+          }),
+        })
+        .refine(
+          (body) =>
+            JSON.stringify(body.result.supportedVersions) ===
+            JSON.stringify([MODERN, '2025-11-25', '2025-06-18', '2025-03-26']),
+        )
+        .safeParse(discovered.body).success;
+    const listed = await modern('tools/list');
+    const listedTools = z
+      .object({
+        result: z.object({
+          tools: z.array(z.object({ name: z.string() })),
+          resultType: z.literal('complete'),
+          ttlMs: z.number(),
+          cacheScope: z.literal('private'),
+        }),
+      })
+      .safeParse(listed.body);
+    record(
+      'MCP 2026-07-28: server/discover and tools/list answer without initialize, complete, with the server and cache hints (MCP-R26)',
+      discoverOk &&
+        listed.status === 200 &&
+        listedTools.success &&
+        listedTools.data.result.tools.length === MCP_TOOLS.length,
+      `discover=${discovered.status}/${discoverOk}/session=${discovered.sessionId ?? 'none'}, tools/list=${listed.status}/${listedTools.success ? listedTools.data.result.tools.length : JSON.stringify(listed.body).slice(0, 120)} (want ${MCP_TOOLS.length})`,
+    );
+
+    // A save on the modern revision, between legacy calls on the same key.
+    const init = await legacy({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: { name: 'itest-legacy-script', version: '1.0.0' },
+      },
+    });
+    // The day's row for a method names the latest client that called it on
+    // this key, and the 2026-07-28 refusals below send `initialize` again
+    // under the modern client: read the legacy one before they do.
+    const legacyInitRow = await sql<{ clientName: string | null }[]>`
+      SELECT client_name AS "clientName" FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method = 'initialize'
+    `;
+    const saved = await modern('tools/call', {
+      name: 'save_automation',
+      arguments: {
+        automation: { ...DOC_EXAMPLE.automation, name },
+        message: 'eras lane',
+      },
+    });
+    const savedValue = toolText(saved);
+    const legacyRead = await legacy({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'get_automation', arguments: { name } },
+    });
+    const legacyView = toolText(legacyRead);
+    const legacyBatch = await legacy([
+      { jsonrpc: '2.0', id: 3, method: 'ping' },
+      { jsonrpc: '2.0', id: 4, method: 'tools/list' },
+    ]);
+    const modernRead = await modern('tools/call', {
+      name: 'get_automation',
+      arguments: { name },
+    });
+    const versionRows = await sql<
+      { createdVia: string | null; clientName: string | null }[]
+    >`
+      SELECT created_via AS "createdVia", client_name AS "clientName"
+      FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    const auditRows = await sql<
+      { via: string | null; clientName: string | null }[]
+    >`
+      SELECT metadata->>'via' AS via, metadata->>'clientName' AS "clientName"
+      FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_type = 'automation'
+        AND resource_id = ${name} AND action = 'automation.version.saved'
+    `;
+    const legacyResult = z
+      .object({ result: z.record(z.string(), z.unknown()) })
+      .safeParse(legacyRead.body);
+    record(
+      'MCP: a 2026-07-28 save names its client on the version and the audit row, between 2025-11-25 calls and a batch on the same key (MCP-R26)',
+      z
+        .object({
+          result: z.object({ protocolVersion: z.literal('2025-11-25') }),
+        })
+        .safeParse(init.body).success &&
+        saved.status === 200 &&
+        savedValue.version === 1 &&
+        legacyRead.status === 200 &&
+        legacyView.clientName === CLIENT &&
+        legacyResult.success &&
+        legacyResult.data.result.resultType === undefined &&
+        Array.isArray(legacyBatch.body) &&
+        legacyBatch.body.length === 2 &&
+        z
+          .object({
+            result: z.looseObject({ resultType: z.literal('complete') }),
+          })
+          .safeParse(modernRead.body).success &&
+        versionRows.length === 1 &&
+        versionRows[0]?.createdVia === 'mcp' &&
+        versionRows[0]?.clientName === CLIENT &&
+        auditRows.length === 1 &&
+        auditRows[0]?.via === 'mcp' &&
+        auditRows[0]?.clientName === CLIENT,
+      `init=${init.status}, save=${saved.status}/${JSON.stringify(savedValue).slice(0, 80)}, legacy read=${legacyRead.status}/client=${String(legacyView.clientName)}, batch=${legacyBatch.status}/${Array.isArray(legacyBatch.body) ? legacyBatch.body.length : 'not an array'}, modern read=${modernRead.status}, version=${JSON.stringify(versionRows)}, audit=${JSON.stringify(auditRows)}`,
+    );
+
+    // Refused before anything runs.
+    const unknownInMeta = await modern(
+      'tools/list',
+      {},
+      { 'mcp-protocol-version': '2027-01-01' },
+      { 'io.modelcontextprotocol/protocolVersion': '2027-01-01' },
+    );
+    const unknownHeader = await send(
+      { 'mcp-protocol-version': '2024-11-05' },
+      { jsonrpc: '2.0', id: 31, method: 'tools/list' },
+    );
+    const supportedOk = (reply: Reply): boolean => {
+      const error = errorOf(reply);
+      const supported = error?.data?.supported;
+      return (
+        reply.status === 400 &&
+        error?.code === -32022 &&
+        Array.isArray(supported) &&
+        supported.includes(MODERN) &&
+        supported.includes('2025-11-25')
+      );
+    };
+    // A proxy that rewrites the name a request is routed on, not the body:
+    // the delete never runs.
+    const disguisedDelete = await modern(
+      'tools/call',
+      {
+        name: 'delete_automation',
+        arguments: { name, expectedLatestVersion: 1 },
+      },
+      { 'mcp-name': 'get_automation' },
+    );
+    const noMethodHeader = await modern('tools/list', {}, { 'mcp-method': '' });
+    const stillThere = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automations
+      WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    const noEnvelope = await send(
+      { 'mcp-protocol-version': MODERN, 'mcp-method': 'tools/list' },
+      { jsonrpc: '2.0', id: 32, method: 'tools/list' },
+    );
+    const modernBatch = await send({ 'mcp-protocol-version': MODERN }, [
+      { jsonrpc: '2.0', id: 33, method: 'tools/list' },
+    ]);
+    const removedInit = await modern('initialize', {
+      protocolVersion: MODERN,
+      capabilities: {},
+    });
+    const removedPing = await modern('ping');
+    const missing = await modern('resources/read', {
+      uri: 'tale://automations/itest-eras%2Fnever-saved',
+    });
+    record(
+      'MCP 2026-07-28 refusals: -32022, -32020 before anything runs, -32602 envelope, batch -32600, 404 for initialize/ping, -32602 for a read that finds nothing (MCP-R16, MCP-R26)',
+      supportedOk(unknownInMeta) &&
+        supportedOk(unknownHeader) &&
+        disguisedDelete.status === 400 &&
+        errorOf(disguisedDelete)?.code === -32020 &&
+        noMethodHeader.status === 400 &&
+        errorOf(noMethodHeader)?.code === -32020 &&
+        stillThere[0]?.count === '1' &&
+        noEnvelope.status === 400 &&
+        errorOf(noEnvelope)?.code === -32602 &&
+        modernBatch.status === 400 &&
+        errorOf(modernBatch)?.code === -32600 &&
+        removedInit.status === 404 &&
+        errorOf(removedInit)?.code === -32601 &&
+        removedPing.status === 404 &&
+        errorOf(removedPing)?.code === -32601 &&
+        missing.status === 200 &&
+        errorOf(missing)?.code === -32602 &&
+        errorOf(missing)?.data?.code === 'AUTOMATION_NOT_FOUND',
+      `unknown in _meta=${unknownInMeta.status}/${errorOf(unknownInMeta)?.code}, unknown header=${unknownHeader.status}/${errorOf(unknownHeader)?.code}, disguised delete=${disguisedDelete.status}/${errorOf(disguisedDelete)?.code}/rows=${stillThere[0]?.count}, no Mcp-Method=${noMethodHeader.status}/${errorOf(noMethodHeader)?.code}, no envelope=${noEnvelope.status}/${errorOf(noEnvelope)?.code}, batch=${modernBatch.status}/${errorOf(modernBatch)?.code}, initialize=${removedInit.status}/${errorOf(removedInit)?.code}, ping=${removedPing.status}/${errorOf(removedPing)?.code}, missing read=${missing.status}/${errorOf(missing)?.code}/${String(errorOf(missing)?.data?.code)}`,
+    );
+
+    const counted = await sql<{ method: string; clientName: string | null }[]>`
+      SELECT method, client_name AS "clientName" FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method IN ('server/discover', 'initialize')
+    `;
+    record(
+      'MCP: server/discover is counted with the client a 2026-07-28 request names, initialize with the legacy one (MCP-R21, MCP-R26)',
+      counted.some(
+        (row) => row.method === 'server/discover' && row.clientName === CLIENT,
+      ) && legacyInitRow[0]?.clientName === 'itest-legacy-script',
+      `counted=${JSON.stringify(counted)}, initialize right after the legacy call=${JSON.stringify(legacyInitRow)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    // The lanes after this one spend the same request budget.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  }
 }
 
 /** The retired standalone goal-authoring endpoint no longer accepts work. */
@@ -14468,15 +18073,16 @@ async function checkGovernance(
     `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
   );
 
-  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
-  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // Budget scope alignment over the live 0.5 enforcer (`checkOrgBudget`,
+  // the shared gate every lane measures with): a default-tier
   // token cap is a PERSONAL cap, measured against the member's own usage;
   // a team rule is a SHARED cap, measured against the usage of the team's
   // CURRENT members with the team rule's own values — read through
   // membership, never the ledger's `team_id`, which most lanes do not book.
   // Two members whose combined tokens exceed the per-member cap must both
   // stay allowed; the team's own cost cap must still bind the aggregate.
-  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const { checkOrgBudget } =
+    await import('./domains/governance/budget-gate.ts');
   const teammate = 'itest-budget-teammate';
   await sql`
     INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
@@ -14555,9 +18161,9 @@ async function checkGovernance(
     prospectiveCostCents: 0,
     prospectiveRequests: 0,
   };
-  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  const mixedScopes = await checkOrgBudget(sql, budgetArgs);
   await seedTeamUsage(teammate, 0, 150);
-  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  const teamCapHit = await checkOrgBudget(sql, budgetArgs);
   await unlink(path.join(governanceDir, 'budgets.yml'));
   orgConfig.clearOrgConfigCaches();
   record(
@@ -16859,7 +20465,7 @@ async function checkRestResources(
       JSON.stringify({
         providerSlug: 'restchat',
         model: 'rest-chat-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -17741,20 +21347,27 @@ async function checkSsoLogin(
     );
     orgConfig.clearOrgConfigCaches();
     const graceLogin = await loginRound();
-    const anchorAfterFirst = await sql<{ graceUntil: number }[]>`
-      SELECT grace_until_ms::float8 AS "graceUntil"
+    const anchorAfterFirst = await sql<
+      { graceUntil: number; firstRequiredSignInAt: number | null }[]
+    >`
+      SELECT grace_until_ms::float8 AS "graceUntil",
+        first_required_sign_in_at_ms::float8 AS "firstRequiredSignInAt"
       FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
     `;
     const graceAgain = await loginRound();
-    const anchorAfterSecond = await sql<{ graceUntil: number }[]>`
-      SELECT grace_until_ms::float8 AS "graceUntil"
+    const anchorAfterSecond = await sql<
+      { graceUntil: number; firstRequiredSignInAt: number | null }[]
+    >`
+      SELECT grace_until_ms::float8 AS "graceUntil",
+        first_required_sign_in_at_ms::float8 AS "firstRequiredSignInAt"
       FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
     `;
     const inGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
       headers: { cookie: graceAgain.cookie, origin: base },
     });
     await sql`
-      UPDATE app.two_factor_grace SET grace_until_ms = ${Date.now() - 1}
+      UPDATE app.two_factor_grace
+      SET first_required_sign_in_at_ms = ${Date.now() - 8 * 24 * 60 * 60 * 1000}
       WHERE user_id = ${ssoUserId}
     `;
     const pastGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
@@ -17775,6 +21388,9 @@ async function checkSsoLogin(
       graceLogin.callbackStatus === 302 &&
         graceLogin.cookie.includes('better-auth.session_token=') &&
         anchorAfterFirst.length === 1 &&
+        anchorAfterFirst[0]?.firstRequiredSignInAt != null &&
+        anchorAfterSecond[0]?.firstRequiredSignInAt ===
+          anchorAfterFirst[0]?.firstRequiredSignInAt &&
         (anchorAfterFirst[0]?.graceUntil ?? 0) > Date.now() &&
         anchorAfterSecond[0]?.graceUntil === anchorAfterFirst[0]?.graceUntil &&
         inGrace.status === 200 &&
@@ -19447,6 +23063,9 @@ async function checkTurnReattach(
     WHERE name = 'task.agent_drive'
   `;
 
+  // Simulate the next tick after the failed probes' reservation expires.
+  await sql`UPDATE app.project_agent_runs SET recovery_checked_at_ms = NULL
+    WHERE id = ANY(${[abandoned.runId, noOp.runId]})`;
   // Reachable: the abandoned turn and the op-less one re-attach; the live
   // one is refused by the claim.
   const recovered = await recoverStalledTaskAgentTurns(sql, {
@@ -19592,8 +23211,8 @@ async function checkTurnReattach(
       AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
         OR data ->> 'execId' = ${deadWorker.execId})
   `;
-  // The fence's turns are this check's alone: the backfill check below
-  // reads every op of the lane's sessions.
+  // The fence's turns are this check's alone; release their sessions
+  // before the independent fairness and backfill probes below.
   const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
     (turn) => turn.sessionId,
   );
@@ -19608,6 +23227,81 @@ async function checkTurnReattach(
     UPDATE app.sandbox_sessions SET status = 'destroyed',
                                     destroyed_at_ms = ${Date.now()}
     WHERE session_id = ANY(${fenceSessions})
+  `;
+
+  // Failed probes rotate independently of run liveness. Two replicas must
+  // claim disjoint work, and the 26th row must not remain behind 25 offline
+  // devices. The database, not a process-local cursor, owns this progress.
+  const fairRuns: Array<{ runId: string; sessionId: string; execId: string }> =
+    [];
+  for (let n = 0; n < 26; n++) {
+    const run = await mkRun(`fair-${n}`, { withOp: false });
+    fairRuns.push(run);
+    await sql`UPDATE app.project_agent_runs SET updated_at_ms = ${now - 600_000 + n}
+      WHERE id = ${run.runId}`;
+  }
+  const fairIds = fairRuns.map((run) => run.runId);
+  const visits: string[] = [];
+  const offline = async (sessionId: string): Promise<never> => {
+    visits.push(sessionId);
+    throw new Error('offline device');
+  };
+  const replicas = await Promise.all([
+    recoverStalledTaskAgentTurns(sql, { probe: offline }),
+    recoverStalledTaskAgentTurns(sql, { probe: offline }),
+  ]);
+  const reserved = await sql<{ visited: number; live: number }[]>`
+    SELECT count(*) FILTER (WHERE recovery_checked_at_ms IS NOT NULL)::int AS visited,
+           count(*) FILTER (WHERE updated_at_ms < ${now - 500_000})::int AS live
+    FROM app.project_agent_runs WHERE id = ANY(${fairIds})
+  `;
+  record(
+    'task recovery fairness: replicas visit 26 offline runs once without refreshing their liveness',
+    replicas.reduce((count, result) => count + result.examined, 0) === 26 &&
+      visits.length === 26 &&
+      new Set(visits).size === 26 &&
+      reserved[0]?.visited === 26 &&
+      reserved[0]?.live === 26,
+    `visits=${visits.length}/26 unique=${new Set(visits).size}/26 reserved=${reserved[0]?.visited} unchanged=${reserved[0]?.live}`,
+  );
+  await sql`UPDATE app.project_agent_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  const reachable = fairRuns[25];
+  const selectivelyReachable = async (sessionId: string) => {
+    if (sessionId !== reachable?.sessionId) throw new Error('offline device');
+    return { state: 'running' as const };
+  };
+  const failedBatch = await recoverStalledTaskAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  const nextBatch = await recoverStalledTaskAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  record(
+    'task recovery fairness: 25 offline sessions cannot starve the next reachable run',
+    failedBatch.examined === 25 &&
+      failedBatch.resumed === 0 &&
+      nextBatch.examined === 1 &&
+      nextBatch.resumed === 1,
+    `first=${failedBatch.examined}/${failedBatch.resumed}, next=${nextBatch.examined}/${nextBatch.resumed}`,
+  );
+  await sql`DELETE FROM pgboss.job WHERE name = 'task.agent_drive' AND data ->> 'runId' = ANY(${fairIds})`;
+  await sql`UPDATE app.project_agent_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  const fairSessions = fairRuns.map((run) => run.sessionId);
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fairSessions})`;
+  await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fairSessions})`;
+
+  // A fairness worker can finish writing an op after the cleanup above.
+  // Keep one such neighboring op so the backfill snapshot must name its
+  // own five fixtures rather than every session with the lane's prefix.
+  const neighbor = fairRuns[25];
+  if (!neighbor) throw new Error('Missing recovery fairness fixture');
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, started_at_ms
+    ) VALUES (${orgId}, ${neighbor.sessionId}, ${neighbor.execId},
+              'task-agent', 'failed', ${now})
+    ON CONFLICT DO NOTHING
   `;
 
   // Migration 0127 names the ops written before the column existed. A
@@ -19664,10 +23358,18 @@ async function checkTurnReattach(
     ),
     'utf8',
   );
+  const harnessFixtures = [
+    [live.execId, 'pi'],
+    [noOp.execId, 'pi'],
+    [abandoned.execId, 'codex'],
+    ['reattach-exec-wf-bare', null],
+    ['reattach-exec-wf-stamped', null],
+  ] as const;
+  const harnessExecIds = harnessFixtures.map(([execId]) => execId);
   const opHarnesses = async () => {
     const rows = await sql<{ execId: string; harness: string | null }[]>`
       SELECT exec_id AS "execId", harness FROM app.sandbox_session_ops
-      WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+      WHERE org_id = ${orgId} AND exec_id = ANY(${harnessExecIds})
       ORDER BY exec_id
     `;
     return JSON.stringify(rows.map((row) => [row.execId, row.harness]));
@@ -19676,13 +23378,7 @@ async function checkTurnReattach(
   const backfilledHarnesses = await opHarnesses();
   await sql.unsafe(harnessBackfill);
   const backfilledHarnessesAgain = await opHarnesses();
-  const wantHarnesses = JSON.stringify([
-    [live.execId, 'pi'],
-    [noOp.execId, 'pi'],
-    [abandoned.execId, 'codex'],
-    ['reattach-exec-wf-bare', null],
-    ['reattach-exec-wf-stamped', null],
-  ]);
+  const wantHarnesses = JSON.stringify(harnessFixtures);
   record(
     'harness turns: migration 0127 names an op by its run, keeps a recorded harness, and is idempotent',
     backfilledHarnesses === wantHarnesses &&
@@ -20136,6 +23832,41 @@ async function checkSteerFallbackRecovery(
 async function checkWorkflowTurnReattach(
   sql: Sql,
   ctx: { orgId: string; userId: string },
+  boss: PgBoss,
+): Promise<void> {
+  const queue = 'automation.agent_drive';
+  const handler = createTaskList({ sql })[queue];
+  if (handler === undefined)
+    throw new Error('Missing automation drive handler');
+  // This lane proves recovery's queued work and op lease, without a real
+  // sandbox. A notify-driven consumer can otherwise settle the fake turn
+  // before the assertion reads it (missing SANDBOX_TOKEN fails immediately).
+  // Stop only this queue, using the worker-drain integration's offWork fence;
+  // every other real worker stays available throughout the lane.
+  await boss.offWork(physicalTaskQueue(queue), { wait: true });
+  try {
+    await checkWorkflowTurnReattachRows(sql, ctx);
+  } finally {
+    try {
+      // Never unleash an external drive for a fixture, even if a probe threw.
+      await sql`
+        DELETE FROM pgboss.job
+        WHERE name = ${physicalTaskQueue('automation.agent_drive')}
+          AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+      `;
+    } finally {
+      await startWorker({
+        boss,
+        concurrency: 4,
+        taskList: { [queue]: handler },
+      });
+    }
+  }
+}
+
+async function checkWorkflowTurnReattachRows(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
 ): Promise<void> {
   const { orgId, userId } = ctx;
   const now = Date.now();
@@ -20152,7 +23883,9 @@ async function checkWorkflowTurnReattach(
     const sessionId = `wf-reattach-session-${suffix}`;
     const execId = `wf-reattach-exec-${suffix}`;
     const deadlineAt = now + 3_600_000;
-    const runs = await sql<{ id: string }[]>`
+    const runs = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input, checkpoints,
         claim_epoch, started_at_ms
@@ -20183,6 +23916,7 @@ async function checkWorkflowTurnReattach(
         0, ${now - 600_000}
       ) RETURNING id
     `;
+    });
     const runId = runs[0]?.id ?? '';
     await sql`
       INSERT INTO app.sandbox_sessions (
@@ -20227,7 +23961,9 @@ async function checkWorkflowTurnReattach(
   // waiting rows of any kind and filter in JS, so this fleet pushed the
   // stalled turn out of the page on every sweep; the predicates now live in
   // SQL and the walk is oldest first, so the fleet is never a candidate.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       claim_epoch, started_at_ms
@@ -20241,12 +23977,13 @@ async function checkWorkflowTurnReattach(
            0, ${now - 60_000}::bigint + g
     FROM generate_series(1, 120) AS g
   `;
+  });
 
   const { recoverStalledWorkflowAgentTurns } =
     await import('./domains/automations/reattach.ts');
   const jobsBefore = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
+    WHERE name = ${physicalTaskQueue('automation.agent_drive')}
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
   // An unreachable spawner must leave everything for the next sweep — a
@@ -20256,10 +23993,15 @@ async function checkWorkflowTurnReattach(
   });
   const jobsAfterUnreachable = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
+    WHERE name = ${physicalTaskQueue('automation.agent_drive')}
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
 
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL
+    WHERE id = ANY(${[abandoned.runId, noOp.runId]})`;
+  });
   // Reachable: the abandoned turn and the op-less one re-attach; the live
   // one is refused by the claim; the ask-parked one is spared by the listing.
   const recovered = await recoverStalledWorkflowAgentTurns(sql, {
@@ -20267,7 +24009,7 @@ async function checkWorkflowTurnReattach(
   });
   const driveJobs = await sql<{ data: unknown }[]>`
     SELECT data FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
+    WHERE name = ${physicalTaskQueue('automation.agent_drive')}
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
   const drivenRunIds = new Set(
@@ -20309,24 +24051,96 @@ async function checkWorkflowTurnReattach(
       // The harness of the NODE's turn (the run cursor), not the one the
       // run's session was opened with.
       createdOp[0]?.harness === 'codex',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want harness codex)`,
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.status ?? '-'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want watchdog/running/workflow-agent/codex)`,
   );
 
-  // Leave nothing for later sweeps or metrics folds to trip over.
-  await sql`
-    DELETE FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
-      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+  // Failed probes rotate independently of run liveness. Two replicas must
+  // claim disjoint work, and the 26th row must not remain behind 25 offline
+  // devices. The database, not a process-local cursor, owns this progress.
+  const fairRuns: Array<{ runId: string; sessionId: string; execId: string }> =
+    [];
+  for (let n = 0; n < 26; n++) {
+    const run = await mkRun(`fair-${n}`, { withOp: false });
+    fairRuns.push(run);
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`UPDATE app.automation_runs SET started_at_ms = ${now - 600_000 + n}
+      WHERE id = ${run.runId}`;
+    });
+  }
+  const fairIds = fairRuns.map((run) => run.runId);
+  const visits: string[] = [];
+  const offline = async (sessionId: string): Promise<never> => {
+    visits.push(sessionId);
+    throw new Error('offline device');
+  };
+  const replicas = await Promise.all([
+    recoverStalledWorkflowAgentTurns(sql, { probe: offline }),
+    recoverStalledWorkflowAgentTurns(sql, { probe: offline }),
+  ]);
+  const reserved = await sql<{ visited: number; live: number }[]>`
+    SELECT count(*) FILTER (WHERE recovery_checked_at_ms IS NOT NULL)::int AS visited,
+           count(*) FILTER (WHERE started_at_ms < ${now - 500_000})::int AS live
+    FROM app.automation_runs WHERE id = ANY(${fairIds})
   `;
-  await sql`
+  record(
+    'automation recovery fairness: replicas visit 26 offline runs once without refreshing their liveness',
+    replicas.reduce((count, result) => count + result.examined, 0) === 26 &&
+      visits.length === 26 &&
+      new Set(visits).size === 26 &&
+      reserved[0]?.visited === 26 &&
+      reserved[0]?.live === 26,
+    `visits=${visits.length}/26 unique=${new Set(visits).size}/26 reserved=${reserved[0]?.visited} unchanged=${reserved[0]?.live}`,
+  );
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  });
+  const reachable = fairRuns[25];
+  const selectivelyReachable = async (sessionId: string) => {
+    if (sessionId !== reachable?.sessionId) throw new Error('offline device');
+    return { state: 'running' as const };
+  };
+  const failedBatch = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  const nextBatch = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: selectivelyReachable,
+  });
+  record(
+    'automation recovery fairness: 25 offline sessions cannot starve the next reachable run',
+    failedBatch.examined === 25 &&
+      failedBatch.resumed === 0 &&
+      nextBatch.examined === 1 &&
+      nextBatch.resumed === 1,
+    `first=${failedBatch.examined}/${failedBatch.resumed}, next=${nextBatch.examined}/${nextBatch.resumed}`,
+  );
+  await sql`DELETE FROM pgboss.job WHERE name = ${physicalTaskQueue('automation.agent_drive')} AND data ->> 'runId' = ANY(${fairIds})`;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`UPDATE app.automation_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  });
+  const fairSessions = fairRuns.map((run) => run.sessionId);
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fairSessions})`;
+  await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fairSessions})`;
+
+  // Leave nothing for later sweeps or metrics folds to trip over.
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled',
                                    finished_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND name = 'wf-reattach-probe'
   `;
-  await sql`
+  });
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     DELETE FROM app.automation_runs
     WHERE org_id = ${orgId} AND name = 'wf-reattach-fleet'
   `;
+  });
   await sql`
     DELETE FROM app.sandbox_session_ops
     WHERE org_id = ${orgId} AND session_id LIKE 'wf-reattach-session-%'
@@ -21502,7 +25316,9 @@ async function checkRunProvenance(
 
   // ---- an automation-driven task keeps its automation ------------------
   const automationHeldTaskId = await seedTask('Automation held task', null);
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, project_id, name, version, status, mode, started_by, input,
       started_at_ms
@@ -21512,6 +25328,7 @@ async function checkRunProvenance(
       ${Date.now()}
     )
   `;
+  });
   await sql.begin((tx) =>
     addTaskComment(tx, auth, {
       taskId: automationHeldTaskId,
@@ -21532,10 +25349,13 @@ async function checkRunProvenance(
       automationHeldTask[0]?.assigneeType === null,
     `runs=${automationHeldRuns[0]?.count} (want 0), assignee=${String(automationHeldTask[0]?.assigneeType)} (want null — never reassigned)`,
   );
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'failed'
     WHERE org_id = ${orgId} AND name = 'itest-mention-block'
   `;
+  });
 
   // ---- deleting a task closes the approvals that named it --------------
   const strayApproval = await sql<{ id: string }[]>`
@@ -22431,7 +26251,9 @@ async function checkTasksCollabIntegrity(
     'exec-integrity-doomed',
     'running',
   );
-  const doomedAutomation = await sql<{ id: string }[]>`
+  const doomedAutomation = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, project_id, status, mode, started_by, input,
       checkpoints, claim_epoch, started_at_ms
@@ -22441,6 +26263,7 @@ async function checkTasksCollabIntegrity(
       ${sql.json({ nodes: {}, executions: 0 })}, 0, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const doomedAutomationId = doomedAutomation[0]?.id ?? '';
   const blobLane = itestObjectStore() !== null;
   let deliverableRef = '';
@@ -22836,7 +26659,7 @@ async function checkTasksCollabIntegrity(
   // leg failing rejects (MENTION_DIRECTORY_UNAVAILABLE, 503) instead of
   // answering a partial directory that turns `@teammate` into plain text;
   // the healthy resolution still names the teammate.
-  const { MentionDirectoryError, resolveSurfaceMentions } =
+  const { MentionDirectoryError, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const instanceLegDown = Object.assign(
     (strings: TemplateStringsArray, ...values: unknown[]): unknown => {
@@ -22852,18 +26675,26 @@ async function checkTasksCollabIntegrity(
     },
     { json: sql.json.bind(sql), unsafe: sql.unsafe.bind(sql) },
   );
-  const degraded: unknown = await resolveSurfaceMentions(
+  const degraded: unknown = await prepareSurfaceText(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tag + json/unsafe stand-in over the real handle
     instanceLegDown as unknown as Sql,
-    { organizationId: orgId, body: `@${reviewer} please look`, projectId },
+    {
+      organizationId: orgId,
+      body: `@${reviewer} please look`,
+      projectId,
+      cap: 10_000,
+      mode: 'full',
+    },
   ).then(
     () => 'resolved',
     (error: unknown) => error,
   );
-  const healthy = await resolveSurfaceMentions(sql, {
+  const healthy = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: `@${reviewer} please look`,
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   // Typed against the module's export so the probe stays a plain FAIL (not
   // a crash) on a tree that has no `MentionDirectoryError` yet.
@@ -22945,26 +26776,25 @@ async function checkCollabMentions(
   `;
   const agentInstanceId = agentRows[0]?.id ?? '';
 
-  const { buildMentionDirectory, resolveSurfaceMentions } =
+  const { buildMentionDirectory, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const directory = await buildMentionDirectory(sql, {
     organizationId: orgId,
     projectId,
   });
-  const handleOwners = new Map<string, string>();
-  for (const entry of directory.entries) {
-    for (const handle of entry.handles) {
-      handleOwners.set(handle, `${entry.type}:${entry.id}`);
-    }
-  }
-  // The instance goes LAST so its handle wins a clash.
+  // The agent answers to its older name form as well as its handle.
+  const resolvedReviewer = directory.index.resolve('pr.reviewer');
   const instanceShadows =
-    handleOwners.get('pr.reviewer') === `agent:${agentInstanceId}`;
+    resolvedReviewer !== null &&
+    `${resolvedReviewer.kind}:${resolvedReviewer.id}` ===
+      `agent:${agentInstanceId}`;
 
-  const resolved = await resolveSurfaceMentions(sql, {
+  const resolved = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: '@mention-teammate-1 and @pr.reviewer please look; @nobody-here too',
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   const mentionKeys = resolved.mentions.map(
     (mention) => `${mention.type}:${mention.id}`,
@@ -22972,7 +26802,7 @@ async function checkCollabMentions(
   record(
     'mentions: the directory scopes to the project and resolves agent instances',
     directory.entries.some(
-      (entry) => entry.type === 'user' && entry.id === teammate,
+      (entry) => entry.kind === 'user' && entry.id === teammate,
     ) &&
       instanceShadows &&
       mentionKeys.includes(`user:${teammate}`) &&
@@ -23233,10 +27063,13 @@ async function checkPolicySweeps(
     SELECT count(*)::text AS count FROM app.messages
     WHERE org_id = ${orgId} AND text LIKE '[automated]%'
   `;
-  // Rescheduling re-arms the ladder (updateTask clears the stamps it owns):
-  // the overdue task pushed out to later today is "due soon" again on the
-  // next sweep, and a started task whose start moves is announced again.
-  // And the level-2 nudge speaks every locale the app ships.
+  // Rescheduling re-arms the ladder (updateTask rewrites the stamps it
+  // owns): the overdue task pushed out to later today is "due soon" again on
+  // the next sweep, and a started task whose start moves ahead is unstamped,
+  // to ring on its new day. A start moved to a moment that has already come
+  // is written as announced (TASK-R23): whoever set it is looking at the
+  // task, so the sweep rings nobody. And the level-2 nudge speaks every
+  // locale the app ships.
   const { updateTask } = await import('./domains/tasks/service.ts');
   const sweepAuth = {
     organizationId: orgId,
@@ -23248,7 +27081,13 @@ async function checkPolicySweeps(
     updateTask(tx, sweepAuth, { taskId: overdueId, dueDate: now + 3_600_000 }),
   );
   await transactSerializable(sql, (tx) =>
-    updateTask(tx, sweepAuth, { taskId: startedId, startDate: now - 30_000 }),
+    updateTask(tx, sweepAuth, {
+      taskId: startedId,
+      startDate: now + 86_400_000,
+    }),
+  );
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, sweepAuth, { taskId: futureId, startDate: now - 30_000 }),
   );
   const third = await enforceTaskDatesForOrg(sql, orgId);
   const rescheduled = await sql<
@@ -23256,7 +27095,7 @@ async function checkPolicySweeps(
   >`
     SELECT id, start_notified_at_ms::float8 AS "startNotified",
            sla_level AS "slaLevel"
-    FROM app.tasks WHERE id IN (${startedId}, ${overdueId})
+    FROM app.tasks WHERE id IN (${startedId}, ${overdueId}, ${futureId})
   `;
   const rescheduledById = new Map(rescheduled.map((row) => [row.id, row]));
   const nudgeMeta = await sql<{ bodyByLocale: unknown }[]>`
@@ -23269,13 +27108,14 @@ async function checkPolicySweeps(
   record(
     'sweeps: a reschedule re-arms the date ladder, and the nudge speaks every locale',
     third.dueSoon === 1 &&
-      third.start === 1 &&
+      third.start === 0 &&
       rescheduledById.get(overdueId)?.slaLevel === 1 &&
-      rescheduledById.get(startedId)?.startNotified !== null &&
+      rescheduledById.get(startedId)?.startNotified === null &&
+      rescheduledById.get(futureId)?.startNotified !== null &&
       typeof nudgeLocales?.en === 'string' &&
       typeof nudgeLocales?.de === 'string' &&
       typeof nudgeLocales?.fr === 'string',
-    `third=${JSON.stringify(third)} (want dueSoon 1, start 1), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), started re-stamped=${rescheduledById.get(startedId)?.startNotified !== null}, nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
+    `third=${JSON.stringify(third)} (want dueSoon 1, start 0), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), moved-ahead start re-armed=${rescheduledById.get(startedId)?.startNotified === null} (want true), arrived start written announced=${rescheduledById.get(futureId)?.startNotified !== null} (want true), nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
   );
 
   record(
@@ -28023,6 +31863,14 @@ async function checkNotificationEmailSink(
     await import('./domains/collab/service.ts');
   await drainNotificationEmails(sql);
 
+  const recipientId = randomUUID();
+  const recipientEmail = `email-sink-${recipientId}@door.test`;
+  const prefEmail = `email-sink-pref-${recipientId}@door.test`;
+  const unrelatedTitle = `Unrelated notification fixture ${recipientId}`;
+  let prefUserId = '';
+  let unrelatedCount = 0;
+  let unrelatedFixtureSeen = false;
+  let ownedSendCount = 0;
   const smtpSends: Array<{
     to: string;
     from: string;
@@ -28042,20 +31890,44 @@ async function checkNotificationEmailSink(
         text?: string;
         html?: string;
       }) => {
-        smtpSends.push({
-          to: message.to,
-          from: message.from,
-          subject: message.subject,
-          ...(message.text !== undefined ? { text: message.text } : {}),
-          ...(message.html !== undefined ? { html: message.html } : {}),
-        });
-        return { messageId: `<notif-${smtpSends.length}@door.test>` };
+        // The transport is process-global and ordinary workers remain live.
+        // Count every message to either owned recipient, including a forbidden
+        // preference-off send, without filtering on a valid subject or link.
+        if (message.to !== recipientEmail && message.to !== prefEmail) {
+          unrelatedCount += 1;
+          unrelatedFixtureSeen ||= (message.text ?? '').includes(
+            unrelatedTitle,
+          );
+          return { messageId: `<unrelated-${unrelatedCount}@door.test>` };
+        }
+        ownedSendCount += 1;
+        // Keep diagnostics bounded; the exact counter still catches overflow.
+        if (smtpSends.length < 16)
+          smtpSends.push({
+            to: message.to,
+            from: message.from,
+            subject: message.subject,
+            ...(message.text !== undefined ? { text: message.text } : {}),
+            ...(message.html !== undefined ? { html: message.html } : {}),
+          });
+        return { messageId: `<notif-${ownedSendCount}@door.test>` };
       },
       close: async () => {},
     }),
   });
 
   try {
+    await sql`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (${recipientId}, ${recipientEmail}, 'Email sink recipient',
+              true, ${new Date()}, ${new Date()})
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${`m-email-sink-${recipientId}`}, ${orgId}, ${recipientId},
+              'member', ${new Date()})
+    `;
     const bell = (
       taskId: string,
       title: string,
@@ -28063,7 +31935,7 @@ async function checkNotificationEmailSink(
       recipient?: string,
     ) =>
       writeCoalescedNotification(sql, {
-        userId: recipient ?? userId,
+        userId: recipient ?? recipientId,
         organizationId: orgId,
         type: 'task_assigned',
         titleKey: 'taskAssigned',
@@ -28090,6 +31962,7 @@ async function checkNotificationEmailSink(
       'email-task-b',
       'email-task-c',
       'email-task-d',
+      'email-task-unrelated',
     ].entries()) {
       await sql`
         INSERT INTO app.tasks (
@@ -28112,7 +31985,7 @@ async function checkNotificationEmailSink(
     await bell('email-task-b', 'Read before fire');
     await sql`
       UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
-      WHERE org_id = ${orgId} AND user_id = ${userId}
+      WHERE org_id = ${orgId} AND user_id = ${recipientId}
         AND resource_id = 'email-task-b'
     `;
 
@@ -28124,11 +31997,11 @@ async function checkNotificationEmailSink(
     const prefUsers = await sql<{ id: string }[]>`
       INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
                           "updatedAt")
-      VALUES (gen_random_uuid(), 'no-email-pref@door.test', 'Pref Off',
+      VALUES (gen_random_uuid(), ${prefEmail}, 'Pref Off',
               true, ${new Date()}, ${new Date()})
       RETURNING "id"
     `;
-    const prefUserId = prefUsers[0]?.id ?? '';
+    prefUserId = prefUsers[0]?.id ?? '';
     // A member, so the row is written and the preference alone keeps the
     // email in.
     await sql`
@@ -28151,10 +32024,10 @@ async function checkNotificationEmailSink(
 
     const drained = await drainNotificationEmails(sql);
     const delivered = smtpSends[0];
-    const adminEmailRows = await sql<{ email: string | null }[]>`
-      SELECT "email" FROM "user" WHERE "id" = ${userId} LIMIT 1
+    const recipientEmailRows = await sql<{ email: string | null }[]>`
+      SELECT "email" FROM "user" WHERE "id" = ${recipientId} LIMIT 1
     `;
-    const adminEmail = adminEmailRows[0]?.email ?? '';
+    const storedRecipientEmail = recipientEmailRows[0]?.email ?? '';
     const rowsLeft = await sql<{ resourceId: string }[]>`
       SELECT resource_id AS "resourceId" FROM app.user_notifications
       WHERE org_id = ${orgId} AND resource_id LIKE 'email-task-%'
@@ -28167,16 +32040,16 @@ async function checkNotificationEmailSink(
         undone === 'cancelled' &&
         prefWrite === 'inserted' &&
         drained &&
-        smtpSends.length === 1 &&
+        ownedSendCount === 1 &&
         delivered?.subject === 'Task assigned to you' &&
-        delivered?.to === adminEmail &&
+        delivered?.to === storedRecipientEmail &&
         (delivered?.text ?? '').includes('Email me B (final)') &&
         (delivered?.html ?? '').includes(
           `/dashboard/${orgId}/projects/p-email-sink/tasks?task=email-task-a`,
         ) &&
         (delivered?.from ?? '').startsWith('notification@') &&
         !rowsLeft.some((row) => row.resourceId === 'email-task-c'),
-      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
+      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${ownedSendCount} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${storedRecipientEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
         .map((r) => r.resourceId)
         .sort()
         .join('|')}`,
@@ -28208,7 +32081,7 @@ async function checkNotificationEmailSink(
     const deadlineTaskId = deadlineTask[0]?.id ?? '';
 
     await writeCoalescedNotification(sql, {
-      userId,
+      userId: recipientId,
       organizationId: orgId,
       type: 'task_deadline',
       titleKey: 'taskSlaEscalated',
@@ -28224,6 +32097,9 @@ async function checkNotificationEmailSink(
       taskId: deadlineTaskId,
       actorType: 'system',
     });
+    // An earlier lane can enqueue after our initial drain. Force that
+    // interleaving through the real writer and worker, never a wall-clock tick.
+    await bell('email-task-unrelated', unrelatedTitle, undefined, userId);
     const deadlineDrained = await drainNotificationEmails(sql);
     const deadlineMail = smtpSends[1];
     const deadlineLink =
@@ -28239,24 +32115,35 @@ async function checkNotificationEmailSink(
     record(
       'overdue notification email opens its task',
       deadlineDrained &&
-        smtpSends.length === 2 &&
+        unrelatedFixtureSeen &&
+        ownedSendCount === 2 &&
         storedParams[0]?.projectId === deadlineProjectId &&
         deadlineMail?.subject === 'Overdue task escalated' &&
         (deadlineMail?.html ?? '').includes(`<a href="`) &&
         (deadlineMail?.html ?? '').includes(deadlineLink) &&
         (deadlineMail?.text ?? '').includes(`Open in Tale: `),
-      `drained=${deadlineDrained} emails=${smtpSends.length} (want 2) storedProject=${storedParams[0]?.projectId}==${deadlineProjectId} subject=${deadlineMail?.subject} link=${(deadlineMail?.html ?? '').includes(deadlineLink)} want=${deadlineLink} cta=${(deadlineMail?.text ?? '').includes('Open in Tale: ')}`,
+      `drained=${deadlineDrained} unrelated=${unrelatedCount}/injected=${unrelatedFixtureSeen} emails=${ownedSendCount} (want 2) storedProject=${storedParams[0]?.projectId}==${deadlineProjectId} subject=${deadlineMail?.subject} link=${(deadlineMail?.html ?? '').includes(deadlineLink)} want=${deadlineLink} cta=${(deadlineMail?.text ?? '').includes('Open in Tale: ')}`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
     // Later lanes count the organization's members and projects.
     await sql`
       DELETE FROM "member"
-      WHERE "organizationId" = ${orgId} AND "id" LIKE 'm-email-pref-%'
+      WHERE "organizationId" = ${orgId}
+        AND "userId" IN (${recipientId}, ${prefUserId})
     `;
     await sql`
       DELETE FROM app.projects WHERE id = 'p-email-sink' AND org_id = ${orgId}
     `;
+    await sql`
+      DELETE FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id IN (${recipientId}, ${prefUserId})
+    `;
+    await sql`
+      DELETE FROM app.notification_preferences
+      WHERE org_id = ${orgId} AND user_id IN (${recipientId}, ${prefUserId})
+    `;
+    await sql`DELETE FROM "user" WHERE "id" IN (${recipientId}, ${prefUserId})`;
   }
 }
 
@@ -29325,10 +33212,12 @@ async function checkControlDrain(
       `
     )[0]?.startedAt ?? now,
   );
+  // Read as the breakdown's `generations`: `inFlight` also counts the
+  // automation steps and agent drives other lanes may be running meanwhile.
   const inFlightWith = async (
     startedAt: number,
     heartbeatAt: number,
-  ): Promise<z.ZodSafeParseResult<{ inFlight: number }>> => {
+  ): Promise<z.ZodSafeParseResult<{ generations: number }>> => {
     await sql`
       INSERT INTO app.generations (thread_id, org_id, message_id,
                                    started_at_ms, heartbeat_at_ms,
@@ -29340,7 +33229,7 @@ async function checkControlDrain(
         updated_at_ms = ${heartbeatAt}
     `;
     return z
-      .object({ inFlight: z.number() })
+      .object({ generations: z.number() })
       .loose()
       .safeParse(
         await (await control('/drain-status', { bearer: token })).json(),
@@ -29494,6 +33383,9 @@ async function checkControlDrain(
   );
   const hasStreams = metricsBody.includes('tale_backend_hint_streams_open');
   const hasDrain = metricsBody.includes('tale_backend_drain_active');
+  const hasScan = metricsBody.includes(
+    'tale_backend_automation_trigger_scan_last_success_timestamp_seconds',
+  );
   const hasHttp = metricsBody.includes('tale_backend_http_requests_total');
   // The route label must be the bounded class, never a path with ids in it.
   const labelledByClass = /route="\/api\/app\/[a-z_-]+"/.test(metricsBody);
@@ -29509,10 +33401,11 @@ async function checkControlDrain(
       hasGenerations &&
       hasStreams &&
       hasDrain &&
+      hasScan &&
       hasHttp &&
       labelledByClass &&
       noIdsInLabels,
-    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
+    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} scan=${hasScan} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
   );
 
   record(
@@ -29538,17 +33431,17 @@ async function checkControlDrain(
       refusedBody.data.status === 'refused' &&
       appended[0]?.count === '0' &&
       withFresh.success &&
-      withFresh.data.inFlight === 1 &&
+      withFresh.data.generations === 1 &&
       withStale.success &&
-      withStale.data.inFlight === 0 &&
+      withStale.data.generations === 0 &&
       withPostDrain.success &&
-      withPostDrain.data.inFlight === 0 &&
+      withPostDrain.data.generations === 0 &&
       ended.status === 200 &&
       statusEnded.success &&
       !statusEnded.data.draining &&
       statusExpired.success &&
       !statusExpired.data.draining,
-    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'}/started-after-drain=${withPostDrain.success ? withPostDrain.data.inFlight : 'ERR'} (want 1/0/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
+    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), generations fresh=${withFresh.success ? withFresh.data.generations : 'ERR'}/stale=${withStale.success ? withStale.data.generations : 'ERR'}/started-after-drain=${withPostDrain.success ? withPostDrain.data.generations : 'ERR'} (want 1/0/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
   );
 }
 
@@ -29818,7 +33711,8 @@ async function checkSsoAdminSurface(
 
 /**
  * Org provisioning on a THROWAWAY org: the shipped default automation packs
- * seed once (version 1, trigger bound, presentation stored), a re-run skips
+ * seed once (version 1, trigger bound switched off as the pack's repeat rule,
+ * presentation stored), a re-run skips
  * everything, a tombstoned pack stays deleted, and the starter content
  * seeds a Getting-started project with example tasks only while the org has
  * no project.
@@ -29826,6 +33720,7 @@ async function checkSsoAdminSurface(
 async function checkProvisioning(sql: Sql): Promise<void> {
   const { seedDefaultAutomationPacks, seedStarterContent } =
     await import('./domains/provisioning/service.ts');
+  const { isRecord } = await import('../lib/utils/type-utils.ts');
   // The harness's builtin catalog is a hermetic EMPTY dir — plant one REAL
   // shipped pack (copied from the repo catalog) so the seeder has something
   // to provision.
@@ -29868,6 +33763,38 @@ async function checkProvisioning(sql: Sql): Promise<void> {
     SELECT count(*)::text AS count FROM app.automation_triggers
     WHERE org_id = ${orgId}
   `;
+  // PROVN-R7: the shipped trigger is bound switched off, and the pack's
+  // repeat rule is stored as a rule, not as a cron expression.
+  const seededTriggers = await sql<
+    {
+      name: string;
+      enabled: boolean;
+      cron: string | null;
+      repeat: unknown;
+      nextDueAt: string | null;
+    }[]
+  >`
+    SELECT name, enabled, cron, schedule_rule -> 'repeat' AS repeat,
+           next_due_at_ms::text AS "nextDueAt"
+    FROM app.automation_triggers
+    WHERE org_id = ${orgId}
+  `;
+  const syncTrigger = seededTriggers.find(
+    (row) => row.name === 'imap-smtp-sync-emails',
+  );
+  record(
+    'org provisioning binds a shipped trigger switched off, as the pack’s repeat rule [PROVN-R7]',
+    seededTriggers.length >= 1 &&
+      seededTriggers.every((row) => !row.enabled && row.nextDueAt === null) &&
+      syncTrigger !== undefined &&
+      syncTrigger.cron === null &&
+      // jsonb keeps its own key order, so the rule is compared by field.
+      isRecord(syncTrigger.repeat) &&
+      syncTrigger.repeat.frequency === 'minutely' &&
+      syncTrigger.repeat.interval === 5 &&
+      Object.keys(syncTrigger.repeat).length === 2,
+    `seeded=${seededTriggers.map((row) => `${row.name}:${row.enabled ? 'on' : 'off'}/next=${row.nextDueAt ?? 'none'}`).join('|')} (want every one off, none due), sync cron=${syncTrigger?.cron ?? 'null'} repeat=${JSON.stringify(syncTrigger?.repeat ?? null)} (want null / minutely 5)`,
+  );
 
   // Idempotency: the second run provisions nothing and duplicates nothing.
   const again = await seedDefaultAutomationPacks(sql, orgId);
@@ -33558,6 +37485,37 @@ async function checkWebsitesCrawl(
   // page, no robots.txt and no sitemap, so the scan that restores the
   // registration finishes on the homepage.
   const HEAL_DOMAIN = 'itest-heal.example';
+  // A site for the change-check lanes (2026-10-06). Its fake server answers
+  // a conditional request the way a real one does — 304 when the validator
+  // it is asked about still stands — and counts what it sent for each page:
+  // the page, or a 304 in its place. `/page.html` is the page of a server
+  // that gives no modification time: no validator, and a new token in every
+  // response, around text that does not change.
+  const CHECK_DOMAIN = 'itest-check.example';
+  const checkPage = (word: string, version: string): string =>
+    `Change-check fixture ${word} page ${version}. Enough words about the ${word} subsystem to survive the chunking thresholds of the pipeline.`;
+  const checkSite = new Map<
+    string,
+    { body: string; etag?: string; lastModified?: string }
+  >([
+    ['/', { body: checkPage('home', 'v1') }],
+    ['/tagged.txt', { body: checkPage('tagged', 'v1'), etag: '"t1"' }],
+    [
+      '/dated.txt',
+      {
+        body: checkPage('dated', 'v1'),
+        lastModified: 'Fri, 10 Jul 2026 09:11:16 GMT',
+      },
+    ],
+    ['/plain.txt', { body: checkPage('plain', 'v1') }],
+  ]);
+  const checkSitemapRoutes = [...checkSite.keys()];
+  const checkSent = new Map<string, { bodies: number; notModified: number }>();
+  let checkToken = 0;
+  const checkHtml = (): string => {
+    checkToken += 1;
+    return `<html><head><meta name="csrf-token" content="token-${checkToken}"><title>Check fixture</title></head><body><main><p>${checkPage('html', 'v1')}</p></main><script>window.nonce = "${checkToken}"</script></body></html>`;
+  };
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -33625,6 +37583,66 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (
+      url.hostname === CHECK_DOMAIN ||
+      url.hostname === `www.${CHECK_DOMAIN}`
+    ) {
+      const answer = (body: string, type: string): Response =>
+        new Response(body, {
+          headers: {
+            'content-type': type,
+            'content-length': String(body.length),
+          },
+        });
+      if (url.pathname === '/robots.txt') {
+        return answer(
+          `User-agent: *\nSitemap: https://${CHECK_DOMAIN}/sitemap.xml\n`,
+          'text/plain',
+        );
+      }
+      if (url.pathname === '/sitemap.xml') {
+        return answer(
+          `<?xml version="1.0"?><urlset>${checkSitemapRoutes
+            .map(
+              (route) =>
+                `<url><loc>https://${CHECK_DOMAIN}${route}</loc></url>`,
+            )
+            .join('')}</urlset>`,
+          'application/xml',
+        );
+      }
+      const sent = checkSent.get(url.pathname) ?? { bodies: 0, notModified: 0 };
+      checkSent.set(url.pathname, sent);
+      if (url.pathname === '/page.html') {
+        sent.bodies += 1;
+        return answer(checkHtml(), 'text/html; charset=utf-8');
+      }
+      const page = checkSite.get(url.pathname);
+      if (!page) return new Response('gone', { status: 404 });
+      const validators = {
+        ...(page.etag === undefined ? {} : { etag: page.etag }),
+        ...(page.lastModified === undefined
+          ? {}
+          : { 'last-modified': page.lastModified }),
+      };
+      const asked = new Headers(init?.headers);
+      if (
+        (page.etag !== undefined && asked.get('if-none-match') === page.etag) ||
+        (page.lastModified !== undefined &&
+          asked.get('if-modified-since') === page.lastModified)
+      ) {
+        sent.notModified += 1;
+        return new Response(null, { status: 304, headers: validators });
+      }
+      sent.bodies += 1;
+      return new Response(page.body, {
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(page.body.length),
+          ...validators,
         },
       });
     }
@@ -34914,6 +38932,303 @@ async function checkWebsitesCrawl(
     );
     if (robotsId !== '') {
       await v1(`/websites/${robotsId}`, { method: 'DELETE' });
+    }
+
+    // 4h. A scan asks for each page once, and a page that did not change is
+    //     neither downloaded nor rendered again (2026-10-06). The crawler's
+    //     one way to learn whether a page had changed was to do everything
+    //     again: fetch it, render it with every asset a render loads, and
+    //     compare content hashes afterwards — some 8,000 requests a scan on
+    //     a 700-page site whose pages had not changed in months. The request
+    //     now carries the validators of the last visit, a 304 ends it, and
+    //     for a server that gives no modification time the text of the
+    //     plain HTML is compared. "Scan now" asks the same way.
+    const checkCreated = z.looseObject({ id: z.string() }).safeParse(
+      await (
+        await v1('/websites', {
+          body: { domain: CHECK_DOMAIN, scanInterval: '6h' },
+        })
+      ).json(),
+    );
+    const checkId = checkCreated.success ? checkCreated.data.id : '';
+    await drainCrawlJobs();
+    const checkUrl = (route: string) => `https://${CHECK_DOMAIN}${route}`;
+    const checkRoutes = [
+      '/tagged.txt',
+      '/dated.txt',
+      '/plain.txt',
+      '/page.html',
+    ];
+    const checkSnapshot = () =>
+      new Map([...checkSent].map(([route, sent]) => [route, { ...sent }]));
+    /** What the site sent for each page since `before`, as
+     * `route:bodies/304s`. */
+    const sentSince = (before: ReturnType<typeof checkSnapshot>): string =>
+      checkRoutes
+        .map((route) => {
+          const now = checkSent.get(route) ?? { bodies: 0, notModified: 0 };
+          const then = before.get(route) ?? { bodies: 0, notModified: 0 };
+          return `${route}:${now.bodies - then.bodies}/${now.notModified - then.notModified}`;
+        })
+        .join(' ');
+    /** Every page reads as last visited two days ago, so a fresh stamp is
+     * this scan's. */
+    const checkRescan = async (): Promise<string> => {
+      await pool`
+        UPDATE public_web.website_urls
+           SET last_crawled_at = now() - interval '2 days'
+         WHERE domain = ${CHECK_DOMAIN}
+      `;
+      const before = checkSnapshot();
+      await websites.runWebsitesScan(sql, {
+        domain: CHECK_DOMAIN,
+        orgSlug,
+        organizationId: orgId,
+      });
+      await drainCrawlJobs();
+      return sentSince(before);
+    };
+    const checkRow = async (route: string) =>
+      (
+        await pool<
+          {
+            status: string;
+            etag: string | null;
+            lastModified: string | null;
+            probeHash: string | null;
+            visited: boolean;
+            chunks: string;
+            text: string | null;
+          }[]
+        >`
+          SELECT u.status, u.etag_v2 AS etag, u.last_modified_v2 AS "lastModified",
+                 u.probe_hash_v2 AS "probeHash",
+                 u.last_crawled_at > now() - interval '1 hour' AS visited,
+                 (SELECT count(*)::text FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS chunks,
+                 (SELECT string_agg(c.chunk_content, ' ') FROM public_web.chunks c
+                   WHERE c.domain = u.domain AND c.url = u.url) AS text
+          FROM public_web.website_urls u
+          WHERE u.domain = ${CHECK_DOMAIN} AND u.url = ${checkUrl(route)}
+        `
+      )[0];
+
+    // The first scan stored every page and kept what each response gave to
+    // check it by. The rescan: the two pages the server vouches for are
+    // not sent again; the one without a validator is.
+    const taggedFirst = await checkRow('/tagged.txt');
+    const datedFirst = await checkRow('/dated.txt');
+    const checkSecond = await checkRescan();
+    const taggedSecond = await checkRow('/tagged.txt');
+    const datedSecond = await checkRow('/dated.txt');
+    record(
+      'websites change check: a page the server vouches for is not downloaded again, and is stamped as visited',
+      checkCreated.success &&
+        taggedFirst?.etag === '"t1"' &&
+        datedFirst?.lastModified === 'Fri, 10 Jul 2026 09:11:16 GMT' &&
+        checkSecond ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:0/0' &&
+        (taggedSecond?.visited ?? false) &&
+        (datedSecond?.visited ?? false) &&
+        taggedSecond?.status === 'active' &&
+        taggedSecond.chunks === taggedFirst.chunks &&
+        Number(taggedSecond.chunks) >= 1,
+      `created=${checkCreated.success} first scan kept etag=${taggedFirst?.etag ?? 'none'}/"t1" lastModified=${datedFirst?.lastModified ?? 'none'}, rescan sent bodies/304s [${checkSecond}] (want tagged 0/1, dated 0/1, plain 1/0), stamped tagged=${taggedSecond?.visited ?? '?'} dated=${datedSecond?.visited ?? '?'}, chunks ${taggedFirst?.chunks ?? '?'}→${taggedSecond?.chunks ?? '?'}`,
+    );
+
+    // A page that changed is sent and indexed again. And an HTML page of a
+    // server without validators — a new token in every response, the same
+    // text — is found unchanged by that text: the scan ends without a
+    // render session, which this harness could not open.
+    checkSite.set('/tagged.txt', {
+      body: checkPage('tagged', 'v2'),
+      etag: '"t2"',
+    });
+    const htmlText = htmlToText(checkHtml());
+    const htmlHash = computeContentHash(htmlText);
+    await pool`
+      INSERT INTO public_web.website_urls
+        (domain, url, status, discovered_at, listed, last_crawled_at,
+         word_count, content, content_hash, probe_hash_v2)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'active', NOW(), FALSE,
+              NOW() - INTERVAL '2 days', 20, ${htmlText}, ${htmlHash}, ${htmlHash})
+      ON CONFLICT (domain, url) DO NOTHING
+    `;
+    await pool`
+      INSERT INTO public_web.chunks
+        (domain, url, title, content_hash, chunk_index, chunk_content)
+      VALUES (${CHECK_DOMAIN}, ${checkUrl('/page.html')}, 'Check fixture', ${htmlHash}, 0, ${htmlText})
+      ON CONFLICT DO NOTHING
+    `;
+    // Migration 14 upgrades a legacy corpus and blocks old writers mid-roll.
+    // Run twice on real PostgreSQL, retaining a fresh v2 check on reapplication.
+    const { corpusMigrations } = await import('./core/knowledge/ddl.ts');
+    const strictMigration = corpusMigrations().find(
+      (migration) =>
+        migration.schema === 'public_web' && Number(migration.version) === 14,
+    );
+    if (strictMigration === undefined)
+      throw new Error('Missing strict change-check migration');
+    await pool.begin(async (tx) => {
+      await tx.unsafe(
+        'DROP TRIGGER invalidate_legacy_page_check ON public_web.website_urls',
+      );
+      await tx`
+        UPDATE public_web.website_urls
+           SET etag = '"legacy"', last_modified = 'Fri, 10 Jul 2026 09:11:16 GMT',
+               probe_hash = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      await tx.unsafe(strictMigration.sql);
+      const checks = async () =>
+        (
+          await tx<
+            {
+              etag: string | null;
+              last_modified: string | null;
+              probe_hash: string | null;
+              etag_v2: string | null;
+              last_modified_v2: string | null;
+              probe_hash_v2: string | null;
+            }[]
+          >`
+        SELECT etag, last_modified, probe_hash, etag_v2, last_modified_v2, probe_hash_v2
+          FROM public_web.website_urls
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `
+        )[0];
+      const empty = (row: Awaited<ReturnType<typeof checks>>) =>
+        row !== undefined &&
+        Object.values(row).every((value) => value === null);
+      record(
+        'websites strict checks: migration invalidates all legacy checks',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      const seedStrict = async () => {
+        await tx`
+          UPDATE public_web.website_urls
+             SET etag_v2 = '"strict"', last_modified_v2 = 'Fri, 10 Jul 2026 09:11:16 GMT',
+                 probe_hash_v2 = ${htmlHash}
+           WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+        `;
+      };
+      await seedStrict();
+      await tx.unsafe(strictMigration.sql);
+      const repeated = await checks();
+      record(
+        'websites strict checks: migration reapplication retains fresh v2 provenance',
+        repeated?.etag_v2 === '"strict"' &&
+          repeated.last_modified_v2 !== null &&
+          repeated.probe_hash_v2 === htmlHash,
+        'The second application must preserve all three v2 fields',
+      );
+      await tx`
+        UPDATE public_web.website_urls
+           SET etag = '"legacy"', last_modified = 'Fri, 10 Jul 2026 09:11:16 GMT', probe_hash = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: old writer cannot renew checks and invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      await seedStrict();
+      await tx`
+        UPDATE public_web.website_urls SET etag = NULL, last_modified = NULL, probe_hash = NULL
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: old writer null-to-null purge invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      await seedStrict();
+      await tx`
+        UPDATE public_web.website_urls SET content = content, content_hash = content_hash
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+      record(
+        'websites strict checks: any content write invalidates v2',
+        empty(await checks()),
+        'All six check fields must be null',
+      );
+      const inserted = await tx<
+        {
+          etag: string | null;
+          last_modified: string | null;
+          probe_hash: string | null;
+        }[]
+      >`
+        INSERT INTO public_web.website_urls (domain, url, etag, last_modified, probe_hash)
+        VALUES (${CHECK_DOMAIN}, ${checkUrl('/legacy-insert.txt')}, '"legacy"',
+                'Fri, 10 Jul 2026 09:11:16 GMT', ${htmlHash})
+        RETURNING etag, last_modified, probe_hash
+      `;
+      record(
+        'websites strict checks: old inserts cannot populate legacy checks',
+        inserted[0] !== undefined &&
+          Object.values(inserted[0]).every((value) => value === null),
+        'All three legacy fields must be null',
+      );
+      await tx`
+        DELETE FROM public_web.website_urls
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/legacy-insert.txt')}
+      `;
+      // Re-establish the fixture's complete-coverage check for the scan oracle.
+      await tx`
+        UPDATE public_web.website_urls SET etag_v2 = NULL, last_modified_v2 = NULL, probe_hash_v2 = ${htmlHash}
+         WHERE domain = ${CHECK_DOMAIN} AND url = ${checkUrl('/page.html')}
+      `;
+    });
+    checkSitemapRoutes.push('/page.html');
+    const checkThird = await checkRescan();
+    const taggedThird = await checkRow('/tagged.txt');
+    const htmlThird = await checkRow('/page.html');
+    const checkCorpus = await pool<{ status: string; error: string | null }[]>`
+      SELECT status, error FROM public_web.websites WHERE domain = ${CHECK_DOMAIN}
+    `;
+    record(
+      'websites change check: a changed page is downloaded and indexed again, and an HTML page whose text reads the same ends the scan without a browser',
+      checkThird ===
+        '/tagged.txt:1/0 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        taggedThird?.etag === '"t2"' &&
+        (taggedThird.text ?? '').includes('v2') &&
+        !(taggedThird.text ?? '').includes('v1') &&
+        htmlThird?.status === 'active' &&
+        htmlThird.visited &&
+        htmlThird.probeHash === htmlHash &&
+        htmlThird.chunks === '1' &&
+        checkCorpus[0]?.status === 'completed' &&
+        checkCorpus[0].error === null,
+      `rescan sent bodies/304s [${checkThird}] (want tagged 1/0, dated 0/1, plain 1/0, html 1/0), tagged etag=${taggedThird?.etag ?? 'none'}/"t2" reindexed=${(taggedThird?.text ?? '').includes('v2')}, html=${htmlThird?.status ?? 'MISSING'}/active stamped=${htmlThird?.visited ?? '?'} hashKept=${htmlThird?.probeHash === htmlHash} chunks=${htmlThird?.chunks ?? '?'}/1, scan=${checkCorpus[0]?.status ?? '?'}/completed error=${checkCorpus[0]?.error ?? 'null'}`,
+    );
+
+    // "Scan now" is the same scan, started by a person: it asks each page
+    // the same way and is answered the same way.
+    await pool`
+      UPDATE public_web.website_urls
+         SET last_crawled_at = now() - interval '2 days'
+       WHERE domain = ${CHECK_DOMAIN}
+    `;
+    const beforeScanNow = checkSnapshot();
+    const scanNow = z
+      .looseObject({ queued: z.boolean() })
+      .safeParse(await (await post(`/${checkId}/scan`, {})).json());
+    await drainCrawlJobs();
+    const checkScanNow = sentSince(beforeScanNow);
+    const htmlScanNow = await checkRow('/page.html');
+    record(
+      'websites change check: Scan now asks each page the same way as a scheduled scan',
+      scanNow.success &&
+        scanNow.data.queued &&
+        checkScanNow ===
+          '/tagged.txt:0/1 /dated.txt:0/1 /plain.txt:1/0 /page.html:1/0' &&
+        (htmlScanNow?.visited ?? false),
+      `scanNow queued=${scanNow.success ? scanNow.data.queued : 'BAD SHAPE'} sent bodies/304s [${checkScanNow}] (want tagged 0/1, dated 0/1, plain 1/0, html 1/0) htmlStamped=${htmlScanNow?.visited ?? '?'}`,
+    );
+    if (checkId !== '') {
+      await v1(`/websites/${checkId}`, { method: 'DELETE' });
     }
 
     // 4f. Round g, g4-5: a site whose every page failed is not "a successful
@@ -37143,10 +41458,13 @@ async function checkTaskAgentTurnDrive(
         }
         res.write(
           `event: result\ndata: ${JSON.stringify({
+            status: 'completed',
             exitCode: 0,
+            durationMs: 850,
             stdoutBase64: '',
             stderrBase64: '',
-          })}\n\n`,
+            truncated: { stdout: false, stderr: false },
+          } satisfies SessionExecResult)}\n\n`,
         );
         res.end();
         return;
@@ -37878,10 +42196,13 @@ async function checkAutomationAgentNode(
     }
     res.write(
       `event: result\ndata: ${JSON.stringify({
+        status: 'completed',
         exitCode: 0,
+        durationMs: 400,
         stdoutBase64: '',
         stderrBase64: '',
-      })}\n\n`,
+        truncated: { stdout: false, stderr: false },
+      } satisfies SessionExecResult)}\n\n`,
     );
     res.end();
   };
@@ -38236,7 +42557,7 @@ async function checkAutomationAgentNode(
     }
     const seamJobs = await sql<{ data: unknown }[]>`
       SELECT data FROM pgboss.job
-      WHERE name = 'automation.agent_drive'
+      WHERE name = ${physicalTaskQueue('automation.agent_drive')}
         AND data ->> 'execId' = 'wf-seam-probe-exec'
     `;
     const seamJob = objectAt(seamJobs[0]?.data, '');
@@ -38250,7 +42571,7 @@ async function checkAutomationAgentNode(
     );
     await sql`
       DELETE FROM pgboss.job
-      WHERE name = 'automation.agent_drive'
+      WHERE name = ${physicalTaskQueue('automation.agent_drive')}
         AND data ->> 'execId' = 'wf-seam-probe-exec'
     `;
 
@@ -38500,7 +42821,7 @@ async function checkAutomationAgentNode(
     `;
     const subAgentJobs = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name IN ('automation.agent_turn', 'automation.agent_drive')
+      WHERE name IN (${physicalTaskQueue('automation.agent_turn')}, ${physicalTaskQueue('automation.agent_drive')})
         AND data ->> 'runId' = ${subAgentRun.runId}
     `;
     record(
@@ -38671,7 +42992,14 @@ async function checkAutomationStepDestroyPending(
       );
     });
     res.write(
-      `event: result\ndata: ${JSON.stringify({ exitCode: 0, stdoutBase64: '', stderrBase64: '' })}\n\n`,
+      `event: result\ndata: ${JSON.stringify({
+        status: 'completed',
+        exitCode: 0,
+        durationMs: 200,
+        stdoutBase64: '',
+        stderrBase64: '',
+        truncated: { stdout: false, stderr: false },
+      } satisfies SessionExecResult)}\n\n`,
     );
     res.end();
   };
@@ -39183,10 +43511,13 @@ async function checkSandboxSettingsViews(
     INSERT INTO app.tasks (id, org_id, project_id, title, status, rank, created_by, created_by_type, created_at_ms, updated_at_ms)
     VALUES (${taskId}, ${orgId}, ${projectId}, 'Review source material', 'in_review', 'a0', ${userId}, 'user', ${now}, ${now})
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (id, org_id, project_id, name, version, status, mode, started_by, input, checkpoints, started_at_ms)
     VALUES (${runId}, ${orgId}, ${projectId}, 'Daily research', 1, 'success', 'live', ${userId}, ${sql.json({})}, ${sql.json({})}, ${now})
   `;
+  });
   for (const [id, type, owner] of [
     [sessionId, 'project_agent', agentId],
     [workflowSessionId, 'workflow_run', `${runId}:agent`],
@@ -39374,7 +43705,10 @@ async function checkSandboxSettingsViews(
   const fixtureSessionIds = [sessionId, workflowSessionId, busySessionId];
   await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fixtureSessionIds})`;
   await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${fixtureSessionIds})`;
-  await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+  });
   await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
   const remaining = await sql<{ ops: number; sessions: number }[]>`
     SELECT
@@ -39435,7 +43769,9 @@ async function checkAutomationRunToolLane(
   // and carries no result yet.
   const liveCursor = { cursor: { node: 'agent', agent: { execId: 'exec-1' } } };
   const now = Date.now();
-  const pinnedRun = await sql<{ id: string }[]>`
+  const pinnedRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, project_id, name, version, status, mode, started_by,
       input, checkpoints, started_at_ms
@@ -39445,7 +43781,10 @@ async function checkAutomationRunToolLane(
       ${now}
     ) RETURNING id
   `;
-  const orgRun = await sql<{ id: string }[]>`
+  });
+  const orgRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by,
       input, checkpoints, started_at_ms
@@ -39454,6 +43793,7 @@ async function checkAutomationRunToolLane(
       ${sql.json({})}, ${sql.json(toJson(liveCursor))}, ${now}
     ) RETURNING id
   `;
+  });
   const pinnedRunId = pinnedRun[0]?.id ?? '';
   const orgRunId = orgRun[0]?.id ?? '';
   // The org-level automation is bound to TWO projects — its runs act across
@@ -39478,6 +43818,8 @@ async function checkAutomationRunToolLane(
     'task_upsert_by_external_ref',
     'document_create',
     'document_find',
+    'knowledge_entry_find',
+    'knowledge_entry_write',
   ];
   // The step-scoped owner spelling (`${runId}:<suffix>`) is what the agent
   // host mints — the resolver must split it back to the run.
@@ -39796,7 +44138,9 @@ async function checkAutomationRunToolLane(
   // A TRULY org-level run (no bindings) writes the hub, or a project it
   // names — which must exist in this org: an unknown id is refused as
   // not_found rather than filed where no listing or retrieval reaches it.
-  const freeRun = await sql<{ id: string }[]>`
+  const freeRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by,
       input, checkpoints, started_at_ms
@@ -39805,6 +44149,7 @@ async function checkAutomationRunToolLane(
       ${sql.json({})}, ${sql.json(toJson(liveCursor))}, ${now}
     ) RETURNING id
   `;
+  });
   const freeToken = 'itest-vk-run-free';
   await seedSession('itest-run-free', freeRun[0]?.id ?? '', freeToken);
   const freeHub = await dispatch(freeToken, 'document_create', {
@@ -39888,6 +44233,123 @@ async function checkAutomationRunToolLane(
       orgScopeProjects.has(boundProjectId) &&
       orgScopeProjects.has(otherProjectId),
     `orgFind=${orgDocFind.status} (a=${orgDocFind.raw.includes('run-tools-bound-a.md')}, b=${orgDocFind.raw.includes('run-tools-bound-b.md')}, unboundLeak=${orgDocFind.raw.includes('run-tools-unbound-c.md')}), pinnedFind=${pinnedDocFind.status} (a=${pinnedDocFind.raw.includes('run-tools-bound-a.md')}, bLeak=${pinnedDocFind.raw.includes('run-tools-bound-b.md')}), scope=${orgKnowledgeScope.success ? [...orgScopeProjects].length : 'ERR'} project(s)`,
+  );
+
+  // knowledge_entry_write through the same door: an org-wide entry keyed by
+  // its topic, written as the run's automation with `source: agent`. The
+  // first save creates; the same text again writes nothing; a change that
+  // names no version, or a version replaced since, is refused with the
+  // current text; naming the version read writes a new one. The agents'
+  // find lists the entry by its content, with the version id a next save
+  // names.
+  const entryTopic = `Run tools hours ${randomUUID().slice(0, 8)}`;
+  const entryAnswer = z
+    .object({
+      status: z.literal('ok'),
+      output: z
+        .object({
+          outcome: z.string(),
+          versionId: z.string().optional(),
+          reason: z.string().optional(),
+          current: z
+            .object({ versionId: z.string(), content: z.string() })
+            .loose()
+            .nullable()
+            .optional(),
+        })
+        .loose(),
+    })
+    .loose();
+  const saveEntry = async (
+    content: string,
+    expectedVersionId?: string,
+  ): Promise<z.infer<typeof entryAnswer>['output'] | undefined> => {
+    const answer = await dispatch(pinnedToken, 'knowledge_entry_write', {
+      topic: entryTopic,
+      content,
+      ...(expectedVersionId !== undefined ? { expectedVersionId } : {}),
+    });
+    const parsed = entryAnswer.safeParse(JSON.parse(answer.raw));
+    return parsed.success ? parsed.data.output : undefined;
+  };
+  const entryCreated = await saveEntry('Mon–Fri 9–17');
+  const firstVersion = entryCreated?.versionId ?? '';
+  const entryRepeated = await saveEntry('Mon–Fri 9–17');
+  const entryBlind = await saveEntry('Mon–Fri 8–18');
+  const entryUpdated = await saveEntry('Mon–Fri 8–18', firstVersion);
+  const entryStale = await saveEntry('Mon–Fri 7–19', firstVersion);
+  const entryFound = await dispatch(pinnedToken, 'knowledge_entry_find', {
+    topic: 'Mon–Fri 8–18',
+  });
+  const entryListed = z
+    .object({
+      output: z
+        .object({
+          page: z.array(
+            z
+              .object({
+                id: z.string(),
+                topic: z.string(),
+                source: z.string(),
+                updatedAt: z.number(),
+              })
+              .loose(),
+          ),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(JSON.parse(entryFound.raw));
+  const listedEntry = entryListed.success
+    ? entryListed.data.output.page.find((entry) => entry.topic === entryTopic)
+    : undefined;
+  const entryRows = await sql<
+    { status: string; source: string; createdBy: string; content: string }[]
+  >`
+    SELECT status, source, created_by AS "createdBy", content
+    FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = ${entryTopic.toLowerCase()}
+      AND deleted_at_ms IS NULL
+    ORDER BY seq
+  `;
+  const entryAudits = await sql<{ action: string; actorId: string }[]>`
+    SELECT action, actor_id AS "actorId" FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'knowledge_entry'
+      AND resource_name = ${entryTopic}
+    ORDER BY ts
+  `;
+  const runActor = 'automation:itest-run-tools-pinned';
+  record(
+    'knowledge_entry_write through /api/tools/execute (create, repeat, refusals, new version, find)',
+    entryCreated?.outcome === 'created' &&
+      firstVersion !== '' &&
+      entryRepeated?.outcome === 'unchanged' &&
+      entryRepeated.versionId === firstVersion &&
+      entryBlind?.outcome === 'refused' &&
+      entryBlind.reason === 'version_required' &&
+      entryBlind.current?.versionId === firstVersion &&
+      entryBlind.current.content === 'Mon–Fri 9–17' &&
+      entryUpdated?.outcome === 'updated' &&
+      entryUpdated.versionId !== undefined &&
+      entryUpdated.versionId !== firstVersion &&
+      entryStale?.outcome === 'refused' &&
+      entryStale.reason === 'version_conflict' &&
+      entryStale.current?.versionId === entryUpdated.versionId &&
+      entryStale.current.content === 'Mon–Fri 8–18' &&
+      listedEntry?.id === entryUpdated.versionId &&
+      listedEntry.source === 'agent' &&
+      entryRows.length === 2 &&
+      entryRows.every(
+        (row) => row.source === 'agent' && row.createdBy === runActor,
+      ) &&
+      entryRows[0]?.status === 'superseded' &&
+      entryRows[1]?.status === 'active' &&
+      entryRows[1].content === 'Mon–Fri 8–18' &&
+      entryAudits.length === 2 &&
+      entryAudits[0]?.action === 'knowledge_entry.created' &&
+      entryAudits[1]?.action === 'knowledge_entry.updated' &&
+      entryAudits.every((row) => row.actorId === runActor),
+    `create=${entryCreated?.outcome}, repeat=${entryRepeated?.outcome}, blind=${entryBlind?.outcome}/${entryBlind?.reason}, update=${entryUpdated?.outcome}, stale=${entryStale?.outcome}/${entryStale?.reason}, find=${entryFound.status} (listed=${listedEntry?.id === entryUpdated?.versionId}, source=${listedEntry?.source}), rows=${entryRows.map((row) => `${row.status}:${row.source}`).join(',')}, audits=${entryAudits.map((row) => row.action).join(',')}`,
   );
 
   // Hand back the workflow session budget — the org's cap is small, and the
@@ -40578,7 +45040,9 @@ async function checkSandboxGatewayKeyReclaim(
     ];
     const attribSettled: string[] = [];
     for (const run of attribRuns) {
-      await sql`
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`
         INSERT INTO app.automation_runs (
           id, org_id, name, version, status, mode, started_by, api_key_id,
           checkpoints, started_at_ms, finished_at_ms
@@ -40588,6 +45052,7 @@ async function checkSandboxGatewayKeyReclaim(
           ${sql.json({ nodes: {}, executions: 0 })}, ${now}, ${now}
         )
       `;
+      });
       await seedSession(run.id, {
         expiresAt: now + 3_600_000,
         ownerType: 'workflow_run',
@@ -42215,7 +46680,9 @@ async function checkAnsweredAskRecovery(
     executions: {},
   });
   const mkRun = async (node: string, execId: string): Promise<string> => {
-    const rows = await sql<{ id: string }[]>`
+    const rows = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, checkpoints,
         started_at_ms
@@ -42224,6 +46691,7 @@ async function checkAnsweredAskRecovery(
         'itest:ask-recovery', ${sql.json(toJson(cursor(node, execId)))}, ${now}
       ) RETURNING id
     `;
+    });
     return rows[0]?.id ?? '';
   };
   const mkAsk = async (
@@ -42290,7 +46758,7 @@ async function checkAnsweredAskRecovery(
   const result = await recoverAnsweredAskResumes(sql, { staleMs: 60_000 });
   const resumeJobs = await sql<{ askId: string }[]>`
     SELECT data ->> 'askId' AS "askId" FROM pgboss.job
-    WHERE name = 'automation.ask_resume'
+    WHERE name = ${physicalTaskQueue('automation.ask_resume')}
   `;
   const enqueued = new Set(resumeJobs.map((job) => job.askId));
 
@@ -42305,10 +46773,13 @@ async function checkAnsweredAskRecovery(
     `examined=${result.examined}/1 requeued=${result.requeued}/1 lost=${enqueued.has(lostAsk)} moved=${!enqueued.has(movedAsk)} pending=${!enqueued.has(pendingAsk)} fresh=${!enqueued.has(freshAsk)}`,
   );
 
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled'
     WHERE org_id = ${orgId} AND started_by = 'itest:ask-recovery'
   `;
+  });
 }
 
 /**
@@ -42338,7 +46809,9 @@ async function checkAskAnswer(
     },
     executions: {},
   };
-  const runA = await sql<{ id: string }[]>`
+  const runA = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, checkpoints,
       started_at_ms
@@ -42347,6 +46820,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsA))}, ${now}
     ) RETURNING id
   `;
+  });
   const runAId = runA[0]?.id ?? '';
   await sql`
     INSERT INTO app.automation_human_asks (
@@ -42427,7 +46901,7 @@ async function checkAskAnswer(
   `;
   const resumeJobs = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
-    WHERE name = 'automation.ask_resume'
+    WHERE name = ${physicalTaskQueue('automation.ask_resume')}
       AND data ->> 'askId' = ${liveAskId}
   `;
   record(
@@ -42473,7 +46947,9 @@ async function checkAskAnswer(
     },
     executions: { seq: 3 },
   };
-  const runB = await sql<{ id: string }[]>`
+  const runB = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, checkpoints,
       started_at_ms
@@ -42482,6 +46958,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsB))}, ${now}
     ) RETURNING id
   `;
+  });
   const runBId = runB[0]?.id ?? '';
   const askB = await sql<{ id: string }[]>`
     INSERT INTO app.automation_human_asks (
@@ -42626,7 +47103,9 @@ async function checkAskAnswer(
       : (Object.entries(bellFixture).find(
           ([, fixtureId]) => fixtureId === id,
         )?.[0] ?? `stranger:${id}`);
-  const bellRun = await sql<{ id: string }[]>`
+  const bellRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, checkpoints,
       started_at_ms
@@ -42635,6 +47114,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsA))}, ${now}
     ) RETURNING id
   `;
+  });
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -42867,7 +47347,9 @@ async function checkAskAnswer(
     ) RETURNING id
   `;
   const askTaskId = askTask[0]?.id ?? '';
-  const boundRun = await sql<{ id: string }[]>`
+  const boundRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, project_id, input,
       checkpoints, started_at_ms
@@ -42878,6 +47360,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsA))}, ${now}
     ) RETURNING id
   `;
+  });
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -44240,6 +48723,7 @@ async function checkChatDeferredAuto(
 
   // ---- a live fake provider (catalog + streaming completions) -------------
   const AUTO_ANSWER = 'Deferred answer done.';
+  const capturedPrompts: string[] = [];
   const autoServer = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -44264,6 +48748,7 @@ async function checkChatDeferredAuto(
         return;
       }
       if (url.endsWith('/chat/completions')) {
+        capturedPrompts.push(body);
         res.setHeader('content-type', 'text/event-stream');
         const sse = (payload: unknown): string =>
           `data: ${JSON.stringify(payload)}\n\n`;
@@ -44477,6 +48962,209 @@ async function checkChatDeferredAuto(
         `${base}/api/app/connector-credentials/${connectorCredential.data.credentialId}?orgId=${orgId}`,
         { method: 'DELETE', headers: { cookie, origin: base } },
       );
+    }
+
+    // Real-PG attachment boundary: deny new parks, sanitize already-parked
+    // failures, and rebuild legacy poisoned history under the CURRENT reader.
+    const { pollDeferredSend } =
+      await import('./domains/chat/deferred-sends.ts');
+    const { runChatTurn } = await import('./domains/chat/service.ts');
+    const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+    const { userTurnParts } = await import('../lib/chat/turn.ts');
+    const { toJson } = await import('./db/sql.ts');
+    const foreignOrg = randomUUID();
+    const foreignUser = randomUUID();
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${foreignOrg}, 'Attachment boundary tenant', ${`boundary-${foreignOrg}`}, now())
+    `;
+    await sql`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${foreignUser}, ${`boundary-${foreignUser}@door.test`}, 'Attachment owner', true, now(), now())
+    `;
+    const boundaryThreads: string[] = [];
+    try {
+      for (const fileOrg of [orgId, foreignOrg]) {
+        const sentinel = `PRIVATE_TRANSCRIPT_${randomUUID()}`;
+        const ref = `s3:boundary-${randomUUID()}`;
+        const attachments = [
+          {
+            fileId: ref,
+            fileName: 'private.wav',
+            fileType: 'audio/wav',
+            fileSize: 10,
+          },
+        ];
+        await sql`
+          INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+            uploaded_by, transcript, transcription_status, created_at_ms)
+          VALUES (${fileOrg}, ${ref}, 'private.wav', 'audio/wav', 10,
+            ${foreignUser}, ${sentinel}, 'completed', ${Date.now()})
+        `;
+        const created = z.object({ id: z.string() }).parse(
+          await (
+            await post(`/api/app/chat/threads?orgId=${orgId}`, {
+              title: 'Attachment boundary',
+            })
+          ).json(),
+        );
+        const threadId = created.id;
+        boundaryThreads.push(threadId);
+        const startPrompt = capturedPrompts.length;
+        const park = await post(
+          `/api/app/chat/threads/${threadId}/deferred-sends?orgId=${orgId}`,
+          {
+            text: 'Summarize',
+            modelId: 'auto-pick-model',
+            attachments,
+          },
+        );
+        const unexpectedParks = await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.deferred_sends WHERE thread_id = ${threadId}
+        `;
+        record(
+          'attachment boundary: unreadable audio is refused at parking',
+          park.status === 400 && unexpectedParks[0]?.count === '0',
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} status=${park.status} rows=${unexpectedParks[0]?.count}`,
+        );
+        // Remove only this fixture's unexpected park on the baseline so the
+        // worker cannot race the deliberate legacy row below.
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        const legacy = await sql<{ id: string }[]>`
+          INSERT INTO app.deferred_sends (org_id, user_id, thread_id, user_text,
+            attachments, model_id, status, created_at_ms, waiting_since_ms)
+          VALUES (${orgId}, ${userId}, ${threadId}, 'Legacy parked send',
+            ${sql.json(toJson(attachments))}, 'auto-pick-model', 'waiting', ${Date.now()}, ${Date.now()})
+          RETURNING id
+        `;
+        await pollDeferredSend(sql, legacy[0]?.id ?? '');
+        const trace = await sql<{ parts: unknown }[]>`
+          SELECT parts FROM app.messages WHERE thread_id = ${threadId} AND role = 'user'
+        `;
+        record(
+          'attachment boundary: refused legacy park leaves no attachment parts',
+          trace.length === 1 && !JSON.stringify(trace).includes(ref),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} userRows=${trace.length} containsRef=${JSON.stringify(trace).includes(ref)}`,
+        );
+        const metaQuery =
+          chatShimHandlers(sql)[
+            'file_metadata/internal_queries:getByStorageId'
+          ];
+        if (!metaQuery) throw new Error('metadata handler missing');
+        record(
+          'attachment boundary: metadata refuses an unreadable transcript',
+          (await metaQuery({
+            organizationId: orgId,
+            userId,
+            storageId: ref,
+          })) === null,
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'}`,
+        );
+        const next = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Next turn',
+        });
+        // Existing persisted poison must also be harmless, independently of
+        // the new trace fix. The last row is a user row for regenerate.
+        await appendMessageRow(sql, {
+          organizationId: orgId,
+          threadId,
+          role: 'user',
+          parts: userTurnParts('Legacy attachment', attachments),
+          text: 'Legacy attachment',
+        });
+        const regenerated = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: '',
+          resend: true,
+        });
+        const later = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Read prior history',
+        });
+        const prompts = capturedPrompts.slice(startPrompt);
+        record(
+          'attachment boundary: next turn, regenerate and legacy history never expose foreign audio',
+          next.status === 'completed' &&
+            regenerated.status === 'completed' &&
+            later.status === 'completed' &&
+            prompts.length >= 3 &&
+            prompts.every(
+              (prompt) => !prompt.includes(sentinel) && !prompt.includes(ref),
+            ),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} outcomes=${next.status},${regenerated.status},${later.status} calls=${prompts.length} leaked=${prompts.some((prompt) => prompt.includes(sentinel))}`,
+        );
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ref}`;
+      }
+      const ownRef = `s3:boundary-own-${randomUUID()}`;
+      const ownSentinel = `OWN_TRANSCRIPT_${randomUUID()}`;
+      const ownThread = z.object({ id: z.string() }).parse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: 'Readable audio control',
+          })
+        ).json(),
+      );
+      boundaryThreads.push(ownThread.id);
+      await sql`
+        INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+          uploaded_by, transcript, transcription_status, created_at_ms)
+        VALUES (${orgId}, ${ownRef}, 'own.wav', 'audio/wav', 10,
+          ${userId}, ${ownSentinel}, 'completed', ${Date.now()})
+      `;
+      try {
+        const beforeOwn = capturedPrompts.length;
+        const ownOutcome = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId: ownThread.id,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Summarize my audio',
+          attachments: [
+            {
+              fileId: ownRef,
+              fileName: 'own.wav',
+              fileType: 'audio/wav',
+              fileSize: 10,
+            },
+          ],
+        });
+        record(
+          'attachment boundary: own completed audio still reaches the model',
+          ownOutcome.status === 'completed' &&
+            capturedPrompts
+              .slice(beforeOwn)
+              .some((prompt) => prompt.includes(ownSentinel)),
+          `outcome=${ownOutcome.status} calls=${capturedPrompts.length - beforeOwn}`,
+        );
+      } finally {
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ownRef}`;
+      }
+    } finally {
+      for (const threadId of boundaryThreads) {
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.generations WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+      }
+      await sql`DELETE FROM app.file_metadata WHERE uploaded_by = ${foreignUser}`;
+      await sql`DELETE FROM "user" WHERE "id" = ${foreignUser}`;
+      await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrg}`;
     }
 
     // ---- deferred sends ---------------------------------------------------
@@ -45266,16 +49954,25 @@ async function checkTurnEquipmentBroker(
     `created=${created.success}, GITHUB_TOKEN=${env.GITHUB_TOKEN === token}, GH_TOKEN=${env.GH_TOKEN === token}, gitConfig=${env.GIT_CONFIG_COUNT ?? 'unset'} (want 3), helper=${helperPair?.[1] ?? 'missing'}, audit=${audit.map((row) => `${row.slug}:${row.kind}`).join(',') || 'none'}`,
   );
 
-  // An UNGRANTED turn does no credential work and injects nothing.
+  // An ungranted turn resolves the same owner's non-secret author identity,
+  // without fetching a connector token or recording credential access.
   const emptyEnv = await resolveTurnEquipmentEnv(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the work-lane jobs run the resolver on exactly this shim
     shim as unknown as Parameters<typeof resolveTurnEquipmentEnv>[0],
     { organizationId: orgId, sessionId, connectors: [], secrets: [] },
   );
   record(
-    'turn-equipment broker: no grants → empty env',
-    Object.keys(emptyEnv).length === 0,
-    `env keys=${Object.keys(emptyEnv).join(',') || 'none'}`,
+    'turn-equipment broker: no grants → owner identity only, no new credential access',
+    emptyEnv.GIT_CONFIG_COUNT === '2' &&
+      emptyEnv.GIT_CONFIG_KEY_0 === 'user.name' &&
+      emptyEnv.GIT_CONFIG_VALUE_0 === env.GIT_CONFIG_VALUE_1 &&
+      emptyEnv.GIT_CONFIG_KEY_1 === 'user.email' &&
+      emptyEnv.GIT_CONFIG_VALUE_1 === env.GIT_CONFIG_VALUE_2 &&
+      emptyEnv.GITHUB_TOKEN === undefined &&
+      (
+        await sql`SELECT 1 FROM app.sandbox_credential_access WHERE session_id = ${sessionId}`
+      ).length === audit.length,
+    `identity pairs=${emptyEnv.GIT_CONFIG_COUNT ?? 'unset'}, token present=${emptyEnv.GITHUB_TOKEN !== undefined}`,
   );
 
   // Leave no connected github credential behind — later checks read the
@@ -46720,7 +51417,9 @@ async function checkRetention(
   `;
 
   // Three aged automation runs: only the TERMINAL one may be swept.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms,
       finished_at_ms
@@ -46732,6 +51431,7 @@ async function checkRetention(
       (${orgId}, 'rt-wf-running', 1, 'running', 'live', 'trigger:itest',
        ${ancient}, NULL)
   `;
+  });
 
   // Phase-2 seeds: an ancient document, an ancient chat thread (with a
   // message), an ancient settled agent run, ancient audit rows (the chain's
@@ -47317,12 +52017,15 @@ async function checkErasure(
               ${sql.json({ email: `${subject}@example.com`, ip: '203.0.113.9' })},
               ${subject}, ${now})
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms
     ) VALUES (${orgId}, 'erasure-fixture', 1, 'success', 'live',
               ${`user:${subject}`}, ${now})
   `;
+  });
   await sql`
     INSERT INTO app.approvals (
       org_id, resource_type, resource_id, status, approved_by, metadata,
@@ -51499,7 +56202,9 @@ async function checkMetricsSurface(
   // ---- the run dialog's execution log ---------------------------------
   const { sessionIdForWorkflowExecution } =
     await import('./core/sandbox/session_naming.ts');
-  const logRun = await sql<{ id: string }[]>`
+  const logRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms
     ) VALUES (
@@ -51507,6 +56212,7 @@ async function checkMetricsSurface(
       ${Date.now()}
     ) RETURNING id
   `;
+  });
   const logRunId = logRun[0]?.id ?? '';
   const logSessionId = sessionIdForWorkflowExecution(logRunId);
   await sql`
@@ -52003,6 +56709,121 @@ async function checkArena(
     'feedback: the vote lane still upserts after the arena split',
     voteRows.length === 1 && voteRows[0]?.rating === 'negative',
     `rows=${voteRows.length} rating=${voteRows[0]?.rating}`,
+  );
+
+  // ---- a comparison started in a new chat is named once ------------------
+  // Its first message lands in both columns while both are untitled: only
+  // the visible column queues a title, and that title names the visible
+  // column alone. A hidden column that wins takes its partner's name as it
+  // stands then — a rename included — and one that wins while its partner's
+  // title is still being made is named from its own first message.
+  const { setThreadTitleIfAbsent } = await import('./domains/chat/threads.ts');
+  const newPair = async (): Promise<{ a: string; b: string }> => {
+    const thread = z
+      .object({ id: z.string() })
+      .safeParse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, { kind: 'direct' })
+        ).json(),
+      );
+    const a = thread.success ? thread.data.id : '';
+    const pair = z
+      .object({ threadIdB: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${a}/arena/ensure?orgId=${orgId}`,
+            {},
+          )
+        ).json(),
+      );
+    return { a, b: pair.success ? pair.data.threadIdB : '' };
+  };
+  const titleOf = async (threadId: string): Promise<string | null> =>
+    (
+      await sql<{ title: string | null }[]>`
+        SELECT title FROM app.threads WHERE id = ${threadId}
+      `
+    )[0]?.title ?? null;
+  const titleJobsFor = async (threadIds: string[]): Promise<string[]> =>
+    (
+      await sql<{ threadId: string }[]>`
+        SELECT data ->> 'threadId' AS "threadId" FROM pgboss.job
+        WHERE name = 'chat.generate_title'
+          AND data ->> 'threadId' = ANY(${threadIds})
+      `
+    ).map((job) => job.threadId);
+  const openWith = async (pair: { a: string; b: string }): Promise<void> => {
+    for (const threadId of [pair.a, pair.b]) {
+      await appendMessageRow(sql, {
+        organizationId: orgId,
+        threadId,
+        role: 'user',
+        parts: [{ type: 'text', text: 'Plan the launch' }],
+        text: 'Plan the launch',
+        status: 'complete',
+      });
+    }
+  };
+  const settleForB = async (pair: { a: string; b: string }) =>
+    z
+      .object({ continueThreadId: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${pair.a}/arena/settle?orgId=${orgId}`,
+            { verdict: 'b_better' },
+          )
+        ).json(),
+      );
+
+  const named = await newPair();
+  await openWith(named);
+  const titleJobs = await titleJobsFor([named.a, named.b]);
+  await setThreadTitleIfAbsent(sql, orgId, named.a, 'Launch plan');
+  const namedTitles = [await titleOf(named.a), await titleOf(named.b)];
+
+  const renamed = await newPair();
+  await sql`
+    UPDATE app.threads SET title = 'Renamed launch' WHERE id = ${renamed.a}
+  `;
+  await seedArenaRoundReplies(sql, orgId, renamed.a, renamed.b);
+  const wonByB = await settleForB(renamed);
+  const winnerTitle = await titleOf(renamed.b);
+
+  // B wins before A's title is written: B queues its own, and A's title,
+  // landing late, names A alone.
+  const early = await newPair();
+  await openWith(early);
+  // A's title still being made: its job not run, A untitled.
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'chat.generate_title' AND data ->> 'threadId' = ${early.a}
+  `;
+  await sql`UPDATE app.threads SET title = NULL WHERE id = ${early.a}`;
+  await seedArenaRoundReplies(sql, orgId, early.a, early.b);
+  const wonEarly = await settleForB(early);
+  const earlyJobs = await titleJobsFor([early.b]);
+  await setThreadTitleIfAbsent(sql, orgId, early.a, 'Late title');
+  const earlyWinnerTitle = await titleOf(early.b);
+  record(
+    'arena: a comparison in a new chat queues one title, for its visible column; a winning hidden column takes its partner’s name, or queues its own while that is not written yet',
+    named.a !== '' &&
+      named.b !== '' &&
+      titleJobs.length === 1 &&
+      titleJobs[0] === named.a &&
+      namedTitles[0] !== null &&
+      namedTitles[1] === null &&
+      wonByB.success &&
+      wonByB.data.continueThreadId === renamed.b &&
+      winnerTitle === 'Renamed launch' &&
+      wonEarly.success &&
+      wonEarly.data.continueThreadId === early.b &&
+      // Its own title is queued, or already written by the time we look.
+      (earlyJobs.length === 1 ||
+        (earlyWinnerTitle !== null && earlyWinnerTitle !== 'Late title')) &&
+      earlyWinnerTitle !== 'Late title',
+    `title jobs=${JSON.stringify(titleJobs.map((id) => (id === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want the visible column's, the hidden untitled), renamed pair's winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch"), early winner's title jobs=${earlyJobs.length} and title after A's late one=${JSON.stringify(earlyWinnerTitle)} (want its own title queued or written, never "Late title")`,
   );
 }
 
@@ -55700,6 +60521,9 @@ async function checkWatchdogs(
        'itest:wd', ${now}, ${now + 24 * 3_600_000})
   `;
   const sandboxWatchdogs = await import('./domains/sandbox/watchdogs.ts');
+  const { checkSandboxWatchdogVisits } =
+    await import('./domains/sandbox/watchdog-visits.integration.ts');
+  await checkSandboxWatchdogVisits(sql, ctx, record);
   await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
   const ttlRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
@@ -55836,7 +60660,9 @@ async function checkWatchdogs(
     name: string,
     status: 'success' | 'running' | 'cancelled',
   ): Promise<string> => {
-    const rows = await sql<{ id: string }[]>`
+    const rows = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input,
         started_at_ms, finished_at_ms
@@ -55846,6 +60672,7 @@ async function checkWatchdogs(
         ${status === 'running' ? null : now - 3_600_000}
       ) RETURNING id
     `;
+    });
     return rows[0]?.id ?? '';
   };
   const endedRunId = await wdRun('itest-wd-ended', 'success');
@@ -55894,6 +60721,8 @@ async function checkWatchdogs(
           : { destroyed: false, busy: true },
       );
     },
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: true }),
   };
   const tick1 = await sandboxWatchdogs.runSandboxWatchdog(sql, {
     reconcileBatch: 2,
@@ -55951,6 +60780,69 @@ async function checkWatchdogs(
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
 
+  // Historical stopped rows can outnumber compute-holding rows by orders of
+  // magnitude. Their independent quota must leave active health checks room,
+  // while both least-recently-visited walks advance on the next tick.
+  const prior = await sql<{ oldest: number }[]>`
+    SELECT coalesce(min(created_at_ms), ${now})::float8 AS oldest
+    FROM app.sandbox_sessions
+  `;
+  const quotaAncient = (prior[0]?.oldest ?? now) - 1_000;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    )
+    SELECT ${orgId}, 'wd-quota-cold-' || n, 'stopped', 'project',
+      'wd-quota-cold-' || n, 'itest:wd', ${quotaAncient}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 30) n
+    UNION ALL
+    SELECT ${orgId}, 'wd-quota-active-' || n, 'active', 'project',
+      'wd-quota-active-' || n, 'itest:wd', ${quotaAncient + 100}::bigint + n,
+      ${now + 24 * 3_600_000}::bigint
+    FROM generate_series(1, 21) n
+  `;
+  const quotaProbed: string[] = [];
+  const quotaSpawner = {
+    ...scriptedSpawner,
+    observe: (sessionId: string) => {
+      quotaProbed.push(sessionId);
+      return Promise.resolve(
+        sessionId.startsWith('wd-quota-cold-') ? null : { pinned: false },
+      );
+    },
+  };
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaFirst = [...quotaProbed];
+  quotaProbed.length = 0;
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { spawner: quotaSpawner });
+  const quotaCold = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-cold-'),
+    ),
+  );
+  const quotaActive = new Set(
+    [...quotaFirst, ...quotaProbed].filter((id) =>
+      id.startsWith('wd-quota-active-'),
+    ),
+  );
+  const retainedCold = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id LIKE 'wd-quota-cold-%'
+      AND status = 'stopped' AND destroyed_at_ms IS NULL
+  `;
+  record(
+    'sandbox watchdog reserves active health capacity and independently rotates historical pin probes without retiring absent workspaces',
+    quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length ===
+      20 &&
+      quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length === 5 &&
+      quotaActive.size === 21 &&
+      quotaCold.size === 10 &&
+      retainedCold[0]?.count === 30,
+    `first active=${quotaFirst.filter((id) => id.startsWith('wd-quota-active-')).length}/20 cold=${quotaFirst.filter((id) => id.startsWith('wd-quota-cold-')).length}/5; rotated active=${quotaActive.size}/21 cold=${quotaCold.size}/10; retained=${retainedCold[0]?.count}/30`,
+  );
+
   // Lane 3d: the render sessions of cut-off scan links. A link destroys its
   // render session when its batch ends; one cut off mid-batch (a restart, a
   // deploy, a crash) left the row compute-holding and the container running,
@@ -56000,6 +60892,8 @@ async function checkWatchdogs(
             : { destroyed: true, busy: false },
         );
       },
+      stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+        Promise.resolve({ stopped: false, busy: true }),
     },
   });
   const releaseRows = await sql<
@@ -56092,6 +60986,8 @@ async function checkWatchdogs(
     },
     destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
       Promise.resolve({ destroyed: false, busy: false }),
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: false }),
   };
   const orgLaneRows = [
     'wd-org-phantom',
@@ -56172,12 +61068,13 @@ async function checkWatchdogs(
   `;
 
   // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
-  // session is still live is destroyed and stamped by primary key, keeping
-  // `failed`; a failed row whose deterministic id a newer, hibernated
-  // incarnation carries is stamped WITHOUT a spawner call, and that
-  // incarnation's row and token stay untouched; a busy session and a failure
-  // inside the grace wait. The scripted spawner answers busy for every
-  // session outside this lane, so rows other lanes left are not disturbed.
+  // session is still live is removed (an agent session's compute alone, its
+  // workspace kept) and stamped by primary key, keeping `failed`; a failed
+  // row whose deterministic id a newer, hibernated incarnation carries is
+  // stamped WITHOUT a spawner call, and that incarnation's row and token
+  // stay untouched; a busy session and a failure inside the grace wait. The
+  // scripted spawner answers busy for every session outside this lane, so
+  // rows other lanes left are not disturbed.
   const collectAt = now - 2 * 3_600_000;
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -56211,6 +61108,17 @@ async function checkWatchdogs(
     )
   `;
   const collectAsked: string[] = [];
+  // These lanes' failed rows are automation runs' agent sessions, whose
+  // leftovers lose their compute alone (`stopIfIdle`); a render's would be
+  // destroyed whole. Both answer the same script.
+  const collectAnswer = (
+    sessionId: string,
+  ): { removed: boolean; busy: boolean } => {
+    collectAsked.push(sessionId);
+    return sessionId === 'wd-collect-live'
+      ? { removed: true, busy: false }
+      : { removed: false, busy: true };
+  };
   const collectSpawner = {
     isAlive: (): Promise<boolean> => Promise.resolve(true),
     setPinned: (): Promise<boolean> => Promise.resolve(true),
@@ -56218,12 +61126,14 @@ async function checkWatchdogs(
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
-      collectAsked.push(sessionId);
-      return Promise.resolve(
-        sessionId === 'wd-collect-live'
-          ? { destroyed: true, busy: false }
-          : { destroyed: false, busy: true },
-      );
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ destroyed: removed, busy });
+    },
+    stopIfIdle: (
+      sessionId: string,
+    ): Promise<{ stopped: boolean; busy: boolean }> => {
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ stopped: removed, busy });
     },
   };
   const readCollectRows = () => sql<
@@ -56359,6 +61269,12 @@ async function checkWatchdogs(
         refusedAsked.push(sessionId);
         return Promise.resolve({ destroyed: false, busy: true });
       },
+      stopIfIdle: (
+        sessionId: string,
+      ): Promise<{ stopped: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ stopped: false, busy: true });
+      },
     },
   });
   const refusedAfter = await sql<
@@ -56381,7 +61297,11 @@ async function checkWatchdogs(
 
   // What waiting for room leaves behind goes: the op rows of refused starts
   // an hour after they ended — the session's newest kept, the run view
-  // reads it — and failed session rows a day after they were collected.
+  // reads it — and failed session rows a day after they were collected,
+  // except the newest row of a project agent's id: a collected failed
+  // create of an agent session keeps its workspace, and that row is what
+  // the unused, member and agent cleanup find it by. A first create that
+  // failed leaves such a row alone; an automation run's goes all the same.
   const waitSession = `wf-wd-wait-${randomUUID()}`;
   const hourAgo = now - 2 * 60 * 60 * 1000;
   for (const [execId, startedAt] of [
@@ -56410,16 +61330,27 @@ async function checkWatchdogs(
     )
   `;
   const day = 24 * 60 * 60 * 1000;
-  const collectedRows = await sql<{ id: string; old: boolean }[]>`
+  const collectedRows = await sql<{ id: string; label: string }[]>`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms, destroyed_at_ms
     ) VALUES
       (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 180_000}, ${now}, ${now - day - 150_000}),
+      (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
+      (${orgId}, 'pa-wd-collected-lone', 'failed', 'project_agent',
+       'agent-wd', 'itest', ${now - day - 120_000}, ${now},
+       ${now - day - 60_000}),
+      (${orgId}, 'wf-wd-collected-lone', 'failed', 'workflow_run', 'run-wd',
        'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
       (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
        'itest', ${now - 120_000}, ${now}, ${now - 60_000})
-    RETURNING id, destroyed_at_ms < ${now - day} AS old
+    RETURNING id,
+      session_id || CASE
+        WHEN session_id = 'pa-wd-collected-old'
+          AND created_at_ms = ${now - day - 180_000}
+        THEN ':older' ELSE '' END AS label
   `;
   const { sweepRoomWaitLeftovers } =
     await import('./domains/sandbox/wait-retention.ts');
@@ -56430,17 +61361,25 @@ async function checkWatchdogs(
       WHERE session_id = ${waitSession} ORDER BY started_at_ms
     `
   ).map((row) => row.execId);
-  const collectedLeft = await sql<{ id: string }[]>`
-    SELECT id FROM app.sandbox_sessions
-    WHERE id = ANY(${collectedRows.map((row) => row.id)})
-  `;
-  const keptRecent = collectedRows.find((row) => !row.old)?.id;
+  const collectedLeft = new Set(
+    (
+      await sql<{ id: string }[]>`
+        SELECT id FROM app.sandbox_sessions
+        WHERE id = ANY(${collectedRows.map((row) => row.id)})
+      `
+    ).map((row) => row.id),
+  );
+  const collectedKept = collectedRows
+    .filter((row) => collectedLeft.has(row.id))
+    .map((row) => row.label)
+    .sort()
+    .join(',');
+  const wantKept =
+    'pa-wd-collected-lone,pa-wd-collected-new,pa-wd-collected-old';
   record(
-    'what waiting for room leaves behind is deleted past its retention, the newest op and a keyed one kept',
-    waitOpsLeft.join(',') === 'wait-keyed,wait-3' &&
-      collectedLeft.length === 1 &&
-      collectedLeft[0]?.id === keptRecent,
-    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions=${collectedLeft.length}/1 recent kept=${String(collectedLeft[0]?.id === keptRecent)}`,
+    "what waiting for room leaves behind is deleted past its retention, the newest op, a keyed one and a project agent's newest row kept",
+    waitOpsLeft.join(',') === 'wait-keyed,wait-3' && collectedKept === wantKept,
+    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions kept=${collectedKept} (want ${wantKept})`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
@@ -58353,6 +63292,26 @@ async function checkOrganizationLifecycle(
     `settled=${staleCleanupSettled} dirB=${await exists(dirB)}`,
   );
 
+  // Keys an Owner made for others in A — the organization's own, and one
+  // for the plain member — leave with it; the member's account stays.
+  const mintInA = async (keyOwner: Record<string, string>): Promise<string> => {
+    const response = await post(
+      owner.cookie,
+      `/api/app/api-keys?orgId=${orgA}`,
+      { name: `Life ${keyOwner.kind ?? ''}`, owner: keyOwner },
+    );
+    const parsed = z
+      .object({ id: z.string() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? parsed.data.id : '';
+  };
+  const orgKeyA = await mintInA({ kind: 'organization', role: 'member' });
+  const memberKeyA = await mintInA({ kind: 'member', userId: plain.userId });
+  const identityA = await sql<{ id: string }[]>`
+    SELECT key_user_id AS id FROM app.api_key_owners
+    WHERE api_key_id IN (${orgKeyA}, ${memberKeyA})
+  `;
+
   // The committed delete: rows, audit, cascade, pointers, config tree.
   const deleted = await post(
     owner.cookie,
@@ -58377,6 +63336,27 @@ async function checkOrganizationLifecycle(
     SELECT count(*)::text AS count FROM "session"
     WHERE "activeOrganizationId" = ${orgA}
   `);
+  const boundKeysLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "apikey"
+    WHERE "id" IN (${orgKeyA}, ${memberKeyA})
+  `);
+  const keyIdentitiesLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user"
+    WHERE "id" = ANY(${identityA.map((row) => row.id)})
+  `);
+  const plainAccountLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user" WHERE "id" = ${plain.userId}
+  `);
+  record(
+    'org delete removes the keys made for others there, and the identities they authenticated as, not the member',
+    orgKeyA !== '' &&
+      memberKeyA !== '' &&
+      identityA.length === 2 &&
+      boundKeysLeft === 0 &&
+      keyIdentitiesLeft === 0 &&
+      plainAccountLeft === 1,
+    `minted=${orgKeyA !== ''}/${memberKeyA !== ''} keysLeft=${boundKeysLeft} identitiesLeft=${keyIdentitiesLeft} memberAccount=${plainAccountLeft}`,
+  );
   record(
     'org delete commits as one teardown: rows, audit, cascade, config tree',
     deleted.ok &&
@@ -59020,6 +64000,23 @@ async function main(): Promise<void> {
     `default=${teamDefault[0]?.def ?? 'NONE'} (want 0), insert=${rawTeamInsert} (want landed), memberCount=${String(teamCount[0]?.memberCount)} (want 0)`,
   );
 
+  // 1a'. Sign-in, the member and user doors and the owner checks all match
+  //      `lower("email")`, which Better Auth's raw-column unique index
+  //      cannot serve. `indexUserEmailLower` in `db/migrate.ts` builds an
+  //      expression index at boot (concurrently, rebuilt when a crashed
+  //      build left it invalid); this proves it exists and is usable.
+  const emailIndex = await sql<{ valid: boolean; def: string }[]>`
+    SELECT i.indisvalid AS valid, pg_get_indexdef(i.indexrelid) AS def
+    FROM pg_index i
+    WHERE i.indexrelid = to_regclass('"user_email_lower_idx"')
+  `;
+  record(
+    'sign-in finds users through a valid index on lower(email)',
+    (emailIndex[0]?.valid ?? false) &&
+      /lower\(\(?email/i.test(emailIndex[0]?.def ?? ''),
+    `index=${emailIndex[0] === undefined ? 'MISSING' : `${emailIndex[0].valid ? 'valid' : 'INVALID'} ${emailIndex[0].def}`}`,
+  );
+
   // 1b. The boot backfill: accounts this deployment provisioned before a
   //     provisioned account counted as a verified one are caught up, and a
   //     directory-provisioned account (no credential row) keeps its
@@ -59112,6 +64109,11 @@ async function main(): Promise<void> {
     await checkSerializableRetry(sql);
     await checkAuditChainConcurrentAppenders(sql);
     await checkTransactionalEnqueue(sql);
+    await checkLegacyAutomationProtocol(databaseUrl, record);
+    await checkLegacyAgentFlow(databaseUrl, record);
+    await checkAutomationProtocolFloor(databaseUrl, record);
+    await checkAutomationProtocolQueues(databaseUrl, boss, record);
+    await checkAutomationProtocolReadback(sql, boss, record);
     await checkPickupLatency(sql, boss);
 
     const orgSuffix = String(Date.now() % 100_000);
@@ -59321,6 +64323,40 @@ async function main(): Promise<void> {
         'checkKnowledgeEntries',
         () => checkKnowledgeEntries(sql, baseUrl, authCtx),
       ],
+      [
+        'checkKnowledgeEntryWriteRaces',
+        async () => {
+          const { resolveObjectStore, s3GetObjectBytes } =
+            await import('./lib/object-store.ts');
+          const store = await resolveObjectStore(`itest-${orgSuffix}`);
+          const writer = {
+            organizationId: authCtx.orgId,
+            userId: authCtx.userId,
+            role: 'owner',
+          };
+          const readBlob = async (ref: string): Promise<string> =>
+            new TextDecoder().decode(
+              await s3GetObjectBytes(store, ref.slice(3)),
+            );
+          await checkConcurrentEntryCreation(sql, writer);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob);
+          await checkConcurrentEntryUpdates(sql, writer, readBlob, true);
+          await checkConcurrentEntryRenameAndCreate(sql, writer);
+          record(
+            'knowledge entries: concurrent creates, corrections and renames',
+            true,
+            'real transaction interleavings; one winner, normal 409, coherent history and backing bytes',
+          );
+          await checkConcurrentAgentCreates(sql, writer);
+          await checkConcurrentAgentAndPersonEdits(sql, writer);
+          await checkAgentWriteBudget(sql, writer);
+          record(
+            'knowledge entries: agent writes race agents and people, on a budget of their own',
+            true,
+            'two agents on one new topic: one creates, the other is refused with its text; agent vs person either order: the second is refused; a spent agent budget writes nothing and leaves people’s untouched',
+          );
+        },
+      ],
       ['checkCollabEmitters', () => checkCollabEmitters(sql, baseUrl, authCtx)],
       ['checkBellHintWire', () => checkBellHintWire(sql, baseUrl, authCtx)],
       [
@@ -59401,6 +64437,57 @@ async function main(): Promise<void> {
         () => checkTwoFactor(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       [
+        'checkPasswordConfirmationThrottle',
+        async () =>
+          checkPasswordConfirmationThrottle(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'confirm',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
+        'checkStaleSessionReauthentication',
+        async () =>
+          checkStaleSessionReauthentication(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'reauth',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
+        'checkSessionTrustFieldsAreServerOnly',
+        async () =>
+          checkSessionTrustFieldsAreServerOnly(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'trust-fields',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
         'checkChatDeferredAuto',
         () =>
           checkChatDeferredAuto(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
@@ -59439,8 +64526,16 @@ async function main(): Promise<void> {
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
       [
+        'checkManagedAutomationConfiguration',
+        () => checkManagedAutomationConfiguration(sql, authCtx, record),
+      ],
+      [
         'checkTriggerPauseAfterFailures',
         () => checkTriggerPauseAfterFailures(sql, authCtx, record),
+      ],
+      [
+        'checkAutomationNodeRuns',
+        () => checkAutomationNodeRuns(sql, authCtx, record),
       ],
       [
         'checkDeletedOrgSchedules',
@@ -59454,7 +64549,41 @@ async function main(): Promise<void> {
         'checkTriggerStreakLockOrder',
         () => checkTriggerStreakLockOrder(sql, authCtx, record),
       ],
+      [
+        'checkEventScopeAndIsolation',
+        () => checkEventScopeAndIsolation(sql, authCtx, record),
+      ],
+      [
+        'checkSeededGithubSchedulesOff',
+        () => checkSeededGithubSchedulesOff(sql, record),
+      ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
+      [
+        'checkMcpAuthoringParity',
+        () =>
+          checkMcpAuthoringParity(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpDiscovery',
+        () => checkMcpDiscovery(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpResourcesPrompts',
+        () =>
+          checkMcpResourcesPrompts(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpEras',
+        () => checkMcpEras(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpSettingsConfig',
+        async () => {
+          const { checkMcpSettingsConfig } =
+            await import('./domains/mcp/settings.integration.ts');
+          await checkMcpSettingsConfig(sql, baseUrl, record);
+        },
+      ],
       [
         'checkRetiredBuilderRoute',
         () => checkRetiredBuilderRoute(baseUrl, authCtx),
@@ -59523,6 +64652,14 @@ async function main(): Promise<void> {
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
+      [
+        'checkVectorWidths',
+        () =>
+          checkVectorWidths(sql, {
+            record,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
+      ],
       ['checkRagWatchdogBatch', () => checkRagWatchdogBatch(sql, record)],
       [
         'checkPolicySweeps',
@@ -59537,6 +64674,24 @@ async function main(): Promise<void> {
         () => checkLapsedTeamWrites(sql, baseUrl, record),
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
+      [
+        'checkMentionHandles',
+        async () =>
+          checkMentionHandles(
+            sql,
+            {
+              ...authCtx,
+              base: baseUrl,
+              orgSlug: `itest-${orgSuffix}`,
+              restKey: await mintRestKey(
+                baseUrl,
+                authCtx.cookie,
+                'Mention handles proof',
+              ),
+            },
+            record,
+          ),
+      ],
       [
         'checkTaskDescriptionMentions',
         () => checkTaskDescriptionMentions(sql, authCtx, record),
@@ -59664,6 +64819,14 @@ async function main(): Promise<void> {
         () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
       ],
       [
+        'checkStandingRoleWake',
+        () => checkStandingRoleWake(sql, authCtx, record),
+      ],
+      [
+        'checkStandingRoleWakeScenarios',
+        () => checkStandingRoleWakeScenarios(sql, authCtx, record),
+      ],
+      [
         'checkDelegatedAgentStartTool',
         () => checkDelegatedAgentStartTool(sql, baseUrl, authCtx, record),
       ],
@@ -59676,8 +64839,16 @@ async function main(): Promise<void> {
         () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
       ],
       [
+        'checkAgentRunApiKeys',
+        () => checkAgentRunApiKeys(sql, baseUrl, authCtx, record),
+      ],
+      [
         'checkWorkerDrainHandOff',
         () => checkWorkerDrainHandOff(sql, boss, record),
+      ],
+      [
+        'checkTaskCompletionEvidence',
+        () => checkTaskCompletionEvidence(sql, boss, record),
       ],
       [
         'checkImportCursorContinuation',
@@ -59709,9 +64880,18 @@ async function main(): Promise<void> {
         () => checkCooledStartRetry(sql, authCtx, record),
       ],
       [
+        'checkModelCapacityRetry',
+        () => checkModelCapacityRetry(sql, boss, authCtx, record),
+      ],
+      [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
       ],
+      [
+        'checkExecLimitPark',
+        () => checkExecLimitPark(sql, baseUrl, authCtx, record),
+      ],
+      ['checkAgentWorkers', () => checkAgentWorkers(sql, authCtx, record)],
       [
         'checkTaskRunConnectorCaller',
         () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),
@@ -59721,12 +64901,32 @@ async function main(): Promise<void> {
         () => checkTaskExternalIssueSync(sql, authCtx, record),
       ],
       [
+        'checkTaskExternalStatusProjection',
+        () => checkTaskExternalStatusProjection(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkUsageMetricsBuckets',
+        () => checkUsageMetricsBuckets(sql, authCtx, record),
+      ],
+      [
         'checkProjectTaskMetrics',
         () => checkProjectTaskMetrics(sql, authCtx, record),
       ],
       [
+        'checkTaskSubtreeDeletion',
+        () => checkTaskSubtreeDeletion(sql, authCtx, record),
+      ],
+      [
         'checkTaskBoardSearch',
         () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkArchivedTaskWrites',
+        () => checkArchivedTaskWrites(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskSearchPriority',
+        () => checkTaskSearchPriority(sql, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',
@@ -59766,7 +64966,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkWorkflowTurnReattach',
-        () => checkWorkflowTurnReattach(sql, authCtx),
+        () => checkWorkflowTurnReattach(sql, authCtx, boss),
       ],
       [
         'checkConversationReplyMailbox',
@@ -59861,6 +65061,10 @@ async function main(): Promise<void> {
       [
         'checkApprovalsSurface',
         () => checkApprovalsSurface(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkApprovalDecisionResume',
+        () => checkApprovalDecisionResume(sql, baseUrl, authCtx, record),
       ],
       [
         'checkGovernance',
@@ -60048,6 +65252,22 @@ async function main(): Promise<void> {
       [
         'checkTeamScopeRetirement',
         () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkApiKeyOwners',
+        () => checkApiKeyOwners(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkProjectBudgets',
+        () => checkProjectBudgets(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkImmutableBudgetProjects',
+        () => checkImmutableBudgetProjects(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTtsBudgetReservations',
+        () => checkTtsBudgetReservations(sql, baseUrl, authCtx, record),
       ],
       [
         'checkOrphanedOrgRowsBackfill',

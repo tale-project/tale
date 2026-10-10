@@ -17,11 +17,14 @@ import { attachedFileName, attachedFileSize, getFileIcon } from './types';
 interface FileAttachmentsListProps {
   files: AttachedFile[];
   onRemove: (fileId: string) => void;
+  /** The files are on their way (a send in flight): none can be removed. */
+  disabled?: boolean;
 }
 
 export const FileAttachmentsList = memo(function FileAttachmentsList({
   files,
   onRemove,
+  disabled = false,
 }: FileAttachmentsListProps) {
   const { t: tCommon } = useT('common');
 
@@ -51,8 +54,9 @@ export const FileAttachmentsList = memo(function FileAttachmentsList({
               <button
                 type="button"
                 onClick={() => onRemove(file.id)}
+                disabled={disabled}
                 aria-label={tCommon('aria.removeNamed', { name })}
-                className="hover:bg-background focus-visible:ring-ring ml-1 rounded p-0.5 focus-visible:ring-2 focus-visible:outline-none"
+                className="hover:bg-background focus-visible:ring-ring ml-1 rounded p-0.5 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <XIcon className="size-3" aria-hidden="true" />
               </button>

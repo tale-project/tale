@@ -6,7 +6,7 @@ import {
   validateAgentSecretValue,
 } from './constants';
 
-describe('validateAgentSecretName', () => {
+describe('validateAgentSecretName [ASEC-R1]', () => {
   it('accepts a valid env var name', () => {
     expect(validateAgentSecretName('GLITCHTIP_TOKEN').ok).toBe(true);
     expect(validateAgentSecretName('_x0').ok).toBe(true);
@@ -30,7 +30,7 @@ describe('validateAgentSecretValue', () => {
   });
 });
 
-describe('maskAgentSecretPreview', () => {
+describe('maskAgentSecretPreview [ASEC-R4]', () => {
   it('reveals a small edge slice for a long secret', () => {
     expect(maskAgentSecretPreview('ghp_abcdefghijklmnop')).toBe('ghp_••••nop');
   });

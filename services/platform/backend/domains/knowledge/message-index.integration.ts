@@ -21,6 +21,7 @@ import { messageRef } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
 import { NO_SUBJECT } from '../../core/conversations/ingest/constants.ts';
 import { getKnowledgePoolForOrg } from '../../core/knowledge/pool.ts';
+import { ITEST_VECTOR_WIDTH } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import { resolveAccessScope } from '../chat/shim.ts';
 import {
@@ -123,7 +124,7 @@ export async function checkInboundEmailBodies(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -249,6 +250,7 @@ export async function checkInboundEmailBodies(
     ): Promise<{ refs: string[]; conversationId: string | null }> => {
       const result = await searchKnowledgeForOrg(sql, {
         organizationId: orgId,
+        spender: { userId, agentSlug: '__embedding__' },
         query: phrase,
         corpus: 'documents',
         limit: 10,

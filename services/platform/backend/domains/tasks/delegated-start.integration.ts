@@ -1,3 +1,11 @@
+import { createHash, randomUUID } from 'node:crypto';
+
+import { transactSerializable } from '@tale/shared/db/serializable';
+import type { Sql } from 'postgres';
+
+import { createTaskList } from '../../jobs/task-list.ts';
+import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
+import { scanScheduledTriggers } from '../automations/triggers.ts';
 /** Real Postgres proof of project agents put to work by a schedule and by
  * another agent (`delegated-start.ts`, migration 0139).
  *
@@ -16,18 +24,12 @@
  * Together: blocked, started, coalesced, replayed and resumed occurrences;
  * cancelled and failed runs; the per-task circuit breaker; pause, resume and
  * no replay of a missed backlog; revocation by unbinding, pausing and a lost
- * role; webhook runs refused; cross-project dispatch refused; one run per
- * agent workspace under a race; the delegation depth limit; confined runs;
+ * role; webhook runs refused; cross-project dispatch refused; a busy agent
+ * started on another task, and two racing starts of one agent both run; an
+ * agent's start of itself refused; the delegation depth limit; confined runs;
  * a pending review withdrawn but never approved; and the answer's authorship
  * kept on the agent. */
-import { createHash, randomUUID } from 'node:crypto';
-
-import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql } from 'postgres';
-
-import { createTaskList } from '../../jobs/task-list.ts';
-import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
-import { scanScheduledTriggers } from '../automations/triggers.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
 import {
   deleteProjectAgent,
@@ -150,7 +152,8 @@ async function failNewestRunAndRetry(
 }
 
 /** The queues of an agent's turn and of its automatic retry — the arm and
- * the later checks of a retry that waits for its busy agent. */
+ * the later checks an earlier image queued for a retry that waited for its
+ * busy agent. */
 const HELD_QUEUES = [
   'task.agent_turn',
   'task.agent_retry',
@@ -382,10 +385,13 @@ export async function checkScheduledAgentStarts(
     `;
     return rows[0]?.count ?? -1;
   };
-  /** Move the schedule's cursor back so the current minute is due. */
+  /** Move the schedule's cursor back so the current minute is due: the
+   * claim, and the instant the scan next finds it due, which a save or a
+   * fire set ahead. */
   const backdate = (ms: number) => sql`
     UPDATE app.automation_triggers
-    SET last_due_at_ms = ${Date.now() - ms}, last_fired_at_ms = NULL
+    SET last_due_at_ms = ${Date.now() - ms}, last_fired_at_ms = NULL,
+        next_due_at_ms = ${Date.now() - ms / 2}
     WHERE org_id = ${orgId} AND name = ${name}
   `;
   /** One occurrence: claim it, let the worker land its run, read it. */
@@ -1025,7 +1031,9 @@ export async function checkScheduledAgentStarts(
       automation: string,
       startedBy: string,
     ): Promise<string> => {
-      const rows = await sql<{ id: string }[]>`
+      const rows = await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx<{ id: string }[]>`
         INSERT INTO app.automation_runs (org_id, name, version, project_id,
           status, mode, started_by, input, checkpoints, started_at_ms)
         VALUES (${orgId}, ${automation}, 1, ${projectA}, 'running', 'live',
@@ -1033,6 +1041,7 @@ export async function checkScheduledAgentStarts(
           ${Date.now()})
         RETURNING id
       `;
+      });
       return rows[0]?.id ?? '';
     };
     const hookRun = await insertRun(hookName, `trigger:${hook[0]?.id ?? ''}`);
@@ -1159,10 +1168,13 @@ export async function checkScheduledAgentStarts(
       DELETE FROM app.automation_triggers
       WHERE org_id = ${orgId} AND name IN (${name}, ${hookName})
     `;
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       DELETE FROM app.automation_runs
       WHERE org_id = ${orgId} AND name IN (${name}, ${hookName})
     `;
+    });
     await sql`
       DELETE FROM app.automation_deployments
       WHERE org_id = ${orgId} AND name IN (${name}, ${hookName})
@@ -1310,6 +1322,15 @@ export async function checkDelegatedAgentStartTool(
       title: 'Impl 2',
       agentId: w1,
     });
+    const impl3 = await fx.insertTask({
+      projectId: projectA,
+      title: 'Impl 3',
+      agentId: w1,
+    });
+    const selfTask = await fx.insertTask({
+      projectId: projectA,
+      title: 'Work the manager wants for itself',
+    });
     const blockerTask = await fx.insertTask({
       projectId: projectA,
       title: 'Prerequisite',
@@ -1443,19 +1464,48 @@ export async function checkDelegatedAgentStartTool(
       `comment=${JSON.stringify(commented)} authors=${JSON.stringify(authors)} runs=${describeRuns(impl1RunsAfterComment)}`,
     );
 
-    // ---- one active piece of work per agent workspace -------------------
+    // ---- an agent at work is started on another task too ----------------
     const busy = await dispatch(managerRun.token, 'task_start_agent', {
-      taskId: impl2,
+      taskId: impl3,
     });
     const busyOut = outputOf(busy);
+    const impl3Runs = await runsOf(sql, impl3);
+    const impl1Live = (await runsOf(sql, impl1)).filter(
+      (run) => run.status === 'queued' || run.status === 'running',
+    );
     record(
-      'delegation: an agent already working another task is not started again; the answer names the task it is on',
+      'delegation: an agent already working another task is started on this one too — a run of its own beside the first, its worker claimed when it starts',
       busy.status === 'ok' &&
-        busyOut.started === false &&
-        busyOut.reason === 'agent_busy' &&
-        busyOut.busyTaskId === impl1 &&
-        (await runsOf(sql, impl2)).length === 0,
-      `result=${JSON.stringify(busy)}`,
+        busyOut.started === true &&
+        busyOut.reason === undefined &&
+        busyOut.busyTaskId === undefined &&
+        impl3Runs.length === 1 &&
+        impl3Runs[0]?.id === busyOut.runId &&
+        impl3Runs[0].agentId === w1 &&
+        impl3Runs[0].trigger === 'delegated' &&
+        impl1Live.length === 1,
+      `result=${JSON.stringify(busy)} runs=${describeRuns(impl3Runs)} impl1 live=${describeRuns(impl1Live)}`,
+    );
+
+    // ---- an agent does not start itself on another task ---------------
+    const selfStart = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: selfTask,
+      agentId: manager,
+    });
+    const selfOut = outputOf(selfStart);
+    record(
+      'delegation: an agent naming itself for another task starts nothing and is told to hand it on (self_start)',
+      selfStart.status === 'ok' &&
+        selfOut.started === false &&
+        selfOut.reason === 'self_start' &&
+        (await runsOf(sql, selfTask)).length === 0 &&
+        (
+          await sql<{ assigneeId: string | null }[]>`
+            SELECT assignee_id AS "assigneeId" FROM app.tasks
+            WHERE id = ${selfTask}
+          `
+        )[0]?.assigneeId === null,
+      `result=${JSON.stringify(selfStart)}`,
     );
 
     // ---- dependencies are checked --------------------------------------
@@ -2094,7 +2144,7 @@ export async function checkDelegatedAgentStartTool(
       `waited=${waited} late=${JSON.stringify(lateF)} runs=${describeRuns(runsF)} card=${await cardStatus(qf)}`,
     );
 
-    // ---- two starts racing for one free agent start one run -------------
+    // ---- two starts racing for one free agent both run ------------------
     const [raceA, raceB] = await Promise.all([
       dispatch(managerRun.token, 'task_start_agent', { taskId: race1 }),
       dispatch(managerRun.token, 'task_start_agent', { taskId: race2 }),
@@ -2107,10 +2157,10 @@ export async function checkDelegatedAgentStartTool(
       .map((out) => (out.started === true ? 'started' : String(out.reason)))
       .sort();
     record(
-      'delegation: two starts racing for one free agent start exactly one run; the other answers agent_busy',
-      raceRuns.length === 1 &&
-        JSON.stringify(raceOutcomes) ===
-          JSON.stringify(['agent_busy', 'started']),
+      'delegation: two starts racing for one free agent on two tasks both start, one run on each task',
+      raceRuns.length === 2 &&
+        new Set(raceRuns.map((run) => run.taskId)).size === 2 &&
+        JSON.stringify(raceOutcomes) === JSON.stringify(['started', 'started']),
       `outcomes=${JSON.stringify(raceOutcomes)} runs=${describeRuns(raceRuns)} raw=${JSON.stringify([raceA, raceB])}`,
     );
 
@@ -2334,9 +2384,12 @@ export async function checkInPlaceCompletionCycle(
     name: string,
   ): Promise<{ runId: string; output: Record<string, unknown> | null }> => {
     const before = await runCount(name);
+    // The claim moves back, and so does the instant the scan next finds the
+    // schedule due, which a save or a fire set ahead.
     await sql`
       UPDATE app.automation_triggers
-      SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL
+      SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL,
+          next_due_at_ms = ${Date.now() - 60_000}
       WHERE org_id = ${orgId} AND name = ${name}
     `;
     await scanScheduledTriggers(sql);
@@ -2659,7 +2712,10 @@ export async function checkInPlaceCompletionCycle(
     await release();
     for (const name of [todoName, progressName, pickedUpName]) {
       await sql`DELETE FROM app.automation_triggers WHERE org_id = ${orgId} AND name = ${name}`;
-      await sql`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${name}`;
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${name}`;
+      });
       await sql`DELETE FROM app.automation_deployments WHERE org_id = ${orgId} AND name = ${name}`;
       await sql`DELETE FROM app.automation_project_bindings WHERE org_id = ${orgId} AND automation_name = ${name}`;
       await sql`DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ${name}`;

@@ -1,15 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { delimiter, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -18,6 +21,7 @@ import { generateStatefulCompose } from '../generators/generate-stateful-compose
 import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
+  BUILDKITD_MIRROR_IMAGE,
   THIRD_PARTY_IMAGES,
   imagePlatform,
   imageRef,
@@ -34,6 +38,7 @@ import {
   EGRESS_HEALTH_PROBE,
   createSandboxEgressService,
 } from './create-sandbox-egress-service';
+import { createSandboxLlmGatewayService } from './create-sandbox-llm-gateway-service';
 import { createSandboxService } from './create-sandbox-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
@@ -247,6 +252,35 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
   });
 });
 
+describe('buildkitd mirror image parity', () => {
+  // The spawner pulls the pull-through registry mirror itself, so its default
+  // lives in three places: compose.yml, the CLI generator and the spawner's
+  // config. All three name the same version and digest, never a moving tag.
+  const expected = `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`;
+
+  test('the mirror default is pinned by version and digest', () => {
+    expect(BUILDKITD_MIRROR_IMAGE).toMatch(
+      /^registry:\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$/,
+    );
+  });
+
+  test('both compose pipelines and the spawner default to it', () => {
+    expect(
+      compose.services['sandbox']?.environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    expect(
+      createSandboxService(config).environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    const spawnerConfig = readFileSync(
+      resolve(repoRoot, 'services/sandbox/src/config.ts'),
+      'utf8',
+    );
+    expect(spawnerConfig.replace(/\s+/g, ' ')).toContain(
+      `process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? '${BUILDKITD_MIRROR_IMAGE}'`,
+    );
+  });
+});
+
 describe('egress connection capacity parity', () => {
   const expected = '${SANDBOX_EGRESS_MAX_CLIENTS:-2000}';
   const egress = createSandboxEgressService(config);
@@ -257,6 +291,23 @@ describe('egress connection capacity parity', () => {
         ?.SANDBOX_EGRESS_MAX_CLIENTS,
     ).toBe(expected);
     expect(egress.environment?.SANDBOX_EGRESS_MAX_CLIENTS).toBe(expected);
+  });
+
+  test('both pipelines hand the proxy the same per-session cap, below the whole pool', () => {
+    const perSession = '${SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:-256}';
+    expect(
+      compose.services['sandbox-egress']?.environment
+        ?.SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION,
+    ).toBe(perSession);
+    expect(egress.environment?.SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION).toBe(
+      perSession,
+    );
+    // One session at its cap leaves at least three quarters of the default
+    // pool to every other session and build helper.
+    const cap = Number(/:-(\d+)\}$/.exec(perSession)?.[1]);
+    const pool = Number(/:-(\d+)\}$/.exec(expected)?.[1]);
+    expect(cap).toBe(256);
+    expect(cap * 4).toBeLessThanOrEqual(pool);
   });
 
   test('both pipelines size the container for the default limit', () => {
@@ -307,6 +358,22 @@ describe('egress readiness probe parity (log-flood guard)', () => {
       expect(command).not.toMatch(/nc\s+-z/);
     });
   }
+
+  // Nested containers and BuildKit RUN steps resolve names only through the
+  // proxy's dnsmasq, so the probe asks it too: for a name it answers from its
+  // own configuration, on loopback, never through an upstream resolver.
+  test('the probe asks dnsmasq for the name the entrypoint has it answer itself', () => {
+    const query =
+      /nslookup -type=a -timeout=1 (\S+\.invalid) 127\.0\.0\.1 /.exec(
+        EGRESS_HEALTH_PROBE,
+      );
+    expect(query).not.toBeNull();
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/sandbox-egress/entrypoint.sh'),
+      'utf8',
+    );
+    expect(entrypoint).toContain(`--host-record=${query?.[1]},127.0.0.1`);
+  });
 });
 
 describe('sandbox spawner URL parity', () => {
@@ -324,6 +391,28 @@ describe('sandbox spawner URL parity', () => {
       createBackendWorkerService(config),
     ]) {
       expect(service.environment?.SANDBOX_URL).toContain('sandbox:8003');
+    }
+  });
+
+  test('agent profile and effort settings reach both backend roles through both compose pipelines', () => {
+    for (const tier of ['backend-api', 'backend-worker'] as const) {
+      expect(compose.services[tier]?.environment?.SANDBOX_AGENT_PROFILE).toBe(
+        '${SANDBOX_AGENT_PROFILE:-agent}',
+      );
+      expect(
+        compose.services[tier]?.environment?.TALE_SANDBOX_CLAUDE_EFFORT,
+      ).toBe('${TALE_SANDBOX_CLAUDE_EFFORT:-}');
+    }
+    for (const service of [
+      createBackendApiService(config),
+      createBackendWorkerService(config),
+    ]) {
+      expect(service.environment?.SANDBOX_AGENT_PROFILE).toBe(
+        '${SANDBOX_AGENT_PROFILE:-agent}',
+      );
+      expect(service.environment?.TALE_SANDBOX_CLAUDE_EFFORT).toBe(
+        '${TALE_SANDBOX_CLAUDE_EFFORT:-}',
+      );
     }
   });
 
@@ -376,6 +465,36 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     expect(
       graceSeconds(compose.services.sandbox?.stop_grace_period),
     ).toBeGreaterThanOrEqual(30);
+  });
+
+  // The backend's own drain (`SHUTDOWN_DRAIN_MS`, defaults in
+  // services/platform/backend/shutdown-sequence.ts): 15 s for the api, 90 s
+  // for a worker, and the container's grace at least 15 s above it. Both
+  // pipelines, so a `docker compose up` worker hands its automation runs on
+  // like a `tale deploy` one instead of being killed mid-step.
+  test('backend api stops inside its grace in both pipelines', () => {
+    const fromCompose = compose.services['backend-api']?.stop_grace_period;
+    const generated = createBackendApiService(config).stop_grace_period;
+    expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(30);
+    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
+
+  test('backend worker hands its runs on inside its grace in both pipelines', () => {
+    const fromCompose = compose.services['backend-worker']?.stop_grace_period;
+    const generated = createBackendWorkerService(config).stop_grace_period;
+    expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(90 + 15);
+    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
+
+  // The gateway drains its model calls on SIGTERM and then writes its budget
+  // counters; Docker's 10s default would cut the streams and that write
+  // alike.
+  test('model gateway lets its calls in flight finish in both pipelines', () => {
+    const fromCompose =
+      compose.services['sandbox-llm-gateway']?.stop_grace_period;
+    const generated = createSandboxLlmGatewayService(config).stop_grace_period;
+    expect(graceSeconds(fromCompose)).toBe(90);
+    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
   });
 });
 
@@ -525,6 +644,25 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
       'BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-backend-api:3005}"',
     );
     expect(entrypoint).not.toContain('-n "${BACKEND_UPSTREAM');
+  });
+
+  test('public control paths are refused before the generic API fallback', () => {
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+      'utf8',
+    );
+    for (const path of ['/api/control', '/api/control/*']) {
+      const handle = entrypoint.split(`handle ${path} {`)[1]?.split('\n\t}')[0];
+      expect(handle).toBeDefined();
+      expect(handle).toContain('respond "Not found" 404');
+      expect(handle).not.toContain('reverse_proxy');
+    }
+    // Removing the explicit control route alone leaves /api/* forwarding it.
+    const caddyfile = readFileSync(
+      resolve(repoRoot, 'services/proxy/Caddyfile'),
+      'utf8',
+    );
+    expect(caddyfile).toContain('handle /api/* {');
   });
 
   test('nothing routes to the retired runtime any more', () => {
@@ -745,9 +883,10 @@ describe('release artifact identity', () => {
     name?: string;
     id?: string;
     if?: string;
+    'continue-on-error'?: boolean;
     run?: string;
     uses?: string;
-    env?: Record<string, string>;
+    env?: Record<string, string | number>;
     with?: Record<string, string | boolean>;
   };
   const workflow = (name: string) =>
@@ -771,10 +910,15 @@ describe('release artifact identity', () => {
   const cli = workflow('cli');
   const build = workflow('build');
   const shell = (script: string, env: Record<string, string> = {}) =>
-    spawnSync('bash', ['-euo', 'pipefail', '-c', script], {
-      encoding: 'utf8',
-      env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
-    });
+    spawnSync(
+      process.platform === 'darwin' ? '/bin/bash' : 'bash',
+      ['-euo', 'pipefail', '-c', script],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
+      },
+    );
 
   /** The Build lanes pull each image by the digest its build job recorded
    * (one receipt per image) and check its revision label; the release lane
@@ -782,52 +926,175 @@ describe('release artifact identity', () => {
    * and tags, and answers an inspect with the source commit. */
   const CI_DIGEST = `sha256:${'a'.repeat(64)}`;
   const CI_SOURCE = 'b'.repeat(40);
-  const prepareImages = (step: Step, services: string[]) => {
-    const script = step
-      .run!.replaceAll('${{ needs.prepare.outputs.version_number }}', '0.5.43')
-      .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
-      .replaceAll('${{ github.repository }}', 'tale-project/tale');
-    // Match the Ubuntu workflow's LF output when Git Bash uses native jq.exe.
-    const jqMode =
-      process.platform === 'win32'
-        ? 'jq() { command jq --binary "$@"; };\n'
-        : '';
-    const receipts = mkdtempSync(resolve(tmpdir(), 'tale-image-receipts-'));
+  const CI_REGISTRY = 'ghcr.io/tale-project/tale';
+  const revisionFormat =
+    '{{ index .Config.Labels "org.opencontainers.image.revision" }}';
+  const prepareImages = (
+    step: Step,
+    services: string[],
+    yieldBetweenArguments = false,
+  ) => {
+    const directory = mkdtempSync(resolve(tmpdir(), 'tale-image-receipts-'));
+    const receipts = resolve(directory, 'image-receipts');
+    const log = resolve(directory, 'docker-calls');
     let result: ReturnType<typeof shell>;
+    let calls: string[][];
     try {
+      let jqExecutable = '';
+      mkdirSync(receipts);
+      writeFileSync(log, '');
+      // The actual helper launches Docker from child Bash workers. An
+      // in-shell function would neither reach them nor write coherent records
+      // when its multiple printf calls overlap another service's calls.
+      writeFileSync(
+        resolve(directory, 'docker'),
+        String.raw`#!/usr/bin/env bash
+set -eu
+record=DOCKER
+for argument in "$@"; do
+  record+=$'\t'"$argument"
+  if [ "$TEST_DOCKER_YIELD" = 'true' ]; then sleep 0.01; fi
+done
+printf '%s\n' "$record" >> "$TEST_DOCKER_LOG"
+if [ "$1 $2" = 'image inspect' ]; then
+  printf '%s\n' "$TEST_REVISION"
+fi
+`,
+        { mode: 0o755 },
+      );
+      // A wrapper executable, rather than a shell function, also reaches
+      // the child helper and keeps native jq.exe's Windows output at LF.
+      if (process.platform === 'win32') {
+        const jq = shell('command -v jq');
+        expect(jq.status, jq.stderr).toBe(0);
+        writeFileSync(
+          resolve(directory, 'jq'),
+          '#!/usr/bin/env bash\nexec "$TEST_JQ_EXECUTABLE" --binary "$@"\n',
+          { mode: 0o755 },
+        );
+        jqExecutable = jq.stdout.trim();
+      }
       for (const service of services) {
         writeFileSync(
           resolve(receipts, `${service}.json`),
-          JSON.stringify({ service, digest: CI_DIGEST, revision: CI_SOURCE }),
+          JSON.stringify({
+            service,
+            image: `${CI_REGISTRY}/tale-${service}`,
+            tag: '0.5.43-amd64',
+            digest: CI_DIGEST,
+            revision: CI_SOURCE,
+          }),
         );
       }
-      result = shell(
-        jqMode +
-          'docker() { if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "$SOURCE_SHA"; return; fi; printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
-          script,
-        {
-          SERVICE_NAMES: JSON.stringify(services),
-          RECEIPTS: receipts,
-          SOURCE_SHA: CI_SOURCE,
+      const context = {
+        env: { REGISTRY: 'ghcr.io' },
+        github: { repository: 'tale-project/tale', sha: CI_SOURCE },
+        needs: {
+          prepare: {
+            outputs: {
+              version_number: '0.5.43',
+              service_names: JSON.stringify(services),
+            },
+          },
+          changes: { outputs: { source_sha: CI_SOURCE, candidate_sha: '' } },
         },
+        runner: { temp: directory.replaceAll('\\', '/') },
+      };
+      const expand = (value: string | number) =>
+        String(value).replace(
+          /\$\{\{\s*(.*?)\s*\}\}/g,
+          (_match, expression: string) =>
+            String(runInNewContext(expression, context)),
+        );
+      const environment = Object.fromEntries(
+        Object.entries(step.env ?? {}).map(([key, value]) => [
+          key,
+          expand(value),
+        ]),
       );
+      expect(environment.REGISTRY_PATH).toBe(CI_REGISTRY);
+      expect(environment.SOURCE_SHA).toBe(CI_SOURCE);
+      if (environment.RECEIPTS) {
+        expect(environment.RECEIPTS).toBe(receipts.replaceAll('\\', '/'));
+        expect(environment.PULL_HELPER).toBe(
+          '.github/scripts/pull-ci-images.sh',
+        );
+      } else {
+        expect(environment.SERVICE_NAMES).toBe(JSON.stringify(services));
+        expect(environment.IMAGE_TAG).toBe('0.5.43-amd64');
+      }
+      result = shell(expand(step.run!), {
+        PATH: `${directory}${delimiter}${process.env.PATH ?? ''}`,
+        RECEIPTS: '',
+        IMAGE_TAG: '',
+        TEST_DOCKER_LOG: log.replaceAll('\\', '/'),
+        TEST_DOCKER_YIELD: String(yieldBetweenArguments),
+        TEST_REVISION: CI_SOURCE,
+        TEST_JQ_EXECUTABLE: jqExecutable,
+        ...environment,
+      });
+      calls = readFileSync(log, 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          expect(line).toStartWith('DOCKER\t');
+          return line.split('\t').slice(1);
+        });
     } finally {
-      rmSync(receipts, { recursive: true, force: true });
+      rmSync(directory, { recursive: true, force: true });
     }
-    expect(result.status).toBe(0);
+    expect(result.status, result.stderr + result.stdout).toBe(0);
     const images = new Map<string, string>();
-    for (const line of result.stdout.split('\n')) {
-      if (!line.startsWith('DOCKER\t')) continue;
-      const [, command, source, target] = line.split('\t');
+    const verified = new Set<string>();
+    for (const [command, ...arguments_] of calls) {
+      const source = command === 'image' ? arguments_[3] : arguments_[0];
+      const target = arguments_[1];
       expect(source).toBeDefined();
       if (command === 'pull') {
+        expect(images.has(source!)).toBe(false);
         images.set(source!, source!);
+      } else if (command === 'image') {
+        expect(arguments_.slice(0, 3)).toEqual([
+          'inspect',
+          '--format',
+          revisionFormat,
+        ]);
+        expect(images.has(source!)).toBe(true);
+        expect(verified.has(source!)).toBe(false);
+        verified.add(source!);
       } else {
         expect(command).toBe('tag');
-        expect(images.has(source!)).toBe(true);
+        if (!images.has(source!))
+          throw new Error(`Image tag source was never pulled: ${source}`);
+        expect(verified.has(source!)).toBe(true);
         expect(target).toBeDefined();
         images.set(target!, images.get(source!)!);
       }
+    }
+    expect(verified.size).toBeGreaterThan(0);
+    for (const source of verified) {
+      const repository = source.split('@')[0]!.replace(/:[^/]*$/, '');
+      const service = repository.slice(`${CI_REGISTRY}/tale-`.length);
+      expect(services).toContain(service);
+      const ownCalls = calls.filter((call) =>
+        call[0] === 'image' ? call[4] === source : call[1] === source,
+      );
+      expect(ownCalls).toEqual([
+        ['pull', source],
+        ['image', 'inspect', '--format', revisionFormat, source],
+        ['tag', source, `${repository}:latest`],
+        ...(['sandbox-runtime', 'sandbox-buildkitd'].includes(service)
+          ? [['tag', source, `tale-${service}:latest`]]
+          : []),
+      ]);
+    }
+    const lastScopedTag = calls.findLastIndex(
+      (call) => call[0] === 'tag' && call[2]?.startsWith(`${CI_REGISTRY}/`),
+    );
+    for (const [index, call] of calls.entries()) {
+      if (call[0] === 'tag' && call[2]?.startsWith('tale-'))
+        expect(index).toBeGreaterThan(lastScopedTag);
     }
     return images;
   };
@@ -839,6 +1106,40 @@ describe('release artifact identity', () => {
       readFileSync(resolve(repoRoot, '.github/workflows/release.yml'), 'utf8'),
       sitesOnly,
     ).services;
+
+  test('identity evidence still rejects an alias whose source was never pulled', () => {
+    const source = `ghcr.io/tale-project/tale/tale-platform@${CI_DIGEST}`;
+    expect(() =>
+      prepareImages(
+        {
+          ...releasePull,
+          run: `docker tag ${source} ghcr.io/tale-project/tale/tale-platform:latest`,
+        },
+        [],
+      ),
+    ).toThrow(`Image tag source was never pulled: ${source}`);
+  });
+
+  test.each(['smoke-test', 'image-validate', 'release'])(
+    '%s retains complete image identity records when concurrent workers yield between arguments',
+    (job) => {
+      const source =
+        job === 'release'
+          ? releasePull
+          : build.jobs[job]!.steps.find(
+              (step) => step.name === 'Pull images from GHCR',
+            )!;
+      // The external Docker executable yields while constructing a record,
+      // then appends it once. This exercises the actual helper's child
+      // workers without relying on inherited shell functions or global order.
+      const images = prepareImages(source, releaseMatrix(false), true);
+      expect(images.get('tale-sandbox-runtime:latest')).toBe(
+        job === 'release'
+          ? 'ghcr.io/tale-project/tale/tale-sandbox-runtime:0.5.43-amd64'
+          : `ghcr.io/tale-project/tale/tale-sandbox-runtime@${CI_DIGEST}`,
+      );
+    },
+  );
 
   test.each(['smoke-test', 'image-validate'])(
     'release prepares every image alias used by the green Build %s lane',
@@ -889,28 +1190,115 @@ describe('release artifact identity', () => {
     );
   });
 
-  test('every release container check inspects pulled images without rebuilding', () => {
-    const steps = release.jobs['container-test']!.steps.filter((step) =>
-      step.run?.includes('bun services/platform/tests/integration/'),
-    );
-    // image, smoke, web, docs, ui-docs, ai-gateway. Bump this with the job:
-    // the count is what catches a check added to one workflow and not the
-    // other, which is how the ai-gateway check arrived unguarded.
-    expect(steps).toHaveLength(6);
-    for (const step of steps) {
-      const result = shell(
-        'bun() { printf "%s\\n" "$SKIP_BUILD" "$PULL_POLICY" "$*"; };\n' +
-          step.run,
-        step.env,
+  test.each([
+    [false, ''],
+    [false, 'image'],
+    [false, 'smoke'],
+    [false, 'web'],
+    [false, 'docs'],
+    [false, 'ui-docs'],
+    [false, 'ai-gateway'],
+    [true, ''],
+    [true, 'web'],
+    [true, 'docs'],
+    [true, 'ui-docs'],
+  ] as const)(
+    'release container checks retain pulled images and await every child with sites_only=%s when %s fails',
+    (sitesOnly, failed) => {
+      const steps = release.jobs['container-test']!.steps.filter((step) =>
+        step.run?.includes('services/platform/tests/integration/'),
       );
-      expect(result.status).toBe(0);
-      expect(result.stdout.trim().split('\n')).toEqual([
-        'true',
-        'never',
-        expect.stringMatching(/^services\/platform\/tests\/integration\//),
+      expect(steps.map((step) => step.name)).toEqual([
+        'Run stack validation',
+        'Run standalone container tests',
       ]);
-    }
-  });
+      expect(steps[0]!.if).toBe("needs.prepare.outputs.sites_only != 'true'");
+      // image, smoke, web, docs, ui-docs, ai-gateway. Keep all six actual
+      // commands: combining steps must not remove a container check.
+      const groups = [
+        ['image', 'smoke'],
+        ['web', 'docs', 'ui-docs', ...(sitesOnly ? [] : ['ai-gateway'])],
+      ];
+      const directory = mkdtempSync(resolve(tmpdir(), 'tale-release-checks-'));
+      const log = resolve(directory, 'calls');
+      try {
+        writeFileSync(log, '');
+        writeFileSync(
+          resolve(directory, 'bun'),
+          `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = run ]; then shift; fi
+test "$#" -eq 1
+SERVICE="$(basename "$1" .ts)"
+SERVICE="\${SERVICE#container-}"
+SERVICE="\${SERVICE%-test}"
+printf '%s\\t%s\\t%s\\n' "$SKIP_BUILD" "$PULL_POLICY" "$1" >> "$TEST_VALIDATION_LOG"
+touch "$TEST_VALIDATION_DIR/\${SERVICE}.start"
+for ((ATTEMPT = 0; ATTEMPT < 1000; ATTEMPT++)); do
+  READY=1
+  for REQUIRED in $TEST_VALIDATION_GROUP; do
+    if [ ! -f "$TEST_VALIDATION_DIR/\${REQUIRED}.start" ]; then READY=0; fi
+  done
+  if [ "$READY" -eq 1 ]; then break; fi
+  sleep 0.01
+done
+test "$READY" -eq 1
+printf 'CHECK %s\\n' "$SERVICE"
+touch "$TEST_VALIDATION_DIR/\${SERVICE}.finish"
+if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
+`,
+          { mode: 0o755 },
+        );
+        for (const [index, step] of steps.entries()) {
+          if (sitesOnly && index === 0) continue;
+          const group = groups[index]!;
+          const environment = Object.fromEntries(
+            Object.entries(step.env ?? {}).map(([key, value]) => [
+              key,
+              key === 'SITES_ONLY' ? String(sitesOnly) : String(value),
+            ]),
+          );
+          expect(environment.SKIP_BUILD).toBe('true');
+          expect(environment.PULL_POLICY).toBe('never');
+          if (index === 0) expect(environment.SMOKE_TEST_TIMEOUT).toBe('300');
+          else
+            expect(step.env?.SITES_ONLY).toBe(
+              '${{ needs.prepare.outputs.sites_only }}',
+            );
+          const result = shell(step.run!, {
+            ...environment,
+            PATH: `${directory}${delimiter}${process.env.PATH ?? ''}`,
+            RUNNER_TEMP: directory.replaceAll('\\', '/'),
+            TEST_VALIDATION_DIR: directory.replaceAll('\\', '/'),
+            TEST_VALIDATION_LOG: log.replaceAll('\\', '/'),
+            TEST_VALIDATION_GROUP: group.join(' '),
+            TEST_FAILED_VALIDATION: failed,
+          });
+          expect(result.status, result.stderr + result.stdout).toBe(
+            group.includes(failed) ? 1 : 0,
+          );
+          for (const service of group) {
+            expect(existsSync(resolve(directory, `${service}.finish`))).toBe(
+              true,
+            );
+            expect(result.stdout).toContain(`CHECK ${service}\n`);
+          }
+        }
+        expect(readFileSync(log, 'utf8').trim().split('\n').sort()).toEqual(
+          groups
+            .slice(sitesOnly ? 1 : 0)
+            .flat()
+            .map(
+              (service) =>
+                `true\tnever\tservices/platform/tests/integration/container-${service}-test.ts`,
+            )
+            .sort(),
+        );
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
 
   const documentStep = () => {
     const step = release.jobs.build!.steps.find(
@@ -922,57 +1310,194 @@ describe('release artifact identity', () => {
   const documentDigest = `sha256:${'a'.repeat(64)}`;
   const documentImage = (arch: string) =>
     `ghcr.io/synthetic/tale/tale-sandbox-runtime:0.5.44-${arch}@${documentDigest}`;
+  type DocumentInput = {
+    uid: number;
+    architecture: string;
+    versions: Record<string, string>;
+    requirementsSha256: string;
+    nodeCheck: string;
+    nodeVersions: Record<string, string>;
+    nodeLockSha256: string;
+    xls: { base64: string; sha256: string };
+    xlsx: { base64: string; sha256: string };
+  };
+  type DocumentEvent = {
+    phase: 'start' | 'finish';
+    uid: string;
+    command?: string[];
+    input?: DocumentInput;
+  };
+  const documentCapture = String.raw`
+    import { mock } from 'bun:test';
+    import { appendFileSync } from 'node:fs';
+    const execPath = process.env.TEST_DOCUMENT_EXEC;
+    const exec = await import(execPath);
+    const started = new Set();
+    const record = event => appendFileSync(process.env.TEST_DOCUMENT_LOG, JSON.stringify(event) + '\n');
+    // Keep the real helper, repository resolver and fixture reads. Only the
+    // process boundary is replaced so no Docker daemon or image is needed.
+    mock.module(execPath, () => ({
+      ...exec,
+      capture: async (command, options) => {
+        const uid = command[command.indexOf('--user') + 1].split(':')[0];
+        started.add(uid);
+        record({ phase: 'start', uid, command, input: JSON.parse(options.stdin) });
+        for (let attempt = 0; started.size !== 2; attempt++) {
+          if (attempt === 99) throw new Error('Document users did not start concurrently');
+          await Bun.sleep(10);
+        }
+        await Bun.sleep(uid === '65534' ? 5 : 40);
+        record({ phase: 'finish', uid });
+        return {
+          exitCode: 0,
+          stdout: 'CHECK ' + uid,
+          stderr: '',
+          combined: 'CHECK ' + uid,
+        };
+      },
+    }));
+  `;
   const runDocumentGate = (
     arch: string,
     overrides: Record<string, string> = {},
-  ) =>
-    shell(
-      String.raw`
+    actualHelper = false,
+  ) => {
+    const directory = mkdtempSync(resolve(tmpdir(), 'tale-document-gate-'));
+    const module = resolve(directory, 'document-tools.ts');
+    const log = resolve(directory, 'document-calls');
+    const environment = {
+      DOCUMENT_IMAGE: documentImage(arch),
+      DOCUMENT_PLATFORM: `linux/${arch}`,
+      DOCUMENT_REVISION: 'b'.repeat(40),
+      DOCUMENT_VERSION: '0.5.44',
+      DOCUMENT_SOURCE: 'https://github.com/synthetic/tale',
+      ACTUAL_REVISION: 'b'.repeat(40),
+      ACTUAL_VERSION: '0.5.44',
+      ACTUAL_SOURCE: 'https://github.com/synthetic/tale',
+      PULL_EXIT: '0',
+      INSPECT_EXIT: '0',
+      FAIL_UID: '',
+      REJECT_UID: '',
+      ...overrides,
+    };
+    try {
+      writeFileSync(log, '');
+      writeFileSync(
+        module,
+        `export async function checkDocumentTools(image: string, uid: number, platform: string) {
+  if (image !== process.env.DOCUMENT_IMAGE || platform !== process.env.DOCUMENT_PLATFORM || ![65534, 10001].includes(uid)) throw new Error('Wrong document identity');
+  await Bun.write(process.env.TEST_DOCUMENT_DIR + '/' + uid + '.start', '');
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await Bun.file(process.env.TEST_DOCUMENT_DIR + '/65534.start').exists() && await Bun.file(process.env.TEST_DOCUMENT_DIR + '/10001.start').exists()) break;
+    if (attempt === 99) throw new Error('Document users did not start concurrently');
+    await Bun.sleep(10);
+  }
+  await Bun.sleep(uid === 65534 ? 5 : 40);
+  await Bun.write(process.env.TEST_DOCUMENT_DIR + '/' + uid + '.finish', '');
+  if (String(uid) === process.env.REJECT_UID) throw new Error('Rejected document uid ' + uid);
+  return {
+    exitCode: String(uid) === process.env.FAIL_UID ? 92 : 0,
+    combined: ['CHECK', uid, platform, image].join(' '),
+  };
+}\n`,
+      );
+      const importStatement =
+        'import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts";';
+      const script = documentStep().run!;
+      expect(script).toContain(importStatement);
+      // Execute the actual allSettled command, replacing only its offline
+      // container boundary. Identity admission and both UID decisions stay real.
+      const result = shell(
+        String.raw`
         docker() {
           case "$1 $2" in
             'pull --platform')
-              test "$3" = "$DOCUMENT_PLATFORM"
-              test "$4" = "$DOCUMENT_IMAGE"
+              test "$#" -eq 4 || return 90
+              test "$3" = "$DOCUMENT_PLATFORM" || return 90
+              test "$4" = "$DOCUMENT_IMAGE" || return 90
               printf 'PULL %s %s\n' "$3" "$4"
               return "$PULL_EXIT"
               ;;
             'image inspect')
-              test "$5" = "$DOCUMENT_IMAGE"
-              case "$4" in
-                *image.revision*) printf '%s\n' "$ACTUAL_REVISION" ;;
-                *image.version*) printf '%s\n' "$ACTUAL_VERSION" ;;
-                *image.source*) printf '%s\n' "$ACTUAL_SOURCE" ;;
-                *) return 90 ;;
-              esac
+              test "$#" -eq 5 || return 90
+              test "$3" = '--format' || return 90
+              test "$5" = "$DOCUMENT_IMAGE" || return 90
+              test "$4" = '{{json .Config.Labels}}' || return 90
+              printf '%s\n' "$TEST_DOCUMENT_LABELS"
+              return "$INSPECT_EXIT"
               ;;
             *) return 91 ;;
           esac
         }
         bun() {
-          test "$1" = '-e'
-          printf 'CHECK %s %s %s\n' "$DOCUMENT_UID" "$DOCUMENT_PLATFORM" "$DOCUMENT_IMAGE"
-          if test "$DOCUMENT_UID" = "$FAIL_UID"; then return 92; fi
+          test "$#" -eq 2 || return 90
+          test "$1" = '-e' || return 90
+          "$TEST_BUN_EXECUTABLE" -e "$TEST_DOCUMENT_CAPTURE"$'\n'"$2"
         }
-      ` + documentStep().run,
-      {
-        DOCUMENT_IMAGE: documentImage(arch),
-        DOCUMENT_PLATFORM: `linux/${arch}`,
-        DOCUMENT_REVISION: 'b'.repeat(40),
-        DOCUMENT_VERSION: '0.5.44',
-        DOCUMENT_SOURCE: 'https://github.com/synthetic/tale',
-        ACTUAL_REVISION: 'b'.repeat(40),
-        ACTUAL_VERSION: '0.5.44',
-        ACTUAL_SOURCE: 'https://github.com/synthetic/tale',
-        PULL_EXIT: '0',
-        FAIL_UID: '',
-        ...overrides,
-      },
-    );
+      ` +
+          script.replace(
+            importStatement,
+            actualHelper
+              ? 'const { checkDocumentTools } = await import(process.env.TEST_DOCUMENT_HELPER);'
+              : `import { checkDocumentTools } from ${JSON.stringify(pathToFileURL(module).href)};`,
+          ),
+        {
+          ...environment,
+          TEST_BUN_EXECUTABLE: process.execPath.replaceAll('\\', '/'),
+          TEST_DOCUMENT_DIR: directory,
+          TEST_DOCUMENT_LOG: log.replaceAll('\\', '/'),
+          TEST_DOCUMENT_CAPTURE: actualHelper ? documentCapture : '',
+          TEST_DOCUMENT_EXEC: pathToFileURL(
+            resolve(
+              repoRoot,
+              'services/platform/tests/integration/lib/exec.ts',
+            ),
+          ).href,
+          TEST_DOCUMENT_HELPER: pathToFileURL(
+            resolve(
+              repoRoot,
+              'services/platform/tests/integration/lib/document-tools.ts',
+            ),
+          ).href,
+          TEST_DOCUMENT_LABELS:
+            overrides.TEST_DOCUMENT_LABELS ??
+            JSON.stringify({
+              'org.opencontainers.image.revision': environment.ACTUAL_REVISION,
+              'org.opencontainers.image.version': environment.ACTUAL_VERSION,
+              'org.opencontainers.image.source': environment.ACTUAL_SOURCE,
+            }),
+        },
+      );
+      return {
+        ...result,
+        events: readFileSync(log, 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as DocumentEvent),
+        startedUids: ['65534', '10001'].filter((uid) =>
+          existsSync(resolve(directory, `${uid}.start`)),
+        ),
+        finishedUids: ['65534', '10001'].filter((uid) =>
+          existsSync(resolve(directory, `${uid}.finish`)),
+        ),
+      };
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  };
 
   test('native document conformance gates both release manifests on built bytes', () => {
     const job = release.jobs.build!;
     const step = documentStep();
     const image = job.steps.find((entry) => entry.name === 'Build and push')!;
+    const retry = job.steps.find(
+      (entry) =>
+        entry.name ===
+        'Retry build and push after a transient registry failure',
+    )!;
+    const backoff = job.steps.find(
+      (entry) => entry.name === 'Back off before retrying the registry',
+    )!;
     const setup = job.steps.find(
       (entry) => entry.name === 'Setup Bun for document checks',
     )!;
@@ -981,10 +1506,18 @@ describe('release artifact identity', () => {
       { name: 'arm64', runner: 'ubuntu-24.04-arm', platform: 'linux/arm64' },
     ]);
     expect(image.id).toBe('image');
+    expect(image['continue-on-error']).toBe(true);
     expect(image.with?.push).toBe(true);
+    expect(backoff.if).toBe("steps.image.outcome == 'failure'");
+    expect(backoff.run).toBe('sleep 15');
+    expect(retry.id).toBe('image_retry');
+    expect(retry.if).toBe("steps.image.outcome == 'failure'");
+    expect(retry['continue-on-error']).toBeUndefined();
+    expect(retry.uses).toBe(image.uses);
+    expect(retry.with).toEqual(image.with);
     expect(step.env).toEqual({
       DOCUMENT_IMAGE:
-        '${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image.outputs.digest }}',
+        '${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image_retry.outputs.digest || steps.image.outputs.digest }}',
       DOCUMENT_PLATFORM: '${{ matrix.arch.platform }}',
       DOCUMENT_REVISION: '${{ steps.meta.outputs.revision }}',
       DOCUMENT_VERSION: '${{ needs.prepare.outputs.version_number }}',
@@ -1004,8 +1537,11 @@ describe('release artifact identity', () => {
       'import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts"',
     );
     expect(step.run).toContain('checkDocumentTools(image, uid, platform)');
-    expect(step.run).toContain('if (result.exitCode !== 0)');
-    expect(step.run).toContain('throw new Error(result.combined)');
+    expect(step.run).toContain('const uids = [65534, 10001]');
+    expect(step.run).toContain('await Promise.allSettled(');
+    expect(step.run).toContain('if (check.status === "rejected")');
+    expect(step.run).toContain('failed ||= check.value.exitCode !== 0');
+    expect(step.run).toContain('if (failed) process.exitCode = 1');
   });
 
   test.each(['amd64', 'arm64'])(
@@ -1015,19 +1551,168 @@ describe('release artifact identity', () => {
       expect(result.status).toBe(0);
       expect(result.stdout.trim().split('\n')).toEqual([
         `PULL linux/${arch} ${documentImage(arch)}`,
+        'Document tools as uid 65534',
         `CHECK 65534 linux/${arch} ${documentImage(arch)}`,
+        'Document tools as uid 10001',
         `CHECK 10001 linux/${arch} ${documentImage(arch)}`,
       ]);
+      expect(result.finishedUids).toEqual(['65534', '10001']);
     },
   );
 
-  test.each(['65534', '10001'])(
-    'native document gate fails if session user %s fails',
-    (uid) => {
-      const result = runDocumentGate('arm64', { FAIL_UID: uid });
-      expect(result.status).toBe(92);
-      expect(result.stdout).toContain(`CHECK ${uid} `);
-      if (uid === '65534') expect(result.stdout).not.toContain('CHECK 10001 ');
+  // The integration helper's repository pathname targets the native Unix
+  // Docker hosts. Windows retains the workflow identity/scheduling fixtures
+  // above; this executes the unmodified helper and its actual source reads.
+  test.skipIf(process.platform === 'win32').each(['amd64', 'arm64'])(
+    'native %s document helper preserves the offline resource and stdin contract',
+    (arch) => {
+      const result = runDocumentGate(arch, {}, true);
+      expect(result.status, result.stderr + result.stdout).toBe(0);
+      expect(result.events.map((event) => event.phase)).toEqual([
+        'start',
+        'start',
+        'finish',
+        'finish',
+      ]);
+      const requests = result.events.filter((event) => event.phase === 'start');
+      expect(requests.map((event) => event.uid).sort()).toEqual([
+        '10001',
+        '65534',
+      ]);
+      expect(
+        result.events
+          .filter((event) => event.phase === 'finish')
+          .map((event) => event.uid)
+          .sort(),
+      ).toEqual(['10001', '65534']);
+      const requirements = readFileSync(
+        resolve(
+          repoRoot,
+          'services/sandbox-runtime/document-python-requirements.txt',
+        ),
+      );
+      const nodeLock = readFileSync(
+        resolve(
+          repoRoot,
+          'services/sandbox-runtime/document-node/package-lock.json',
+        ),
+      );
+      const nodeManifest = JSON.parse(
+        readFileSync(
+          resolve(
+            repoRoot,
+            'services/sandbox-runtime/document-node/package.json',
+          ),
+          'utf8',
+        ),
+      ) as { dependencies: Record<string, string> };
+      const versions = Object.fromEntries(
+        [
+          ...requirements
+            .toString('utf8')
+            .matchAll(/^(\S+)==(\S+) --hash=sha256:/gm),
+        ].map((match) => [match[1], match[2]]),
+      );
+      for (const request of requests) {
+        const command = request.command!;
+        expect(command.slice(0, -2)).toEqual([
+          'docker',
+          'run',
+          '--rm',
+          '-i',
+          '--platform',
+          `linux/${arch}`,
+          '--network',
+          'none',
+          '--read-only',
+          '--cap-drop',
+          'ALL',
+          '--security-opt',
+          'no-new-privileges',
+          '--memory',
+          '1g',
+          '--pids-limit',
+          '128',
+          '--user',
+          `${request.uid}:${request.uid}`,
+          '--tmpfs',
+          `/tmp:uid=${request.uid},gid=${request.uid},mode=700`,
+          '--env',
+          'PYTHONDONTWRITEBYTECODE=1',
+          '--env',
+          'PIP_NO_INDEX=1',
+          '--env',
+          'OPENBLAS_NUM_THREADS=1',
+          '--env',
+          'OMP_NUM_THREADS=1',
+          '--env',
+          'VIPS_CONCURRENCY=1',
+          '--entrypoint',
+          'python3',
+          documentImage(arch),
+        ]);
+        expect(command.at(-2)).toBe('-c');
+        expect(command.at(-1)).toContain('data = json.load(sys.stdin)');
+        expect(command.at(-1)).toContain('signal.alarm(120)');
+        const input = request.input!;
+        expect(Object.keys(input).sort()).toEqual([
+          'architecture',
+          'nodeCheck',
+          'nodeLockSha256',
+          'nodeVersions',
+          'requirementsSha256',
+          'uid',
+          'versions',
+          'xls',
+          'xlsx',
+        ]);
+        expect(input.uid).toBe(Number(request.uid));
+        expect(input.architecture).toBe(
+          arch === 'amd64' ? 'x86_64' : 'aarch64',
+        );
+        expect(Object.keys(versions).length).toBeGreaterThan(0);
+        expect(input.versions).toEqual(versions);
+        expect(input.requirementsSha256).toBe(
+          createHash('sha256').update(requirements).digest('hex'),
+        );
+        expect(input.nodeVersions).toEqual(nodeManifest.dependencies);
+        expect(input.nodeLockSha256).toBe(
+          createHash('sha256').update(nodeLock).digest('hex'),
+        );
+        expect(input.nodeCheck).toContain("require('node:assert/strict')");
+        for (const extension of ['xls', 'xlsx'] as const) {
+          const fixture = readFileSync(
+            resolve(
+              repoRoot,
+              `services/platform/tests/integration/fixtures/document-tools/workbook.${extension}`,
+            ),
+          );
+          expect(input[extension]).toEqual({
+            base64: fixture.toString('base64'),
+            sha256: createHash('sha256').update(fixture).digest('hex'),
+          });
+        }
+      }
+    },
+  );
+
+  test.each([
+    ['65534', 'FAIL_UID'],
+    ['10001', 'FAIL_UID'],
+    ['65534', 'REJECT_UID'],
+    ['10001', 'REJECT_UID'],
+  ] as const)(
+    'native document gate fails if session user %s fails through %s',
+    (uid, failure) => {
+      const result = runDocumentGate('arm64', { [failure]: uid });
+      expect(result.status, result.stderr + result.stdout).toBe(1);
+      for (const checkedUid of ['65534', '10001']) {
+        expect(result.stdout).toContain(`Document tools as uid ${checkedUid}`);
+        if (failure === 'REJECT_UID' && checkedUid === uid)
+          expect(result.stderr).toContain(`Rejected document uid ${uid}`);
+        else expect(result.stdout).toContain(`CHECK ${checkedUid} `);
+      }
+      expect(result.finishedUids).toEqual(['65534', '10001']);
     },
   );
 
@@ -1035,6 +1720,8 @@ describe('release artifact identity', () => {
     ['DOCUMENT_IMAGE', 'ghcr.io/synthetic/tale/tale-sandbox-runtime:latest'],
     ['DOCUMENT_PLATFORM', 'linux/unknown'],
     ['PULL_EXIT', '93'],
+    ['INSPECT_EXIT', '94'],
+    ['TEST_DOCUMENT_LABELS', 'invalid-json'],
     ['ACTUAL_REVISION', 'c'.repeat(40)],
     ['ACTUAL_VERSION', '0.5.43'],
     ['ACTUAL_SOURCE', 'https://github.com/another/tale'],
@@ -1042,6 +1729,9 @@ describe('release artifact identity', () => {
     const result = runDocumentGate('amd64', { [key]: value });
     expect(result.status).not.toBe(0);
     expect(result.stdout).not.toContain('CHECK ');
+    expect(result.stdout).not.toContain('Document tools as uid');
+    expect(result.startedUids).toEqual([]);
+    expect(result.finishedUids).toEqual([]);
   });
 
   test('release dispatch pins the CLI workflow to the same release tag', () => {

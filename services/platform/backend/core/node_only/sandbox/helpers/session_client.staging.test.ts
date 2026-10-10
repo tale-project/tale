@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { sessionStageFiles, type SessionStageFile } from './session_client';
@@ -18,6 +20,165 @@ interface StageBody {
 }
 
 describe('managed staging transport', () => {
+  it('does not inspect or clear managed roots after cancellation', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 404 }));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles('s', [{ path: 'inputs/a', contentBase64: 'YQ==' }], {
+        replaceRoots: ['inputs'],
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('does not clear a managed root when cancellation arrives with its inspection response', async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => {
+      controller.abort();
+      return new Response(null, { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles('s', [{ path: 'inputs/a', contentBase64: 'YQ==' }], {
+        replaceRoots: ['inputs'],
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['inspection', 'root replacement', 'legacy clear'])(
+    'cancellation reaches an active managed-root %s request',
+    async (phase) => {
+      const controller = new AbortController();
+      const started = Promise.withResolvers<void>();
+      const active = Promise.withResolvers<Response>();
+      let requestSignal: AbortSignal | null | undefined;
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (url, init) => {
+          const path = new URL(
+            url instanceof Request ? url.url : url.toString(),
+          ).pathname;
+          const inspecting = init?.method === 'GET';
+          if (
+            (phase === 'inspection' && inspecting) ||
+            (phase !== 'inspection' && path.endsWith('/delete'))
+          ) {
+            requestSignal = init?.signal;
+            requestSignal?.addEventListener(
+              'abort',
+              () => active.reject(requestSignal?.reason),
+              { once: true },
+            );
+            started.resolve();
+            return active.promise;
+          }
+          if (inspecting) {
+            return phase === 'root replacement'
+              ? new Response(null, { status: 404 })
+              : Response.json({
+                  entries: [{ name: 'a', type: 'file', size: 1, mtimeMs: 0 }],
+                });
+          }
+          return Response.json({ staged: [], skipped: [] });
+        });
+      vi.stubGlobal('fetch', fetcher);
+      const result = sessionStageFiles(
+        's',
+        [{ path: 'inputs/a', contentBase64: 'YQ==' }],
+        {
+          replaceRoots: ['inputs'],
+          signal: controller.signal,
+        },
+      ).catch((error: unknown) => error);
+      try {
+        await started.promise;
+        const callsAtAbort = fetcher.mock.calls.length;
+        controller.abort();
+        expect(requestSignal?.aborted).toBe(true);
+        expect(await result).toMatchObject({ name: 'AbortError' });
+        expect(fetcher).toHaveBeenCalledTimes(callsAtAbort);
+      } finally {
+        active.resolve(
+          Response.json({ entries: [], deleted: ['inputs'], skipped: [] }),
+        );
+        await result;
+      }
+    },
+  );
+
+  it.each([false, true])(
+    'replaces a non-directory managed root before staging (empty=%s)',
+    async (empty) => {
+      const operations: string[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+          const path = new URL(
+            url instanceof Request ? url.url : url.toString(),
+          ).pathname;
+          if (init?.method === 'GET') {
+            operations.push('inspect');
+            return new Response(null, { status: 404 });
+          }
+          const body = JSON.parse(
+            typeof init?.body === 'string' ? init.body : '',
+          ) as StageBody & {
+            paths?: string[];
+          };
+          if (path.endsWith('/delete')) {
+            operations.push('delete');
+            expect(body.paths).toEqual(['inputs']);
+            return Response.json({ deleted: ['inputs'], skipped: [] });
+          }
+          operations.push(body.replaceRoots ? 'reconcile' : 'stage');
+          return Response.json({
+            staged: body.files.map((file) => ({ path: file.path, bytes: 1 })),
+            skipped: [],
+            ...(body.replaceRoots ? { reconciled: true } : {}),
+          });
+        }),
+      );
+      await sessionStageFiles(
+        's',
+        empty ? [] : [{ path: 'inputs/child', contentBase64: 'YQ==' }],
+        { replaceRoots: ['inputs'] },
+      );
+      expect(operations).toEqual(
+        empty
+          ? ['inspect', 'delete', 'reconcile']
+          : ['inspect', 'delete', 'stage', 'reconcile'],
+      );
+    },
+  );
+
+  it('fails a refused non-directory root replacement before any staging', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          deleted: [],
+          skipped: [{ path: 'inputs', reason: 'permission' }],
+        }),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles(
+        's',
+        [{ path: 'inputs/child', contentBase64: 'YQ==' }],
+        { replaceRoots: ['inputs'] },
+      ),
+    ).rejects.toThrow('managed staging roots could not be prepared');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('retries only admission refusals and preserves a single deadline across attempts', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -74,11 +235,61 @@ describe('managed staging transport', () => {
       timeout.mockRestore();
     }
   });
+  it('caller cancellation reaches an active transfer and prevents later batches', async () => {
+    const controller = new AbortController();
+    const called = Promise.withResolvers<void>();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (_url, init) => {
+        called.resolve();
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        });
+      });
+    vi.stubGlobal('fetch', fetcher);
+    const result = sessionStageFiles(
+      's',
+      Array.from({ length: 513 }, (_, index) => ({
+        path: `inputs/${index}`,
+        contentBase64: 'YQ==',
+      })),
+      { signal: controller.signal },
+    ).catch((error: unknown) => error);
+    await called.promise;
+    controller.abort();
+    expect(await result).toMatchObject({ name: 'AbortError' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
+  it('caller cancellation stops the admission retry wait without another request', async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => {
+      controller.abort();
+      return Response.json({ error: 'busy' }, { status: 503 });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles('s', [{ path: 'inputs/a', contentBase64: 'YQ==' }], {
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it('batches both tiny source probes and transfers within the runtime item limit', async () => {
     const sizes: number[] = [];
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'kept', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         const body = JSON.parse(
           typeof init?.body === 'string' ? init.body : '',
         ) as StageBody;
@@ -107,6 +318,10 @@ describe('managed staging transport', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'kept', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         const body = JSON.parse(
           typeof init?.body === 'string' ? init.body : '',
         ) as StageBody;
@@ -145,6 +360,12 @@ describe('managed staging transport', () => {
           file.sourceId?.startsWith('sha256:'),
       ),
     ).toBe(true);
+    // The probe carries each file's digest, so a runtime that lost its record
+    // of what it staged checks the file on disk rather than asking again.
+    expect(calls[0]?.files.map((file) => file.sha256)).toEqual([
+      createHash('sha256').update('same').digest('hex'),
+      createHash('sha256').update('next').digest('hex'),
+    ]);
     expect(calls[1]?.files.map((file) => file.path)).toEqual(['inputs/new']);
     expect(calls[2]).toEqual({
       files: [],
@@ -162,6 +383,10 @@ describe('managed staging transport', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'a', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         bodies.push(
           JSON.parse(
             typeof init?.body === 'string' ? init.body : '',
@@ -182,11 +407,43 @@ describe('managed staging transport', () => {
     expect(bodies).toHaveLength(1);
   });
 
+  it('does not start legacy clear-and-copy after the staging caller cancels', async () => {
+    const controller = new AbortController();
+    const paths: string[] = [];
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'a', type: 'file', size: 1, mtimeMs: 0 }],
+          });
+        const path = url instanceof Request ? url.url : url.toString();
+        paths.push(path);
+        if (paths.length === 2) controller.abort();
+        if (path.endsWith('/delete'))
+          return Response.json({ deleted: ['inputs'], skipped: [] });
+        return Response.json({ staged: [], skipped: [] });
+      });
+    vi.stubGlobal('fetch', fetcher);
+    await expect(
+      sessionStageFiles('s', [{ path: 'inputs/a', contentBase64: 'YQ==' }], {
+        replaceRoots: ['inputs'],
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(paths).toHaveLength(2);
+    expect(paths.some((path) => path.endsWith('/delete'))).toBe(false);
+  });
+
   it('falls back to clear-and-copy when an old runtime cannot reconcile', async () => {
     const paths: string[] = [];
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+        if (init?.method === 'GET')
+          return Response.json({
+            entries: [{ name: 'a', type: 'file', size: 4, mtimeMs: 0 }],
+          });
         paths.push(url instanceof Request ? url.url : url.toString());
         const body = JSON.parse(
           typeof init?.body === 'string' ? init.body : '',
@@ -215,12 +472,21 @@ describe('managed staging transport', () => {
   it('removes deleted sources even when the desired managed tree is empty', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(
-        Response.json({ staged: [], skipped: [], reconciled: true }),
+      .mockImplementation(async (_url, init) =>
+        init?.method === 'GET'
+          ? Response.json({
+              entries: [{ name: 'removed', type: 'file', size: 1, mtimeMs: 0 }],
+            })
+          : Response.json({ staged: [], skipped: [], reconciled: true }),
       );
     vi.stubGlobal('fetch', fetcher);
     await sessionStageFiles('s', [], { replaceRoots: ['inputs'] });
-    expect(JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)).toEqual({
+    expect(
+      JSON.parse(
+        fetcher.mock.calls.find((call) => call[1]?.method === 'POST')?.[1]
+          ?.body as string,
+      ),
+    ).toEqual({
       files: [],
       replaceRoots: ['inputs'],
       keepPaths: [],

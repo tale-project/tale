@@ -97,4 +97,4 @@ Bei einem verwalteten Deployment deklarierst du diese Ursprünge als `additional
 
 ### Alle Anbieter-Callbacks registrieren
 
-Kopiere unter **Einstellungen > Enterprise-SSO** die OIDC-Weiterleitungs- oder SAML-ACS-URL jeder Domain. Die SAML-Metadaten enthalten die konfigurierten ACS-Einträge. Für Konnektoren findest du die Weiterleitungs-URLs je Domain unter **Einstellungen > Connectors > OAuth-Apps**. Registriere die benötigten URLs bei jedem Anbieter und teste eine neue Anmeldung von jedem unterstützten Ursprung.
+Kopiere unter **Einstellungen > Enterprise-SSO** die OIDC-Weiterleitungs- oder SAML-ACS-URL jeder Domain. Die SAML-Metadaten enthalten die konfigurierten ACS-Einträge. Für Connectors findest du die Weiterleitungs-URLs je Domain unter **Einstellungen > Connectors > OAuth-Apps**. Registriere die benötigten URLs bei jedem Anbieter und teste eine neue Anmeldung von jedem unterstützten Ursprung.

@@ -1,0 +1,59 @@
+title: Wissenseinträge
+entityLabelOne: Wissenseintrag
+searchPlaceholder: Wissenseinträge durchsuchen
+refreshFailed: Die neuesten Wissenseinträge konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
+addButton: Eintrag hinzufügen
+addEntry: Wissenseintrag hinzufügen
+addDescription: Wähle ein Thema und formuliere das Wissen so, dass es für sich allein verständlich ist.
+editEntry: Wissenseintrag bearbeiten
+editDialog:
+  newerVersion: Während deiner Bearbeitung wurde eine neue Version veröffentlicht. Dein Entwurf ist noch vorhanden. Speichere ihn, um diese Version zu ersetzen, oder brich ab und verwerfe ihn.
+adding: Wird hinzugefügt...
+saving: Wird gespeichert...
+topic: Thema
+topicPlaceholder: z. B. Öffnungszeiten
+content: Inhalt
+contentPlaceholder: Formuliere das Wissen so, dass es für sich allein
+  verständlich ist, z. B. "Unser Geschäft ist Montag bis Freitag von 9 bis 17
+  Uhr geöffnet."
+headers:
+  topic: Thema
+  content: Inhalt
+  source: Quelle
+  updated: Aktualisiert
+source:
+  agent: Agent
+  api: API
+  chat: Chat
+  manual: Manuell
+validation:
+  topicRequired: Thema ist erforderlich
+  topicTooLong: Das Thema darf höchstens 120 Zeichen lang sein
+  contentRequired: Inhalt ist erforderlich
+  contentTooLong: Der Inhalt darf höchstens 8000 Zeichen lang sein
+toast:
+  addSuccess: Wissenseintrag hinzugefügt
+  addError: Wissenseintrag konnte nicht hinzugefügt werden
+  addErrorDuplicate: Für dieses Thema existiert bereits ein Eintrag
+  updateSuccess: Wissenseintrag aktualisiert
+  updateError: Wissenseintrag konnte nicht aktualisiert werden
+  deleteError: Wissenseintrag konnte nicht gelöscht werden
+delete:
+  title: Wissenseintrag löschen
+  confirmation: '{name} löschen?'
+  warning: Agenten finden den Eintrag danach nicht mehr in der Wissensdatenbank.
+viewDialog:
+  title: Details zum Wissenseintrag
+  updated: Aktualisiert
+  entryId: Versions-ID
+  entryIdHint: Bei jeder Bearbeitung wird eine neue ID vergeben. Das Thema
+    kennzeichnet den Eintrag über alle Versionen hinweg, ebenso seine
+    Dokument-ID.
+  history: Versionsverlauf
+  versionCount: '{count, plural, one {# frühere Version} other {# frühere Versionen}}'
+  superseded: Ersetzt
+  supersededOn: Ersetzt am {date}
+  historyLoading: Versionsverlauf wird geladen…
+  historyEmpty: Noch keine früheren Versionen – bei jeder Bearbeitung bleibt hier der Text erhalten, den sie ersetzt.
+  historyLoadFailed: Der Versionsverlauf konnte nicht geladen werden.
+  historyRefreshFailed: Der Versionsverlauf konnte nicht aktualisiert werden. Die angezeigten Versionen sind womöglich veraltet.

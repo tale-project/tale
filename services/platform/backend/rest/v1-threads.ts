@@ -15,7 +15,6 @@ import { isRecord } from '../../lib/utils/type-utils.ts';
 import { servedByDirectCredential } from '../core/chat/composer.ts';
 import {
   assertChatTurnBudget,
-  budgetRetryAfterSeconds,
   ChatBudgetExceededError,
 } from '../domains/chat/budget-admission.ts';
 import { listComposerModels } from '../domains/chat/composer.ts';
@@ -54,6 +53,7 @@ import {
   readPageLimit,
   readQuery,
   restApiKeyId,
+  restBudgetExceeded,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -284,32 +284,6 @@ function restMessageError(stored: string): {
     error: info.raw ?? 'The turn failed.',
     ...(info.code !== undefined ? { errorCode: info.code } : {}),
   };
-}
-
-/** A reached budget cap: 429 with the cap that binds in `data` — whose
- * bucket, which period and limit, the usage and the limit, and when the
- * period resets (epoch ms) — and that wait as `Retry-After`. */
-function restBudgetExceeded(
-  c: Context<RestEnv>,
-  error: ChatBudgetExceededError,
-): Response {
-  const refusal = error.data;
-  c.header('Retry-After', String(budgetRetryAfterSeconds(refusal.resetsAt)));
-  return c.json(
-    {
-      error: refusal.message,
-      code: refusal.code,
-      data: {
-        scope: refusal.scope,
-        period: refusal.period,
-        limitCode: refusal.limitCode,
-        used: refusal.used,
-        limit: refusal.limit,
-        resetsAt: refusal.resetsAt,
-      },
-    },
-    429,
-  );
 }
 
 export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
@@ -1203,6 +1177,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             organizationId: c.get('organizationId'),
             userId: c.get('userId'),
             ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+            threadId: thread.id,
           });
           await addJobInTx(tx, 'chat.api_turn', {
             organizationId: c.get('organizationId'),

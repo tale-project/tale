@@ -3,7 +3,7 @@ title: Choisir et déplacer les stockages
 description: Distingue les stockages par défaut de ceux d’une organisation, configure les connexions et prépare la migration des données existantes.
 ---
 
-Choisis le stockage de trois catégories : enregistrements applicatifs, connaissances recherchables et fichiers d’origine. Déplacer l’une ne déplace pas les autres. Le stockage ne détermine pas non plus où un fournisseur de modèles ou un connecteur traite une requête ; inclus ces destinations dans ton évaluation de résidence.
+Choisis le stockage de trois catégories : enregistrements applicatifs, connaissances recherchables et fichiers d’origine. Déplacer l’une ne déplace pas les autres. Le stockage ne détermine pas non plus où un fournisseur de modèles ou un connector traite une requête ; inclus ces destinations dans ton évaluation de résidence.
 
 ## Choisir la portée du changement
 
@@ -11,7 +11,7 @@ Choisis le stockage de trois catégories : enregistrements applicatifs, connais
 | --- | --- | --- |
 | Base applicative : utilisateurs, chats, exécutions et audit | `DATABASE_URL` | Aucun réglage de base applicative distincte sur cette page. |
 | Base de connaissances : texte extrait, embeddings, index et contenu web | `KNOWLEDGE_DATABASE_URL` | **Paramètres > Résidence des données > Base de connaissances** |
-| Fichiers d’origine : documents, pièces jointes, audio et médias générés | `OBJECT_STORE_*` | **Paramètres > Résidence des données > Stockage objet** |
+| Fichiers d’origine : documents, pièces jointes, audio et médias générés | `OBJECT_STORE_*` | **Paramètres > Résidence des données > Stockage d'objets** |
 
 Le stack fourni place `tale_app` et `tale_knowledge` dans un service Postgres tout en gardant deux bases distinctes. D’autres installations utilisent des services séparés. Les valeurs d’environnement générées choisissent les connexions par défaut ; un processus applicatif démarré seul ne crée pas des identifiants de stockage objet valides.
 
@@ -46,7 +46,9 @@ Les fichiers se trouvent sous `$TALE_CONFIG_DIR/<orgSlug>/knowledge/` : `connec
 
 Dans **Modèle d’embedding**, choisis fournisseur et identifiants enregistrés, puis le modèle. **Modèle** liste les modèles d’embedding que porte le catalogue du fournisseur et remplit la largeur des vecteurs indiquée par le catalogue. Un fournisseur qui ne propose aucun modèle d’embedding, comme Anthropic, ne peut pas être retenu : la ligne affiche **Ne propose pas d’embeddings**, et tu choisis un autre fournisseur. Lorsque Tale ne connaît aucune largeur de vecteurs pour le fournisseur, saisis le tag du modèle (pour Azure OpenAI, le nom de ton déploiement) et la largeur des vecteurs que ce modèle produit. C’est le cas d’un fournisseur livré dont le catalogue ne liste aucun modèle d’embedding, d’un fournisseur défini par ton organisation dont la liste de modèles n’en contient aucun, et d’Azure OpenAI, dont les déploiements portent tes propres noms. La [déclaration `embedding`](/fr/self-hosted/configuration/providers#ce-quun-connecteur-declare) du fournisseur départage les deux cas, et l’enregistrement refuse un fournisseur déclaré sans embeddings, quelle que soit la voie de la requête. Si Tale ne peut pas vérifier les déclarations, la section le signale et propose **Réessayer** ; tant que la vérification n’a pas répondu, aucun modèle ne peut être choisi. Une URL de base facultative sélectionne un point d’accès compatible OpenAI. Sans modèle configuré, l’indexation et la recherche de connaissances ne peuvent pas fonctionner normalement.
 
-La largeur est fixée par base à la première utilisation. Les organisations qui partagent cette base doivent utiliser la même largeur ; une autre largeur demande une base compatible séparée. Changer de modèle peut aussi rendre les anciens vecteurs incompatibles à largeur identique. Prévois une réindexation avec le modèle choisi au lieu de mélanger des embeddings sans vérification.
+Une base de connaissances stocke des vecteurs de largeur 256, 384, 512, 768, 1024, 1536, 2048, 3072 ou 4096 et garde chaque largeur à part des autres. Les organisations qui partagent une base peuvent donc utiliser des modèles de largeurs différentes, et une largeur hors de cette liste ne peut pas être enregistrée. Au-delà de 2000, la recherche vectorielle ne dispose d’aucun index et ralentit à mesure que le corpus grandit.
+
+Lorsque tu enregistres un modèle d’une autre largeur, Tale remet en file d’attente les documents et les e-mails déjà indexés et analyse les sites web de l’organisation. Chacun reçoit de nouveaux vecteurs à la nouvelle largeur, ce qui sollicite à nouveau le fournisseur d’embeddings pour l’ensemble. Tant qu’un document attend dans la file, la recherche le trouve encore par ses mots. Le passage à un modèle de même largeur n’est pas détecté : les vecteurs existants restent en place, alors qu’un autre modèle les rend incompatibles. Prévois une réindexation avec le modèle choisi au lieu de mélanger des embeddings sans vérification.
 
 `embedding.json` accepte `minSimilarity`, le seuil du volet vectoriel de la recherche de l’assistant ; sa valeur par défaut est `0.45`. Le formulaire conserve ce réglage du fichier sans proposer de champ. Ajuste-le avec des requêtes représentatives. La recherche REST n’applique un seuil que si la requête en fournit un ; ce n’est pas une limite universelle pour toutes les recherches.
 
@@ -80,7 +82,7 @@ L’indexation d’un document dispose d’au plus 15 minutes par tentative. Qua
 ## Connecter le bucket d’une organisation
 
 1. Prépare un bucket compatible S3 et les permissions objet nécessaires. Configure CORS pour les véritables origines du navigateur et les méthodes requises `GET`, `PUT` et `HEAD`.
-2. Dans **Stockage objet**, saisis région, point d’accès si nécessaire, bucket, préfixe de clé facultatif et identifiants. Utilise l’adressage path-style si ton stockage le demande.
+2. Dans **Stockage d'objets**, saisis région, point d’accès si nécessaire, bucket, préfixe de clé facultatif et identifiants. Utilise l’adressage path-style si ton stockage le demande.
 3. Lance **Tester la connexion**, puis enregistre. Une région ou un bucket manquant, ou une valeur qui dépasse la longueur maximale d’un champ, est signalé sous son champ avant tout envoi. Le test serveur écrit, lit et supprime un objet de test ; il ne teste pas CORS dans le navigateur.
 4. Envoie et télécharge un fichier contrôlé dans le navigateur avant de compter sur la nouvelle connexion.
 

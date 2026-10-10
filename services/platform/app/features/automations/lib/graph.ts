@@ -11,8 +11,9 @@
  *
  * The reference kind is carried through to the edge, because it is what an
  * author needs to see:
- *  - a DATA reference (input / prompt / system / code / forEach) also
- *    propagates skipping — if the source is skipped, this node is skipped;
+ *  - a DATA reference (input / prompt / system / files / code / forEach)
+ *    also propagates skipping — if the source is skipped, this node is
+ *    skipped;
  *  - a CONTROL reference (when / repeatUntil / elseOf) only orders the two
  *    nodes; it never propagates a skip.
  */
@@ -78,88 +79,11 @@ export function orderedNodes(nodes: readonly NodeDef[]): {
     : { nodes: sorted, hasCycle: false };
 }
 
-/** How far down the canvas a node sits: one more than the deepest node it
- * references. Computed over the ordered list, so one pass suffices. */
-export function rankNodes(
-  ordered: readonly NodeDef[],
-  edges: readonly DerivedEdge[],
-): Map<string, number> {
-  const incoming = new Map<string, string[]>();
-  for (const edge of edges) {
-    const bucket = incoming.get(edge.target);
-    if (bucket) bucket.push(edge.source);
-    else incoming.set(edge.target, [edge.source]);
-  }
-  const ranks = new Map<string, number>();
-  for (const node of ordered) {
-    const sources = incoming.get(node.id) ?? [];
-    let rank = 0;
-    for (const source of sources) {
-      const sourceRank = ranks.get(source);
-      // A source that has not been ranked yet only happens inside a cycle,
-      // where there is no honest depth to read — treat it as level 0.
-      if (sourceRank !== undefined) rank = Math.max(rank, sourceRank + 1);
-    }
-    ranks.set(node.id, rank);
-  }
-  return ranks;
-}
-
-/** The control-flow fields a node declares, as the canvas renders them: one
- * badge per field, in a fixed reading order. */
-export type ControlFlowKind =
-  | 'when'
-  | 'elseOf'
-  | 'forEach'
-  | 'repeatUntil'
-  | 'onError';
-
-export interface ControlFlowBadge {
-  kind: ControlFlowKind;
-  /** The field's own value — the condition, the iterated expression, the
-   * guarded node id, or the error policy. */
-  value: string;
-  /** `repeatUntil` only: the iteration cap the engine will apply. */
-  maxRepeats?: number;
-}
-
-/**
- * The badges for one node. `onError: 'fail'` is the engine default and says
- * nothing an author did not already assume, so only `continue` shows.
- */
-export function controlFlowBadges(node: NodeDef): ControlFlowBadge[] {
-  const badges: ControlFlowBadge[] = [];
-  if (node.when !== undefined) badges.push({ kind: 'when', value: node.when });
-  if (node.elseOf !== undefined) {
-    badges.push({ kind: 'elseOf', value: node.elseOf });
-  }
-  if (node.forEach !== undefined) {
-    badges.push({ kind: 'forEach', value: node.forEach });
-  }
-  if (node.repeatUntil !== undefined) {
-    badges.push({
-      kind: 'repeatUntil',
-      value: node.repeatUntil,
-      ...(node.maxRepeats !== undefined && { maxRepeats: node.maxRepeats }),
-    });
-  }
-  if (node.onError === 'continue') {
-    badges.push({ kind: 'onError', value: node.onError });
-  }
-  return badges;
-}
-
-/** Node ids are `^[a-z][a-z0-9_]{0,49}$` — readable, but underscored. One
- * rendering shared by every surface that names a node to a person. */
-export function humanizeNodeId(id: string): string {
-  return id.replaceAll('_', ' ');
-}
-
-/** Everything the canvas needs about one document, derived in one pass. */
+/** The nodes of one document in execution order and the references between
+ * them, derived in one pass (a run's step list reads them). */
 export interface AutomationGraph {
   nodes: NodeDef[];
   edges: DerivedEdge[];
-  ranks: Map<string, number>;
   /** True when the references form a cycle: the order shown is document order,
    * not execution order. */
   hasCycle: boolean;
@@ -169,5 +93,5 @@ export function buildGraph(automation: Automation | null): AutomationGraph {
   const source = automation?.nodes ?? [];
   const { nodes, hasCycle } = orderedNodes(source);
   const edges = deriveEdges(nodes);
-  return { nodes, edges, ranks: rankNodes(nodes, edges), hasCycle };
+  return { nodes, edges, hasCycle };
 }

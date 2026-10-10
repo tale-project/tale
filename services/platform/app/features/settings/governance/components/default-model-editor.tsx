@@ -44,9 +44,11 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 import { stripQualifier } from './model-id';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
@@ -102,14 +104,10 @@ interface DefaultModelEditorProps {
   organizationId: string;
 }
 
-const SCOPE_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'team', label: 'Team' },
-  { value: 'role', label: 'Role' },
-];
+const SCOPE_VALUES = ['default', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is DefaultModelRule['scope'] {
-  return SCOPE_OPTIONS.some((o) => o.value === v);
+  return SCOPE_VALUES.some((value) => value === v);
 }
 
 function emptyRule(): DefaultModelRule {
@@ -169,6 +167,22 @@ function RuleDialog({
   organizationId,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((value) => ({
+        value,
+        label: t(`defaultModels.scopeLabels.${value}`),
+      })),
+    [t],
+  );
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`defaultModels.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const [draft, setDraft] = useState(initialRule);
 
   useEffect(() => {
@@ -270,7 +284,7 @@ function RuleDialog({
       <Stack gap={4}>
         <Select
           label={t('defaultModels.scope')}
-          options={SCOPE_OPTIONS}
+          options={scopeOptions}
           value={draft.scope}
           onValueChange={(value: string) => {
             if (isScopeValue(value)) {
@@ -283,7 +297,7 @@ function RuleDialog({
         {draft.scope === 'role' && (
           <Select
             label={t('defaultModels.role')}
-            options={ROLE_OPTIONS}
+            options={roleOptions}
             value={draft.scopeId ?? ''}
             onValueChange={(value) => updateDraft({ scopeId: value })}
             disabled={cannotManage}
@@ -357,10 +371,19 @@ function RuleDialog({
 // placeholder rows while loading so an empty body never reads as "no rules"
 // mid-load.
 // =============================================================================
-export function DefaultModelEditor({
+function DefaultModelEditorContent({
   organizationId,
 }: DefaultModelEditorProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(`defaultModels.roleLabels.${option.value}`),
+      })),
+    [t],
+  );
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -535,7 +558,7 @@ export function DefaultModelEditor({
         }
         case 'role':
           return (
-            ROLE_OPTIONS.find((o) => o.value === rule.scopeId)?.label ??
+            roleOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId ??
             '—'
           );
@@ -545,7 +568,7 @@ export function DefaultModelEditor({
           return '—';
       }
     },
-    [teamOptions, t],
+    [teamOptions, roleOptions, t],
   );
 
   const resolveModelName = useCallback(
@@ -665,7 +688,7 @@ export function DefaultModelEditor({
                     rules.map((rule, index) => (
                       <TableRow key={index}>
                         <TableCell className="capitalize">
-                          {rule.scope}
+                          {t(`defaultModels.scopeLabels.${rule.scope}`)}
                         </TableCell>
                         <TableCell>{resolveTarget(rule)}</TableCell>
                         <TableCell>{resolveProviderName(rule)}</TableCell>
@@ -716,7 +739,7 @@ export function DefaultModelEditor({
         )}
 
         <RuleDialog
-          open={dialogOpen}
+          open={policyReadAvailable && dialogOpen}
           onOpenChange={setDialogOpen}
           rule={dialogRule}
           onSave={handleDialogSave}
@@ -733,7 +756,7 @@ export function DefaultModelEditor({
         />
 
         <ConfirmDialog
-          open={deletingIndex !== null}
+          open={policyReadAvailable && deletingIndex !== null}
           onOpenChange={(open) => {
             if (!open) setDeletingIndex(null);
           }}
@@ -747,3 +770,8 @@ export function DefaultModelEditor({
     </Skeletonize>
   );
 }
+
+export const DefaultModelEditor = withGovernancePolicyReadBoundary(
+  DefaultModelEditorContent,
+  'default_models',
+);

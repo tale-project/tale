@@ -2,7 +2,8 @@
 
 /**
  * Status badge on a task Activity agent-run row. Running / Failed / Timed out
- * (and Completed) open a ViewDialog with the stored run outcome. The embedded
+ * (and Completed) open a ViewDialog with the stored run outcome; a run that
+ * waits for room reads why in its short state. The embedded
  * live-run transcript that used to render for a linked workflow execution is
  * offline while the automations backend is rebuilt, so a linked execution
  * shows the "no live detail" notice. A failed run leads with what its failure
@@ -20,6 +21,7 @@ import { useT } from '@/lib/i18n/client';
 import { taskRunFailureClass } from '@/lib/shared/task-run-failure';
 
 import type { TaskAgentRunRow } from '../utils/task-timeline';
+import { isAgentRunWaiting, waitingCopyKey } from './task-agent-run-waiting';
 
 type AgentRunVariant = 'outline' | 'green' | 'destructive' | 'yellow';
 const STATUS_VARIANT: Record<string, AgentRunVariant> = {
@@ -45,7 +47,10 @@ export function TaskAgentRunStatusBadge({
 }) {
   const { t } = useT('tasks');
   const [open, setOpen] = useState(false);
-  const statusLabel = t(`agentRuns.status.${run.status}`);
+  // A run waiting for room reads its reason's short state, not "Queued".
+  const statusLabel = isAgentRunWaiting(run)
+    ? t(`agentRun.waiting.${waitingCopyKey(run.waitingReason)}`)
+    : t(`agentRuns.status.${run.status}`);
   const canOpen = OPENABLE_STATUSES.has(run.status);
 
   const badge = (

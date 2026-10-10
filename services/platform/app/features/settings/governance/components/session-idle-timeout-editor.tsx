@@ -28,6 +28,7 @@ import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface SessionIdleTimeoutEditorProps {
   organizationId: string;
@@ -51,7 +52,7 @@ const parseConfig = createConfigParser(sessionIdleTimeoutConfigSchema, () => ({
 // `enabled` is true (matching the loaded behaviour — `enabled` defaults to
 // `false` while loading).
 // =============================================================================
-export function SessionIdleTimeoutEditor({
+function SessionIdleTimeoutEditorContent({
   organizationId,
 }: SessionIdleTimeoutEditorProps) {
   const { t } = useT('governance');
@@ -190,3 +191,8 @@ export function SessionIdleTimeoutEditor({
     </Skeletonize>
   );
 }
+
+export const SessionIdleTimeoutEditor = withGovernancePolicyReadBoundary(
+  SessionIdleTimeoutEditorContent,
+  'session_idle_timeout',
+);

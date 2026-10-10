@@ -41,7 +41,11 @@ export interface ReleaseFeedOptions {
   snapshot: readonly Release[];
   /** `RELEASES_FETCHED_AT` from the generated manifest. */
   snapshotFetchedAt: string;
-  /** Reports once per stale episode, reset by a successful refresh. */
+  /**
+   * Reports once per stale episode, reset by a successful refresh. An episode
+   * needs six hours without a successful refresh, counted from the feed's
+   * creation at the earliest.
+   */
   reportStale?: (error: Error) => void;
   ttlMs?: number;
   errorTtlMs?: number;
@@ -84,6 +88,9 @@ export function createReleaseFeed(options: ReleaseFeedOptions): ReleaseFeed {
   let staleAt = 0;
   let inFlight: Promise<void> | null = null;
   let staleReported = false;
+  // A deploy can boot on a build-time list that is already six hours old; the
+  // feed has not failed to refresh for six hours until it has run that long.
+  const startedAt = now();
 
   async function run(): Promise<void> {
     try {
@@ -107,7 +114,11 @@ export function createReleaseFeed(options: ReleaseFeedOptions): ReleaseFeed {
       staleReported = false;
     } catch (cause) {
       staleAt = now() + errorTtlMs;
-      if (!releaseFeedHealth(cached ?? fallback, now()).ok && !staleReported) {
+      if (
+        !staleReported &&
+        now() - startedAt > RELEASES_STALE_AFTER_MS &&
+        !releaseFeedHealth(cached ?? fallback, now()).ok
+      ) {
         staleReported = true;
         reportStale?.(
           new Error('Release feed has no successful refresh within six hours'),

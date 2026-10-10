@@ -3,68 +3,68 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
-  ExecJournal,
-  JournalBudget,
-} from '../../services/sandbox-runtime/daemon/src/exec-journal.ts';
+  ExecReplay,
+  ReplayBudget,
+} from '../../services/sandbox-runtime/daemon/src/exec-replay.ts';
 import type { Workload } from './workloads.ts';
 
 const RECORDS = 16_000;
 const RECONNECTS = 20;
 const SUFFIX = 10;
+const APPEND_WINDOW_BYTES = 128 * 1024;
 const payload = Buffer.alloc(384, 'x').toString('base64');
 
-/** Real unlinked journal files, without a child process or transport fixture. */
+/** Real segmented replay files, without a child process or transport fixture. */
 export async function prepareJournalWorkload(
   id: string,
   fixtureRoot: string,
 ): Promise<Workload> {
   const directory = await mkdtemp(join(fixtureRoot, 'tale-journal-'));
-  const budget = new JournalBudget();
-  let retained: ExecJournal | undefined;
+  const budget = new ReplayBudget();
+  let retained: ExecReplay | undefined;
   let journalBytes = 0;
   const populate = async () => {
-    let failure: string | undefined;
-    const journal = new ExecJournal(
-      budget,
-      () => {},
-      (reason) => {
-        failure = reason;
-      },
-      undefined,
-      directory,
-    );
-    retained = journal;
+    const replay = new ExecReplay(undefined, budget, directory);
+    retained = replay;
     journalBytes = 0;
+    let pending: Promise<void>[] = [];
+    let pendingBytes = 0;
     for (let seq = 1; seq <= RECORDS; seq++) {
       const line = `${JSON.stringify({ t: 'stdout', b64: payload, seq })}\n`;
-      journalBytes += Buffer.byteLength(line);
-      if (!journal.append(line)) await journal.drain();
-      assert.equal(failure, undefined);
-    }
-    await journal.drain();
-    assert.equal(failure, undefined);
-    journal.finish();
-    return journal;
-  };
-  const replaySuffix = async (journal: ExecJournal) => {
-    let expectedSeq = RECORDS - SUFFIX + 1;
-    const markers: string[] = [];
-    await journal.replay((event) => {
-      if (event.t === 'replay-start' || event.t === 'replay-complete') {
-        markers.push(event.t);
-        if (event.t === 'replay-complete') {
-          assert.equal(event.throughSeq, RECORDS);
-          assert.equal(expectedSeq, RECORDS + 1);
-        }
-        return;
+      const bytes = Buffer.byteLength(line);
+      // Concurrent append promises exercise vector batching, while this
+      // caller's admitted bytes remain bounded independently of total output.
+      if (pendingBytes + bytes > APPEND_WINDOW_BYTES) {
+        await Promise.all(pending);
+        pending = [];
+        pendingBytes = 0;
       }
-      assert.equal(event.t, 'stdout');
-      if (event.t !== 'stdout') throw new Error('Unexpected journal event');
-      assert.equal(event.seq, expectedSeq++);
-      assert.equal(event.b64, payload);
-    }, RECORDS - SUFFIX);
+      journalBytes += bytes;
+      pendingBytes += bytes;
+      pending.push(replay.append(line, seq));
+    }
+    await Promise.all(pending);
+    await replay.finish();
+    return replay;
+  };
+  const replaySuffix = async (replay: ExecReplay) => {
+    let expectedSeq = RECORDS - SUFFIX + 1;
+    const cursor = await replay.replay(
+      RECORDS - SUFFIX,
+      RECORDS,
+      (line) => {
+        const event: unknown = JSON.parse(line);
+        assert.deepEqual(event, {
+          t: 'stdout',
+          b64: payload,
+          seq: expectedSeq++,
+        });
+        return Promise.resolve();
+      },
+      (from, to) => assert.fail(`Unexpected replay gap ${from}-${to}`),
+    );
+    assert.equal(cursor, RECORDS);
     assert.equal(expectedSeq, RECORDS + 1);
-    assert.deepEqual(markers, ['replay-start', 'replay-complete']);
   };
   const reconnect = id === 'daemon.journal-reconnect';
   if (reconnect) await populate();
@@ -72,18 +72,18 @@ export async function prepareJournalWorkload(
     operations: reconnect ? RECONNECTS : RECORDS,
     unit: reconnect ? 'reconnects' : 'records',
     description: reconnect
-      ? '20 sequential reconnects at the last ten of 16,000 journal records; setup excluded, exact suffix and replay markers verified'
-      : 'Write and drain 16,000 journal records with 512-character base64 payloads, respecting backpressure; verify the final ten records and close the file',
+      ? '20 sequential suffix replays at the last ten of 16,000 records; setup excluded, exact sequences and payloads verified'
+      : 'Write and drain 16,000 replay records with 512-character base64 payloads in 128 KiB admission windows; verify the final ten records and close the spool',
     async run() {
       if (reconnect) {
         assert.ok(retained);
         for (let i = 0; i < RECONNECTS; i++) await replaySuffix(retained);
       } else {
-        const journal = await populate();
+        const replay = await populate();
         try {
-          await replaySuffix(journal);
+          await replaySuffix(replay);
         } finally {
-          await journal.dispose();
+          await replay.dispose();
           retained = undefined;
         }
       }
@@ -92,9 +92,11 @@ export async function prepareJournalWorkload(
       journalRecords: RECORDS,
       journalBytes,
       payloadBytes: 384,
+      appendWindowBytes: APPEND_WINDOW_BYTES,
       suffixRecords: SUFFIX,
       reconnectsPerSample: reconnect ? RECONNECTS : 1,
-      scope: 'Host filesystem and Node journal only; no container or network',
+      scope:
+        'Host filesystem and Node replay spool only; no container or network',
     }),
     async cleanup() {
       await retained?.dispose();

@@ -13,17 +13,59 @@ import {
   sign,
   verify,
 } from './auth.ts';
+import { DockerBackend } from './backend/docker/docker-backend.ts';
 import { loadConfig } from './config.ts';
+import { ControlRoutes } from './control-routes.ts';
+import { ImageWarmup } from './image-warmup.ts';
+import { BootAdoption } from './session/boot-adoption.ts';
 import { SessionRoutes } from './session/session-routes.ts';
+
+test('device spawners observe local resource pressure while preserving their configured slot count', async () => {
+  const source = import.meta.dir;
+  const script = `
+    import {mock} from 'bun:test';
+    const source = ${JSON.stringify(source)};
+    const memory = await import(source + '/host-memory.ts');
+    const disk = await import(source + '/host-disk.ts');
+    let memories = 0, disks = 0;
+    mock.module(source + '/host-memory.ts', () => ({...memory, HostMemoryProbe: class extends memory.HostMemoryProbe {constructor(...args) {super(...args); memories++;}}}));
+    mock.module(source + '/host-disk.ts', () => ({...disk, HostDiskProbe: class extends disk.HostDiskProbe {constructor(...args) {super(...args); disks++;}}}));
+    process.env.SANDBOX_TOKEN = 'device-resource-test';
+    process.env.SANDBOX_DEVICE_CONFIG = '/unused-device-config';
+    process.env.SANDBOX_MAX_SESSIONS = '3';
+    process.env.SANDBOX_BACKEND = 'docker';
+    const {router} = await import(source + '/server.ts');
+    const {sign, NONCE_HEADER, SIGNATURE_HEADER, TIMESTAMP_HEADER} = await import(source + '/auth.ts');
+    const timestamp = String(Date.now()), nonce = crypto.randomUUID();
+    const response = await router(new Request('http://sandbox/v1/limits', {headers:{[SIGNATURE_HEADER]:sign('GET','/v1/limits',timestamp,'','device-resource-test',nonce),[TIMESTAMP_HEADER]:timestamp,[NONCE_HEADER]:nonce}}));
+    console.log(JSON.stringify({memories,disks,limits:await response.json()}));
+  `;
+  const child = Bun.spawn([process.execPath, '-e', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exit] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect({ exit, stderr }).toEqual({ exit: 0, stderr: '' });
+  expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toEqual({
+    memories: 1,
+    disks: 1,
+    limits: { maxSessions: 3 },
+  });
+});
 
 describe('session HTTP routes', () => {
   let router: typeof import('./server.ts').router;
+  let listenThenAdopt: typeof import('./server.ts').listenThenAdopt;
 
   beforeAll(async () => {
     const previous = process.env.SANDBOX_TOKEN;
     process.env.SANDBOX_TOKEN = 'route-test-secret';
     try {
-      ({ router } = await import('./server.ts'));
+      ({ router, listenThenAdopt } = await import('./server.ts'));
     } finally {
       if (previous === undefined) delete process.env.SANDBOX_TOKEN;
       else process.env.SANDBOX_TOKEN = previous;
@@ -44,6 +86,432 @@ describe('session HTTP routes', () => {
       );
       expect(response.status).toBe(404);
       expect(await response.json()).toEqual({ error: 'not_found' });
+    }
+  });
+
+  test('image warmup queues only new local sessions while existing sessions remain addressable', async () => {
+    const pending = spyOn(ImageWarmup.prototype, 'pending').mockReturnValue(
+      true,
+    );
+    const create = spyOn(
+      SessionRoutes.prototype,
+      'handleCreate',
+    ).mockImplementation(async () => Response.json({}));
+    const get = spyOn(SessionRoutes.prototype, 'handleGet').mockImplementation(
+      async () => Response.json({ session: { sessionId: 'existing' } }),
+    );
+    const request = (method: string, path: string, body = '') => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method,
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              method,
+              path,
+              timestamp,
+              body,
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+          ...(body ? { body } : {}),
+        }),
+      );
+    };
+    try {
+      const warming = await request('POST', '/v1/sessions', '{}');
+      expect(warming.status).toBe(429);
+      expect(warming.headers.get('retry-after')).toBe('5');
+      expect(await warming.json()).toMatchObject({ error: 'runtime_image' });
+      expect(create).not.toHaveBeenCalled();
+      expect((await request('GET', '/v1/sessions/existing')).status).toBe(200);
+      expect((await request('GET', '/v1/limits')).status).toBe(200);
+      expect(get).toHaveBeenCalledWith('existing');
+      pending.mockReturnValue(false);
+      expect((await request('POST', '/v1/sessions', '{}')).status).toBe(200);
+      expect(create).toHaveBeenCalledTimes(1);
+    } finally {
+      pending.mockRestore();
+      create.mockRestore();
+      get.mockRestore();
+    }
+  });
+
+  test('a create that failed on a missing image waits like the creates after it', async () => {
+    // The backend heard the image was gone and restarted the warmup before
+    // its 502 came back: that create gets the retryable wait, not a failure.
+    const pending = spyOn(ImageWarmup.prototype, 'pending')
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
+    const create = spyOn(
+      SessionRoutes.prototype,
+      'handleCreate',
+    ).mockImplementation(async () =>
+      Response.json({ error: 'create_failed' }, { status: 502 }),
+    );
+    const post = () => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request('http://sandbox/v1/sessions', {
+          method: 'POST',
+          body: '{}',
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              'POST',
+              '/v1/sessions',
+              timestamp,
+              '{}',
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+        }),
+      );
+    };
+    try {
+      const waiting = await post();
+      expect(waiting.status).toBe(429);
+      expect(await waiting.json()).toMatchObject({ error: 'runtime_image' });
+      expect(create).toHaveBeenCalledTimes(1);
+      // Any other failure stands.
+      pending.mockReturnValue(false);
+      expect((await post()).status).toBe(502);
+    } finally {
+      pending.mockRestore();
+      create.mockRestore();
+    }
+  });
+
+  test('health reports where the runtime image stands without failing on it', async () => {
+    const health = spyOn(DockerBackend.prototype, 'health').mockResolvedValue({
+      ok: true,
+      detail: '27.0.0',
+    });
+    try {
+      const response = await router(new Request('http://sandbox/health'));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        status: 'ok',
+        runtimeImage: { state: expect.any(String), lastError: null },
+      });
+    } finally {
+      health.mockRestore();
+    }
+  });
+
+  test('while boot adoption runs, calls that depend on it answer 503 session_unavailable, never 404', async () => {
+    const adopting = spyOn(BootAdoption.prototype, 'pending').mockReturnValue(
+      true,
+    );
+    const get = spyOn(SessionRoutes.prototype, 'handleGet').mockImplementation(
+      async () => Response.json({ session: { sessionId: 'existing' } }),
+    );
+    const attach = spyOn(
+      SessionRoutes.prototype,
+      'handleExecAttach',
+    ).mockImplementation(async () => new Response(''));
+    // The deploy control routes answer from a stub, so a drain reached after
+    // adoption does not latch this module's spawner into draining.
+    const isDeployControl = (url: URL) =>
+      url.pathname === '/v1/drain' || url.pathname === '/v1/drain-status';
+    const control = spyOn(ControlRoutes.prototype, 'handle').mockImplementation(
+      async (_req, url) =>
+        isDeployControl(url) ? Response.json({ draining: true }) : null,
+    );
+    const request = (method: string, path: string) => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method,
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              method,
+              path,
+              timestamp,
+              '',
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+        }),
+      );
+    };
+    try {
+      for (const [method, path] of [
+        ['GET', '/v1/sessions/existing'],
+        ['GET', '/v1/sessions/existing/exec/exec1/attach?sinceSeq=4'],
+        ['GET', '/v1/sessions/existing/exec/exec1/checkpoint'],
+        ['GET', '/v1/sessions/existing/exec/exec1'],
+        ['POST', '/v1/sessions/existing/acquire'],
+        ['POST', '/v1/sessions'],
+        ['GET', '/v1/workspaces'],
+        ['GET', '/v1/capacity?organizationId=org-a'],
+        ['DELETE', '/v1/organizations/org-a'],
+        ['POST', '/v1/devices/device-1/disconnect'],
+        ['POST', '/v1/drain'],
+        ['GET', '/v1/drain-status'],
+      ] as const) {
+        const answer = await request(method, path);
+        expect({ method, path, status: answer.status }).toEqual({
+          method,
+          path,
+          status: 503,
+        });
+        expect(answer.headers.get('retry-after')).toBe('1');
+        expect(await answer.json()).toEqual({ error: 'session_unavailable' });
+      }
+      expect(get).not.toHaveBeenCalled();
+      expect(attach).not.toHaveBeenCalled();
+      expect(control.mock.calls.some(([, url]) => isDeployControl(url))).toBe(
+        false,
+      );
+      // Health reads not ready, without probing the backend, so probes keep
+      // routing to whatever served before; the deployment's limits and an
+      // unknown path answer as ever.
+      const health = await router(new Request('http://sandbox/health'));
+      expect(health.status).toBe(503);
+      expect(await health.json()).toEqual({ status: 'starting' });
+      expect((await request('GET', '/v1/limits')).status).toBe(200);
+      expect(
+        (await request('GET', '/v1/sessions/existing/screencast')).status,
+      ).toBe(404);
+
+      adopting.mockReturnValue(false);
+      expect((await request('GET', '/v1/sessions/existing')).status).toBe(200);
+      expect(
+        (await request('GET', '/v1/sessions/existing/exec/exec1/attach'))
+          .status,
+      ).toBe(200);
+      expect(get).toHaveBeenCalledWith('existing');
+      expect((await request('POST', '/v1/drain')).status).toBe(200);
+      expect((await request('GET', '/v1/drain-status')).status).toBe(200);
+    } finally {
+      adopting.mockRestore();
+      get.mockRestore();
+      attach.mockRestore();
+      control.mockRestore();
+    }
+  });
+
+  test('boot adoption is pending from its start to its end', () => {
+    const adoption = new BootAdoption();
+    expect(adoption.pending()).toBe(false);
+    adoption.begin();
+    expect(adoption.pending()).toBe(true);
+    adoption.end();
+    expect(adoption.pending()).toBe(false);
+  });
+
+  test('boot listens before it adopts, and holds the gate until the hub has loaded', async () => {
+    const adoption = new BootAdoption();
+    const steps: string[] = [];
+    const server = await listenThenAdopt(
+      {
+        listen: () => {
+          steps.push(`listen, gate ${adoption.pending()}`);
+          return 'listener';
+        },
+        adopt: async () => {
+          steps.push(`adopt, gate ${adoption.pending()}`);
+        },
+        startHub: async () => {
+          steps.push(`hub, gate ${adoption.pending()}`);
+        },
+      },
+      adoption,
+    );
+    expect(server).toBe('listener');
+    expect(steps).toEqual([
+      'listen, gate true',
+      'adopt, gate true',
+      'hub, gate true',
+    ]);
+    expect(adoption.pending()).toBe(false);
+  });
+
+  test('a failed adoption still loads the hub and ends the gate', async () => {
+    const adoption = new BootAdoption();
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    let hubStarted = false;
+    try {
+      await listenThenAdopt(
+        {
+          listen: () => null,
+          adopt: async () => {
+            throw new Error('backend gone');
+          },
+          startHub: async () => {
+            hubStarted = true;
+          },
+        },
+        adoption,
+      );
+      expect(hubStarted).toBe(true);
+      expect(adoption.pending()).toBe(false);
+      expect(warn).toHaveBeenCalledWith(
+        '[sandbox.session] session subsystem startup failed:',
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+    // A hub that cannot load fails the boot, and the gate still ends.
+    const failure = await listenThenAdopt(
+      {
+        listen: () => null,
+        adopt: async () => {},
+        startHub: async () => {
+          throw new Error('placements unreadable');
+        },
+      },
+      adoption,
+    ).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(failure).toEqual(new Error('placements unreadable'));
+    expect(adoption.pending()).toBe(false);
+  });
+
+  test('the router holds health, the deploy drain and session calls while the boot adopts', async () => {
+    const request = (method: string, path: string) => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method,
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              method,
+              path,
+              timestamp,
+              '',
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+        }),
+      );
+    };
+    let adopted!: () => void;
+    const adopting = new Promise<void>((resolve) => {
+      adopted = resolve;
+    });
+    let listening!: () => void;
+    const listened = new Promise<void>((resolve) => {
+      listening = resolve;
+    });
+    // The server module's own gate, as main() runs it.
+    const boot = listenThenAdopt({
+      listen: () => listening(),
+      adopt: () => adopting,
+      startHub: async () => {},
+    });
+    try {
+      await listened;
+      const health = await router(new Request('http://sandbox/health'));
+      expect(health.status).toBe(503);
+      expect(await health.json()).toEqual({ status: 'starting' });
+      for (const [method, path] of [
+        ['POST', '/v1/drain'],
+        ['GET', '/v1/drain-status'],
+        ['GET', '/v1/sessions/existing'],
+      ] as const) {
+        const answer = await request(method, path);
+        expect({ method, path, status: answer.status }).toEqual({
+          method,
+          path,
+          status: 503,
+        });
+        expect(await answer.json()).toEqual({ error: 'session_unavailable' });
+      }
+    } finally {
+      adopted();
+      await boot;
+    }
+    const status = await request('GET', '/v1/drain-status');
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({ draining: false });
+  });
+
+  test('exec status forwards the incoming recovery cancellation signal', async () => {
+    const status = spyOn(
+      SessionRoutes.prototype,
+      'handleExecStatus',
+    ).mockImplementation(async () => Response.json({ state: 'running' }));
+    const path = '/v1/sessions/sess1/exec/exec1';
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const abort = new AbortController();
+    const request = new Request(`http://sandbox${path}`, {
+      signal: abort.signal,
+      headers: {
+        [SIGNATURE_HEADER]: sign(
+          'GET',
+          path,
+          timestamp,
+          '',
+          'route-test-secret',
+          nonce,
+        ),
+        [TIMESTAMP_HEADER]: timestamp,
+        [NONCE_HEADER]: nonce,
+      },
+    });
+    try {
+      expect((await router(request)).status).toBe(200);
+      expect(status).toHaveBeenCalledWith('sess1', 'exec1', request.signal);
+    } finally {
+      status.mockRestore();
+    }
+  });
+
+  test('staging forwards the incoming cancellation signal', async () => {
+    const stage = spyOn(
+      SessionRoutes.prototype,
+      'handleFilesStage',
+    ).mockImplementation(async () =>
+      Response.json({ staged: [], skipped: [] }),
+    );
+    const path = '/v1/sessions/sess1/files/stage';
+    const body = JSON.stringify({ files: [] });
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const abort = new AbortController();
+    const request = new Request(`http://sandbox${path}`, {
+      method: 'POST',
+      body,
+      signal: abort.signal,
+      headers: {
+        [SIGNATURE_HEADER]: sign(
+          'POST',
+          path,
+          timestamp,
+          body,
+          'route-test-secret',
+          nonce,
+        ),
+        [TIMESTAMP_HEADER]: timestamp,
+        [NONCE_HEADER]: nonce,
+      },
+    });
+    try {
+      expect((await router(request)).status).toBe(200);
+      expect(stage).toHaveBeenCalledWith('sess1', body, request.signal);
+    } finally {
+      stage.mockRestore();
     }
   });
 
@@ -83,6 +551,121 @@ describe('session HTTP routes', () => {
       ]);
     } finally {
       cancel.mockRestore();
+    }
+  });
+
+  test('a destroy passes keep_workspace=1 on, and only that', async () => {
+    const destroy = spyOn(
+      SessionRoutes.prototype,
+      'handleDestroy',
+    ).mockImplementation(async () =>
+      Response.json({ stopped: true, busy: false, workspaceKept: true }),
+    );
+    try {
+      for (const query of ['?if_idle=1&keep_workspace=1', '?if_idle=1']) {
+        const path = `/v1/sessions/sess1${query}`;
+        const timestamp = String(Date.now());
+        const nonce = crypto.randomUUID();
+        const response = await router(
+          new Request(`http://sandbox${path}`, {
+            method: 'DELETE',
+            headers: {
+              [SIGNATURE_HEADER]: sign(
+                'DELETE',
+                path,
+                timestamp,
+                '',
+                'route-test-secret',
+                nonce,
+              ),
+              [TIMESTAMP_HEADER]: timestamp,
+              [NONCE_HEADER]: nonce,
+            },
+          }),
+        );
+        expect(response.status).toBe(200);
+      }
+      expect(destroy.mock.calls).toEqual([
+        [
+          'sess1',
+          {
+            ifIdle: true,
+            ifStopped: false,
+            awaitDeletion: false,
+            keepWorkspace: true,
+          },
+        ],
+        [
+          'sess1',
+          {
+            ifIdle: true,
+            ifStopped: false,
+            awaitDeletion: false,
+            keepWorkspace: false,
+          },
+        ],
+      ]);
+    } finally {
+      destroy.mockRestore();
+    }
+  });
+
+  test('checkpoint GET and PUT pass the authenticated router with a bounded body', async () => {
+    const checkpoint = spyOn(
+      SessionRoutes.prototype,
+      'handleExecCheckpoint',
+    ).mockImplementation(async () => Response.json({ checkpoint: null }));
+    const path = '/v1/sessions/sess1/exec/exec1/checkpoint';
+    try {
+      for (const method of ['GET', 'PUT']) {
+        expect(
+          (await router(new Request(`http://sandbox${path}`, { method })))
+            .status,
+        ).toBe(401);
+        const body =
+          method === 'PUT'
+            ? JSON.stringify({ seq: 10, state: 'x'.repeat(300_000) })
+            : '';
+        const timestamp = String(Date.now());
+        const nonce = crypto.randomUUID();
+        const response = await router(
+          new Request(`http://sandbox${path}`, {
+            method,
+            ...(method === 'PUT' ? { body } : {}),
+            headers: {
+              [SIGNATURE_HEADER]: sign(
+                method,
+                path,
+                timestamp,
+                body,
+                'route-test-secret',
+                nonce,
+              ),
+              [TIMESTAMP_HEADER]: timestamp,
+              [NONCE_HEADER]: nonce,
+            },
+          }),
+        );
+        expect(response.status).toBe(200);
+        expect(checkpoint.mock.calls.at(-1)?.slice(1)).toEqual([
+          'sess1',
+          'exec1',
+          body,
+        ]);
+      }
+      expect(
+        (
+          await router(
+            new Request(`http://sandbox${path}`, {
+              method: 'PUT',
+              body: 'x'.repeat(1024 * 1024 + 1),
+            }),
+          )
+        ).status,
+      ).toBe(413);
+      expect(checkpoint).toHaveBeenCalledTimes(2);
+    } finally {
+      checkpoint.mockRestore();
     }
   });
 

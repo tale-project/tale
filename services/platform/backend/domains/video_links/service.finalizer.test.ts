@@ -268,7 +268,7 @@ describe('finalizeClonedTranscript', () => {
   });
 });
 
-describe('cancelVideoLink', () => {
+describe('cancelVideoLink [VID-R5]', () => {
   const cancelArgs = {
     organizationId: 'org-1',
     userId: 'user-1',
@@ -332,7 +332,7 @@ describe('cancelVideoLink', () => {
  * document could have taken the row over. The row goes first (never a
  * document's), and the bytes only when nothing holds them (#4110).
  */
-describe('a video link’s reclaim', () => {
+describe('a video link’s reclaim [VID-R6]', () => {
   const cancelArgs = {
     organizationId: 'org-1',
     userId: 'user-1',

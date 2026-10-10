@@ -123,7 +123,6 @@ describe('run-admission refusals', () => {
     const codes = recordedRefusals();
     // A walk that found nothing would pass anything.
     expect(codes.has('task_circuit_breaker')).toBe(true);
-    expect(codes.has('agent_busy')).toBe(true);
     expect(
       [...codes].filter((code) => !TASK_RUN_REFUSAL_LABEL_KEY[code]),
     ).toEqual([]);

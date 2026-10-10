@@ -14,7 +14,7 @@ Les paramètres de l’organisation servent à donner accès à Tale, à connect
 1. [Ajoute les membres et choisis leurs rôles](/fr/platform/admin/members-and-roles), en fonction du travail de chacun.
 2. [Crée des équipes](/fr/platform/admin/teams) lorsque plusieurs personnes ont besoin des mêmes accès aux projets ou aux conversations.
 3. [Connecte un fournisseur IA](/fr/platform/admin/providers) pour rendre des modèles disponibles dans les chats et les agents.
-4. [Ajoute les identifiants des connecteurs](/fr/platform/admin/connectors) utilisés par tes workflows.
+4. [Ajoute les identifiants des connectors](/fr/platform/admin/connectors) utilisés par tes workflows.
 
 Les propriétaires et les admins gèrent les paramètres de l’organisation. Les développeurs ont accès aux paramètres techniques des intégrations, mais ne peuvent ni gérer les membres ni ouvrir toute la partie gouvernance. Les paramètres personnels du compte restent distincts.
 
@@ -27,12 +27,12 @@ Les propriétaires et les admins gèrent les paramètres de l’organisation. Le
 | Filtrer les messages et définir les instructions de l’organisation | [Garde-fous](/fr/platform/admin/governance/guardrails) |
 | Examiner des actions ou des dépenses | [Journaux d’audit](/fr/platform/admin/governance/audit-logs) ou [métriques d’utilisation](/fr/platform/admin/governance/usage-analytics) |
 | Repérer les réponses de chat, tours d’agent ou exécutions d’automatisation qui échouent | [Métriques d’exploitation](/fr/platform/admin/governance/operations-metrics) |
-| Récupérer des données conservées ou empêcher leur suppression | [Corbeille](/fr/platform/admin/governance/trash) ou [gel juridique](/fr/platform/admin/governance/legal-hold) |
+| Récupérer des données conservées ou empêcher leur suppression | [Corbeille](/fr/platform/admin/governance/trash) ou [conservation légale](/fr/platform/admin/governance/legal-hold) |
 | Traiter une demande d’effacement | [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) |
 
 ## Connexion, intégrations et apparence
 
-Configure [le SSO d’entreprise](/fr/platform/admin/enterprise-sso) pour ton fournisseur d’identité et [l’authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) pour protéger les comptes. Les [clés API](/fr/platform/admin/api-keys) permettent à un logiciel d’appeler Tale.
+Configure [le SSO d’entreprise](/fr/platform/admin/enterprise-sso) pour ton fournisseur d’identité et [l’authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) pour protéger les comptes. Les [clés API](/fr/platform/admin/api-keys) permettent à un logiciel d’appeler Tale. Un agent de code connecté avec l’une d’elles peut modifier lui-même bon nombre de ces paramètres, dans les limites du rôle de la personne à qui appartient la clé ; [Paramètres par MCP](/fr/develop/mcp-settings) indique lesquels.
 
 La page [Personnalisation visuelle](/fr/platform/admin/branding) sert à modifier le logo et les couleurs. [Sandboxes](/fr/platform/admin/sandboxes) présente la capacité d’exécution et les limites par type de tâche ; avec les [appareils de sandbox](/fr/platform/admin/sandbox-devices), les sandboxes de ton organisation tournent sur tes propres machines. Pour les accès d’un agent de projet à ces ressources, consulte [Agents côté administration](/fr/platform/admin/agents).
 

@@ -12,7 +12,8 @@
         "$TURBO_ROOT$/packages/marketing-ui/src/i18n/messages/*.yml",
         "$TURBO_ROOT$/packages/ui/src/i18n/tests/**",
         "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts",
-        "$TURBO_ROOT$/packages/ui/src/markdown/heading-id.ts"
+        "$TURBO_ROOT$/packages/ui/src/markdown/heading-id.ts",
+        "$TURBO_ROOT$/services/web/app/content/product-screenshots.ts"
       ]
     },
     "build": {
@@ -22,7 +23,13 @@
         "$TURBO_ROOT$/docs/**",
         "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts"
       ],
-      "outputs": ["$TURBO_EXTENDS$", "dist-seo/**"]
+      "outputs": [
+        "$TURBO_EXTENDS$",
+        "dist-ssr/**",
+        "dist-seo/**",
+        "app/content/frontmatter.json",
+        "public/search-index-*.json"
+      ]
     },
     "typecheck": {
       "inputs": [

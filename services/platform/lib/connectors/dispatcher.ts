@@ -61,6 +61,8 @@ const MOCK_TIMEOUT_MS = 2000;
 /** A live body may chain several vendor calls, each individually capped by the
  * host, so its own ceiling is generous. */
 const DEFAULT_LIVE_TIMEOUT_MS = 60_000;
+/** How long after a live body's time limit its host calls start refusing. */
+const HOST_ABORT_GRACE_MS = 100;
 
 // ------------------------------------------------------------------ catalog
 
@@ -220,6 +222,22 @@ export interface ConnectorAuditSink {
   record(entry: ConnectorInvocationRecord): Promise<void>;
 }
 
+/** One live call that ran — its body reached the outside world, whatever
+ * came back — as the usage ledger counts it. */
+export interface ConnectorUsageRecord {
+  organizationId: string;
+  connector: string;
+  action: string;
+  caller: ConnectorCaller;
+  outcome: 'ok' | 'error';
+}
+
+/** Where live calls are counted. Best-effort: a sink that fails is logged,
+ * and never fails the call it counts. */
+export interface ConnectorUsageSink {
+  record(entry: ConnectorUsageRecord): Promise<void>;
+}
+
 // ------------------------------------------------------------------- callers
 
 /**
@@ -300,6 +318,8 @@ export interface ConnectorDispatchContext {
   credentials?: CredentialResolver;
   approvals?: ApprovalGate;
   audit?: ConnectorAuditSink;
+  /** Counts every live call whose body ran, ok or not. */
+  usage?: ConnectorUsageSink;
   /** Supplying a sink is what gives a live body `ctx.files`. */
   blobs?: ConnectorBlobSink;
   /**
@@ -312,11 +332,19 @@ export interface ConnectorDispatchContext {
   /** Ceiling for one live body, including the vendor calls it chains. */
   timeoutMs?: number;
   /**
-   * Per-invocation CodeRunner override for the LIVE yaml-js path. A caller
-   * with a sandbox session hands in the session-bound out-of-process runner
-   * here — never through the process-global `setCodeRunner` slot, which two
-   * concurrent orgs share. Mock bodies always run on the global runner (pure,
-   * data-only, no host).
+   * The caller's own stop — an automation turn's, aborted when its server
+   * is shutting down. Every request the live host makes listens to it, and
+   * the body itself is raced against it: once it aborts the call rejects
+   * with `INTERRUPTED` at once. A body running in this process cannot be
+   * stopped from outside, so it may still finish after that; the caller
+   * must treat an interrupted write as one that may have happened.
+   */
+  signal?: AbortSignal;
+  /**
+   * Per-invocation CodeRunner override for the LIVE yaml-js path: every
+   * live caller hands in the in-process live runner here — never through the
+   * process-global `setCodeRunner` slot, which two concurrent orgs share.
+   * Mock bodies always run on the global runner (pure, data-only, no host).
    */
   codeRunner?: CodeRunner;
   /**
@@ -461,6 +489,49 @@ function resolveAction(connector: Connector, name: string): ConnectorAction {
   return action;
 }
 
+/** The caller's stop and `deadline` as one signal: aborted by whichever
+ * fires first. */
+function anySignal(
+  stop: AbortSignal | undefined,
+  deadline: AbortSignal,
+): AbortSignal {
+  return stop === undefined ? deadline : AbortSignal.any([stop, deadline]);
+}
+
+/**
+ * Run a live body unless the caller has stopped, and stop waiting for it the
+ * moment the caller does: the rejection is `INTERRUPTED`, and the body's own
+ * later outcome is observed and dropped.
+ */
+async function unlessInterrupted<T>(
+  signal: AbortSignal | undefined,
+  where: { connector: string; action: string },
+  body: () => Promise<T>,
+): Promise<T> {
+  const interrupted = () =>
+    new ConnectorError(
+      'INTERRUPTED',
+      'the call was interrupted because its server is shutting down',
+      where,
+    );
+  if (signal === undefined) return body();
+  if (signal.aborted) throw interrupted();
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(interrupted());
+    signal.addEventListener('abort', onAbort, { once: true });
+    body().then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 /**
  * Invoke one connector action. Resolution and input validation happen before
  * any side effect; on failure the rejection is an {@link ConnectorError}
@@ -569,6 +640,23 @@ export async function executeConnectorAction(
     }
   };
 
+  /** Count a live call whose body ran. A failure to count is logged: the
+   * call happened, and its outcome stands. */
+  const meter = async (outcome: ConnectorUsageRecord['outcome']) => {
+    if (!ctx.usage) return;
+    try {
+      await ctx.usage.record({
+        organizationId: ctx.organizationId,
+        connector: connector.name,
+        action: action.name,
+        caller,
+        outcome,
+      });
+    } catch (cause) {
+      console.warn(`[connectors] ${nodeType}: usage record failed`, cause);
+    }
+  };
+
   if (mode === 'mock') {
     // Deterministic, no IO of any kind: no credential is resolved, no host is
     // built, and the body runs against `input` alone.
@@ -656,7 +744,7 @@ export async function executeConnectorAction(
       `${nodeType} has a live body, but this deployment's code runner is the data-only node-vm one, which cannot reach credentials or the network`,
       {
         ...where,
-        hint: 'pass a host-capable runner as ctx.codeRunner: inProcessLiveRunner() for the shipped catalog, or the session-bound sandbox-exec runner (with ctx.portableHost) when the caller owns a sandbox session',
+        hint: 'pass a host-capable runner as ctx.codeRunner: inProcessLiveRunner() for the shipped catalog',
       },
     );
   }
@@ -782,17 +870,36 @@ export async function executeConnectorAction(
         // oxlint-disable-next-line typescript/no-non-null-assertion
         hostCall: ctx.portableHost!,
       };
-      output = await liveRunner.runBody(
-        buildPortableLiveCode(backend.live),
-        { input, ctx: portableCtx },
-        { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
-        { async: true },
+      output = await unlessInterrupted(ctx.signal, where, () =>
+        liveRunner.runBody(
+          buildPortableLiveCode(backend.live),
+          { input, ctx: portableCtx },
+          { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
+          { async: true },
+        ),
       );
     } else {
       // IN-PROCESS path (native backends always; yaml-js under a
       // host-capable in-process runner). Building the host is itself
       // policed — a credential pointing outside the connector's allowlist is
       // refused here — so it shares the block whose failures are recorded.
+      //
+      // Nothing in this process can stop a yaml-js body at its time limit,
+      // but its host calls can be stopped: shortly past the limit every
+      // ctx.http and ctx.files request rejects, so the body unwinds at its
+      // next host call instead of calling the vendor on after its caller was
+      // released. The grace lets the caller's own time-limit error land
+      // first, rather than the aborted request it causes.
+      const hostSignal =
+        nativeImpl === undefined && backend.kind === 'yaml-js'
+          ? anySignal(
+              ctx.signal,
+              AbortSignal.timeout(
+                (ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS) +
+                  HOST_ABORT_GRACE_MS,
+              ),
+            )
+          : ctx.signal;
       const host = createLiveHost({
         connector,
         action: action.name,
@@ -804,6 +911,7 @@ export async function executeConnectorAction(
           authHeader: credential.authHeader,
         }),
         ...(ctx.blobs !== undefined && { blobs: ctx.blobs }),
+        ...(hostSignal !== undefined && { signal: hostSignal }),
       });
 
       const connectorCtx: ConnectorContext = {
@@ -813,24 +921,30 @@ export async function executeConnectorAction(
       };
 
       if (nativeImpl) {
-        output = await nativeImpl(input, {
-          ...connectorCtx,
-          organizationId: ctx.organizationId,
-          credentialId: credential.credentialId,
-          authMethod: credential.authMethod,
-          caller,
-        });
+        output = await unlessInterrupted(ctx.signal, where, () =>
+          nativeImpl(input, {
+            ...connectorCtx,
+            organizationId: ctx.organizationId,
+            credentialId: credential.credentialId,
+            authMethod: credential.authMethod,
+            caller,
+          }),
+        );
       } else if (backend.kind === 'yaml-js') {
-        output = await liveRunner.runBody(
-          backend.live,
-          { input, ctx: connectorCtx },
-          { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
-          { async: true },
+        output = await unlessInterrupted(ctx.signal, where, () =>
+          liveRunner.runBody(
+            backend.live,
+            { input, ctx: connectorCtx },
+            { timeoutMs: ctx.timeoutMs ?? DEFAULT_LIVE_TIMEOUT_MS },
+            { async: true },
+          ),
         );
       }
     }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
+    // The body ran: counted before the record, which may itself fail.
+    await meter('error');
     await record('error', {
       credentialId: credential.credentialId,
       error: message,
@@ -853,6 +967,7 @@ export async function executeConnectorAction(
     );
   }
 
+  await meter('ok');
   await record('ok', { credentialId: credential.credentialId });
   return {
     status: 'ok',

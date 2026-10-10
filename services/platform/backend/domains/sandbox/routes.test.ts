@@ -20,6 +20,7 @@ const {
   scheduleDestroy,
   destroyStates,
   deletions,
+  waitingRuns,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   capacity: vi.fn(),
@@ -46,6 +47,7 @@ const {
   scheduleDestroy: vi.fn(),
   destroyStates: vi.fn(),
   deletions: vi.fn(),
+  waitingRuns: vi.fn(),
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -93,6 +95,7 @@ vi.mock('./workspace-cleanup.ts', () => ({
   unusedWorkspaceDeletions: deletions,
 }));
 vi.mock('./sessions.ts', () => ({
+  countWaitingAgentRuns: waitingRuns,
   listSandboxViewsForOrg: listViews,
   listRunningOpsBySession: vi.fn(),
   getAgentNodeSandboxOp: agentNodeOp,
@@ -103,7 +106,9 @@ vi.mock('../projects/service.ts', () => ({
   getProjectAuthContext: projectAuth,
 }));
 
+import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { createSandboxRoutes } from './routes.ts';
+import { listRunningOpsBySession } from './sessions.ts';
 
 const query = vi.fn(async () => [{ ownerType: 'project_agent', count: '2' }]);
 const app = () =>
@@ -120,6 +125,9 @@ beforeEach(() => {
     runtimeSessions: [
       { sessionId: 'private-project-session', state: 'running' },
     ],
+    placements: [
+      { sessionId: 'private-project-session', deviceId: 'private-device' },
+    ],
   });
   policy.mockResolvedValue({
     maxSessionsPerOrg: 2,
@@ -134,7 +142,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe('sandbox settings read and write authority', () => {
   it.each(['owner', 'admin', 'developer'])(
-    'allows %s to inspect the authenticated organization',
+    'allows %s to inspect the authenticated organization [SBX-R1] [SBX-R2] [SBX-R3]',
     async (role) => {
       caller.role = role;
       const response = await app().request(
@@ -163,19 +171,26 @@ describe('sandbox settings read and write authority', () => {
           status: 'available',
           observedAt: 1000,
           runtimeSessions: [],
+          placements: [],
         });
       } else {
         expect(listViews).toHaveBeenCalledWith(query, 'member-org');
         expect(await response.json()).toMatchObject({
           runtimeSessions: [{ sessionId: 'private-project-session' }],
+          placements: [
+            {
+              sessionId: 'private-project-session',
+              deviceId: 'private-device',
+            },
+          ],
         });
       }
       expect(policy).toHaveBeenCalledWith(query, 'member-org', 'sandbox_quota');
     },
   );
 
-  it.each(['editor', 'viewer'])(
-    'withholds infrastructure reads from %s',
+  it.each(['member', 'editor', 'viewer'])(
+    'withholds infrastructure reads from %s [SBX-R1] [SBX-R2]',
     async (role) => {
       caller.role = role;
       for (const path of [
@@ -192,7 +207,7 @@ describe('sandbox settings read and write authority', () => {
     },
   );
 
-  it('dates the deletion of each hibernated agent workspace', async () => {
+  it('dates the deletion of each hibernated agent workspace [SBX-R12]', async () => {
     const view = (sessionId: string, extra: Record<string, unknown>) => ({
       sessionId,
       ownerType: 'project_agent',
@@ -224,7 +239,29 @@ describe('sandbox settings read and write authority', () => {
     ]);
   });
 
-  it('keeps developers read-only for every sandbox mutation', async () => {
+  it('counts every run waiting for room beside the rows [SBX-R18]', async () => {
+    listViews.mockResolvedValue([]);
+    const counts = {
+      total: 3,
+      byReason: {
+        org_limit: 2,
+        host: 0,
+        destroy_pending: 0,
+        exec_limit: 0,
+        unknown: 1,
+      },
+    };
+    waitingRuns.mockResolvedValue(counts);
+    const response = await app().request('/sessions/view');
+    expect(response.status).toBe(200);
+    expect(waitingRuns).toHaveBeenCalledWith(query, 'member-org');
+    expect(await response.json()).toEqual({
+      sessions: [],
+      waitingRuns: counts,
+    });
+  });
+
+  it('keeps developers read-only for every sandbox mutation [SBX-R2]', async () => {
     caller.role = 'developer';
     for (const path of [
       '/reconcile',
@@ -248,7 +285,85 @@ describe('sandbox settings read and write authority', () => {
     expect(scheduleDestroy).not.toHaveBeenCalled();
   });
 
-  it('queues a Destroy for the caller organization and answers before it runs', async () => {
+  it.each(['member', 'editor', 'viewer'])(
+    'refuses %s every sandbox mutation [SBX-R2]',
+    async (role) => {
+      caller.role = role;
+      for (const path of [
+        '/reconcile',
+        '/sessions/s1/pin',
+        '/sessions/s1/destroy',
+        '/sessions/s1/stop-task',
+      ]) {
+        expect(
+          (
+            await app().request(path, {
+              method: 'POST',
+              body: '{"pinned":true}',
+              headers: { 'content-type': 'application/json' },
+            })
+          ).status,
+        ).toBe(403);
+      }
+      expect(query).not.toHaveBeenCalled();
+      expect(pin).not.toHaveBeenCalled();
+      expect(reconcileOrg).not.toHaveBeenCalled();
+      expect(scheduleDestroy).not.toHaveBeenCalled();
+      expect(sessionCancelExec).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['owner', 'admin'])(
+    'lets %s pin a workspace of the caller organization [SBX-R2]',
+    async (role) => {
+      caller.role = role;
+      pin.mockResolvedValueOnce(true);
+      const response = await app().request('/sessions/pa-1/pin?orgId=x', {
+        method: 'POST',
+        body: '{"pinned":true}',
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ pinned: true });
+      expect(pin).toHaveBeenCalledExactlyOnceWith(query, {
+        organizationId: 'member-org',
+        sessionId: 'pa-1',
+        pinned: true,
+      });
+    },
+  );
+
+  it('stops every running operation of a workspace the caller organization holds [SBX-R2]', async () => {
+    query.mockResolvedValueOnce([{ id: 'row-1' }] as never);
+    vi.mocked(listRunningOpsBySession).mockResolvedValueOnce([
+      { execId: 'exec-1' },
+      { execId: 'exec-2' },
+    ] as never);
+    const response = await app().request('/sessions/pa-1/stop-task?orgId=x', {
+      method: 'POST',
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ cancelled: 2 });
+    // The workspace is looked up in the caller's organization first.
+    expect(query.mock.calls[0]?.slice(1)).toEqual(['pa-1', 'member-org']);
+    expect(vi.mocked(sessionCancelExec).mock.calls).toEqual([
+      ['pa-1', 'exec-1'],
+      ['pa-1', 'exec-2'],
+    ]);
+  });
+
+  it('stops nothing in a workspace the caller organization does not hold [SBX-R3]', async () => {
+    query.mockResolvedValueOnce([] as never);
+    const response = await app().request('/sessions/theirs/stop-task', {
+      method: 'POST',
+    });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: 'SESSION_NOT_FOUND' });
+    expect(listRunningOpsBySession).not.toHaveBeenCalled();
+    expect(sessionCancelExec).not.toHaveBeenCalled();
+  });
+
+  it('queues a Destroy for the caller organization and answers before it runs [SBX-R2] [SBX-R3] [SBX-R11]', async () => {
     // The teardown waits for the session's lifecycle lock and the spawner's
     // delete; the request only queues it, so nobody watches a dialog spin.
     scheduleDestroy.mockResolvedValue(true);
@@ -263,7 +378,7 @@ describe('sandbox settings read and write authority', () => {
     });
   });
 
-  it('answers 404 for a session the organization holds no live row of', async () => {
+  it('answers 404 for a session the organization holds no live row of [SBX-R3]', async () => {
     scheduleDestroy.mockResolvedValue(false);
     const response = await app().request('/sessions/gone/destroy', {
       method: 'POST',
@@ -271,7 +386,7 @@ describe('sandbox settings read and write authority', () => {
     expect(response.status).toBe(404);
   });
 
-  it('says on each row whether a Destroy is under way or failed', async () => {
+  it('says on each row whether a Destroy is under way or failed [SBX-R11]', async () => {
     const rows = [
       { sessionId: 'a', ownerType: 'workflow_run', status: 'active' },
       { sessionId: 'b', ownerType: 'workflow_run', status: 'active' },
@@ -318,7 +433,7 @@ describe('sandbox settings read and write authority', () => {
     expect(reconcileOrg).toHaveBeenCalledWith(query, 'member-org');
   });
 
-  it('returns authoritative policy limits alongside occupied quota slots', async () => {
+  it('returns authoritative policy limits alongside occupied quota slots [SBX-R8]', async () => {
     const response = await app().request('/quota-usage');
     expect(await response.json()).toEqual({
       usage: [
@@ -388,7 +503,7 @@ describe('sandbox settings read and write authority', () => {
   });
 });
 
-describe('agent-node op honours the run project read rule', () => {
+describe('agent-node op honours the run project read rule [SBX-R4]', () => {
   const op = { execId: 'exec-1', status: 'running', progressText: 'working…' };
   beforeEach(() => {
     caller.role = 'member';
@@ -416,14 +531,23 @@ describe('agent-node op honours the run project read rule', () => {
   });
 
   it('answers the op for a project run the member can read', async () => {
-    const res = await app().request('/agent-node-op?runId=r-visible');
+    const res = await app().request(
+      '/agent-node-op?runId=r-visible&nodeId=draft_report',
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ op });
     expect(agentNodeOp).toHaveBeenCalledTimes(1);
+    expect(agentNodeOp).toHaveBeenCalledWith(query, {
+      organizationId: 'member-org',
+      runId: 'r-visible',
+      nodeId: 'draft_report',
+    });
   });
 
   it('hides the op of a run whose project the member cannot read', async () => {
-    const res = await app().request('/agent-node-op?runId=r-hidden');
+    const res = await app().request(
+      '/agent-node-op?runId=r-hidden&nodeId=draft_report',
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ op: null });
     // The transcript read never runs for a hidden run.

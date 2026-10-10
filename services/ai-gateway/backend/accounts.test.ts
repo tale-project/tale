@@ -45,7 +45,11 @@ function gate(): { wait: Promise<void>; open: () => void } {
 function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
   usage: UsageWindow[];
   usagePlan: Subscription | null;
-  refusals: { refresh?: RefreshRefusal; usage?: boolean; exchange?: boolean };
+  refusals: {
+    refresh?: RefreshRefusal;
+    usage?: boolean | 'rejected';
+    exchange?: boolean;
+  };
   gates: { refresh?: Promise<void>; usage?: Promise<void> };
   refreshCount: number;
   refreshedExpiresAt: string;
@@ -69,7 +73,7 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
     usagePlan: null as Subscription | null,
     refusals: {} as {
       refresh?: RefreshRefusal;
-      usage?: boolean;
+      usage?: boolean | 'rejected';
       exchange?: boolean;
     },
     gates: {} as { refresh?: Promise<void>; usage?: Promise<void> },
@@ -172,7 +176,13 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
       state.usageCount += 1;
       await state.gates.usage;
       if (state.refusals.usage) {
-        throw new ProviderError(id, 'usage_failed', 'refused');
+        throw new ProviderError(
+          id,
+          state.refusals.usage === 'rejected'
+            ? 'access_token_rejected'
+            : 'usage_failed',
+          'refused',
+        );
       }
       return { windows: state.usage, subscription: state.usagePlan };
     },
@@ -738,6 +748,52 @@ describe('createAccountService', () => {
     expect(cipher.open(stored?.accessToken ?? '')).toBe('access-2');
   });
 
+  it('does not reject a replacement generation when an older usage read answers 401', async () => {
+    const account = await connect();
+    const held = gate();
+    anthropic.gates.usage = held.wait;
+    anthropic.refusals.usage = 'rejected';
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const reading = service.list();
+    await vi.waitFor(() => expect(anthropic.usageCount).toBe(2));
+
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const handouts = service.handOutTokens();
+    await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
+    held.open();
+    await Promise.all([reading, handouts]);
+
+    const stored = await store.getAccount(account.id);
+    expect(cipher.open(stored?.accessToken ?? '')).toBe('access-2');
+    expect(stored?.status).toBe('active');
+  });
+
+  it('does not let a late usage rejection overwrite a terminal refresh refusal', async () => {
+    const account = await connect();
+    const usageHeld = gate();
+    anthropic.gates.usage = usageHeld.wait;
+    anthropic.refusals.usage = 'rejected';
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const reading = service.list();
+    await vi.waitFor(() => expect(anthropic.usageCount).toBe(2));
+
+    const refreshHeld = gate();
+    anthropic.gates.refresh = refreshHeld.wait;
+    anthropic.refusals.refresh = 'rejected';
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const handouts = service.handOutTokens();
+    await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
+    refreshHeld.open();
+    await vi.waitFor(async () =>
+      expect((await store.getAccount(account.id))?.status).toBe('expired'),
+    );
+
+    usageHeld.open();
+    await Promise.all([reading, handouts]);
+    expect(anthropic.refreshCount).toBe(1);
+    expect((await store.getAccount(account.id))?.status).toBe('expired');
+  });
+
   it('keeps the last reading, and when it was read, through a failed read', async () => {
     await connect();
     anthropic.refusals.usage = true;
@@ -755,6 +811,48 @@ describe('createAccountService', () => {
     now = new Date('2026-09-21T10:14:00.000Z');
     await service.list();
     expect(anthropic.usageCount).toBe(3);
+  });
+
+  it('recovers one exact access-token generation after an authenticated usage rejection', async () => {
+    const account = await connect();
+    anthropic.refusals.usage = 'rejected';
+    now = new Date('2026-09-21T10:10:00.000Z');
+
+    const [row] = await service.list();
+
+    expect(row?.status).toBe('active');
+    expect(anthropic.refreshCount).toBe(1);
+    expect(
+      cipher.open((await store.getAccount(account.id))?.accessToken ?? ''),
+    ).toBe('access-2');
+  });
+
+  it('keeps a rejected generation unavailable when its recovery is rate limited', async () => {
+    const account = await connect();
+    anthropic.refusals.usage = 'rejected';
+    anthropic.refusals.refresh = 'failed';
+    now = new Date('2026-09-21T10:10:00.000Z');
+
+    const [row] = await service.list();
+    expect(row?.status).toBe('error');
+    expect(anthropic.refreshCount).toBe(1);
+
+    now = new Date('2026-09-21T10:30:00.000Z');
+    await service.list();
+    expect(anthropic.usageCount).toBe(1 + 1);
+    expect((await store.getAccount(account.id))?.status).toBe('error');
+  });
+
+  it('does not export a known unavailable account through its CLI command', async () => {
+    const account = await connect();
+    anthropic.refusals.refresh = 'failed';
+    await store.updateAccount(account.id, (row) => {
+      row.status = 'error';
+    });
+
+    await expect(service.cliCommand(account.id)).rejects.toMatchObject({
+      code: 'unavailable',
+    });
   });
 
   it('does not bring back an account removed while it was being read', async () => {
@@ -1187,28 +1285,45 @@ describe('staggered refreshes and the hand-out floor', () => {
   it('never refreshes two accounts refreshed together in one pass, over a month of passes', async () => {
     await alignedPool();
     const gateway = service();
-    const refreshedAt: Record<string, string[]> = { early: [], late: [] };
+    const refreshedAt: Record<'early' | 'late', Set<string>> = {
+      early: new Set(),
+      late: new Set(),
+    };
+    const updateAccount = store.updateAccount.bind(store);
+    // Observe the real store's writes rather than cloning both rows again
+    // after every pass. Usage writes keep their refresh time unchanged.
+    store.updateAccount = async (id, change) => {
+      let refreshed: string | null = null;
+      const updated = await updateAccount(id, (row) => {
+        const before = row.lastRefreshedAt;
+        change(row);
+        const at = row.lastRefreshedAt;
+        if (at && at !== ISSUED && at !== before) {
+          refreshed = at;
+        }
+      });
+      if (refreshed && (id === 'early' || id === 'late')) {
+        refreshedAt[id].add(refreshed);
+      }
+      return updated;
+    };
     // A background pass every five minutes for thirty days, each refresh
     // handing out a fresh eight-hour token. Cycles of different lengths
     // meet now and then; the spacing keeps them in different passes.
+    let passes = 0;
     for (let at = Date.parse(ISSUED); at < Date.parse(ISSUED) + 720 * HOUR;) {
       at += 5 * 60 * 1000;
       now = new Date(at);
       anthropic.refreshedExpiresAt = new Date(at + 8 * HOUR).toISOString();
       await gateway.refreshAll();
-      for (const id of ['early', 'late']) {
-        const stored = await store.getAccount(id);
-        const last = stored?.lastRefreshedAt ?? '';
-        if (last !== ISSUED && !refreshedAt[id]?.includes(last)) {
-          refreshedAt[id]?.push(last);
-        }
-      }
+      passes += 1;
     }
-    expect(refreshedAt.early?.length).toBeGreaterThan(50);
-    expect(refreshedAt.late?.length).toBeGreaterThan(50);
+    expect(passes).toBe(8640);
+    expect(refreshedAt.early.size).toBeGreaterThan(50);
+    expect(refreshedAt.late.size).toBeGreaterThan(50);
     // No pass refreshed both: one refresh never cuts the runs of the pool.
-    const both = refreshedAt.early?.filter((at) =>
-      refreshedAt.late?.includes(at),
+    const both = [...refreshedAt.early].filter((at) =>
+      refreshedAt.late.has(at),
     );
     expect(both).toEqual([]);
   });

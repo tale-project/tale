@@ -18,8 +18,16 @@ import {
   stageAgentReviewFile,
 } from '../tasks/agent-review-files.ts';
 import { reviewAgentTask } from '../tasks/agent-review.ts';
-import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
+import {
+  startDelegatedAgentRun,
+  withStartWait,
+} from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
+import {
+  startAgentReviewBatch,
+  readAgentReviewBatch,
+} from '../tasks/review-batches.ts';
+import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import {
   isTaskRunConfined,
   runStarterMayEditProject,
@@ -647,6 +655,33 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
       );
     },
 
+    'tasks/internal_mutations:agentReviewBatch': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the domain validates the complete request
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        request: { operation?: unknown };
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_REVIEW_FORBIDDEN',
+          );
+          const auth = {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            ...authority,
+          };
+          return args.request?.operation === 'read_batch'
+            ? readAgentReviewBatch(tx, auth, args.request)
+            : startAgentReviewBatch(tx, auth, args.request);
+        }),
+      );
+    },
+
     'tasks/internal_mutations:agentReviewTask': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the domain validates the complete review input
       const args = raw as {
@@ -663,6 +698,34 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             'TASK_REVIEW_FORBIDDEN',
           );
           return reviewAgentTask(
+            tx,
+            {
+              organizationId: args.organizationId,
+              sessionId: args.sessionId,
+              ...authority,
+            },
+            args.review,
+          );
+        }),
+      );
+    },
+
+    'tasks/internal_mutations:agentDelegateTaskReview': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the domain validates the complete delegation input
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        review: unknown;
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_REVIEW_FORBIDDEN',
+          );
+          return delegateAgentTaskReview(
             tx,
             {
               organizationId: args.organizationId,
@@ -720,9 +783,11 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         const projectId = binding.projectId;
         const agentId = binding.actorId;
         const execId = args.taskRunExecId;
-        return transactSerializable(sql, async (tx) => {
-          const runs = await tx<{ id: string; startedBy: string }[]>`
-            SELECT id, started_by AS "startedBy"
+        const outcome = await transactSerializable(sql, async (tx) => {
+          const runs = await tx<
+            { id: string; startedBy: string; apiKeyId: string | null }[]
+          >`
+            SELECT id, started_by AS "startedBy", api_key_id AS "apiKeyId"
             FROM app.project_agent_runs
             WHERE org_id = ${args.organizationId}
               AND session_id = ${args.sessionId} AND exec_id = ${execId}
@@ -743,6 +808,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             scopeProjectIds: [projectId],
             taskId: args.taskId,
             startedBy: run.startedBy,
+            ...(run.apiKeyId !== null ? { apiKeyId: run.apiKeyId } : {}),
             via: { kind: 'agent', runId: run.id, agentId },
             ...(args.agentId !== undefined ? { agentId: args.agentId } : {}),
             ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
@@ -754,6 +820,10 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
               : {}),
           });
         });
+        // Whether the run it started waits for a worker, read once the
+        // start has committed: the manager learns the agent is not working
+        // yet.
+        return withStartWait(sql, args.organizationId, outcome);
       });
     },
 

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup } from '@testing-library/react';
+import { act, cleanup } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
@@ -68,7 +68,6 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ isLoading: false, isAuthenticated: true }),
-  useSessionUser: () => ({ isLoading: false, isAuthenticated: true }),
 }));
 vi.mock('@/lib/auth-client', () => ({
   authClient: {
@@ -160,7 +159,7 @@ function renderApp(ui: ReactElement) {
 
 /** The dashboard shell as `$id.tsx` renders it, in the layout that hosts
  * its session notice. */
-function renderShell(recovery: Recovery = SIGNED_IN) {
+async function renderShell(recovery: Recovery = SIGNED_IN) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -178,8 +177,28 @@ function renderShell(recovery: Recovery = SIGNED_IN) {
       </SessionLapseRecovery>
     </QueryClientProvider>
   );
-  const view = renderApp(shell(recovery));
-  return { rerender: (at: Recovery = recovery) => view.rerender(shell(at)) };
+  // Warm the real lazy module before mounting, including its settings words.
+  // React still crosses the lazy boundary; act flushes that commit and the
+  // title below confirms the alert stands before any geometry is measured.
+  await import('@/app/features/settings/data-residency/components/embedding-setup-alert');
+  const settledEmbeddingAlert = async () => {
+    if (!h.embeddingConfigured) {
+      await screen.findByText(/^Knowledge search is off$/);
+    }
+  };
+  let view: ReturnType<typeof renderApp>;
+  await act(async () => {
+    view = renderApp(shell(recovery));
+  });
+  await settledEmbeddingAlert();
+  return {
+    rerender: async (at: Recovery = recovery) => {
+      await act(async () => {
+        view.rerender(shell(at));
+      });
+      await settledEmbeddingAlert();
+    },
+  };
 }
 
 async function onPhone(notch: number) {
@@ -254,7 +273,7 @@ describe('the notch of an installed app, in the real shell', () => {
     await onPhone(NOTCH);
     NUDGES[0].show();
     NUDGES[2].show();
-    renderShell(PAUSED);
+    await renderShell(PAUSED);
 
     const shell = document.querySelector('.mobile-nav-shell');
     const strip = notchStrip();
@@ -263,6 +282,7 @@ describe('the notch of an installed app, in the real shell', () => {
     expect(box(strip).top).toBe(0);
     expect(box(strip).height).toBe(NOTCH);
     // The alerts stand right under it, in the shell, above its header.
+    expect(alerts()).toHaveLength(3);
     const [notice, grace, embedding, ...others] = alerts();
     expect(others).toEqual([]);
     expect(strip.nextElementSibling).toBe(notice);
@@ -280,7 +300,7 @@ describe('the notch of an installed app, in the real shell', () => {
 
   it('is cleared by the strip above the shell header while no alert stands', async () => {
     await onPhone(NOTCH);
-    renderShell();
+    await renderShell();
     expect(alerts()).toEqual([]);
     const strip = notchStrip();
     expect(box(strip).height).toBe(NOTCH);
@@ -292,7 +312,7 @@ describe('the notch of an installed app, in the real shell', () => {
   it('is cleared by the strip above a thread page, which has no shell header', async () => {
     await onPhone(NOTCH);
     h.pathname = CHAT;
-    renderShell();
+    await renderShell();
     expect(document.querySelector('header')).toBeNull();
     expect(box(notchStrip()).height).toBe(NOTCH);
     expect(box(mainRegion()).top).toBe(NOTCH);
@@ -300,7 +320,7 @@ describe('the notch of an installed app, in the real shell', () => {
 
   it('is cleared once above the notice, and the strip steps aside with it', async () => {
     await onPhone(NOTCH);
-    const { rerender } = renderShell(PAUSED);
+    const { rerender } = await renderShell(PAUSED);
     const notice = screen.getByRole('status');
     expect(
       screen.getByText('Your session has ended').getBoundingClientRect().top,
@@ -310,7 +330,7 @@ describe('the notch of an installed app, in the real shell', () => {
 
     // The open confirmation hides the notice but keeps its place; the
     // strip keeps its height and gives the tint back.
-    rerender(ASKING);
+    await rerender(ASKING);
     const held = screen.getByRole('status', { hidden: true });
     expect(getComputedStyle(held).visibility).toBe('hidden');
     expect(box(notchStrip()).height).toBe(NOTCH);
@@ -322,8 +342,8 @@ describe('the notch of an installed app, in the real shell', () => {
     it('is cleared once, by the strip, above the shell header', async () => {
       await onPhone(NOTCH);
       show();
-      renderShell();
-      const nudge = screen.getByRole('status');
+      await renderShell();
+      const nudge = await screen.findByRole('status');
       expect(box(nudge).top).toBe(NOTCH);
       expect(
         screen.getByText(title).getBoundingClientRect().top,
@@ -338,8 +358,8 @@ describe('the notch of an installed app, in the real shell', () => {
       await onPhone(NOTCH);
       h.pathname = CHAT;
       show();
-      renderShell();
-      const nudge = screen.getByRole('status');
+      await renderShell();
+      const nudge = await screen.findByRole('status');
       expect(box(nudge).top).toBe(NOTCH);
       expect(box(mainRegion()).top).toBe(box(nudge).bottom);
     });
@@ -348,7 +368,7 @@ describe('the notch of an installed app, in the real shell', () => {
   it('is cleared once, by the strip, above two nudges', async () => {
     await onPhone(NOTCH);
     for (const { show } of NUDGES.slice(1)) show();
-    renderShell();
+    await renderShell();
     const [first, second, ...others] = screen.getAllByRole('status');
     expect(others).toEqual([]);
     expect(box(first).top).toBe(NOTCH);
@@ -362,9 +382,9 @@ describe('the notch of an installed app, in the real shell', () => {
   it('stands from md up only above an alert', async () => {
     await page.viewport(1280, 800);
     document.documentElement.style.setProperty('--safe-top', `${NOTCH}px`);
-    const { rerender } = renderShell();
+    const { rerender } = await renderShell();
     expect(box(notchStrip()).height).toBe(0);
-    rerender(PAUSED);
+    await rerender(PAUSED);
     expect(box(notchStrip()).height).toBe(NOTCH);
     expect(box(screen.getByRole('status')).top).toBe(NOTCH);
   });
@@ -390,7 +410,7 @@ interface LayoutShiftEntry extends PerformanceEntry {
  * late read brings it in, and measure what moved. */
 async function lateNudge(notch: number) {
   await onPhone(notch);
-  const { rerender } = renderShell();
+  const { rerender } = await renderShell();
   // A web font that lands mid-measure would reflow text of its own.
   await document.fonts.ready;
   await frames();
@@ -402,7 +422,9 @@ async function lateNudge(notch: number) {
   });
   observer.observe({ type: 'layout-shift' });
   h.embeddingConfigured = false;
-  rerender();
+  await rerender();
+  // The nudge's alert loads on demand: measure once it stands.
+  await screen.findByRole('status');
   await frames();
   shifts.push(...(observer.takeRecords() as LayoutShiftEntry[]));
   observer.disconnect();
@@ -453,7 +475,7 @@ describe('the boot frame under the notch', () => {
     expect(box(bar).top).toBe(NOTCH);
     cleanup();
 
-    renderShell();
+    await renderShell();
     expect(box(shellHeader()).top).toBe(NOTCH);
   });
 

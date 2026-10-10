@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
-const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
+import { i18n } from '../../../../lib/i18n/i18n';
+
+const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
   state: {
     status: 'waiting',
     finishedAt: null as number | null,
@@ -11,58 +15,137 @@ const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
     startedBy: 'user:user-me',
     startedVia: undefined as string | undefined,
     trace: null as unknown,
+    checkpoints: undefined as unknown,
+    agentAutoRetryMax: 3,
     versionDocument: {
       name: 'docs-approval-proof',
       nodes: [],
     } as unknown,
     versionError: undefined as unknown,
     versionPending: false,
+    runPending: false,
+    runError: undefined as unknown,
+    runMissing: false,
+    runFetching: false,
+    runFailureCount: 0,
+    realRunRead: false,
+    resumeCount: undefined as number | undefined,
+    lastResume: undefined as
+      | { reason: 'shutdown' | 'lease_expired'; at: number }
+      | undefined,
+    stalled: undefined as boolean | undefined,
+    failureCode: undefined as string | undefined,
+    record: null as unknown,
+    replayOf: undefined as unknown,
   },
-  resolveApproval: vi.fn(),
+  resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
+  refetchRun: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useAutomationRun: () => ({
-    data: {
-      id: 'run-proof',
-      name: 'docs-approval-proof',
-      version: 1,
-      mode: 'live',
-      startedAt: 1789363168936,
-      input: {},
-      output: null,
-      effects: [],
-      ...state,
-    },
-  }),
-  useAutomation: () =>
-    state.versionPending
-      ? { data: undefined, isError: false, error: null }
-      : state.versionError === undefined
-        ? { data: { document: state.versionDocument }, isError: false }
-        : { data: undefined, isError: true, error: state.versionError },
-  useNodeTypeCatalog: () => ({ data: [], isError: false }),
-  useRunPendingAsk: () => ({ data: null }),
-  useRunApproval: (organizationId: string, approvalId: string) => {
-    readApproval(organizationId, approvalId);
-    return {
+vi.mock('../hooks/queries', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../hooks/queries')>();
+  return {
+    useAutomationRun: (organizationId: string, runId: string) =>
+      state.realRunRead
+        ? actual.useAutomationRun(organizationId, runId)
+        : {
+            isError: state.runError !== undefined,
+            isPending: state.runPending,
+            error: state.runError,
+            isFetching: state.runFetching,
+            errorUpdateCount:
+              state.runError === undefined ? state.runFailureCount : 1,
+            refetch: refetchRun,
+            data: state.runMissing
+              ? null
+              : state.runPending || state.runError !== undefined
+                ? undefined
+                : {
+                    id: 'run-proof',
+                    name: 'docs-approval-proof',
+                    version: 1,
+                    mode: 'live',
+                    startedAt: 1789363168936,
+                    input: {},
+                    output: null,
+                    effects: [],
+                    ...state,
+                  },
+          },
+    useAutomation: () =>
+      state.versionPending
+        ? { data: undefined, isError: false, error: null }
+        : state.versionError === undefined
+          ? { data: { document: state.versionDocument }, isError: false }
+          : { data: undefined, isError: true, error: state.versionError },
+    useNodeTypeCatalog: () => ({
+      data: { nodeTypes: [], connectors: [] },
+      isError: false,
+    }),
+    useRunPendingAsk: () => ({ data: null }),
+    useAutomationRuns: () => ({ data: [] }),
+    useRunRecord: () => ({ data: state.record }),
+    useRunNode: () => ({ data: undefined }),
+    useReplayPlan: () => ({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      refetch: vi.fn(),
+    }),
+    useRunInDoubt: () => ({
       data: {
-        status: 'pending',
-        metadata: {
-          connector: 'imap-smtp',
-          action: 'send',
-          nodeId: 'deliver',
-          parameters: { subject: 'Approval proof' },
-        },
+        attemptId: 'attempt-1',
+        nodeId: 'send',
+        itemIndex: 0,
+        pass: 0,
+        attempt: 1,
+        nodeType: 'imap-smtp.send',
+        connector: 'Email (IMAP/SMTP)',
+        action: 'send',
+        input: { subject: 'Invoice 42' },
+        startedAt: 1789363169000,
       },
-    };
-  },
-}));
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    }),
+    useRunApproval: (organizationId: string, approvalId: string) => {
+      readApproval(organizationId, approvalId);
+      return {
+        data: {
+          status: 'pending',
+          metadata: {
+            connector: 'imap-smtp',
+            action: 'send',
+            nodeId: 'deliver',
+            parameters: { subject: 'Approval proof' },
+          },
+        },
+      };
+    },
+  };
+});
 const cancelRun = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
   useCancelAutomationRun: () => ({ mutate: cancelRun, isPending: false }),
-  useResolveRunApproval: () => ({ mutate: resolveApproval, isPending: false }),
+  useRequestLegacyRunStop: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useResolveRunApproval: () => ({
+    mutateAsync: resolveApproval,
+    isPending: false,
+  }),
+  useResolveRunInDoubt: () => ({
+    mutateAsync: vi.fn(() => Promise.resolve(null)),
+    isPending: false,
+  }),
+  useReplayRun: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}));
+// No RouterProvider: links render as plain anchors, and a new run's page is
+// a navigation the suite need not follow.
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
+  useNavigate: () => vi.fn(),
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
@@ -81,19 +164,69 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('./automation-canvas', () => ({
   AutomationCanvas: ({
-    graph,
-    runStatusByNode,
+    automation,
+    layoutKey,
+    revealId,
+    run,
+    selectedId,
+    selectedUnit,
+    onSelect,
+    runView,
+    onRunViewChange,
+    runMoment,
+    onRunMomentChange,
   }: {
-    graph: { nodes: Array<{ id: string; type: string }> };
-    runStatusByNode: ReadonlyMap<string, string>;
+    automation: { nodes: Array<{ id: string; type: string }> };
+    layoutKey: string;
+    revealId?: string | null;
+    run?: {
+      statusByNode: ReadonlyMap<string, string>;
+      status: string;
+      startedBy?: string;
+    };
+    selectedId?: string | null;
+    selectedUnit?: { item?: number; pass?: number } | null;
+    onSelect?: (id: string | null, unit?: { item?: number }) => void;
+    runView?: string;
+    onRunViewChange?: (view: 'chart' | 'steps') => void;
+    runMoment?: number;
+    onRunMomentChange?: (moment: number | null) => void;
   }) => (
-    <ul data-testid="canvas">
-      {graph.nodes.map((node) => (
-        <li key={node.id}>
-          {node.id} ({node.type}): {runStatusByNode.get(node.id)}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul
+        data-testid="canvas"
+        data-layout-key={layoutKey}
+        data-reveal-id={revealId ?? undefined}
+        data-run-status={run?.status}
+        data-started-by={run?.startedBy}
+        data-selected-id={selectedId ?? undefined}
+        data-selected-unit={
+          selectedUnit === null || selectedUnit === undefined
+            ? undefined
+            : JSON.stringify(selectedUnit)
+        }
+        data-run-view={runView}
+        data-run-moment={runMoment}
+      >
+        {automation.nodes.map((node) => (
+          <li key={node.id}>
+            {node.id} ({node.type}): {run?.statusByNode.get(node.id)}
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={() => onSelect?.('archive', { item: 2 })}>
+        Pick archive item 3
+      </button>
+      <button type="button" onClick={() => onRunViewChange?.('chart')}>
+        Show the chart
+      </button>
+      <button type="button" onClick={() => onRunMomentChange?.(1200)}>
+        Rest at 1.2 s
+      </button>
+      <button type="button" onClick={() => onRunMomentChange?.(null)}>
+        Rest at the end
+      </button>
+    </>
   ),
 }));
 vi.mock('./node-inspector', () => ({ NodeInspector: () => null }));
@@ -107,6 +240,9 @@ vi.mock('@tale/ui/json-viewer', () => ({
 import { RunDetail } from './run-detail';
 
 beforeEach(() => {
+  state.failureCode = undefined;
+  state.record = null;
+  state.replayOf = undefined;
   state.status = 'waiting';
   state.finishedAt = null;
   state.detail = 'approval:250a93eb-9413-4699-94e8-ee3164e5e545';
@@ -114,9 +250,19 @@ beforeEach(() => {
   state.startedBy = 'user:user-me';
   state.startedVia = undefined;
   state.trace = null;
+  state.checkpoints = undefined;
   state.versionDocument = { name: 'docs-approval-proof', nodes: [] };
   state.versionError = undefined;
   state.versionPending = false;
+  state.runPending = false;
+  state.runError = undefined;
+  state.runMissing = false;
+  state.runFetching = false;
+  state.runFailureCount = 0;
+  state.realRunRead = false;
+  state.resumeCount = undefined;
+  state.lastResume = undefined;
+  state.stalled = undefined;
   vi.clearAllMocks();
 });
 
@@ -130,6 +276,448 @@ function renderRun() {
   );
 }
 
+describe('RunDetail read recovery', () => {
+  it.each([
+    ['en', "Couldn't load this run.", 'Try again'],
+    ['de', 'Dieser Lauf konnte nicht geladen werden.', 'Erneut versuchen'],
+    ['fr', 'Impossible de charger cette exécution.', 'Réessayer'],
+  ])('shows an actionable read failure in %s', async (locale, title, retry) => {
+    const previousLocale = localStorage.getItem('user-locale');
+    localStorage.setItem('user-locale', locale);
+    await i18n.changeLanguage(locale);
+    try {
+      state.runError = new Error('Request failed with status 503');
+      const { user } = renderRun();
+      expect(screen.getByRole('alert')).toHaveTextContent(title);
+      expect(screen.queryByText('Loading the run…')).toBeNull();
+      expect(screen.queryByTestId('canvas')).toBeNull();
+      await user.click(screen.getByRole('button', { name: retry }));
+      expect(refetchRun).toHaveBeenCalledOnce();
+    } finally {
+      if (previousLocale === null) localStorage.removeItem('user-locale');
+      else localStorage.setItem('user-locale', previousLocale);
+      await i18n.changeLanguage('en');
+    }
+  });
+
+  it('keeps pending reads distinct from failure', () => {
+    state.runPending = true;
+    renderRun();
+    expect(screen.getByText('Loading the run…')).toBeVisible();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it.each([null, { data: { code: 'NOT_FOUND' } }])(
+    'keeps missing runs distinct from failure: %s',
+    (error) => {
+      state.runMissing = error === null;
+      state.runError = error === null ? undefined : error;
+      renderRun();
+      expect(
+        screen.getByRole('heading', { name: 'Run not found' }),
+      ).toBeVisible();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    },
+  );
+
+  it.each([false, true])(
+    'recovers retry focus without stealing moved focus: %s',
+    async (moveFocus) => {
+      state.runError = new Error('Request failed with status 503');
+      const detail = () => (
+        <RunDetail
+          organizationId="org-proof"
+          automationSlug="docs-approval-proof"
+          runId="run-proof"
+        />
+      );
+      const view = (
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>
+      );
+      const { user, rerender } = render(view);
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      state.runError = undefined;
+      state.runPending = true;
+      state.runFailureCount = 1;
+      rerender(
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>,
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load this run.",
+      );
+      if (moveFocus)
+        await user.click(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        );
+      state.runPending = false;
+      state.runError = new Error('Request failed with status 503');
+      rerender(
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>,
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', {
+            name: moveFocus ? 'Route navigation' : 'Try again',
+          }),
+        ).toHaveFocus(),
+      );
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      state.runError = undefined;
+      rerender(
+        <>
+          <button>Route navigation</button>
+          {detail()}
+        </>,
+      );
+      expect(screen.getByTestId('canvas')).toBeVisible();
+      expect(screen.queryByText("Couldn't load this run.")).toBeNull();
+    },
+  );
+
+  it('does not carry retry focus to another run', async () => {
+    state.runError = new Error('Request failed with status 503');
+    const { user, rerender } = renderRun();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    rerender(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-next"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).not.toHaveFocus();
+  });
+});
+
+const realRunClients: QueryClient[] = [];
+const runQueryKey = [
+  'backend',
+  'org-proof',
+  'automation_run',
+  'detail',
+  'run-proof',
+];
+
+afterEach(() => {
+  for (const client of realRunClients) client.clear();
+  realRunClients.length = 0;
+  vi.unstubAllGlobals();
+});
+
+function renderRealRun() {
+  state.realRunRead = true;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
+  });
+  realRunClients.push(client);
+  const view = render(
+    <QueryClientProvider client={client}>
+      <button type="button">Route navigation</button>
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+      />
+    </QueryClientProvider>,
+  );
+  return { ...view, client };
+}
+
+function runResponse() {
+  return Response.json({
+    run: {
+      id: 'run-proof',
+      name: 'docs-approval-proof',
+      version: 1,
+      mode: 'live',
+      status: 'success',
+      startedAt: 1789363168936,
+      finishedAt: 1789363170729,
+      startedBy: 'user:user-me',
+      input: {},
+      output: null,
+      effects: [],
+      trace: [],
+      detail: null,
+    },
+  });
+}
+
+function unavailableResponse() {
+  return Response.json({ message: 'Service unavailable' }, { status: 503 });
+}
+
+describe('RunDetail real run read focus recovery', () => {
+  it.each([
+    ['en', 'Run not found'],
+    ['de', 'Lauf nicht gefunden'],
+    ['fr', 'Exécution introuvable'],
+  ])(
+    'keeps a settled missing run distinct during background rereads in %s',
+    async (locale, missingTitle) => {
+      const previousLocale = localStorage.getItem('user-locale');
+      localStorage.setItem('user-locale', locale);
+      await i18n.changeLanguage(locale);
+      try {
+        let refreshing = false;
+        let finishRead: ((response: Response) => void) | undefined;
+        const missingResponse = () =>
+          Response.json({ error: 'run not found' }, { status: 404 });
+        const fetchRun = vi.fn(() => {
+          if (!refreshing) return Promise.resolve(missingResponse());
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        });
+        vi.stubGlobal('fetch', fetchRun);
+        const { user, client } = renderRealRun();
+        const missingHeading = await screen.findByRole(
+          'heading',
+          { name: missingTitle },
+          { timeout: 30000 },
+        );
+        expect(fetchRun).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('alert')).toBeNull();
+        await user.click(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        );
+        refreshing = true;
+        act(() => {
+          void client.invalidateQueries({
+            queryKey: ['backend', 'org-proof', 'automation_run'],
+          });
+        });
+        await waitFor(() => expect(finishRead).toBeDefined(), {
+          timeout: 30000,
+        });
+        expect(client.getQueryState(runQueryKey)?.status).toBe('pending');
+        expect(client.getQueryState(runQueryKey)?.error).toBeNull();
+        expect(screen.getByRole('heading', { name: missingTitle })).toBe(
+          missingHeading,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText('run not found')).toBeNull();
+        expect(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        ).toHaveFocus();
+        await act(async () => {
+          finishRead?.(missingResponse());
+        });
+        await waitFor(
+          () => expect(client.getQueryState(runQueryKey)?.status).toBe('error'),
+          { timeout: 30000 },
+        );
+        expect(screen.getByRole('heading', { name: missingTitle })).toBe(
+          missingHeading,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+        finishRead = undefined;
+        act(() => {
+          void client.invalidateQueries({
+            queryKey: ['backend', 'org-proof', 'automation_run'],
+          });
+        });
+        await waitFor(() => expect(finishRead).toBeDefined(), {
+          timeout: 30000,
+        });
+        expect(screen.getByRole('heading', { name: missingTitle })).toBe(
+          missingHeading,
+        );
+        expect(screen.queryByRole('alert')).toBeNull();
+        await act(async () => {
+          finishRead?.(runResponse());
+        });
+        await screen.findByTestId('canvas', {}, { timeout: 30000 });
+        expect(
+          screen.queryByRole('heading', { name: missingTitle }),
+        ).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        ).toHaveFocus();
+      } finally {
+        if (previousLocale === null) localStorage.removeItem('user-locale');
+        else localStorage.setItem('user-locale', previousLocale);
+        await i18n.changeLanguage('en');
+      }
+    },
+    60000,
+  );
+
+  it.each(['retry', 'outside'] as const)(
+    'retains keyboard Retry through repeated failure and respects %s focus on recovery',
+    async (recoveryFocus) => {
+      let deferRead = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      const fetchRun = vi.fn((url: string) => {
+        expect(new URL(url, window.location.origin).pathname).toBe(
+          '/api/app/automations/runs/run-proof',
+        );
+        if (!deferRead) return Promise.resolve(unavailableResponse());
+        return new Promise<Response>((resolve) => {
+          finishRead = resolve;
+        });
+      });
+      vi.stubGlobal('fetch', fetchRun);
+      const { user } = renderRealRun();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 30000 },
+      );
+      expect(fetchRun).toHaveBeenCalledTimes(4);
+      await user.click(
+        screen.getByRole('button', { name: 'Route navigation' }),
+      );
+      await user.tab();
+      expect(retryButton).toHaveFocus();
+      deferRead = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined(), { timeout: 30000 });
+      expect(retryButton).toHaveFocus();
+      expect(retryButton).not.toBeDisabled();
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      expect(retryButton).toHaveAttribute('aria-disabled', 'true');
+      expect(screen.queryByText('Loading the run…')).toBeNull();
+      const requests = fetchRun.mock.calls.length;
+      await user.keyboard('{Enter}');
+      expect(fetchRun).toHaveBeenCalledTimes(requests);
+      deferRead = false;
+      await act(async () => {
+        finishRead?.(unavailableResponse());
+      });
+      await waitFor(
+        () => expect(retryButton).not.toHaveAttribute('aria-busy'),
+        { timeout: 30000 },
+      );
+      expect(screen.getByRole('button', { name: 'Try again' })).toBe(
+        retryButton,
+      );
+      expect(retryButton).toHaveFocus();
+      expect(document.activeElement).not.toBe(document.body);
+      finishRead = undefined;
+      deferRead = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined(), { timeout: 30000 });
+      expect(retryButton).toHaveFocus();
+      if (recoveryFocus === 'outside')
+        await user.click(
+          screen.getByRole('button', { name: 'Route navigation' }),
+        );
+      await act(async () => {
+        finishRead?.(runResponse());
+      });
+      await screen.findByTestId('canvas', {}, { timeout: 30000 });
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      await waitFor(() =>
+        expect(
+          screen.getByRole(recoveryFocus === 'retry' ? 'region' : 'button', {
+            name: recoveryFocus === 'retry' ? 'Run' : 'Route navigation',
+          }),
+        ).toHaveFocus(),
+      );
+      expect(document.activeElement).not.toBe(document.body);
+    },
+    60000,
+  );
+
+  it.each(['success', 'failure'] as const)(
+    'retains focused Retry through background invalidation and %s',
+    async (outcome) => {
+      let refreshing = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          if (!refreshing) return Promise.resolve(unavailableResponse());
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user, client } = renderRealRun();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 30000 },
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Route navigation' }),
+      );
+      await user.tab();
+      expect(retryButton).toHaveFocus();
+      refreshing = true;
+      act(() => {
+        void client.invalidateQueries({
+          queryKey: ['backend', 'org-proof', 'automation_run'],
+        });
+      });
+      await waitFor(() => expect(finishRead).toBeDefined(), { timeout: 30000 });
+      expect(retryButton).toHaveFocus();
+      expect(retryButton).not.toBeDisabled();
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      expect(screen.queryByText('Loading the run…')).toBeNull();
+      if (outcome === 'failure') refreshing = false;
+      await act(async () => {
+        finishRead?.(
+          outcome === 'success' ? runResponse() : unavailableResponse(),
+        );
+      });
+      if (outcome === 'success') {
+        await screen.findByTestId('canvas', {}, { timeout: 30000 });
+        await waitFor(() =>
+          expect(screen.getByRole('region', { name: 'Run' })).toHaveFocus(),
+        );
+      } else {
+        await waitFor(
+          () => expect(retryButton).not.toHaveAttribute('aria-busy'),
+          { timeout: 30000 },
+        );
+        expect(screen.getByRole('button', { name: 'Try again' })).toBe(
+          retryButton,
+        );
+        expect(retryButton).toHaveFocus();
+      }
+      expect(document.activeElement).not.toBe(document.body);
+    },
+    60000,
+  );
+
+  it('preserves cached run details and chosen focus after a failed background read', async () => {
+    let failRefresh = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(failRefresh ? unavailableResponse() : runResponse()),
+      ),
+    );
+    const { user, client } = renderRealRun();
+    const canvas = await screen.findByTestId('canvas', {}, { timeout: 30000 });
+    await user.click(screen.getByRole('button', { name: 'Route navigation' }));
+    failRefresh = true;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: runQueryKey });
+    });
+    expect(client.getQueryState(runQueryKey)?.status).toBe('error');
+    expect(screen.getByTestId('canvas')).toBe(canvas);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Route navigation' }),
+    ).toHaveFocus();
+  }, 60000);
+});
+
 describe('RunDetail native run state', () => {
   it('shows a UUID approval and lets the reader reject the exact operation', async () => {
     const { user } = renderRun();
@@ -140,13 +728,10 @@ describe('RunDetail native run state', () => {
     );
     expect(resolveApproval).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Reject' }));
-    expect(resolveApproval).toHaveBeenCalledWith(
-      {
-        approvalId: '250a93eb-9413-4699-94e8-ee3164e5e545',
-        status: 'rejected',
-      },
-      expect.any(Object),
-    );
+    expect(resolveApproval).toHaveBeenCalledWith({
+      approvalId: '250a93eb-9413-4699-94e8-ee3164e5e545',
+      status: 'rejected',
+    });
   });
 
   it('does not invent a finish date for a waiting run with a null timestamp', () => {
@@ -204,15 +789,100 @@ describe('RunDetail starter and reason', () => {
     expect(screen.queryByText('repeat:tick')).toBeNull();
   });
 
-  it('keeps the failure sentence of a failed run', () => {
+  it('says why a failed run failed in words, the engine’s sentence folded away', () => {
     state.status = 'failed';
     state.finishedAt = 1789363170729;
     state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
     state.waitingFor = undefined;
     renderRun();
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'send: no usable credential for imap-smtp',
+    const card = screen.getByRole('region', { name: 'The run failed' });
+    expect(card).toHaveTextContent('A service call failed');
+    expect(card).toHaveTextContent(
+      "Check the step's input and the service's connection.",
     );
+    // The English stays under Technical details, never in the sentence.
+    expect(screen.getByText('Technical details')).toBeInTheDocument();
+    expect(screen.getByText(/no usable credential/)).not.toBeVisible();
+  });
+
+  it('names the step a run failed at from its record, and offers the ways on', async () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
+    state.waitingFor = undefined;
+    state.record = {
+      format: 1,
+      runId: 'run-proof',
+      status: 'failed',
+      version: 1,
+      mode: 'live',
+      startedAt: 1789363168936,
+      source: 'record',
+      events: [],
+      eventsTotal: 0,
+      cursor: 1789363170729,
+      nodes: [
+        {
+          path: 'send',
+          nodeId: 'send',
+          type: 'imap-smtp.send',
+          status: 'failed',
+          startedAt: 1789363169000,
+          activeMs: 10,
+          waitedMs: 0,
+          attempt: 1,
+          attempts: [],
+          decisions: [],
+          waits: [],
+          meta: {},
+          failure: {
+            code: 'connector_error',
+            reason: 'CONNECTOR_CREDENTIAL_MISSING',
+            params: { connector: 'imap-smtp' },
+            message: 'no usable credential for imap-smtp',
+          },
+        },
+      ],
+    };
+    renderRun();
+    const card = screen.getByRole('region', {
+      name: 'The run failed at Send',
+    });
+    expect(card).toHaveTextContent('No working connection');
+    expect(card).toHaveTextContent(
+      "imap-smtp isn't connected, or its connection was removed.",
+    );
+    expect(screen.getByRole('button', { name: 'Show step' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Retry from this step' }),
+    ).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Show in editor' })).toBeVisible();
+    await checkAccessibility(card);
+  });
+
+  it('names the run a replay ran again, and how, with the way back to it', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.replayOf = { runId: 'run-src-1234', kind: 'from', fromNode: 'score' };
+    renderRun();
+    expect(screen.getByText('Replay of run runsrc · from Score')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Open run runsrc' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Compare with it' })).toBeVisible();
+  });
+
+  it('says when the run a replay ran again was deleted', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.replayOf = { runId: null, kind: 'again' };
+    renderRun();
+    expect(screen.getByText('Replay of a run that was deleted')).toBeVisible();
+    expect(screen.queryByRole('link', { name: /Open run/ })).toBeNull();
   });
 
   it('shows no reason on a stopped run whose park is history', () => {
@@ -223,6 +893,105 @@ describe('RunDetail starter and reason', () => {
     renderRun();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/repeat/)).toBeNull();
+  });
+});
+
+/**
+ * A run its server could not finish moves to another one. The header says
+ * so — how often, and the last time when and why — and while nobody has
+ * taken it over yet the badge reads Interrupted, not Running.
+ */
+describe('RunDetail a run handed to another server [AUTO-R18]', () => {
+  const at = 1789363180000;
+
+  it('says when and why a restart handed the run on', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.resumeCount = 1;
+    state.lastResume = { reason: 'shutdown', at };
+    renderRun();
+    expect(
+      screen.getByText(
+        /^Resumed after a restart · Last on .+: the server running it was being updated or restarted and handed it on\.$/,
+      ),
+    ).toBeVisible();
+  });
+
+  it('counts every move and names a takeover after a server stopped responding', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.resumeCount = 3;
+    state.lastResume = { reason: 'lease_expired', at };
+    renderRun();
+    expect(
+      screen.getByText(
+        /^Resumed after 3 restarts · Last on .+: the server running it stopped responding, and another one took over\.$/,
+      ),
+    ).toBeVisible();
+  });
+
+  it('says nothing of restarts on a run that never moved', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    renderRun();
+    expect(screen.queryByText(/Resumed after/)).toBeNull();
+    expect(screen.getByText('Running')).toBeVisible();
+  });
+
+  it('reads Interrupted while no server has taken the run over yet', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.resumeCount = 1;
+    state.lastResume = { reason: 'lease_expired', at };
+    state.stalled = true;
+    renderRun();
+    expect(screen.getByText('Interrupted — resuming')).toBeVisible();
+    expect(screen.queryByText('Running')).toBeNull();
+    // Not "Resumed" yet: the badge says where the run stands until a server
+    // has it again.
+    expect(screen.queryByText(/Resumed after/)).toBeNull();
+  });
+});
+
+/**
+ * A write that may already have happened when the run was interrupted waits
+ * for a person: the card takes the waiting line's place while the run is
+ * parked on it, and goes once the run is not.
+ */
+describe('RunDetail a write that may already have happened', () => {
+  it('shows the decision card, not the waiting line, while the run waits on it', () => {
+    state.detail = 'in_doubt:send';
+    state.waitingFor = 'in_doubt';
+    renderRun();
+    expect(
+      screen.getByText('This step may already have run: send'),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Run it again' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Skip it' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Fail the run' })).toBeVisible();
+    // The card replaces the waiting line; only its polite announcement
+    // says it, once.
+    expect(
+      screen
+        .getAllByText(/^Waiting for a decision/)
+        .map((node) => node.getAttribute('role')),
+    ).toEqual(['status']);
+    expect(screen.queryByText('in_doubt:send')).toBeNull();
+  });
+
+  it('shows no card once the run is no longer parked on it', () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail =
+      'send: a person chose to fail the run here, since the step may already have run';
+    state.waitingFor = undefined;
+    renderRun();
+    expect(screen.queryByRole('button', { name: 'Run it again' })).toBeNull();
+    expect(screen.queryByText(/may already have run: send/)).toBeNull();
   });
 });
 
@@ -250,6 +1019,37 @@ describe('RunDetail stop', () => {
       { organizationId: 'org-proof', runId: 'run-proof' },
       expect.any(Object),
     );
+  });
+
+  // The run page keeps RunDetail mounted when it moves to another run on the
+  // same route (a continuation, back/forward). A refused stop belongs to the
+  // run it was asked for, never to the next one.
+  it('keeps a refused stop with the run it was asked for', async () => {
+    cancelRun.mockImplementationOnce(
+      (_args: unknown, options: { onError?: (error: Error) => void }) => {
+        options.onError?.(new Error('run-proof could not be stopped'));
+      },
+    );
+    const { user, rerender } = renderRun();
+    await user.click(screen.getByRole('button', { name: 'Stop the run' }));
+    const confirm = (
+      await screen.findAllByRole('button', { name: 'Stop the run' })
+    ).at(-1);
+    if (confirm === undefined) throw new Error('no confirm button');
+    await user.click(confirm);
+    expect(
+      await screen.findByText('run-proof could not be stopped'),
+    ).toBeVisible();
+
+    rerender(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-next"
+      />,
+    );
+
+    expect(screen.queryByText('run-proof could not be stopped')).toBeNull();
   });
 
   it('offers no stop on a finished run', () => {
@@ -322,7 +1122,10 @@ describe('RunDetail without a version document', () => {
     state.trace = [{ node: 'draft', type: 'llm', status: 'ok' }];
     state.versionError = new Error('network down');
     renderRun();
-    expect(screen.getByTestId('canvas')).not.toHaveTextContent('draft');
+    expect(screen.queryByTestId('canvas')).toBeNull();
+    // The failure says itself where the chart would be.
+    expect(screen.getByText("Couldn't load the automation")).toBeVisible();
+    expect(screen.getByText('network down')).toBeVisible();
   });
 
   it('prefers the version document when it exists', () => {
@@ -337,5 +1140,174 @@ describe('RunDetail without a version document', () => {
     renderRun();
     const canvas = screen.getByTestId('canvas');
     expect(canvas).toHaveTextContent('later (transform): pending');
+  });
+});
+
+it('renders a quarantine without acting on a retained approval or pretending to resume', () => {
+  state.status = 'quarantined';
+  state.checkpoints = {
+    nodes: {},
+    cursor: { node: 'agent', agent: { attempt: 2 } },
+  };
+  state.resumeCount = 1;
+  state.stalled = true;
+  renderRun();
+  expect(screen.getByText('On hold')).toBeInTheDocument();
+  expect(screen.queryByText('Auto-retry 2 of 3')).toBeNull();
+  expect(screen.getByText('Outcome unknown')).toBeInTheDocument();
+  expect(
+    screen.getByText(/hold details could not be loaded/),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Stop run' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+  expect(screen.queryByText('Interrupted — resuming')).toBeNull();
+  expect(readApproval).not.toHaveBeenCalled();
+});
+
+describe('RunDetail canvas', () => {
+  it('opens a failed run on its failure', () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [
+      { node: 'draft', type: 'llm', status: 'ok' },
+      {
+        node: 'send',
+        type: 'imap-smtp.send',
+        status: 'error',
+        error: 'SMTP refused',
+      },
+    ];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [
+        { id: 'draft', type: 'llm' },
+        {
+          id: 'send',
+          type: 'imap-smtp.send',
+          input: { body: '{{ nodes.draft.output }}' },
+        },
+        {
+          id: 'archive',
+          type: 'transform',
+          input: { sent: '{{ nodes.send.output }}' },
+          code: 'return input.sent;',
+        },
+      ],
+    };
+    renderRun();
+    const canvas = screen.getByTestId('canvas');
+    // The node that failed comes into view, with the run laid over it.
+    expect(canvas).toHaveAttribute('data-reveal-id', 'send');
+    expect(canvas).toHaveAttribute('data-run-status', 'failed');
+    expect(canvas).toHaveTextContent('send (imap-smtp.send): error');
+    expect(canvas).toHaveAttribute(
+      'data-layout-key',
+      expect.stringContaining(':run:'),
+    );
+  });
+
+  it('says on Start who started the run', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.startedBy = 'user:user-dana';
+    state.trace = [{ node: 'draft', type: 'llm', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [{ id: 'draft', type: 'llm' }],
+    };
+    renderRun();
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-started-by',
+      expect.stringContaining('Dana K.'),
+    );
+  });
+});
+
+describe('RunDetail link', () => {
+  it('opens on the view, step and item its URL names, and writes the reader’s moves back', async () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [{ node: 'send', type: 'imap-smtp.send', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [
+        { id: 'send', type: 'imap-smtp.send' },
+        { id: 'archive', type: 'transform', code: 'return 1;' },
+      ],
+    };
+    const onSearchChange = vi.fn();
+    const { user } = render(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+        search={{ view: 'steps', node: 'send', item: 1 }}
+        onSearchChange={onSearchChange}
+      />,
+    );
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas).toHaveAttribute('data-run-view', 'steps');
+    expect(canvas).toHaveAttribute('data-selected-id', 'send');
+    expect(canvas).toHaveAttribute('data-selected-unit', '{"item":1}');
+    // Opening where the link says writes nothing back.
+    expect(onSearchChange).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Pick archive item 3' }),
+    );
+    expect(onSearchChange).toHaveBeenLastCalledWith({
+      view: 'steps',
+      node: 'archive',
+      item: 2,
+      pass: null,
+    });
+    await user.click(screen.getByRole('button', { name: 'Show the chart' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({
+      view: null,
+      node: 'archive',
+      item: 2,
+      pass: null,
+    });
+  });
+
+  it('opens on the moment its URL names, and writes where the playback rests', async () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [{ node: 'send', type: 'imap-smtp.send', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [{ id: 'send', type: 'imap-smtp.send' }],
+    };
+    const onSearchChange = vi.fn();
+    const { user } = render(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+        search={{ t: 900 }}
+        onSearchChange={onSearchChange}
+      />,
+    );
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-run-moment',
+      '900',
+    );
+    await user.click(screen.getByRole('button', { name: 'Rest at 1.2 s' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ t: 1200 });
+    // Resting where it already rests writes nothing again.
+    await user.click(screen.getByRole('button', { name: 'Rest at 1.2 s' }));
+    expect(
+      onSearchChange.mock.calls.filter(([change]) => 't' in change),
+    ).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Rest at the end' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ t: null });
   });
 });

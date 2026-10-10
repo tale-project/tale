@@ -8,11 +8,13 @@ Un appareil est une machine que tu connectes à ton organisation pour que ses sa
 ## Vérifier ce dont la machine a besoin
 
 - Linux sur x86_64 ou arm64, ou macOS sur Apple Silicon ou Intel.
-- Docker : Docker Engine sous Linux ; Docker Desktop, OrbStack ou Colima sous macOS. Si Docker manque, la CLI Tale propose de l’installer.
+- Docker : Docker Engine 24.0 ou une version ultérieure sous Linux ; Docker Desktop, OrbStack ou Colima sous macOS. Si Docker manque, la CLI Tale propose de l’installer. Les couches des images Tale sont compressées en zstd, ce que les moteurs plus anciens ne savent pas télécharger : `tale sandbox connect` et `tale sandbox update` refusent donc un moteur plus ancien avant d’utiliser la commande de connexion ou de télécharger quoi que ce soit.
 - Un accès HTTPS sortant vers ton site Tale. C’est l’appareil qui se connecte à Tale ; rien ne doit joindre la machine depuis l’extérieur, donc cela fonctionne aussi derrière un routeur ou un pare-feu.
 - De l’espace disque pour les images de sandbox, plusieurs gigaoctets, et pour les espaces de travail qu’il accueillera.
 
 Par défaut, un appareil exécute une sandbox pour deux processeurs et pour 4 Gio de mémoire que Docker peut utiliser, jusqu’à 16 à la fois, car chaque sandbox d’agent reçoit 2 processeurs et 4 Gio. Tu peux choisir un autre nombre au moment de connecter la machine.
+
+Ce nombre est un plafond. Avant de démarrer une sandbox, l’appareil vérifie aussi la mémoire disponible sur l’hôte et l’espace disque libre pour les espaces de travail. Une place libre ne suffit donc pas toujours à accueillir une sandbox de plus.
 
 <Warning>
 
@@ -64,6 +66,8 @@ L’appareil continue de fonctionner après un redémarrage de la machine, tant 
 ## Comprendre où s’exécutent les sandboxes
 
 Les nouveaux espaces de travail des agents et des automatisations démarrent sur un appareil connecté qui a de la place. S’il n’y en a aucun, ils démarrent sur le serveur Tale. Un espace de travail reste, avec ses fichiers, sur la machine où il a démarré : un agent qui a déjà un espace de travail sur le serveur continue donc de l’utiliser. Les pages rendues pour l’exploration des sites web restent toujours sur le serveur.
+
+Quand plusieurs appareils ont de la place, Tale tient compte à la fois des places libres et de la marge de mémoire mesurée. Si un appareil refuse un démarrage faute de capacité, un autre appareil ou le serveur peut le prendre en charge. Si la réponse est perdue ou si l’appareil renvoie une erreur serveur, les nouvelles tentatives restent sur cet appareil : il a peut-être déjà créé l’espace de travail.
 
 Dès que ton organisation a un appareil, la liste **Espaces de travail** indique où s’exécute chaque espace de travail : **Sur le serveur** ou sur un appareil désigné par son nom. Tant qu’un appareil est hors ligne, le travail qui a besoin d’un de ses espaces de travail échoue avec un message indiquant que l’appareil n’est pas connecté. Relance-le quand l’appareil est de nouveau en ligne ; un espace de travail ne passe jamais tout seul sur une autre machine.
 

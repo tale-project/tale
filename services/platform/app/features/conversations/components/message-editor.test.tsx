@@ -9,9 +9,15 @@ import { render, screen } from '@/tests/utils/render';
 
 let renderCount = 0;
 let capturedOnSend: (() => void) | null = null;
+let capturedOnImproveSubmit: (() => void) | null = null;
+// What the Improve with AI call answers; a test that reaches it sets it.
+const improveCall = vi.fn();
 let capturedOnFileAttach: ((file: AttachedFile) => void) | null = null;
 // The files the composer currently holds, as it hands them to the list.
 let listedFiles: AttachedFile[] = [];
+let listDisabled: boolean | undefined;
+// Whether the action bar holds Send (and attaching) for a send in flight.
+let barSending: boolean | undefined;
 // What the persisted drafts start from — a typed body unless a test clears it.
 let persistedSeed = 'some content';
 
@@ -90,7 +96,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
 
 vi.mock('../hooks/actions', () => ({
   useImproveMessage: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: improveCall,
     isPending: false,
   }),
 }));
@@ -99,12 +105,18 @@ vi.mock('./message-editor/editor-action-bar', () => ({
   EditorActionBar: ({
     onSend,
     onFileAttach,
+    onImproveSubmit,
+    isSending,
   }: {
     onSend: () => void;
     onFileAttach: (file: AttachedFile) => void;
+    onImproveSubmit: () => void;
+    isSending: boolean;
   }) => {
     capturedOnSend = onSend;
+    capturedOnImproveSubmit = onImproveSubmit;
     capturedOnFileAttach = onFileAttach;
+    barSending = isSending;
     return (
       <button data-testid="send-button" onClick={onSend}>
         Send
@@ -114,8 +126,15 @@ vi.mock('./message-editor/editor-action-bar', () => ({
 }));
 
 vi.mock('./message-editor/file-attachments-list', () => ({
-  FileAttachmentsList: ({ files }: { files: AttachedFile[] }) => {
+  FileAttachmentsList: ({
+    files,
+    disabled,
+  }: {
+    files: AttachedFile[];
+    disabled?: boolean;
+  }) => {
     listedFiles = files;
+    listDisabled = disabled;
     return null;
   },
 }));
@@ -148,6 +167,48 @@ describe('MessageEditor', () => {
   afterEach(() => {
     cleanup();
   });
+
+  // A refusal the person can act on reads in their language — a reached
+  // limit, a model access rule, no provider — never the server's English.
+  it.each([
+    [
+      'BUDGET_EXCEEDED',
+      'editor.improveLimitReached',
+      'editor.improveLimitReachedDescription',
+    ],
+    [
+      'IMPROVE_NO_MODEL_ACCESS',
+      'editor.improveFailed',
+      'editor.improveNoModelAccess',
+    ],
+    [
+      'IMPROVE_UNAVAILABLE',
+      'editor.improveFailed',
+      'editor.improveUnavailable',
+    ],
+  ])(
+    'says a %s refusal of Improve with AI in the reader’s language',
+    async (code, title, description) => {
+      vi.mocked(toast).mockClear();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      improveCall.mockRejectedValueOnce(
+        Object.assign(new Error('Usage limit reached. Your monthly …'), {
+          data: { code, message: 'Usage limit reached. Your monthly …' },
+        }),
+      );
+
+      render(<MessageEditor organizationId="org_test" />);
+      await act(async () => {
+        capturedOnImproveSubmit?.();
+      });
+
+      expect(toast).toHaveBeenCalledWith({
+        title,
+        description,
+        variant: 'destructive',
+      });
+    },
+  );
 
   it('renders the editor', () => {
     render(<MessageEditor organizationId="org_test" />);
@@ -243,6 +304,54 @@ describe('MessageEditor', () => {
     });
 
     expect(window.localStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('keeps the body and the files out of reach while their send is in flight', async () => {
+    let failSend = (_error: Error) => {};
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          failSend = reject;
+        }),
+    );
+
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
+    const body = screen.getByTestId('milkdown-editor').parentElement;
+    expect(body).not.toHaveAttribute('inert');
+    expect(listDisabled).toBe(false);
+
+    await act(async () => {
+      capturedOnSend?.();
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(body).toHaveAttribute('inert');
+    // The files went with the send: removing one now would be neither
+    // honored nor kept.
+    expect(listDisabled).toBe(true);
+
+    await act(async () => {
+      failSend(new Error('Send failed'));
+    });
+
+    expect(body).not.toHaveAttribute('inert');
+    expect(listDisabled).toBe(false);
+  });
+
+  it("holds the body, files and Send while an earlier mount's send is in flight", () => {
+    const view = render(
+      <MessageEditor onSave={vi.fn()} organizationId="org_test" sending />,
+    );
+    const body = screen.getByTestId('milkdown-editor').parentElement;
+    expect(body).toHaveAttribute('inert');
+    expect(listDisabled).toBe(true);
+    expect(barSending).toBe(true);
+
+    view.rerender(<MessageEditor onSave={vi.fn()} organizationId="org_test" />);
+
+    expect(body).not.toHaveAttribute('inert');
+    expect(listDisabled).toBe(false);
+    expect(barSending).toBe(false);
   });
 
   it('does not remount MilkdownProvider when send fails', async () => {

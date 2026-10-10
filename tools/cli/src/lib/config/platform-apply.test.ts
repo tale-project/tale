@@ -10,8 +10,10 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { resourceId } from '@tale/shared/config/platform-resources';
 import { KNOWLEDGE_EMBEDDING_KEPT_KEYS } from '@tale/shared/schemas/knowledge';
 
+import { platformConfigurationFixture } from '../../../../../packages/shared/src/config/platform-resources.fixture';
 import { preconditionError } from '../../utils/fail';
 import { writeDeploymentBundle } from '../deployment/bundle';
 import {
@@ -26,8 +28,7 @@ import {
   readPlatformConfiguration,
 } from './platform-apply';
 import type { PlatformConfigurationClient } from './platform-client';
-import { platformConfigurationFixture } from './platform-fixture';
-import { parsePlatformConfiguration, resourceId } from './platform-model';
+import { parsePlatformConfiguration } from './platform-model';
 import { valueHash } from './releases/identity';
 
 const directories: string[] = [];
@@ -53,7 +54,9 @@ async function fixture(
     const prior = entries.get(id);
     entries.set(id, {
       config: structuredClone(config),
-      hash: valueHash({ config, serial: ++serial }),
+      hash: id.startsWith('project-instructions/')
+        ? valueHash(config)
+        : valueHash({ config, serial: ++serial }),
       ...(id.startsWith('provider-credential/')
         ? { id: prior?.id ?? `credential-${serial}` }
         : {}),
@@ -137,6 +140,12 @@ async function fixture(
       else if (url.pathname === '/api/app/knowledge/embedding')
         id = 'knowledge-embedding';
       else if (url.pathname === '/api/app/deployment/config') id = 'deployment';
+      else if (
+        /^\/api\/app\/projects\/[^/]+\/configuration\/instructions$/.test(
+          url.pathname,
+        )
+      )
+        id = `project-instructions/${url.pathname.split('/')[4]}`;
       else throw new Error(`Unexpected fixture API: ${path}`);
       const current = entries.get(id);
       if (method === 'GET') {
@@ -1152,4 +1161,147 @@ describe('one general native configuration lifecycle', () => {
       ),
     ).toBe(true);
   });
+});
+
+describe('configuration-only native plan admission', () => {
+  async function hotFixture(brandingUnchanged: boolean) {
+    const policy = {
+      projectId: 'existing-project',
+      instructions: 'Reviewed instructions',
+    };
+    const branding = { accentColor: '#336699' };
+    const configuration = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [
+        { kind: 'branding', config: branding },
+        { kind: 'project-instructions', config: policy },
+      ],
+    });
+    const f = await fixture(configuration);
+    f.mutate(
+      'branding',
+      brandingUnchanged ? branding : { accentColor: '#993366' },
+    );
+    f.mutate('project-instructions/existing-project', {
+      ...policy,
+      instructions: 'Before',
+    });
+    const stateDirectory = dirname(f.receipt);
+    const receipt = join(stateDirectory, 'configuration.json');
+    const directory = join(stateDirectory, 'managed-bundle');
+    for (const [file, bytes] of [
+      ['cli/tale', 'synthetic executable'],
+      ['runtime/runtime.json', '{}'],
+      ['runtime/compose.yml', 'services: {}'],
+    ] as const) {
+      const target = join(directory, file);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, bytes, {
+        mode: file === 'cli/tale' ? 0o755 : 0o644,
+      });
+    }
+    await writeDeploymentBundle(directory, {
+      schemaVersion: 1,
+      kind: 'tale-deployment',
+      cli: { revision: 'c'.repeat(40), path: 'cli/tale' },
+      spec: {
+        schemaVersion: 1,
+        name: 'example-native',
+        stateDirectory: '/opt/example',
+        composeProject: 'tale',
+        runtime: { revision: 'c'.repeat(40), platform: 'linux/amd64' },
+        origin: f.client.target.origin,
+        tlsMode: 'external',
+        environment: {},
+        identity: {
+          email: 'operator@example.invalid',
+          slug: f.client.target.organizationSlug,
+          name: 'Example Office',
+          ssoEnabled: false,
+          bootstrap: 'fresh',
+          nativeClients: [],
+        },
+        configuration,
+        configs: [],
+      },
+    });
+    const context: ProvisionContext = {
+      origin: f.client.target.origin,
+      baseUrl: 'http://127.0.0.1:3005',
+      stateDirectory,
+      organization: {
+        id: f.client.target.organizationId,
+        slug: f.client.target.organizationSlug,
+      },
+      user: { id: 'operator-example' },
+      headers: () => new Headers(),
+      request: async (path, method, body) =>
+        Response.json(await f.client.request(path, method, body)),
+      requireJson: (response) => response.json(),
+    };
+    return {
+      ...f,
+      receipt,
+      apply: () =>
+        provisionDeploymentConfiguration(directory, context, {
+          managedOnly: true,
+        }),
+    };
+  }
+  const testPosix = test.skipIf(process.platform === 'win32');
+  testPosix(
+    'refuses every changed non-managed resource before any native write',
+    async () => {
+      const f = await hotFixture(false);
+      const before = structuredClone(f.entries);
+      await expect(f.apply()).rejects.toThrow(
+        'managed instructions, agent tool grants and automations only',
+      );
+      expect(f.entries).toEqual(before);
+      expect(f.writes).toEqual([]);
+      await expect(stat(f.receipt)).rejects.toMatchObject({ code: 'ENOENT' });
+    },
+  );
+  testPosix(
+    'a pending non-managed mutation already applied by the full lane cannot resume as a hot apply',
+    async () => {
+      const f = await hotFixture(false);
+      const plan = await planPlatformConfiguration(f.configuration, f.client);
+      f.controls.lost = 'branding';
+      await expect(
+        applyPlatformConfiguration(f.configuration, plan, f.client, f.receipt),
+      ).rejects.toThrow('stopped');
+      expect(f.entries.get('branding')?.config).toEqual({
+        accentColor: '#336699',
+      });
+      expect(f.writes).toEqual(['branding']);
+      const before = await readFile(f.receipt, 'utf8');
+      await expect(f.apply()).rejects.toThrow(
+        'managed instructions, agent tool grants and automations only',
+      );
+      expect(f.writes).toEqual(['branding']);
+      expect(await readFile(f.receipt, 'utf8')).toBe(before);
+      expect(
+        f.entries.get('project-instructions/existing-project')?.config,
+      ).toMatchObject({ instructions: 'Before' });
+    },
+  );
+  testPosix(
+    'keeps unchanged non-managed inputs and applies only the adopted instruction field',
+    async () => {
+      const f = await hotFixture(true);
+      const branding = structuredClone(f.entries.get('branding'));
+      expect(await f.apply()).toMatchObject({
+        configured: true,
+        restartRequired: false,
+      });
+      expect(f.writes).toEqual(['project-instructions/existing-project']);
+      expect(f.entries.get('branding')).toEqual(branding);
+      expect(JSON.parse(await readFile(f.receipt, 'utf8'))).toMatchObject({
+        phase: 'ready',
+      });
+      await f.apply();
+      expect(f.writes).toEqual(['project-instructions/existing-project']);
+    },
+  );
 });

@@ -25,6 +25,7 @@ const {
   adjustSpendReading,
   reconcilePendingSessionOpKeys,
   reconcileSessionOpKey,
+  settleCostFreeTurn,
   settleSessionOpSpend,
   ZERO_READING_GRACE_MS,
 } = await import('./spend-settlement.ts');
@@ -50,6 +51,12 @@ function fakeSql(answers: Array<{ match: string; rows: unknown[] }>) {
   return { sql: sql as never, statements };
 }
 
+/** A workflow session's owner: the automation run it executes. */
+const WORKFLOW_SESSION = {
+  match: 'FROM app.sandbox_sessions s',
+  rows: [{ runId: 'run-1' }],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -57,7 +64,7 @@ beforeEach(() => {
 });
 
 describe('settleSessionOpSpend', () => {
-  it('stamps the op and books the ledger under the task run’s starter and agent', async () => {
+  it('stamps the op and books the ledger under the task run’s starter and agent [SBX-R14]', async () => {
     const { sql, statements } = fakeSql([
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
@@ -101,8 +108,45 @@ describe('settleSessionOpSpend', () => {
     });
   });
 
-  it('attributes a workflow op to the automation run that owns its session', async () => {
+  it('books an agent’s turn to the project its run is in [GOV-R14]', async () => {
     const { sql } = fakeSql([
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'task-agent',
+            modelRef: 'openai/openai/gpt-5',
+          },
+        ],
+      },
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [
+          {
+            startedBy: 'trigger:schedule-1',
+            agentId: 'agent-alice',
+            projectId: 'project-1',
+          },
+        ],
+      },
+    ]);
+    await settleSessionOpSpend(sql, {
+      sessionId: 'pa-alice',
+      execId: 'exec-2',
+      spentCents: 25,
+      usage: { inputTokens: 1_200, outputTokens: 300 },
+    });
+    expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).toMatchObject({
+      userId: '__automation__',
+      projectIds: ['project-1'],
+      costEstimateCents: 25,
+    });
+  });
+
+  it('attributes a workflow op to the automation run that owns its session [SBX-R14]', async () => {
+    const { sql } = fakeSql([
+      WORKFLOW_SESSION,
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
         rows: [
@@ -114,7 +158,7 @@ describe('settleSessionOpSpend', () => {
         ],
       },
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'user:user-2',
@@ -144,8 +188,9 @@ describe('settleSessionOpSpend', () => {
     );
   });
 
-  it('books a keyed start to the person and the key', async () => {
+  it('books a keyed start to the person and the key [SBX-R14]', async () => {
     const { sql } = fakeSql([
+      WORKFLOW_SESSION,
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
         rows: [
@@ -153,7 +198,7 @@ describe('settleSessionOpSpend', () => {
         ],
       },
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'api-key:user-3',
@@ -178,8 +223,9 @@ describe('settleSessionOpSpend', () => {
     });
   });
 
-  it('books a trigger-started run under the automation sentinel', async () => {
+  it('books a trigger-started run under the automation sentinel [SBX-R14]', async () => {
     const { sql } = fakeSql([
+      WORKFLOW_SESSION,
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
         rows: [
@@ -187,7 +233,7 @@ describe('settleSessionOpSpend', () => {
         ],
       },
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'trigger:t-1',
@@ -211,7 +257,7 @@ describe('settleSessionOpSpend', () => {
     });
   });
 
-  it('books nothing twice: a replay finds the fact closed', async () => {
+  it('books nothing twice: a replay finds the fact closed [SBX-R15]', async () => {
     const { sql } = fakeSql([
       // The guarded UPDATE matches no row; the existence probe finds the op.
       { match: 'SELECT id FROM app.sandbox_session_ops', rows: [{ id: 'op' }] },
@@ -308,6 +354,7 @@ describe('reconcileSessionOpKey', () => {
             organizationId: 'org-1',
             kind: 'task-agent',
             mintedKeyId: null,
+            budgetCents: 500,
             finalizedAt: 1,
             spendSettledAt: null,
             keyRevokedAt: null,
@@ -331,6 +378,66 @@ describe('reconcileSessionOpKey', () => {
         ),
       ),
     ).toBe(true);
+    // A gateway start that died before its mint spent nothing.
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+
+  it('books a subscription turn that ended without its release as one request at no cost [GOV-R16]', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'SELECT org_id AS "organizationId", kind, minted_key_id',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'task-agent',
+            mintedKeyId: null,
+            budgetCents: 0,
+            finalizedAt: 1,
+            spendSettledAt: null,
+            keyRevokedAt: null,
+          },
+        ],
+      },
+      {
+        match: 'SELECT budget_cents::float8 AS "budgetCents"',
+        rows: [{ budgetCents: 0, mintedKeyId: null, spendSettledAt: null }],
+      },
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'task-agent',
+            modelRef: 'anthropic/claude-sonnet-4-5',
+            inputTokens: null,
+            outputTokens: null,
+          },
+        ],
+      },
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [{ startedBy: 'user-1', agentId: 'agent-alice' }],
+      },
+    ]);
+
+    await expect(
+      reconcileSessionOpKey(sql, {
+        organizationId: 'org-1',
+        sessionId: 'pa-alice',
+        execId: 'exec-1',
+      }),
+    ).resolves.toEqual({ spendSettled: true, keyRevoked: true });
+
+    expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        userId: 'user-1',
+        agentSlug: 'agent-alice',
+        costEstimateCents: 0,
+        model: 'claude-sonnet-4-5',
+        provider: 'anthropic',
+      }),
+    );
   });
 
   it('refuses an op that belongs to another organization', async () => {
@@ -366,7 +473,7 @@ describe('reconcilePendingSessionOpKeys', () => {
     gateway.readVirtualKeySpend.mockResolvedValue({ status: 'unavailable' });
     const { sql, statements } = fakeSql([
       {
-        match: 'WHERE finalized_at_ms IS NOT NULL AND finalized_at_ms <',
+        match: 'WHERE ((finalized_at_ms IS NOT NULL AND finalized_at_ms <',
         rows: [
           { organizationId: 'org-1', sessionId: 'pa-alice', execId: 'exec-1' },
         ],
@@ -394,7 +501,7 @@ describe('reconcilePendingSessionOpKeys', () => {
     expect(result).toEqual({ scanned: 1, settled: 0, pending: 1 });
     const select = statements.find((s) =>
       s.text.includes(
-        'WHERE finalized_at_ms IS NOT NULL AND finalized_at_ms <',
+        'WHERE ((finalized_at_ms IS NOT NULL AND finalized_at_ms <',
       ),
     );
     expect(select?.text).toContain(
@@ -555,4 +662,191 @@ describe('reconcilePendingSessionOpKeys — deferred settlements', () => {
     );
     expect(statements[0]?.values).toContain(5_000_000);
   });
+});
+
+describe('settleCostFreeTurn', () => {
+  it.each([
+    [
+      'a gateway turn, which books what its key spent',
+      { budgetCents: 500, mintedKeyId: 'vk-1', spendSettledAt: null },
+    ],
+    [
+      'a turn already booked',
+      { budgetCents: 0, mintedKeyId: null, spendSettledAt: 1 },
+    ],
+    [
+      'an op that reserved nothing',
+      { budgetCents: null, mintedKeyId: null, spendSettledAt: null },
+    ],
+  ])('books nothing for %s', async (_label, op) => {
+    const { sql, statements } = fakeSql([
+      { match: 'SELECT budget_cents::float8 AS "budgetCents"', rows: [op] },
+    ]);
+
+    await settleCostFreeTurn(sql, { sessionId: 'pa-alice', execId: 'exec-1' });
+
+    expect(statements).toHaveLength(1);
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+});
+
+describe('direct LLM reconciliation', () => {
+  function fixture(overrides: Record<string, unknown> = {}) {
+    return fakeSql([
+      {
+        match: 'SELECT org_id AS "organizationId", kind, minted_key_id',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'automation-llm',
+            mintedKeyId: null,
+            finalizedAt: null,
+            spendSettledAt: null,
+            keyRevokedAt: null,
+            startedAtMs: 1,
+            settleAfter: null,
+            expectedCents: null,
+            floorCents: null,
+            budgetCents: 8,
+            reservedTokens: 8000,
+            ...overrides,
+          },
+        ],
+      },
+      { match: "status = 'failed'", rows: [{ id: 'op' }] },
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'automation-llm',
+            modelRef: 'first/first/vendor/model',
+            inputTokens: 20,
+            outputTokens: 4,
+          },
+        ],
+      },
+      {
+        match: 'SELECT user_id AS "userId"',
+        rows: [
+          {
+            userId: 'user-1',
+            agentSlug: 'flow',
+            apiKeyId: null,
+            projectIds: ['a', 'b'],
+          },
+        ],
+      },
+      {
+        match: 'SELECT project_ids AS "projectIds"',
+        rows: [{ projectIds: ['a', 'b'] }],
+      },
+    ]);
+  }
+  const key = {
+    organizationId: 'org-1',
+    sessionId: 'direct',
+    execId: 'attempt',
+  };
+  it('books known direct spend without a virtual key under its immutable project stamp', async () => {
+    const { sql } = fixture({ expectedCents: 2, finalizedAt: 10 });
+    await expect(reconcileSessionOpKey(sql, key)).resolves.toEqual({
+      spendSettled: true,
+      keyRevoked: true,
+    });
+    expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        costEstimateCents: 2,
+        inputTokens: 20,
+        outputTokens: 4,
+        projectIds: ['a', 'b'],
+        provider: 'first',
+        model: 'vendor/model',
+      }),
+    );
+    expect(gateway.readVirtualKeySpend).not.toHaveBeenCalled();
+  });
+  it('keeps an unknown direct call held until its bounded deadline', async () => {
+    const { sql, statements } = fixture({ startedAtMs: Date.now() });
+    await expect(reconcileSessionOpKey(sql, key)).resolves.toEqual({
+      spendSettled: false,
+      keyRevoked: true,
+    });
+    expect(statements).toHaveLength(1);
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+  it('recovers a lost direct call at its reserved estimate, never the generic no-key zero', async () => {
+    const { sql, statements } = fixture();
+    await reconcileSessionOpKey(sql, key);
+    expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        costEstimateCents: 8,
+        inputTokens: 8000,
+        outputTokens: 0,
+      }),
+    );
+    expect(
+      statements.some(
+        ({ text }) =>
+          text.includes('floor_cents = budget_cents') &&
+          text.includes('expected_cents IS NULL'),
+      ),
+    ).toBe(true);
+    expect(gateway.revokeVirtualKey).not.toHaveBeenCalled();
+  });
+  it('leaves an invalid estimate unsettled instead of freeing its hold', async () => {
+    await expect(
+      reconcileSessionOpKey(fixture({ budgetCents: null }).sql, key),
+    ).rejects.toThrow('no valid settlement estimate');
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+  it('does not book an already settled attempt twice', async () => {
+    await reconcileSessionOpKey(fixture({ spendSettledAt: 10 }).sql, key);
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+});
+
+describe('managed op immutable billing projects', () => {
+  it.each([{ projectIds: ['a', 'b'] }, { projectIds: [] }])(
+    'books admitted $projectIds after live bindings change to A/C [GOV-R14]',
+    async ({ projectIds }) => {
+      const { sql } = fakeSql([
+        {
+          match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+          rows: [
+            {
+              organizationId: 'org-1',
+              kind: 'workflow-agent',
+              modelRef: 'p/p/m',
+            },
+          ],
+        },
+        WORKFLOW_SESSION,
+        {
+          match: 'FROM app.automation_runs ar',
+          rows: [
+            {
+              startedBy: 'user:user-1',
+              name: 'flow',
+              apiKeyId: null,
+              projectId: null,
+              boundProjectIds: ['a', 'c'],
+            },
+          ],
+        },
+        { match: 'SELECT project_ids AS "projectIds"', rows: [{ projectIds }] },
+      ]);
+      await settleSessionOpSpend(sql, {
+        sessionId: 'workflow',
+        execId: 'op',
+        spentCents: 3,
+      });
+      expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ projectIds }),
+      );
+    },
+  );
 });

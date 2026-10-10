@@ -27,6 +27,8 @@ export const CONNECTOR_CODES = {
   MOCK_BODY_FAILED: 'a deterministic mock body must produce its output',
   LIVE_BODY_FAILED:
     'a live connector body reached the outside world and failed',
+  INTERRUPTED:
+    "a live call cut by its caller's stop is interrupted, never reported as the call's own failure",
 
   // Credentials and caller policy.
   CALLER_UNKNOWN: 'a caller is one of the declared modes, each with a policy',

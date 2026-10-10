@@ -174,7 +174,7 @@ describe('readDocumentText — the source order', () => {
 });
 
 describe('readDocumentText — the honest miss', () => {
-  it('answers a denied ref and an unknown ref with one identical miss, unnamed', async () => {
+  it('answers a denied ref and an unknown ref with one identical miss, unnamed [KNOW-R3]', async () => {
     const denied = await read({
       [ROW_FN]: () => null,
       [FILTER_FN]: () => [],

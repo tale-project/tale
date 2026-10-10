@@ -10,8 +10,11 @@ import {
   type KnowledgePassage,
 } from '../../../lib/chat/index.ts';
 import type { KnowledgeCorpus } from '../../../lib/knowledge/types.ts';
+import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import { KnowledgeError, searchKnowledgeForOrg } from '../knowledge/service.ts';
+import { ChatBudgetExceededError } from './budget-admission.ts';
 import { resolveAccessScope } from './shim.ts';
 
 /**
@@ -37,6 +40,9 @@ class CapabilityAuthError extends Error {
 interface SurfaceScope {
   readonly organizationId: string;
   readonly userId: string;
+  /** The API key the caller came with: what a capability spends — a run it
+   * starts, a search's embedding — is the key's too. */
+  readonly apiKeyId?: string;
 }
 
 function buildBackends(sql: Sql, scope: SurfaceScope): CapabilityBackends {
@@ -44,6 +50,7 @@ function buildBackends(sql: Sql, scope: SurfaceScope): CapabilityBackends {
     store: pgAutomationStore(sql, {
       organizationId: scope.organizationId,
       actor: scope.userId,
+      ...(scope.apiKeyId !== undefined ? { apiKeyId: scope.apiKeyId } : {}),
     }),
     allowLive: true,
   });
@@ -82,6 +89,13 @@ function buildKnowledgeBackend(
         );
         const result = await searchKnowledgeForOrg(sql, {
           organizationId: request.organizationId,
+          spender: {
+            userId: scope.userId,
+            agentSlug: EMBEDDING_SLUG,
+            ...(scope.apiKeyId !== undefined
+              ? { apiKeyId: scope.apiKeyId }
+              : {}),
+          },
           query: request.query,
           corpus: toKnowledgeCorpus(request.corpus),
           ...(request.limit !== undefined ? { limit: request.limit } : {}),
@@ -118,7 +132,14 @@ function buildKnowledgeBackend(
         }
         return { status: 'ok', passages };
       } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
+        // A budget refusal's sentence is its `data.message`; its `message`
+        // is the serialized payload.
+        const reason =
+          error instanceof ChatBudgetExceededError
+            ? error.data.message
+            : error instanceof Error
+              ? error.message
+              : String(error);
         console.warn('[chat] knowledge retrieval refused', reason);
         // The door's own code rides along (the REST search answers the same
         // one), so a model branches on `code` as the MCP page promises
@@ -126,7 +147,9 @@ function buildKnowledgeBackend(
         const code =
           error instanceof KnowledgeError
             ? error.code
-            : 'KNOWLEDGE_UNAVAILABLE';
+            : error instanceof ChatBudgetExceededError
+              ? error.data.code
+              : 'KNOWLEDGE_UNAVAILABLE';
         return {
           status: 'unavailable',
           code,
@@ -190,25 +213,28 @@ export async function buildCapabilitySurface(
 /**
  * The capability dispatch for a caller proved elsewhere (the platform MCP
  * endpoint): the membership is re-checked from the (organization, user)
- * pair before anything runs — the 0.4 `dispatchCapabilityAs`.
+ * pair before anything runs — the 0.4 `dispatchCapabilityAs`. A team's or
+ * the organization's own API key acts with the role it was made with; a
+ * project's key reaches its project alone, never these organization-wide
+ * tools (the REST door refuses it first).
  */
 export async function dispatchCapabilityAs(
   sql: Sql,
   args: {
     organizationId: string;
     userId: string;
+    /** The key the caller came with, when one did. */
+    apiKeyId?: string;
     method: string;
     params?: unknown;
   },
 ): Promise<unknown> {
-  const rows = await sql<{ role: string }[]>`
-    SELECT "role" FROM "member"
-    WHERE "organizationId" = ${args.organizationId}
-      AND "userId" = ${args.userId}
-    LIMIT 1
-  `;
-  const role = rows[0]?.role;
-  if (role === undefined || role === 'disabled') {
+  const member = await findActingMember(sql, args.organizationId, args.userId);
+  if (
+    member === null ||
+    member.role === 'disabled' ||
+    member.apiKeyOwner?.kind === 'project'
+  ) {
     throw new CapabilityAuthError(
       'ORG_FORBIDDEN',
       'The caller is not a member of this organization.',
@@ -217,6 +243,7 @@ export async function dispatchCapabilityAs(
   const surface = await buildCapabilitySurface(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
   });
   return surface.dispatch(args.method, args.params ?? {});
 }

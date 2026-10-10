@@ -17,6 +17,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { matchDocsReply } from '../../lib/mocks/overrides/docs-replies';
 import { E2E_PASSWORD } from '../e2e/helpers/auth';
+import { uploadAutomationDraft } from '../e2e/helpers/automations';
 import {
   deleteThreadById,
   messageLog,
@@ -33,12 +34,14 @@ import {
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
+  DEMO_FAILED_RUN,
   DEMO_INBOX,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
   DEMO_EMBEDDING_MODEL,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
+  DEMO_LAUNCH_TASK_DETAIL,
   DEMO_LEGAL_HOLD_REASON,
   DEMO_LEGAL_MATTER,
   DEMO_MEMBERS,
@@ -53,8 +56,10 @@ import {
   DEMO_SKILLS,
   DEMO_TEAMS,
   DEMO_TEST_RUN,
+  DEMO_TRIGGER_SKIP,
   DEMO_WEBDAV_LABELS,
   DEMO_WEBDAV_RETIRED_LABEL,
+  DEMO_WEBHOOK,
   MOCK_PROVIDER_DISPLAY_NAME,
   MOCK_PROVIDER_SLUG,
   type DemoDocument,
@@ -355,8 +360,8 @@ async function ensureProjectDescription(
  * README lead with, so it must show named agents, never the empty state.
  * Each is created through the New agent dialog: a name, the agent type, a
  * model searched from the catalog the mock provider serves, and standing
- * instructions; equipment stays empty. Runs after the mock provider exists,
- * or the model picker has nothing to offer.
+ * instructions; the dialog keeps its default equipment. Runs after the mock
+ * provider exists, or the model picker has nothing to offer.
  */
 async function ensureProjectAgents(
   page: Page,
@@ -365,19 +370,16 @@ async function ensureProjectAgents(
   agents: readonly DemoProjectAgent[] = DEMO_PROJECT_AGENTS,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/agents`);
-  // Settled is the empty state OR a row's action button — the section title
-  // paints before the list query answers.
-  const rowEdit = page.getByRole('button', {
-    name: t('projects.agents.rowEdit'),
+  // The action mounts only after the list query answers. Its empty-state
+  // copy varies when the organization already provides a standard agent.
+  const newAgent = page.getByRole('button', {
+    name: t('projects.agents.newAgent'),
+    exact: true,
   });
-  await expect(
-    page.getByText(t('projects.agents.emptyTitle')).or(rowEdit.first()).first(),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(newAgent).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   for (const agent of agents) {
     if (await isPresent(page.getByText(agent.name, { exact: true }))) continue;
-    await page
-      .getByRole('button', { name: t('projects.agents.newAgent') })
-      .click();
+    await newAgent.click();
     const dialog = page.getByRole('dialog', {
       name: t('projects.agents.dialogCreateTitle'),
     });
@@ -444,6 +446,11 @@ async function ensureEmbeddingModel(page: Page, orgId: string): Promise<void> {
     name: t('settings.dataResidency.orgEmbedding.title'),
   });
   await expect(toggle).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The page stays masked until every read answers, and until then the
+  // switch reads OFF even for a saved model.
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
   const model = page.getByRole('textbox', {
     name: t('settings.dataResidency.orgEmbedding.model'),
   });
@@ -989,16 +996,17 @@ async function orgSlugOf(page: Page, orgId: string): Promise<string> {
   return org.slug;
 }
 
-async function ensureMockProvider(page: Page, orgId: string): Promise<void> {
+async function ensureMockProvider(
+  page: Page,
+  orgId: string,
+  configRoot: string,
+): Promise<void> {
   // The config dir is keyed by org SLUG.
   const org = { slug: await orgSlugOf(page, orgId) };
 
-  // PINNED to the fixtures tree the runbook starts the hermetic stack with
-  // (capture.ts preflight). Deliberately NOT process.env.TALE_CONFIG_DIR:
-  // bun auto-loads `.env`, so the capture process inherits the DEV stack's
-  // config root (e.g. the local-config examples mirror) — writing a mock
-  // provider there would corrupt a tree this pipeline does not own.
-  const configRoot = path.join(PLATFORM_DIR, 'tests/e2e/fixtures/config');
+  // Only use the fixture root or the capture's explicit --config-dir. Never
+  // read process.env.TALE_CONFIG_DIR: bun auto-loads `.env`, which may point
+  // at a development tree this pipeline does not own.
   const target = path.join(configRoot, org.slug, 'providers', 'e2e-mock.yml');
   if (!existsSync(target)) {
     mkdirSync(path.dirname(target), { recursive: true });
@@ -1207,7 +1215,7 @@ async function ensureMembers(
       .click();
     await page
       .getByRole('option', {
-        name: t(`settings.roles.${member.role}`),
+        name: t(`roles.${member.role}`),
         exact: true,
       })
       .click();
@@ -1522,9 +1530,8 @@ async function ensureAutomationTestRun(
   orgId: string,
 ): Promise<void> {
   const runsRoute = `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/runs`;
-  const runRow = page.locator(`a[href*="/runs/"]`);
   await page.goto(runsRoute);
-  if (await alreadySeeded(runRow)) return;
+  if (await hasRun(page, orgId, DEMO_TEST_RUN.automation)) return;
 
   await page.goto(
     `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/editor`,
@@ -1535,13 +1542,19 @@ async function ensureAutomationTestRun(
       exact: true,
     }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await page
-    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
-    .click();
+  const testRun = page.getByRole('button', {
+    name: t('automations.detail.runMock'),
+    exact: true,
+  });
   const dialog = page.getByRole('dialog', {
     name: t('automations.detail.runMock'),
     exact: true,
   });
+  // Test run opens nothing until the editor has read the stored version.
+  await expect(async () => {
+    if (!(await dialog.isVisible())) await testRun.click();
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: TIMEOUT.PERSIST });
   await dialog
     .getByRole('textbox', { name: t('automations.detail.runInput.label') })
     .fill(JSON.stringify(DEMO_TEST_RUN.input, null, 2));
@@ -1557,6 +1570,449 @@ async function ensureAutomationTestRun(
     await page.goto(runsRoute);
     await expect(succeeded.first()).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   }).toPass({ timeout: TIMEOUT.EXECUTION });
+}
+
+/** What an app API call answered: its status and its parsed body. */
+interface AppAnswer {
+  status: number;
+  body: unknown;
+}
+
+/**
+ * One call of the app API as the signed-in owner, from the page, so it
+ * carries the page's session as the editor's own calls do. A body makes it
+ * a POST. The page must be on the app's origin.
+ */
+async function appApi(
+  page: Page,
+  orgId: string,
+  route: string,
+  body?: unknown,
+): Promise<AppAnswer> {
+  return page.evaluate(
+    async (call) => {
+      const separator = call.route.includes('?') ? '&' : '?';
+      const response = await fetch(
+        `/api/app${call.route}${separator}orgId=${encodeURIComponent(call.orgId)}`,
+        call.body === undefined
+          ? { credentials: 'include' }
+          : {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(call.body),
+            },
+      );
+      const text = await response.text();
+      let parsed: unknown = null;
+      try {
+        parsed = text === '' ? null : JSON.parse(text);
+      } catch (error) {
+        console.warn(`${call.route} answered no JSON`, error);
+      }
+      return { status: response.status, body: parsed };
+    },
+    { orgId, route, body },
+  );
+}
+
+/** An app API call that must succeed; its body. */
+async function appApiOk(
+  page: Page,
+  orgId: string,
+  route: string,
+  body?: unknown,
+): Promise<unknown> {
+  const answer = await appApi(page, orgId, route, body);
+  if (answer.status < 200 || answer.status >= 300) {
+    throw new Error(
+      `${route} answered ${answer.status}: ${JSON.stringify(answer.body)}`,
+    );
+  }
+  return answer.body;
+}
+
+/**
+ * Whether the automation has any run, read from the runs list's own API —
+ * instant either way, where waiting for a row to appear costs its whole
+ * timeout on a fresh seed. The page must be on the app's origin.
+ */
+async function hasRun(
+  page: Page,
+  orgId: string,
+  automation: string,
+): Promise<boolean> {
+  const answer = await appApi(
+    page,
+    orgId,
+    `/automations/runs?limit=1&name=${automation}`,
+  );
+  const runs =
+    answer.status === 200 &&
+    typeof answer.body === 'object' &&
+    answer.body !== null &&
+    'runs' in answer.body
+      ? answer.body.runs
+      : null;
+  return Array.isArray(runs) && runs.length > 0;
+}
+
+/** The stored trigger of an automation, as `GET …/triggers` reads it. */
+async function storedTrigger(
+  page: Page,
+  orgId: string,
+  automation: string,
+): Promise<Record<string, unknown> | undefined> {
+  const body = await appApiOk(
+    page,
+    orgId,
+    `/automations/${automation}/triggers`,
+  );
+  const triggers =
+    typeof body === 'object' && body !== null && 'triggers' in body
+      ? body.triggers
+      : null;
+  const first: unknown = Array.isArray(triggers) ? triggers[0] : undefined;
+  return typeof first === 'object' && first !== null
+    ? (first as Record<string, unknown>)
+    : undefined;
+}
+
+/** The latest version of an automation. */
+async function latestVersion(
+  page: Page,
+  orgId: string,
+  automation: string,
+): Promise<number> {
+  const body = await appApiOk(page, orgId, `/automations/${automation}`);
+  const version =
+    typeof body === 'object' && body !== null && 'version' in body
+      ? body.version
+      : null;
+  if (typeof version !== 'number') {
+    throw new Error(`${automation} has no version to deploy`);
+  }
+  return version;
+}
+
+/**
+ * The skip notice of the triggers page: the shipped pull-request review
+ * pack, deployed and switched on without the `owner` and `repo` its inputs
+ * require, so the start its schedule comes due for is refused and the
+ * trigger records why (`start_refused`, with the version and the missing
+ * fields). The pack's own schedule comes due every 30 minutes, so a
+ * one-minute primer brings the first refusal; the pack's schedule then goes
+ * back, still on, and keeps the notice current at every occurrence.
+ * Idempotent: a recorded refusal is enough.
+ */
+async function ensureTriggerSkipNotice(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  const { automation, schedule, primer } = DEMO_TRIGGER_SKIP;
+  await page.goto(`/dashboard/${orgId}/automations/${automation}/general`);
+  const refused = (trigger: Record<string, unknown> | undefined) =>
+    trigger?.lastSkipReason === 'start_refused';
+  if (refused(await storedTrigger(page, orgId, automation))) return;
+
+  const version = await latestVersion(page, orgId, automation);
+  await appApiOk(page, orgId, `/automations/${automation}/deploy`, {
+    version,
+  });
+  const bind = (repeat: typeof schedule | typeof primer) =>
+    appApiOk(page, orgId, `/automations/${automation}/trigger`, {
+      kind: 'schedule',
+      enabled: true,
+      repeat,
+      timezone: 'UTC',
+    });
+  await bind(primer);
+  // The scan claims a new schedule's first instant, then starts it when it
+  // comes due: a minute or two.
+  await expect(async () => {
+    expect(refused(await storedTrigger(page, orgId, automation))).toBe(true);
+  }).toPass({ timeout: 4 * 60_000, intervals: [5_000] });
+  await bind(schedule);
+}
+
+/**
+ * The webhook of the triggers page: an automation that records incoming
+ * invoices, installed in two demo projects, deployed, its webhook on, and
+ * a delivery to each project's URL that started a run. Written through the
+ * app API the editor uses; the token the bind mints is used here once and
+ * never stored, and the panel shows it masked. Idempotent: the deliveries'
+ * runs are enough, and each delivery's `Idempotency-Key` makes a repeat
+ * answer the run it already started.
+ */
+async function ensureWebhookDeliveries(
+  page: Page,
+  orgId: string,
+  projects: ReadonlyMap<string, string>,
+): Promise<void> {
+  const { automation, name, document, deliveries } = DEMO_WEBHOOK;
+  const projectIds = DEMO_WEBHOOK.projects.map((project) => {
+    const id = projects.get(project);
+    if (!id) throw new Error(`No seeded project "${project}" for the webhook`);
+    return id;
+  });
+  await page.goto(`/dashboard/${orgId}/automations`);
+  const runsRoute = `/automations/${automation}/trigger/runs?limit=10`;
+  const readRuns = async (): Promise<{ status?: unknown }[]> => {
+    const answer = await appApi(page, orgId, runsRoute);
+    const runs =
+      answer.status === 200 &&
+      typeof answer.body === 'object' &&
+      answer.body !== null &&
+      'runs' in answer.body
+        ? answer.body.runs
+        : null;
+    return Array.isArray(runs) ? (runs as { status?: unknown }[]) : [];
+  };
+  const succeeded = (runs: { status?: unknown }[]) =>
+    runs.filter((run) => run.status === 'success').length >= deliveries.length;
+  if (succeeded(await readRuns())) return;
+
+  const created = await appApi(page, orgId, `/automations/${automation}/save`, {
+    document,
+    message: 'Record incoming invoices',
+    presentation: { name },
+    create: true,
+  });
+  // 201 is the saved version; 409: an earlier seed saved it already.
+  if (created.status !== 201 && created.status !== 409) {
+    throw new Error(
+      `Saving ${automation} answered ${created.status}: ${JSON.stringify(created.body)}`,
+    );
+  }
+  await appApiOk(page, orgId, `/automations/${automation}/projects`, {
+    projectIds,
+  });
+  await appApiOk(page, orgId, `/automations/${automation}/deploy`, {
+    version: await latestVersion(page, orgId, automation),
+  });
+  // A bind mints the token only when there is none, so rotate one an
+  // earlier, interrupted seed left behind: its plaintext is gone.
+  const existing = await storedTrigger(page, orgId, automation);
+  const bound = await appApiOk(
+    page,
+    orgId,
+    `/automations/${automation}/trigger`,
+    {
+      kind: 'webhook',
+      enabled: true,
+      ...(existing?.kind === 'webhook' ? { rotateToken: true } : {}),
+    },
+  );
+  const token =
+    typeof bound === 'object' && bound !== null && 'token' in bound
+      ? bound.token
+      : null;
+  if (typeof token !== 'string') {
+    throw new Error(`Binding the ${automation} webhook minted no token`);
+  }
+
+  const failures = await page.evaluate(
+    async (send) => {
+      const failed: string[] = [];
+      for (const [index, delivery] of send.deliveries.entries()) {
+        const projectId = send.projectIds[index % send.projectIds.length];
+        const response = await fetch(
+          `/api/projects/${projectId}/automations/webhook/${send.token}`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': delivery.key,
+            },
+            body: JSON.stringify(delivery.body),
+          },
+        );
+        if (!response.ok) {
+          failed.push(`${delivery.key}: ${response.status}`);
+        }
+      }
+      return failed;
+    },
+    { token, projectIds, deliveries },
+  );
+  if (failures.length > 0) {
+    throw new Error(`Webhook deliveries failed: ${failures.join('; ')}`);
+  }
+  await expect(async () => {
+    expect(succeeded(await readRuns())).toBe(true);
+  }).toPass({ timeout: TIMEOUT.EXECUTION, intervals: [2_000] });
+}
+
+/**
+ * One failed test run of the demo invoice digest, so the failed-run shot
+ * shows the run page's failure focus. The digest is uploaded as a draft
+ * through the list's Create menu, then started with Test run like a reader
+ * would; it declares no input, so the run starts without a dialog.
+ * Idempotent — any run of it is enough, and an earlier upload is reused.
+ */
+async function ensureAutomationFailedRun(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  const automationRoute = `/dashboard/${orgId}/automations/${DEMO_FAILED_RUN.automation}`;
+  const runsRoute = `${automationRoute}/runs`;
+  await page.goto(runsRoute);
+  if (await hasRun(page, orgId, DEMO_FAILED_RUN.automation)) return;
+
+  const versionSelect = page.getByRole('button', {
+    name: t('automations.detail.versionSelect'),
+    exact: true,
+  });
+  await page.goto(`${automationRoute}/editor`);
+  if (!(await alreadySeeded(versionSelect))) {
+    await uploadAutomationDraft(page, orgId, DEMO_FAILED_RUN.workflow);
+    await page.goto(`${automationRoute}/editor`);
+  }
+  await expect(versionSelect).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  const testRun = page.getByRole('button', {
+    name: t('automations.detail.runMock'),
+    exact: true,
+  });
+  // Test run starts nothing until the editor has read the stored version,
+  // so click until the start request leaves.
+  await expect(async () => {
+    const started = page
+      .waitForRequest(
+        (request) =>
+          request.method() === 'POST' &&
+          request
+            .url()
+            .includes(`/automations/${DEMO_FAILED_RUN.automation}/start`),
+        { timeout: 3_000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+    await testRun.click();
+    expect(await started).toBe(true);
+  }).toPass({ timeout: TIMEOUT.PERSIST });
+
+  const failed = page.getByText(t('automations.runs.status.failed'), {
+    exact: true,
+  });
+  await expect(async () => {
+    await page.goto(runsRoute);
+    await expect(failed.first()).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  }).toPass({ timeout: TIMEOUT.EXECUTION });
+}
+
+/** Enrich the task through its real dialog after the unassigned-task triage
+ * fixture has finished. Repeated seeds leave existing details and discussion
+ * intact; the fresh load below verifies that each new write persisted. */
+async function ensureLaunchTaskDetail(
+  page: Page,
+  orgId: string,
+  projectId: string,
+): Promise<void> {
+  const detail = DEMO_LAUNCH_TASK_DETAIL;
+  const open = async () => {
+    await page.goto(`/dashboard/${orgId}/projects/${projectId}/tasks/board`);
+    await page.getByText(detail.title, { exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: detail.title });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    return dialog;
+  };
+  let dialog = await open();
+
+  const addDescription = dialog.getByRole('button', {
+    name: t('tasks.detail.addDescription'),
+    exact: true,
+  });
+  if (await isPresent(addDescription)) {
+    await addDescription.click();
+    const description = dialog.getByRole('textbox', {
+      name: t('tasks.fields.description'),
+      exact: true,
+    });
+    await description.fill(detail.description);
+    await dialog
+      .getByRole('button', { name: t('common.actions.save'), exact: true })
+      .click();
+    await expect(description).toBeHidden({ timeout: TIMEOUT.PERSIST });
+  }
+
+  const priority = dialog.getByRole('button', {
+    name: labelStart(t('tasks.fields.priority')),
+  });
+  // A task made on the board starts at Medium, so set the demo's priority
+  // whenever the task carries another.
+  if (
+    !(await priority.getAttribute('aria-label'))?.endsWith(
+      t(`tasks.priority.${detail.priority}`),
+    )
+  ) {
+    await priority.click();
+    await page
+      .getByRole('option', {
+        // The option's priority glyph exposes the same label as its text.
+        name: labelStart(t(`tasks.priority.${detail.priority}`)),
+      })
+      .click();
+    await expect(priority).toHaveAccessibleName(
+      `${t('tasks.fields.priority')}: ${t(`tasks.priority.${detail.priority}`)}`,
+      { timeout: TIMEOUT.PERSIST },
+    );
+  }
+
+  if (
+    await isPresent(
+      dialog.getByText(t('tasks.assignee.unassigned'), { exact: true }),
+    )
+  ) {
+    await dialog
+      .getByRole('button', { name: t('tasks.actions.assign'), exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: labelStart(detail.assignee) })
+      .click();
+    await expect(
+      dialog.getByText(detail.assignee, { exact: true }),
+    ).toBeVisible({
+      timeout: TIMEOUT.PERSIST,
+    });
+  }
+
+  const savedComment = (scope: Locator) =>
+    scope
+      .getByText(detail.comment, { exact: true })
+      .and(scope.getByRole('paragraph'));
+  const comment = savedComment(dialog);
+  const commentDraft = dialog.getByRole('textbox', {
+    name: t('tasks.actions.comment'),
+    exact: true,
+  });
+  if (!(await isPresent(comment))) {
+    await commentDraft.fill(detail.comment);
+    await dialog
+      .getByRole('button', { name: t('tasks.actions.comment'), exact: true })
+      .click();
+    await expect(comment).toBeVisible({ timeout: TIMEOUT.PERSIST });
+    await expect(commentDraft).toHaveValue('', { timeout: TIMEOUT.PERSIST });
+  } else if ((await commentDraft.inputValue()) === detail.comment) {
+    // An interrupted earlier seed may have persisted the comment but left
+    // its same draft in browser storage. Keep the captured composer empty.
+    await commentDraft.fill('');
+  }
+
+  dialog = await open();
+  await expect(dialog).toContainText(detail.description.split('\n')[0]);
+  await expect(savedComment(dialog)).toBeVisible();
+  await expect(
+    dialog.getByText(detail.assignee, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole('button', {
+      name: labelStart(t('tasks.fields.priority')),
+    }),
+  ).toHaveAccessibleName(
+    `${t('tasks.fields.priority')}: ${t(`tasks.priority.${detail.priority}`)}`,
+  );
 }
 
 export function webdavPasswordRow(page: Page, label: string): Locator {
@@ -1804,11 +2260,20 @@ async function step(label: string, run: () => Promise<void>): Promise<void> {
   console.log(`  · ${label} (${Math.round(performance.now() - started)}ms)`);
 }
 
+export interface SeedDemoOptions {
+  /** Explicit config root owned by the hermetic capture stack. */
+  readonly configDir?: string;
+}
+
 /** Seed (or top up) the demo org; returns the ids the shot manifest needs. */
 export async function seedDemoOrg(
   page: Page,
   orgId: string,
+  options: SeedDemoOptions = {},
 ): Promise<SeededIds> {
+  const configRoot = options.configDir
+    ? path.resolve(options.configDir)
+    : path.join(PLATFORM_DIR, 'tests/e2e/fixtures/config');
   console.log('Seeding the demo workspace…');
   // People first: teams, the legal hold and the erasure request all need
   // somebody to act on.
@@ -1817,7 +2282,9 @@ export async function seedDemoOrg(
   // The mock AI provider and the org's embedding model come BEFORE any upload:
   // knowledge indexing refuses every file until an embedding model exists, so
   // a later wiring would leave the seeded documents "Failed".
-  await step('mock AI provider', () => ensureMockProvider(page, orgId));
+  await step('mock AI provider', () =>
+    ensureMockProvider(page, orgId, configRoot),
+  );
   await step('embedding model', () => ensureEmbeddingModel(page, orgId));
 
   const projects = new Map<string, string>();
@@ -1848,6 +2315,18 @@ export async function seedDemoOrg(
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('automation test run', () => ensureAutomationTestRun(page, orgId));
+  await step('trigger skip notice', () => ensureTriggerSkipNotice(page, orgId));
+  await step('webhook deliveries', () =>
+    ensureWebhookDeliveries(page, orgId, projects),
+  );
+  await step('automation failed run', () =>
+    ensureAutomationFailedRun(page, orgId),
+  );
+  if (relaunchId) {
+    await step('launch task brief + ownership + discussion', () =>
+      ensureLaunchTaskDetail(page, orgId, relaunchId),
+    );
+  }
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('API keys', () => ensureApiKeys(page, orgId));

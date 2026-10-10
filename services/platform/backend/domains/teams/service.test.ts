@@ -87,7 +87,7 @@ beforeEach(() => {
 });
 
 describe('retireTeamScopes', () => {
-  it('drops the team from every audience, re-derives the mirrors, resets queues and sync configs', async () => {
+  it('drops the team from every audience, re-derives the mirrors, resets queues and sync configs [TEAM-R9]', async () => {
     const { tx, statements } = fakeSql(
       changed({
         projects: [
@@ -210,7 +210,7 @@ describe('retireDeletedTeamScopes', () => {
 });
 
 describe('teamDeletionImpact', () => {
-  it('counts what the delete touches and what becomes organization-wide', async () => {
+  it('counts what the delete touches and what becomes organization-wide [TEAM-R8]', async () => {
     const { sql, statements } = fakeSql((statement) =>
       statement.text.startsWith('SELECT t."name"')
         ? [
@@ -225,6 +225,7 @@ describe('teamDeletionImpact', () => {
               documentsSole: 7,
               conversations: 5,
               syncConfigs: 1,
+              apiKeys: 2,
             },
           ]
         : undefined,
@@ -239,8 +240,13 @@ describe('teamDeletionImpact', () => {
       documents: { scoped: 10, becomeOrgWide: 7 },
       conversations: { queued: 5 },
       syncConfigs: { scoped: 1 },
+      apiKeys: 2,
     });
     const read = statements[0];
+    // The team's own live API keys, which stop working with it.
+    expect(read?.text).toContain(
+      'o.owner_kind = \'team\' AND o.team_id = t."id" AND o.revoked_at_ms IS NULL',
+    );
     // "Sole" = the audience IS exactly this team; "scoped" = contains it.
     expect(read?.text).toContain('@> ?::text[]');
     expect(read?.text).toContain('= ?::text[]');
@@ -250,14 +256,14 @@ describe('teamDeletionImpact', () => {
     expect(read?.values.slice(-2)).toEqual(['t-fin', 'org_1']);
   });
 
-  it('answers null for a team that is not this organization’s', async () => {
+  it('answers null for a team that is not this organization’s [TEAM-R10]', async () => {
     const { sql } = fakeSql(() => []);
     expect(await teamDeletionImpact(sql, 'org_1', 't-other')).toBeNull();
   });
 });
 
 describe('deleteTeamInTx', () => {
-  it('retires the scopes, the provenance, the memberships and the row in one transaction', async () => {
+  it('retires the scopes, the provenance, the memberships and the row in one transaction [TEAM-R9]', async () => {
     const { tx, statements } = fakeSql((statement) => {
       if (statement.text.startsWith('SELECT "id", "name" FROM "team"')) {
         return [{ id: 't-fin', name: 'Finance' }];
@@ -310,7 +316,7 @@ describe('deleteTeamInTx', () => {
     });
   });
 
-  it('answers null and writes nothing for a team of another organization', async () => {
+  it('answers null and writes nothing for a team of another organization [TEAM-R10]', async () => {
     const { tx, statements } = fakeSql(() => []);
     expect(await deleteTeamInTx(tx, 'org_1', 't-other')).toBeNull();
     expect(statements).toHaveLength(1);

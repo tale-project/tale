@@ -24,6 +24,15 @@ import {
 export type WorkflowAgentFailureCode =
   | 'harness_error'
   | 'turn_crashed'
+  /** The sandbox ended the harness because it stalled: no output and
+   * almost no CPU for the sandbox's stall window. A re-kick at once would
+   * most likely hang the same way, so none follows. */
+  | 'turn_stalled'
+  /** The sandbox ran out of memory and the kernel's OOM killer ended the
+   * harness or its session. Re-kicked like any failure, but only after
+   * {@link RESOURCE_EXHAUSTED_REKICK_DELAY_MS}: at once it would meet the
+   * same limit. */
+  | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
   | 'harvest_failed'
@@ -66,6 +75,12 @@ export const SANDBOX_ROOM_MAX_WAIT_MS = 2 * 60 * 60_000;
 /** The longest one start of a node waiting for sandbox room is held back:
  * past it, a node still waiting asks about once a minute on average. */
 export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
+
+/** How long the re-kick of a node whose sandbox ran out of memory is held:
+ * as long as the kick may hold a start (its op row must stay inside the
+ * stalled-turn sweep's window), so the 10 and 30 minutes a task run waits
+ * are not available here. */
+export const RESOURCE_EXHAUSTED_REKICK_DELAY_MS = SANDBOX_ROOM_RETRY_CEILING_MS;
 
 /** The most a start that holds a place in the spawner's line comes back
  * after its hint: enough to keep waiters refused together apart. */
@@ -110,15 +125,17 @@ export function sandboxRoomRetryAtMs(args: {
   return args.now + hint + Math.round(draw * (window - hint));
 }
 
-/** Failures where a retry is pure waste: the turn burned its 12h window, or
- * the operator ignored the agent's question for the whole ask TTL — a fresh
- * turn would only ask again — or worse than waste: the run's workspace is
+/** Failures where a retry is pure waste: the turn burned its 12h window, its
+ * harness hung until the sandbox ended it, or the operator ignored the
+ * agent's question for the whole ask TTL — a fresh turn would only ask
+ * again — or worse than waste: the run's workspace is
  * being destroyed, and a retry after the Destroy would start over an empty
  * one. Everything else — provider errors, crashes, vanished sessions,
  * harvest hiccups — retries by DEFAULT, including an absent code, so a
  * future failure producer inherits the retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
+  'turn_stalled',
   'ask_expired',
   'budget_exceeded',
   'sandbox_destroying',

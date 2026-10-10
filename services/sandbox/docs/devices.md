@@ -59,12 +59,19 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
 ### Placement
 
 - A create with `placement: 'device'` goes to the organization's
-  release-compatible device with the most free slots. A device that answers
-  429 or a 5xx created nothing usable (a spawner rolls a failed create
-  back), and one that drops before answering is treated the same: the
-  placement is released and the next device tried, then the local backend. A
-  device that failed a create outright sits out new ones for a minute. A
-  session id the server already holds is never moved.
+  release-compatible device with the most free slots after limiting them
+  to the observed memory headroom. Devices enforce local-host memory and disk admission
+  while retaining their configured session ceiling. Before each attempt the hub
+  rechecks that the selected connection is still registered, compatible and has
+  room. For a new placement, a confirmed 429 or a refusal known to occur before
+  sending releases the placement to try another device, then the local backend.
+  That pre-send refusal includes a removed or replaced connection during the
+  durable write and a full tunnel stream budget. A remote 5xx or lost response
+  keeps the placement: the remote create may have succeeded. An unsent retry of
+  an existing placement also keeps its route, since a previous attempt may have
+  created the workspace. Concurrent creates of the same id share that decision. A device
+  that refused a create sits out new ones for a minute. A session id the
+  server already holds is never moved.
 - A create the platform abandons (its timeout, a restarting worker) keeps its
   placement and is tried nowhere else: the device may still finish it, and a
   retried create for the id lands on that copy.
@@ -72,7 +79,11 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   `placement_conflict` — never 409, which the platform reads as "it exists,
   acquire it".
 - Placements are **sticky** and persisted (`placements.json`, serialized
-  atomic writes; a corrupt file is moved aside as `.corrupt-<ts>`). Every
+  flushed temporary files and atomic rename). The rename publishes the new route
+  in memory; if flushing the parent directory then fails, the operation reports
+  the durability error but retains that route for retries and later writes. Invalid
+  JSON or any invalid placement refuses startup and preserves the file for
+  operator recovery; it never silently becomes an empty placement map. Every
   later call for the session goes to its device.
 - A device that is not connected answers **503 `{"error":"device_offline"}`**
   with `x-tale-sandbox-device: <id>`, never a 404 — the platform reads 404 as
@@ -95,9 +106,10 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   one Docker round trip, which with no session under the id finds nothing to
   remove, reads the trash and has what is left attempted again, and with a
   create or compute under way answers busy and touches nothing), and lets the
-  placement go on `done`. A create under the id is counted before its new
-  placement is written, so an answer that lands meanwhile leaves that new
-  placement alone. A route therefore lasts exactly as long as the bytes it leads to; a
+  placement go on `done`. Destroy finalization shares the create's ordering and
+  checks both the captured create generation and the immutable placement it
+  asked about. An answer dispatched before or during a new placement's durable
+  write therefore leaves the new route alone. A route therefore lasts exactly as long as the bytes it leads to; a
   device older than the contract keeps its entries until it updates. A fresh
   create under the id is placed like any other create, with every fallback,
   but tries that device first; placed anywhere else, the route to the old
@@ -142,7 +154,7 @@ HTTP exchanges multiplexed over one WebSocket (binary frames,
 | ------ | ------------ | ------------ | ----------------------------------------------------------------------- |
 | `0x01` | `HELLO`      | device → hub | protocol, release, slots, platform, held sessions, update state         |
 | `0x02` | `WELCOME`    | hub → device | protocol, hub release, ids, `statusIntervalMs`                          |
-| `0x03` | `STATUS`     | device → hub | slots, running/starting, sessions, resources, update state (every 15 s) |
+| `0x03` | `STATUS`     | device → hub | slots, running/starting, sessions, resources, update state (every 15 s, and when its sessions change) |
 | `0x04` | `RENEW`      | device → hub | `{ticket}`                                                              |
 | `0x06` | `STATUS_ACK` | hub → device | `{}` — keeps the device's silence watchdog fed                          |
 | `0x10` | `OPEN`       | initiator    | request head (JSON: method, path, headers, relay)                       |
@@ -208,9 +220,17 @@ jittered backoff (1 s → 60 s); an upgrade nobody answers within 30 s is given
 up on and dialled again. A 401 answer carrying `DEVICE_REVOKED` (the
 organization removed the device) closes the tunnel and leaves only an hourly
 re-check; any other failure is retried (a missing credential is
-`DEVICE_CREDENTIAL_MISSING`, not a removal). When Docker does not answer an
-observation, the device reports the last one that worked rather than
-falling silent, so a busy daemon never costs the tunnel.
+`DEVICE_CREDENTIAL_MISSING`, not a removal). What a STATUS reports comes from
+the spawner's own memory — its registered sessions as running, creates in
+flight as starting, and objects the last sweep found but has not adopted as
+running or starting by what the object does — and
+the host's totals and `/proc` usage where `/proc` describes the Docker host,
+so a report forks no `docker` command on the user's machine (the daemon's
+totals are asked at most every ten minutes). The sessions' fingerprint is
+compared every second, and a change is reported at once rather than at the
+next 15 s heartbeat; reports never overlap. When an observation fails, the
+device reports the last one that worked rather than falling silent, so a
+busy daemon never costs the tunnel.
 
 The stack (`src/devices/apply.ts`, run as `device-apply <config> --version
 <release>` from the image, by the CLI and by the updater alike):

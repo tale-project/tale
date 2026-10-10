@@ -40,11 +40,14 @@ it('returns focus to the create action after the first key moves it to the toolb
     start: 'tale_',
     prefix: 'tale_',
     suffix: 'test',
-    userId: 'user1',
     enabled: true,
     expiresAt: null,
-    createdAt: new Date(),
+    createdAt: Date.now(),
     lastRequest: null,
+    owner: { kind: 'user' },
+    role: null,
+    createdBy: null,
+    canRevoke: true,
   };
   rerender(<ApiKeysTable apiKeys={[key]} organizationId="org1" />);
   expect(opener.isConnected).toBe(false);

@@ -99,6 +99,7 @@ describe('clearAgentAssignmentsInTx', () => {
       'assignee.changed',
       'agent-1',
       null,
+      null,
       expect.any(Number),
     ]);
     expect(outbox.emitHintInTx).toHaveBeenCalledTimes(2);

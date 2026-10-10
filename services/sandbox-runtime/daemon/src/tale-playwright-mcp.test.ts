@@ -104,7 +104,13 @@ def send(obj):
     sys.stdout.write(json.dumps(obj) + '\n'); sys.stdout.flush()
 roots = False
 for line in sys.stdin:
-    msg = json.loads(line)
+    try:
+        msg = json.loads(line)
+    except ValueError:
+        msg = None
+    if not isinstance(msg, dict):
+        log.write(json.dumps({'raw': line.rstrip('\n')}) + '\n'); log.flush()
+        continue
     log.write(json.dumps(msg) + '\n'); log.flush()
     method, id_ = msg.get('method'), msg.get('id')
     if method == 'initialize':
@@ -171,9 +177,10 @@ describe('the start of a turn without the server', () => {
   function client(
     env: Record<string, string | undefined> = {},
     run: string[] = [launcher],
+    args: string[] = ARGS,
   ) {
     rmSync(standInLog, { force: true });
-    const proc = spawn(python, ['-Es', ...run, ...ARGS], {
+    const proc = spawn(python, ['-Es', ...run, ...args], {
       env: { ...baseEnv, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -205,6 +212,9 @@ describe('the start of a turn without the server', () => {
     return {
       send(obj: Record<string, unknown>) {
         proc.stdin.write(`${JSON.stringify(obj)}\n`);
+      },
+      sendRaw(line: string) {
+        proc.stdin.write(`${line}\n`);
       },
       async answer(id: unknown): Promise<Record<string, unknown>> {
         const until = Date.now() + 10_000;
@@ -549,5 +559,192 @@ describe('the start of a turn without the server', () => {
     });
     await mcp.answer(2);
     expect(await mcp.close()).toBe(7);
+  });
+
+  describe('the image-managed Chromium headless shell', () => {
+    const managedManifests = join(dir, 'managed-manifests');
+    const executablePath = join(dir, 'headless-shell');
+    mkdirSync(managedManifests);
+    writeFileSync(executablePath, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    writeFileSync(
+      join(bin, 'package.json'),
+      JSON.stringify({ version: '0.0.41' }),
+    );
+    const browser = {
+      executablePath,
+      server: realpathSync(join(bin, 'mcp-server-playwright')),
+      serverVersion: '0.0.41',
+      browsersPath: '/opt/ms-playwright',
+    };
+    writeFileSync(
+      join(managedManifests, 'browser.json'),
+      JSON.stringify(browser),
+    );
+    for (const name of readdirSync(manifests)) {
+      writeFileSync(
+        join(managedManifests, name),
+        readFileSync(join(manifests, name)),
+      );
+    }
+    const env = { TALE_PLAYWRIGHT_MCP_MANIFESTS: managedManifests };
+    const install = (id: number) => ({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: { name: 'browser_install', arguments: {} },
+    });
+
+    test.each([false, true])(
+      'malformed and non-object messages reach the managed server after initialization (eager=%s)',
+      async (eager) => {
+        const mcp = client({
+          ...env,
+          TALE_PLAYWRIGHT_MCP_EAGER: eager ? '1' : '0',
+        });
+        mcp.send(initialize('2025-06-18'));
+        await mcp.answer(1);
+        mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+        const raw = ['not-json', 'null', '[]', '42', '"text"'];
+        for (const line of raw) mcp.sendRaw(line);
+        mcp.send(toolCall(2));
+        expect(await mcp.answer(2)).toMatchObject({
+          result: { content: [{ text: 'navigated' }] },
+        });
+        expect(await mcp.close()).toBe(0);
+        expect(
+          received()
+            .slice(1)
+            .map((line) => JSON.parse(line).raw)
+            .filter((line) => line !== undefined),
+        ).toEqual(raw);
+        expect(await mcp.stderr()).toBe('');
+      },
+    );
+
+    test('a defensive install before and after navigation uses the installed shell without starting a downloader', async () => {
+      const mcp = client(env);
+      mcp.send(initialize('2025-06-18'));
+      await mcp.answer(1);
+      mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+      mcp.send(install(2));
+      expect(await mcp.answer(2)).toMatchObject({
+        result: {
+          content: [
+            {
+              text: `Managed Chromium headless shell is already installed at ${executablePath}.`,
+            },
+          ],
+        },
+      });
+      expect(received()).toEqual([]);
+      mcp.send(toolCall(3));
+      await mcp.answer(3);
+      mcp.send(install(4));
+      await mcp.answer(4);
+      expect(await mcp.close()).toBe(0);
+      expect(received()[0]).toBe(
+        `started ${ARGS.join(' ')} --executable-path ${executablePath}`,
+      );
+      expect(
+        received()
+          .slice(1)
+          .map((line) => JSON.parse(line).params?.name)
+          .filter(Boolean),
+      ).toEqual(['browser_navigate']);
+    });
+
+    test('an environment-modified tool list still uses the shell and avoids a defensive redownload', async () => {
+      const mcp = client({ ...env, PLAYWRIGHT_MCP_CAPS: 'vision' });
+      mcp.send(initialize('2025-06-18'));
+      await mcp.answer(1);
+      mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+      mcp.send(install(2));
+      await mcp.answer(2);
+      await mcp.close();
+      expect(received()[0]).toBe(
+        `started ${ARGS.join(' ')} --executable-path ${executablePath}`,
+      );
+      expect(received().some((line) => line.includes('browser_install'))).toBe(
+        false,
+      );
+    });
+
+    test.each([
+      [...ARGS, '--executable-path', '/session/browser'],
+      [...ARGS, '--executable-path=/session/browser'],
+      [...ARGS, '--config', '/session/config.json'],
+      [...ARGS, '--config=/session/config.json'],
+      [...ARGS, '--cdp-endpoint', 'http://localhost:9222'],
+      [...ARGS, '--endpoint=ws://localhost:9222'],
+      [...ARGS, '--extension'],
+      [...ARGS, '--connect-tool'],
+      [...ARGS, '--vscode'],
+      [...ARGS, '--port', '8931'],
+      [...ARGS, '--port=8931'],
+      [...ARGS, '--device', 'Pixel 7'],
+      ['--browser', 'chromium'],
+      ['--headless', '--browser', 'firefox'],
+      [...ARGS, '--browser=firefox'],
+    ])(
+      'preserves explicit browser arguments: %j',
+      async (...args: string[]) => {
+        const mcp = client(env, [launcher], args);
+        mcp.send(initialize('2025-06-18'));
+        await mcp.answer(1);
+        mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+        mcp.send(install(2));
+        await mcp.answer(2);
+        await mcp.close();
+        expect(received()[0]).toBe(`started ${args.join(' ')}`);
+        expect(
+          received().some((line) => line.includes('browser_install')),
+        ).toBe(true);
+      },
+    );
+
+    test.each([
+      ['PLAYWRIGHT_MCP_EXECUTABLE_PATH', '/session/browser'],
+      ['PLAYWRIGHT_MCP_CONFIG', '/session/config.json'],
+      ['PLAYWRIGHT_MCP_BROWSER', 'firefox'],
+      ['PLAYWRIGHT_MCP_HEADLESS', 'false'],
+      ['PLAYWRIGHT_MCP_CDP_ENDPOINT', 'http://localhost:9222'],
+      ['PLAYWRIGHT_MCP_PORT', '8931'],
+      ['PLAYWRIGHT_BROWSERS_PATH', '/session/browsers'],
+    ])('preserves explicit browser environment: %s', async (key, value) => {
+      const mcp = client({ ...env, [key]: value });
+      mcp.send(initialize('2025-06-18'));
+      await mcp.answer(1);
+      mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+      mcp.send(install(2));
+      await mcp.answer(2);
+      await mcp.close();
+      expect(received()[0]).toBe(`started ${ARGS.join(' ')}`);
+      expect(received().some((line) => line.includes('browser_install'))).toBe(
+        true,
+      );
+    });
+
+    test('a stale or missing image executable is the real server’s responsibility', async () => {
+      const stale = join(dir, 'stale-browser-manifests');
+      mkdirSync(stale);
+      for (const metadata of [
+        { ...browser, serverVersion: 'different' },
+        { ...browser, executablePath: join(dir, 'missing-shell') },
+        { ...browser, server: '/session/other-server' },
+      ]) {
+        writeFileSync(join(stale, 'browser.json'), JSON.stringify(metadata));
+        const mcp = client({ TALE_PLAYWRIGHT_MCP_MANIFESTS: stale });
+        mcp.send(initialize('2025-06-18'));
+        await mcp.answer(1);
+        mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+        mcp.send(install(2));
+        await mcp.answer(2);
+        await mcp.close();
+        expect(received()[0]).toBe(`started ${ARGS.join(' ')}`);
+        expect(
+          received().some((line) => line.includes('browser_install')),
+        ).toBe(true);
+      }
+    });
   });
 });

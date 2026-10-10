@@ -13,7 +13,7 @@ Nutze den Chat, um Fragen zu stellen, ein Dokument zu verstehen oder Information
 
 ## Die erste Nachricht senden
 
-Öffne **Start**. Am Computer öffnet sich dabei der Chat, den du zuletzt gelesen hast, falls es einen gibt. Für ein neues Thema wählst du **Neuer Chat** oben in der Liste von **Start** oder klickst am Computer erneut auf **Start**, während der Bereich aktiv ist. Schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
+Öffne **Start**. Am Computer öffnet sich ein neuer Chat, und die Seitenleiste von **Start** daneben listet deine bisherigen Chats; auf dem Smartphone wählst du **Chats** und dann **Neuer Chat**. Für ein weiteres Thema wählst du später **Neuer Chat** oder, am Computer, erneut **Start**. Schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
 
 Zum Beispiel: „Finde die Onboarding-Rückmeldungen und fasse die drei häufigsten Probleme zusammen. Nenne die Dokumente als Quellen und trenne gemeldete Probleme von deinen Vorschlägen.“
 
@@ -23,7 +23,7 @@ Während die Antwort erscheint, wird aus der Sende- eine Stopp-Schaltfläche. Be
 
 ## Ein Modell gezielt auswählen
 
-Sind mehrere nutzbare Modelle verfügbar, startet die Auswahl mit **Auto**. Auto wählt für jede Nachricht ein Modell aus dem verfügbaren Angebot deiner Organisation. Organisationsregeln können ein Standardmodell festlegen oder die Auswahl einschränken. In den Antwortdetails siehst du, welches Modell tatsächlich geantwortet hat.
+Sind mehrere nutzbare Modelle verfügbar, startet die Auswahl mit **Auto**. Auto wählt für jede Nachricht ein Modell aus dem verfügbaren Angebot deiner Organisation. Organisationsregeln können ein Standardmodell festlegen oder die Auswahl einschränken. In den [Antwortdetails](#reply-details) siehst du, welches Modell tatsächlich geantwortet hat.
 
 Wähle ein bestimmtes Modell, wenn du Antworten vergleichen möchtest oder weißt, welches Modell zur Arbeit passt. Die Auswahl bleibt bestehen, bis du sie änderst – auch der Anbieter, der das Modell bereitstellt, wenn zwei Anbieter dasselbe Modell anbieten. Unterstützt das Modell einen einstellbaren Denkaufwand, erscheint auch diese Einstellung. Mehr Denkaufwand kann länger dauern und ersetzt keine Prüfung der Antwort.
 
@@ -59,6 +59,15 @@ Unter **Quellen** stehen die geladenen Dokumente und Seiten. Öffne eine Quelle 
 
 Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte, zugängliche Aufgaben und die Inbox-Konversationen, die du sehen darfst. Dabei findet er auch den Text der E-Mails, die in diesen Konversationen eingegangen sind, und den ihrer Anhänge. Eine Aufgabe lässt sich über ihren Schlüssel nennen, etwa `DOCS-12`, wie das Board ihn anzeigt. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern, Bilder erzeugen, Dateiergebnisse erstellen oder [Skills](/de/platform/workspace/skills) nutzen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an. Jeder, der das Projekt öffnen kann, kann sie anlegen und einem der Agenten des Projekts übergeben; [Aus einem Chat eine Aufgabe machen](#create-task-from-chat) zeigt, wie du sie direkt aus dem Gespräch anlegst. Ein Projektagent, der an der Aufgabe arbeitet, kann Bilder erstellen, wenn ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet hat.
 
+## Sehen, wie eine Antwort entstanden ist {#reply-details}
+
+Wähle unter einer Antwort **Info anzeigen**, um die **Nachrichteninformation** zu öffnen. Sie nennt das Modell, das geantwortet hat, und seinen **Anbieter**, zeigt, wie lange die Antwort gedauert und wie viele Tokens sie verbraucht hat, und sagt, wo sie verarbeitet wurde, sofern das bekannt ist.
+
+- **Zeit bis zum ersten Token** ist die Zeit, bis das Modell mit seiner Antwort begonnen hat. **Ausgabetempo** gibt an, wie schnell es geschrieben hat, in Tokens pro Sekunde, und **Gesamtzeit**, wie lange die ganze Antwort gedauert hat. Der Balken darunter teilt diese Zeit in Vorbereitung, Warten auf das Modell, Denken und Schreiben auf. Der Server misst ab dem Moment, in dem er mit der Antwort begonnen hat. Die Zeit, bis die ersten Wörter auf deinem Bildschirm erschienen, steht unter dem Balken und kann deshalb länger sein.
+- **Verarbeitet von** nennt das Unternehmen, das das Modell ausgeführt hat, wenn dein Anbieter Anfragen weitergibt. OpenRouter kann zum Beispiel dasselbe Claude-Modell über Anthropic, Amazon Bedrock oder Google Vertex bereitstellen.
+- **Region** gibt an, wo die Antwort verarbeitet wurde, aber nur, wenn der Anbieter sie gemeldet hat, wie es Azure OpenAI tut (zum Beispiel Switzerland North), oder wenn die Anfrage an einen regionalen Endpoint ging, dessen Anbieter die Verarbeitung in einer Region zusichert, etwa `eu.openrouter.ai` oder `eu.api.openai.com`. Sonst steht dort **Nicht gemeldet**: Tale leitet keinen Standort aus dem Namen oder dem Sitz eines Anbieters ab. Bei Azure kann eine Bereitstellung vom Typ Global eine Anfrage in jeder Region verarbeiten, unabhängig davon, welche Region die Antwort nennt. Eine Datenzonen-Bereitstellung verarbeitet innerhalb ihrer Datenzone, etwa der EU, eine regionale Bereitstellung innerhalb ihrer Geografie.
+- **Modellversion** erscheint, wenn der Anbieter ein genaueres Modell meldet als das angefragte, etwa eine datierte Version hinter einem Alias oder das Modell hinter dem Namen einer Azure-Bereitstellung.
+
 ## Aus einem Chat eine Aufgabe machen {#create-task-from-chat}
 
 Endet ein Gespräch in Arbeit, die eine Datei braucht, etwa eine Präsentation, einen Bericht oder eine Tabelle, übergib sie einem Projekt-Agenten. Wähle im Kopf des Gesprächs **Aufgabe erstellen**; auf einem schmalen Bildschirm findest du **Aufgabe aus Chat erstellen** im Menü **⋯**. Liegt der Chat in einem Projekt, entsteht die Aufgabe dort. Sonst wählst du zuerst das Projekt: Unter **Mit Agent** stehen die Projekte, die du öffnen kannst und die Agenten haben, samt ihrer Anzahl. Ein Projekt ohne eigene Agenten steht dort mit **Standard-Agent**: Seine Aufgabe geht an den [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation. Kann der Standard-Agent für dich nicht laufen, etwa weil ein Admin ihn ausgeschaltet hat, stehen solche Projekte stattdessen unter **Noch ohne Agent**, jeweils mit dem Hinweis, wer einen hinzufügen kann.
@@ -71,7 +80,7 @@ Der Aufgabendialog öffnet sich mit deiner letzten Anfrage als Beschreibung, ein
 
 </Frame>
 
-Danach steht die Aufgabe über dem Nachrichtenfeld des Chats, mit dem, was sie gerade tut: **Der Agent arbeitet**, **Wartet auf einen Sandbox-Platz**, **Wird erneut versucht…**, **Bereit zur Prüfung** mit der Zahl der gelieferten Dateien oder **Der Agent konnte sie nicht fertigstellen**. **Öffnen** führt dich zur Aufgabe. Du wirst außerdem benachrichtigt, wenn sie zur Prüfung bereit ist und wenn der Agent nicht fertig wird; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) erklärt, wie es weitergeht.
+Danach steht die Aufgabe über dem Nachrichtenfeld des Chats, mit dem, was sie gerade tut: **Der Agent arbeitet**, **Wartet auf einen Worker** (oder ein anderer Zustand, der sagt, worauf der Lauf wartet), **Wird erneut versucht…**, **Bereit zur Prüfung** mit der Zahl der gelieferten Dateien oder **Der Agent konnte sie nicht fertigstellen**. **Öffnen** führt dich zur Aufgabe. Du wirst außerdem benachrichtigt, wenn sie zur Prüfung bereit ist und wenn der Agent nicht fertig wird; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) erklärt, wie es weitergeht.
 
 <Frame caption="Die Aufgabe, die ein Chat übergeben hat, zeigt ihren Fortschritt über dem Nachrichtenfeld.">
 
@@ -88,6 +97,8 @@ Dateien kommen nur aus deinem eigenen Gespräch mit. Eine Aufgabe nimmt nur die 
 ## Ein Gespräch fortsetzen oder aufbewahren
 
 Über die Antwortleiste kopierst du Text, gibst Feedback, öffnest Details oder zweigst das Gespräch an dieser Stelle ab. Mit einer Abzweigung probierst du eine andere Richtung aus und behältst den bisherigen Austausch.
+
+Deine eigenen Nachrichten stehen rechts. Von einer langen siehst du den Anfang; **Weiterlesen** öffnet den Rest an Ort und Stelle, **Weniger anzeigen** klappt ihn wieder zu. Zeige auf eine deiner Nachrichten oder setze den Tastaturfokus hinein, dann siehst du, wann du sie gesendet hast, und findest **Nachricht bearbeiten**: Damit änderst du den Text in einer neuen Version des Gesprächs. Auf einem Touchscreen ist beides immer zu sehen. Unter einer Nachricht, die du bearbeitet hast oder deren Antwort du mit **Erneut versuchen** neu angefordert hast, wechselst du mit **Vorheriger Zweig** und **Nächster Zweig** zwischen den Versionen; die Zahl dazwischen, etwa 2/3, zeigt, welche gerade zu sehen ist.
 
 Frühere Chats findest du im Bereich [Start](/de/platform#home); die Ansicht **Chats** über der Liste zeigt nur deine Chats. Pinne häufig benötigte Chats, gib ihnen erkennbare Titel oder verschiebe sie in ein Projekt, wenn das Thema längerfristig wird: Zieh sie auf das Projekt oder wähle **In Projekt verschieben…** in ihrem Menü. [Geteilte Chats](/de/platform/chat/shared-threads) erklärt die schreibgeschützte Freigabe für Kollegen.
 

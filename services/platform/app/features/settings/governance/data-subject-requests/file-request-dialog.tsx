@@ -1,6 +1,8 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { FormSection } from '@tale/ui/form-section';
 import { Input } from '@tale/ui/input';
@@ -10,9 +12,12 @@ import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import {
   ERASURE_REASON_CODES,
   type ErasureReasonCode,
@@ -44,16 +49,62 @@ interface FormValues {
   reason: string;
 }
 
+function MemberPickerReadFailure({
+  error,
+  retrying,
+  onRetry,
+}: {
+  error: unknown;
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
+  const detail = failureDetail(error);
+
+  return (
+    <Alert
+      variant="destructive"
+      description={
+        <>
+          <p>{t('dataSubjectRequests.dialogs.fileRequest.userPickerFailed')}</p>
+          {detail && <p>{detail}</p>}
+        </>
+      }
+    >
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        icon={retrying ? Loader2 : RefreshCw}
+        iconClassName={
+          retrying ? 'animate-spin motion-reduce:animate-none' : undefined
+        }
+        className="mt-3"
+        aria-busy={retrying || undefined}
+        aria-disabled={retrying || undefined}
+        onClick={() => {
+          if (!retrying) onRetry();
+        }}
+      >
+        {tCommon('actions.tryAgain')}
+      </Button>
+    </Alert>
+  );
+}
+
 export function FileRequestDialog({
   open,
   onOpenChange,
   organizationId,
 }: FileRequestDialogProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const navigate = useNavigate();
   const { mutateAsync, isPending } = useRequestErasure();
   const members = useOrgMembersForErasurePicker(organizationId);
+  const membersFailed = members.isError || readStateOf(members).unavailable;
   const [confirmText, setConfirmText] = useState('');
   const [legalHoldBlock, setLegalHoldBlock] = useState<{
     requestId: string;
@@ -119,7 +170,7 @@ export function FileRequestDialog({
   const confirmed = confirmText.trim() === ERASURE_CONFIRM_PHRASE;
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!confirmed) return;
+    if (!confirmed || membersFailed || members.data === undefined) return;
     setLegalHoldBlock(null);
     try {
       const { requestId } = await mutateAsync({
@@ -174,7 +225,9 @@ export function FileRequestDialog({
       title={t('dataSubjectRequests.dialogs.fileRequest.title')}
       description={t('dataSubjectRequests.dialogs.fileRequest.description')}
       isSubmitting={isPending}
-      isValid={formState.isValid && confirmed}
+      isValid={
+        formState.isValid && confirmed && !members.isLoading && !membersFailed
+      }
       onSubmit={onSubmit}
       submitText={t('dataSubjectRequests.dialogs.fileRequest.submit')}
     >
@@ -194,11 +247,26 @@ export function FileRequestDialog({
             })
           }
           options={memberOptions}
+          disabled={members.isLoading || membersFailed}
+          description={
+            members.isLoading && !membersFailed
+              ? tCommon('actions.loading')
+              : undefined
+          }
           emptyText={t(
             'dataSubjectRequests.dialogs.fileRequest.userPickerEmpty',
           )}
           error={!!formState.errors.targetUserId}
         />
+        {membersFailed && (
+          <MemberPickerReadFailure
+            error={members.error}
+            retrying={members.isFetching}
+            onRetry={() => {
+              void members.refetch();
+            }}
+          />
+        )}
         <Select
           id="dsr-reason-code"
           label={t('dataSubjectRequests.dialogs.fileRequest.reasonCodeLabel')}

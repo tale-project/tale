@@ -19,6 +19,14 @@ Beginne bei einer Workspace-Bereitstellung mit `tale status` und `tale logs <ser
 
 Eine ladende Oberfläche ohne Daten deutet zunächst auf Anwendungsanfragen, nicht zwingend auf den Webserver. Prüfe fehlgeschlagene Browseranfragen und `backend-api`-Protokolle. Proxy, abgelaufene Sitzung, fehlende Rechte und Backend-Ausfall brauchen unterschiedliche Lösungen. [TLS und Domains](/de/self-hosted/configuration/tls-and-domains) sowie [Authentifizierung](/de/self-hosted/configuration/authentication) erklären die Einrichtung.
 
+### Web-Prozess und Anwendungsverfügbarkeit getrennt prüfen
+
+`/api/health` prüft den Web-Prozess. `/api/health/ready` erreicht `backend-api` und führt eine Datenbankabfrage aus; eine erfolgreiche Antwort ist HTTP 200 mit `{"ok":true,"service":"backend"}`. Prüfe beide Routen über die öffentliche URL samt Basispfad. Eine HTML-Fehlerseite, eine Weiterleitung oder eine zwischengespeicherte Erfolgsmeldung belegt keine Bereitschaft.
+
+Der Browser prüft die Bereitschaft im gesunden Zustand alle 30 Sekunden und wiederholt eine fehlgeschlagene Prüfung nach fünf Sekunden. Jede Anfrage hat eine Frist von acht Sekunden. Nach einem Ausfall werden fehlgeschlagene Leseanfragen automatisch aktualisiert. Schreibanfragen musst du ausdrücklich erneut auslösen. Ein bereits installierter Service Worker zeigt die zwischengespeicherte Verbindungsseite, wenn eine Navigation scheitert, die Frist überschreitet oder einen Proxy-5xx erhält. Er prüft die Wiederverbindung automatisch. Ein Erstbesuch während eines Ausfalls ist auf die Nichterreichbarkeitsseite des vorgeschalteten Proxys angewiesen, da noch kein Service Worker installiert ist.
+
+Kann ein alter Tab nach einer Bereitstellung ein Modul nicht laden, prüfe, ob jede Web-Replik dasselbe Volume `static-assets` einbindet und die Veröffentlichung vor ihrer Bereitschaft abgeschlossen hat. Siehe [Bereitstellung aktualisieren und wiederherstellen](/de/self-hosted/operate/upgrades).
+
 ## Uploads oder Downloads scheitern
 
 Vergleiche zuerst die Serverantwort mit der Browseranfrage an die vorsignierte URL. Ist nur eine Organisation betroffen, kann ihre eigene Speicherverbindung die Ursache sein, obwohl der Standard-Bucket erreichbar ist.
@@ -67,7 +75,7 @@ Dieser nicht nebenläufige Befehl kann Arbeit blockieren. Stimme ihn mit dem Dat
 
 Prüfe den Chat- oder Lauf-Fehler und die zuständigen API-/Worker-Protokolle. Anbieter-`429`, verweigerte Zugangsdaten, Ausführungs-Timeout, ausstehende Freigabe und unterbrochener Browser-Stream sind verschiedene Zustände. Eine Freigabe braucht eine Entscheidung, keinen Neustart. Hinter einem getrennten Stream kann die Operation weiterlaufen; prüfe ihr gespeichertes Ergebnis vor einer Wiederholung.
 
-Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Harness-Fehlern `sandbox`, `sandbox-llm-gateway`, Laufzeit-Image und Sitzungsprotokolle.
+Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Agent-Laufzeit-Fehlern `sandbox`, `sandbox-llm-gateway`, Laufzeit-Image und Sitzungsprotokolle.
 
 ## Sandbox-Netzzugriff wird verweigert
 
@@ -76,6 +84,10 @@ Prüfe `sandbox-egress` und die Ziel-URL. Eine konfigurierte `SANDBOX_EGRESS_ALL
 Ein gesunder Egress-Prozess belegt nicht die Verfügbarkeit von Gegenstelle, DNS, Zertifikat oder Konto. Bewahre den konkreten Anfragefehler im Störungsbericht auf.
 
 Wenn viele Sessions gleichzeitig Pakete installieren oder Seiten laden und Verbindungen mit Resets abbrechen, während der Proxy gesund bleibt, hat er womöglich `SANDBOX_EGRESS_MAX_CLIENTS` erreicht, die Verbindungen, die er für alle Sessions zusammen gleichzeitig bedient. Sein Log meldet dann, dass die Höchstzahl an Verbindungen erreicht ist. Erhöhe den Wert zusammen mit den Prozess- und Dateigrenzen des Egress-Containers und erstelle den Egress-Dienst neu.
+
+Wenn die Verbindungen einer einzelnen Session mit Resets abbrechen, während andere Sessions dieselben Hosts weiterhin erreichen, hält diese Session womöglich schon `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` Verbindungen (Default 256), und der Proxy lehnt ihre nächsten ab, bis einige geschlossen sind. Erhöhe den Wert oder setze `0`, um die Grenze abzuschalten, und erstelle den Egress-Dienst neu.
+
+Ein neu erstellter Dienst `sandbox-egress` (nach einem Deploy oder einem Neustart des Stacks) kann unter einer anderen Adresse zurückkommen, während Sessions, die schon liefen, ihren Verkehr weiter an die alte Adresse schicken und keinen Netzzugriff mehr haben. Der Dienst `sandbox` startet jede solche Session neu, sobald sie freigegeben und untätig ist, und protokolliert `recycling <session>`; die nächste Nutzung startet sie mit unverändertem Workspace. Eine Session, die noch in Gebrauch ist, scheitert weiter, bis ihre Arbeit endet, und eine angepinnte Session läuft weiter, bis du sie stoppst oder nicht mehr anpinnst.
 
 ## Schreibzugriffe scheitern oder Speicher läuft voll
 

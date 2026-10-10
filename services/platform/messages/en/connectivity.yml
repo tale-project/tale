@@ -1,0 +1,15 @@
+tabTitle: Reconnecting
+deviceTitle: You're offline
+deviceDescription: Check your internet connection. Tale will reconnect
+  automatically when you're back online.
+backendTitle: Can't reach Tale
+backendDescription: Tale's server isn't responding. We're trying to reconnect.
+retry: Try again
+getApp: Get the app
+reachingServer: Trying to reach the server
+newVersion:
+  title: A new version is available
+  description: This tab is still running the previous version, so part of the
+    page couldn't load. Reload to continue.
+  reload: Reload
+  later: Later

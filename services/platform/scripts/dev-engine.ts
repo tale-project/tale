@@ -369,10 +369,9 @@ function loadEnvFiles() {
 
 /**
  * The step helpers currently running under {@link runCommand} — `docker
- * compose up`, `wait-on`, `vite build`. `shutdown()` tree-kills them with the
- * backend and Vite: a SIGTERM that lands during `waitForBackend` used to leave
- * `bunx wait-on tcp:127.0.0.1:3005` polling for its full 180 s timeout after
- * the orchestrator was gone.
+ * compose up`, `vite build`. `shutdown()` tree-kills them with the backend and
+ * Vite: a SIGTERM that lands during `waitForBackend` used to leave an external
+ * readiness process polling after the orchestrator was gone.
  */
 const stepChildren = new Set<ChildProcess>();
 
@@ -1043,22 +1042,17 @@ export async function runDevFleet() {
     }
 
     async function waitForBackend() {
-      try {
-        await runCommand('bunx', [
-          'wait-on',
-          `tcp:127.0.0.1:${backendPort}`,
-          '--timeout',
-          String(DEV_GATES.backendTcp.timeoutMs),
-          '--interval',
-          '250',
-        ]);
-      } catch (err) {
-        throw new Error(
-          `The backend did not start on 127.0.0.1:${backendPort} in time. Is another one holding the port (lsof -i :${backendPort}), or is the database unreachable? Underlying: ${err instanceof Error ? err.message : String(err)}`,
-          { cause: err },
-        );
+      const deadline = Date.now() + DEV_GATES.backendTcp.timeoutMs;
+      while (Date.now() < deadline) {
+        if (await tcpProbe('127.0.0.1', backendPort, 2_000)) {
+          applyState(onBackendReady(snapshot(), Date.now()));
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      applyState(onBackendReady(snapshot(), Date.now()));
+      throw new Error(
+        `The backend did not start on 127.0.0.1:${backendPort} in time. Is another one holding the port (lsof -i :${backendPort}), or is the database unreachable?`,
+      );
     }
 
     async function restartBackend() {
@@ -1160,10 +1154,16 @@ export async function runDevFleet() {
             done: 'Production bundle built',
           },
           () =>
-            runCommand('bun', ['--bun', 'vite', 'build'], {}, platformRoot, {
-              label: 'vite',
-              classifier: viteClassifier,
-            }),
+            runCommand(
+              'bun',
+              ['--bun', '../../packages/ui/bin/build-client.ts'],
+              {},
+              platformRoot,
+              {
+                label: 'vite',
+                classifier: viteClassifier,
+              },
+            ),
         );
       } else {
         infoLine('Reusing existing dist/ (skipping vite build)');

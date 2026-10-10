@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { toast } from '@tale/ui/use-toast';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState, type KeyboardEvent } from 'react';
@@ -59,6 +60,7 @@ export function LabelEditor({
   const { labels: catalog } = useTaskLabels(projectId);
   const createLabel = useCreateTaskLabel();
   const ensureDefaults = useEnsureDefaultTaskLabels();
+  const { isComposing, compositionProps } = useImeComposition(open);
 
   const toggleLabel = (name: string) => {
     if (labels.includes(name)) {
@@ -127,6 +129,7 @@ export function LabelEditor({
   };
 
   const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (isComposing(e.nativeEvent)) return;
     if (itemCount === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -204,6 +207,7 @@ export function LabelEditor({
             />
             <input
               type="text"
+              {...compositionProps}
               autoFocus
               value={search}
               maxLength={TASK_LABEL_CHARS_MAX}

@@ -32,6 +32,11 @@ export const API_KEY_CREATE_PATH = '/api-key/create';
 export const API_KEY_CREATE_FORBIDDEN_MESSAGE =
   'Creating an API key takes the Owner, Admin or Developer role, or a competence an Admin grants for one: Call models over the API, Export notifications, or Act for another member.';
 
+/** Why the plugin's own update and delete refuse a key bound to one
+ * organization (`domains/api_keys/owners.ts`): that organization manages it. */
+export const API_KEY_BOUND_MESSAGE =
+  'This key belongs to an organization, which manages it: revoke it under Settings > API > REST there.';
+
 /**
  * The platform capabilities whose door is reached with a personal API key —
  * each one lets its holder create one. `tale:skills.publish` is exercised in

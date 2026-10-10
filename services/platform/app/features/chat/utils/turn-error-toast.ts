@@ -35,8 +35,9 @@ export function turnRefusalToastContent(
   reason: string | undefined,
   t: ChatT,
   code?: string,
+  budgetScope?: string,
 ): TurnToastContent {
-  const keys = classifyRefusal(reason, code);
+  const keys = classifyRefusal(reason, code, budgetScope);
   const description =
     keys.descriptionKey !== undefined
       ? t(keys.descriptionKey)

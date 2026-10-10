@@ -8,12 +8,14 @@ import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -31,6 +33,7 @@ import {
   runDocker,
 } from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
+import { SessionIncarnationChangedError } from '../types.ts';
 import { DockerBackend, dockerHealth } from './docker-backend.ts';
 import {
   DockerSessionBackend,
@@ -99,19 +102,26 @@ describe('isReapableContainerStatus', () => {
 // ---------------------------------------------------------------------------
 
 const FAKE_DOCKER = `#!/usr/bin/env bash
-# Fake docker CLI for tests. Reads five lines from ./mode next to this script:
+# Fake docker CLI for tests. Reads nine lines from ./mode next to this script:
 #   line 1: 1 when the container exists, else 0
 #   line 2: rm outcome — ok | removes (ok, and the container is gone after) |
 #           nosuch | busy
 #   line 3: comma-separated session ids \`docker ps\` lists (may be empty)
 #   line 4: ps outcome — ok | fail (a daemon hiccup: non-zero exit + stderr)
 #   line 5: the host source of the container's /agent mount (may be empty)
-#   line 6: mount inspect outcome — ok | fail
+#   line 6: the session's Docker-in-container capability (may be empty)
+#   line 7: mount inspect outcome — ok | fail
+#   line 8: creation stamp observed by the running-state probe
+#   line 9: the egress address label \`docker ps\` lists (may be empty)
+#   line 10: the running-state probe's State.Running and State.OOMKilled,
+#           as "running oomKilled" (default: "true false")
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
 listed="$(sed -n 3p "$here/mode")"
 ps_mode="$(sed -n 4p "$here/mode")"
+dind="$(sed -n 6p "$here/mode")"
+egress="$(sed -n 9p "$here/mode")"
 cmd="$1"; shift
 case "$cmd" in
   ps)
@@ -121,19 +131,23 @@ case "$cmd" in
     fi
     IFS=',' read -ra ids <<< "$listed"
     for id in "\${ids[@]}"; do
-      [ -n "$id" ] && printf '%s\torg_fake\tagent\t1700000000000\trunning\n' "$id"
+      [ -n "$id" ] && printf '%s\torg_fake\tagent\t1700000000000\trunning\t\t%s\t%s\n' "$id" "$dind" "$egress"
     done
     exit 0 ;;
   inspect)
+    printf '%s\\n' "$@" >> "$here/inspect-calls"
     fmt="$2"; name="$3"
     if [ "$present" = "1" ]; then
       case "$fmt" in
+        *State.Running*tale.created*)
+          read -r running oom <<< "$(sed -n 10p "$here/mode")"
+          printf '%s\\t%s\\t%s\\n' "\${running:-true}" "$(sed -n 8p "$here/mode")" "\${oom:-false}" ;;
         *tale.created*) printf 'abcdef123456\\t1700000000000\\n' ;;
         *State.Running*) echo "true" ;;
         *State.Status*) echo "running" ;;
         *tale.docker*) printf 'abc123\\t%s\\t\\n' "$(cat "$here/docker-capability" 2>/dev/null || true)" ;;
         *Mounts*)
-          if [ "$(sed -n 6p "$here/mode")" = "fail" ]; then
+          if [ "$(sed -n 7p "$here/mode")" = "fail" ]; then
             echo "Cannot connect to the Docker daemon" >&2
             exit 1
           fi
@@ -150,14 +164,22 @@ case "$cmd" in
   version)
     echo "29.0.0"
     exit 0 ;;
+  stop)
+    printf '%s\\n' "$@" > "$here/last-stop"
+    if [ "$(cat "$here/stop-mode" 2>/dev/null)" = "fail" ]; then
+      echo "Error response from daemon: cannot stop container: permission denied" >&2
+      exit 1
+    fi
+    exit 0 ;;
   rm)
     printf '%s\\n' "$@" > "$here/last-rm"
     case "$rm_mode" in
       ok) exit 0 ;;
       removes)
+        # Portable across BSD and GNU sed; do not acknowledge a failed update.
         sed '1s/.*/0/' "$here/mode" > "$here/mode.next" &&
           mv "$here/mode.next" "$here/mode"
-        exit 0 ;;
+        exit $? ;;
       nosuch)
         echo "Error response from daemon: No such container: $2" >&2
         exit 1 ;;
@@ -184,11 +206,16 @@ async function fakeDocker(scenario: {
   listed?: string[];
   ps?: 'ok' | 'fail';
   mount?: string;
+  dind?: boolean;
   mountRead?: 'ok' | 'fail';
+  createdStamp?: string;
+  egress?: string;
+  /** The container is stopped, and whether the OOM killer hit it. */
+  exited?: { oomKilled: boolean };
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.mountRead ?? 'ok'}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n${scenario.createdStamp ?? '1700000000000'}\n${scenario.egress ?? ''}\n${scenario.exited ? `false ${scenario.exited.oomKilled}` : 'true false'}\n`,
   );
 }
 
@@ -250,6 +277,74 @@ function backendConfig(): SpawnerConfig {
     session: TEST_SESSION_CONFIG,
   };
 }
+
+describe('Docker session observation incarnation', () => {
+  test.each(['', ' ', 'unreadable'])(
+    'stamp %j cannot be interpreted as a verified incarnation',
+    async (createdStamp) => {
+      await fakeDocker({ present: true, rm: 'busy', createdStamp });
+      const backend = new DockerSessionBackend(backendConfig());
+      expect(
+        await rejection(backend.sessionExists('unknown', 0)),
+      ).toBeInstanceOf(Error);
+      expect(
+        await rejection(backend.resolveEndpoint('unknown', 0)),
+      ).toBeInstanceOf(Error);
+      expect(await backend.sessionExists('unknown')).toBe(true);
+    },
+  );
+
+  test.each([true, false])(
+    'a stopped container the OOM killer hit (%p) is said so once, from the same inspect',
+    async (oomKilled) => {
+      await fakeDocker({ present: true, rm: 'busy', exited: { oomKilled } });
+      await writeFile(join(fakeRoot, 'inspect-calls'), '');
+      const backend = new DockerSessionBackend(backendConfig());
+      expect(await backend.sessionExists('died', 1_700_000_000_000)).toBe(
+        false,
+      );
+      // Another incarnation's question gets no answer meant for this one.
+      expect(backend.takeOutOfMemory('died', 1_700_000_000_001)).toBe(false);
+      await backend.sessionExists('died', 1_700_000_000_000);
+      expect(backend.takeOutOfMemory('died', 1_700_000_000_000)).toBe(
+        oomKilled,
+      );
+      expect(backend.takeOutOfMemory('died', 1_700_000_000_000)).toBe(false);
+      const calls = await readFile(join(fakeRoot, 'inspect-calls'), 'utf8');
+      expect(calls.match(/--format/g)).toHaveLength(2);
+    },
+  );
+
+  test('checks running state and creation stamp in one inspect, preserving unscoped occupancy', async () => {
+    await fakeDocker({ present: true, rm: 'busy' });
+    await writeFile(join(fakeRoot, 'inspect-calls'), '');
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(await backend.sessionExists('replaced', 1_700_000_000_001)).toBe(
+      false,
+    );
+    expect(await backend.sessionExists('replaced', 1_700_000_000_000)).toBe(
+      true,
+    );
+    expect(await backend.sessionExists('replaced')).toBe(true);
+    const calls = await readFile(join(fakeRoot, 'inspect-calls'), 'utf8');
+    expect(calls.match(/--format/g)).toHaveLength(3);
+  });
+
+  test('adoption cannot pair old metadata with a replacement Docker endpoint', async () => {
+    await fakeDocker({ present: true, rm: 'busy' });
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(
+      await rejection(backend.resolveEndpoint('replaced', 1_700_000_000_001)),
+    ).toBeInstanceOf(SessionIncarnationChangedError);
+    expect(
+      await backend.resolveEndpoint('replaced', 1_700_000_000_000),
+    ).toContain(':8200');
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    expect(
+      await rejection(backend.resolveEndpoint('replaced', 1_700_000_000_000)),
+    ).toBeInstanceOf(Error);
+  });
+});
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -406,7 +501,7 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     const error = await rejection(
       backend.stopSession('replacement', 1_600_000_000_000),
     );
-    expect(error?.message).toContain('changed before idle stop');
+    expect(error?.message).toContain('incarnation changed');
     expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toBe('untouched');
   });
 
@@ -425,6 +520,60 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     await fakeDocker({ present: true, rm: 'ok' });
     const backend = new DockerSessionBackend(backendConfig());
     expect(await backend.stopSession('rm-ok')).toBe(true);
+  });
+
+  test('a stop with a grace asks the container to stop before it is removed; one without kills at once', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    await rm(join(fakeRoot, 'last-stop'), { force: true });
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(await backend.stopSession('graceful', 1_700_000_000_000)).toBe(true);
+    expect(await exists(join(fakeRoot, 'last-stop'))).toBe(false);
+    expect(
+      await backend.stopSession('graceful', 1_700_000_000_000, {
+        graceMs: 20_000,
+      }),
+    ).toBe(true);
+    // The grace goes to the same fenced container id the removal takes.
+    expect(
+      (await readFile(join(fakeRoot, 'last-stop'), 'utf8')).split('\n'),
+    ).toEqual(['-t', '20', 'abcdef123456', '']);
+    expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toBe(
+      '--force\nabcdef123456\n',
+    );
+  });
+
+  test('a graceful stop the daemon refuses still removes the container', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    await writeFile(join(fakeRoot, 'stop-mode'), 'fail');
+    await writeFile(join(fakeRoot, 'last-rm'), 'untouched');
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const backend = new DockerSessionBackend(backendConfig());
+      expect(
+        await backend.stopSession('stop-refused', undefined, {
+          graceMs: 5_000,
+        }),
+      ).toBe(true);
+      expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toBe(
+        '--force\ntale-sbx-ses-stop-refused\n',
+      );
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        'graceful stop of tale-sbx-ses-stop-refused failed',
+      );
+    } finally {
+      warn.mockRestore();
+      await rm(join(fakeRoot, 'stop-mode'), { force: true });
+    }
+  });
+
+  test('nothing to stop gracefully when the container is already gone', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    await rm(join(fakeRoot, 'last-stop'), { force: true });
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(
+      await backend.stopSession('stop-gone', undefined, { graceMs: 5_000 }),
+    ).toBe(false);
+    expect(await exists(join(fakeRoot, 'last-stop'))).toBe(false);
   });
 
   test('a failed removal of the inner image volume is reported, never silent', async () => {
@@ -1031,6 +1180,41 @@ describe('DockerSessionBackend.destroySession after the session root moved', () 
 });
 
 describe('DockerSessionBackend.listSessions', () => {
+  test.each([true, false, undefined])(
+    'reads the recorded Docker capability (%p)',
+    async (dind) => {
+      await fakeDocker({
+        present: true,
+        rm: 'ok',
+        listed: ['capability'],
+        dind,
+      });
+      const backend = new DockerSessionBackend({
+        ...backendConfig(),
+        dockerInContainer: true,
+      });
+      expect((await backend.listSessions())[0]?.docker).toBe(dind);
+    },
+  );
+
+  test.each([
+    ['172.30.0.3', '172.30.0.3'],
+    ['', undefined],
+    ['sandbox-egress', undefined],
+  ])(
+    'reads the egress address the session pinned from its label (%p)',
+    async (label, expected) => {
+      await fakeDocker({
+        present: true,
+        rm: 'ok',
+        listed: ['egress'],
+        egress: label,
+      });
+      const backend = new DockerSessionBackend(backendConfig());
+      expect((await backend.listSessions())[0]?.egressAddress).toBe(expected);
+    },
+  );
+
   test('THROWS on a failed `docker ps` instead of reporting "no sessions"', async () => {
     // A daemon blip laundered into [] would leave every running session
     // unregistered (unroutable, never reaped) until the next successful list.
@@ -1109,5 +1293,121 @@ describe('DockerSessionBackend durable pin (survives a spawner restart)', () => 
     expect(
       await exists(join(hostSessionRoot, '.pins', 'pin-destroy.pinned')),
     ).toBe(false);
+  });
+});
+
+describe('a stop retires the exec temp', () => {
+  /** A workspace with exec temp (a replay spool, pip staging) beside the
+   * session's own files. */
+  async function workspaceWithTemp(root: string, id: string): Promise<string> {
+    const workspace = join(root, `ses-${id}`);
+    await mkdir(join(workspace, '.runtime', 'tmp', 'pip-staging'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(workspace, '.runtime', 'tmp', 'runnerd-spool'),
+      'replay',
+    );
+    await mkdir(join(workspace, '.runtime', 'home'), { recursive: true });
+    await writeFile(join(workspace, '.runtime', 'home', '.gitconfig'), 'kept');
+    await writeFile(join(workspace, 'keep.txt'), 'user data');
+    return workspace;
+  }
+
+  test('once the container is gone, the temp goes to the trash and the rest of the workspace stays', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const root = await freshRoot();
+    const workspace = await workspaceWithTemp(root, 'tmp-stop');
+    const gate = Promise.withResolvers<void>();
+    const trash = new WorkspaceTrash(root, async (path) => {
+      await gate.promise;
+      await rm(path, { recursive: true, force: true });
+    });
+    const backend = new DockerSessionBackend(rootedConfig(root), trash);
+    expect(await backend.stopSession('tmp-stop', 1_700_000_000_000)).toBe(true);
+    // The next start has nothing to delete before runnerd comes up.
+    expect(await exists(join(workspace, '.runtime', 'tmp'))).toBe(false);
+    expect(await readFile(join(workspace, 'keep.txt'), 'utf8')).toBe(
+      'user data',
+    );
+    expect(
+      await readFile(join(workspace, '.runtime', 'home', '.gitconfig'), 'utf8'),
+    ).toBe('kept');
+    const entries = await readdir(trash.dir);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatch(/^ses-tmp-stop\.tmp\./);
+    gate.resolve();
+    await trash.empty();
+    expect(await readdir(trash.dir)).toEqual([]);
+  });
+
+  test('a stop that could not remove the container leaves the temp where it is', async () => {
+    await fakeDocker({ present: true, rm: 'busy' });
+    const root = await freshRoot();
+    const workspace = await workspaceWithTemp(root, 'tmp-busy');
+    const backend = new DockerSessionBackend(rootedConfig(root));
+    expect(await rejection(backend.stopSession('tmp-busy'))).toBeInstanceOf(
+      Error,
+    );
+    expect(
+      await readFile(
+        join(workspace, '.runtime', 'tmp', 'runnerd-spool'),
+        'utf8',
+      ),
+    ).toBe('replay');
+  });
+
+  test('a planted symbolic link is never followed: what it points to stays, and so does the link', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const root = await freshRoot();
+    // Another session's workspace, which a link in this one names.
+    const victim = join(root, 'ses-victim');
+    await mkdir(join(victim, 'tmp'), { recursive: true });
+    await writeFile(join(victim, 'tmp', 'data.txt'), 'not yours');
+    const runtimeLinked = join(root, 'ses-runtime-link');
+    await mkdir(runtimeLinked);
+    await symlink(victim, join(runtimeLinked, '.runtime'));
+    const tmpLinked = join(root, 'ses-tmp-link');
+    await mkdir(join(tmpLinked, '.runtime'), { recursive: true });
+    await symlink(join(victim, 'tmp'), join(tmpLinked, '.runtime', 'tmp'));
+
+    const warn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      const backend = new DockerSessionBackend(rootedConfig(root));
+      await backend.stopSession('runtime-link');
+      await backend.stopSession('tmp-link');
+    } finally {
+      console.warn = warn;
+    }
+    expect(await readFile(join(victim, 'tmp', 'data.txt'), 'utf8')).toBe(
+      'not yours',
+    );
+    expect(
+      (await lstat(join(tmpLinked, '.runtime', 'tmp'))).isSymbolicLink(),
+    ).toBe(true);
+    expect(await exists(join(root, '.trash'))).toBe(false);
+    expect(
+      warnings.filter((line) => line.includes('is a symbolic link')),
+    ).toHaveLength(2);
+  });
+
+  test('a workspace without exec temp, or no workspace at all, is nothing to do', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const root = await freshRoot();
+    await mkdir(join(root, 'ses-no-temp', '.runtime'), { recursive: true });
+    const warn = spyOn(console, 'warn');
+    try {
+      const backend = new DockerSessionBackend(rootedConfig(root));
+      expect(await backend.stopSession('no-temp')).toBe(true);
+      expect(await backend.stopSession('no-workspace')).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+    expect(await exists(join(root, '.trash'))).toBe(false);
   });
 });

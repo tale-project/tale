@@ -68,7 +68,7 @@ describe('deleteKnowledgeEntry', () => {
     vi.mocked(syncRagRefHolderScopes).mockClear();
   });
 
-  it('looks only at live rows, and answers 404 for one already deleted', async () => {
+  it('looks only at live rows, and answers 404 for one already deleted [KENTRY-R7]', async () => {
     const fake = fakeSql([]);
     let caught: unknown;
     try {
@@ -85,7 +85,7 @@ describe('deleteKnowledgeEntry', () => {
     expect(updates(fake.statements)).toEqual([]);
   });
 
-  it('prunes a superseded row alone — the active fact and its document stay', async () => {
+  it('prunes a superseded row alone — the active fact and its document stay [KENTRY-R7]', async () => {
     const fake = fakeSql([
       {
         status: 'superseded',
@@ -108,7 +108,7 @@ describe('deleteKnowledgeEntry', () => {
     expect(writes[0]?.text).not.toContain('topic_key');
   });
 
-  it('retires the whole chain by DOCUMENT and trashes it when the active row goes', async () => {
+  it('retires the whole chain by DOCUMENT and trashes it when the active row goes [KENTRY-R7]', async () => {
     const fake = fakeSql([
       {
         status: 'active',
@@ -150,7 +150,7 @@ describe('deleteKnowledgeEntry', () => {
     );
   });
 
-  it('survives a failed de-index — the delete stands and the purge retries', async () => {
+  it('survives a failed de-index — the delete stands and the purge retries [KENTRY-R8]', async () => {
     vi.mocked(releaseCorpusRefs).mockResolvedValueOnce({
       released: [],
       kept: [],

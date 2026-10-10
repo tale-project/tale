@@ -1,6 +1,7 @@
 import type {
   AgentReviewBlockedReason,
   TaskAgentReviewReceipt,
+  TaskDelegateReviewReceipt,
   TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 import type { Sql } from 'postgres';
@@ -16,6 +17,7 @@ import {
   findLiveAutomationRunForTask,
 } from './external-ref.ts';
 import { readTaskReviewDecision } from './review-decision.ts';
+import { readTaskReviewDelegation } from './review-delegation-receipt.ts';
 import { getPendingReviewForTask } from './reviews.ts';
 
 /**
@@ -57,6 +59,8 @@ export interface TaskWorkflowRunState {
 export interface TaskWorkState {
   /** Latest recorded native decision; a newer non-native or pending review hides it. */
   reviewDecision: TaskAgentReviewReceipt | null;
+  /** Historical handoff into the latest gate; pendingReview is current ownership. */
+  reviewDelegation: TaskDelegateReviewReceipt | null;
   /** Newest first — the first is the live run when the task has one. */
   agentRuns: TaskAgentRunSummary[];
   /** Whether older runs than this page exist. */
@@ -104,9 +108,43 @@ export async function readTaskWorkState(
     projectId: args.projectId,
     taskId: args.taskId,
   };
+  const workflowRun = await readTaskWorkflowRunState(sql, subject);
+  const review = await getPendingReviewForTask(
+    sql,
+    args.organizationId,
+    args.taskId,
+  );
+  return {
+    agentRuns: runs.slice(0, runLimit),
+    agentRunsHasMore: runs.length > runLimit,
+    workflowRun,
+    reviewDecision: await readTaskReviewDecision(sql, subject),
+    reviewDelegation: await readTaskReviewDelegation(sql, subject),
+    pendingReview:
+      review === null
+        ? null
+        : {
+            approvalId: review.approvalId,
+            round: review.round,
+            runId: review.runId,
+            requestedFor: review.requestedFor,
+            reviewer: review.reviewer,
+            implementationAgentId: review.implementationAgentId,
+            evidenceRevision: review.evidenceRevision,
+            agentReviewBlockedReason: review.agentReviewBlockedReason,
+            createdAt: review.createdAt,
+          },
+  };
+}
+
+/** The common workflow projection; compact occupancy never reads review state. */
+async function readTaskWorkflowRunState(
+  sql: Sql,
+  args: { organizationId: string; projectId: string; taskId: string },
+): Promise<TaskWorkflowRunState | null> {
   const automation =
-    (await findLiveAutomationRunForTask(sql, subject)) ??
-    (await findLatestAutomationRunForTask(sql, subject));
+    (await findLiveAutomationRunForTask(sql, args)) ??
+    (await findLatestAutomationRunForTask(sql, args));
   let workflowRun: TaskWorkflowRunState | null = null;
   if (automation !== null) {
     const live = LIVE_AUTOMATION_STATUSES.has(automation.status);
@@ -139,29 +177,46 @@ export async function readTaskWorkState(
         : {}),
     };
   }
-  const review = await getPendingReviewForTask(
-    sql,
-    args.organizationId,
-    args.taskId,
-  );
+  return workflowRun;
+}
+
+export interface TaskOccupancyState {
+  currentRun: TaskAgentRunSummary | null;
+  requestedRun?: TaskAgentRunSummary;
+  workflowRun: TaskWorkflowRunState | null;
+}
+
+/** A bounded observation, not an atomic snapshot or permission to start work.
+ * Missing requested identities fail the whole read instead of substituting
+ * the newest run or reporting an apparently idle task. */
+export async function readTaskOccupancy(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    taskId: string;
+    requestedRunId?: string;
+  },
+): Promise<TaskOccupancyState | null> {
+  const subject = { organizationId: args.organizationId, taskId: args.taskId };
+  const [currentRun] = await listTaskAgentRunSummaries(sql, {
+    ...subject,
+    limit: 1,
+  });
+  let requestedRun: TaskAgentRunSummary | undefined;
+  if (args.requestedRunId !== undefined) {
+    if (currentRun?.id === args.requestedRunId) requestedRun = currentRun;
+    else
+      [requestedRun] = await listTaskAgentRunSummaries(sql, {
+        ...subject,
+        limit: 1,
+        runId: args.requestedRunId,
+      });
+    if (requestedRun === undefined) return null;
+  }
   return {
-    agentRuns: runs.slice(0, runLimit),
-    agentRunsHasMore: runs.length > runLimit,
-    workflowRun,
-    reviewDecision: await readTaskReviewDecision(sql, subject),
-    pendingReview:
-      review === null
-        ? null
-        : {
-            approvalId: review.approvalId,
-            round: review.round,
-            runId: review.runId,
-            requestedFor: review.requestedFor,
-            reviewer: review.reviewer,
-            implementationAgentId: review.implementationAgentId,
-            evidenceRevision: review.evidenceRevision,
-            agentReviewBlockedReason: review.agentReviewBlockedReason,
-            createdAt: review.createdAt,
-          },
+    currentRun: currentRun ?? null,
+    ...(requestedRun !== undefined ? { requestedRun } : {}),
+    workflowRun: await readTaskWorkflowRunState(sql, args),
   };
 }

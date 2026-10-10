@@ -1,7 +1,39 @@
+import {
+  TRIGGER_ISSUE_CODES,
+  type ParsedTriggerWrite,
+  type TriggerIssue,
+  triggerIssues,
+  type TriggerKind,
+  triggerSkipDetailSchema,
+  type TriggerView,
+  type TriggerWrite,
+  triggerWriteSchema,
+} from '@tale/shared/schemas/automation-trigger';
+import {
+  normalizeScheduleRule,
+  type ScheduleRule,
+} from '@tale/shared/schemas/schedule-rule';
 import type { Sql, TransactionSql } from 'postgres';
+import type { z } from 'zod';
 
-import { parseCron } from '../../../lib/automations/cron.ts';
-import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
+import {
+  CronImpossibleDateError,
+  parseCron,
+} from '../../../lib/automations/cron.ts';
+import {
+  nextOccurrence,
+  type Schedule,
+  scheduleOfTrigger,
+  storedScheduleRuleSchema,
+} from '../../../lib/automations/schedule/occurrences.ts';
+import { triggerInputSample } from '../../../lib/automations/trigger-input.ts';
+import type {
+  LegacyRunQuarantine,
+  RunSummary,
+} from '../../../lib/engine/api/dispatch.ts';
+import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
+import type { NodeRunWrite } from '../../../lib/engine/core/record/recorder.ts';
+import type { Issue } from '../../../lib/engine/core/types.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   AUTOMATION_NAME_RE,
@@ -11,20 +43,34 @@ import {
   describeSchemaErrors,
 } from '../../../lib/engine/core/validate/schema.ts';
 import {
+  type InputsCheck,
+  triggerInputWarnings,
+} from '../../../lib/engine/core/validate/trigger-input.ts';
+import { formatIsoDate } from '../../../lib/shared/calendar.ts';
+import {
   EMITTED_EVENT_TYPES,
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import { localDateIn } from '../../../lib/shared/zoned-time.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   boundCheckpointTrace,
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
-import type { NodeCheckpoint } from '../../core/automations/checkpoints.ts';
-import { wallClockIn } from '../../core/automations/cron.ts';
 import {
+  mergeParkedAgentCursor,
+  type NodeCheckpoint,
+  parkedAgentSettled,
+  parksAgentTurn,
+} from '../../core/automations/checkpoints.ts';
+import {
+  ENGINE_DEFER_MS,
+  ENGINE_DEFER_WINDOW_MS,
+  IN_DOUBT_POLL_MS,
   LIVENESS_SWEEP_LIMIT,
   RUN_CLAIM_PROMISE_MS,
+  RUN_LEASE_MS,
 } from '../../core/automations/liveness.ts';
 import {
   runIdempotencyRequestHash,
@@ -35,8 +81,9 @@ import {
   hashWebhookToken,
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
-import { toJson } from '../../db/sql.ts';
+import { jsonParam, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { engineVersion, instanceId } from '../../lib/instance.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
 import {
@@ -45,15 +92,30 @@ import {
 } from '../collab/service.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
+import { auditDefinitionWrite } from './audit.ts';
+import {
+  describeLegacyQuarantine,
+  legacyRunStopSchema,
+} from './legacy-quarantine.ts';
+import {
+  managedConfigurationHash,
+  managedDefinitionValue,
+  managedScheduleValue,
+} from './managed-configuration-value';
+import { nodeRunBytes, startNodeRun, writeNodeRunsInTx } from './node-runs.ts';
+import { type RunEventKind, recordRunEventInTx } from './run-events.ts';
 import { recordTriggerRunOutcome } from './trigger-failures.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
  * bindings, deployments, triggers, tombstones, and the durable RUN
- * substrate the reused 0.4 stepper drives: claim with an epoch fence,
- * heartbeat/progress renewing the wakeAt liveness promise, suspend with a
- * chainSeq-fenced poll chain, continue hand-offs, and a single terminal
- * door. Scheduling maps 1:1 from the 0.4 scheduler onto pg-boss
+ * substrate the reused 0.4 stepper drives: a claim that takes a lease (one
+ * walker per run) and bumps the epoch fence, heartbeat/progress renewing the
+ * lease and the wakeAt liveness promise, suspend with a chainSeq-fenced poll
+ * chain, continue hand-offs, and a single terminal door — every run-state
+ * write ONE statement fenced by the walker's epoch and a live status.
+ * Scheduling maps 1:1 from the 0.4 scheduler onto pg-boss
  * (`automation.step` / `automation.poll` jobs with `startAfter`), enqueued
  * IN the same transaction as the state write (the constitution's
  * transactional-enqueue rule) so a scheduled resume can never outrun or
@@ -148,6 +210,41 @@ export function assertAutomationNameCreatable(name: string): string {
 
 // ------------------------------------------------------------- definitions
 
+/** The doors a version can be saved through — `automations.created_via`
+ * (0181): the editor, a package upload, a coding agent over MCP, the REST
+ * API, managed configuration, the shipped default packs. */
+export const AUTOMATION_WRITE_VIAS = [
+  'app',
+  'upload',
+  'mcp',
+  'rest',
+  'managed',
+  'system',
+] as const;
+
+export type AutomationWriteVia = (typeof AUTOMATION_WRITE_VIAS)[number];
+
+/** Which door a definition write came through, and — for a keyed door —
+ * with which key and client. Recorded on the version a save writes. */
+export interface AutomationWriteOrigin {
+  via: AutomationWriteVia;
+  /** The API key the door authenticated, by id. */
+  apiKeyId?: string;
+  /** The name the agent's client gave itself, already cleaned by
+   * `displayClientName` (at most 80 characters). */
+  clientName?: string;
+}
+
+/** The three version fields beside the document a save can carry forward
+ * from the latest version. */
+export const CARRIED_VERSION_FIELDS = [
+  'settings',
+  'taskContract',
+  'presentation',
+] as const;
+
+export type CarriedVersionField = (typeof CARRIED_VERSION_FIELDS)[number];
+
 export interface SaveVersionArgs {
   organizationId: string;
   name: string;
@@ -180,6 +277,58 @@ export interface SaveVersionArgs {
    * saver that passes none (the builder's autosave, an upload, MCP)
    * appends as before. */
   baseVersion?: number;
+  /** How `settings`, `taskContract` and `presentation` are read. `explicit`
+   * (the default — the editor, an upload, managed configuration): an absent
+   * field stores none. `carry` (a coding agent's save, which sends only
+   * what it changes): an absent field keeps the latest version's value,
+   * copied under the name lock so no save lands between the read and the
+   * write; `null` stores none. The answer's `carried` names what was kept. */
+  metadataMode?: 'explicit' | 'carry';
+  /** The door the save came through, recorded on the version (0181). */
+  origin?: AutomationWriteOrigin;
+  /** Declarative ownership is field/value bounded and checked under the
+   * same native name lock as every version writer. */
+  managed?: { projectId: string; expectedHash: string | null };
+  /** The door's own check of THIS save, run under the name lock once the
+   * latest version is known (null: the save creates the automation) and
+   * before anything is written — so what it decides cannot change before
+   * the insert: a coding agent's save refuses an automation the person
+   * cannot see, and checks the project it installs a NEW one in only when
+   * the save creates it. A refusal it throws leaves nothing written. */
+  authorize?: (tx: TransactionSql, latest: number | null) => Promise<void>;
+}
+
+/** What a save stored, and which version fields it kept from the version
+ * before it (`metadataMode: 'carry'` only). */
+export interface SavedVersion {
+  name: string;
+  version: number;
+  carried?: CarriedVersionField[];
+}
+
+/** The version fields a carry-mode save stores: an absent field is copied
+ * from the latest version, `null` stores none, a value stores itself. */
+function carryVersionFields(
+  args: SaveVersionArgs,
+  latest: VersionRow | null,
+): {
+  fields: Pick<SaveVersionArgs, CarriedVersionField>;
+  carried: CarriedVersionField[];
+} {
+  const fields: Pick<SaveVersionArgs, CarriedVersionField> = {};
+  const carried: CarriedVersionField[] = [];
+  for (const field of CARRIED_VERSION_FIELDS) {
+    const sent = args[field];
+    if (sent !== undefined) {
+      if (sent !== null) fields[field] = sent;
+      continue;
+    }
+    const kept: unknown = latest?.[field];
+    if (kept === null || kept === undefined) continue;
+    fields[field] = kept;
+    carried.push(field);
+  }
+  return { fields, carried };
 }
 
 /** Serialize every writer of ONE automation name (two tabs, the builder's
@@ -201,12 +350,66 @@ async function lockAutomationName(
   `;
 }
 
+function assertManagedHash(
+  actual: string | null,
+  expected: string | null,
+): void {
+  if (actual !== expected)
+    throw new AutomationError(
+      'AUTOMATION_VERSION_STALE',
+      'Managed configuration changed since planning.',
+      409,
+    );
+}
+
+async function assertManagedProject(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+  projectId: string,
+  bound: boolean,
+): Promise<void> {
+  if (await automationTombstone(tx, organizationId, name))
+    throw new AutomationError(
+      'AUTOMATION_DELETED',
+      'Deleted automation requires explicit recovery before managed adoption.',
+      409,
+    );
+  const projects = await tx<{ id: string }[]>`
+    SELECT id FROM app.projects
+    WHERE id = ${projectId} AND org_id = ${organizationId} AND archived_at_ms IS NULL
+    FOR SHARE
+  `;
+  if (projects.length !== 1)
+    throw new AutomationError(
+      'AUTOMATION_PROJECT_UNKNOWN',
+      'Managed configuration requires the declared active project.',
+      404,
+    );
+  if (bound) {
+    const bindings = await tx<{ projectId: string }[]>`
+      SELECT project_id AS "projectId" FROM app.automation_project_bindings
+      WHERE org_id = ${organizationId} AND automation_name = ${name} AND project_id = ${projectId}
+      FOR SHARE
+    `;
+    if (bindings.length !== 1)
+      throw new AutomationError(
+        'AUTOMATION_PROJECT_UNKNOWN',
+        'Managed configuration cannot adopt an automation outside its declared project.',
+        409,
+      );
+  }
+}
+
 export async function saveVersion(
   sql: Sql,
   args: SaveVersionArgs,
-): Promise<{ name: string; version: number }> {
+): Promise<SavedVersion> {
   const name = assertAutomationName(args.name);
   return sql.begin(async (tx) => {
+    // The audit chain before the name: the order every definition writer
+    // takes them in (`audit.ts`), so two writers never wait on each other.
+    await lockAuditChain(tx, args.organizationId);
     await lockAutomationName(tx, args.organizationId, name);
     // The latest version, read under the lock: null is the create (a name
     // the router keeps for itself is refused here, once, before anything is
@@ -217,6 +420,45 @@ export async function saveVersion(
     `;
     const latest = heads[0]?.latest ?? null;
     if (latest === null) assertAutomationNameCreatable(name);
+    await args.authorize?.(tx, latest);
+    if (args.managed) {
+      await assertManagedProject(
+        tx,
+        args.organizationId,
+        name,
+        args.managed.projectId,
+        latest !== null,
+      );
+      const current =
+        latest === null
+          ? null
+          : await versionRow(tx, args.organizationId, name, latest);
+      const actual = managedDefinitionValue(
+        args.managed.projectId,
+        name,
+        current,
+      );
+      const desired = managedDefinitionValue(
+        args.managed.projectId,
+        name,
+        args,
+      );
+      assertManagedHash(
+        managedConfigurationHash(actual),
+        args.managed.expectedHash,
+      );
+      if (
+        latest !== null &&
+        managedConfigurationHash(actual) === managedConfigurationHash(desired)
+      )
+        return { name, version: latest };
+      if (args.testsPassed !== true)
+        throw new AutomationError(
+          'AUTOMATION_DEPLOY_REJECTED',
+          'Managed automation definitions require passing native tests.',
+          409,
+        );
+    }
     if (args.create === true && latest !== null) {
       throw new AutomationError(
         'AUTOMATION_NAME_TAKEN',
@@ -234,22 +476,35 @@ export async function saveVersion(
         { latestVersion: latest, baseVersion: args.baseVersion },
       );
     }
+    // A carry-mode save keeps what it does not restate, read from the
+    // latest version under the lock this transaction holds.
+    const carry =
+      args.metadataMode === 'carry'
+        ? carryVersionFields(
+            args,
+            latest === null
+              ? null
+              : await versionRow(tx, args.organizationId, name, latest),
+          )
+        : null;
+    const stored = carry?.fields ?? args;
     const now = Date.now();
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,
         tests_checked_at_ms, task_contract, settings, presentation,
-        created_by, created_at_ms
+        created_by, created_at_ms, created_via, api_key_id, client_name
       )
       SELECT ${args.organizationId}, ${name},
              coalesce(max(version), 0) + 1,
              ${tx.json(toJson(args.document))}, ${args.message ?? null},
              ${args.testsPassed ?? null},
              ${args.testsPassed === undefined ? null : now},
-             ${args.taskContract === undefined ? null : tx.json(toJson(args.taskContract))},
-             ${args.settings === undefined ? null : tx.json(toJson(args.settings))},
-             ${args.presentation === undefined || args.presentation === null ? null : tx.json(toJson(args.presentation))},
-             ${args.actor}, ${now}
+             ${stored.taskContract === undefined || stored.taskContract === null ? null : tx.json(toJson(stored.taskContract))},
+             ${stored.settings === undefined || stored.settings === null ? null : tx.json(toJson(stored.settings))},
+             ${stored.presentation === undefined || stored.presentation === null ? null : tx.json(toJson(stored.presentation))},
+             ${args.actor}, ${now}, ${args.origin?.via ?? null},
+             ${args.origin?.apiKeyId ?? null}, ${args.origin?.clientName ?? null}
       FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
       RETURNING version
@@ -261,10 +516,29 @@ export async function saveVersion(
       DELETE FROM app.automation_tombstones
       WHERE org_id = ${args.organizationId} AND name = ${name}
     `;
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.version.saved',
+      name,
+      version,
+      newState: { version },
+      metadata: {
+        version,
+        ...(args.baseVersion === undefined
+          ? {}
+          : { baseVersion: args.baseVersion }),
+        ...(carry === null ? {} : { carried: carry.carried }),
+        ...(args.testsPassed === undefined
+          ? {}
+          : { testsPassed: args.testsPassed }),
+      },
+    });
     if (version === 1 && args.projectId !== undefined) {
+      const projectId = args.projectId;
       const owned = await tx<{ id: string }[]>`
         SELECT id FROM app.projects
-        WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+        WHERE org_id = ${args.organizationId} AND id = ${projectId}
         LIMIT 1
       `;
       if (owned.length === 0) {
@@ -274,18 +548,34 @@ export async function saveVersion(
           404,
         );
       }
-      await tx`
-        INSERT INTO app.automation_project_bindings (
-          org_id, automation_name, project_id, bound_at_ms, bound_by
-        ) VALUES (
-          ${args.organizationId}, ${name}, ${args.projectId}, ${Date.now()},
-          ${args.actor}
-        )
-        ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-      `;
+      // The database derives the binding's claim and refuses a second wake.
+      const bound = await claimingWake(
+        () => tx`
+          INSERT INTO app.automation_project_bindings (
+            org_id, automation_name, project_id, bound_at_ms, bound_by
+          ) VALUES (
+            ${args.organizationId}, ${name}, ${projectId}, ${Date.now()},
+            ${args.actor}
+          )
+          ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+        `,
+      );
+      if (bound.count > 0) {
+        await auditDefinitionWrite(tx, {
+          organizationId: args.organizationId,
+          actor: args.actor,
+          action: 'automation.project.bound',
+          name,
+          newState: { projectId },
+        });
+      }
     }
     await emitDefinitionHint(tx, args.organizationId, name);
-    return { name, version };
+    return {
+      name,
+      version,
+      ...(carry === null ? {} : { carried: carry.carried }),
+    };
   });
 }
 
@@ -323,6 +613,13 @@ export interface VersionRow {
   presentation: unknown;
   createdBy: string;
   createdAt: number;
+  /** The door the version was saved through (0181) — null for a version
+   * saved before the door was recorded. */
+  createdVia: AutomationWriteVia | null;
+  /** The API key a keyed door saved it with, by id. */
+  apiKeyId: string | null;
+  /** The name the saving agent's client gave itself. */
+  clientName: string | null;
 }
 
 export async function versionRow(
@@ -337,7 +634,9 @@ export async function versionRow(
     SELECT name, version, document, message, tests_passed AS "testsPassed",
            tests_checked_at_ms::float8 AS "testsCheckedAt",
            task_contract AS "taskContract", settings, presentation,
-           created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
+           created_by AS "createdBy", created_at_ms::float8 AS "createdAt",
+           created_via AS "createdVia", api_key_id AS "apiKeyId",
+           client_name AS "clientName"
     FROM app.automations
     WHERE org_id = ${organizationId} AND name = ${name}
       AND (${version ?? null}::int IS NULL OR version = ${version ?? null})
@@ -391,10 +690,15 @@ export async function automationRunsExist(
   sql: Sql | TransactionSql,
   organizationId: string,
   name: string,
+  /** Only runs in this scope: a project's, or (null) the organization's
+   * own — absent, runs anywhere in the organization. */
+  scope?: { projectId: string | null },
 ): Promise<boolean> {
   const rows = await sql<{ present: number }[]>`
     SELECT 1 AS present FROM app.automation_runs
     WHERE org_id = ${organizationId} AND name = ${name}
+      AND (${scope === undefined}
+           OR project_id IS NOT DISTINCT FROM ${scope?.projectId ?? null}::text)
     LIMIT 1
   `;
   return rows.length > 0;
@@ -473,8 +777,18 @@ export async function deploy(
      * run's word; without a fresh verdict a version saved with failing
      * tests stays refused. */
     testsPassed?: boolean;
+    /** Compare-and-set on the live version: the version the caller read as
+     * deployed (`null`: nothing deployed). Another one live now refuses the
+     * deploy with `AUTOMATION_DEPLOYMENT_STALE` (409, `data.deployedVersion`)
+     * and changes nothing. Absent, no check (the editor's deploy). */
+    expectedDeployedVersion?: number | null;
+    managed?: {
+      projectId: string;
+      expectedHash: string | null;
+      definitionSha256: string;
+    };
   },
-): Promise<{ name: string; version: number }> {
+): Promise<DeployResult> {
   const row = await versionRow(
     sql,
     args.organizationId,
@@ -498,7 +812,100 @@ export async function deploy(
       409,
     );
   }
+  let previousVersion: number | null = null;
   await sql.begin(async (tx) => {
+    // Serialize promotion with saves and other promoters. Existing runs keep
+    // their immutable version; only future admissions read this pointer.
+    // The audit chain first, as every definition writer takes it (`audit.ts`).
+    await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
+    const live =
+      (await deployedVersion(tx, args.organizationId, args.name)) ?? null;
+    previousVersion = live;
+    if (
+      args.expectedDeployedVersion !== undefined &&
+      args.expectedDeployedVersion !== live
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_DEPLOYMENT_STALE',
+        live === null
+          ? `"${args.name}" has no deployed version any more — the deploy expected v${String(args.expectedDeployedVersion)}.`
+          : `v${live} of "${args.name}" is live now — the deploy expected ${args.expectedDeployedVersion === null ? 'nothing deployed' : `v${args.expectedDeployedVersion}`}.`,
+        409,
+        { deployedVersion: live },
+      );
+    }
+    if (args.managed) {
+      await assertManagedProject(
+        tx,
+        args.organizationId,
+        args.name,
+        args.managed.projectId,
+        true,
+      );
+      const latest = await versionRow(
+        tx,
+        args.organizationId,
+        args.name,
+        undefined,
+      );
+      const definition = managedDefinitionValue(
+        args.managed.projectId,
+        args.name,
+        latest,
+      );
+      if (
+        latest?.version !== args.version ||
+        managedConfigurationHash(definition) !== args.managed.definitionSha256
+      )
+        throw new AutomationError(
+          'AUTOMATION_VERSION_STALE',
+          'The managed definition changed before deployment.',
+          409,
+        );
+      const deployed = await deployedVersion(
+        tx,
+        args.organizationId,
+        args.name,
+      );
+      const previous =
+        deployed === undefined
+          ? null
+          : await versionRow(tx, args.organizationId, args.name, deployed);
+      const current =
+        previous === null
+          ? null
+          : {
+              name: args.name,
+              projectId: args.managed.projectId,
+              definitionSha256: managedConfigurationHash(
+                managedDefinitionValue(
+                  args.managed.projectId,
+                  args.name,
+                  previous,
+                ),
+              ),
+            };
+      const desired = {
+        name: args.name,
+        projectId: args.managed.projectId,
+        definitionSha256: args.managed.definitionSha256,
+      };
+      assertManagedHash(
+        managedConfigurationHash(current),
+        args.managed.expectedHash,
+      );
+      if (
+        managedConfigurationHash(current) === managedConfigurationHash(desired)
+      )
+        return;
+      if (args.testsPassed !== true)
+        throw new AutomationError(
+          'AUTOMATION_DEPLOY_REJECTED',
+          'Managed deployment requires passing native tests.',
+          409,
+        );
+    }
     await tx`
       INSERT INTO app.automation_deployments (
         org_id, name, version, deployed_by, deployed_at_ms
@@ -518,9 +925,63 @@ export async function deploy(
         testsPassed: args.testsPassed,
       });
     }
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.deployed',
+      name: args.name,
+      version: args.version,
+      previousState: { deployedVersion: live },
+      newState: { deployedVersion: args.version },
+      metadata: {
+        fromVersion: live,
+        toVersion: args.version,
+        ...(args.testsPassed === undefined
+          ? {}
+          : { testsPassed: args.testsPassed }),
+      },
+    });
     await emitDefinitionHint(tx, args.organizationId, args.name);
   });
-  return { name: args.name, version: args.version };
+  return {
+    name: args.name,
+    version: args.version,
+    previousVersion,
+    trigger: await deployedTrigger(sql, args.organizationId, args.name),
+  };
+}
+
+/** What a deploy answers: the version that runs now, and the trigger that
+ * starts it — whether it is on, when it next runs, and what it would meet
+ * in this version — so the editor can offer to turn on a trigger that is
+ * off, or to review one whose runs would be refused. */
+export interface DeployResult {
+  name: string;
+  version: number;
+  /** The version that ran before this deploy; deploy it again to roll
+   * back. Null when none was deployed. */
+  previousVersion: number | null;
+  trigger: {
+    kind: string;
+    enabled: boolean;
+    nextRunAt: number | null;
+    warnings: Issue[];
+  } | null;
+}
+
+async function deployedTrigger(
+  sql: Sql,
+  organizationId: string,
+  name: string,
+): Promise<DeployResult['trigger']> {
+  const bound = (await listTriggers(sql, organizationId, name))[0];
+  if (bound === undefined) return null;
+  return {
+    kind: bound.kind,
+    enabled: bound.enabled,
+    nextRunAt: bound.nextRunAt,
+    warnings: await triggerWarnings(sql, organizationId, name, bound),
+  };
 }
 
 export interface AutomationListing {
@@ -545,6 +1006,8 @@ export interface AutomationListing {
   trigger: {
     kind: string;
     enabled: boolean;
+    /** A schedule's next start; null while it is off or not a schedule. */
+    nextRunAt: number | null;
     lastFiredAt: number | null;
     lastSkippedAt: number | null;
     lastSkipReason: TriggerListing['lastSkipReason'];
@@ -604,29 +1067,16 @@ export async function listAutomations(
     list.push(binding.projectId);
     byName.set(binding.automationName, list);
   }
-  const triggers = await sql<
-    {
-      name: string;
-      kind: string;
-      enabled: boolean;
-      lastFiredAt: number | null;
-      lastSkippedAt: number | null;
-      lastSkipReason: TriggerListing['lastSkipReason'];
-    }[]
-  >`
-    SELECT name, kind, enabled,
-           last_fired_at_ms::float8 AS "lastFiredAt",
-           last_skipped_at_ms::float8 AS "lastSkippedAt",
-           last_skip_reason AS "lastSkipReason"
-    FROM app.automation_triggers
-    WHERE org_id = ${organizationId}
-  `;
+  // The one trigger read, so the listing's health and next start are the
+  // binding's own (a schedule's next start is computed there when the scan
+  // has not yet).
   const triggerByName = new Map(
-    triggers.map((row) => [
+    (await listTriggers(sql, organizationId)).map((row) => [
       row.name,
       {
         kind: row.kind,
         enabled: row.enabled,
+        nextRunAt: row.nextRunAt,
         lastFiredAt: row.lastFiredAt,
         lastSkippedAt: row.lastSkippedAt,
         lastSkipReason: row.lastSkipReason,
@@ -733,33 +1183,30 @@ export async function listAutomationsForApp(
   });
 }
 
+/** One entry of a version history, without its document. */
+export interface VersionListing {
+  version: number;
+  message: string | null;
+  testsPassed: boolean | null;
+  testsCheckedAt: number | null;
+  createdBy: string;
+  createdAt: number;
+  /** The door it was saved through (0181) — null before it was recorded. */
+  createdVia: AutomationWriteVia | null;
+  /** The name the saving agent's client gave itself. */
+  clientName: string | null;
+}
+
 export async function listVersions(
   sql: Sql,
   organizationId: string,
   name: string,
-): Promise<
-  Array<{
-    version: number;
-    message: string | null;
-    testsPassed: boolean | null;
-    testsCheckedAt: number | null;
-    createdBy: string;
-    createdAt: number;
-  }>
-> {
-  return sql<
-    {
-      version: number;
-      message: string | null;
-      testsPassed: boolean | null;
-      testsCheckedAt: number | null;
-      createdBy: string;
-      createdAt: number;
-    }[]
-  >`
+): Promise<VersionListing[]> {
+  return sql<VersionListing[]>`
     SELECT version, message, tests_passed AS "testsPassed",
            tests_checked_at_ms::float8 AS "testsCheckedAt",
-           created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
+           created_by AS "createdBy", created_at_ms::float8 AS "createdAt",
+           created_via AS "createdVia", client_name AS "clientName"
     FROM app.automations
     WHERE org_id = ${organizationId} AND name = ${name}
     ORDER BY version DESC
@@ -784,6 +1231,9 @@ export async function setAutomationProjects(
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
+    // Every definition writer takes the audit chain before its name lock.
+    await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
     let projectIds = args.projectIds;
     if (args.visibleProjectIds !== undefined) {
       const visible = new Set(args.visibleProjectIds);
@@ -823,7 +1273,9 @@ export async function setAutomationProjects(
         403,
       );
     }
-    await tx`
+    // Lock every existing/requested claim key before the first binding write.
+    await lockWakeClaimKeys(tx, args.organizationId, args.name, projectIds);
+    const unbound = await tx<{ projectId: string }[]>`
       DELETE FROM app.automation_project_bindings
       WHERE org_id = ${args.organizationId}
         AND automation_name = ${args.name}
@@ -833,19 +1285,50 @@ export async function setAutomationProjects(
             ? tx``
             : tx`AND project_id = ANY(${args.visibleProjectIds})`
         }
+      RETURNING project_id AS "projectId"
     `;
-    for (const projectId of projectIds) {
-      await tx`
-        INSERT INTO app.automation_project_bindings (
-          org_id, automation_name, project_id, bound_at_ms, bound_by
-        ) VALUES (
-          ${args.organizationId}, ${args.name}, ${projectId}, ${Date.now()},
-          ${args.actor}
-        )
-        ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-      `;
+    for (const { projectId } of unbound) {
+      await auditProjectBinding(tx, args, projectId, 'unbound');
+    }
+    // Ordered, deduplicated inserts retain upstream no-op audit semantics.
+    for (const projectId of [...new Set(projectIds)].sort()) {
+      const bound = await claimingWake(
+        () => tx`
+          INSERT INTO app.automation_project_bindings (
+            org_id, automation_name, project_id, bound_at_ms, bound_by
+          ) VALUES (
+            ${args.organizationId}, ${args.name}, ${projectId}, ${Date.now()},
+            ${args.actor}
+          )
+          ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+        `,
+      );
+      if (bound.count > 0) {
+        await auditProjectBinding(tx, args, projectId, 'bound');
+      }
     }
     await emitDefinitionHint(tx, args.organizationId, args.name);
+  });
+}
+
+/** The audit row of one installation added to or removed from a project. */
+function auditProjectBinding(
+  tx: TransactionSql,
+  args: { organizationId: string; name: string; actor: string },
+  projectId: string,
+  change: 'bound' | 'unbound',
+): Promise<void> {
+  return auditDefinitionWrite(tx, {
+    organizationId: args.organizationId,
+    actor: args.actor,
+    action:
+      change === 'bound'
+        ? 'automation.project.bound'
+        : 'automation.project.unbound',
+    name: args.name,
+    ...(change === 'bound'
+      ? { newState: { projectId } }
+      : { previousState: { projectId } }),
   });
 }
 
@@ -872,6 +1355,7 @@ export async function bindProjectInTx(
     actor: string;
   },
 ): Promise<{ bound: boolean }> {
+  await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
   const owned = await tx<{ id: string }[]>`
     SELECT id FROM app.projects
     WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
@@ -883,7 +1367,9 @@ export async function bindProjectInTx(
       404,
     );
   }
-  const inserted = await tx`
+  // The binding trigger retains the SERIALIZABLE snapshot fence.
+  const inserted = await claimingWake(
+    () => tx`
       INSERT INTO app.automation_project_bindings (
         org_id, automation_name, project_id, bound_at_ms, bound_by
       ) VALUES (
@@ -891,10 +1377,15 @@ export async function bindProjectInTx(
         ${args.actor}
       )
       ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-    `;
+    `,
+  );
   const bound = inserted.count > 0;
-  // An idempotent re-add changed nothing — no screen needs a refetch.
-  if (bound) await emitDefinitionHint(tx, args.organizationId, args.name);
+  // An idempotent re-add changed nothing — no screen needs a refetch, and
+  // nothing is audited.
+  if (bound) {
+    await auditProjectBinding(tx, args, args.projectId, 'bound');
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+  }
   return { bound };
 }
 
@@ -903,15 +1394,25 @@ export async function bindProjectInTx(
  * an uninstall from a no-op. Versions, triggers and run history stay. */
 export async function unbindProjectInTx(
   tx: TransactionSql,
-  args: { organizationId: string; name: string; projectId: string },
+  args: {
+    organizationId: string;
+    name: string;
+    projectId: string;
+    /** Who removes it — the audit row's actor. */
+    actor: string;
+  },
 ): Promise<{ unbound: boolean }> {
+  await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
   const removed = await tx`
     DELETE FROM app.automation_project_bindings
     WHERE org_id = ${args.organizationId}
       AND automation_name = ${args.name} AND project_id = ${args.projectId}
   `;
   const unbound = removed.count > 0;
-  if (unbound) await emitDefinitionHint(tx, args.organizationId, args.name);
+  if (unbound) {
+    await auditProjectBinding(tx, args, args.projectId, 'unbound');
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+  }
   return { unbound };
 }
 
@@ -929,111 +1430,276 @@ export async function bindingProjectIds(
 
 // ---------------------------------------------------------------- triggers
 
-export interface TriggerInput {
-  kind: 'schedule' | 'webhook' | 'event';
-  cron?: string;
-  timezone?: string;
-  event?: string;
-  enabled?: boolean;
-  rotateToken?: boolean;
+/** A trigger as a caller writes it — the shared write schema's input. The
+ * store parses it again, so a caller without a schema (MCP, managed
+ * configuration, a pack) meets the same rules as the doors. */
+export type TriggerInput = TriggerWrite & {
+  /** A schedule only: fire early when an agent of its project frees its
+   * slot (#4540, `automations/wakes.ts`). Only the managed door sets it; a
+   * save that omits it keeps it, and a kind change clears it. It is not part
+   * of the shared contract: the doors that parse that contract never send
+   * it. */
+  wakeOnSlotFreed?: boolean;
+};
+
+/** A schedule's stored rule: the repeat rule and the day it starts on. */
+export interface StoredScheduleRule {
+  repeat: ScheduleRule;
+  startDate: string;
 }
 
-/** Which kind each optional key belongs to. A key of another kind used to be
- * stored as sent, so a webhook trigger could read back as one that also ran
- * on a schedule and on an event (`{kind: "webhook", cron, event}` answered
- * 200). The REST and app doors refuse such a body as an unknown key; this is
- * the guard the MCP twin and every other caller converge on. */
-const TRIGGER_KEY_KINDS: ReadonlyArray<
-  [
-    key: 'cron' | 'timezone' | 'event' | 'rotateToken',
-    kind: TriggerInput['kind'],
-  ]
-> = [
-  ['cron', 'schedule'],
-  ['timezone', 'schedule'],
-  ['event', 'event'],
-  ['rotateToken', 'webhook'],
-];
+/** A trigger after its checks — what `setTrigger` stores. */
+export interface CheckedTrigger {
+  kind: TriggerKind;
+  enabled: boolean;
+  /** Trimmed; null unless a schedule was given one. */
+  cron: string | null;
+  /** In `Intl`'s spelling; null for a cron read in UTC and for other kinds. */
+  timezone: string | null;
+  scheduleRule: StoredScheduleRule | null;
+  /** Stored only when it is `skip`: NULL reads as `latest`, which keeps the
+   * managed configuration hash of a schedule that never chose one. */
+  catchUp: 'skip' | null;
+  event: string | null;
+  rotateToken: boolean;
+  /** When a schedule starts; null for webhook and event triggers. */
+  schedule: Schedule | null;
+  /** The fixed input every run it starts receives, or null. */
+  input: Record<string, unknown> | null;
+}
 
-function assertTriggerKeysMatchKind(trigger: TriggerInput): void {
-  for (const [key, kind] of TRIGGER_KEY_KINDS) {
-    if (trigger.kind !== kind && trigger[key] !== undefined) {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `"${key}" belongs to ${kind} triggers — a ${trigger.kind} trigger does not take it.`,
-        400,
-        {
-          issues: [
-            {
-              path: key,
-              message: `is not a field a ${trigger.kind} trigger takes`,
-            },
-          ],
-        },
-      );
-    }
-  }
+/** The most problems one refusal lists. */
+const MAX_TRIGGER_ISSUES = 20;
+
+function triggerRefusal(issues: readonly TriggerIssue[]): AutomationError {
+  return new AutomationError(
+    'AUTOMATION_TRIGGER_INVALID',
+    issues[0]?.message ?? 'The trigger cannot be saved.',
+    400,
+    { issues: issues.slice(0, MAX_TRIGGER_ISSUES) },
+  );
 }
 
 /**
- * The single validation door for a trigger's shape. Both entry points — the
- * HTTP door (`routes.ts`) and the engine door (`dispatch-store.ts`) — reach
- * `setTrigger`, so validating here is what makes them CONVERGE: a schedule
- * whose cron cannot parse (or whose timezone is not a real IANA zone) is
- * refused at SAVE with an actionable error, instead of saving green and
- * silently never firing (the scanner only `console.warn`s a bad cron). Throws
- * an {@link AutomationError} the surfaces map to a 400 the author sees.
+ * How a door answers a trigger body its schema refused: a rule of the
+ * trigger (no repeat rule or cron, a time not written HH:MM, a blank zone,
+ * a fixed input that names a trigger field) is the store's own refusal,
+ * `AUTOMATION_TRIGGER_INVALID` with each problem coded, so the app words
+ * it per field and an API caller meets one code for every trigger rule;
+ * null when the body's shape is wrong (an unknown key, a key of another
+ * kind, a missing kind, a wrong type), which the door answers as the body
+ * refusal it gives every route.
  */
-export function assertTriggerValid(trigger: TriggerInput): void {
-  assertTriggerKeysMatchKind(trigger);
-  if (trigger.kind === 'schedule') {
-    const cron = trigger.cron?.trim() ?? '';
-    if (cron === '') {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        'A schedule trigger needs a cron expression (e.g. "0 9 * * 1" for 09:00 every Monday).',
-      );
-    }
+export function triggerBodyRefusal(
+  error: z.ZodError,
+  value: unknown,
+): AutomationError | null {
+  const issues = triggerIssues(error, value);
+  const ruled = issues.every(
+    (issue) =>
+      issue.code !== 'trigger.key_other_kind' &&
+      TRIGGER_ISSUE_CODES.some((code) => code === issue.code),
+  );
+  return ruled ? triggerRefusal(issues) : null;
+}
+
+function checkSchedule(
+  trigger: Extract<ParsedTriggerWrite, { kind: 'schedule' }>,
+  now: number,
+): Pick<
+  CheckedTrigger,
+  'cron' | 'timezone' | 'scheduleRule' | 'catchUp' | 'schedule'
+> {
+  const cron = trigger.cron?.trim() ?? '';
+  if (cron !== '') {
     try {
       parseCron(cron);
     } catch (error) {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `That cron expression will never fire: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw triggerRefusal([
+        {
+          path: 'cron',
+          code:
+            error instanceof CronImpossibleDateError
+              ? 'schedule.cron_impossible_date'
+              : 'schedule.cron_unreadable',
+          message: `That cron expression will never fire: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ]);
     }
-    const timezone = trigger.timezone?.trim();
-    if (timezone !== undefined && timezone !== '') {
-      try {
-        // The same resolver the scanner uses — an unknown zone throws here
-        // rather than silently firing at the wrong hour later.
-        wallClockIn(Date.now(), timezone);
-      } catch {
-        throw new AutomationError(
-          'AUTOMATION_TRIGGER_INVALID',
-          `"${timezone}" is not a valid IANA time zone (e.g. "Europe/Zurich" or "UTC").`,
-        );
+  }
+  const timezone = trigger.timezone ?? null;
+  // The schema refuses a rule without a zone; the start date defaults to
+  // the day of the save in that zone.
+  const scheduleRule: StoredScheduleRule | null =
+    trigger.repeat === undefined || timezone === null
+      ? null
+      : {
+          repeat: normalizeScheduleRule(trigger.repeat),
+          startDate:
+            trigger.startDate ?? formatIsoDate(localDateIn(now, timezone)),
+        };
+  const read = scheduleOfTrigger({
+    cron: cron === '' ? null : cron,
+    timezone,
+    scheduleRule,
+  });
+  if ('issue' in read) {
+    throw triggerRefusal([
+      { path: 'repeat', code: 'schedule.cron_or_repeat', message: read.issue },
+    ]);
+  }
+  // Nothing the schema admits is this, but a rule or an expression that
+  // never comes due must not save green and wait forever.
+  if (nextOccurrence(read.schedule, now) === null) {
+    throw triggerRefusal([
+      cron === ''
+        ? {
+            path: 'repeat',
+            code: 'schedule.window_never_fires',
+            message: 'This schedule never comes due.',
+          }
+        : {
+            path: 'cron',
+            code: 'schedule.cron_impossible_date',
+            message: 'That cron expression will never fire.',
+          },
+    ]);
+  }
+  return {
+    cron: cron === '' ? null : cron,
+    timezone,
+    scheduleRule,
+    catchUp: trigger.catchUp === 'skip' ? 'skip' : null,
+    schedule: read.schedule,
+  };
+}
+
+/**
+ * The single validation door for a trigger. Every entry point — the app
+ * route, the REST door, MCP's `set_trigger`, managed configuration and the
+ * pack seed — reaches `setTrigger`, so checking here is what makes them
+ * converge: a schedule whose expression cannot be read, whose zone does not
+ * exist or is blank, or which names neither a rule nor a cron is refused at
+ * SAVE with an actionable error, instead of saving green and never firing.
+ * Throws an {@link AutomationError} (`AUTOMATION_TRIGGER_INVALID`, its
+ * problems coded under `data.issues`) the surfaces map to a 400.
+ */
+export function checkTrigger(trigger: unknown, now: number): CheckedTrigger {
+  const parsed = triggerWriteSchema.safeParse(trigger);
+  if (!parsed.success) {
+    throw triggerRefusal(triggerIssues(parsed.error, trigger));
+  }
+  const value = parsed.data;
+  const common = {
+    kind: value.kind,
+    enabled: value.enabled ?? true,
+    cron: null,
+    timezone: null,
+    scheduleRule: null,
+    catchUp: null,
+    event: null,
+    rotateToken: false,
+    schedule: null,
+    input: value.input ?? null,
+  } satisfies CheckedTrigger;
+  switch (value.kind) {
+    case 'schedule':
+      return { ...common, ...checkSchedule(value, now) };
+    case 'webhook':
+      return { ...common, rotateToken: value.rotateToken === true };
+    case 'event': {
+      const event = value.event?.trim() ?? '';
+      if (event === '') {
+        throw triggerRefusal([
+          {
+            path: 'event',
+            code: 'event.required',
+            message: `An event trigger needs an event name — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
+          },
+        ]);
       }
+      // Only an event the platform RAISES may be bound: a name it does not
+      // (a typo, or one of the reserved names no producer fires yet) used
+      // to save green, read as enabled and never fire.
+      if (!isEmittedEventType(event)) {
+        throw triggerRefusal([
+          {
+            path: 'event',
+            code: 'event.unknown',
+            message: `"${event}" is not an event the platform raises — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
+          },
+        ]);
+      }
+      return { ...common, event };
+    }
+    default: {
+      const exhaustive: never = value;
+      return exhaustive;
     }
   }
-  if (trigger.kind === 'event') {
-    const event = trigger.event?.trim() ?? '';
-    if (event === '') {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `An event trigger needs an event name — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
-      );
-    }
-    // Only an event the platform RAISES may be bound: a name it does not
-    // (a typo, or one of the reserved names no producer fires yet) used to
-    // save green, read as enabled and never fire.
-    if (!isEmittedEventType(event)) {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `"${event}" is not an event the platform raises — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
-      );
-    }
+}
+
+/** {@link checkTrigger}, for a caller that only needs the refusal. */
+export function assertTriggerValid(trigger: unknown): void {
+  checkTrigger(takeWakeOptIn(trigger).write, Date.now());
+}
+
+/**
+ * The slot-wake opt-in a managed schedule sends beside the shared contract
+ * (#4540): read and taken off, so the rest is held to the contract every
+ * door speaks. On another kind it is refused by name, as any key of another
+ * kind is.
+ */
+function takeWakeOptIn(trigger: unknown): {
+  write: unknown;
+  wakeOnSlotFreed: boolean | undefined;
+} {
+  if (
+    typeof trigger !== 'object' ||
+    trigger === null ||
+    !('wakeOnSlotFreed' in trigger)
+  ) {
+    return { write: trigger, wakeOnSlotFreed: undefined };
   }
+  const { wakeOnSlotFreed, ...write } = trigger;
+  const kind =
+    'kind' in write && typeof write.kind === 'string' ? write.kind : 'this';
+  if (kind !== 'schedule') {
+    throw triggerRefusal([
+      {
+        path: 'wakeOnSlotFreed',
+        code: 'trigger.key_other_kind',
+        message: `"wakeOnSlotFreed" belongs to schedule triggers — a ${kind} trigger does not take it.`,
+      },
+    ]);
+  }
+  if (wakeOnSlotFreed !== undefined && typeof wakeOnSlotFreed !== 'boolean') {
+    throw triggerRefusal([
+      {
+        path: 'wakeOnSlotFreed',
+        code: 'invalid_type',
+        message: 'must be true or false',
+      },
+    ]);
+  }
+  return { write, wakeOnSlotFreed };
+}
+
+/** Whether two stored rules say the same, however each was spelled; a
+ * stored value that no longer reads as a rule says nothing the same. */
+function sameStoredRule(
+  stored: unknown,
+  next: StoredScheduleRule | null,
+): boolean {
+  if (stored === null || stored === undefined) return next === null;
+  if (next === null) return false;
+  const parsed = storedScheduleRuleSchema.safeParse(stored);
+  return (
+    parsed.success &&
+    parsed.data.startDate === next.startDate &&
+    JSON.stringify(normalizeScheduleRule(parsed.data.repeat)) ===
+      JSON.stringify(next.repeat)
+  );
 }
 
 /**
@@ -1069,54 +1735,223 @@ export async function setTrigger(
     name: string;
     trigger: TriggerInput;
     actor: string;
+    managed?: {
+      projectId: string;
+      expectedHash: string | null;
+      definitionSha256: string;
+    };
   },
-): Promise<{ token?: string; revoked?: 'webhook' }> {
-  assertTriggerValid(args.trigger);
+): Promise<SetTriggerResult> {
   const now = Date.now();
-  const minted =
-    args.trigger.kind === 'webhook' ? mintWebhookToken() : undefined;
+  // Managed configuration alone sends the slot-wake opt-in, beside the
+  // shared contract.
+  const { write, wakeOnSlotFreed } = takeWakeOptIn(args.trigger);
+  const checked = checkTrigger(write, now);
+  // A managed declaration keeps its zone's spelling (`utc` stays `utc`, any
+  // spelling `Intl` resolves to the same zone), so its readback hashes like
+  // the declaration and an apply converges; a native save stores the
+  // canonical spelling.
+  const declaredZone =
+    args.managed !== undefined && isRecord(write) ? write.timezone : undefined;
+  const trigger =
+    typeof declaredZone === 'string' &&
+    checked.timezone !== null &&
+    declaredZone.trim() === declaredZone
+      ? { ...checked, timezone: declaredZone }
+      : checked;
+  const minted = trigger.kind === 'webhook' ? mintWebhookToken() : undefined;
   const mintedHash =
     minted !== undefined ? await hashWebhookToken(minted) : null;
-  const rotate = args.trigger.rotateToken === true;
-  const enabled = args.trigger.enabled ?? true;
-  const { rows, revoked } = await sql.begin(async (tx) => {
+  const { rows, revoked, nextRunAt } = await sql.begin(async (tx) => {
+    // The audit chain precedes the name and trigger row for every writer.
+    await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
+    if (args.managed) {
+      await assertManagedProject(
+        tx,
+        args.organizationId,
+        args.name,
+        args.managed.projectId,
+        true,
+      );
+      const selected = await deployedVersion(
+        tx,
+        args.organizationId,
+        args.name,
+      );
+      const definition =
+        selected === undefined
+          ? null
+          : await versionRow(tx, args.organizationId, args.name, selected);
+      if (
+        managedConfigurationHash(
+          managedDefinitionValue(args.managed.projectId, args.name, definition),
+        ) !== args.managed.definitionSha256
+      )
+        throw new AutomationError(
+          'AUTOMATION_VERSION_STALE',
+          'The managed schedule requires its declared deployed definition.',
+          409,
+        );
+    }
     // The row this bind replaces, locked for the rest of the transaction:
-    // what it held decides whether a webhook URL dies here, and two binds
-    // racing on one name settle their order on this lock before the
-    // upsert (a first bind finds nothing, and the upsert's ON CONFLICT
-    // settles that race by itself).
+    // what it held decides whether a webhook URL dies here and whether the
+    // schedule's next-due instant survives the save, and two binds racing on
+    // one name settle their order on this lock before the upsert (a first
+    // bind finds nothing, and the upsert's ON CONFLICT settles that race by
+    // itself).
     const existing = await tx<
       {
         id: string;
         kind: string;
         tokenHash: string | null;
         lastSkipReason: string | null;
+        cron: string | null;
+        timezone: string | null;
+        scheduleRule: unknown;
+        catchUp: 'latest' | 'skip' | null;
+        input: Record<string, unknown> | null;
+        event: string | null;
+        enabled: boolean;
+        nextDueAt: number | null;
+        wakeOnSlotFreed: boolean;
       }[]
     >`
-      SELECT id, kind, token_hash AS "tokenHash",
-             last_skip_reason AS "lastSkipReason"
+      SELECT id, kind, token_hash AS "tokenHash", cron, timezone, event,
+             enabled, schedule_rule AS "scheduleRule", catch_up AS "catchUp",
+             run_input AS "input",
+             next_due_at_ms::float8 AS "nextDueAt",
+             last_skip_reason AS "lastSkipReason",
+             wake_on_slot_freed AS "wakeOnSlotFreed"
       FROM app.automation_triggers
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
       FOR UPDATE
     `;
-    const upserted = await tx<{ tokenHash: string | null }[]>`
+    const before = existing[0];
+    // When the schedule is next due. A save that leaves what the schedule
+    // IS unchanged, on a schedule that was and stays on, keeps the instant
+    // the scan has not reached yet: an input-only or no-op save must not
+    // drop an occurrence. Anything else starts after the save — a save never
+    // fires a past occurrence, and switching a schedule back on never makes
+    // up the time it was off.
+    const unchanged =
+      before !== undefined &&
+      before.kind === trigger.kind &&
+      (before.cron?.trim() || null) === trigger.cron &&
+      before.timezone === trigger.timezone &&
+      sameStoredRule(before.scheduleRule, trigger.scheduleRule);
+    const nextDue =
+      trigger.schedule === null || !trigger.enabled
+        ? null
+        : unchanged && before.enabled && before.nextDueAt !== null
+          ? before.nextDueAt
+          : nextOccurrence(trigger.schedule, now);
+    if (args.managed) {
+      if (before && before.kind !== 'schedule')
+        throw new AutomationError(
+          'AUTOMATION_TRIGGER_INVALID',
+          'Managed schedules cannot replace another trigger kind.',
+          409,
+        );
+      const stored =
+        before === undefined
+          ? null
+          : storedScheduleRuleSchema.safeParse(before.scheduleRule);
+      const current = managedScheduleValue(
+        args.managed.projectId,
+        args.name,
+        before === undefined
+          ? null
+          : {
+              ...before,
+              repeat: stored?.success === true ? stored.data.repeat : null,
+              startDate:
+                stored?.success === true ? stored.data.startDate : null,
+            },
+      );
+      const desired = managedScheduleValue(args.managed.projectId, args.name, {
+        kind: trigger.kind,
+        cron: trigger.cron,
+        timezone: trigger.timezone,
+        enabled: trigger.enabled,
+        repeat: trigger.scheduleRule?.repeat ?? null,
+        startDate: trigger.scheduleRule?.startDate ?? null,
+        catchUp: trigger.catchUp,
+        input: trigger.input,
+        wakeOnSlotFreed: wakeOnSlotFreed === true,
+      });
+      assertManagedHash(
+        managedConfigurationHash(current),
+        args.managed.expectedHash,
+      );
+      if (
+        managedConfigurationHash(current) === managedConfigurationHash(desired)
+      )
+        return {
+          rows: [],
+          revoked: false,
+          nextRunAt: before?.enabled ? (before.nextDueAt ?? null) : null,
+        };
+      if (
+        (before !== undefined && !before.enabled && trigger.enabled) ||
+        before?.lastSkipReason === 'paused_after_failures'
+      )
+        throw new AutomationError(
+          'AUTOMATION_TRIGGER_INVALID',
+          'An operationally paused schedule requires explicit recovery before configuration can change it.',
+          409,
+        );
+    }
+    // The opt-in this save leaves: what it says, else what the schedule
+    // already had — a kind change clears it.
+    const prior = existing[0];
+    const wakes =
+      trigger.kind === 'schedule' &&
+      (wakeOnSlotFreed ??
+        // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- preserve only an explicit database opt-in
+        (prior?.kind === 'schedule' && prior.wakeOnSlotFreed === true));
+    // The schedule's claim on its projects' wake before and after this save
+    // (`app.automation_wake_claims`, migration 0168): a pause by failures
+    // keeps it; a save ends any pause, so after it the claim is the opt-in of
+    // an enabled schedule. Only the friendly pre-check reads it here.
+    const claimedBefore =
+      prior !== undefined &&
+      prior.kind === 'schedule' &&
+      // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- claiming requires an explicit database opt-in
+      prior.wakeOnSlotFreed === true &&
+      (prior.enabled || prior.lastSkipReason === 'paused_after_failures');
+    const claims = wakes && trigger.enabled;
+    if (claims && !claimedBefore) {
+      await assertSingleWakeTarget(tx, args.organizationId, args.name);
+    }
+    // The database rewrites the bindings' claim when the schedule's changes
+    // (migration 0168's trigger), and refuses a second claim on a project.
+    const upserted = await claimingWake(
+      () => tx<{ tokenHash: string | null }[]>`
       INSERT INTO app.automation_triggers AS t (
         org_id, name, kind, cron, timezone, event, token_hash, enabled,
-        created_by, created_at_ms, updated_at_ms
+        created_by, created_at_ms, updated_at_ms,
+        schedule_rule, catch_up, next_due_at_ms, run_input, wake_on_slot_freed
       ) VALUES (
-        ${args.organizationId}, ${args.name}, ${args.trigger.kind},
-        ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
-        ${args.trigger.event?.trim() ?? null}, ${mintedHash}, ${enabled},
-        ${args.actor}, ${now}, ${now}
+        ${args.organizationId}, ${args.name}, ${trigger.kind},
+        ${trigger.cron}, ${trigger.timezone},
+        ${trigger.event}, ${mintedHash}, ${trigger.enabled},
+        ${args.actor}, ${now}, ${now},
+        ${jsonParam(tx, trigger.scheduleRule)}, ${trigger.catchUp}, ${nextDue},
+        ${jsonParam(tx, trigger.input)}, ${wakes}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
         kind = EXCLUDED.kind,
         cron = EXCLUDED.cron,
         timezone = EXCLUDED.timezone,
+        schedule_rule = EXCLUDED.schedule_rule,
+        catch_up = EXCLUDED.catch_up,
+        next_due_at_ms = EXCLUDED.next_due_at_ms,
+        run_input = EXCLUDED.run_input,
         event = EXCLUDED.event,
         token_hash = CASE
           WHEN EXCLUDED.kind <> 'webhook' THEN NULL
-          WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
+          WHEN ${trigger.rotateToken}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
           ELSE t.token_hash
         END,
         last_fired_at_ms = CASE
@@ -1124,6 +1959,17 @@ export async function setTrigger(
           ELSE NULL
         END,
         last_due_at_ms = CASE
+          -- A managed apply keeps the row's updated_at (below), which the
+          -- scan's floor would otherwise read: when 0170's trigger drops a
+          -- next-due the apply left unchanged, the scan would count from the
+          -- last native save and fire an occurrence of the new definition
+          -- from before the apply. The claim cursor carries the apply's
+          -- instant instead, so nothing before it is fired or counted.
+          WHEN ${args.managed !== undefined}::boolean AND EXCLUDED.kind = 'schedule'
+            THEN GREATEST(
+              CASE WHEN t.kind = EXCLUDED.kind THEN COALESCE(t.last_due_at_ms, 0) ELSE 0 END,
+              ${now}::bigint
+            )
           WHEN t.kind = EXCLUDED.kind THEN t.last_due_at_ms
           ELSE NULL
         END,
@@ -1141,7 +1987,12 @@ export async function setTrigger(
           WHEN t.kind = EXCLUDED.kind THEN t.last_skip_reason
           ELSE NULL
         END,
-        consecutive_failures = 0,
+        last_skip_detail = CASE
+          WHEN t.last_skip_reason = 'paused_after_failures' THEN NULL
+          WHEN t.kind = EXCLUDED.kind THEN t.last_skip_detail
+          ELSE NULL
+        END,
+        consecutive_failures = CASE WHEN ${args.managed !== undefined} THEN t.consecutive_failures ELSE 0 END,
         last_failed_at_ms = CASE
           WHEN t.kind = EXCLUDED.kind THEN t.last_failed_at_ms
           ELSE NULL
@@ -1155,48 +2006,317 @@ export async function setTrigger(
           ELSE NULL
         END,
         enabled = EXCLUDED.enabled,
-        updated_at_ms = EXCLUDED.updated_at_ms
+        wake_on_slot_freed = CASE
+          WHEN EXCLUDED.kind <> 'schedule' THEN false
+          WHEN ${wakeOnSlotFreed ?? null}::boolean IS NULL
+            THEN t.kind = 'schedule' AND t.wake_on_slot_freed
+          ELSE ${wakeOnSlotFreed ?? null}::boolean
+        END,
+        updated_at_ms = CASE WHEN ${args.managed !== undefined} THEN t.updated_at_ms ELSE EXCLUDED.updated_at_ms END
+      WHERE ${args.managed?.expectedHash !== null}
       RETURNING token_hash AS "tokenHash"
-    `;
-    const before = existing[0];
+    `,
+    );
+    if (args.managed && upserted.length !== 1)
+      throw new AutomationError(
+        'AUTOMATION_VERSION_STALE',
+        'The managed trigger changed during creation.',
+        409,
+      );
     if (before?.lastSkipReason === 'paused_after_failures') {
       await dismissTriggerPausedNotifications(tx, {
         organizationId: args.organizationId,
         triggerId: before.id,
       });
     }
+    const revokedWebhook =
+      before !== undefined &&
+      before.kind === 'webhook' &&
+      before.tokenHash !== null &&
+      trigger.kind !== 'webhook';
+    // What the binding was and is — never its token or the token's hash.
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.trigger.set',
+      name: args.name,
+      ...(before === undefined
+        ? {}
+        : { previousState: triggerAuditState(before) }),
+      newState: triggerAuditState({ ...trigger, wakeOnSlotFreed: wakes }),
+      metadata: {
+        ...(trigger.rotateToken && trigger.kind === 'webhook'
+          ? { rotated: true }
+          : {}),
+        ...(revokedWebhook ? { revoked: 'webhook' } : {}),
+      },
+    });
     await emitDefinitionHint(tx, args.organizationId, args.name);
-    return {
-      rows: upserted,
-      revoked:
-        before !== undefined &&
-        before.kind === 'webhook' &&
-        before.tokenHash !== null &&
-        args.trigger.kind !== 'webhook',
-    };
+    return { rows: upserted, revoked: revokedWebhook, nextRunAt: nextDue };
   });
   const landed = rows[0]?.tokenHash ?? null;
+  // Saved either way: a warning says what every run this trigger starts
+  // would meet in the version that runs, and the person decides.
+  const warnings = await triggerWarnings(
+    sql,
+    args.organizationId,
+    args.name,
+    trigger,
+  );
   return {
     ...(minted !== undefined && landed !== null && landed === mintedHash
       ? { token: minted }
       : {}),
     ...(revoked ? { revoked: 'webhook' as const } : {}),
+    ...(trigger.kind === 'schedule' ? { nextRunAt } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
+}
+
+/** What a bind answers besides the stored trigger. */
+export interface SetTriggerResult {
+  /** A webhook's plaintext token, minted by this bind and shown once. */
+  token?: string;
+  /** The live webhook address this bind replaced with another kind. */
+  revoked?: 'webhook';
+  /** A schedule's next start; null while it is switched off. */
+  nextRunAt?: number | null;
+  /** What the deployed version would make of what this trigger sends
+   * (`TRIGGER_INPUT_MISMATCH`, `TRIGGER_INPUT_NOT_TEMPLATED`); absent when
+   * nothing is wrong. */
+  warnings?: Issue[];
+}
+
+/**
+ * What a trigger would meet in the version that runs: the input it would
+ * send checked against that version's inputs schema (none deployed, or none
+ * declared, checks nothing), and its fixed input checked for a template.
+ * The validator asks the same through the store's `triggerInput` seam.
+ */
+async function triggerWarnings(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+  trigger: {
+    kind: string;
+    event: string | null;
+    input: Readonly<Record<string, unknown>> | null;
+  },
+): Promise<Issue[]> {
+  const sample = triggerInputSample(trigger, Date.now());
+  if (sample === null) return [];
+  let check: InputsCheck | null = null;
+  const deployed = await deployedVersion(sql, organizationId, name);
+  if (deployed !== undefined) {
+    const row = await versionRow(sql, organizationId, name, deployed);
+    if (
+      row !== null &&
+      isRecord(row.document) &&
+      isRecord(row.document.inputs)
+    ) {
+      try {
+        check = compileSchemaCached(
+          `${organizationId}/${name}@${deployed}:${row.createdAt}`,
+          row.document.inputs,
+        );
+      } catch (error) {
+        // The version's own check reports a schema that does not compile.
+        console.warn(
+          `[automations] ${organizationId}/${name}@${deployed}: the trigger input is not checked, the inputs schema does not compile`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+  }
+  return triggerInputWarnings(check, sample);
+}
+
+/** A binding as its audit row records it: what starts the automation, how
+ * a schedule catches up and whether it is on — never its token or the
+ * token's hash, and of a fixed input only that one is set (its values are
+ * run data, not configuration). */
+function triggerAuditState(trigger: {
+  kind: string;
+  cron: string | null;
+  timezone: string | null;
+  event: string | null;
+  enabled: boolean;
+  scheduleRule?: unknown;
+  catchUp?: string | null;
+  input?: Record<string, unknown> | null;
+  wakeOnSlotFreed?: boolean;
+}): Record<string, unknown> {
+  return {
+    kind: trigger.kind,
+    ...(trigger.cron === null ? {} : { cron: trigger.cron }),
+    ...(trigger.scheduleRule === null || trigger.scheduleRule === undefined
+      ? {}
+      : { repeat: trigger.scheduleRule }),
+    ...(trigger.timezone === null ? {} : { timezone: trigger.timezone }),
+    ...(trigger.catchUp === null || trigger.catchUp === undefined
+      ? {}
+      : { catchUp: trigger.catchUp }),
+    ...(trigger.event === null ? {} : { event: trigger.event }),
+    ...(trigger.input === null || trigger.input === undefined
+      ? {}
+      : { fixedInput: true }),
+    enabled: trigger.enabled,
+    ...(trigger.kind === 'schedule' && trigger.wakeOnSlotFreed !== undefined
+      ? { wakeOnSlotFreed: trigger.wakeOnSlotFreed }
+      : {}),
+  };
+}
+
+/** The partial unique index that keeps one wake target per project
+ * (migration 0168, AUTO-R29). */
+const ONE_WAKE_INDEX = 'automation_project_bindings_one_wake';
+
+/** A write that may claim a project's wake: a second claim, refused by the
+ * one-wake index — also when two saves race past every check — answers 409
+ * and the whole transaction rolls back. */
+async function claimingWake<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === '23505' &&
+      'constraint_name' in error &&
+      error.constraint_name === ONE_WAKE_INDEX
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        'Another schedule already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.',
+        409,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Take every claim key a binding change can touch before it touches any
+ * (R4-F3), in one database call (`app.lock_automation_wake_keys`, migration
+ * 0168): the automation's fence, then — only when its schedule claims, read
+ * under that fence — each project it is bound to now or is asked for, in
+ * the order the database's own claim writes use. Two claiming saves that
+ * swap projects queue behind each other instead of deadlocking on each
+ * other's deletions; a save whose schedule does not claim takes no project
+ * key, so it never waits on another writer's (R5-F1).
+ */
+async function lockWakeClaimKeys(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+  projectIds: readonly string[],
+): Promise<void> {
+  await tx`
+    SELECT app.lock_automation_wake_keys(
+      ${organizationId}, ${name}, ${[...projectIds]}::text[]
+    )
+  `;
+}
+
+/** Preclaim a complete binding edit before its first write. A batch caller
+ * supplies every added/removed project after authorization; individual doors
+ * re-enter these transaction locks without changing their order. */
+export async function lockAutomationProjectBindingsInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; name: string },
+  projectIds: readonly string[],
+): Promise<void> {
+  await lockAuditChain(tx, args.organizationId);
+  await lockAutomationName(tx, args.organizationId, args.name);
+  await lockWakeClaimKeys(tx, args.organizationId, args.name, projectIds);
+}
+
+/**
+ * The friendly half of AUTO-R29: before a schedule starts claiming, name the
+ * schedule that already wakes one of its projects. The one-wake index is the
+ * rule itself (`claimingWake`); this only words the common refusal.
+ */
+async function assertSingleWakeTarget(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  const others = await tx<{ name: string }[]>`
+    SELECT theirs.automation_name AS name
+    FROM app.automation_project_bindings theirs
+    JOIN app.automation_project_bindings ours
+      ON ours.org_id = theirs.org_id AND ours.project_id = theirs.project_id
+     AND ours.automation_name = ${name}
+    WHERE theirs.org_id = ${organizationId}
+      AND theirs.automation_name <> ${name} AND theirs.wakes
+    ORDER BY theirs.automation_name
+    LIMIT 1
+  `;
+  const other = others[0];
+  if (other !== undefined) {
+    throw new AutomationError(
+      'AUTOMATION_TRIGGER_INVALID',
+      `"${other.name}" already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.`,
+      409,
+    );
+  }
+}
+
+/** Whether the named trigger is a schedule opted in to slot wakes — the
+ * managed readback's half of `wakeOnSlotFreed` (the trigger listing itself
+ * does not carry it). */
+export async function triggerWakesOnSlotFreed(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<boolean> {
+  const rows = await sql<{ wakes: boolean }[]>`
+    SELECT kind = 'schedule' AND wake_on_slot_freed AS wakes
+    FROM app.automation_triggers
+    WHERE org_id = ${organizationId} AND name = ${name}
+  `;
+  // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- absence or a malformed projection never opts in
+  return rows[0]?.wakes === true;
 }
 
 export async function deleteTrigger(
   sql: Sql,
   organizationId: string,
   name: string,
+  /** Who removes it — the audit row's actor. */
+  actor: string,
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string; lastSkipReason: string | null }[]>`
+    // The audit chain before the trigger row (`trigger-failures.ts`).
+    await lockAuditChain(tx, organizationId);
+    await lockAutomationName(tx, organizationId, name);
+    const rows = await tx<
+      {
+        id: string;
+        lastSkipReason: string | null;
+        kind: string;
+        cron: string | null;
+        timezone: string | null;
+        event: string | null;
+        enabled: boolean;
+        wakeOnSlotFreed: boolean;
+      }[]
+    >`
       DELETE FROM app.automation_triggers
       WHERE org_id = ${organizationId} AND name = ${name}
-      RETURNING id, last_skip_reason AS "lastSkipReason"
+      RETURNING id, last_skip_reason AS "lastSkipReason", kind, cron,
+                timezone, event, enabled, wake_on_slot_freed AS "wakeOnSlotFreed"
     `;
     const removed = rows[0];
     if (removed === undefined) return false;
+    await auditDefinitionWrite(tx, {
+      organizationId,
+      actor,
+      action: 'automation.trigger.deleted',
+      name,
+      previousState: triggerAuditState(removed),
+    });
     // A paused schedule removed is a pause someone dealt with.
     if (removed.lastSkipReason === 'paused_after_failures') {
       await dismissTriggerPausedNotifications(tx, {
@@ -1209,40 +2329,61 @@ export async function deleteTrigger(
   });
 }
 
-/** Why a binding started nothing — the skip ledger's closed set (the
- * column's CHECK, migrations 0096 and 0124). `paused_after_failures` is the
- * one that is a state, not an occurrence: the schedule turned itself off. */
-export type TriggerSkipReason =
-  | 'not_deployed'
-  | 'unusable_cron'
-  | 'start_refused'
-  | 'paused_after_failures';
-
 /** A trigger binding as a reader sees it — never the secret that verifies
- * it. The fire ledger (0096) is the binding's health: `lastFiredAt` and
- * `lastRunId` name the last run it started, `lastSkippedAt` and
- * `lastSkipReason` the last time it came due and started nothing (or when a
- * schedule paused itself). The failure streak (0124) counts the permanent
- * failures in a row among the runs it started since its last save;
- * `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of
- * them. */
-export interface TriggerListing {
-  id: string;
-  name: string;
-  kind: string;
-  cron: string | null;
-  timezone: string | null;
-  event: string | null;
-  hasToken: boolean;
-  enabled: boolean;
-  lastFiredAt: number | null;
-  lastRunId: string | null;
-  lastSkippedAt: number | null;
-  lastSkipReason: TriggerSkipReason | null;
-  consecutiveFailures: number;
-  lastFailedAt: number | null;
-  lastFailureCode: string | null;
-  lastFailedRunId: string | null;
+ * it — exactly the published read shape (`triggerViewSchema`). The fire
+ * ledger (0096) is the binding's health: `lastFiredAt` and `lastRunId` name
+ * the last run it started (a schedule's `lastFiredAt` is the occurrence it
+ * started for), `lastSkippedAt`, `lastSkipReason` and `lastSkipDetail` the
+ * last time it came due and started nothing (or when a schedule paused
+ * itself). The failure streak (0124) counts the permanent failures in a row
+ * among the runs it started since its last save; `lastFailedAt`,
+ * `lastFailureCode` and `lastFailedRunId` name the last of them. */
+export type TriggerListing = TriggerView;
+
+interface TriggerListingRow extends Omit<
+  TriggerListing,
+  'repeat' | 'startDate' | 'nextRunAt' | 'lastSkipDetail'
+> {
+  scheduleRule: unknown;
+  nextDueAt: number | null;
+  lastSkipDetail: unknown;
+}
+
+/** What a stored row reads as: its rule only when the rule is what runs (a
+ * non-empty cron wins), its next start computed when the scan has not yet,
+ * and a skip detail only when it explains the reason the row carries — a
+ * previous image stamps a reason without one. */
+function toTriggerListing(row: TriggerListingRow, now: number): TriggerListing {
+  const { scheduleRule, nextDueAt, lastSkipDetail, ...rest } = row;
+  const isSchedule = row.kind === 'schedule';
+  const hasCron = (row.cron ?? '').trim() !== '';
+  const stored = storedScheduleRuleSchema.safeParse(scheduleRule);
+  const rule = isSchedule && !hasCron && stored.success ? stored.data : null;
+  let nextRunAt: number | null = null;
+  if (isSchedule && row.enabled) {
+    if (typeof nextDueAt === 'number') {
+      nextRunAt = nextDueAt;
+    } else {
+      const read = scheduleOfTrigger({
+        cron: row.cron,
+        timezone: row.timezone,
+        scheduleRule,
+      });
+      nextRunAt = 'issue' in read ? null : nextOccurrence(read.schedule, now);
+    }
+  }
+  const detail = triggerSkipDetailSchema.safeParse(lastSkipDetail);
+  return {
+    ...rest,
+    repeat: rule === null ? null : normalizeScheduleRule(rule.repeat),
+    startDate: rule?.startDate ?? null,
+    catchUp: isSchedule ? (row.catchUp ?? 'latest') : null,
+    nextRunAt,
+    lastSkipDetail:
+      detail.success && detail.data.reason === row.lastSkipReason
+        ? detail.data
+        : null,
+  };
 }
 
 export async function listTriggers(
@@ -1250,14 +2391,19 @@ export async function listTriggers(
   organizationId: string,
   name?: string,
 ): Promise<TriggerListing[]> {
-  return sql<TriggerListing[]>`
+  const rows = await sql<TriggerListingRow[]>`
     SELECT id, name, kind, cron, timezone, event,
+           schedule_rule AS "scheduleRule",
+           catch_up AS "catchUp",
+           next_due_at_ms::float8 AS "nextDueAt",
+           run_input AS "input",
            (token_hash IS NOT NULL AND token_hash <> '') AS "hasToken",
            enabled,
            last_fired_at_ms::float8 AS "lastFiredAt",
            last_run_id AS "lastRunId",
            last_skipped_at_ms::float8 AS "lastSkippedAt",
            last_skip_reason AS "lastSkipReason",
+           last_skip_detail AS "lastSkipDetail",
            consecutive_failures AS "consecutiveFailures",
            last_failed_at_ms::float8 AS "lastFailedAt",
            last_failure_code AS "lastFailureCode",
@@ -1267,6 +2413,111 @@ export async function listTriggers(
       AND (${name ?? null}::text IS NULL OR name = ${name ?? null})
     ORDER BY name
   `;
+  const now = Date.now();
+  return rows.map((row) => toTriggerListing(row, now));
+}
+
+/** How many runs the trigger's recent-runs read answers at most. */
+export const TRIGGER_RUNS_MAX = 50;
+
+/** One run a trigger started, newest first — what the trigger panel lists
+ * under a webhook's recent deliveries. */
+export interface TriggerRunListing {
+  runId: string;
+  startedAt: number;
+  status: string;
+  /** How the webhook door recognised the delivery that started the run:
+   * by a delivery-id header or by the body's bytes. Null for a schedule or
+   * an event, and once the delivery's ledger row is gone (a header
+   * identity lives 24 hours, a body identity two minutes, and an expired
+   * one is dropped on the trigger's next delivery). */
+  deliverySource: 'header' | 'body' | null;
+  /** The delivery-id header, with `deliverySource: 'header'`. */
+  header: string | null;
+}
+
+/** A ledger row's lane, `header:<name>` or `body`, as the read answers it. */
+function deliveryLane(
+  source: string | null,
+): Pick<TriggerRunListing, 'deliverySource' | 'header'> {
+  if (source === 'body') return { deliverySource: 'body', header: null };
+  if (source?.startsWith('header:') === true) {
+    return { deliverySource: 'header', header: source.slice('header:'.length) };
+  }
+  return { deliverySource: null, header: null };
+}
+
+/**
+ * The runs the automation's bound trigger started (`started_by =
+ * 'trigger:<id>'`), newest first — whatever kind it had when it started
+ * them — each with the webhook delivery lane that started it while that
+ * delivery's ledger row lives. Empty when no trigger is bound. A run in a
+ * project outside `visibleProjectIds` is left out, as every run read does.
+ *
+ * The runs come off `automation_runs_org_name` (the automation's runs,
+ * newest first, filtered to the trigger's); each run's ledger row off
+ * `automation_webhook_deliveries_expiry`, bounded by the run's own start —
+ * the identity's window outlasts the transaction that claims it and starts
+ * the run.
+ */
+export async function listTriggerRuns(
+  sql: Sql,
+  organizationId: string,
+  args: { name: string; limit?: number; visibleProjectIds?: string[] },
+): Promise<TriggerRunListing[]> {
+  const limit = Math.min(
+    Math.max(Math.trunc(args.limit ?? 10), 1),
+    TRIGGER_RUNS_MAX,
+  );
+  const rows = await sql<
+    {
+      runId: string;
+      startedAt: number;
+      status: string;
+      source: string | null;
+    }[]
+  >`
+    WITH started AS (
+      SELECT r.id, r.started_at_ms, r.status, t.id AS trigger_id
+      FROM app.automation_triggers t
+      JOIN app.automation_runs r
+        ON r.org_id = t.org_id
+       AND r.name = t.name
+       AND r.started_by = 'trigger:' || t.id
+      WHERE t.org_id = ${organizationId} AND t.name = ${args.name}
+        AND (${args.visibleProjectIds === undefined}
+             OR r.project_id IS NULL
+             OR r.project_id = ANY(${args.visibleProjectIds ?? []}::text[]))
+      ORDER BY r.started_at_ms DESC, r.id DESC
+      LIMIT ${limit}
+    )
+    SELECT s.id AS "runId", s.started_at_ms::float8 AS "startedAt", s.status,
+           (SELECT d.source FROM app.automation_webhook_deliveries d
+            WHERE d.trigger_id = s.trigger_id
+              AND d.expires_at_ms >= s.started_at_ms
+              AND d.run_id = s.id
+            ORDER BY d.received_at_ms DESC
+            LIMIT 1) AS source
+    FROM started s
+    ORDER BY s.started_at_ms DESC, s.id DESC
+  `;
+  return rows.map(toTriggerRunListing);
+}
+
+function toTriggerRunListing(row: {
+  runId: string;
+  startedAt: number;
+  status: string;
+  source: string | null;
+}): TriggerRunListing {
+  const lane = deliveryLane(row.source);
+  return {
+    runId: row.runId,
+    startedAt: row.startedAt,
+    status: row.status,
+    deliverySource: lane.deliverySource,
+    header: lane.header,
+  };
 }
 
 // ------------------------------------------------------------------- runs
@@ -1290,6 +2541,7 @@ export interface RunRow {
    * other status, and for a failure recorded before the code existed. */
   failureCode: string | null;
   claimEpoch: number;
+  legacyQuarantine?: unknown;
   chainSeq: number;
   startedAt: number;
   finishedAt: number | null;
@@ -1297,19 +2549,96 @@ export interface RunRow {
    * `agent:<node>` park that is an ask apart from one that is an agent turn
    * still running (`waitingFor`). Read with the row, never answered raw. */
   askPending: boolean;
+  /** How often another server took the run over after its own stopped
+   * responding, or a stopping server handed it on. */
+  resumeCount: number;
+  /** Why the run was last handed on; null while it never was. Answered as
+   * `lastResume`, never raw. */
+  lastResumeReason: 'shutdown' | 'lease_expired' | null;
+  /** When the run was last handed on; null while it never was. */
+  lastResumedAt: number | null;
+  /** A running run nobody is stepping right now: its server stopped
+   * responding, or a stopping server handed it on and no other has taken
+   * it yet. */
+  stalled: boolean;
+  /** The run this one replays — null once that run was deleted, while
+   * `replayKind` still says it was a replay. Answered as `replayOf`; every
+   * read of the row selects them. */
+  replayOfRunId?: string | null;
+  replayKind?: RunReplayKind | null;
+  replayFromNode?: string | null;
 }
+
+/** How a replay ran its source again: with the same input, with an input a
+ * person edited, or from one of its steps. */
+export type RunReplayKind = 'again' | 'edited' | 'from';
+
+/** The run a replay ran again, as a read answers it. */
+export interface RunReplayOf {
+  /** Null once the run it replays was deleted. */
+  runId: string | null;
+  kind: RunReplayKind;
+  fromNode?: string;
+}
+
+/** A run's replay lineage, from its row; undefined for a run nobody
+ * replayed into being. */
+function runReplayOf(
+  row: Pick<RunRow, 'replayOfRunId' | 'replayKind' | 'replayFromNode'>,
+): RunReplayOf | undefined {
+  if (row.replayKind === null || row.replayKind === undefined) return undefined;
+  return {
+    runId: row.replayOfRunId ?? null,
+    kind: row.replayKind,
+    ...(row.replayFromNode !== null &&
+      row.replayFromNode !== undefined && { fromNode: row.replayFromNode }),
+  };
+}
+
+/** Why and when a run was last handed to another server. */
+export interface RunLastResume {
+  reason: 'shutdown' | 'lease_expired';
+  at: number;
+}
+
+/**
+ * A running run nobody is stepping right now, read off its lease: the lease
+ * lapsed (its server stopped responding), or a stopping server released it
+ * and stamped the hand-off after the claim it held, and no server has
+ * claimed it since. Two things are NOT stalled: a budget hand-off, which
+ * releases the lease without a stamp, so a busy queue never reads
+ * "Interrupted"; and a row an image without leases claimed last
+ * (`lease_epoch` <> `claim_epoch`). The hand-off stamp must be strictly
+ * after the claim: a takeover stamps both with the same instant, and a later
+ * budget hand-off of that claim is not an interruption.
+ */
+const RUN_STALLED_SQL = `coalesce(
+    status = 'running' AND lease_epoch = claim_epoch AND (
+      (lease_expires_at_ms IS NOT NULL
+       AND lease_expires_at_ms < (extract(epoch FROM now()) * 1000)::bigint)
+      OR (lease_expires_at_ms IS NULL AND last_resumed_at_ms IS NOT NULL
+          AND last_resumed_at_ms > coalesce(claimed_at_ms, 0))
+    ),
+    false
+  )`;
 
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", name, version, project_id AS "projectId",
   status, mode, started_by AS "startedBy", input, output, checkpoints, trace,
   effects, detail, failure_code AS "failureCode",
-  claim_epoch AS "claimEpoch", chain_seq AS "chainSeq",
+  claim_epoch AS "claimEpoch", legacy_quarantine AS "legacyQuarantine", chain_seq AS "chainSeq",
   started_at_ms::float8 AS "startedAt", finished_at_ms::float8 AS "finishedAt",
   EXISTS (
     SELECT 1 FROM app.automation_human_asks a
     WHERE a.run_id = app.automation_runs.id AND a.status = 'pending'
       AND a.expires_at_ms > (extract(epoch FROM now()) * 1000)::bigint
-  ) AS "askPending"
+  ) AS "askPending",
+  resume_count AS "resumeCount",
+  last_resume_reason AS "lastResumeReason",
+  last_resumed_at_ms::float8 AS "lastResumedAt",
+  ${RUN_STALLED_SQL} AS "stalled",
+  replay_of_run_id AS "replayOfRunId", replay_kind AS "replayKind",
+  replay_from_node AS "replayFromNode"
 `;
 
 async function runRow(
@@ -1470,10 +2799,16 @@ export function toRunSummary(
     | 'startedAt'
     | 'finishedAt'
     | 'askPending'
-  >,
+    | 'resumeCount'
+    | 'lastResumeReason'
+    | 'lastResumedAt'
+    | 'stalled'
+  > &
+    Partial<Pick<RunRow, 'legacyQuarantine' | 'claimEpoch'>>,
 ): RunSummary {
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
+  const lastResume = runLastResume(row);
   return {
     // One value under both names: the listing rows said `runId` and the
     // single read `id`, so a client mapping rows by `id` read undefined.
@@ -1486,15 +2821,32 @@ export function toRunSummary(
     // hand out run handles without saying which project they belong to.
     projectId: row.projectId,
     status: row.status,
+    ...legacyRunReadFields(row),
     mode: row.mode,
     startedBy: row.startedBy,
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(row.detail !== null ? { detail: row.detail } : {}),
     ...(row.failureCode !== null ? { failureCode: row.failureCode } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
+    // Present only once something happened: a run that was never handed on
+    // reads exactly as it did before these fields existed.
+    ...(row.resumeCount > 0 ? { resumeCount: row.resumeCount } : {}),
+    ...(lastResume !== undefined ? { lastResume } : {}),
+    ...(row.stalled ? { stalled: true } : {}),
     startedAt: row.startedAt,
     ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
   };
+}
+
+/** Why and when the run was last handed to another server — both stamps
+ * or nothing. */
+export function runLastResume(
+  row: Pick<RunRow, 'lastResumeReason' | 'lastResumedAt'>,
+): RunLastResume | undefined {
+  const { lastResumeReason: reason, lastResumedAt: at } = row;
+  if (reason !== 'shutdown' && reason !== 'lease_expired') return undefined;
+  if (typeof at !== 'number') return undefined;
+  return { reason, at };
 }
 
 /** The run row stores `input` as a JSON-encoded string (the stepper's
@@ -1534,12 +2886,14 @@ export function runStartedVia(
 /**
  * What a `waiting` run is parked on, read off the park's `detail` — the
  * stepper writes `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`
- * (an agent turn whose start waits for sandbox room) and
- * `repeat:<nodeId>` — with the one distinction the detail cannot carry: an
- * agent park whose question is pending is an `ask`, waiting on a person,
- * where the same park without one is an agent turn still running. A client
- * used to have to filter on the undocumented prefix to tell "needs a human"
- * from "polling"; `status=waiting` alone filled an alert with healthy runs.
+ * (an agent turn whose start waits for sandbox room), `repeat:<nodeId>` and
+ * `in_doubt:<nodeId>` (a write that may already have happened when the run
+ * was interrupted, waiting for a person) — with the one distinction the
+ * detail cannot carry: an agent park whose question is pending is an `ask`,
+ * waiting on a person, where the same park without one is an agent turn
+ * still running. A client used to have to filter on the undocumented prefix
+ * to tell "needs a human" from "polling"; `status=waiting` alone filled an
+ * alert with healthy runs.
  */
 export function runWaitingFor(
   row: Pick<RunRow, 'status' | 'detail' | 'askPending'>,
@@ -1549,24 +2903,65 @@ export function runWaitingFor(
   if (row.detail.startsWith('repeat:')) return 'repeat';
   if (row.detail.startsWith('agent:')) return row.askPending ? 'ask' : 'agent';
   if (row.detail.startsWith('room:')) return 'room';
+  if (row.detail.startsWith('in_doubt:')) return 'in_doubt';
   return undefined;
 }
 
 /** The full row as the single read answers it: every column, `waitingFor`
  * beside `detail` while the run is parked, `startedVia` on a trigger's run,
- * and never the raw ask fact. */
-export function toRunDetail(row: RunRow): Omit<RunRow, 'askPending'> & {
+ * `lastResume` once it was handed on, and never the raw ask fact or the raw
+ * resume stamps. */
+export function toRunDetail(row: RunRow): Omit<
+  RunRow,
+  | 'askPending'
+  | 'lastResumeReason'
+  | 'lastResumedAt'
+  | 'legacyQuarantine'
+  | 'replayOfRunId'
+  | 'replayKind'
+  | 'replayFromNode'
+> & {
+  legacyQuarantine?: LegacyRunQuarantine;
   waitingFor?: RunSummary['waitingFor'];
   startedVia?: RunSummary['startedVia'];
+  lastResume?: RunLastResume;
+  replayOf?: RunReplayOf;
 } {
-  const { askPending: _askPending, ...rest } = row;
+  const {
+    askPending: _askPending,
+    legacyQuarantine: _legacyQuarantine,
+    lastResumeReason: _lastResumeReason,
+    lastResumedAt: _lastResumedAt,
+    replayOfRunId: _replayOfRunId,
+    replayKind: _replayKind,
+    replayFromNode: _replayFromNode,
+    ...rest
+  } = row;
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
+  const lastResume = runLastResume(row);
+  const replayOf = runReplayOf(row);
   return {
     ...rest,
+    ...legacyRunReadFields(row),
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
+    ...(lastResume !== undefined ? { lastResume } : {}),
+    ...(replayOf !== undefined ? { replayOf } : {}),
   };
+}
+
+function legacyRunReadFields(row: {
+  legacyQuarantine?: unknown;
+  claimEpoch?: number;
+}): {
+  legacyQuarantine?: LegacyRunQuarantine;
+} {
+  const hold = describeLegacyQuarantine(
+    row.legacyQuarantine,
+    row.claimEpoch ?? Number.NaN,
+  );
+  return hold === undefined ? {} : { legacyQuarantine: hold };
 }
 
 export interface ListRunsOptions {
@@ -1577,6 +2972,8 @@ export interface ListRunsOptions {
   visibleProjectIds?: string[];
   /** Only runs in these statuses (any of them). */
   statuses?: string[];
+  /** Only live runs, or only mock runs. */
+  mode?: 'mock' | 'live';
   /** Keyset position: only runs strictly older than this `(startedAt, id)`
    * pair — the previous page's last row. */
   before?: { at: number; id: string };
@@ -1602,6 +2999,8 @@ async function runRows(
            OR project_id = ANY(${options.visibleProjectIds ?? []}::text[]))
       AND (${options.statuses === undefined}
            OR status = ANY(${options.statuses ?? []}::text[]))
+      AND (${options.mode ?? null}::text IS NULL
+           OR mode = ${options.mode ?? null})
       AND (${options.before === undefined}
            OR (started_at_ms, id)
               < (${options.before?.at ?? 0}::bigint, ${options.before?.id ?? ''}::text))
@@ -1691,6 +3090,15 @@ export interface BeginRunArgs {
    * admission too: omitting projectId must not infer a hidden project, nor
    * start an organization run able to operate in hidden bound projects. */
   visibleProjectIds?: string[];
+  /** A replay: the run it runs again and how. A replay from a step is born
+   * with the steps it takes from that run already finished — each entry
+   * marked `reused` — and runs the rest. */
+  replay?: {
+    of: string;
+    kind: RunReplayKind;
+    fromNode?: string;
+    reused?: Record<string, NodeCheckpoint>;
+  };
 }
 
 /** The same project admission for durable and in-process run artifacts.
@@ -1728,9 +3136,10 @@ export async function resolveRunProject(
   }
   const inferred = bindings.length === 1 ? bindings[0] : undefined;
   // A person's app start holds an inferred sole binding to the same checks
-  // as a named project. Trusted trigger callers keep their inferred scope
-  // unchecked: an event dispatch starts every listening automation in one
-  // savepoint, so one refusal there would roll back the others' runs.
+  // as a named project. A schedule keeps its inferred scope unchecked
+  // (whether it may start in an archived project is undecided); an event
+  // dispatch names the project it starts in, so it meets these checks, in
+  // a savepoint of its own per trigger.
   const projectId =
     args.projectId ??
     (args.visibleProjectIds !== undefined ? inferred : undefined);
@@ -1788,6 +3197,7 @@ export async function beginRunInTx(
   tx: TransactionSql,
   args: BeginRunArgs,
 ): Promise<{ runId: string; version: number } | null> {
+  await markAutomationWriterInTx(tx);
   {
     const deployed =
       args.mode === 'live' || args.version === undefined
@@ -1831,28 +3241,52 @@ export async function beginRunInTx(
           'AUTOMATION_INPUT_INVALID',
           `Run input does not match the automation inputs schema${named}`,
           400,
-          { issues },
+          // The version that refused it: a trigger's skip notice names it.
+          { issues, version },
         );
       }
     }
     const projectId = await resolveRunProject(tx, args);
     const now = Date.now();
+    // The record begins with what the run was given.
+    const start = startNodeRun(args.input, now);
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, project_id, status, mode, started_by,
-        api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms
+        api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms,
+        record_bytes, replay_of_run_id, replay_kind, replay_from_node,
+        replay_lineage_started_by
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${version},
         ${projectId}, 'queued', ${args.mode}, ${args.startedBy},
         ${args.apiKeyId ?? null},
         ${tx.json(toJson(JSON.stringify(args.input)))},
-        ${tx.json(toJson({ nodes: {}, executions: 0 }))},
-        ${now}, 0, ${now}
+        ${tx.json(toJson({ nodes: args.replay?.reused ?? {}, executions: 0 }))},
+        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}, ${start.bytes},
+        ${args.replay?.of ?? null}, ${args.replay?.kind ?? null},
+        ${args.replay?.fromNode ?? null},
+        -- Whose runs this one carries (0192): its source's starter and the
+        -- starters the source carried in turn, so an erasure of any of them
+        -- finds it after the source itself is gone.
+        (SELECT array_append(
+                  coalesce(s.replay_lineage_started_by, '{}'::text[]),
+                  s.started_by)
+           FROM app.automation_runs s
+          WHERE s.id = ${args.replay?.of ?? null}
+            AND s.org_id = ${args.organizationId})
       )
       RETURNING id
     `;
+    // Born with the claim promise, not overdue: the step job below is its
+    // continuation, and an overdue row would also be re-poked by the sweep.
     const runId = inserted[0]?.id;
     if (!runId) throw new Error('run insert failed');
+    await writeNodeRunsInTx(tx, {
+      organizationId: args.organizationId,
+      runId,
+      epoch: 0,
+      rows: [start],
+    });
     await enqueueStep(tx, args.organizationId, runId, 0);
     await emitRunHint(tx, args.organizationId, runId);
     return { runId, version };
@@ -1876,6 +3310,7 @@ export async function cancelRunInTx(
    * row attributes to the run's starter as `system`. */
   actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
+  await markAutomationWriterInTx(tx);
   {
     const now = Date.now();
     const rows = await tx<
@@ -1886,7 +3321,8 @@ export async function cancelRunInTx(
         -- The park string (repeat:poll, approval:<id>) described a wait the
         -- run is no longer in; detail is documented as "the failure or wait
         -- reason; null while the run has none" (2026-09-14 eval, g5-8).
-        detail = NULL
+        detail = NULL,
+        lease_owner = NULL, lease_expires_at_ms = NULL
       WHERE id = ${runId} AND org_id = ${organizationId}
         AND status IN ('queued', 'running', 'waiting')
       RETURNING name, version, mode, started_by AS "startedBy"
@@ -1897,6 +3333,13 @@ export async function cancelRunInTx(
       // no-op, so a client needs no second read to learn whether the run
       // finished on its own, was already cancelled, or is not there.
       const current = await runRow(tx, organizationId, runId);
+      if (current?.status === 'quarantined') {
+        throw new AutomationError(
+          'RUN_QUARANTINED',
+          'This run is on hold with unknown external effects; use the explicit stop request.',
+          409,
+        );
+      }
       return current === null
         ? { cancelled: false }
         : { cancelled: false, status: current.status };
@@ -1947,6 +3390,91 @@ export async function cancelRun(
   actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
   return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId, actor));
+}
+
+/** Records an explicit stop request without asserting termination, clearing
+ * the hold, changing task state, or rewriting historical asks/checkpoints. */
+export async function requestLegacyRunStopInTx(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    runId: string;
+    actor: string;
+    request: unknown;
+  },
+): Promise<{
+  requested: true;
+  status: 'quarantined';
+  legacyQuarantine: LegacyRunQuarantine;
+}> {
+  const request = legacyRunStopSchema.parse(args.request);
+  await markAutomationWriterInTx(tx);
+  const [row] = await tx<
+    { status: string; claimEpoch: number; hold: unknown }[]
+  >`
+    SELECT status, claim_epoch AS "claimEpoch", legacy_quarantine AS hold
+    FROM app.automation_runs WHERE org_id = ${args.organizationId} AND id = ${args.runId}
+    FOR UPDATE
+  `;
+  const hold =
+    row === undefined
+      ? undefined
+      : describeLegacyQuarantine(row.hold, row.claimEpoch);
+  if (
+    row?.status !== 'quarantined' ||
+    hold === undefined ||
+    hold.claimEpoch !== request.expectedClaimEpoch ||
+    hold.observedAt !== request.expectedObservedAt
+  ) {
+    throw new AutomationError(
+      'RUN_QUARANTINE_CHANGED',
+      'The held run changed; read it again before requesting a stop.',
+      409,
+    );
+  }
+  // An identical retry answers the already recorded decision; it never
+  // substitutes another actor or emits duplicate cleanup/audit work.
+  if (hold.resolution !== null)
+    return { requested: true, status: 'quarantined', legacyQuarantine: hold };
+  const decision = {
+    action: 'stop' as const,
+    actor: args.actor,
+    at: Date.now(),
+  };
+  await tx`SELECT set_config('tale.automation_legacy_stop_run', ${args.runId}, true)`;
+  await tx`UPDATE app.automation_runs SET legacy_quarantine =
+    jsonb_set(legacy_quarantine, '{resolution}', ${tx.json(toJson(decision))}::jsonb)
+    WHERE org_id = ${args.organizationId} AND id = ${args.runId}`;
+  // Reuse owned session cancellation. It is a request, not evidence that a
+  // sandbox or an already-sent external operation has actually terminated.
+  await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.actor,
+    actorType: 'user',
+    action: 'automation.run.legacy_stop_requested',
+    category: 'ai',
+    resourceType: 'automation_run',
+    resourceId: args.runId,
+    status: 'success',
+    metadata: {
+      expectedClaimEpoch: hold.claimEpoch,
+      observedAt: hold.observedAt,
+      unknownExternalEffectsAcknowledged: true,
+    },
+  });
+  await recordRunEventInTx(tx, {
+    organizationId: args.organizationId,
+    runId: args.runId,
+    kind: 'legacy_stop_requested',
+    detail: { actor: args.actor, at: decision.at },
+  });
+  await emitRunHint(tx, args.organizationId, args.runId);
+  return {
+    requested: true,
+    status: 'quarantined',
+    legacyQuarantine: { ...hold, resolution: decision },
+  };
 }
 
 // ---------------------------------------------------- idempotent starts
@@ -2101,6 +3629,7 @@ export async function deleteRunInTx(
   tx: TransactionSql,
   args: { organizationId: string; runId: string; actor: string },
 ): Promise<{ deleted: boolean }> {
+  await markAutomationWriterInTx(tx);
   const rows = await tx<
     { name: string; version: number; mode: string; status: string }[]
   >`
@@ -2110,6 +3639,13 @@ export async function deleteRunInTx(
   `;
   const row = rows[0];
   if (row === undefined) return { deleted: false };
+  if (row.status === 'quarantined') {
+    throw new AutomationError(
+      'RUN_QUARANTINED',
+      'The run is on hold because its external outcome is unknown. A stop request does not authorize deletion.',
+      409,
+    );
+  }
   if (!TERMINAL_RUN_STATUSES.has(row.status)) {
     throw new AutomationError(
       'RUN_ACTIVE',
@@ -2155,54 +3691,237 @@ export async function deleteRunInTx(
 
 // ----------------------------------------------- the stepper's run contract
 
+/** The statuses a run can still move out of — the fence of every run-state
+ * write. */
+const LIVE_RUN_STATUSES: ReadonlySet<string> = new Set([
+  'queued',
+  'running',
+  'waiting',
+]);
+
+/** What a claim reads off the locked run row before it decides. */
+interface ClaimPrior {
+  status: string;
+  claimEpoch: number;
+  leaseEpoch: number | null;
+  leaseOwner: string | null;
+  leaseExpiresAt: number | null;
+  wakeAt: number | null;
+  claimedAt: number | null;
+  engineProtocol: number;
+  engineVersion: string | null;
+}
+
+type ClaimDecision =
+  | { kind: 'claim'; tookOver: boolean }
+  | { kind: 'terminal' }
+  | { kind: 'leased' }
+  | { kind: 'deferred' };
+
+/**
+ * Whether a step job may walk the run now. A queued or parked run is free. A
+ * running run is free only once nobody steps it: its lease was released (a
+ * hand-off) or lapsed (its walker died) — or, for a run an image without
+ * leases claimed last (`lease_epoch` <> `claim_epoch`), once that image's
+ * `wake_at_ms` promise lapsed, which its own heartbeat keeps renewing (the
+ * sweep that finds it lapsed turns it into a lapsed lease first, so the
+ * claim its poke queues takes the run over). A live
+ * lease is refused whoever holds it, this process included: a worker runs
+ * several walkers, so "it is mine" would let two of them step one run.
+ */
+function decideClaim(prior: ClaimPrior, now: number): ClaimDecision {
+  if (!LIVE_RUN_STATUSES.has(prior.status)) return { kind: 'terminal' };
+  const leased = prior.leaseEpoch === prior.claimEpoch;
+  const free =
+    prior.status !== 'running' ||
+    (leased
+      ? prior.leaseExpiresAt === null || prior.leaseExpiresAt <= now
+      : prior.wakeAt === null || prior.wakeAt <= now);
+  if (!free) return { kind: 'leased' };
+  // A newer engine wrote progress this one may misread: never step it.
+  if (prior.engineProtocol > ENGINE_PROTOCOL) return { kind: 'deferred' };
+  return {
+    kind: 'claim',
+    tookOver:
+      prior.status === 'running' && leased && prior.leaseExpiresAt !== null,
+  };
+}
+
+/**
+ * Claim a run for one walker: lock the row, decide, and take the lease in the
+ * same transaction. Two concurrent claims serialize on the row lock — the
+ * later one reads the first one's live lease and is refused (`leased`), so a
+ * duplicate step job or a sweep re-poke never starts a second walker. A
+ * claim that takes a running run whose lease lapsed counts as a takeover:
+ * the run's resume count grows and the takeover is recorded. Every claim
+ * bumps the epoch, so a walker that lost its run is refused at its next
+ * write.
+ */
 export async function claimRun(
   sql: Sql,
   organizationId: string,
   runId: string,
 ): Promise<{ claimed: boolean; status: string; epoch: number }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
-    // ATOMIC claim: the epoch bump reads and writes the SAME row under the
-    // UPDATE's row lock, so two concurrent claims (a liveness re-poke racing
-    // the live chain, a pg-boss retry) serialize and get DISTINCT epochs —
-    // the later one wins and the earlier walker's writes read back 'stale' at
-    // the epoch fence. The old read-then-write under READ COMMITTED was a
-    // lost update: both read N, both wrote N+1, and both passed the fence,
-    // double-stepping one run.
+    const rows = await tx<ClaimPrior[]>`
+      SELECT status, claim_epoch AS "claimEpoch", lease_epoch AS "leaseEpoch",
+             lease_owner AS "leaseOwner",
+             lease_expires_at_ms::float8 AS "leaseExpiresAt",
+             wake_at_ms::float8 AS "wakeAt",
+             claimed_at_ms::float8 AS "claimedAt",
+             engine_protocol AS "engineProtocol",
+             engine_version AS "engineVersion"
+      FROM app.automation_runs
+      WHERE id = ${runId} AND org_id = ${organizationId}
+      FOR UPDATE
+    `;
+    const prior = rows[0];
+    if (!prior) return { claimed: false, status: 'missing', epoch: 0 };
+    const decision = decideClaim(prior, now);
+    if (decision.kind === 'terminal') {
+      return { claimed: false, status: prior.status, epoch: prior.claimEpoch };
+    }
+    if (decision.kind === 'leased') {
+      return { claimed: false, status: 'leased', epoch: prior.claimEpoch };
+    }
+    if (decision.kind === 'deferred') {
+      await deferToNewerEngine(tx, { organizationId, runId, prior, now });
+      return { claimed: false, status: 'deferred', epoch: prior.claimEpoch };
+    }
+    const { tookOver } = decision;
+    // `lease_epoch` reads the OLD `claim_epoch`, like every right-hand side
+    // of one SET: it lands equal to the new epoch.
     const claimed = await tx<{ claimEpoch: number }[]>`
       UPDATE app.automation_runs SET
-        status = 'running', claim_epoch = claim_epoch + 1, claimed_at_ms = ${now},
-        wake_at_ms = ${now + RUN_CLAIM_PROMISE_MS}
+        status = 'running',
+        claim_epoch = claim_epoch + 1,
+        lease_epoch = claim_epoch + 1,
+        claimed_at_ms = ${now},
+        lease_owner = ${instanceId()},
+        lease_expires_at_ms = ${now + RUN_LEASE_MS},
+        wake_at_ms = ${now + RUN_LEASE_MS},
+        engine_protocol = GREATEST(engine_protocol, ${ENGINE_PROTOCOL}::int),
+        engine_version = ${engineVersion()},
+        resume_count = resume_count + ${tookOver ? 1 : 0}::int,
+        last_resume_reason = CASE WHEN ${tookOver}::boolean
+          THEN 'lease_expired' ELSE last_resume_reason END,
+        last_resumed_at_ms = CASE WHEN ${tookOver}::boolean
+          THEN ${now}::bigint ELSE last_resumed_at_ms END
       WHERE id = ${runId} AND org_id = ${organizationId}
-        AND status IN ('queued', 'running', 'waiting')
       RETURNING claim_epoch AS "claimEpoch"
     `;
-    if (claimed[0]) {
-      await emitRunHint(tx, organizationId, runId);
-      return { claimed: true, status: 'running', epoch: claimed[0].claimEpoch };
+    const epoch = claimed[0]?.claimEpoch;
+    if (epoch === undefined) throw new Error('run claim found no row');
+    if (tookOver) {
+      await recordRunEventInTx(tx, {
+        organizationId,
+        runId,
+        kind: 'taken_over',
+        detail: {
+          previousOwner: prior.leaseOwner,
+          previousEngine: prior.engineVersion,
+        },
+      });
     }
-    // Not claimable — report WHY (terminal vs missing) so the stepper's turn
-    // exits with the same status it always did.
-    const row = await runRow(tx, organizationId, runId);
-    if (!row) return { claimed: false, status: 'missing', epoch: 0 };
-    return { claimed: false, status: row.status, epoch: row.claimEpoch };
+    await emitRunHint(tx, organizationId, runId);
+    return { claimed: true, status: 'running', epoch };
   });
 }
 
+/**
+ * A run a newer engine stepped is not this engine's to read. While a roll is
+ * in progress — a newer engine claimed it recently — its step goes back to
+ * the queue a few seconds out, for a worker of the newer release to take.
+ * Past that window (a rollback after the newer release stepped it), it is
+ * left to the sweep: one claim attempt per promise, never a hot loop.
+ */
+async function deferToNewerEngine(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    runId: string;
+    prior: ClaimPrior;
+    now: number;
+  },
+): Promise<void> {
+  const { organizationId, runId, prior, now } = args;
+  console.warn(
+    `[automations] run ${runId} needs engine protocol ${prior.engineProtocol}; this engine is ${ENGINE_PROTOCOL} — deferred`,
+  );
+  await recordRunEventInTx(tx, {
+    organizationId,
+    runId,
+    kind: 'engine_deferred',
+    detail: {
+      requiredProtocol: prior.engineProtocol,
+      engineProtocol: ENGINE_PROTOCOL,
+    },
+    oncePerEngine: true,
+  });
+  if (
+    prior.claimedAt === null ||
+    prior.claimedAt < now - ENGINE_DEFER_WINDOW_MS
+  ) {
+    return;
+  }
+  await tx`
+    UPDATE app.automation_runs SET
+      wake_at_ms = ${now + ENGINE_DEFER_MS + RUN_CLAIM_PROMISE_MS}
+    WHERE id = ${runId} AND org_id = ${organizationId}
+  `;
+  await enqueueStep(tx, organizationId, runId, ENGINE_DEFER_MS);
+}
+
+/**
+ * Renew a live walker's lease (and the promise that mirrors it). Only the
+ * lease of THIS claim: a walker that lost the run, or one that already
+ * released its lease by parking or handing off, renews nothing — a late tick
+ * must not bring a released lease back.
+ */
 export async function heartbeatRun(
   sql: Sql,
   organizationId: string,
   runId: string,
   epoch: number,
 ): Promise<{ alive: boolean }> {
-  const rows = await sql<{ id: string }[]>`
+  return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    const rows = await tx<{ id: string }[]>`
     UPDATE app.automation_runs SET
-      wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+      lease_expires_at_ms = ${now + RUN_LEASE_MS},
+      wake_at_ms = ${now + RUN_LEASE_MS}
     WHERE id = ${runId} AND org_id = ${organizationId}
       AND status = 'running' AND claim_epoch = ${epoch}
+      AND lease_epoch = ${epoch} AND lease_expires_at_ms IS NOT NULL
     RETURNING id
   `;
-  return { alive: rows.length > 0 };
+    return { alive: rows.length > 0 };
+  });
+}
+
+/**
+ * Why a fenced write changed nothing: the run is gone (`missing`), it ended
+ * (its terminal status), or another walker holds a newer claim (`stale`).
+ * Read only after a write matched no row — the fast path never reads.
+ */
+async function whyNotWritten(
+  tx: TransactionSql,
+  organizationId: string,
+  runId: string,
+  epoch: number,
+): Promise<string> {
+  const rows = await tx<{ status: string; claimEpoch: number }[]>`
+    SELECT status, claim_epoch AS "claimEpoch" FROM app.automation_runs
+    WHERE id = ${runId} AND org_id = ${organizationId}
+  `;
+  const row = rows[0];
+  if (!row) return 'missing';
+  if (!LIVE_RUN_STATUSES.has(row.status)) return row.status;
+  if (row.claimEpoch !== epoch) return 'stale';
+  return row.status;
 }
 
 interface CheckpointsShape {
@@ -2254,6 +3973,13 @@ function boundIncomingCheckpoint(checkpoint: unknown): unknown {
   return boundCheckpointTrace(checkpoint as NodeCheckpoint);
 }
 
+/**
+ * Record a walker's progress: one node's checkpoint merged into the stored
+ * `nodes` (server-side, so two commits of one claim never drop each other's
+ * node), the forEach cursor replaced or dropped, and the lease renewed. ONE
+ * statement fenced by the walker's epoch and a live status; top-level keys
+ * this engine does not know survive the write.
+ */
 export async function recordProgress(
   sql: Sql,
   args: {
@@ -2264,45 +3990,81 @@ export async function recordProgress(
     checkpoint?: unknown;
     cursor?: unknown;
     executions: number;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (!row) return { status: 'missing' };
-    if (
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.status === 'cancelled'
-    ) {
-      return { status: row.status };
-    }
-    if (row.claimEpoch !== args.epoch) return { status: 'stale' };
-    const checkpoints = readCheckpoints(row.checkpoints);
-    const nodes =
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    const nodeKey =
       args.nodeId !== undefined && args.checkpoint !== undefined
-        ? Object.assign({}, checkpoints.nodes, {
-            [args.nodeId]: boundIncomingCheckpoint(args.checkpoint),
-          })
-        : checkpoints.nodes;
-    await tx`
+        ? args.nodeId
+        : null;
+    const checkpoint =
+      nodeKey === null
+        ? null
+        : jsonParam(tx, boundIncomingCheckpoint(args.checkpoint));
+    const cursor = jsonParam(tx, args.cursor);
+    const rows = await tx<{ status: string }[]>`
       UPDATE app.automation_runs SET
-        checkpoints = ${tx.json(
-          toJson({
-            nodes,
-            ...(args.cursor !== undefined && args.cursor !== null
-              ? { cursor: args.cursor }
-              : {}),
-            executions: args.executions,
-          }),
-        )},
-        wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
-      WHERE id = ${args.runId}
+        checkpoints =
+          (CASE WHEN jsonb_typeof(checkpoints) = 'object'
+                THEN checkpoints - 'cursor' ELSE '{}'::jsonb END)
+          || jsonb_build_object(
+               'nodes',
+               (CASE WHEN jsonb_typeof(checkpoints -> 'nodes') = 'object'
+                     THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END)
+               || (CASE WHEN ${nodeKey}::text IS NULL THEN '{}'::jsonb
+                        ELSE jsonb_build_object(${nodeKey}::text, ${checkpoint}::jsonb)
+                   END),
+               'executions', ${args.executions}::int)
+          || (CASE WHEN ${cursor}::jsonb IS NULL THEN '{}'::jsonb
+                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
+        lease_expires_at_ms = CASE WHEN lease_expires_at_ms IS NULL THEN NULL
+                                   ELSE ${now + RUN_LEASE_MS}::bigint END,
+        wake_at_ms = ${now + RUN_LEASE_MS},
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING status
     `;
+    const written = rows[0];
+    if (!written) {
+      return {
+        status: await whyNotWritten(
+          tx,
+          args.organizationId,
+          args.runId,
+          args.epoch,
+        ),
+      };
+    }
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     await emitRunHint(tx, args.organizationId, args.runId);
-    return { status: row.status };
+    return { status: written.status };
   });
 }
 
+/**
+ * Park a run: `waiting` with the park string, its cursor and a poll chain
+ * that comes back after `resumeInMs`. The walker's lease is released — a
+ * parked run has no walker — and the chain sequence moves on, so a poll of
+ * an earlier park finds nothing to do. `event` records why the park happened
+ * when the run's history should say more than its park string. A park on
+ * something that happened while the walker was on its way here wakes the
+ * run at once instead.
+ *
+ * The cursor an agent node parks with is the one its walker loaded, and the
+ * stored one may have moved on since: the turn settled, or a person's answer
+ * moved the turn to a new exec or a later deadline. The step job each of them
+ * queued found the run still held by this walker and did nothing, so the
+ * park keeps what they wrote (`mergeParkedAgentCursor`) — dropping a result
+ * would leave the run waiting for one that already came, until its deadline
+ * failed it.
+ */
 export async function suspendRun(
   sql: Sql,
   args: {
@@ -2313,46 +4075,148 @@ export async function suspendRun(
     cursor?: unknown;
     executions: number;
     resumeInMs: number;
+    event?: { kind: RunEventKind; detail?: Record<string, unknown> };
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ suspended: boolean }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (
-      !row ||
-      row.status === 'cancelled' ||
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.claimEpoch !== args.epoch
-    ) {
-      return { suspended: false };
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    // An agent node's park merges what the stored cursor gained while its
+    // walker was on its way here; the row is locked first, so a settle or a
+    // retarget either landed already or waits for the park.
+    let parkCursor = args.cursor;
+    if (parksAgentTurn(args.cursor)) {
+      const stored = await tx<{ cursor: unknown }[]>`
+        SELECT checkpoints -> 'cursor' AS cursor FROM app.automation_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          AND claim_epoch = ${args.epoch}
+        FOR UPDATE
+      `;
+      if (stored[0] !== undefined) {
+        parkCursor = mergeParkedAgentCursor(stored[0].cursor, args.cursor);
+      }
     }
-    const checkpoints = readCheckpoints(row.checkpoints);
-    const seq = row.chainSeq + 1;
-    await tx`
+    const cursor = jsonParam(tx, parkCursor);
+    const rows = await tx<{ seq: number }[]>`
       UPDATE app.automation_runs SET
         status = 'waiting', detail = ${truncateRunDetail(args.detail)},
-        checkpoints = ${tx.json(
-          toJson({
-            nodes: checkpoints.nodes,
-            ...(args.cursor !== undefined && args.cursor !== null
-              ? { cursor: args.cursor }
-              : {}),
-            executions: args.executions,
-          }),
-        )},
-        wake_at_ms = ${Date.now() + args.resumeInMs},
-        chain_seq = ${seq}
-      WHERE id = ${args.runId}
+        checkpoints =
+          (CASE WHEN jsonb_typeof(checkpoints) = 'object'
+                THEN checkpoints - 'cursor' ELSE '{}'::jsonb END)
+          || jsonb_build_object(
+               'nodes',
+               CASE WHEN jsonb_typeof(checkpoints -> 'nodes') = 'object'
+                    THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END,
+               'executions', ${args.executions}::int)
+          || (CASE WHEN ${cursor}::jsonb IS NULL THEN '{}'::jsonb
+                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
+        wake_at_ms = ${now + args.resumeInMs},
+        chain_seq = chain_seq + 1,
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING chain_seq AS seq
     `;
-    await enqueuePoll(tx, {
-      organizationId: args.organizationId,
-      runId: args.runId,
-      seq,
-      pollMs: args.resumeInMs,
-    });
+    const parked = rows[0];
+    if (!parked) return { suspended: false };
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
+    if (
+      parkedAgentSettled(parkCursor) ||
+      (await approvalDecided(tx, args.organizationId, args.detail)) ||
+      (args.detail.startsWith('in_doubt:') &&
+        (await inDoubtSettled(tx, args.organizationId, args.runId)))
+    ) {
+      // What the park waits on happened while the walker was on its way
+      // here — a person decided the approval, the agent's turn settled, or
+      // the write in doubt was finished by the walker that was making it.
+      // Its own wake found the run still walking and did nothing, so the
+      // park wakes the run itself instead of waiting for its poll.
+      await tx`
+        UPDATE app.automation_runs SET
+          wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+      `;
+      await enqueueStep(tx, args.organizationId, args.runId, 0);
+    } else {
+      await enqueuePoll(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        seq: parked.seq,
+        pollMs: args.resumeInMs,
+      });
+    }
+    if (args.event !== undefined) {
+      await recordRunEventInTx(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        kind: args.event.kind,
+        ...(args.event.detail !== undefined && { detail: args.event.detail }),
+      });
+    }
     await emitRunHint(tx, args.organizationId, args.runId);
     return { suspended: true };
   });
+}
+
+/**
+ * Whether the approval a park waits on (`approval:<id>`) was decided already.
+ * Read after the park's own write, which holds the run's row: a decision
+ * locks that row before it writes (`lockRunInTx`), so it either committed
+ * before this read — and is seen here — or it waits for the park and then
+ * finds the run parked and wakes it. Its read is a statement of its own:
+ * one inside the park's write would read the approvals as they were before
+ * the write waited for the row.
+ */
+async function approvalDecided(
+  tx: TransactionSql,
+  organizationId: string,
+  detail: string,
+): Promise<boolean> {
+  if (!detail.startsWith('approval:')) return false;
+  const approvalId = detail.slice('approval:'.length);
+  const rows = await tx<{ decided: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.approvals
+      WHERE id = ${approvalId} AND org_id = ${organizationId}
+        AND status <> 'pending'
+    ) AS decided
+  `;
+  return rows[0]?.decided ?? false;
+}
+
+/**
+ * Whether a park on a write that may already have happened is due: a person
+ * decided about it, or no write of the run is open any more. The second
+ * happens when the walker that was making the write outlived its lease and
+ * recorded how the call ended after another walker had parked the run on it:
+ * the next walker then reads that end instead of anyone being asked.
+ */
+async function inDoubtSettled(
+  tx: TransactionSql,
+  organizationId: string,
+  runId: string,
+): Promise<boolean> {
+  const rows = await tx<{ settled: boolean }[]>`
+    SELECT (
+      EXISTS (
+        SELECT 1 FROM app.automation_node_attempts
+        WHERE run_id = ${runId} AND org_id = ${organizationId}
+          AND status = 'started' AND resolution IS NOT NULL
+      )
+      OR NOT EXISTS (
+        SELECT 1 FROM app.automation_node_attempts
+        WHERE run_id = ${runId} AND org_id = ${organizationId}
+          AND kind = 'connector' AND status = 'started'
+          AND resolution IS NULL
+      )
+    ) AS settled
+  `;
+  return rows[0]?.settled ?? false;
 }
 
 /** One hop of a parked run's poll chain (the pg-boss `automation.poll`
@@ -2363,6 +4227,7 @@ export async function pollParkedRun(
   args: { organizationId: string; runId: string; seq: number; pollMs: number },
 ): Promise<{ due: boolean; rearmed: boolean }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const row = await runRow(tx, args.organizationId, args.runId);
     if (!row || row.status !== 'waiting' || row.chainSeq !== args.seq) {
       return { due: false, rearmed: false };
@@ -2376,32 +4241,70 @@ export async function pollParkedRun(
           })
         : undefined;
     const agent = cursor?.agent;
-    // An agent park is quiet until its settle lands or its deadline passes;
-    // anything else counts as due — the stepper is the arbiter, this hop
-    // only a filter. (The approval-park branch returns with the approvals
-    // domain.)
-    const due =
-      agent !== undefined
+    // A write that may already have happened waits for a person: due once
+    // they decided, or once nothing is in doubt any more (their decision and
+    // a late finish of the write each wake the run themselves; this hop is
+    // the backstop). An agent park is quiet until its settle lands or its
+    // deadline passes; anything else counts as due — the stepper is the
+    // arbiter, this hop only a filter. (The approval-park branch returns
+    // with the approvals domain.)
+    const inDoubt = row.detail?.startsWith('in_doubt:') === true;
+    const due = inDoubt
+      ? await inDoubtSettled(tx, args.organizationId, args.runId)
+      : agent !== undefined
         ? agent.result !== undefined || Date.now() > (agent.deadlineAt ?? 0)
         : true;
+    // Both writes below are fenced by the park this hop belongs to: the row
+    // was read without a lock, and a decision may have woken it and a walker
+    // claimed it since — its lease's promise is not this hop's to move.
     if (due) {
-      await tx`
-        UPDATE app.automation_runs SET wake_at_ms = ${Date.now()}
-        WHERE id = ${args.runId}
+      // The step job below is the continuation; the promise gives its claim
+      // time to happen before the sweep pokes again.
+      const woken = await tx<{ id: string }[]>`
+        UPDATE app.automation_runs SET
+          wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          AND status = 'waiting' AND chain_seq = ${args.seq}
+        RETURNING id
       `;
+      if (!woken[0]) return { due: false, rearmed: false };
       await enqueueStep(tx, args.organizationId, args.runId, 0);
       return { due: true, rearmed: false };
     }
-    await tx`
+    // A person may take hours to decide, and the decision wakes the run
+    // itself: an in-doubt park re-arms only at the backstop interval.
+    const next = inDoubt ? { ...args, pollMs: IN_DOUBT_POLL_MS } : args;
+    const rearmed = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
-        wake_at_ms = ${Date.now() + args.pollMs}
-      WHERE id = ${args.runId}
+        wake_at_ms = ${Date.now() + next.pollMs}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND status = 'waiting' AND chain_seq = ${args.seq}
+      RETURNING id
     `;
-    await enqueuePoll(tx, args);
+    if (!rearmed[0]) return { due: false, rearmed: false };
+    await enqueuePoll(tx, next);
     return { due: false, rearmed: true };
   });
 }
 
+/** Why a walker handed its run on before it was done: its server is
+ * stopping. A budget hand-off (the turn ran out of time) carries none. */
+export interface RunHandoff {
+  reason: 'shutdown';
+  /** The node the walker was in, and its forEach item. */
+  nodeId?: string;
+  itemIndex?: number;
+  /** The node's body was cut off mid-call rather than finished. */
+  interrupted?: boolean;
+}
+
+/**
+ * Hand a run on to the next turn: release the walker's lease and queue the
+ * step that continues it after `resumeInMs`. The promise covers the delay
+ * plus the time the claim may take. A hand-off because the server is
+ * stopping is counted on the run and recorded, so its page can say it was
+ * resumed after a restart; a budget hand-off changes nothing a person sees.
+ */
 export async function continueRun(
   sql: Sql,
   args: {
@@ -2409,29 +4312,69 @@ export async function continueRun(
     runId: string;
     epoch: number;
     resumeInMs: number;
+    handoff?: RunHandoff;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ scheduled: boolean }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (
-      !row ||
-      row.status === 'cancelled' ||
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.claimEpoch !== args.epoch
-    ) {
-      return { scheduled: false };
-    }
-    await tx`
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    const handedOff = args.handoff !== undefined;
+    const rows = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
-        wake_at_ms = ${Date.now() + args.resumeInMs}
-      WHERE id = ${args.runId}
+        wake_at_ms = ${now + args.resumeInMs + RUN_CLAIM_PROMISE_MS},
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        resume_count = resume_count + ${handedOff ? 1 : 0}::int,
+        last_resume_reason = CASE WHEN ${handedOff}::boolean
+          THEN 'shutdown' ELSE last_resume_reason END,
+        last_resumed_at_ms = CASE WHEN ${handedOff}::boolean
+          THEN ${now}::bigint ELSE last_resumed_at_ms END,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING id
     `;
+    if (!rows[0]) return { scheduled: false };
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     await enqueueStep(tx, args.organizationId, args.runId, args.resumeInMs);
+    const handoff = args.handoff;
+    if (handoff !== undefined) {
+      const where = {
+        ...(handoff.nodeId !== undefined && { nodeId: handoff.nodeId }),
+        ...(handoff.itemIndex !== undefined && {
+          itemIndex: handoff.itemIndex,
+        }),
+      };
+      await recordRunEventInTx(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        kind: 'handed_off',
+        detail: { reason: handoff.reason, ...where },
+      });
+      if (handoff.interrupted === true) {
+        await recordRunEventInTx(tx, {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          kind: 'node_interrupted',
+          detail: where,
+        });
+      }
+      await emitRunHint(tx, args.organizationId, args.runId);
+    }
     return { scheduled: true };
   });
 }
 
+/**
+ * The terminal door: land the run on `success` or `failed` in ONE statement
+ * fenced by the walker's epoch and a live status, then — only when it landed
+ * — write its audit row, keep its trigger's streak, and free what it held. A
+ * stop that committed first wins: this write then matches nothing, and
+ * nothing else happens (no audit row, no trigger outcome, no second close).
+ */
 export async function finishRun(
   sql: Sql,
   args: {
@@ -2450,22 +4393,23 @@ export async function finishRun(
      * absent for a success, and for a failure no site could classify. */
     failureCode?: string | null;
     executions: number;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (
-      !row ||
-      row.status === 'cancelled' ||
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.claimEpoch !== args.epoch
-    ) {
-      return { status: row?.status ?? 'missing' };
-    }
-    const checkpoints = readCheckpoints(row.checkpoints);
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
-    await tx`
+    const rows = await tx<
+      {
+        name: string;
+        version: number;
+        mode: string;
+        startedBy: string;
+        startedAt: number;
+      }[]
+    >`
       UPDATE app.automation_runs SET
         status = ${args.status},
         output = coalesce(${args.output === undefined ? null : tx.json(toJson(JSON.stringify(args.output)))}, output),
@@ -2473,12 +4417,32 @@ export async function finishRun(
         effects = ${tx.json(toJson(args.effects ?? []))},
         detail = ${truncateRunDetail(args.detail) ?? null},
         failure_code = ${args.status === 'failed' ? (args.failureCode ?? null) : null},
-        checkpoints = ${tx.json(
-          toJson({ nodes: checkpoints.nodes, executions: args.executions }),
-        )},
-        wake_at_ms = NULL, finished_at_ms = ${now}
-      WHERE id = ${args.runId}
+        checkpoints = jsonb_build_object(
+          'nodes',
+          CASE WHEN jsonb_typeof(checkpoints -> 'nodes') = 'object'
+               THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END,
+          'executions', ${args.executions}::int),
+        wake_at_ms = NULL, finished_at_ms = ${now},
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING name, version, mode, started_by AS "startedBy",
+                started_at_ms::float8 AS "startedAt"
     `;
+    const row = rows[0];
+    if (!row) {
+      return {
+        status: await whyNotWritten(
+          tx,
+          args.organizationId,
+          args.runId,
+          args.epoch,
+        ),
+      };
+    }
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     // The provenance record, atomic with the finish (LIVE runs only). The
     // full fold (approvals + connector effects) grows with those domains;
     // the terminal audit row is the contract that must never be missing.
@@ -2537,29 +4501,74 @@ export async function finishRun(
 
 // ---------------------------------------------------------------- liveness
 
-/** The sweep: overdue non-terminal runs get a fresh stepper poke. */
+/**
+ * The sweep: overdue non-terminal runs get a fresh stepper poke. Each poke
+ * re-checks the promise in its own write, so two sweeps that overlap poke a
+ * run once. A running run whose lease lapsed — its walker died — is recorded
+ * as such and its open views told, so its page can say it is being resumed.
+ *
+ * A running run an image without leases claimed last (`lease_epoch` <>
+ * `claim_epoch`) has only that image's promise, and once the promise lapsed
+ * its walker is gone too. The poke turns the lapsed promise into a lapsed
+ * lease of the claim it names: the step it queues then takes the run over.
+ * Left as it was, that step would read the fresh promise the poke itself
+ * wrote and refuse the run as held — every sweep, for good.
+ */
 export async function sweepOverdueRuns(
   sql: Sql,
   limit = LIVENESS_SWEEP_LIMIT,
 ): Promise<number> {
-  const rows = await sql<{ id: string; orgId: string }[]>`
-    SELECT id, org_id AS "orgId" FROM app.automation_runs
+  const now = Date.now();
+  const rows = await sql<
+    { id: string; orgId: string; owner: string | null; leaseExpired: boolean }[]
+  >`
+    SELECT id, org_id AS "orgId", lease_owner AS "owner",
+           (status = 'running' AND (
+              lease_epoch IS DISTINCT FROM claim_epoch
+              OR (lease_expires_at_ms IS NOT NULL
+                  AND lease_expires_at_ms < ${now}))) AS "leaseExpired"
+    FROM app.automation_runs
     WHERE status IN ('queued', 'running', 'waiting')
-      AND wake_at_ms IS NOT NULL AND wake_at_ms < ${Date.now()}
+      AND wake_at_ms IS NOT NULL AND wake_at_ms < ${now}
     ORDER BY wake_at_ms
     LIMIT ${limit}
   `;
+  let poked = 0;
   for (const row of rows) {
-    await sql.begin(async (tx) => {
-      await tx`
+    const won = await sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const at = Date.now();
+      // Every right-hand side reads the row as it was before this write.
+      const updated = await tx<{ id: string }[]>`
         UPDATE app.automation_runs SET
-          wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
-        WHERE id = ${row.id}
+          wake_at_ms = ${at + RUN_CLAIM_PROMISE_MS},
+          lease_epoch = CASE
+            WHEN status = 'running' AND lease_epoch IS DISTINCT FROM claim_epoch
+            THEN claim_epoch ELSE lease_epoch END,
+          lease_expires_at_ms = CASE
+            WHEN status = 'running' AND lease_epoch IS DISTINCT FROM claim_epoch
+            THEN ${at}::bigint ELSE lease_expires_at_ms END
+        WHERE id = ${row.id} AND org_id = ${row.orgId}
+          AND status IN ('queued', 'running', 'waiting')
+          AND wake_at_ms IS NOT NULL AND wake_at_ms < ${at}
+        RETURNING id
       `;
+      if (!updated[0]) return false;
       await enqueueStep(tx, row.orgId, row.id, 0);
+      if (row.leaseExpired) {
+        await recordRunEventInTx(tx, {
+          organizationId: row.orgId,
+          runId: row.id,
+          kind: 'lease_expired',
+          detail: { owner: row.owner },
+        });
+        await emitRunHint(tx, row.orgId, row.id);
+      }
+      return true;
     });
+    if (won) poked++;
   }
-  return rows.length;
+  return poked;
 }
 
 /**
@@ -2568,45 +4577,201 @@ export async function sweepOverdueRuns(
  * behind. A `running` walker is already awake and reads the decision itself;
  * terminal or foreign runs are a silent no-op (a stale approval must not
  * throw the resolution). Same claim-promise + step enqueue as the liveness
- * sweep.
+ * sweep. It joins the caller's transaction, so the wake commits with the
+ * decision that caused it, and a decision whose wake cannot be queued is not
+ * recorded either.
  */
-export async function pokeParkedRun(
+export async function pokeParkedRunInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; runId: string },
+): Promise<boolean> {
+  await markAutomationWriterInTx(tx);
+  const rows = await tx<{ id: string }[]>`
+    UPDATE app.automation_runs SET
+      wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+      AND status = 'waiting'
+    RETURNING id
+  `;
+  if (!rows[0]) return false;
+  await enqueueStep(tx, args.organizationId, args.runId, 0);
+  return true;
+}
+
+/**
+ * Wake a run parked on a write that may already have happened once nothing
+ * is in doubt any more: the walker that was making the write outlived its
+ * lease, another walker parked the run on it, and the first one then
+ * recorded how the call ended. The next walker reads that end — the output,
+ * or the failure — instead of anyone being asked. Its own transaction, after
+ * the finish committed: the write locks the run row alone, the order every
+ * run write takes. Answers whether the run was woken.
+ */
+export async function wakeSettledInDoubtPark(
   sql: Sql,
   args: { organizationId: string; runId: string },
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const rows = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
         wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-        AND status = 'waiting'
+        AND status = 'waiting' AND detail LIKE 'in_doubt:%'
+        AND NOT EXISTS (
+          SELECT 1 FROM app.automation_node_attempts
+          WHERE run_id = ${args.runId} AND org_id = ${args.organizationId}
+            AND kind = 'connector' AND status = 'started'
+            AND resolution IS NULL
+        )
       RETURNING id
     `;
     if (!rows[0]) return false;
     await enqueueStep(tx, args.organizationId, args.runId, 0);
+    await emitRunHint(tx, args.organizationId, args.runId);
     return true;
   });
+}
+
+/**
+ * Lock a run's row for a decision that will wake it in the same
+ * transaction — taken BEFORE the decided row's own lock. A run's terminal
+ * doors (finish, cancel, delete) lock the run first and the rows that hang
+ * off it after, so a decision taking them the other way round could
+ * deadlock against a stop. Holding the run also orders the decision against
+ * the walker's park: a park that commits first is woken by the decision's
+ * poke, and one that waits for the decision reads it (`suspendRun`). A run
+ * that is not there locks nothing.
+ */
+export async function lockRunInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; runId: string },
+): Promise<void> {
+  await tx`
+    SELECT 1 FROM app.automation_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
+}
+
+/**
+ * A stopping process hands on every run it still holds a lease on: the lease
+ * is released, the run counted as resumed after a shutdown, and one step job
+ * per run queued for whichever process takes it next — one transaction, so
+ * nothing is released without its continuation. When that transaction
+ * cannot commit (the job queue is already closing), the leases are released
+ * alone with an overdue promise, and the next sweep tick of a live process
+ * pokes them. Answers how many runs were handed on.
+ */
+export async function releaseOwnedRunLeases(sql: Sql): Promise<number> {
+  const owner = instanceId();
+  try {
+    return await sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const now = Date.now();
+      const rows = await tx<{ id: string; orgId: string }[]>`
+        UPDATE app.automation_runs SET
+          lease_owner = NULL, lease_expires_at_ms = NULL,
+          wake_at_ms = ${now + RUN_CLAIM_PROMISE_MS},
+          resume_count = resume_count + 1,
+          last_resume_reason = 'shutdown', last_resumed_at_ms = ${now}
+        WHERE status = 'running' AND lease_owner = ${owner}
+          AND lease_epoch = claim_epoch AND lease_expires_at_ms IS NOT NULL
+        RETURNING id, org_id AS "orgId"
+      `;
+      for (const row of rows) {
+        await enqueueStep(tx, row.orgId, row.id, 0);
+        await recordRunEventInTx(tx, {
+          organizationId: row.orgId,
+          runId: row.id,
+          kind: 'handed_off',
+          detail: { reason: 'shutdown_release' },
+        });
+        await emitRunHint(tx, row.orgId, row.id);
+      }
+      return rows.length;
+    });
+  } catch (error) {
+    console.warn(
+      '[automations] could not hand this process’s runs on; releasing their leases for the sweep instead:',
+      error,
+    );
+    return sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const now = Date.now();
+      const rows = await tx<{ id: string }[]>`
+      UPDATE app.automation_runs SET
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        wake_at_ms = ${now},
+        resume_count = resume_count + 1,
+        last_resume_reason = 'shutdown', last_resumed_at_ms = ${now}
+      WHERE status = 'running' AND lease_owner = ${owner}
+        AND lease_epoch = claim_epoch AND lease_expires_at_ms IS NOT NULL
+      RETURNING id
+    `;
+      return rows.length;
+    });
+  }
 }
 
 // ---------------------------------------------------------------- deletion
 
 export async function deleteAutomationCascade(
   sql: Sql,
-  args: { organizationId: string; name: string; actor: string },
-): Promise<void> {
-  await sql.begin(async (tx) => {
+  args: {
+    organizationId: string;
+    name: string;
+    actor: string;
+    /** Compare-and-set on the history: the latest version the caller read.
+     * A version saved since refuses the delete with
+     * `AUTOMATION_VERSION_STALE` (409, `data.latestVersion`) and removes
+     * nothing. Absent, no check (the app's and the REST door's delete). */
+    expectedLatestVersion?: number;
+  },
+): Promise<{ versions: number }> {
+  return sql.begin(async (tx) => {
+    // The audit chain first, then the name, then the trigger row: the order
+    // every definition writer takes them in (`audit.ts`).
+    await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
+    if (args.expectedLatestVersion !== undefined) {
+      const heads = await tx<{ latest: number | null }[]>`
+        SELECT max(version)::int AS latest FROM app.automations
+        WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      `;
+      const latest = heads[0]?.latest ?? null;
+      if (latest !== args.expectedLatestVersion) {
+        throw new AutomationError(
+          'AUTOMATION_VERSION_STALE',
+          latest === null
+            ? `"${args.name}" has no version any more.`
+            : `v${latest} of "${args.name}" was saved after the version the delete expected (v${args.expectedLatestVersion}).`,
+          409,
+          {
+            latestVersion: latest,
+            expectedLatestVersion: args.expectedLatestVersion,
+          },
+        );
+      }
+    }
     // The active-run guard the core store documents (and this wired path had
     // dropped): deleting mid-run would remove the versions the stepper needs
     // to load, stranding the run non-terminal forever — the liveness sweep
     // re-claims it every ~3min and its sandbox session is never freed. Refuse
-    // while any run is live; cancel it (which now stops sessions + audits) or
-    // let it finish first.
+    // while any run is live or held. A hold is not released by cancellation.
     const active = await tx<{ status: string }[]>`
       SELECT status FROM app.automation_runs
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
-        AND status IN ('queued', 'running', 'waiting')
+        AND status IN ('queued', 'running', 'waiting', 'quarantined')
       LIMIT 1
     `;
+    if (active[0]?.status === 'quarantined') {
+      throw new AutomationError(
+        'RUN_QUARANTINED',
+        'A run of this automation is on hold because its external outcome is unknown. Preserve its definition and evidence.',
+        409,
+      );
+    }
     if (active[0]) {
       throw new AutomationError(
         'AUTOMATION_HAS_ACTIVE_RUNS',
@@ -2614,13 +4779,14 @@ export async function deleteAutomationCascade(
         409,
       );
     }
-    await tx`
+    const versions = await tx`
       DELETE FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
     `;
-    await tx`
+    const deployment = await tx<{ version: number }[]>`
       DELETE FROM app.automation_deployments
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      RETURNING version
     `;
     const triggers = await tx<{ id: string; lastSkipReason: string | null }[]>`
       DELETE FROM app.automation_triggers
@@ -2648,7 +4814,19 @@ export async function deleteAutomationCascade(
         deleted_by = EXCLUDED.deleted_by,
         deleted_at_ms = EXCLUDED.deleted_at_ms
     `;
+    const removed = versions.count;
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.deleted',
+      name: args.name,
+      previousState: {
+        versions: removed,
+        deployedVersion: deployment[0]?.version ?? null,
+      },
+    });
     await emitDefinitionHint(tx, args.organizationId, args.name);
+    return { versions: removed };
   });
 }
 

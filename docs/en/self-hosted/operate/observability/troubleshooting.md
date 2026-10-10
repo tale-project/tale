@@ -19,6 +19,14 @@ For a workspace deployment, start with `tale status` and `tale logs <service> --
 
 A loading shell with empty data points first to application requests, not necessarily the web server. Inspect failed requests in the browser and `backend-api` logs. A proxy, expired session, permission refusal, and backend outage require different fixes. [TLS and domains](/self-hosted/configuration/tls-and-domains) and [Authentication](/self-hosted/configuration/authentication) cover their configuration.
 
+### Compare web liveness with application availability
+
+`/api/health` checks the web process. `/api/health/ready` reaches `backend-api` and performs a database round trip; a healthy answer is HTTP 200 with `{"ok":true,"service":"backend"}`. Probe both through the public URL, including its base path. An HTML error page, redirect or cached success does not prove readiness.
+
+The browser checks readiness every 30 seconds while healthy and retries five seconds after a failed check, with an eight-second request deadline. After an outage, failed reads refresh automatically. Writes require an explicit retry. A previously installed service worker shows the cached connection screen when a navigation fails, times out or receives a proxy 5xx, and checks for recovery automatically. A first visit during an outage depends on the edge's unavailable page because no worker has been installed yet.
+
+If an old tab cannot load a module after deployment, check that every web replica mounts the same `static-assets` volume and that publication completed before it became healthy. See [Upgrade and recover a deployment](/self-hosted/operate/upgrades).
+
 ## File uploads or downloads fail
 
 Start by comparing the server's response with the browser's request to the presigned URL. A failure for one organization can come from its own storage connection even when the deployment-default bucket is healthy.
@@ -67,7 +75,7 @@ The non-concurrent command can block work. Coordinate it with your database oper
 
 Check the run or chat error and the owning API/worker logs. A provider `429`, credential refusal, execution timeout, approval wait, and disconnected browser stream are distinct states. An approval wait needs a decision, not a service restart. A disconnected stream can hide an operation that still runs; inspect its stored result before retrying.
 
-For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For harness failures, inspect `sandbox`, `sandbox-llm-gateway`, the runtime image, and session logs.
+For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For agent runtime failures, inspect `sandbox`, `sandbox-llm-gateway`, the runtime image, and session logs.
 
 ## Sandbox network access is refused
 
@@ -76,6 +84,10 @@ Inspect `sandbox-egress` and the target URL. A configured `SANDBOX_EGRESS_ALLOWL
 A healthy egress process does not prove that the remote host, DNS, certificate, or account is available. Keep the specific request error with the incident report.
 
 When many sessions install packages or load pages at once and connections fail with resets while the proxy stays healthy, the proxy may have reached `SANDBOX_EGRESS_MAX_CLIENTS`, the connections it serves at once for all sessions together. Its log then reports that the maximum number of connections was reached. Raise the value, together with the egress container's process and open-file limits, and recreate the egress service.
+
+When one session's connections fail with resets while other sessions still reach the same hosts, that session may already hold `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connections (256 by default), and the proxy refuses its next ones until some close. Raise the value, or set `0` to turn the cap off, and recreate the egress service.
+
+A recreated `sandbox-egress` service (after a deploy or a stack restart) can come back at another address, while sessions that were already running keep sending their traffic to the old one and lose network access. The sandbox service recycles each such session as soon as it is released and idle, and logs `recycling <session>`; the next use starts it again with its workspace intact. A session still in use keeps failing until its work ends, and a pinned session keeps running until you unpin or stop it.
 
 ## Writes fail or storage fills up
 

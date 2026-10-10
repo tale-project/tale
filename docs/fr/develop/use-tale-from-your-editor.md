@@ -179,7 +179,7 @@ Chaque appel est encadré comme une requête de chat, pour la personne dont la c
 - **Le modèle.** Il doit figurer dans ta liste, et l’accès aux modèles de l’organisation doit te l’autoriser au moment de l’appel. Les modèles autorisés des identifiants du fournisseur s’appliquent aussi.
 - **Ce que le modèle sait lire.** Les images exigent un modèle capable de lire des images, et les outils un modèle qui les accepte. Les images passent en parties OpenAI `image_url` avec une URL `data:` ou `https:`, ou en blocs Anthropic `image` en base64 ou avec une URL `https:`, y compris dans les résultats d’outils. Les documents passent en parties OpenAI `file` ou en blocs Anthropic `document`.
 - **Les garde-fous d’entrée.** La sécurité du contenu, la protection PII et le fournisseur de modération de l’organisation lisent chaque texte de la requête avant sa transmission : les instructions système et développeur, tes tours et ceux de l’assistant, les appels d’outils, leurs résultats et les définitions d’outils, ainsi que les documents fournis en texte. Un blocage refuse la requête, un masquage envoie au modèle le texte masqué. Ne sont pas filtrés : les réponses du modèle, ainsi que les images et les documents qui ne sont pas du texte. Les détails se trouvent dans [Garde-fous](/fr/platform/admin/governance/guardrails#model-endpoints).
-- **Les budgets.** Avant l’appel, Tale calcule le pire cas, l’estimation du prompt plus la sortie maximale possible, au prix catalogue du modèle. Si ce pire cas ne tient pas dans ce qui reste sous un plafond de budget qui s’applique à toi, à tes équipes, à l’organisation ou à la clé, Tale refuse l’appel avec `429 BUDGET_EXCEEDED` ; sinon, il le réserve sur ces plafonds tant que l’appel tourne. Un `max_tokens` plus bas passe plus facilement. Ensuite, Tale impute à ton nom et à la clé le coût mesuré par la passerelle de modèles et les tokens déclarés. Un appel que tu interromps pendant que Tale le vérifie encore n’est ni transmis ni imputé. Si tu l’interromps une fois transmis, Tale annule aussi sa requête au fournisseur, et l’appel est quand même imputé : au moins pour son prompt et la sortie qui t’était déjà parvenue, au prix catalogue du modèle. Chaque appel compte pour une requête et apparaît comme **Appel API direct** dans l’analyse de l’usage.
+- **Les budgets.** Avant l’appel, Tale calcule le pire cas, l’estimation du prompt plus la sortie maximale possible, au prix catalogue du modèle. Si ce pire cas ne tient pas dans ce qui reste sous un plafond de budget qui s’applique à toi, à tes équipes, à l’organisation ou à la clé — ou, pour la clé propre d’un projet, à son projet —, Tale refuse l’appel avec `429 BUDGET_EXCEEDED` ; sinon, il le réserve sur ces plafonds tant que l’appel tourne. Un `max_tokens` plus bas passe plus facilement. Ensuite, Tale impute à ton nom et à la clé le coût mesuré par la passerelle de modèles et les tokens déclarés. Un appel que tu interromps pendant que Tale le vérifie encore n’est ni transmis ni imputé. Si tu l’interromps une fois transmis, Tale annule aussi sa requête au fournisseur, et l’appel est quand même imputé : au moins pour son prompt et la sortie qui t’était déjà parvenue, au prix catalogue du modèle. Chaque appel compte pour une requête et apparaît comme **Appel API direct** dans l’analyse de l’usage.
 - **Huit appels à la fois.** Toi et chacune de tes clés pouvez avoir huit appels en cours en même temps. Un neuvième est refusé avec `429 MODEL_API_CONCURRENCY_EXCEEDED` et un `Retry-After` de deux secondes.
 
 Tes outils ne voient jamais de clé de fournisseur. Tale relaie chaque appel par sa passerelle de modèles, avec une clé créée pour cette seule requête et ce seul modèle. Révoquer ta clé API dans **Paramètres > API > REST** met fin à son accès dès la requête suivante ; une réponse déjà en cours de flux se termine.
@@ -349,11 +349,41 @@ Pour partager le serveur avec une équipe dans un `.mcp.json` versionné, fais r
 
 `claude mcp list` indique si Claude Code joint le serveur.
 
+### Prompts et ressources dans Claude Code {#prompts-and-resources}
+
+Une fois le serveur enregistré sous le nom `tale`, tape `/` dans Claude Code pour trouver les prompts de Tale : `/tale:edit_automation`, `/tale:debug_failed_run` et `/tale:add_trigger`. Les arguments suivent la commande, séparés par des espaces, par exemple `/tale:debug_failed_run <run-id>`. Chaque prompt joint ce dont il traite et demande à l’agent de te consulter avant toute mise en service.
+
+Tape `@` pour mentionner une ressource de Tale, par exemple `@tale:tale://runs/<run-id>` pour une exécution ou `@tale:tale://docs/triggers` pour la référence des déclencheurs. Claude Code la lit avec ta clé et la joint à ton message. [Ressources et prompts](/fr/develop/mcp-endpoint#resources-and-prompts) liste chaque adresse et chaque prompt.
+
+### Installer le skill Tale {#tale-skill}
+
+Le skill Tale est un fichier `SKILL.md` au format Agent Skills. Il apprend à ton agent comment travailler dans Tale : la boucle de modification, les tests sur les simulations, les déclencheurs, l’analyse d’une exécution échouée, la lecture d’un refus et les règles qu’il respecte, comme te consulter avant toute mise en service. Ce n’est pas l’un des skills de ton organisation, et il ne nomme ni hôte, ni organisation, ni clé : une seule copie sert à tous tes projets. Place-le là où ton agent lit ses skills :
+
+| Agent | Ce projet | Tous tes projets |
+| --- | --- | --- |
+| Claude Code | `.claude/skills/tale/SKILL.md` | `~/.claude/skills/tale/SKILL.md` |
+| Codex | `.agents/skills/tale/SKILL.md` | `~/.agents/skills/tale/SKILL.md` |
+
+Lis-le par le point d’accès MCP avec ta clé. L’exemple l’enregistre pour Claude Code dans le projet courant ; pour un autre agent, change le dossier :
+
+```bash
+mkdir -p .claude/skills/tale
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'MCP-Protocol-Version: 2025-11-25' \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"tale://docs/skill"}}' \
+  | jq -r '.result.contents[0].text' > .claude/skills/tale/SKILL.md
+```
+
+Un agent connecté peut aussi lire `tale://docs/skill` et enregistrer le fichier lui-même. Le skill correspond à la version de Tale dont il provient : récupère-le de nouveau après une mise à jour. Les références vers lesquelles il renvoie sont lues à chaque fois depuis ton déploiement.
+
 ## Confier tes scripts à un agent de projet
 
 Pour que la modification se fasse dans Tale, dans une sandbox et avec la revue d’une personne, confie le script à un [agent de projet](/fr/platform/projects/project-agents). Tale exécute alors un environnement de code comme OpenCode dans une sandbox, avec le modèle configuré sur l’agent. L’exécution compte dans les budgets du membre qui l’a démarrée et lui est attribuée ; une exécution que tu lances en REST t’est imputée, pas à la clé API. Les fichiers modifiés reviennent comme résultats de la tâche, qui attend ensuite la revue d’une personne. [Choisir un environnement d’agent](/fr/platform/agents/harnesses) compare les environnements ; OpenCode passe uniquement par la passerelle de modèles de Tale et ne reçoit donc jamais de clé de fournisseur.
 
-Pour créer l’agent, il te faut le droit de modifier le projet, donc au moins le rôle Éditeur ; toute personne qui peut ouvrir le projet peut ensuite créer la tâche et y démarrer l’agent. L’organisation doit disposer d’un modèle utilisable par l’environnement et de capacité de sandbox libre. Dans l’application, ouvre l’onglet **Agents** du projet, choisis **Nouvel agent**, sélectionne OpenCode comme harness et un modèle, puis crée une tâche avec le script en pièce jointe, affecte-la à l’agent et démarre-le.
+Pour créer l’agent, il te faut le droit de modifier le projet, donc au moins le rôle Éditeur ; toute personne qui peut ouvrir le projet peut ensuite créer la tâche et y démarrer l’agent. L’organisation doit disposer d’un modèle utilisable par l’environnement et de capacité de sandbox libre. Dans l’application, ouvre l’onglet **Agents** du projet, choisis **Nouvel agent**, sélectionne OpenCode comme environnement d’agent et un modèle, puis crée une tâche avec le script en pièce jointe, affecte-la à l’agent et démarre-le.
 
 La même boucle fonctionne en REST depuis un terminal, avec `tale-api.sh` de l’exemple de chat. Vérifie d’abord que ce déploiement exécute OpenCode pour les agents de projet :
 
@@ -389,14 +419,14 @@ tale_api -X POST "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments"
 echo "TASK_ID=$TASK_ID"
 ```
 
-`externalSystem` et `externalId` rendent la tâche idempotente : un nouvel envoi de la même paire renvoie la tâche existante. Une description contient jusqu’à 20 000 caractères ; pour un script plus long, charge-le dans le projet comme l’explique [Charger un fichier en deux étapes](/fr/develop/api-reference#charger-un-fichier-en-deux-etapes). Un agent répond à son identifiant et à son nom en minuscules, les espaces remplacés par des points ou supprimés ; `@assistant.scripts` fonctionne donc aussi.
+`externalSystem` et `externalId` rendent la tâche idempotente : un nouvel envoi de la même paire renvoie la tâche existante. Une description contient jusqu’à 20 000 caractères ; pour un script plus long, charge-le dans le projet comme l’explique [Charger un fichier en deux étapes](/fr/develop/api-reference#charger-un-fichier-en-deux-etapes). Le commentaire désigne l’agent par son identifiant ; son `handle` fonctionne aussi, ici `@assistant-scripts`, et figure dans ce que tu lis de l’agent. Tale enregistre l’un comme l’autre comme une mention de l’agent lui-même : le commentaire continue de le désigner après un renommage. Relu, son `body` est `[@Assistant scripts](mention:agent/<identifiant de l’agent>) prends cette tâche, s’il te plaît.` et son `bodyText` est `@Assistant scripts prends cette tâche, s’il te plaît.`
 
 La mention affecte la tâche à l’agent et démarre une exécution ; la tâche passe à `in_progress`. Une mention qui ne peut pas démarrer d’exécution reste un simple commentaire, sans message d’erreur, par exemple quand tu ne peux pas modifier la tâche, que l’automatisation des tâches est désactivée ou qu’une autre exécution occupe déjà la tâche. Définis `TASK_ID` sur la valeur affichée par le script, vérifie la tâche, puis lis le compte rendu de l’agent une fois la tâche arrivée à `in_review` :
 
 ```bash
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID" | jq -r '.task.status'
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments?limit=20" \
-  | jq -r '.comments[] | select(.authorType == "agent") | .body'
+  | jq -r '.comments[] | select(.authorType == "agent") | .bodyText'
 ```
 
 Examine les fichiers modifiés dans les résultats de la tâche, dans l’application, avant de valider la tâche. Pour renvoyer l’agent au travail avec des corrections, publie un nouveau commentaire qui le mentionne.

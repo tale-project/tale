@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { AutomationDetailShell } from './automation-detail-shell';
 
@@ -21,21 +21,16 @@ const fixtures = vi.hoisted(() => ({
   error: undefined as unknown,
   dirtyKeys: undefined as ReadonlySet<string> | undefined,
   pathname: '/dashboard/org-1/automations/sync-emails',
-  state: {} as Record<string, unknown>,
 }));
 
-const mockNavigate = vi.hoisted(() => vi.fn());
-
-// The shell reads the location to tell a RESTORED arrival (the rail reopening
-// a remembered automation) from a deliberate one, so a deleted automation falls
-// back to the list instead of dead-ending. No router is mounted here.
+// The shell reads the location to know which tab is open. No router is
+// mounted here.
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({
     pathname: fixtures.pathname,
     search: {},
-    state: fixtures.state,
+    state: {},
   }),
-  useNavigate: () => mockNavigate,
   Link: ({ children, to }: { children: ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -158,9 +153,6 @@ beforeEach(() => {
   fixtures.error = undefined;
   fixtures.dirtyKeys = undefined;
   fixtures.pathname = '/dashboard/org-1/automations/sync-emails';
-  fixtures.state = {};
-  mockNavigate.mockClear();
-  window.localStorage.clear();
 });
 
 describe('AutomationDetailShell', () => {
@@ -285,85 +277,9 @@ describe('AutomationDetailShell', () => {
     ).not.toBeInTheDocument();
   });
 
-  // A remembered automation (the Automations rail tile reopening it, see
-  // `use-navigation-items.ts`) can be gone by the time the rail click lands.
-  // That arrival is marked with `state.navRestore`, and only THAT arrival
-  // redirects: a shared link to the same dead automation keeps explaining
-  // rather than bouncing away.
-  it('drops the stale memory and redirects to the list on a restored arrival', () => {
-    fixtures.automation = null;
-    fixtures.state = { navRestore: true };
-    renderShell();
-
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/automations',
-      params: { id: 'org-1' },
-      replace: true,
-    });
-  });
-
-  it('does not redirect a restored arrival scoped to a project', () => {
-    // Project-scoped automation routes belong to that project's own memory
-    // (`features/home/lib/project-memory.ts`), not the org Automations list.
-    fixtures.automation = null;
-    fixtures.state = { navRestore: true };
-    renderShell({ projectId: 'proj-1' });
-
-    expect(mockNavigate).not.toHaveBeenCalled();
-  });
-
   it('passes an axe audit', async () => {
     const { container } = renderShell();
     await checkAccessibility(container);
-  });
-});
-
-// A navigation AWAY updates `pathname` (and re-runs the write effect) on the
-// render just before this component unmounts, so `pathname` no longer
-// matches the automation this shell is FOR. Regression for a bug where the
-// unguarded effect persisted wherever the user navigated TO — e.g. clicking
-// Automations landed on Knowledge or Home, because that's what the shell
-// last wrote under its own key on its way out.
-describe('AutomationDetailShell — remembering only its own path', () => {
-  const OWN_PATH = '/dashboard/org-1/automations/billing__dunning/editor';
-
-  it('persists its own path while genuinely on it', async () => {
-    fixtures.pathname = OWN_PATH;
-    renderShell();
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.automations.org-1.lastPath'),
-      ).toBe(JSON.stringify(OWN_PATH)),
-    );
-  });
-
-  it('does not overwrite the memory with a pathname that no longer belongs to this automation', async () => {
-    fixtures.pathname = OWN_PATH;
-    const { rerender } = renderShell();
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.automations.org-1.lastPath'),
-      ).toBe(JSON.stringify(OWN_PATH)),
-    );
-
-    // Simulate the render right before this shell unmounts on the way to
-    // Knowledge: `pathname` has already moved, this component hasn't yet.
-    fixtures.pathname = '/dashboard/org-1/documents';
-    rerender(
-      <AutomationDetailShell
-        organizationId="org-1"
-        automationSlug="billing/dunning"
-      >
-        <div />
-      </AutomationDetailShell>,
-    );
-
-    // The last GOOD path survives untouched — never Knowledge's path.
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.automations.org-1.lastPath'),
-      ).toBe(JSON.stringify(OWN_PATH)),
-    );
   });
 });
 

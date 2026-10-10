@@ -56,6 +56,115 @@ export async function assertComposeAvailable(): Promise<void> {
     throw preconditionError(result.detail, result.fix);
 }
 
+/**
+ * The oldest Docker Engine Tale supports. Tale publishes its images with
+ * zstd-compressed layers, which Docker pulls from Engine 23.0 on, and keeps
+ * the Compose files and health checks it generates working down to Engine 24.
+ */
+export const MIN_DOCKER_ENGINE_MAJOR = 24;
+const ZSTD_DOCKER_ENGINE_MAJOR = 23;
+
+const engineSchema = z.object({
+  Version: z.string().optional(),
+  Platform: z.object({ Name: z.string() }).optional(),
+  Components: z
+    .array(z.object({ Name: z.string(), Version: z.string() }))
+    .optional(),
+});
+
+/** A server that names Podman: the Docker CLI appends an `Engine` component
+ * of its own, carrying the server's version, to any server that lists none —
+ * so Podman 5.x would read as "Docker Engine 5". */
+const PODMAN_RE = /podman/i;
+
+/**
+ * Judge the server `docker version --format '{{json .Server}}'` describes.
+ * Only Docker's own engine, the component named `Engine`, is judged by its
+ * version: another engine behind the Docker API, such as Podman, numbers its
+ * releases its own way, and one that names itself is never judged by the
+ * `Engine` component the Docker CLI adds for it. An engine too old to list
+ * components is Docker's.
+ */
+export function checkDockerEngine(server: unknown): SetupCheck {
+  const supported = `Docker Engine ${MIN_DOCKER_ENGINE_MAJOR}.0 or later`;
+  const unknown: SetupCheck = {
+    id: 'engine',
+    status: 'warn',
+    detail: 'Could not determine the Docker Engine version.',
+    fix: `Run docker version and check that the server is ${supported}.`,
+  };
+  const result = engineSchema.safeParse(server);
+  if (!result.success) return unknown;
+  const { Components: components, Platform: platform } = result.data;
+  const otherEngine =
+    PODMAN_RE.test(platform?.Name ?? '') ||
+    (components ?? []).some(
+      (component) =>
+        component.Name !== 'Engine' && PODMAN_RE.test(component.Name),
+    );
+  const engine = otherEngine
+    ? undefined
+    : components
+      ? components.find((component) => component.Name === 'Engine')
+      : { Version: result.data.Version };
+  if (!engine) {
+    const names = (components ?? [])
+      .map((component) => component.Name)
+      .filter((name) => name !== 'Engine' || !otherEngine);
+    return {
+      id: 'engine',
+      status: 'warn',
+      detail: `The Docker server is not Docker Engine (${names.join(', ') || 'no components'}); its version is not checked.`,
+      fix: `Tale supports ${supported}: its images have zstd-compressed layers, which the engine must be able to pull.`,
+    };
+  }
+  const version = engine.Version ?? '';
+  const major = Number(/^v?(\d+)\./.exec(version)?.[1] ?? Number.NaN);
+  if (!Number.isInteger(major)) return unknown;
+  if (major < MIN_DOCKER_ENGINE_MAJOR) {
+    return {
+      id: 'engine',
+      status: 'fail',
+      detail:
+        `Docker Engine ${version} is older than ${MIN_DOCKER_ENGINE_MAJOR}.0, the oldest engine Tale supports.` +
+        (major < ZSTD_DOCKER_ENGINE_MAJOR
+          ? ` It cannot pull Tale's images: their layers are zstd-compressed, which Docker reads from Engine ${ZSTD_DOCKER_ENGINE_MAJOR}.0 on.`
+          : ''),
+      fix: `Upgrade Docker so that the server runs ${supported}, then retry.`,
+    };
+  }
+  return { id: 'engine', status: 'ok', detail: `Docker Engine ${version}.` };
+}
+
+/** The Docker server's own description, or null when it cannot be read. */
+async function readDockerServer(probe = probeDocker): Promise<unknown> {
+  const server = await probe(['version', '--format', '{{json .Server}}']);
+  try {
+    return JSON.parse(server ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+/** Ask the Docker server for its engine version and judge it. */
+export async function probeDockerEngine(
+  probe = probeDocker,
+): Promise<SetupCheck> {
+  return checkDockerEngine(await readDockerServer(probe));
+}
+
+/**
+ * The launch path refuses an engine that cannot run Tale before it downloads
+ * any images; an engine whose version cannot be judged passes.
+ */
+export async function assertDockerEngineSupported(
+  probe = probeDocker,
+): Promise<void> {
+  const result = await probeDockerEngine(probe);
+  if (result.status === 'fail')
+    throw preconditionError(result.detail, result.fix);
+}
+
 async function checkPort(port: number, host: string): Promise<SetupCheck> {
   return new Promise((resolve) => {
     const server = createServer();
@@ -129,17 +238,7 @@ export async function collectSetupChecks(
   }
 
   if (daemon.status === 'ok') {
-    const server = await deps.probe([
-      'version',
-      '--format',
-      '{{json .Server}}',
-    ]);
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(server ?? 'null');
-    } catch {
-      parsed = null;
-    }
+    const parsed = await readDockerServer(deps.probe);
     const result = serverSchema.safeParse(parsed);
     if (!result.success) {
       checks.push({
@@ -170,6 +269,7 @@ export async function collectSetupChecks(
           : {}),
       });
     }
+    checks.push(checkDockerEngine(parsed));
   }
 
   // DOCKER_CONTEXT overrides DOCKER_HOST, as it does for Docker itself.

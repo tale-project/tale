@@ -2,9 +2,9 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 import { render, screen } from '@/tests/utils/render';
 
-import enMessages from '../../../../messages/en.yml';
 import { AppSidebar } from './app-sidebar';
 
 vi.mock('./sidebar-context', () => ({
@@ -22,15 +22,23 @@ type MockLinkProps = React.ComponentProps<'a'> & {
   to?: string;
   params?: Record<string, string>;
   preload?: string;
+  search?: Record<string, unknown>;
 };
 
 vi.mock('@tanstack/react-router', () => ({
+  // `search` is a router prop, not a DOM attribute — surfaced as data-* so a
+  // test can assert what a link navigates with.
   Link: React.forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
-    { to, params: _params, preload: _preload, children, ...rest },
+    { to, params: _params, preload: _preload, search, children, ...rest },
     ref,
   ) {
     return (
-      <a ref={ref} href={to} {...rest}>
+      <a
+        ref={ref}
+        href={to}
+        data-search={search ? JSON.stringify(search) : undefined}
+        {...rest}
+      >
         {children}
       </a>
     );
@@ -98,6 +106,14 @@ describe('AppSidebar', () => {
       'href',
       '/dashboard/$id/chat',
     );
+  });
+
+  it('opens a fresh chat from the logo, never the last one', () => {
+    render(<AppSidebar organizationId="org-1" />);
+
+    const logo = screen.getByRole('link', { name: 'Tale' });
+    expect(logo).toHaveAttribute('href', '/dashboard/$id/chat');
+    expect(logo).toHaveAttribute('data-search', '{"new":true}');
   });
 
   describe('accessibility', () => {

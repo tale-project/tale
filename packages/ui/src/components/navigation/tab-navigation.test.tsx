@@ -3,7 +3,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { TabNavigation } from './tab-navigation';
 
@@ -54,7 +54,7 @@ describe('TabNavigation', () => {
           ]}
         />,
       );
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
   });
 

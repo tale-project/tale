@@ -7,11 +7,16 @@ import { AppError } from '@/lib/shared/errors/app-error';
 import {
   useProjectDependencies,
   useTask,
+  useTaskActivity,
+  useTaskAgentRuns,
+  useTaskDiscussion,
   useTaskOpsIndicators,
   useTaskOpsIndicatorsAcrossProjects,
 } from './queries';
 
 const mocks = vi.hoisted(() => ({
+  paginatedRead: vi.fn(),
+  loadMore: vi.fn(),
   result: {
     data: undefined as unknown,
     isLoading: true,
@@ -23,14 +28,49 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => mocks.result,
 }));
 vi.mock('@/app/hooks/use-cached-paginated-query', () => ({
-  useCachedPaginatedQuery: () => ({ results: [], status: 'Exhausted' }),
+  useCachedPaginatedQuery: (...args: unknown[]) => {
+    mocks.paginatedRead(...args);
+    return {
+      results: [],
+      status: 'CanLoadMore',
+      loadMore: mocks.loadMore,
+    };
+  },
 }));
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
 beforeEach(() => {
+  mocks.paginatedRead.mockClear();
+  mocks.loadMore.mockClear();
   mocks.result = { data: undefined, isLoading: true, error: null };
+});
+
+describe('task history read defaults', () => {
+  it('keeps empty histories stable while they load', () => {
+    const activity = renderHook(() => useTaskActivity('task-1'));
+    const runs = renderHook(() => useTaskAgentRuns('task-1'));
+    const firstActivity = activity.result.current.activity;
+    const firstRuns = runs.result.current.runs;
+    activity.rerender();
+    runs.rerender();
+
+    expect(activity.result.current.activity).toBe(firstActivity);
+    expect(runs.result.current.runs).toBe(firstRuns);
+  });
+
+  it('opens a bounded latest page and keeps earlier comments reachable', () => {
+    const { result } = renderHook(() => useTaskDiscussion('task-1'));
+    expect(mocks.paginatedRead).toHaveBeenCalledWith(
+      'tasks/queries:listTaskDiscussion',
+      { taskId: 'task-1', organizationId: 'org-1' },
+      { initialNumItems: 30 },
+    );
+    expect(result.current.hasEarlier).toBe(true);
+    result.current.loadEarlier();
+    expect(mocks.loadMore).toHaveBeenCalledWith(30);
+  });
 });
 
 // A deep link to a deleted or foreign task used to resolve to `task: null`

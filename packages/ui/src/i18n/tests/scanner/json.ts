@@ -59,7 +59,11 @@ export function scanJson(source: JsonSource, repoRoot: string): Fragment[] {
         column: 1,
       },
       text: applyJsonMasks(entry.value),
-      key: entry.key,
+      // A topic file holds one namespace: its keys read as `<topic>.<key>`.
+      key:
+        source.keyPrefix === undefined
+          ? entry.key
+          : `${source.keyPrefix}.${entry.key}`,
       surface: 'json',
       locale: source.locale,
     });

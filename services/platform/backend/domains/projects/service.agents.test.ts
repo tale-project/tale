@@ -20,6 +20,8 @@ import {
   deleteProjectAgent,
   detachSkillFromAgents,
   insertManagedProjectAgent,
+  listProjectAgents,
+  listProjectAgentsForApp,
   listProjectsPage,
   updateProjectAgent,
 } from './service.ts';
@@ -101,6 +103,8 @@ function fakeTx(
     nameTaken?: boolean;
     insertedId?: string;
     archived?: boolean;
+    instructions?: string;
+    updatedAt?: number;
   } = {},
 ): {
   tx: TransactionSql;
@@ -111,7 +115,13 @@ function fakeTx(
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
     if (text.includes('FROM app.project_agents WHERE id = ?')) {
-      return Promise.resolve([AGENT]);
+      return Promise.resolve([
+        {
+          ...AGENT,
+          instructions: options.instructions ?? AGENT.instructions,
+          updatedAt: options.updatedAt ?? AGENT.updatedAt,
+        },
+      ]);
     }
     if (
       text.startsWith('INSERT INTO app.project_agents') &&
@@ -142,7 +152,10 @@ function fakeTx(
     }
     return Promise.resolve([]);
   };
-  const tx = Object.assign(run, { unsafe: (text: string) => text });
+  const tx = Object.assign(run, {
+    unsafe: (text: string) => text,
+    savepoint: (work: (sp: typeof run) => unknown) => work(run),
+  });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js transaction
   return { tx: tx as unknown as TransactionSql, statements };
 }
@@ -161,6 +174,7 @@ const updates = (statements: Statement[]) =>
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 /**
@@ -170,7 +184,7 @@ afterEach(() => {
  * client that reuses on 409 and gives up on 400 gave up on a recoverable
  * collision.
  */
-describe('a duplicate agent name is the 409 every other duplicate answers', () => {
+describe('a duplicate agent name is the 409 every other duplicate answers [PROJ-R8]', () => {
   it('refuses a create whose name another agent carries, in any case, writing nothing', async () => {
     const { tx, statements } = fakeTx(['REVIEW_TOKEN'], { nameTaken: true });
     await expect(
@@ -195,7 +209,7 @@ describe('a duplicate agent name is the 409 every other duplicate answers', () =
     ).toBe(false);
   });
 
-  it('refuses a create on an archived project with PROJECT_ARCHIVED, not a permission code', async () => {
+  it('refuses a create on an archived project with PROJECT_ARCHIVED, not a permission code [PROJ-R7]', async () => {
     // Archived = read-only: the guard used to answer PROJECT_FORBIDDEN, which
     // the dialog rendered as "Couldn't save the agent" — nothing said the
     // project was archived. The distinct code lets the UI say "restore it".
@@ -246,7 +260,7 @@ describe('the harness rule is the models door’s eligible set', () => {
       connectors: [],
     });
 
-  it('refuses a harness that brings its own credentials, and an unknown one, naming the eligible set', async () => {
+  it('refuses a harness that brings its own credentials, and an unknown one, naming the eligible set [PROJ-R9]', async () => {
     for (const harness of ['cursor', 'not-a-harness']) {
       const { tx, statements } = fakeTx();
       await expect(create(tx, harness)).rejects.toMatchObject({
@@ -281,7 +295,55 @@ describe('the harness rule is the models door’s eligible set', () => {
 });
 
 describe('updateProjectAgent — the optimistic precondition', () => {
-  it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing', async () => {
+  it('stores null when existing instructions are cleared', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      instructions: 'Old instructions',
+    });
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+    });
+    const [statement] = updates(statements);
+    expect(updates(statements)).toHaveLength(1);
+    expect(statement.text).toContain('instructions = ?');
+    const instructionIndex =
+      statement.text
+        .slice(0, statement.text.indexOf('instructions = ?'))
+        .split('?').length - 1;
+    expect(statement.values[instructionIndex]).toBeNull();
+  });
+
+  it.each([20, 19, 200])(
+    'advances the revision at wall time %i and refuses the earlier reader',
+    async (now) => {
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const first = fakeTx();
+      await updateProjectAgent(first.tx, auth, {
+        ...config,
+        name: 'First replacement',
+        expectedUpdatedAt: AGENT.updatedAt,
+      });
+      const revision = updates(first.statements)[0]!.values.at(-2);
+      expect(revision).toBeGreaterThan(AGENT.updatedAt);
+      expect(revision).toBeGreaterThanOrEqual(now);
+      const second = fakeTx(['REVIEW_TOKEN'], {
+        updatedAt: revision as number,
+      });
+      vi.clearAllMocks();
+      await expect(
+        updateProjectAgent(second.tx, auth, {
+          ...config,
+          name: 'Stale replacement',
+          expectedUpdatedAt: AGENT.updatedAt,
+        }),
+      ).rejects.toMatchObject({ code: 'PROJECT_AGENT_STALE', status: 409 });
+      expect(updates(second.statements)).toEqual([]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+      expect(outbox.emitHintInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a stale expectedUpdatedAt with 409 and the current stamp, writing nothing [PROJ-R10]', async () => {
     const { tx, statements } = fakeTx();
     await expect(
       updateProjectAgent(tx, auth, { ...config, expectedUpdatedAt: 10 }),
@@ -293,7 +355,7 @@ describe('updateProjectAgent — the optimistic precondition', () => {
     expect(updates(statements)).toEqual([]);
   });
 
-  it('writes nothing for a replace that names the stored configuration (2026-09-19, K4-5)', async () => {
+  it('writes nothing for a replace that names the stored configuration (2026-09-19, K4-5) [PROJ-R10]', async () => {
     const { tx, statements } = fakeTx();
     await updateProjectAgent(tx, auth, {
       ...config,
@@ -328,7 +390,10 @@ function answeringTx(answer: (text: string) => unknown[]): {
     statements.push({ text, values });
     return Promise.resolve(answer(text));
   };
-  const tx = Object.assign(run, { unsafe: (text: string) => text });
+  const tx = Object.assign(run, {
+    unsafe: (text: string) => text,
+    savepoint: (work: (sp: typeof run) => unknown) => work(run),
+  });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js transaction
   return { tx: tx as unknown as TransactionSql, statements };
 }
@@ -343,7 +408,7 @@ describe('the standard agent follows the organization, not an edit', () => {
       return [];
     });
 
-  it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing', async () => {
+  it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing [PROJ-R11]', async () => {
     const { tx, statements } = managedTx();
 
     await expect(updateProjectAgent(tx, auth, config)).rejects.toMatchObject({
@@ -384,7 +449,10 @@ describe('the standard agent follows the organization, not an edit', () => {
     const insert = statements.find((statement) =>
       statement.text.startsWith('INSERT INTO app.project_agents'),
     );
-    expect(insert?.text).toContain('ON CONFLICT (project_id) WHERE managed');
+    // No arbiter: the one-managed-agent index and the handle index both
+    // answer a conflict with no row.
+    expect(insert?.text).toContain('ON CONFLICT DO NOTHING');
+    expect(insert?.values.slice(-2)).toEqual(['standard-agent', []]);
     expect(
       statements.some((statement) =>
         statement.text.includes(
@@ -457,7 +525,7 @@ describe('the standard agent follows the organization, not an edit', () => {
 });
 
 describe('updateProjectAgent — equipment the project can no longer see', () => {
-  it('validates only the equipment a save ADDS, so a stored but unshared skill blocks nothing else', async () => {
+  it('validates only the equipment a save ADDS, so a stored but unshared skill blocks nothing else [PROJ-R9]', async () => {
     // The agent still names `gone-skill` (unshared from the scope after it
     // was equipped); the author changes the model and adds `docx`. Only
     // the addition is checked (2026-09-26 evaluation, C-09).
@@ -478,6 +546,7 @@ describe('updateProjectAgent — equipment the project can no longer see', () =>
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- template-tag stand-in
     const tx = Object.assign(run, {
       unsafe: (t: string) => t,
+      savepoint: (work: (sp: typeof run) => unknown) => work(run),
     }) as unknown as TransactionSql;
 
     await updateProjectAgent(tx, auth, {
@@ -494,7 +563,7 @@ describe('updateProjectAgent — equipment the project can no longer see', () =>
   });
 });
 
-describe('deleteProjectAgent', () => {
+describe('deleteProjectAgent [PROJ-R12]', () => {
   it('clears the tasks the agent was assigned to, in the same transaction, and counts them in the audit', async () => {
     // The docs' promise ("clears task assignment references while preserving
     // task history") was never kept: the delete touched only the agent row,
@@ -541,6 +610,7 @@ describe('detachSkillFromAgents', () => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- template-tag stand-in
     const tx = Object.assign(run, {
       unsafe: (t: string) => t,
+      savepoint: (work: (sp: typeof run) => unknown) => work(run),
     }) as unknown as TransactionSql;
 
     const detached = await detachSkillFromAgents(tx, 'org_1', 'gone-skill');
@@ -656,5 +726,390 @@ describe('listProjectsPage', () => {
     const listing = statements.find((s) => s.text.includes('ORDER BY'));
     expect(listing?.values.slice(2, 5)).toEqual([false, true, false]);
     expect(listing?.values).toEqual(expect.arrayContaining([500, 'p-7']));
+  });
+});
+
+/** Answers by statement text for the handle cases: the project's agents, the
+ * organization's people and automations, and an insert or update that may
+ * lose the race for a handle. */
+function handleTx(options: {
+  siblings?: {
+    id: string;
+    name: string;
+    handle: string | null;
+    legacyHandles: string[] | null;
+    createdAt: number;
+  }[];
+  members?: { userId: string; email: string | null; name: string | null }[];
+  automations?: { name: string }[];
+  agent?: Record<string, unknown>;
+  /** Inserts answering no row before one lands. */
+  lostInserts?: number;
+  /** Updates failing on the handle index before one lands. */
+  lostUpdates?: number;
+}): { tx: TransactionSql; statements: Statement[] } {
+  const statements: Statement[] = [];
+  let lostInserts = options.lostInserts ?? 0;
+  let lostUpdates = options.lostUpdates ?? 0;
+  const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?').replace(/\s+/g, ' ').trim();
+    statements.push({ text, values });
+    if (text.includes('FROM app.project_agents WHERE id = ?')) {
+      return Promise.resolve([
+        { ...AGENT, handle: 'reviewer', ...options.agent },
+      ]);
+    }
+    if (text.includes('legacy_handles AS "legacyHandles"')) {
+      return Promise.resolve(options.siblings ?? []);
+    }
+    if (text.includes('FROM "member" m JOIN "user" u')) {
+      return Promise.resolve(options.members ?? []);
+    }
+    if (text.includes('FROM app.automations')) {
+      return Promise.resolve(options.automations ?? []);
+    }
+    if (text.includes('FROM app.projects WHERE id = ?')) {
+      return Promise.resolve([PROJECT]);
+    }
+    if (text.startsWith('INSERT INTO app.project_agents')) {
+      if (lostInserts > 0) {
+        lostInserts -= 1;
+        return Promise.resolve([]);
+      }
+      return Promise.resolve([{ id: 'agent-new' }]);
+    }
+    if (text.startsWith('UPDATE app.project_agents SET name')) {
+      if (lostUpdates > 0) {
+        lostUpdates -= 1;
+        return Promise.reject(
+          Object.assign(new Error('duplicate key'), {
+            code: '23505',
+            constraint_name: 'project_agents_project_handle',
+          }),
+        );
+      }
+    }
+    return Promise.resolve([]);
+  };
+  const tx = Object.assign(run, {
+    unsafe: (text: string) => text,
+    savepoint: (work: (sp: typeof run) => unknown) => work(run),
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js transaction
+  return { tx: tx as unknown as TransactionSql, statements };
+}
+
+const insertedHandle = (statements: Statement[]) =>
+  statements
+    .filter((s) => s.text.startsWith('INSERT INTO app.project_agents'))
+    .map((s) => s.values.at(-2));
+
+const updatedHandle = (statements: Statement[]) =>
+  statements
+    .filter((s) => s.text.startsWith('UPDATE app.project_agents SET name'))
+    .map((s) => {
+      const index =
+        s.text.slice(0, s.text.indexOf('handle = ?')).split('?').length - 1;
+      return s.values[index];
+    });
+
+describe('an agent answers to a handle made from its name, unique in its project [PROJ-R18]', () => {
+  const create = (tx: TransactionSql, name: string) =>
+    createProjectAgent(tx, auth, {
+      projectId: 'project-1',
+      name,
+      harness: 'claude-code',
+      model: 'test-model',
+      skills: [],
+      connectors: [],
+    });
+
+  it('stores the handle its name gives', async () => {
+    const { tx, statements } = handleTx({});
+    await expect(create(tx, 'My Opus Agent #3')).resolves.toBe('agent-new');
+    expect(insertedHandle(statements)).toEqual(['my-opus-agent-3']);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        newState: expect.objectContaining({ handle: 'my-opus-agent-3' }),
+      }),
+    );
+  });
+
+  it('takes -02 beside an agent holding the handle, and skips what people and automations answer to', async () => {
+    const taken = handleTx({
+      siblings: [
+        {
+          id: 'agent-1',
+          name: 'My Opus Agent #3',
+          handle: 'my-opus-agent-3',
+          legacyHandles: [],
+          createdAt: 1,
+        },
+      ],
+    });
+    await create(taken.tx, 'My Opus Agent 3');
+    expect(insertedHandle(taken.statements)).toEqual(['my-opus-agent-3-02']);
+
+    const reserved = handleTx({
+      members: [{ userId: 'u1', email: 'ops@example.com', name: 'Ops Team' }],
+      automations: [{ name: 'invoice-checker' }],
+    });
+    await create(reserved.tx, 'Ops');
+    await create(reserved.tx, 'Invoice checker');
+    expect(insertedHandle(reserved.statements)).toEqual([
+      'ops-02',
+      'invoice-checker-02',
+    ]);
+  });
+
+  it('moves to the next handle when a concurrent create took it first', async () => {
+    const { tx, statements } = handleTx({ lostInserts: 2 });
+    await expect(create(tx, 'Reviewer')).resolves.toBe('agent-new');
+    expect(insertedHandle(statements)).toEqual([
+      'reviewer',
+      'reviewer-02',
+      'reviewer-03',
+    ]);
+  });
+
+  it('gives an agent the previous release added its handle and older forms on the next create', async () => {
+    const { tx, statements } = handleTx({
+      siblings: [
+        {
+          id: 'agent-old',
+          name: 'Research Bot',
+          handle: null,
+          legacyHandles: null,
+          createdAt: 1,
+        },
+      ],
+    });
+    await create(tx, 'Research Bot 2');
+    const heal = statements.find((s) =>
+      s.text.startsWith('UPDATE app.project_agents a SET handle'),
+    );
+    expect(heal?.values.slice(0, 3)).toEqual([
+      ['agent-old'],
+      ['research-bot'],
+      [JSON.stringify(['research.bot', 'researchbot'])],
+    ]);
+    expect(insertedHandle(statements)).toEqual(['research-bot-2']);
+  });
+});
+
+describe('an agent moves off a handle someone else came to answer to [PROJ-R19]', () => {
+  // Ines's agent "Invoice checker" held `invoice-checker` before Marco
+  // deployed an automation of that store name, and Olga (ops@corp.test)
+  // joined after the agent "Ops" took `ops`. A person's email name and an
+  // automation's store name are the stronger claims: each agent answers to
+  // the next free handle, shows it, and stores it on its next save.
+  it('stores the next free handle on the agent’s next save', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Invoice checker', handle: 'invoice-checker' },
+      automations: [{ name: 'invoice-checker' }],
+    });
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      name: 'Invoice checker',
+      model: 'other-model',
+    });
+    expect(updatedHandle(statements)).toEqual(['invoice-checker-02']);
+  });
+
+  it('moves a sibling off it on any agent save of the project', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Reviewer', handle: 'reviewer' },
+      siblings: [
+        {
+          id: 'agent-2',
+          name: 'Ops',
+          handle: 'ops',
+          legacyHandles: [],
+          createdAt: 5,
+        },
+      ],
+      members: [{ userId: 'u-olga', email: 'ops@corp.test', name: 'Olga' }],
+    });
+    await updateProjectAgent(tx, auth, { ...config, model: 'other-model' });
+    const heal = statements.find((s) =>
+      s.text.startsWith('UPDATE app.project_agents a SET'),
+    );
+    expect(heal?.values).toContainEqual(['agent-2']);
+    expect(heal?.values).toContainEqual(['ops-02']);
+    expect(updatedHandle(statements)).toEqual(['reviewer']);
+  });
+
+  it('shows the handle it answers to before that save', async () => {
+    const run = (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FROM app.projects WHERE id = ?')) {
+        return Promise.resolve([PROJECT]);
+      }
+      if (text.includes('FROM "member" m JOIN "user" u')) {
+        return Promise.resolve([{ userId: 'u-olga', email: 'ops@corp.test' }]);
+      }
+      return Promise.resolve(
+        text.includes('FROM app.project_agents WHERE project_id = ?')
+          ? [{ ...AGENT, name: 'Ops', managed: false, handle: 'ops' }]
+          : [],
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js root instance
+    const sql = Object.assign(run, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql;
+    const agents = await listProjectAgents(sql, auth, 'project-1');
+    expect(agents.map((agent) => agent.handle)).toEqual(['ops-02']);
+  });
+});
+
+describe('the app reads what an agent answered to before handles [COLLAB-R11]', () => {
+  function agentsSql(rows: object[]): Sql {
+    const run = (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FROM app.projects WHERE id = ?')) {
+        return Promise.resolve([PROJECT]);
+      }
+      return Promise.resolve(
+        text.includes('FROM app.project_agents WHERE project_id = ?')
+          ? rows.map((row) => ({ ...row }))
+          : [],
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js root instance
+    return Object.assign(run, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql;
+  }
+  const rows = [
+    {
+      ...AGENT,
+      name: 'QA Bot',
+      managed: false,
+      handle: 'qa-bot',
+      legacyHandles: ['research.bot', 'researchbot'],
+    },
+    {
+      ...AGENT,
+      id: 'agent-2',
+      name: 'Ops Helper',
+      managed: false,
+      createdAt: 11,
+      handle: null,
+      legacyHandles: null,
+    },
+  ];
+
+  it('hands the app the frozen forms, and the name forms of an agent not frozen yet', async () => {
+    const agents = await listProjectAgentsForApp(
+      agentsSql(rows),
+      auth,
+      'project-1',
+    );
+    expect(
+      agents.map(({ name, handle, legacyHandles }) => ({
+        name,
+        handle,
+        legacyHandles,
+      })),
+    ).toEqual([
+      {
+        name: 'QA Bot',
+        handle: 'qa-bot',
+        legacyHandles: ['research.bot', 'researchbot'],
+      },
+      {
+        name: 'Ops Helper',
+        handle: 'ops-helper',
+        legacyHandles: ['ops.helper', 'opshelper'],
+      },
+    ]);
+  });
+
+  it('keeps them off the API read', async () => {
+    const agents = await listProjectAgents(agentsSql(rows), auth, 'project-1');
+    expect(agents.every((agent) => !('legacyHandles' in agent))).toBe(true);
+    expect(agents.map((agent) => agent.handle)).toEqual([
+      'qa-bot',
+      'ops-helper',
+    ]);
+  });
+});
+
+describe('renaming an agent gives it the handle of its new name [PROJ-R19]', () => {
+  it('takes the new name’s handle and frees the old one', async () => {
+    const { tx, statements } = handleTx({
+      agent: {
+        name: 'Research Bot',
+        handle: 'research-bot',
+        legacyHandles: [],
+      },
+    });
+    await updateProjectAgent(tx, auth, { ...config, name: 'QA Bot' });
+    expect(updatedHandle(statements)).toEqual(['qa-bot']);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        previousState: expect.objectContaining({ handle: 'research-bot' }),
+        newState: expect.objectContaining({ handle: 'qa-bot' }),
+      }),
+    );
+  });
+
+  it('keeps the handle when only case or punctuation changes, and on any other save', async () => {
+    const recased = handleTx({
+      agent: { name: 'QA Bot', handle: 'qa-bot-02' },
+    });
+    await updateProjectAgent(recased.tx, auth, { ...config, name: 'qa-bot' });
+    expect(updatedHandle(recased.statements)).toEqual(['qa-bot-02']);
+
+    const model = handleTx({ agent: { name: 'QA Bot', handle: 'qa-bot' } });
+    await updateProjectAgent(model.tx, auth, {
+      ...config,
+      name: 'QA Bot',
+      model: 'other-model',
+    });
+    expect(updatedHandle(model.statements)).toEqual(['qa-bot']);
+  });
+
+  it('drops a number the old name carried, though the old handle reads like a twin of the new one', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Tax agent 2025', handle: 'tax-agent-2025' },
+    });
+    await updateProjectAgent(tx, auth, { ...config, name: 'Tax agent' });
+    expect(updatedHandle(statements)).toEqual(['tax-agent']);
+  });
+
+  it('writes nothing, a handle included, for a save that changes nothing [PROJ-R10]', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Reviewer', handle: null, secrets: [] },
+    });
+    await updateProjectAgent(tx, auth, config);
+    expect(updates(statements)).toEqual([]);
+  });
+
+  it('moves to the next handle when a concurrent save took it first', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Research Bot', handle: 'research-bot' },
+      lostUpdates: 1,
+    });
+    await updateProjectAgent(tx, auth, { ...config, name: 'QA Bot' });
+    expect(updatedHandle(statements)).toEqual(['qa-bot', 'qa-bot-02']);
+  });
+
+  it('freezes what an agent the previous release added answered to, from the name it had', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Research Bot', handle: null },
+    });
+    await updateProjectAgent(tx, auth, { ...config, name: 'QA Bot' });
+    const update = statements.find((s) =>
+      s.text.startsWith('UPDATE app.project_agents SET name'),
+    );
+    expect(update?.text).toContain(
+      'legacy_handles = COALESCE(legacy_handles, ?::text[])',
+    );
+    expect(update?.values).toContainEqual(['research.bot', 'researchbot']);
+    expect(updatedHandle(statements)).toEqual(['qa-bot']);
   });
 });

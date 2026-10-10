@@ -40,7 +40,7 @@ function port(overrides: Partial<GatewayKeySettlementPort> = {}) {
 const warn = vi.fn();
 
 describe('settleGatewayKey', () => {
-  it('books the spend, then revokes and marks — in that order', async () => {
+  it('books the spend, then revokes and marks — in that order [SBX-R15]', async () => {
     const { port: p, calls } = port();
 
     const outcome = await settleGatewayKey(
@@ -58,7 +58,7 @@ describe('settleGatewayKey', () => {
     expect(settlementPending(outcome)).toBe(false);
   });
 
-  it('defers everything — and deletes nothing — when the gateway cannot answer', async () => {
+  it('defers everything — and deletes nothing — when the gateway cannot answer [SBX-R15]', async () => {
     const { port: p, calls } = port({
       readSpend: async () => ({ status: 'unavailable' }),
     });
@@ -91,7 +91,7 @@ describe('settleGatewayKey', () => {
     expect(calls).toEqual([]);
   });
 
-  it('closes both facts without a figure for a key the gateway no longer knows', async () => {
+  it('closes both facts without a figure for a key the gateway no longer knows [SBX-R15]', async () => {
     const { port: p, calls } = port({
       readSpend: async () => ({ status: 'gone' }),
     });
@@ -130,7 +130,7 @@ describe('settleGatewayKey', () => {
     expect(settlementPending(outcome)).toBe(true);
   });
 
-  it('resumes from a booked spend: no second read or booking, just the revoke', async () => {
+  it('resumes from a booked spend: no second read or booking, just the revoke [SBX-R15]', async () => {
     const { port: p, calls } = port();
 
     const outcome = await settleGatewayKey(

@@ -31,17 +31,15 @@ import {
 } from 'react';
 import type { Components, Options as MarkdownOptions } from 'react-markdown';
 import Markdown from 'react-markdown';
-import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
 
-import { baseComponents, makePreComponent } from '../markdown';
-import { remarkCjkAttention } from '../plugins/micromark-cjk-attention';
+import { baseComponents, makePreComponent } from '../base-components';
 import { rehypeNumericColumns } from '../plugins/rehype-numeric-columns';
+import { CHAT_REMARK_PLUGINS } from '../remark-plugin-lists';
 import type { MarkdownComponentMap, MarkdownComponentType } from '../types';
 import { findBlockSplitPoint } from './find-block-split';
+import { useLazyKatex } from './lazy-katex';
 import { normalizeHtmlBlocks } from './normalize-html-blocks';
 import { rehypeRevealSegments } from './rehype-reveal-segments';
 import { remendMarkdown } from './remend-markdown';
@@ -81,27 +79,11 @@ const chatSanitizeSchema = {
   },
 };
 
-const remarkDisableIndentedCode = function (this: {
-  data: () => { micromarkExtensions?: { disable?: { null?: string[] } }[] };
-}) {
-  const data = this.data();
-  if (!data.micromarkExtensions) data.micromarkExtensions = [];
-  data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
-};
-
 type PluginList = NonNullable<MarkdownOptions['remarkPlugins']>;
 
-// Cast through `as PluginList` because `remarkCjkAttention` and
-// `remarkDisableIndentedCode` use narrowed `this`-types for type-safe
-// data() access — narrower than unified's `Plugin` signature, but
-// structurally compatible at runtime.
-const REMARK_PLUGINS: PluginList = [
-  remarkDisableIndentedCode,
-  remarkCjkAttention,
-  remarkGfm,
-  // Parse `$…$`/`$$…$$` into `language-math` nodes for rehypeKatex below.
-  remarkMath,
-] as PluginList;
+// The list lives in a plain module so a reader that parses without rendering
+// (the platform's backend) parses exactly as this component does.
+const REMARK_PLUGINS: PluginList = CHAT_REMARK_PLUGINS;
 // Shared prefix for both chains. `rehypeKatex` is appended per-chain (never
 // here) because it MUST run last: after `rehypeSanitize` — KaTeX's rich
 // output is trusted (the TeX source is escaped by KaTeX) and must not be
@@ -116,17 +98,22 @@ const REHYPE_BASE: PluginList = [
   rehypeNumericColumns,
   [rehypeSanitize, chatSanitizeSchema],
 ];
-const REHYPE_PLUGINS: PluginList = [...REHYPE_BASE, rehypeKatex];
 // Streaming-only chain: additionally wraps prose in clause-sized
 // `.stream-seg` spans (AFTER sanitize, so the spans survive) so newly
 // revealed chunks fade in via the `.stream-reveal` mount animation. The
 // stable half renders without segment spans — completed content carries no
 // animation markup.
-const REHYPE_PLUGINS_STREAMING: PluginList = [
+const REHYPE_STREAMING_BASE: PluginList = [
   ...REHYPE_BASE,
   rehypeRevealSegments,
-  rehypeKatex,
 ];
+
+type RehypePlugin = PluginList[number];
+
+/** A chain with KaTeX last, once `useLazyKatex` has loaded it. */
+function withKatex(chain: PluginList, katex: RehypePlugin | null): PluginList {
+  return katex === null ? chain : [...chain, katex];
+}
 
 // ============================================================================
 // CONSTANTS
@@ -265,11 +252,13 @@ const StreamingMarkdown = memo(
     revealedLength,
     components,
     showCursor,
+    katex,
   }: {
     content: string;
     revealedLength: number;
     components?: MarkdownComponentMap;
     showCursor?: boolean;
+    katex: RehypePlugin | null;
   }) {
     const rawRevealed = content ? content.slice(0, revealedLength) : '';
     // normalizeHtmlBlocks runs first so block-level HTML tags get the blank
@@ -417,7 +406,7 @@ const StreamingMarkdown = memo(
       <div ref={containerRef} className="stream-reveal">
         <Markdown
           remarkPlugins={REMARK_PLUGINS}
-          rehypePlugins={REHYPE_PLUGINS_STREAMING}
+          rehypePlugins={withKatex(REHYPE_STREAMING_BASE, katex)}
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
           components={componentsWithCursor as Components}
         >
@@ -432,7 +421,8 @@ const StreamingMarkdown = memo(
       prevProps.content === nextProps.content &&
       prevProps.revealedLength === nextProps.revealedLength &&
       prevProps.showCursor === nextProps.showCursor &&
-      prevProps.components === nextProps.components
+      prevProps.components === nextProps.components &&
+      prevProps.katex === nextProps.katex
     );
   },
 );
@@ -449,9 +439,11 @@ const StableMarkdown = memo(
   function StableMarkdown({
     content,
     components,
+    katex,
   }: {
     content: string;
     components?: MarkdownComponentMap;
+    katex: RehypePlugin | null;
   }) {
     // Same normalization as StreamingMarkdown — block-level HTML tags need
     // surrounding blank lines for CommonMark to parse markdown inside them.
@@ -459,7 +451,7 @@ const StableMarkdown = memo(
     return (
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
+        rehypePlugins={withKatex(REHYPE_BASE, katex)}
         components={components}
       >
         {normalized}
@@ -468,7 +460,8 @@ const StableMarkdown = memo(
   },
   (prevProps, nextProps) =>
     prevProps.content === nextProps.content &&
-    prevProps.components === nextProps.components,
+    prevProps.components === nextProps.components &&
+    prevProps.katex === nextProps.katex,
 );
 
 // ============================================================================
@@ -483,10 +476,14 @@ export function IncrementalMarkdown({
   showCursor,
   'aria-busy': ariaBusy,
 }: IncrementalMarkdownProps) {
+  const settled = revealPosition >= content.length && ariaBusy !== true;
   const splitIndex = useMemo(
-    () => findBlockSplitPoint(content, revealPosition),
-    [content, revealPosition],
+    // Completed messages take one stable parse below. Scanning their entire
+    // history for a streaming boundary cannot affect that render.
+    () => (settled ? 0 : findBlockSplitPoint(content, revealPosition)),
+    [content, revealPosition, settled],
   );
+  const katex = useLazyKatex(content);
 
   const stableContent = splitIndex > 0 ? content.slice(0, splitIndex) : '';
   const streamContent = content.slice(splitIndex);
@@ -513,11 +510,15 @@ export function IncrementalMarkdown({
   // `aria-busy` prop (isStreaming || isDraining from the caller), not
   // internal drain state, so the streaming half keeps rendering until the
   // final reveal tick lands.
-  if (revealPosition >= content.length && ariaBusy !== true) {
+  if (settled) {
     return (
       <div className={className} aria-busy={false}>
         {content && (
-          <StableMarkdown content={content} components={stableMerged} />
+          <StableMarkdown
+            content={content}
+            components={stableMerged}
+            katex={katex}
+          />
         )}
       </div>
     );
@@ -526,7 +527,11 @@ export function IncrementalMarkdown({
   return (
     <div className={className} aria-busy={ariaBusy}>
       {stableContent && (
-        <StableMarkdown content={stableContent} components={stableMerged} />
+        <StableMarkdown
+          content={stableContent}
+          components={stableMerged}
+          katex={katex}
+        />
       )}
       {streamContent && (
         <StreamingMarkdown
@@ -539,6 +544,7 @@ export function IncrementalMarkdown({
           revealedLength={streamRevealLength}
           components={streamingMerged}
           showCursor={showCursor}
+          katex={katex}
         />
       )}
     </div>

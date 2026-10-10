@@ -1,0 +1,121 @@
+enrollment:
+  title: Two-factor authentication
+  description: Protect your account with a time-based code from an authenticator app.
+  enabledHint: Two-factor authentication is active on your account.
+  requiredByOrg:
+    Your organization requires two-factor authentication. Enrol now
+    to continue.
+  enableButton: Enable two-factor
+  disableButton: Disable
+  regenerateButton: Regenerate backup codes
+  enabled: Two-factor authentication enabled
+  disabled: Two-factor authentication disabled
+  passwordPromptDescription: Confirm your password to start setting up two-factor authentication.
+  disablePromptDescription: Confirm your password to turn off two-factor authentication.
+  disableEnforcedWarning:
+    Your organization requires two-factor authentication. If
+    you disable it, you'll have to set it up again the next time you sign in.
+  regeneratePromptDescription: Confirm your password. Generating new codes
+    invalidates all previous backup codes.
+passkeys:
+  title: Passkeys
+  description: Sign in with a passkey (Face ID, Touch ID, Windows Hello, or a
+    security key). A passkey is phishing-resistant and satisfies your
+    organization's two-factor requirement.
+  addButton: Add a passkey
+  revokeButton: Remove
+  revokeConfirmTitle: Remove passkey?
+  revokeConfirmDescription:
+    This removes "{name}" and it can no longer be used to
+    sign in. If it was your only second factor, you may be prompted to set up
+    two-factor authentication again.
+  unnamed: Passkey
+  registered: Passkey registered
+  revoked: Passkey removed
+  empty: You haven't added a passkey yet.
+  namePromptDescription:
+    Give this passkey a name so you can recognize it later
+    (e.g. "MacBook Touch ID").
+  confirmPasswordDescription: You signed in a while ago. Confirm your password to add a passkey.
+  signInAgainDescription: You signed in a while ago. Sign in again, then add your passkey.
+  nameLabel: Passkey name
+  namePlaceholder: MacBook Touch ID
+  attachment:
+    label: Authenticator type
+    any: Any (recommended)
+    platform: This device (Face ID, Touch ID, Windows Hello)
+    crossPlatform: Security key or phone
+  errors:
+    registerFailed: Couldn't register the passkey. Try again.
+    revokeFailed: Couldn't remove the passkey. Try again.
+    listFailed: Couldn't load your passkeys.
+    refreshFailed: Couldn't refresh your passkeys. The list shown may be out of date.
+    confirmFailed: Couldn't confirm your password. Try again.
+setup:
+  title: Set up two-factor authentication
+  qrInstructions: Scan the QR code with an authenticator app (Google
+    Authenticator, 1Password, Authy), then enter the 6-digit code below.
+  manualEntry: 'Or enter manually:'
+  verifyCodeLabel: Verification code
+  verifyButton: Verify and enable
+backupCodes:
+  title: Save your backup codes
+  description: Each code can be used once if you lose access to your authenticator app.
+  warningOnce: We will not show these codes again. Download or copy them now.
+  downloadButton: Download
+  doneButton: Done
+  regenerated: New backup codes generated
+confirmPassword:
+  label: Password
+  submit: Confirm
+  wrongPassword: Wrong password. Repeated failed attempts temporarily lock your account.
+verify:
+  title: Verify your identity
+  description: Enter the 6-digit code from your authenticator app.
+  backupDescription: Enter one of your backup codes.
+  codeLabel: Authentication code
+  useBackupCodeToggle: Use a backup code instead
+  useAuthenticatorToggle: Use the authenticator app instead
+  backupCodeLabel: Backup code
+  submitButton: Verify
+  invalid: Invalid or expired code. Try again.
+  tooManyAttempts: Too many failed attempts. Try again later.
+  success: Signed in
+  backupCodeSuccess: Backup code used. Consider regenerating your backup codes in Settings.
+  usePasskeyButton: Use a passkey instead
+  passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use a code.
+lowBackupCodes:
+  body: Generate a new batch so you can still recover your account if you lose
+    your authenticator.
+  regenerateLink: Regenerate now
+  titleOne: Only 1 backup code remaining
+  titleOther: Only {count} backup codes remaining
+enroll:
+  title: Two-factor required
+  description: Your organization requires two-factor authentication to continue.
+  usePasskeyButton: Register a passkey instead
+grace:
+  body:
+    Your organization will require all members to use a second factor. Enrol
+    now to avoid interruption.
+  setupLink: Set up now
+  titleOne: Two-factor authentication required in {days} day
+  titleOther: Two-factor authentication required in {days} days
+admin:
+  resetButton: Reset two-factor
+  confirmTitle: Reset two-factor authentication?
+  confirmDescription: This disables two-factor for {name} and ends all their
+    active sessions. They will have to enrol again on their next sign-in.
+  passkeys:
+    title: Passkeys
+    confirmTitle: Remove this passkey?
+    confirmDescription: This removes the passkey "{name}" and ends all of the
+      member's active sessions. They will have to sign in again.
+    deviceTypes:
+      singleDevice: Single-device key
+      multiDevice: Synced passkey
+errors:
+  enableFailed: Couldn't start two-factor setup. Try again.
+  disableFailed: Couldn't disable two-factor authentication.
+  regenerateFailed: Couldn't generate new backup codes.
+  invalidCode: Invalid or expired code. Try again.

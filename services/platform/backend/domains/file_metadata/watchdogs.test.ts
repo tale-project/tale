@@ -234,7 +234,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('recoverStuckRagIndexing — the interrupted text', () => {
+describe('recoverStuckRagIndexing — the interrupted text [FMETA-R2]', () => {
   it('points at Retry indexing, never at a re-upload', () => {
     expect(RAG_INTERRUPTED_MESSAGE).toContain('Retry indexing');
     expect(RAG_INTERRUPTED_MESSAGE).not.toMatch(/re-?upload/i);
@@ -285,7 +285,7 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
     expect(vi.mocked(emitHintInTx)).toHaveBeenCalledTimes(1);
   });
 
-  it('never overwrites an already-failed row with the generic text', async () => {
+  it('never overwrites an already-failed row with the generic text [FMETA-R3]', async () => {
     const { sql, statements } = fakeSql([candidate('fm_failed', 'failed')]);
     corpusAnswering([]);
 
@@ -439,10 +439,11 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
     );
   });
 
-  // Index health re-queues a parked file under `FOR UPDATE SKIP LOCKED` and
-  // stops at a short batch: a stamp holding the row's lock at that moment
-  // would leave it parked until the next healthy report.
-  it('leaves a file parked by a bad search index to the index health report', async () => {
+  // Index health — and the hourly usage-limit pass — re-queue a parked file
+  // under `FOR UPDATE SKIP LOCKED` and stop at a short batch: a stamp
+  // holding the row's lock at that moment would leave it parked until the
+  // next pass.
+  it('leaves a file parked by a bad search index, or by a usage limit, to the pass that resumes it', async () => {
     const { sql, statements } = fakeSql([]);
     corpusAnswering([]);
 
@@ -455,11 +456,12 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
     expect(read?.values).toContainEqual([
       'index_rebuilding',
       'index_repair_failed',
+      'usage_limit',
     ]);
   });
 });
 
-describe('recoverStuckRagIndexing — a failure keeps its code with its text', () => {
+describe('recoverStuckRagIndexing — a failure keeps its code with its text [FMETA-R3]', () => {
   const NO_MODEL =
     'No embedding model is configured for this organization. An admin can set one under Settings → Data residency → Embedding model, then retry indexing.';
 
@@ -847,7 +849,7 @@ describe('recoverStuckRagIndexing — who hears a sweep', () => {
   });
 });
 
-describe('recoverStuckRagIndexing — a fault mid-sweep', () => {
+describe('recoverStuckRagIndexing — a fault mid-sweep [FMETA-R4]', () => {
   // Each write commits on its own, and the candidates come in the same
   // order every tick: a row whose write keeps throwing (a lock held across
   // ticks) must hold back neither the rows after it, nor what the lists

@@ -15,6 +15,7 @@ import { useCopy } from '@tale/ui/use-copy';
 import { toast } from '@tale/ui/use-toast';
 import type { TFunction } from 'i18next';
 import { FolderInput } from 'lucide-react';
+import { useMemo } from 'react';
 
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useT } from '@/lib/i18n/client';
@@ -142,47 +143,72 @@ export function moveToProjectMenuItem({
     label: t('moveToProject'),
     icon: FolderInput,
     contentClassName: 'min-w-56',
-    items: [
+    items: () => [
       [
         {
           type: 'custom' as const,
           content: (
-            <PickerSearchList
-              options={[
-                ...projects.map((project) => ({
-                  key: project.id,
-                  search: project.name,
-                  label: (
-                    <span className="flex min-w-0 items-center gap-2">
-                      <ProjectAvatar
-                        name={project.name}
-                        icon={project.icon}
-                        color={project.color}
-                        size={16}
-                        variant="plain"
-                      />
-                      <span className="truncate">{project.name}</span>
-                    </span>
-                  ),
-                  selected: project.id === currentProjectId,
-                  onSelect: () => onMove(project.id),
-                })),
-                ...(currentProjectId !== undefined
-                  ? [
-                      {
-                        key: '__none__',
-                        search: t('removeFromProject'),
-                        label: t('removeFromProject'),
-                        onSelect: () => onMove(null),
-                      },
-                    ]
-                  : []),
-              ]}
-              emptyHint={t('history.noProjects')}
+            <ThreadProjectPicker
+              t={t}
+              projects={projects}
+              currentProjectId={currentProjectId}
+              onMove={onMove}
             />
           ),
         },
       ],
     ],
   };
+}
+
+/** A submenu's contents are mounted only while it is open. Keep the project
+ * walk here, rather than in each closed row's menu definition: a large Home
+ * list otherwise builds every project option once for every chat. */
+function ThreadProjectPicker({
+  t,
+  projects,
+  currentProjectId,
+  onMove,
+}: {
+  t: TFunction;
+  projects: readonly ChatProjectSummary[];
+  currentProjectId: string | undefined;
+  onMove: (projectId: string | null) => void;
+}) {
+  const options = useMemo(
+    () => [
+      ...projects.map((project) => ({
+        key: project.id,
+        search: project.name,
+        label: (
+          <span className="flex min-w-0 items-center gap-2">
+            <ProjectAvatar
+              name={project.name}
+              icon={project.icon}
+              color={project.color}
+              size={16}
+              variant="plain"
+            />
+            <span className="truncate">{project.name}</span>
+          </span>
+        ),
+        selected: project.id === currentProjectId,
+        onSelect: () => onMove(project.id),
+      })),
+      ...(currentProjectId !== undefined
+        ? [
+            {
+              key: '__none__',
+              search: t('removeFromProject'),
+              label: t('removeFromProject'),
+              onSelect: () => onMove(null),
+            },
+          ]
+        : []),
+    ],
+    [t, projects, currentProjectId, onMove],
+  );
+  return (
+    <PickerSearchList options={options} emptyHint={t('history.noProjects')} />
+  );
 }

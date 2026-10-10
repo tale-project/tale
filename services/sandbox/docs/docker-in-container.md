@@ -22,6 +22,40 @@ Docker-in-container is enabled with `SANDBOX_DOCKER_IN_CONTAINER=true`. It is
 an **agent-profile capability** — a `default`-profile session (run_code, crawler
 renders) never starts an inner daemon, on either backend.
 
+Within a DinD-enabled agent session, Docker starts automatically on the first
+connection to its standard socket. The agent uses ordinary `docker` and
+`docker compose` commands; no separate activation command is needed.
+Concurrent first commands share one engine startup. After five minutes with
+no connected clients, the engine stops only when its inventory confirms no
+running, restarting or paused containers and no enabled restart policies.
+An unavailable or unknown inventory
+keeps it running. A later command restarts it against the same Docker store.
+This reduces idle processes; the session retains its configured runtime
+boundary, privileges and resource limits throughout.
+
+Health checks do not start the engine or reset its idle timer. An intentionally
+sleeping engine remains ready for new work. runnerd's `/healthz` reports the
+engine as `docker: { engine, used }`: `cold` until the first Docker command,
+`running` while it starts or runs, `stopped` after it slept or failed, with
+`used` true once it has run in this container. A released session whose engine
+never ran gets the normal released idle window, since it has no image store a
+resume would lose. A failed probe refuses new work
+while runnerd stays live, but one slow probe does not cause session cleanup.
+Probe-based recovery requires at least three completed failures spanning five
+seconds; cached reads do not count again, and a healthy result or a new engine
+clears the engine's failure history. A confirmed startup failure or unexpected
+engine exit can request recovery immediately. The spawner reclaims such a
+session only through its atomic idle claim, preserving pinned or busy sessions
+and the workspace. Stopping the whole session on Docker removes its ephemeral
+inner Docker store; the automatic idle stop of just the inner engine keeps it.
+A real Docker request can attempt engine recovery.
+
+During a rolling upgrade, keep old spawners pinned to their existing runtime
+image until they are replaced. Do not move a runtime tag still used by an old
+spawner: it cannot distinguish a transient probe failure from confirmed failure.
+When the new spawner encounters an older runtime, unhealthy sessions refuse new
+work and retain the normal idle and lifetime cleanup limits.
+
 ### What each tier means for DinD
 
 - **`sysbox`** maps in-container uid 0 to an unprivileged host subuid via a
@@ -154,11 +188,30 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 
 ## Storage & lifecycle
 
+- **Automatic engine sleep.** Stopping only the idle inner engine preserves
+  the workspace, images, named volumes and networks. Its selected address pool
+  stays fixed across activations. A session-container restart with existing
+  container metadata starts the engine immediately to honor restart policies.
+  Running services, enabled restart policies and connected clients prevent
+  automatic engine sleep.
+- **Store trim before sleep.** When an idle engine's images and build cache
+  use more than 10 GiB, it removes its dangling (untagged, unused) images and
+  prunes its build cache to the 5 GiB used most recently before it stops, so
+  a session that keeps its container (a pinned one) does not grow its inner
+  store without bound. Tagged images, images a container uses, containers and
+  volumes stay. The trim is bounded and best-effort: a failure is logged and
+  the engine stops anyway, and a Docker command arriving during the trim
+  keeps the engine running. A store whose volume is limited below 10 GiB (a
+  Kubernetes emptyDir sized smaller) is bounded by that limit instead: the
+  kubelet evicts the Pod at it, so the trim never runs there.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the
   kernel). Stop and destroy remove the container or Pod and its inner store,
   so image cache does **not** persist across an idle stop/resume (cold rebuild).
+  A volume a crash or a missed teardown left behind is removed by the
+  five-minute host sweep once no container references it and it is at least
+  ten minutes old (younger, it may belong to a create about to mount it).
   On Kubernetes, a runner-container restart within the **same Pod** retains
   the `emptyDir`, including image and network state; it does not provide a
   clean inner store after a crash. The workspace PVC has its own lifecycle
@@ -170,11 +223,20 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   `SANDBOX_DIND_INNER_POOL` outside every outer Pod, Service and VPC network;
   changing it requires recreating the session container or Pod. A same-Pod
   container restart keeps its existing Pod environment and inner store.
-- **Disk bound.** A plain Docker named volume has no hard size cap. For a real
-  multi-tenant quota, back the host docker data-root with an XFS project quota
-  (or a fixed-size loopback filesystem). On K8s the `emptyDir.sizeLimit` bounds
-  it (eviction is laggy). **Set a quota before exposing this to untrusted
-  tenants** — an unbounded `docker build` loop is a disk-DoS.
+- **Disk bound.** A plain Docker named volume has no hard size cap. Provision
+  and verify a quota for each session's volume through host storage; putting
+  the Docker data-root on XFS alone does not assign a project quota to each
+  named volume. Tale does not configure those quotas. A fixed-size filesystem
+  for the entire data-root bounds aggregate use, not individual sessions.
+  On K8s the store's `emptyDir.sizeLimit` (`SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`,
+  default `20Gi`) and the Pod's `ephemeral-storage` limit are enforced by
+  eviction, which can lag writes.
+  **Set a quota before exposing this to untrusted tenants** — an unbounded
+  `docker build` loop can fill shared storage. Docker admission also observes
+  the workspace filesystem and, where the spawner's hostname bind verifies
+  it, Docker's metadata filesystem. This free-space floor pauses new creates;
+  it does not constrain already-running writers or observe separately mounted
+  volume/containerd stores. See [session admission](sessions.md).
 - **Caches.** The shared per-org pip/npm/bun caches are **disabled** under DinD
   (per-container userns shifting makes a shared cross-session volume unsafe).
   Installs still work, just uncached across sessions.
@@ -183,6 +245,13 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 
 The Docker backend keeps each session's inner `/var/lib/docker` disposable and
 shares persistent build caches only among sessions from the same organization.
+Optional preparation defaults to five seconds, capped at a quarter of the
+session startup budget, and prepares the three mirrors in parallel. Each session stops waiting at its own startup limit and uses its local builder.
+The shared producer keeps its independent provisioning budget and organization
+lease even if the initiating session stops waiting. Expiry of that shared budget
+cancels queued and active work; cancelled queued work cannot launch helpers later. A late result does not attach a network to an already running
+session. Registering an available remote buildx builder does not itself start
+the session's inner engine.
 `SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting. Set it to `false` on
 the `sandbox` service, or set `sandboxRuntime.dockerBuildCache` in deployment
 configuration, to use only the session's local builder.
@@ -194,16 +263,37 @@ case-sensitive organization hash; ownership labels are verified before any
 resource is reused. The daemon and mirrors have no published ports and do not
 join the shared sandbox network.
 
+A session with its organization's build network also starts its inner engine
+with the organization's `docker.io` mirror as registry mirror, reached over
+plain HTTP on that private network and outside the egress proxy. A `docker pull`
+or `docker compose pull` of a Docker Hub image then reuses the layers any
+session of the organization already fetched; when the mirror does not answer,
+the engine pulls from Docker Hub through the egress proxy as before. The engine
+uses registry mirrors for Docker Hub only, so `ghcr.io` and `quay.io` pulls
+go upstream.
+
 Sessions join both their organization's build network and the existing control
 network. The egress proxy joins the private build network under a local alias;
 forwarding rules prevent that proxy and the session's outer interfaces from
 routing unsolicited traffic between networks. The builder's RUN steps retain
 the transparent proxy and DNS path. A moved egress proxy is reattached and the
 builder's stale egress configuration is repaired during provisioning/adoption.
+A session pins the proxy's address the same way (its relay target, its DNS
+and its inner engine's DNS). The spawner records the address it read right
+before `docker run` in the session's `tale.egress-ip` label; once per sweep it
+reads the proxy's address on the sandbox network (one inspect of the
+remembered proxy container) and recycles a session that pinned another one as
+soon as it is released and doing nothing, through the same runnerd claim an
+idle stop takes. A busy or pinned session is logged once and left running.
+Kubernetes sessions reach the proxy through its Service's cluster IP, which
+stays the same while the proxy's Pods are replaced, so they need no such check.
 
 The runtime derives its buildx builder name from the configured endpoint, so
-persistent workspaces do not retain an earlier global endpoint by name. Builder
-setup failure selects the local builder. A bare remote `docker build` needs
+persistent workspaces do not retain an earlier global endpoint by name. A
+resumed workspace whose agent user already owns that builder's definition
+selects it without starting the Docker CLI; otherwise startup inspects or
+creates it. Builder setup failure, including a failure to derive the name,
+selects the local builder and never stops the session from starting. A bare remote `docker build` needs
 `--load` before the resulting image can run in the session's inner engine.
 
 On upgrade, organization caches start cold. The old global containers are
@@ -242,8 +332,9 @@ boundary and upgrade requirements.
   `docker compose up --build`, so DinD adjusts them:
   - **`fsize`** is lifted to unlimited (the 512 MiB per-file cap otherwise fails
     layer extraction of any image shipping a larger file — e.g. paradedb's
-    ~885 MiB debug symbols — with `EFBIG`). The disk bound is the
-    `/var/lib/docker` volume quota above, not a per-file ceiling. `nofile` is
+    ~885 MiB debug symbols — with `EFBIG`). Hard disk bounds require the
+    operator-provisioned volume quotas described above; Tale itself checks
+    admission headroom, which cannot stop a running build filling the disk. `nofile` is
     raised to a daemon-class range.
   - **`pids`** is raised to 16384 (a parallel multi-service build's
     dockerd + buildkit + N executors blow past the 512 agent default and tools

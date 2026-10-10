@@ -12,7 +12,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Datenresidenz in der Cloud verstehen",
-      "description": "Speicherort und Datenflüsse zu Anbietern und Konnektoren vor der Cloud-Nutzung prüfen."
+      "description": "Speicherort und Datenflüsse zu Anbietern und Connectors vor der Cloud-Nutzung prüfen."
     }
   },
   "de:cloud/index": {
@@ -105,6 +105,14 @@
       "i18nLintExclude": ""
     }
   },
+  "de:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Einstellungen über MCP",
+      "description": "Lass einen Coding-Agenten die Einstellungen von Tale über den MCP-Endpunkt lesen und ändern — im Rahmen der Rolle der Person, deren API-Schlüssel er nutzt."
+    }
+  },
   "de:develop/overview": {
     "slug": "develop/overview",
     "locale": "de",
@@ -192,15 +200,6 @@
     "frontmatter": {
       "title": "Deine erste Nachricht senden",
       "description": "Bei Tale anmelden, einen Chat starten, ein Modell wählen und die Antwort prüfen."
-    }
-  },
-  "de:index": {
-    "slug": "index",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Tale-Dokumentation",
-      "description": "Koordiniere Teammitglieder und KI-Agenten in Tales Open-Source-Arbeitsbereich mit Projektaufgaben, Delegation, Sandboxes und prüfbaren Ergebnissen.",
-      "kind": "index"
     }
   },
   "de:legal/privacy": {
@@ -434,7 +433,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Eine Agent-Laufzeit wählen",
-      "description": "Stimme Harness, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab."
+      "description": "Stimme Agent-Laufzeit, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab."
     }
   },
   "de:platform/agents/skills": {
@@ -473,8 +472,8 @@
     "slug": "platform/automations/assistant",
     "locale": "de",
     "frontmatter": {
-      "title": "Den Weg zur Automation wählen",
-      "description": "Bearbeite Workflows direkt im visuellen Editor oder verbinde einen externen Assistenten über MCP mit Tale."
+      "title": "Den Weg zur Automatisierung wählen",
+      "description": "Ändere Workflows direkt im visuellen Editor oder lass deinen Coding-Agent Automatisierungen über den MCP-Endpoint von Tale bearbeiten."
     }
   },
   "de:platform/automations/builtin": {
@@ -506,7 +505,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Der Workflow-Editor",
-      "description": "Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück."
+      "description": "Lies eine Automatisierung im Canvas, folge ihren möglichen Pfaden, ändere Felder einer Node, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück."
     }
   },
   "de:platform/automations/execution-logs": {
@@ -514,7 +513,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungsläufe prüfen und Fehler beheben",
-      "description": "Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte Schreibvorgänge und entscheide über Stopp, Korrektur oder Neustart."
+      "description": "Erfahre, warum ein Lauf fehlschlug oder ein Schritt übersprungen wurde, was jeder Schritt gelesen und zurückgegeben hat, spiel den Lauf ab und führe ihn erneut, ab einem Schritt oder im Vergleich mit einem anderen Lauf aus."
     }
   },
   "de:platform/automations/triggers": {
@@ -522,7 +521,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungen automatisch starten",
-      "description": "Richte Zeitpläne, Webhooks und Plattform-Ereignisse ein, prüfe die Eingaben und finde die Ursache ausbleibender Starts."
+      "description": "Starte eine Automatisierung nach Zeitplan, per Webhook oder bei einem Plattform-Ereignis, prüfe, was jeder Lauf erhält, und finde heraus, warum ein Start ausgelassen wurde."
     }
   },
   "de:platform/chat/arena-mode": {
@@ -731,7 +730,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projektagenten erstellen und verwalten",
-      "description": "Konfiguriere einen wiederverwendbaren Agenten, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis."
+      "description": "Konfiguriere einen Agenten für die Aufgaben eines Projekts, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis."
     }
   },
   "de:platform/projects/task-automation": {
@@ -1093,7 +1092,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 7 — Connectors & die Außenwelt",
-      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
+      "description": "Die Türen aus dem Arbeitsbereich — Connectors, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn eines angebundenen Connectors, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
     }
   },
   "de:tutorials/videos/governance-and-trust": {
@@ -1141,7 +1140,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bonus — Tale für Entwickler",
-      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Harnesses, die in eingehegten Sandboxes arbeiten."
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Agent-Laufzeiten, die in eingehegten Sandboxes arbeiten."
     }
   },
   "de:tutorials/videos/welcome-to-tale": {
@@ -1266,6 +1265,14 @@
       "i18nLintExclude": ""
     }
   },
+  "en:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Settings over MCP",
+      "description": "Let a coding agent read and change Tale settings through the MCP endpoint, within the role of the person whose API key it uses."
+    }
+  },
   "en:develop/overview": {
     "slug": "develop/overview",
     "locale": "en",
@@ -1353,15 +1360,6 @@
     "frontmatter": {
       "title": "Send your first message",
       "description": "Sign in to Tale, start a chat, choose a model, and check the response."
-    }
-  },
-  "en:index": {
-    "slug": "index",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Tale documentation",
-      "description": "Coordinate teammates and AI agents in Tale’s open-source workspace with project tasks, delegation, sandboxes, and reviewable results.",
-      "kind": "index"
     }
   },
   "en:legal/privacy": {
@@ -1595,7 +1593,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Choose an agent runtime",
-      "description": "Match a coding harness to its credentials, tools and sandbox behavior before assigning real work."
+      "description": "Match an agent runtime to its credentials, tools and sandbox behavior before assigning real work."
     }
   },
   "en:platform/agents/skills": {
@@ -1635,7 +1633,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Choose how to author an automation",
-      "description": "Use the visual editor for direct changes or connect an external assistant to Tale through MCP."
+      "description": "Use the visual editor for direct changes, or have your coding agent edit automations through Tale’s MCP endpoint."
     }
   },
   "en:platform/automations/builtin": {
@@ -1667,7 +1665,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "The workflow editor",
-      "description": "Inspect and edit nodes, supply test input, save a version, and deploy or roll back an automation."
+      "description": "Read an automation on its canvas, follow its possible paths, edit node fields, save a version, and deploy or roll back."
     }
   },
   "en:platform/automations/execution-logs": {
@@ -1675,7 +1673,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Read automation runs and recover from failures",
-      "description": "Trace a run from its status to the failing node, inspect recorded writes and decide whether to stop, fix or retry."
+      "description": "See why a run failed or a step was skipped, what each step read and returned, play the run back, and run it again, from a step, or side by side with another run."
     }
   },
   "en:platform/automations/triggers": {
@@ -1683,7 +1681,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Start automations automatically",
-      "description": "Configure schedules, webhooks and platform events, match their input shape and diagnose missed starts."
+      "description": "Run an automation on a schedule, from a webhook or on a platform event, check what each run receives, and find out why a start was skipped."
     }
   },
   "en:platform/chat/arena-mode": {
@@ -1892,7 +1890,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Create and manage project agents",
-      "description": "Configure a reusable worker, grant its equipment and start a task whose result you can review."
+      "description": "Configure an agent for a project's tasks, grant its equipment and start a task whose result you can review."
     }
   },
   "en:platform/projects/task-automation": {
@@ -2302,7 +2300,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Bonus — Tale for developers",
-      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and harnesses working in contained sandboxes."
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and agent runtimes working in contained sandboxes."
     }
   },
   "en:tutorials/videos/welcome-to-tale": {
@@ -2334,7 +2332,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Comprendre la résidence des données Cloud",
-      "description": "Distinguer le stockage des flux vers les fournisseurs et les connecteurs avant de choisir un déploiement Cloud."
+      "description": "Distinguer le stockage des flux vers les fournisseurs et les connectors avant de choisir un déploiement Cloud."
     }
   },
   "fr:cloud/index": {
@@ -2399,7 +2397,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient."
+      "description": "Comment un connector est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connector ne convient."
     }
   },
   "fr:develop/contributing-docker": {
@@ -2425,6 +2423,14 @@
       "title": "Endpoint MCP",
       "description": "Connecte un client MCP, découvre les outils Tale, développe des automatisations et traite les refus et les résultats.",
       "i18nLintExclude": ""
+    }
+  },
+  "fr:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Paramètres par MCP",
+      "description": "Laisse un agent de code lire et modifier les paramètres de Tale par le point d’accès MCP, dans les limites du rôle de la personne dont il utilise la clé API."
     }
   },
   "fr:develop/overview": {
@@ -2516,15 +2522,6 @@
       "description": "Te connecter à Tale, lancer un chat, choisir un modèle et vérifier sa réponse."
     }
   },
-  "fr:index": {
-    "slug": "index",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Documentation Tale",
-      "description": "Coordonne ton équipe et tes agents IA dans l’espace open source de Tale avec des tâches de projet, la délégation, des sandboxes et la revue des résultats.",
-      "kind": "index"
-    }
-  },
   "fr:legal/privacy": {
     "slug": "legal/privacy",
     "locale": "fr",
@@ -2579,7 +2576,7 @@
     "slug": "platform/admin/connectors",
     "locale": "fr",
     "frontmatter": {
-      "title": "Identifiants des connecteurs",
+      "title": "Identifiants des connectors",
       "description": "Connecte les comptes de services, choisis les accès par défaut et renouvelle les autorisations."
     }
   },
@@ -2643,8 +2640,8 @@
     "slug": "platform/admin/governance/legal-hold",
     "locale": "fr",
     "frontmatter": {
-      "title": "Conservation juridique",
-      "description": "Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération."
+      "title": "Conservation légale",
+      "description": "Préserve les données d’une personne ou de l’organisation, regroupe les conservations par dossier et examine les demandes de libération."
     }
   },
   "fr:platform/admin/governance/operations-metrics": {
@@ -2756,7 +2753,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Choisir un environnement d’agent",
-      "description": "Associe le harness aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche."
+      "description": "Associe l’environnement d’agent aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche."
     }
   },
   "fr:platform/agents/skills": {
@@ -2796,7 +2793,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Choisir comment créer une automatisation",
-      "description": "Modifie directement le workflow dans l’éditeur visuel ou connecte un assistant externe à Tale avec MCP."
+      "description": "Modifie directement le workflow dans l’éditeur visuel ou laisse ton agent de code modifier les automatisations par l’endpoint MCP de Tale."
     }
   },
   "fr:platform/automations/builtin": {
@@ -2828,7 +2825,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "L’éditeur de workflow",
-      "description": "Examine et modifie les nœuds, fournis les données de test, puis enregistre, déploie ou rétablis une version."
+      "description": "Lis une automatisation sur son canevas, suis ses chemins possibles, modifie les champs d’un nœud, enregistre une version, puis déploie-la ou rétablis-en une autre."
     }
   },
   "fr:platform/automations/execution-logs": {
@@ -2836,7 +2833,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Examiner les exécutions et corriger les échecs",
-      "description": "Repère le nœud concerné, vérifie les écritures enregistrées et décide s’il faut arrêter, corriger ou relancer."
+      "description": "Comprends pourquoi une exécution a échoué ou une étape a été ignorée, ce que chaque étape a lu et renvoyé, rejoue l’exécution et relance-la, à partir d’une étape ou à côté d’une autre exécution."
     }
   },
   "fr:platform/automations/triggers": {
@@ -2844,7 +2841,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrer les automatisations automatiquement",
-      "description": "Configure horaires, webhooks et événements, adapte les données d’entrée et identifie les démarrages manqués."
+      "description": "Lance une automatisation selon une planification, depuis un webhook ou sur un événement de la plateforme, vérifie ce que reçoit chaque exécution et comprends pourquoi un démarrage a été ignoré."
     }
   },
   "fr:platform/chat/arena-mode": {
@@ -3053,7 +3050,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Créer et gérer des agents de projet",
-      "description": "Configure un agent réutilisable, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat."
+      "description": "Configure un agent pour les tâches d’un projet, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat."
     }
   },
   "fr:platform/projects/task-automation": {
@@ -3415,7 +3412,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 7 — Connectors & le monde extérieur",
-      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
+      "description": "Les portes hors de l'espace de travail — des connectors dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par un connector relié, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
     }
   },
   "fr:tutorials/videos/governance-and-trust": {
@@ -3463,7 +3460,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bonus — Tale pour les développeurs",
-      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les harnesses qui travaillent dans des bacs à sable contenus."
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les environnements d’agent qui travaillent dans des bacs à sable contenus."
     }
   },
   "fr:tutorials/videos/welcome-to-tale": {

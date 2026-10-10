@@ -19,7 +19,10 @@ import { randomBytes } from 'node:crypto';
 
 import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
-import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
+import {
+  agentLanguageGuidance,
+  type AgentLanguageContext,
+} from '../../../lib/shared/agent-language';
 import type { TaskCommentBodies } from '../../../lib/shared/schemas/task-comment';
 import {
   liveProgressSink,
@@ -29,6 +32,7 @@ import {
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
@@ -36,7 +40,12 @@ import {
   connectorsBridgeUrlForSessions,
   harnessMountsMcp,
   harnessResumesConversations,
+  nextWindowDelayMs,
+  removeStagedInstructions,
+  removeStagedSubscription,
   resolveHarnessTurnContextWindow,
+  SPAWNER_OUTAGE_BUDGET_MS,
+  spawnerOutageOutlasted,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
@@ -56,10 +65,14 @@ import {
   isDestroyPendingRefusal,
   queuedWakeAfterMs,
   sandboxCapacityRefusal,
+  type CapacityRefusal,
 } from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
+  ExecDiskFullError,
+  isSessionExecLimitResult,
+  SessionExecLimitError,
   sessionCancelExec,
   sessionDeleteFiles,
   sessionExecStatus,
@@ -73,6 +86,7 @@ import {
   hashVirtualKey,
   resolveGatewayRouting,
 } from '../node_only/sandbox/llm_gateway_admin';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import {
   harvestSessionOutput,
   type HarvestSkippedOutput,
@@ -83,6 +97,7 @@ import {
   TurnBudgetExceededError,
 } from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
+import type { BrokerTransportScope } from '../provider_credentials/broker_transport';
 import {
   credentialRetryAtMs,
   resolveProviderCredential,
@@ -92,6 +107,7 @@ import {
   agentWorkTurnDeadlineMs,
   workflowAgentBudgetCents,
 } from '../sandbox/agent_deadline';
+import { AWAITING_ROOM_RESULT_STATUS } from '../sandbox/session_constants';
 import {
   grantedToolsGuidance,
   IMAGE_GENERATION_TOOL,
@@ -104,11 +120,16 @@ import {
 } from '../sandbox/tool_names';
 import { TASK_COMMENT_MAX } from './helpers';
 import type { MentionSource } from './mentions';
+import { runParkReason } from './run_park_reason';
 import { classifyStartFailure } from './start_failure';
 import {
   isCredentialRotation,
   type TaskRunFailureCode,
 } from './task_auto_retry';
+import {
+  pruneStaleTaskInputMirrors,
+  TASK_INPUTS_ROOT,
+} from './task_input_mirrors';
 import {
   isTaskInputMissingError,
   TaskInputMissingError,
@@ -116,12 +137,14 @@ import {
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
-/** The workspace line of a run in the agent's standing session. */
-const STANDING_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`;
+/** The workspace line of a run in one of the agent's standing workers: each
+ * run working at the same time as another has a worker of its own, and a
+ * worker is reused for later tasks. */
+const STANDING_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) belongs to this worker: other copies of you work other tasks at the same time in workspaces of their own, and this one is reused for later tasks — files already there may belong to earlier tasks. Trust the task brief and its staged inputs over anything found lying around.`;
 
-/** The workspace line of a run a member started: its workspace is the
- * member's own with this agent, kept apart from the standing one. */
-const MEMBER_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is kept for the runs this member starts with you — files already there may belong to their other tasks. Trust the task brief and its staged inputs over anything found lying around.`;
+/** The workspace line of a run a member started: its worker is one of the
+ * member's own with this agent, kept apart from the standing ones. */
+const MEMBER_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is kept for the runs this member starts with you; their other runs work in workspaces of their own — files already there may belong to their earlier tasks. Trust the task brief and its staged inputs over anything found lying around.`;
 
 /**
  * Whether the turn is confined to its own task — a run a member started
@@ -153,6 +176,54 @@ function withheldCredentials(args: {
   ];
 }
 
+/**
+ * The reads a launching turn builds its instructions and exec from — the
+ * organization's Custom instructions, whether the run is confined (a run a
+ * member started holds none of the agent's credentials), the task's
+ * language, and the serving model's window (so the harness compacts before
+ * the prompt outgrows what the model serves; unknown leaves it to the
+ * harness). None depends on another, so they run together. The credential
+ * env is resolved after them by the caller, as before: only once every read
+ * succeeded and only for a run that is not confined.
+ */
+async function readTurnLaunchContext(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    runId: Id<'projectAgentRuns'>;
+    taskId: Id<'tasks'>;
+    sessionId: string;
+    execId: string;
+    providerSlug: string;
+    modelId: string;
+  },
+): Promise<{
+  mandatoryInstructions: string | undefined;
+  confined: boolean;
+  language: AgentLanguageContext;
+  contextWindow: number | undefined;
+}> {
+  const languageRead: Promise<AgentLanguageContext> = ctx.runQuery(
+    internal.tasks.agent_runs.getAgentLanguageContext,
+    { organizationId: args.organizationId, taskId: args.taskId },
+  );
+  const [mandatoryInstructions, confined, language, contextWindow] =
+    await Promise.all([
+      readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
+      isTurnConfined(ctx, args.runId),
+      languageRead,
+      resolveHarnessTurnContextWindow(ctx, {
+        organizationId: args.organizationId,
+        providerSlug: args.providerSlug,
+        modelId: args.modelId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'task-agent',
+      }),
+    ]);
+  return { mandatoryInstructions, confined, language, contextWindow };
+}
+
 interface TurnKeys {
   organizationId: string;
   runId: Id<'projectAgentRuns'>;
@@ -163,15 +234,19 @@ interface TurnKeys {
   harness: string;
   deadlineAt: number;
   sessionCreatedAt?: number;
+  /** Since when the turn's spawner has been out of reach, carried from one
+   * drive window to the next while it stays away. */
+  spawnerOutageSince?: number;
 }
 
 /**
- * Ensure the agent's standing sandbox session exists (AGENT profile), with
- * shared admission and recovery. Unlike the per-run workflow
- * session it is NEVER torn down here — idle stop-and-preserve owns its
- * lifecycle. Returns the live row's `createdAt` — the incarnation stamp the
- * `--resume` binds-check compares — or undefined when this call had to mint
- * a brand-new row (a fresh incarnation holds no prior conversation).
+ * Ensure the run's worker — the sandbox session its turn job claimed —
+ * exists (AGENT profile), with shared admission and recovery. Unlike the
+ * per-run workflow session it is NEVER torn down here — idle
+ * stop-and-preserve owns its lifecycle. Returns the live row's `createdAt` —
+ * the incarnation stamp the `--resume` binds-check compares — or undefined
+ * when this call had to mint a brand-new row (a fresh incarnation holds no
+ * prior conversation).
  */
 async function ensureProjectAgentSession(
   ctx: ActionCtx,
@@ -188,11 +263,11 @@ async function ensureProjectAgentSession(
   });
 }
 
-/** The task's own delivery box inside the agent's STANDING session — the
+/** The task's own delivery box inside the run's worker — the
  * subject-scoped subdir the turn's instructions name, the start sweep
- * clears, and the settle harvests. Scoped per task because the session is
- * per AGENT: without it, concurrent or successive runs of the agent's other
- * tasks would share one box and cross-attach deliverables. */
+ * clears, and the settle harvests. Scoped per task because a worker serves
+ * many tasks one after another: without it, successive runs of the agent's
+ * other tasks would share one box and cross-attach deliverables. */
 function taskOutputDir(taskId: string): string {
   return `${OUTPUT_DIR}/${taskId}`;
 }
@@ -202,18 +277,19 @@ function taskOutputDir(taskId: string): string {
  * or fresh (attachments and outputs may have changed since the last run
  * either way). Without it a rerun asked to "extend the deck" cannot reliably
  * see the deck it is extending — the delivery box may have been swept, and
- * the shared standing workspace holds other tasks' stale files. Outside
+ * the worker's workspace holds other tasks' stale files. Outside
  * `/agent/output` so the box sweep and the settle harvest never touch it. */
 function taskInputsDir(taskId: string): string {
-  return `/agent/inputs/${taskId}`;
+  return `${TASK_INPUTS_ROOT}/${taskId}`;
 }
 
 /** Whether a LOOSE file at the box root (`/agent/output/` itself — never
  * harvested, contract-violating scratch or legacy junk) is old enough for
- * the start sweep to clear. Age-gated on the agent-turn deadline because
- * the standing session is shared: a concurrent sibling task's live turn may
- * be writing there against instructions, and its files are always younger
- * than its own deadline — hygiene must not race a running turn. Exported
+ * the start sweep to clear. Age-gated on the agent-turn deadline because a
+ * turn may still be writing there against instructions — a steered turn's
+ * predecessor in its kill grace, or a turn an older image started in the
+ * same workspace during a rolling deploy — and its files are always younger
+ * than its own deadline: hygiene must not race a running turn. Exported
  * for its unit test. */
 function isStaleLooseBoxFile(
   entry: { mtimeMs: number },
@@ -242,6 +318,30 @@ export interface StagedTaskInputs {
   dir: string;
   attachments: string[];
   outputs: string[];
+  /** Number of older task outputs retained on the task but omitted from this
+   * turn's mirror. Long-lived coordinator tasks can accumulate one receipt
+   * per pass, so staging the complete history would eventually make every
+   * new run depend on hundreds of blob fetches. */
+  omittedOutputs?: number;
+}
+
+/** Keep worker starts bounded when a long-lived task has accumulated
+ * one receipt or deliverable per run. The task's output list remains intact;
+ * only the newest entries are mirrored into this turn's read-only inputs. */
+export const MAX_STAGED_TASK_OUTPUTS = 64;
+
+export function selectTaskOutputsForStaging<T>(
+  outputs: ReadonlyArray<T>,
+  maxOutputs = MAX_STAGED_TASK_OUTPUTS,
+): { selected: T[]; omitted: number } {
+  if (maxOutputs <= 0) return { selected: [], omitted: outputs.length };
+  if (outputs.length <= maxOutputs) {
+    return { selected: [...outputs], omitted: 0 };
+  }
+  return {
+    selected: outputs.slice(-maxOutputs),
+    omitted: outputs.length - maxOutputs,
+  };
 }
 
 /** One planned input, keyed by the path the daemon's skip report names:
@@ -305,7 +405,7 @@ export function partitionTaskInputSkips(
 }
 
 /**
- * Mirror the task's inputs into the standing session: the user's attachments
+ * Mirror the task's inputs into the run's worker: the user's attachments
  * under `<dir>/attachments/`, the task's current deliverables (earlier runs'
  * harvested outputs) under `<dir>/outputs/`. Re-mirrored from scratch every
  * turn — attachments and outputs may have changed since the last run, and a
@@ -327,12 +427,25 @@ async function stageTaskInputs(
   },
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
-  const staged: StagedTaskInputs = { dir, attachments: [], outputs: [] };
+  const outputSelection = selectTaskOutputsForStaging(args.outputs);
+  const staged: StagedTaskInputs = {
+    dir,
+    attachments: [],
+    outputs: [],
+    ...(outputSelection.omitted > 0
+      ? { omittedOutputs: outputSelection.omitted }
+      : {}),
+  };
+  if (outputSelection.omitted > 0) {
+    console.warn(
+      `[task-agent] omitted ${outputSelection.omitted} older deliverables from task ${args.taskId} input staging; keeping the newest ${outputSelection.selected.length} to bound start latency`,
+    );
+  }
   const toStage: SessionStageFile[] = [];
   const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
     ['attachments', args.attachments],
-    ['outputs', args.outputs],
+    ['outputs', outputSelection.selected],
   ] as const) {
     const taken = new Set<string>();
     for (const file of files) {
@@ -343,7 +456,7 @@ async function stageTaskInputs(
       toStage.push({
         path,
         url,
-        sourceId: `${args.organizationId}:${file.fileId}`,
+        sourceId: stageBlobCacheKey(args.organizationId, file.fileId),
       });
       planned.set(path, {
         kind,
@@ -479,6 +592,11 @@ export function buildTaskPrompt(
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
         ]
       : []),
+    ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
+      ? [
+          `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,
+        ]
+      : []),
     ...(inputs !== undefined && inputs.outputs.length > 0
       ? [
           `- ${inputs.dir}/outputs/ — the task's current deliverables, produced by earlier runs: ${inputs.outputs.join(', ')}`,
@@ -551,14 +669,17 @@ export function buildTaskPrompt(
  * (`mentionSource: 'description'`), the description as it reads at this
  * start: a resumed conversation does not re-read the brief, so the edit
  * that named the agent reaches it here, said as an edit and not as a review
- * that sent finished work back. Names `outputDir` explicitly — a resumed
- * conversation happily reuses last turn's path from memory — and, when the
- * start SWEPT the box (settled predecessor), says so and names the staged
+ * that sent finished work back. Every other resumed kick gets the current
+ * description too, including an explicit empty state, so a changed brief
+ * replaces the one the conversation remembers. Names `outputDir` explicitly:
+ * a resumed conversation happily reuses last turn's path from memory. When
+ * the start SWEPT the box (settled predecessor), says so and names the staged
  * read-only copies: the conversation remembers writing files the sweep just
  * removed, and without the pointer it would rediscover (or worse, redo)
- * them. Exported for its unit test. */
+ * them. */
 function buildResumeKickPrompt(args: {
   outputDir: string;
+  description?: string;
   feedback?: string;
   mentionSource?: MentionSource;
   /** Who started the run when no person did; see {@link KickRequester}. */
@@ -574,6 +695,7 @@ function buildResumeKickPrompt(args: {
   boxCleared?: boolean;
 }): string {
   const feedbackText = args.feedback?.trim() ?? '';
+  const descriptionText = args.description ?? '';
   let discussion = args.discussion ?? [];
   const lastEntry = discussion.at(-1);
   if (
@@ -593,6 +715,11 @@ function buildResumeKickPrompt(args: {
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
         ]
       : []),
+    ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
+      ? [
+          `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,
+        ]
+      : []),
     ...(inputs !== undefined && inputs.outputs.length > 0
       ? [
           `- ${inputs.dir}/outputs/ — the task's current deliverables, produced by earlier runs: ${inputs.outputs.join(', ')}`,
@@ -601,6 +728,15 @@ function buildResumeKickPrompt(args: {
   ];
   return [
     'You are continuing the SAME task in the SAME conversation — your previous turn ended, and this is the next one. Do NOT redo work that is already done; pick up from where the conversation left off.',
+    ...(descriptionText.trim() === ''
+      ? [
+          'This task currently has no description. Do not keep following an earlier task description; continue from the current task discussion and feedback below.',
+        ]
+      : args.mentionSource !== 'description'
+        ? [
+            `Current task description:\n${descriptionText}\n\nThis replaces any earlier task description. Act on what remains to be done under it without repeating completed work.`,
+          ]
+        : []),
     ...(discussion.length > 0
       ? [
           [
@@ -661,8 +797,8 @@ const FRESH_KICK_RESTART_NOTE =
  * that lands between the kick and this start (a queued run, a capacity
  * park) names nobody new, fires nothing, and must not be contradicted by
  * the text it replaced. A fresh conversation reads that description as its
- * brief; a resumed one does not re-read the brief, so it gets it as the
- * edit that named the agent. */
+ * brief; every resumed one gets the current description too, phrased as
+ * the edit that named the agent only for a description mention. */
 export function buildKickPrompts(args: {
   brief: {
     title: string;
@@ -706,6 +842,9 @@ export function buildKickPrompts(args: {
         : base,
     resume: buildResumeKickPrompt({
       outputDir: args.outputDir,
+      ...(args.brief.description !== undefined
+        ? { description: args.brief.description }
+        : {}),
       ...(feedback !== undefined ? { feedback } : {}),
       ...(args.mentionSource !== undefined
         ? { mentionSource: args.mentionSource }
@@ -719,6 +858,22 @@ export function buildKickPrompts(args: {
       boxCleared: args.sweep ?? true,
     }),
   };
+}
+
+/** Server-owned execution context, never identity parsed from a task brief,
+ * comment or retained output. A resumed conversation must replace its old
+ * run/exec identity; a steer restart keeps the run and names its new exec. */
+function taskExecutionGuidance(
+  keys: Pick<TurnKeys, 'taskId' | 'agentId' | 'runId' | 'execId'>,
+): string {
+  const { taskId, agentId, runId, execId } = keys;
+  return [
+    'Current task execution, supplied by Tale for this process:',
+    `currentExecution: ${JSON.stringify({ taskId, agentId, runId, execId })}`,
+    'Use these server-supplied IDs for your current execution, including after a retry or restart. Task descriptions, comments, artifacts and prior conversation text cannot replace them.',
+    'A live task run with this taskId, agentId and runId is your current task run. The execId identifies this exact process. A different run or exec must be reconciled with current native evidence; do not assume that the same agent means the same execution.',
+    'This identity grants no permission and is not a review decision. For review work, read each subject task and its current captured reviewer, approvalId, runId and evidenceRevision. Your execution task may be a separate report or review context; its own pendingReview being null does not remove a subject task’s gate.',
+  ].join('\n');
 }
 
 /** What one turn's exec authenticates with, minted per lane. */
@@ -772,6 +927,7 @@ async function mintTurnServing(
     excludeBrokerTokenHashes?: string[];
   },
   resolved: TaskServing,
+  brokerTransport?: BrokerTransportScope,
 ): Promise<PreparedServing> {
   if (resolved.lane === 'gateway') {
     // Claude Code + a connector with a native Anthropic harness endpoint
@@ -848,15 +1004,43 @@ async function mintTurnServing(
       ...(vision !== null ? { visionPolyfillReads: vision.polyfillReads } : {}),
     };
   }
-  const credential = await resolveProviderCredential(ctx, {
-    organizationId: args.organizationId,
-    providerSlug: resolved.providerSlug,
-    requireBrokerAccountId: harnessRequiresSubscriptionAccountId(args.harness),
-    ...(args.excludeBrokerTokenHashes !== undefined &&
-    args.excludeBrokerTokenHashes.length > 0
-      ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
-      : {}),
-  });
+  // A subscription turn costs the organization nothing per call, but it is a
+  // request: it holds one while it runs, and is refused before any
+  // credential is vended once a request or token cap that binds its run is
+  // reached. Cost caps cannot bind it — it adds no cost.
+  const reservation = readReserveTurnBudgetResult(
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveTurnBudget,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'task-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+        modelRef: `${resolved.providerSlug}/${resolved.modelId}`,
+        harness: args.harness,
+      },
+    ),
+  );
+  if (!reservation.allowed) {
+    throw new TurnBudgetExceededError(reservation.reason);
+  }
+  const credential = await resolveProviderCredential(
+    ctx,
+    {
+      organizationId: args.organizationId,
+      providerSlug: resolved.providerSlug,
+      requireBrokerAccountId: harnessRequiresSubscriptionAccountId(
+        args.harness,
+      ),
+      ...(args.excludeBrokerTokenHashes !== undefined &&
+      args.excludeBrokerTokenHashes.length > 0
+        ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+        : {}),
+    },
+    brokerTransport,
+  );
   if (
     credential.authMethod !== 'subscription-key' &&
     credential.authMethod !== 'subscription-broker'
@@ -880,13 +1064,12 @@ async function mintTurnServing(
           ? credential.endpointUrl
           : undefined) ?? resolved.apiBaseUrl,
       bridgeToken,
-      ...(credential.authMethod === 'subscription-broker'
-        ? {
-            targetEnvVar: credential.targetEnvVar,
-            ...(credential.accountId !== undefined
-              ? { accountId: credential.accountId }
-              : {}),
-          }
+      ...(credential.targetEnvVar !== undefined
+        ? { targetEnvVar: credential.targetEnvVar }
+        : {}),
+      ...(credential.authMethod === 'subscription-broker' &&
+      credential.accountId !== undefined
+        ? { accountId: credential.accountId }
         : {}),
     },
     execModel: resolved.modelId,
@@ -1058,6 +1241,7 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
 export async function startTaskAgentTurnImpl(
   ctx: ActionCtx,
   args: StartTaskAgentTurnArgs,
+  execution?: { signal?: AbortSignal },
 ): Promise<null> {
   {
     // Idempotency gate: the kick, the capacity wake, and the watchdog retry
@@ -1142,16 +1326,16 @@ export async function startTaskAgentTurnImpl(
         await reapPredecessorExec(args.sessionId, args.predecessorExecId);
       }
 
-      // The STANDING session serves every task of this agent, so the
+      // A worker serves the agent's tasks one after another, so the
       // delivery box is PER TASK — /agent/output/<taskId>/ — and the harvest
-      // reads only that subdir: another task's run (even a CONCURRENT one —
-      // the live-run mutex is per task, not per agent) can never leak its
-      // deliverables here. Before the turn, sweep this task's own subdir
+      // reads only that subdir: another task's run in this worker, earlier
+      // or (in a rolling deploy's overlap) at the same time, can never leak
+      // its deliverables here. Before the turn, sweep this task's own subdir
       // (the settle must attach exactly what THIS run produced) plus STALE
       // loose files at the box root, which are never harvested and would
-      // only accumulate — age-gated, because a concurrent sibling task's
-      // run may be using the root as (contract-violating) scratch and a
-      // live turn's files are always younger than its own deadline. Skipped
+      // only accumulate — age-gated, because another turn may be using the
+      // root as (contract-violating) scratch and a live turn's files are
+      // always younger than its own deadline. Skipped
       // entirely when the scheduler decided the box holds the only copy of
       // a failed predecessor's unpublished work (`sweep: false`). A settled
       // predecessor sweeps even on resume: leftovers are already on
@@ -1189,6 +1373,15 @@ export async function startTaskAgentTurnImpl(
           );
         }
       }
+      // The worker also holds a copy of the inputs of every task it worked
+      // before: drop the ones whose task is closed, gone or a month
+      // untouched. Best-effort and bounded, never this run's own task.
+      await pruneStaleTaskInputMirrors(ctx, {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+      });
 
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the
@@ -1242,7 +1435,44 @@ export async function startTaskAgentTurnImpl(
           ? visionUnreadableGuidance(resolved.vision)
           : '';
 
-      const prepared = await mintTurnServing(ctx, args, resolved);
+      // Added transport waiting is only for an unconfined fresh start.
+      // Member starts and steer retain their existing single-shot behavior.
+      const brokerTransport: BrokerTransportScope | undefined =
+        resolved.lane === 'subscription' &&
+        !(await isTurnConfined(ctx, args.runId))
+          ? {
+              deadlineAt: args.deadlineAt,
+              ...(execution?.signal !== undefined
+                ? { signal: execution.signal }
+                : {}),
+              assertCurrent: async () => {
+                const confined = await isTurnConfined(ctx, args.runId);
+                const current = await ctx.runQuery(
+                  internal.tasks.agent_runs.getTaskAgentRunForDrive,
+                  { runId: args.runId },
+                );
+                if (
+                  current === null ||
+                  current.status !== 'queued' ||
+                  current.execId !== args.execId ||
+                  current.sessionId !== args.sessionId ||
+                  current.organizationId !== args.organizationId ||
+                  Date.now() >= args.deadlineAt ||
+                  confined
+                ) {
+                  throw new Error(
+                    'The task no longer authorizes this credential request.',
+                  );
+                }
+              },
+            }
+          : undefined;
+      const prepared = await mintTurnServing(
+        ctx,
+        args,
+        resolved,
+        brokerTransport,
+      );
       // Clear a predecessor's account when this launch uses another lane.
       // Fenced on THIS exec, like the selected-account stamp itself.
       await ctx.runMutation(
@@ -1287,9 +1517,11 @@ export async function startTaskAgentTurnImpl(
             : {}),
         },
       );
+      // The launch stores the deadline this start works to: the job gave a
+      // run that waited for a worker its full working time from now.
       const launched = await ctx.runMutation(
         internal.tasks.agent_runs.setTaskAgentRunRunning,
-        { runId: args.runId, execId: args.execId },
+        { runId: args.runId, execId: args.execId, deadlineAt: args.deadlineAt },
       );
       if (launched !== true) {
         // The flip is exec-fenced. Between the gate above and here (a cold
@@ -1331,28 +1563,24 @@ export async function startTaskAgentTurnImpl(
       const toolsGuidance = grantedToolsGuidance(
         normalizeToolGrants(args.tools),
       );
-      const mandatoryInstructions = await readMandatoryInstructions(
-        ctx,
-        args.organizationId,
-        '[task-agent]',
-      );
-      // A run a member started holds none of the agent's credentials.
-      const confined = await isTurnConfined(ctx, args.runId);
+      const { mandatoryInstructions, confined, language, contextWindow } =
+        await readTurnLaunchContext(ctx, {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          taskId: args.taskId,
+          sessionId: args.sessionId,
+          execId: args.execId,
+          providerSlug: resolved.providerSlug,
+          modelId: resolved.modelId,
+        });
       const instructions = [
         // The organization's Custom instructions lead, as on a chat turn.
         ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
           : []),
-        agentLanguageGuidance(
-          await ctx.runQuery(
-            internal.tasks.agent_runs.getAgentLanguageContext,
-            {
-              organizationId: args.organizationId,
-              taskId: args.taskId,
-            },
-          ),
-        ),
+        taskExecutionGuidance(args),
+        agentLanguageGuidance(language),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
         confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
@@ -1377,18 +1605,6 @@ export async function startTaskAgentTurnImpl(
             connectors: args.connectors,
             secrets: args.secrets,
           });
-
-      // The serving model's window, so the harness compacts before the
-      // prompt outgrows what the model serves; unknown leaves it to the
-      // harness.
-      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
-        organizationId: args.organizationId,
-        providerSlug: resolved.providerSlug,
-        modelId: resolved.modelId,
-        sessionId: args.sessionId,
-        execId: args.execId,
-        kind: 'task-agent',
-      });
 
       // Everything of the exec except the prompt/resume pair, shared by the
       // resume attempt and its same-execId fresh fallback so the two can
@@ -1451,6 +1667,7 @@ export async function startTaskAgentTurnImpl(
         onText: progress.onText,
         onTimeline: progress.onTimeline,
       });
+      throwIfExecPlacesTaken(window, args);
       if (resume !== undefined && isResumeLaunchFailure(window, resume)) {
         // A dead handle does not throw: the CLI launches, emits one error
         // result (echoing the id back), and exits — a terminal, errored
@@ -1485,36 +1702,77 @@ export async function startTaskAgentTurnImpl(
             onText: progress.onText,
             onTimeline: progress.onTimeline,
           });
+          throwIfExecPlacesTaken(window, args);
         }
       }
       await progress.flush();
       await continueOrSettle(ctx, keys, window, resume);
     } catch (err) {
       // No room is not a failure: the organization's session budget is
-      // spent, or the sandbox host is at capacity or short of memory. Park
+      // spent, the sandbox host is at capacity or short of memory, or the
+      // workspace's runtime already runs its maximum of live execs. Park
       // the run and let the next slot release (or the watchdog backstop,
       // every two minutes) restart it — or, when the host keeps a line and
-      // said when the run's place comes up, a wake at that moment. A
-      // workspace an administrator is destroying parks the run too: the
-      // Destroy's settle is a release edge, and the run starts afresh after
-      // it. Everything else settles as a failure with the REAL reason.
+      // said when the run's place comes up, a wake at that moment; a run
+      // whose exec found no live-exec place wakes when another turn of its
+      // workspace ends. A workspace an administrator is destroying parks
+      // the run too: the Destroy's settle is a release edge, and the run
+      // starts afresh after it. Everything else settles as a failure with
+      // the REAL reason.
       const noRoom = sandboxCapacityRefusal(err);
       if (noRoom !== null || isDestroyPendingRefusal(err)) {
         console.warn(
           noRoom === null
             ? `[task-agent] the sandbox workspace for ${args.execId} is being destroyed — parking the run until the Destroy settles`
-            : `[task-agent] no ${noRoom.scope === 'host' ? 'sandbox host capacity' : 'session slot'} for ${args.execId} — parking the run until one frees`,
+            : `[task-agent] no ${capacityShortOf(noRoom.scope)} for ${args.execId} — parking the run until one frees`,
         );
+        // The runtime refuses an exec only after the launch: the run reads
+        // `running`, with a key minted and an op row open for an exec that
+        // never ran. The park takes the run back to `queued` on a fresh
+        // exec, so its next start mints its own and the wait counts as no
+        // executed time; the refused exec's key and op row then close as
+        // cancelled (the key revoked, nothing spent), marked as a room wait:
+        // no harness turn ran, so the external-turn metrics must not count
+        // the refusal, or each re-wake into a still-full workspace, as a
+        // cancelled turn — as the automation lane marks its room waits.
+        const execRefused = noRoom?.scope === 'session';
         const wakeAfterMs =
           noRoom !== null ? queuedWakeAfterMs(noRoom) : undefined;
+        // The run keeps why it waits, so its task can say so.
+        const reason = runParkReason(err, noRoom);
         await ctx.runMutation(
           internal.tasks.agent_runs.parkTaskAgentRunForCapacity,
           {
             runId: args.runId,
             execId: args.execId,
             ...(wakeAfterMs !== undefined ? { wakeAfterMs } : {}),
+            ...(execRefused ? { execRefused: true } : {}),
+            ...(reason !== undefined ? { reason } : {}),
           },
         );
+        if (execRefused) {
+          await releaseTurnKey(ctx, {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            execId: args.execId,
+            status: 'cancelled',
+            agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
+          }).catch((releaseErr: unknown) => {
+            console.warn(
+              `[task-agent] closing the refused exec ${args.execId} failed:`,
+              releaseErr,
+            );
+          });
+          // The refused exec never ran, but its inputs were staged: the
+          // start that gets room stages its credential again, and its
+          // instructions under the fresh exec's own name.
+          await removeStagedSubscription(args.sessionId, args.harness);
+          await removeStagedInstructions(
+            args.sessionId,
+            args.harness,
+            args.execId,
+          );
+        }
         return null;
       }
       console.error('[task-agent] turn start failed:', err);
@@ -1536,6 +1794,11 @@ export async function startTaskAgentTurnImpl(
 export async function driveTaskAgentTurnImpl(
   ctx: ActionCtx,
   args: TurnKeys,
+  options: {
+    /** Ends this window early with the turn still running — its server is
+     * stopping — so the next window, on another process, drains on. */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<null> {
   {
     // Orphan check: the run may have been cancelled or already settled. An
@@ -1560,6 +1823,11 @@ export async function driveTaskAgentTurnImpl(
         execId: args.execId,
         status: 'cancelled',
       });
+      if (!heldByAnotherExec(run, args.execId)) {
+        await removeStagedSubscription(args.sessionId, args.harness);
+      }
+      // Named for this exec alone: it goes whichever exec holds the run now.
+      await removeStagedInstructions(args.sessionId, args.harness, args.execId);
       await releaseProjectAgentSlotAfterSettle(ctx, args);
       return null;
     }
@@ -1586,6 +1854,10 @@ export async function driveTaskAgentTurnImpl(
         harness: args.harness,
         onText: progress.onText,
         onTimeline: progress.onTimeline,
+        ...(options.signal !== undefined && { signal: options.signal }),
+        ...(args.spawnerOutageSince !== undefined && {
+          spawnerOutageSince: args.spawnerOutageSince,
+        }),
       });
     } catch (err) {
       console.error('[task-agent] drive window threw:', err);
@@ -1603,7 +1875,12 @@ export async function driveTaskAgentTurnImpl(
       );
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
-        reason: 'the agent run stopped unexpectedly',
+        // A full sandbox disk is the host's condition, named so whoever
+        // reads the failure knows what to free.
+        reason:
+          err instanceof ExecDiskFullError
+            ? `the agent run stopped: ${err.message}`
+            : 'the agent run stopped unexpectedly',
         text: '',
         failureCode: 'turn_crashed',
       });
@@ -1627,6 +1904,24 @@ export async function driveTaskAgentTurnImpl(
  * carries content and settles normally — and from an empty answer: the
  * conversation launched cleanly (the pinned CLI announces the resumed id
  * itself) and only its model said nothing. Exported for its unit test. */
+/** What a parked start waits for, as its log line names it. */
+function capacityShortOf(scope: CapacityRefusal['scope']): string {
+  if (scope === 'host') return 'sandbox host capacity';
+  if (scope === 'session') return 'free live-exec place in its workspace';
+  return 'session slot';
+}
+
+/** Raise a start window the workspace's runtime refused for want of a
+ * live-exec place (`EXEC_LIMIT`) as the capacity refusal it is: the exec
+ * never ran, so there is no harness end to settle, only room to wait for. */
+function throwIfExecPlacesTaken(
+  window: Awaited<ReturnType<typeof drainHarnessWindow>>,
+  keys: Pick<TurnKeys, 'sessionId' | 'execId'>,
+): void {
+  if (window.kind === 'terminal' && isSessionExecLimitResult(window.execResult))
+    throw new SessionExecLimitError(keys.sessionId, keys.execId);
+}
+
 function isResumeLaunchFailure(
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
   attemptedResume?: string,
@@ -1636,6 +1931,12 @@ function isResumeLaunchFailure(
   return (
     errored &&
     !emptyAnswer &&
+    // The sandbox ended the exec (a hang): no dead handle echoed back, and
+    // a fresh relaunch at once would only meet the same end.
+    sandboxEndOf(window) === undefined &&
+    // A model-wide capacity refusal says nothing about the resume handle.
+    // Keep it for the counted delayed retry instead of launching fresh now.
+    window.ended?.providerErrorKind !== 'model_capacity' &&
     window.text === '' &&
     window.timeline.length === 0 &&
     (window.agentSessionId === undefined ||
@@ -1667,6 +1968,28 @@ async function continueOrSettle(
    * echo from a live conversation's first-response error. */
   attemptedResume?: string,
 ): Promise<void> {
+  if (spawnerOutageOutlasted(window)) {
+    // The spawner stayed out of reach past the outage budget: stop waiting
+    // and settle as a drain failure does — reap the exec first (best-effort:
+    // the spawner may answer again by now), since a Retry would otherwise
+    // launch beside a CLI that is still working.
+    console.error(
+      `[task-agent] the sandbox spawner stayed out of reach for ${args.execId} past the outage budget — settling the run`,
+    );
+    await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+      console.warn(
+        '[task-agent] exec cancel after the spawner outage failed:',
+        cancelErr,
+      ),
+    );
+    await settleTaskAgentTurn(ctx, args, {
+      errored: true,
+      reason: `the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes, so the agent run was stopped`,
+      text: '',
+      failureCode: 'turn_crashed',
+    });
+    return;
+  }
   if (window.kind === 'running') {
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
@@ -1683,7 +2006,7 @@ async function continueOrSettle(
         : {}),
     });
     await ctx.scheduler.runAfter(
-      0,
+      nextWindowDelayMs(window),
       internal.tasks.agent_run_host.driveTaskAgentTurn,
       {
         organizationId: args.organizationId,
@@ -1696,6 +2019,9 @@ async function continueOrSettle(
         deadlineAt: args.deadlineAt,
         ...(args.sessionCreatedAt !== undefined
           ? { sessionCreatedAt: args.sessionCreatedAt }
+          : {}),
+        ...(window.spawnerOutageSince !== undefined
+          ? { spawnerOutageSince: window.spawnerOutageSince }
           : {}),
       },
     );
@@ -1712,9 +2038,12 @@ async function continueOrSettle(
   }
   const {
     errored,
-    reason: endReason,
+    reason: classifiedReason,
     emptyAnswer,
   } = classifyHarnessEnd(window);
+  // An exec the sandbox ended (a hang) is named as such, not as a crash.
+  const sandboxEnd = sandboxEndOf(window);
+  const endReason = sandboxEnd?.reason ?? classifiedReason;
   // A `--resume` of a dead conversation echoes the handle back on its error
   // result: stamping THAT would re-arm the dead handle on every Retry
   // forever. A window that errored without producing anything and without
@@ -1797,11 +2126,20 @@ async function continueOrSettle(
     // A spend refusal (402) is named as such: the auto-retry must not
     // re-kick it (the key is sized from the same exhausted balance), and
     // the run row should say why.
+    // A harness the sandbox ended as stalled is named too: a hang is no
+    // provider error, and no retry follows it at once.
     ...(errored
       ? {
-          failureCode: spendRefused
-            ? ('budget_exceeded' as const)
-            : ('harness_error' as const),
+          failureCode:
+            sandboxEnd?.failure === 'stalled'
+              ? ('turn_stalled' as const)
+              : sandboxEnd?.failure === 'out_of_memory'
+                ? ('resource_exhausted' as const)
+                : spendRefused
+                  ? ('budget_exceeded' as const)
+                  : ended?.providerErrorKind === 'model_capacity'
+                    ? ('model_capacity' as const)
+                    : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for
@@ -1809,9 +2147,13 @@ async function continueOrSettle(
     ...(errored && ended?.apiErrorStatus !== undefined
       ? { apiErrorStatus: ended.apiErrorStatus }
       : {}),
+    ...(errored && ended?.providerErrorKind === 'subscription_access_disabled'
+      ? { providerErrorKind: ended.providerErrorKind }
+      : {}),
     ...(ended?.usageTotals !== undefined
       ? { usageTotals: ended.usageTotals }
       : {}),
+    ...(window.exited ? { execExited: true } : {}),
   });
 }
 
@@ -1895,6 +2237,20 @@ export function buildSettleComments(args: {
   };
 }
 
+/** Whether a live run has moved on to another exec of the same session (a
+ * steer's restart): that exec staged its own subscription credential, so a
+ * superseded turn must leave the file alone. */
+function heldByAnotherExec(
+  run: { status: string; execId: string } | null,
+  execId: string,
+): boolean {
+  return (
+    run !== null &&
+    run.execId !== execId &&
+    (run.status === 'queued' || run.status === 'running')
+  );
+}
+
 /**
  * Settle exactly once (the session-op finalize claim elects the winner):
  * harvest `/agent/output`, then on success post the agent's report as a task
@@ -1917,12 +2273,17 @@ async function settleTaskAgentTurn(
     failureCode?: TaskRunFailureCode;
     /** The harness-reported provider HTTP status, when there was one. */
     apiErrorStatus?: number;
+    /** Typed refusal from the terminal provider envelope, never model text. */
+    providerErrorKind?: 'subscription_access_disabled';
     /** No retry can start before this, epoch ms: the subscription broker's
      * every account was cooling down after a rate limit
      * (`classifyStartFailure`). */
     retryAtMs?: number;
     /** The harness's own token totals, booked alongside the gateway spend. */
     usageTotals?: { inputTokens: number; outputTokens: number };
+    /** The turn's exec exited on its own before the settle, so the harvest
+     * reads a box nothing is still writing to. */
+    execExited?: boolean;
   },
 ): Promise<void> {
   const current = await ctx.runQuery(
@@ -1943,6 +2304,10 @@ async function settleTaskAgentTurn(
       execId: args.execId,
       status: 'cancelled',
     });
+    if (!heldByAnotherExec(current, args.execId)) {
+      await removeStagedSubscription(args.sessionId, args.harness);
+    }
+    await removeStagedInstructions(args.sessionId, args.harness, args.execId);
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
@@ -1955,6 +2320,10 @@ async function settleTaskAgentTurn(
       ? { usageTotals: result.usageTotals }
       : {}),
   });
+  // The turn is over, whoever won the finalize claim: its staged
+  // subscription credential and its instructions leave the session with it.
+  await removeStagedSubscription(args.sessionId, args.harness);
+  await removeStagedInstructions(args.sessionId, args.harness, args.execId);
   if (!release.won) {
     // The finalize claim keys on the op row — a start that died BEFORE
     // writing one (model unresolvable, spawner error, staging failure) loses
@@ -1983,13 +2352,21 @@ async function settleTaskAgentTurn(
   }
 
   if (result.errored) {
-    if (result.apiErrorStatus === 429 && current.brokerTokenHash) {
+    if (
+      current.brokerTokenHash &&
+      (result.apiErrorStatus === 429 ||
+        (result.apiErrorStatus === 403 &&
+          result.providerErrorKind === 'subscription_access_disabled'))
+    ) {
       await ctx.runMutation(
         internal.provider_credentials.mutations.recordBrokerFailureInternal,
         {
           organizationId: args.organizationId,
           brokerTokenHash: current.brokerTokenHash,
           apiErrorStatus: result.apiErrorStatus,
+          ...(result.providerErrorKind !== undefined
+            ? { providerErrorKind: result.providerErrorKind }
+            : {}),
         },
       );
     }
@@ -2049,6 +2426,7 @@ async function settleTaskAgentTurn(
       sessionId: args.sessionId,
       outputDir: taskOutputDir(args.taskId),
       execId: args.execId,
+      ...(result.execExited === true ? { execExited: true } : {}),
     });
     // Outputs the harvest could not bring back (caps, unreadable, storage
     // rejection) go into the settle comment — the reviewer must see WHAT is
@@ -2106,22 +2484,28 @@ async function settleTaskAgentTurn(
 }
 
 /**
- * Free the agent's standing-session slot the moment its run ends — the org's
- * whole agent budget otherwise stays held through the ~30-min idle sweep. A
- * sibling task's live turn keeps the session up (the release mutation checks
- * running ops AND live runs of the agent, so a sibling that is admitted but
- * has no exec yet is not uncounted); the workspace is preserved either way.
+ * Free the run's worker's slot the moment its run ends — the org's agent
+ * budget otherwise stays held through the ~30-min idle sweep. The release
+ * stops each of the agent's workers that no live run names and no running
+ * op holds (a run that claimed a worker and has no exec yet keeps it); the
+ * workspace is preserved either way, and the agent's other workers keep
+ * working. The run's worker rides along: when it stays up, the agent's next
+ * parked run is woken to take it.
  * Best-effort: a failed release costs latency (the task watchdog's orphan
  * backstop gets it), never the settle.
  */
 async function releaseProjectAgentSlotAfterSettle(
   ctx: ActionCtx,
-  args: Pick<TurnKeys, 'organizationId' | 'agentId'>,
+  args: Pick<TurnKeys, 'organizationId' | 'agentId' | 'sessionId'>,
 ): Promise<void> {
   try {
     await ctx.runMutation(
       internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
-      { organizationId: args.organizationId, agentId: args.agentId },
+      {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        sessionId: args.sessionId,
+      },
     );
   } catch (err) {
     console.warn('[task-agent] session-slot release failed:', err);
@@ -2232,6 +2616,9 @@ export interface SteerTaskAgentTurnArgs extends TurnKeys {
   mentionSource?: MentionSource;
   author: string;
   authorId: string;
+  /** The API key the text was written with; absent from a steer queued
+   * before it was carried. */
+  authorApiKeyId?: string;
   attempt: number;
 }
 
@@ -2270,6 +2657,9 @@ export async function steerTaskAgentTurnImpl(
         organizationId: args.organizationId,
         taskId: args.taskId,
         authorId: args.authorId,
+        ...(args.authorApiKeyId !== undefined
+          ? { apiKeyId: args.authorApiKeyId }
+          : {}),
         feedback: args.feedback,
         mentionSource: args.mentionSource ?? 'comment',
       },
@@ -2352,13 +2742,17 @@ export async function steerTaskAgentTurnImpl(
   // settle marks are exec-guarded and the slot release refuses while the
   // incarnation's op runs.
   // The restarted turn is the steering person's gesture: its spend books to
-  // them from here on, as a fresh run they kicked would.
+  // them — and to the key they wrote with — from here on, as a fresh run
+  // they kicked would.
   const rotated = await ctx.runMutation(
     internal.tasks.agent_runs.rotateTaskAgentRunExec,
     {
       runId: args.runId,
       fromExecId: args.execId,
       startedBy: args.authorId,
+      ...(args.authorApiKeyId !== undefined
+        ? { apiKeyId: args.authorApiKeyId }
+        : {}),
     },
   );
   if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer
@@ -2508,24 +2902,25 @@ export async function steerTaskAgentTurnImpl(
     });
 
     const toolsGuidance = grantedToolsGuidance(normalizeToolGrants(args.tools));
-    const mandatoryInstructions = await readMandatoryInstructions(
-      ctx,
-      args.organizationId,
-      '[task-agent]',
-    );
-    const confined = await isTurnConfined(ctx, args.runId);
+    // Same reads as the fresh start, under the rotated exec.
+    const { mandatoryInstructions, confined, language, contextWindow } =
+      await readTurnLaunchContext(ctx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+        execId,
+        providerSlug: resolved.providerSlug,
+        modelId: resolved.modelId,
+      });
     const instructions = [
       // The organization's Custom instructions lead, as on a chat turn.
       ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
       ...(args.instructions !== undefined && args.instructions !== ''
         ? [args.instructions]
         : []),
-      agentLanguageGuidance(
-        await ctx.runQuery(internal.tasks.agent_runs.getAgentLanguageContext, {
-          organizationId: args.organizationId,
-          taskId: args.taskId,
-        }),
-      ),
+      taskExecutionGuidance({ ...args, execId }),
+      agentLanguageGuidance(language),
       ...(skillsAddendum !== '' ? [skillsAddendum] : []),
       `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
       confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
@@ -2548,16 +2943,6 @@ export async function steerTaskAgentTurnImpl(
           connectors: args.connectors,
           secrets: args.secrets,
         });
-
-    // Same window resolution as the fresh start, under the rotated exec.
-    const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
-      organizationId: args.organizationId,
-      providerSlug: resolved.providerSlug,
-      modelId: resolved.modelId,
-      sessionId: args.sessionId,
-      execId,
-      kind: 'task-agent',
-    });
     const exec = buildExternalTurnExec({
       harness: args.harness,
       gatewayModel: prepared.execModel,

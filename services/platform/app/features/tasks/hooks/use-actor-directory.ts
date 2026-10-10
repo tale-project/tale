@@ -1,11 +1,12 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useMemo } from 'react';
+import { createElement, useMemo, type ReactNode } from 'react';
 
 import {
   useProjectAgents,
   useStandardAgent,
 } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { projectAgentDetails } from '@/app/features/projects/lib/agent-details';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -23,8 +24,17 @@ import {
   isWorkflowSentinel,
   type TaskActivityContext,
   type TaskActorPreview,
+  type TaskActorCatalogEntry,
 } from '../utils/task-actor-preview';
-import { useTaskContractAutomations } from './use-task-subject-contract';
+import {
+  ActorDirectoryScopeProvider,
+  ActorDirectoryScopeValue,
+  useProvidedActorScope,
+} from './actor-directory-scope';
+import {
+  useTaskContractAutomations,
+  useTaskContractAutomationsPending,
+} from './use-task-subject-contract';
 
 export interface ResolvedActor {
   type: TaskCreatorType;
@@ -46,12 +56,18 @@ export interface AssignableActor {
   /** Granted platform tools (agents only) — lets the reviewer picker grey an
    * agent the server would refuse for a missing `task_review` grant. */
   tools?: readonly string[];
+  /** What a person types after `@` to mention it (agents only; absent from
+   * an older backend). */
+  handle?: string;
+  /** What it answered to before agents had handles (agents only), so older
+   * text that named it that way still shows it. */
+  legacyHandles?: readonly string[];
 }
 
 // Shared frozen instances keep hook results referentially stable across
 // renders when a context has no project (and thus no agents) to draw from.
 const EMPTY_AGENT_LIST: AssignableActor[] = [];
-const EMPTY_CATALOG = new Map<string, { name: string; description?: string }>();
+const EMPTY_CATALOG = new Map<string, TaskActorCatalogEntry>();
 
 /**
  * Resolves task actors (comment authors, activity actors, assignees) — which
@@ -72,6 +88,10 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   // and the timeline all named it by its slug before this, which is addressing
   // rather than a name.
   const automations = useTaskContractAutomations(
+    organizationId,
+    projectId === undefined ? undefined : asProjectId(projectId),
+  );
+  const automationsPending = useTaskContractAutomationsPending(
     organizationId,
     projectId === undefined ? undefined : asProjectId(projectId),
   );
@@ -99,6 +119,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   const previewLabels = useMemo(
     () => ({
       unresolvedWorkflow: t('timeline.unresolvedWorkflow'),
+      deletedAgent: t('timeline.deletedAgent'),
     }),
     [t],
   );
@@ -129,13 +150,26 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
             id: row._id,
             name: row.name,
             tools: row.tools,
+            ...(row.handle !== undefined ? { handle: row.handle } : {}),
+            ...(row.legacyHandles !== undefined
+              ? { legacyHandles: row.legacyHandles }
+              : {}),
           })),
     [projectAgents],
   );
   const agentCatalog = useMemo(() => {
     if (projectAgents.length === 0) return EMPTY_CATALOG;
-    const map = new Map<string, { name: string; description?: string }>();
-    for (const row of projectAgents) map.set(row._id, { name: row.name });
+    const map = new Map<string, TaskActorCatalogEntry>();
+    for (const row of projectAgents) {
+      const instructions = row.instructions?.trim();
+      map.set(row._id, {
+        name: row.name,
+        agent: projectAgentDetails(row),
+        ...(instructions !== undefined && instructions.length > 0
+          ? { description: instructions }
+          : {}),
+      });
+    }
     return map;
   }, [projectAgents]);
   const workflowCatalog = EMPTY_CATALOG;
@@ -278,26 +312,126 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     [organizationId, workflowCatalog, previewLabels],
   );
 
-  return {
-    resolveActor,
-    resolveAssigneeId,
-    resolveActorPreview,
-    resolveAgentRunPreview,
-    resolveWorkflowRunPreview,
-    members: memberList,
-    agents: agentList,
-    /** Deployed automations visible from this context, slug + display name. */
-    automations: automationList,
-    /** True while the project's agent list is still being fetched — an empty
-     * `agents` is only "this project HAS no agents" once this settles. */
-    agentsLoading,
-    currentUserId: me?.userId,
-    // `useActorDirectory` stays org-wide — it also resolves *historical* actors
-    // (comment authors, a current assignee who has since lost access), which a
-    // project filter would regress to raw ids. The project-scoped candidate
-    // lists for authoring live in `useAssignableActors` below.
-    projectId,
-  };
+  const currentUserId = me?.userId;
+  // One object per change, not per render: a provided directory is a context
+  // value, and a fresh object would re-render every row that reads it.
+  return useMemo(
+    () => ({
+      resolveActor,
+      resolveAssigneeId,
+      resolveActorPreview,
+      resolveAgentRunPreview,
+      resolveWorkflowRunPreview,
+      members: memberList,
+      agents: agentList,
+      /** Deployed automations visible from this context, slug + display name. */
+      automations: automationList,
+      /** The same automations as listed, for the task-contract surfaces. */
+      contractAutomations: automations,
+      /** True while the project's agent list is still being fetched — an empty
+       * `agents` is only "this project HAS no agents" once this settles. */
+      agentsLoading,
+      /** True until the people, agents and automations a mention can name
+       * have all arrived: a mention of someone not listed yet is not yet
+       * someone gone. */
+      mentionsPending:
+        members === undefined || agentsLoading || automationsPending,
+      currentUserId,
+      organizationId,
+      // `useActorDirectory` stays org-wide — it also resolves *historical* actors
+      // (comment authors, a current assignee who has since lost access), which a
+      // project filter would regress to raw ids. The project-scoped candidate
+      // lists for authoring live in `useAssignableActors` below.
+      projectId,
+    }),
+    [
+      resolveActor,
+      resolveAssigneeId,
+      resolveActorPreview,
+      resolveAgentRunPreview,
+      resolveWorkflowRunPreview,
+      memberList,
+      agentList,
+      automationList,
+      automations,
+      agentsLoading,
+      members,
+      automationsPending,
+      currentUserId,
+      organizationId,
+      projectId,
+    ],
+  );
+}
+
+export type ActorDirectory = ReturnType<typeof useActorDirectory>;
+
+/**
+ * Reads ONE actor directory for everything below it. A row that names people
+ * — a comment, a timeline entry, a card, each text run of a markdown body —
+ * would otherwise read its own: five queries and a rebuilt member index per
+ * row, which on a task with hundreds of comments or a board with thousands of
+ * cards cost seconds to mount and to unmount. Rows take the provided directory
+ * through {@link useProvidedActorDirectory}.
+ */
+export function ActorDirectoryProvider({
+  organizationId,
+  projectId,
+  directory,
+  children,
+}: {
+  organizationId: string;
+  /** Absent where the surface spans projects: no agent resolves then, and
+   * project-scoped rows read their own directory. */
+  projectId?: string;
+  /** Reuse a directory the owning task body has already read for its controls. */
+  directory?: ActorDirectory;
+  children: ReactNode;
+}) {
+  return createElement(
+    ActorDirectoryScopeProvider,
+    {
+      organizationId,
+      projectId,
+      directory,
+      loader: createElement(
+        LoadedActorDirectoryProvider,
+        { organizationId, projectId },
+        children,
+      ),
+    },
+    children,
+  );
+}
+
+function LoadedActorDirectoryProvider({
+  organizationId,
+  projectId,
+  children,
+}: {
+  organizationId: string;
+  projectId?: string;
+  children?: ReactNode;
+}) {
+  const directory = useActorDirectory(organizationId, projectId);
+  return createElement(
+    ActorDirectoryScopeValue,
+    { organizationId, projectId, directory },
+    children,
+  );
+}
+
+/**
+ * The directory an {@link ActorDirectoryProvider} above provides for this
+ * organization and project — the same answer `useActorDirectory` would read
+ * itself — or `undefined`, when there is none or it covers another project,
+ * and the caller reads its own.
+ */
+export function useProvidedActorDirectory(
+  organizationId: string,
+  projectId?: string,
+): ActorDirectory | undefined {
+  return useProvidedActorScope(organizationId, projectId)?.directory;
 }
 
 /**
@@ -359,13 +493,24 @@ export function useAssignableActors(
     useStandardAgent(projectId ? organizationId : undefined)?.available ===
     true;
 
-  return {
-    ...directory,
-    assignableMembers,
-    assignableAgents,
-    scopeReady,
-    projectResolved,
-    canAddAgents,
-    standardAgentAvailable,
-  };
+  return useMemo(
+    () => ({
+      ...directory,
+      assignableMembers,
+      assignableAgents,
+      scopeReady,
+      projectResolved,
+      canAddAgents,
+      standardAgentAvailable,
+    }),
+    [
+      directory,
+      assignableMembers,
+      assignableAgents,
+      scopeReady,
+      projectResolved,
+      canAddAgents,
+      standardAgentAvailable,
+    ],
+  );
 }

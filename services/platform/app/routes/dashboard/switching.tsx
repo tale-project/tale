@@ -32,6 +32,12 @@ import { resetCrossOrgDetailSubpath } from '@/app/lib/org-switch-subpath';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
+export type DashboardHistory = { replace: (path: string) => void };
+
+export function replaceDashboardPath(history: DashboardHistory, path: string) {
+  history.replace(path);
+}
+
 const searchSchema = z.object({
   to: z.string().min(1),
   // Everything after /dashboard/{id}/ — pathname + search + hash. E.g.
@@ -51,7 +57,7 @@ function SwitchingPage() {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { t } = useT('settings');
+  const { t } = useT('navigation');
 
   const { organizations } = useUserOrganizationsWithDetails();
   const ranRef = useRef(false);
@@ -125,8 +131,8 @@ function SwitchingPage() {
       }
       // Replace history entry so Back button doesn't return here. When a
       // subpath is provided, reconstruct the full URL so the user lands on
-      // the same page in the new org. Using router.history.push lets us
-      // push an arbitrary path string (the typed `navigate({ to })` API
+      // the same page in the new org. Using router.history.replace lets us
+      // replace an arbitrary path string (the typed `navigate({ to })` API
       // would require enumerating every possible dashboard subroute).
       //
       // `resetCrossOrgDetailSubpath` strips an org-scoped entity id
@@ -136,9 +142,10 @@ function SwitchingPage() {
       // filter/config subpaths are preserved.
       if (subpath) {
         const targetSubpath = resetCrossOrgDetailSubpath(subpath);
-        router.history.push(`/dashboard/${targetOrgId}/${targetSubpath}`, {
-          replace: true,
-        });
+        replaceDashboardPath(
+          router.history,
+          `/dashboard/${targetOrgId}/${targetSubpath}`,
+        );
       } else {
         void navigate({
           to: '/dashboard/$id',
@@ -152,11 +159,11 @@ function SwitchingPage() {
   return (
     <FullPageCenter>
       <VStack gap={3} align="center">
-        <Spinner size="lg" label={t('organization.switchingLabel')} />
+        <Spinner size="lg" label={t('orgSwitcher.switchingLabel')} />
         <Text variant="muted" className="text-sm">
           {targetName
-            ? t('organization.switchingTo', { name: targetName })
-            : t('organization.switching')}
+            ? t('orgSwitcher.switchingTo', { name: targetName })
+            : t('orgSwitcher.switching')}
         </Text>
       </VStack>
     </FullPageCenter>

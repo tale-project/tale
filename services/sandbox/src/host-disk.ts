@@ -1,4 +1,5 @@
-// What the disk the session workspaces live on has left, for admission.
+// What the disks the session workspaces and Docker metadata live on have
+// left, for admission. A free-space floor is not a per-workspace quota.
 //
 // Every session's workspace — its clones, dependency installs, build output
 // and temp files — is a directory under the spawner's session root on the
@@ -11,13 +12,24 @@
 
 import { statfs } from 'node:fs/promises';
 
+import {
+  isDockerNoSuchObject,
+  runDocker,
+  type RunDockerResult,
+} from './spawn-util.ts';
+
 const GIB = 1024 ** 3;
 
 export interface HostDisk {
   totalBytes: number;
+  /** Observation path: upkeep may only compare readings from the same one. */
+  filesystem?: string;
   /** What an unprivileged process may still write there: sessions run as
    * one. */
   availableBytes: number;
+  /** An explicitly configured filesystem could not be verified/read.
+   * Its zero counters are placeholders, never a successful observation. */
+  unavailable?: boolean;
 }
 
 /** The free space admission keeps on the session disk: the operator's (0
@@ -36,6 +48,7 @@ export function diskReserveBytes(
 export interface SessionDiskState {
   availableBytes: number;
   short: boolean;
+  filesystem?: string;
 }
 
 /** Whether a reading is below the floor; an unknown disk never is. */
@@ -44,9 +57,44 @@ export function belowDiskFloor(
   configuredBytes?: number,
 ): boolean {
   if (disk === null) return false;
+  if (configuredBytes === 0) return false;
+  if (disk.unavailable === true) return true;
   return (
     disk.availableBytes < diskReserveBytes(disk.totalBytes, configuredBytes)
   );
+}
+
+/** The free space below which the session disk is critical: what running
+ * sessions still write there is about to fail, and with it the replay
+ * journal of every running exec. The operator's (0 turns the tier off), else
+ * a quarter of the floor, at least 1 GiB; never above the floor, and none
+ * while the floor is off: a disk the tier calls critical must also be one
+ * admission refuses new sessions on. */
+export function diskCriticalBytes(
+  totalBytes: number,
+  configuredFloorBytes?: number,
+  configuredBytes?: number,
+): number {
+  if (configuredFloorBytes === 0) return 0;
+  const floor = diskReserveBytes(totalBytes, configuredFloorBytes);
+  if (configuredBytes !== undefined) return Math.min(floor, configuredBytes);
+  return Math.min(floor, Math.max(GIB, Math.floor(floor / 4)));
+}
+
+/** Whether a reading is below the critical tier. An unknown disk, and one
+ * whose reading is a placeholder, never is: the tier acts on what it read. */
+export function belowDiskCritical(
+  disk: HostDisk | null,
+  configuredFloorBytes?: number,
+  configuredBytes?: number,
+): boolean {
+  if (disk === null || disk.unavailable === true) return false;
+  const critical = diskCriticalBytes(
+    disk.totalBytes,
+    configuredFloorBytes,
+    configuredBytes,
+  );
+  return critical > 0 && disk.availableBytes < critical;
 }
 
 /** A reading may be reused this long: disk fills over minutes, not
@@ -64,6 +112,15 @@ export interface HostDiskDeps {
 export interface HostDiskSource {
   latest(): HostDisk | null;
   read(fresh?: boolean): Promise<HostDisk | null>;
+  /** The workspace and Docker data filesystems' last readings apart, when
+   * they are watched apart: `latest` is the one with less headroom, but the
+   * critical tier acts on each for what lives there. `dockerData` is
+   * undefined when that filesystem is not watched (it is then the
+   * workspace's), null while it cannot be read. */
+  byFilesystem?(): {
+    workspace: HostDisk | null;
+    dockerData: HostDisk | null | undefined;
+  };
 }
 
 export class HostDiskProbe implements HostDiskSource {
@@ -136,6 +193,7 @@ export class HostDiskProbe implements HostDiskSource {
       disk = {
         totalBytes: fs.blocks * fs.bsize,
         availableBytes: fs.bavail * fs.bsize,
+        filesystem: this.path,
       };
       this.unreadableWarned = false;
     } catch (error) {
@@ -172,5 +230,179 @@ export class HostDiskProbe implements HostDiskSource {
         `[sandbox] the session disk (${this.path}) has ${free} free again, above its ${floor} floor`,
       );
     }
+  }
+}
+
+/** How often a verified Docker data mount is compared with
+ * /proc/self/mountinfo: a file read, no Docker call. */
+export const MOUNT_RECHECK_MS = 60_000;
+const VERIFY_RETRY_FIRST_MS = 30_000;
+const VERIFY_RETRY_MAX_MS = 10 * 60_000;
+
+/** When to try a failed Docker data verification again: 30 s after the
+ * first failure, doubling with each further one, at most 10 min. */
+export function verificationRetryMs(failures: number): number {
+  return Math.min(
+    VERIFY_RETRY_MAX_MS,
+    VERIFY_RETRY_FIRST_MS * 2 ** Math.max(0, failures - 1),
+  );
+}
+
+/** The Docker CLI gave no usable answer (it failed, timed out or found no
+ * slot): unlike an answer that refutes a mount, this says nothing about the
+ * mount, so its retry does not back off past the first delay. */
+export class DockerUnansweredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DockerUnansweredError';
+  }
+}
+
+/** Decode mountinfo's octal escapes of whitespace and backslashes. */
+export function unescapeMountPath(field: string): string {
+  return field.replace(/\\(040|011|012|134)/g, (_match, octal: string) =>
+    String.fromCharCode(Number.parseInt(octal, 8)),
+  );
+}
+
+export interface DockerDataRootMountDeps {
+  docker?: (args: string[]) => Promise<RunDockerResult>;
+  readFile?: (path: string) => Promise<string>;
+  now?: () => number;
+}
+
+/** Discover an existing bind on Docker's metadata filesystem. Docker mounts
+ * its per-container HostnamePath at /etc/hostname; kernel mountinfo supplies
+ * the full container identity to verify with the selected daemon. This does
+ * not inspect a guessed /var/lib/docker inside our own namespace, add a host
+ * mount, or launch a helper. Separately mounted volumes/containerd stores are
+ * outside this observation, as are deployments without the verified bind.
+ *
+ * A container's binds and its daemon's data-root do not change under a
+ * running process, so a verification stands while the bind's mountinfo line
+ * stays the same (checked every minute, no Docker call) and until the caller
+ * reports the bind unreadable (`invalidate`). A failed verification is
+ * retried after {@link verificationRetryMs}. */
+export class DockerDataRootMount {
+  private readonly docker: NonNullable<DockerDataRootMountDeps['docker']>;
+  private readonly readFile: NonNullable<DockerDataRootMountDeps['readFile']>;
+  private readonly now: () => number;
+  private cached: { path: string | null; retryAtMs: number } | null = null;
+  private discovering: Promise<string | null> | null = null;
+  private verifiedMount: string | null = null;
+  private failures = 0;
+  private warned = false;
+
+  constructor(deps: DockerDataRootMountDeps = {}) {
+    this.docker =
+      deps.docker ??
+      ((args) => runDocker(args, { timeoutMs: 5_000, priority: true }));
+    this.readFile = deps.readFile ?? ((path) => Bun.file(path).text());
+    this.now = deps.now ?? Date.now;
+  }
+
+  read(): Promise<string | null> {
+    if (this.cached !== null && this.now() < this.cached.retryAtMs)
+      return Promise.resolve(this.cached.path);
+    this.discovering ??= this.discover().finally(() => {
+      this.discovering = null;
+    });
+    return this.discovering;
+  }
+
+  /** The caller could not read the verified bind: a failure like a refuted
+   * verification, so it is verified again only after the retry delay, which
+   * keeps growing while the bind verifies but stays unreadable. */
+  invalidate(): void {
+    if (this.cached?.path === null) return;
+    this.verifiedMount = null;
+    this.failures += 1;
+    this.cached = {
+      path: null,
+      retryAtMs: this.now() + verificationRetryMs(this.failures),
+    };
+  }
+
+  private async discover(): Promise<string | null> {
+    let path: string | null = null;
+    let ttl = MOUNT_RECHECK_MS;
+    try {
+      const mountinfo = await this.readFile('/proc/self/mountinfo');
+      const mounts = mountinfo.split('\n').filter((line) => {
+        const fields = line.split(' ');
+        return fields[4] === '/etc/hostname' && fields[3] !== undefined;
+      });
+      const mount = mounts.length === 1 ? mounts[0] : undefined;
+      if (mount !== undefined && mount === this.verifiedMount) {
+        // The bind verified earlier is still the one mounted, and has been
+        // readable since the last check.
+        this.failures = 0;
+        this.cached = { path: '/etc/hostname', retryAtMs: this.now() + ttl };
+        return '/etc/hostname';
+      }
+      this.verifiedMount = null;
+      const root =
+        mount?.split(' ')[3] === undefined
+          ? undefined
+          : unescapeMountPath(mount.split(' ')[3] ?? '');
+      const id = root?.match(/\/containers\/([a-f0-9]{64})\/hostname$/)?.[1];
+      if (root === undefined || id === undefined)
+        throw new Error('no identifiable Docker hostname bind');
+      const [info, inspect] = await Promise.all([
+        this.dockerJson(['info', '--format', '{{json .DockerRootDir}}']),
+        this.dockerJson([
+          'inspect',
+          '--type',
+          'container',
+          '--format',
+          '{"id":{{json .Id}},"hostnamePath":{{json .HostnamePath}}}',
+          id,
+        ]),
+      ]);
+      if (
+        typeof info !== 'string' ||
+        !info.startsWith('/') ||
+        inspect === null ||
+        typeof inspect !== 'object' ||
+        !('id' in inspect) ||
+        inspect.id !== id ||
+        !('hostnamePath' in inspect)
+      )
+        throw new Error('Docker metadata does not verify the hostname bind');
+      const expected = `${info.replace(/\/+$/, '')}/containers/${id}/hostname`;
+      if (inspect.hostnamePath !== expected || !expected.endsWith(root))
+        throw new Error(
+          'Docker hostname bind is outside the reported data-root',
+        );
+      path = '/etc/hostname';
+      this.verifiedMount = mount ?? null;
+      this.warned = false;
+    } catch (error) {
+      this.failures =
+        error instanceof DockerUnansweredError ? 1 : this.failures + 1;
+      ttl = verificationRetryMs(this.failures);
+      if (!this.warned) {
+        this.warned = true;
+        console.warn(
+          '[sandbox] cannot verify the Docker data-root filesystem; its disk pressure is unknown (workspace admission remains active):',
+          error,
+        );
+      }
+    }
+    this.cached = { path, retryAtMs: this.now() + ttl };
+    return path;
+  }
+
+  private async dockerJson(args: string[]): Promise<unknown> {
+    const result = await this.docker(args);
+    if (result.exitCode !== 0) {
+      const message = `docker ${args[0]} failed while verifying its data-root (exit ${result.exitCode})`;
+      // A daemon that answered "no such object" refuted the mount; only one
+      // that did not answer is asked again at the first delay.
+      throw isDockerNoSuchObject(result.stderr)
+        ? new Error(message)
+        : new DockerUnansweredError(message);
+    }
+    return JSON.parse(result.stdout);
   }
 }

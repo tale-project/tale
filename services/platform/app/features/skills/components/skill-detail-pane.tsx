@@ -8,6 +8,7 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Textarea } from '@tale/ui/textarea';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { toast } from '@tale/ui/use-toast';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -27,7 +28,6 @@ import {
 } from '../hooks/mutations';
 import { useSkill } from '../hooks/queries';
 import { useOrgReservedReason } from '../hooks/use-org-reserved-reason';
-import { useRetryFocus } from '../hooks/use-retry-focus';
 import { readFailureMessage, skillReadState } from '../utils/skill-read-state';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';

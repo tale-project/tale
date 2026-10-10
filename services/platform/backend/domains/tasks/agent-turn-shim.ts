@@ -5,13 +5,19 @@ import {
   mergeTimelineParts,
   type TimelinePart,
 } from '../../../lib/harnesses/timeline';
+import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
-import type { MentionSource } from '../../core/tasks/mentions.ts';
+import {
+  cutTaskText,
+  type MentionSource,
+  relabelTaskMentions,
+} from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
@@ -26,6 +32,7 @@ import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import {
   markSessionOpKeyRevoked,
   scheduleGatewayKeyReconcile,
+  settleCostFreeTurn,
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
@@ -36,13 +43,14 @@ import {
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
 import {
-  emitTaskRunHint,
   failAgentRunFromTurn,
   isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
+import { parkAgentRunInTx } from './agent-workers.ts';
+import { staleTaskInputMirrors } from './input-mirrors.ts';
 import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
@@ -154,7 +162,13 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:setTaskAgentRunRunning': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; execId: string };
+      const args = raw as {
+        runId: string;
+        execId: string;
+        /** The deadline the start works to; an image that passes none
+         * keeps the kick's. */
+        deadlineAt?: number;
+      };
       // Exec-fenced: a start whose exec the queued-run recovery rotated away
       // (or whose run was cancelled) learns it here and stands down instead
       // of spawning — the host reads the boolean.
@@ -244,17 +258,23 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The person whose steer restarts the turn; absent from a steer
          * queued before it was carried. */
         startedBy?: string;
+        /** The API key they wrote with; absent when they wrote without one. */
+        apiKeyId?: string;
       };
       // The SINGLE-WINNER claim: guarded on (running, fromExecId), so two
       // concurrent steers cannot both rotate — the loser re-reads and sees
       // the new incarnation. The superseded chain orphans itself because
       // every settle mark is exec-guarded. The restarted turn is booked to
-      // the person who steered it: spend follows the run's starter.
+      // the person who steered it, and to the key they wrote with or none:
+      // spend follows the run's starter.
       const execId = `${args.fromExecId}-2`;
+      const startedBy = args.startedBy ?? null;
       const rows = await sql<{ id: string }[]>`
         UPDATE app.project_agent_runs SET
           exec_id = ${execId},
-          started_by = coalesce(${args.startedBy ?? null}, started_by),
+          started_by = coalesce(${startedBy}, started_by),
+          api_key_id = CASE WHEN ${startedBy}::text IS NULL THEN api_key_id
+                            ELSE ${args.apiKeyId ?? null} END,
           updated_at_ms = ${Date.now()}
         WHERE id = ${args.runId} AND status = 'running'
           AND exec_id = ${args.fromExecId}
@@ -269,6 +289,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         taskId: string;
         authorId: string;
+        /** The API key the text was written with. */
+        apiKeyId?: string;
         feedback: string;
         mentionSource?: MentionSource;
       };
@@ -345,6 +367,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                   mentionSource: 'comment' as const,
                 }),
             startedBy: args.authorId,
+            ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
           });
         } catch (error) {
           // The organization's standard agent no longer starts for the
@@ -389,41 +412,18 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The sandbox host refused it and said when its place in line comes
          * up: the run is woken then rather than at the watchdog's next tick. */
         wakeAfterMs?: number;
+        /** The run had launched, and its workspace's runtime refused the exec
+         * because every live-exec place was taken (`EXEC_LIMIT`). Nothing
+         * ran: the run goes back to `queued` without its launch stamp — the
+         * wait is no executed time, so it can neither count as an attempt nor
+         * pass for a quarter hour of progress — and onto a fresh exec, since
+         * the refused one's key and op row are closed as cancelled. */
+        execRefused?: boolean;
+        /** Why it waits (`runParkReason`); absent when the refusal has no
+         * wording of its own. */
+        reason?: AgentRunWaitingReason;
       };
-      const parked = await sql.begin(async (tx) => {
-        const rows = await tx<
-          { organizationId: string; taskId: string; agentId: string }[]
-        >`
-          UPDATE app.project_agent_runs SET
-            waiting_for_capacity_at_ms = ${Date.now()},
-            updated_at_ms = ${Date.now()}
-          WHERE id = ${args.runId} AND exec_id = ${args.execId}
-            AND status = 'queued'
-          RETURNING org_id AS "organizationId", task_id AS "taskId",
-            agent_id AS "agentId"
-        `;
-        // The card now reads "Waiting for a sandbox slot", not "Queued".
-        const row = rows[0];
-        if (row !== undefined) {
-          await emitTaskRunHint(tx, {
-            organizationId: row.organizationId,
-            taskId: row.taskId,
-          });
-          if (args.wakeAfterMs !== undefined && args.wakeAfterMs > 0) {
-            await addJobInTx(
-              tx,
-              'task.agent_park_wake',
-              {
-                organizationId: row.organizationId,
-                runId: args.runId,
-                execId: args.execId,
-              },
-              { startAfter: new Date(Date.now() + args.wakeAfterMs) },
-            );
-          }
-        }
-        return row;
-      });
+      const parked = await sql.begin((tx) => parkAgentRunInTx(tx, args));
       // A parked run holds no slot: a standing workspace its start resumed
       // before the sandbox host refused the create reads `active` with no
       // compute, where the reconcile would heal it to destroyed. Free it back
@@ -440,6 +440,18 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       return null;
     },
 
+    // Which copies of task inputs a run's worker may drop at its start.
+    'tasks/agent_runs:listStaleTaskInputMirrors': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        agentId: string;
+        taskIds: string[];
+        reviewHashes: string[];
+      };
+      return staleTaskInputMirrors(sql, args);
+    },
+
     'tasks/agent_runs:getTaskBriefForAgentRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { taskId: string };
@@ -452,10 +464,12 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           projectId: string;
           attachments: unknown;
           outputs: unknown;
+          organizationId: string;
         }[]
       >`
         SELECT title, description, label_ids AS "labelIds", number,
-               project_id AS "projectId", attachments, outputs
+               project_id AS "projectId", attachments, outputs,
+               org_id AS "organizationId"
         FROM app.tasks WHERE id = ${args.taskId} LIMIT 1
       `;
       const task = tasks[0];
@@ -509,20 +523,32 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               }))
               .filter((entry) => entry.fileId !== '' && entry.fileName !== '')
           : [];
+      // The agent reads each mention with the CURRENT name of whoever it
+      // names: the address is what it acts on, the name what it calls them.
+      const names = await currentMentionNames(sql, task.organizationId, [
+        task.description ?? '',
+        ...discussion.map((entry) => entry.body),
+      ]);
       return {
         title: task.title,
-        ...(task.description !== null ? { description: task.description } : {}),
+        ...(task.description !== null
+          ? { description: relabelTaskMentions(task.description, names) }
+          : {}),
         ...(labelNames.length > 0 ? { labels: labelNames } : {}),
         ...(identifier !== undefined ? { identifier } : {}),
         ...(project !== undefined ? { projectName: project.name } : {}),
-        discussion: discussion.map((entry) => ({
-          author: entry.authorType === 'user' ? 'user' : 'agent',
-          body:
-            entry.body.length > 2000
-              ? `${entry.body.slice(0, 2000)}\n… (truncated)`
-              : entry.body,
-          at: entry.createdAt,
-        })),
+        discussion: discussion.map((entry) => {
+          const body = relabelTaskMentions(entry.body, names);
+          return {
+            author: entry.authorType === 'user' ? 'user' : 'agent',
+            // Never cut inside a mention.
+            body:
+              body.length > 2000
+                ? `${cutTaskText(body, 2000)}\n… (truncated)`
+                : body,
+            at: entry.createdAt,
+          };
+        }),
         attachments: fileList(task.attachments),
         outputs: fileList(task.outputs),
       };
@@ -591,6 +617,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // its spend fact closes at the terminal stamp, which also releases the
       // budget reservation it may hold.
       const keyless = args.mintedKeyId === undefined;
+      // Except a subscription turn's: it is the request it was, booked
+      // before that stamp closes it — whatever ended it, its host's release
+      // or a watchdog's failure.
+      if (terminal && keyless) {
+        await settleCostFreeTurn(sql, {
+          sessionId: args.sessionId,
+          execId: args.execId,
+        });
+      }
       const upsert = async (
         db: Sql | TransactionSql,
         liveTimeline: TimelinePart[] | undefined,
@@ -646,7 +681,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               app.sandbox_session_ops.harness),
             deadline_ms = coalesce(EXCLUDED.deadline_ms,
               app.sandbox_session_ops.deadline_ms),
-            heartbeat_at_ms = coalesce(EXCLUDED.heartbeat_at_ms,
+            -- Delayed progress carries its callback time; it must not
+            -- erase a newer gateway, drainer or recovery heartbeat.
+            heartbeat_at_ms = greatest(EXCLUDED.heartbeat_at_ms,
               app.sandbox_session_ops.heartbeat_at_ms),
             -- Monotonic: a stale in-flight racer must not regress it.
             last_event_at_ms = greatest(
@@ -838,9 +875,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'sandbox/session_mutations:releaseProjectAgentSessionSlot': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { organizationId: string; agentId: string };
-      // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the oldest parked runs on the freed slot.
+      const args = raw as {
+        organizationId: string;
+        agentId: string;
+        /** The workspace of the turn that ended. */
+        sessionId?: string;
+      };
+      // Stop each of the agent's workers no live run names — and wake the
+      // next parked runs on a freed slot, or the agent's oldest parked run
+      // when the ended turn's worker stayed up.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 
@@ -860,10 +903,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           status: string;
           createdAt: number;
           pinned: boolean;
+          profile: unknown;
         }[]
       >`
         SELECT session_id AS "sessionId", org_id AS "organizationId", status,
-               created_at_ms::float8 AS "createdAt", pinned
+               created_at_ms::float8 AS "createdAt", pinned, profile
         FROM app.sandbox_sessions
         WHERE owner_type = ${args.ownerType} AND owner_id = ${args.ownerId}
           AND (${args.sessionId ?? null}::text IS NULL
@@ -886,6 +930,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           resumedBy: string | null;
           spendSettledAt: number | null;
           keyRevokedAt: number | null;
+          budgetCents: number | null;
         }[]
       >`
         SELECT minted_key_id AS "mintedKeyId",
@@ -893,7 +938,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                started_at_ms::float8 AS "startedAt",
                resumed_by AS "resumedBy",
                spend_settled_at_ms::float8 AS "spendSettledAt",
-               key_revoked_at_ms::float8 AS "keyRevokedAt"
+               key_revoked_at_ms::float8 AS "keyRevokedAt",
+               budget_cents::float8 AS "budgetCents"
         FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         LIMIT 1
@@ -908,6 +954,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         // The settlement facts a replayed settle resumes from.
         spendSettled: row.spendSettledAt !== null,
         keyRevoked: row.keyRevokedAt !== null,
+        // The hold the turn took: 0 for a subscription turn's request.
+        ...(row.budgetCents !== null ? { budgetCents: row.budgetCents } : {}),
       };
     },
 

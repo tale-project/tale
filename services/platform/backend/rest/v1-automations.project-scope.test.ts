@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  AutomationError,
   automationExists,
   beginRun,
   beginRunInTx,
@@ -15,6 +16,8 @@ import {
   getRun,
   listAutomations,
   listRunsPage,
+  unbindProjectInTx,
+  requestLegacyRunStopInTx,
   versionRow,
 } from '../domains/automations/store.ts';
 import type { ProjectRow } from '../domains/projects/service.ts';
@@ -33,6 +36,8 @@ vi.mock('../domains/automations/store.ts', async (original) => ({
   getRun: vi.fn(),
   listAutomations: vi.fn(),
   listRunsPage: vi.fn(),
+  unbindProjectInTx: vi.fn(),
+  requestLegacyRunStopInTx: vi.fn(),
   versionRow: vi.fn(),
 }));
 
@@ -58,6 +63,8 @@ function mount(
     project?: Partial<typeof project> | null;
     role?: string;
     orgExplicit?: boolean;
+    apiKeyId?: string;
+    requestId?: string;
   } = {},
 ) {
   const selected =
@@ -86,6 +93,8 @@ function mount(
   }) as unknown as Sql;
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
+    if (options.requestId !== undefined) c.set('requestId', options.requestId);
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
@@ -115,6 +124,7 @@ beforeEach(() => {
   vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'run-1', version: 1 });
   vi.mocked(bindProject).mockResolvedValue({ bound: true });
   vi.mocked(bindProjectInTx).mockResolvedValue({ bound: true });
+  vi.mocked(unbindProjectInTx).mockResolvedValue({ unbound: true });
   vi.mocked(cancelRun).mockResolvedValue({ cancelled: true });
   vi.mocked(cancelRunInTx).mockResolvedValue({ cancelled: true });
   vi.mocked(getRun).mockResolvedValue(run as never);
@@ -128,7 +138,7 @@ beforeEach(() => {
 });
 
 describe('project automation REST scope', () => {
-  it('lists only installations in the URL project without leaking other project ids', async () => {
+  it('lists only installations in the URL project without leaking other project ids [AUTO-R2]', async () => {
     vi.mocked(listAutomations).mockResolvedValue([
       {
         name: 'shared',
@@ -279,22 +289,25 @@ describe('project automation REST scope', () => {
     { project: null },
     { project: { organizationId: 'org-2' } },
     { project: { teamId: 'private-team' } },
-  ])('hides absent, foreign and inaccessible projects: %j', async (options) => {
-    const { app } = mount(options as never);
-    expect((await app.request('/api/v1/projects/p-1/runs/run-1')).status).toBe(
-      404,
-    );
-    expect(
-      (
-        await app.request(
-          '/api/v1/projects/p-1/automations/billing__dunning/runs',
-          json('POST'),
-        )
-      ).status,
-    ).toBe(404);
-    expect(getRun).not.toHaveBeenCalled();
-    expect(beginRunInTx).not.toHaveBeenCalled();
-  });
+  ])(
+    'hides absent, foreign and inaccessible projects: %j [AUTO-R2]',
+    async (options) => {
+      const { app } = mount(options as never);
+      expect(
+        (await app.request('/api/v1/projects/p-1/runs/run-1')).status,
+      ).toBe(404);
+      expect(
+        (
+          await app.request(
+            '/api/v1/projects/p-1/automations/billing__dunning/runs',
+            json('POST'),
+          )
+        ).status,
+      ).toBe(404);
+      expect(getRun).not.toHaveBeenCalled();
+      expect(beginRunInTx).not.toHaveBeenCalled();
+    },
+  );
 
   it('allows member reads but refuses project run writes including mock runs', async () => {
     const { app } = mount({ role: 'member' });
@@ -311,7 +324,7 @@ describe('project automation REST scope', () => {
     ).toBe(403);
   });
 
-  it('allows archived project reads but no new or cancelled runs', async () => {
+  it('allows archived project reads but no new or cancelled runs [AUTO-R8]', async () => {
     const { app } = mount({ project: { archivedAt: 1 } as never });
     expect((await app.request('/api/v1/projects/p-1/runs/run-1')).status).toBe(
       200,
@@ -336,37 +349,27 @@ describe('project automation REST scope', () => {
 });
 
 describe('organization run scope', () => {
-  it('keeps shared definitions in the org catalog without revealing their project installations', async () => {
+  it('leaves out a definition installed only in projects the key holder cannot read [AUTO-R2] [AUTO-R27]', async () => {
+    const definition = {
+      latestVersion: 1,
+      deployedVersion: 1,
+      description: null,
+      inputs: null,
+      presentation: null,
+      trigger: null,
+    };
     vi.mocked(listAutomations).mockResolvedValue([
-      {
-        name: 'shared',
-        latestVersion: 1,
-        deployedVersion: 1,
-        description: null,
-        inputs: null,
-        presentation: null,
-        projectIds: ['private-project'],
-        trigger: null,
-      },
+      { ...definition, name: 'hr/onboarding', projectIds: ['private-project'] },
+      { ...definition, name: 'shared', projectIds: [] },
     ]);
     const response = await mount().app.request('/api/v1/automations');
-    // The catalog names the installations the key holder can SEE — the
-    // scope a project-bound automation must be started in — and only
-    // those: `private-project` is not among the caller's projects, so the
-    // list is empty, never a leak of the hidden id.
+    // `private-project` is not among the caller's projects: the automation
+    // installed only there is left out, as the app's list leaves it out —
+    // listed with no installations, it would read as an organization
+    // automation, and its hidden project id never leaks. An organization
+    // automation is everyone's.
     expect(await response.json()).toEqual({
-      automations: [
-        {
-          name: 'shared',
-          latestVersion: 1,
-          deployedVersion: 1,
-          description: null,
-          inputs: null,
-          presentation: null,
-          projectIds: [],
-          trigger: null,
-        },
-      ],
+      automations: [{ ...definition, name: 'shared', projectIds: [] }],
     });
   });
 
@@ -402,6 +405,7 @@ describe('organization run scope', () => {
         trigger: {
           kind: 'schedule',
           enabled: true,
+          nextRunAt: 1_700_000_300_000,
           lastFiredAt: null,
           lastSkippedAt: 1_700_000_000_000,
           lastSkipReason: 'not_deployed',
@@ -419,6 +423,7 @@ describe('organization run scope', () => {
           trigger: {
             kind: 'schedule',
             enabled: true,
+            nextRunAt: 1_700_000_300_000,
             lastFiredAt: null,
             lastSkippedAt: 1_700_000_000_000,
             lastSkipReason: 'not_deployed',
@@ -449,7 +454,7 @@ describe('organization run scope', () => {
     expect(cancelRun).not.toHaveBeenCalled();
   });
 
-  it('starts org runs with an atomic refusal of implicit project bindings', async () => {
+  it('starts org runs with an atomic refusal of implicit project bindings [AUTO-R7]', async () => {
     const response = await mount().app.request(
       '/api/v1/automations/billing__dunning/runs',
       json('POST'),
@@ -471,5 +476,187 @@ describe('organization run scope', () => {
     );
     expect(response.status).toBe(400);
     expect(beginRun).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Installing and uninstalling with an API key is the key's act: the binding
+ * writer records `api-key:<userId>`, and runs in the REST door's request
+ * channel so the audit rows name the key and the request [AUTO-R28].
+ */
+describe('installs made with an API key name the key [AUTO-R28]', () => {
+  it.each([
+    ['POST', 201, bindProjectInTx],
+    ['DELETE', 204, unbindProjectInTx],
+  ] as const)(
+    '%s runs as the key, inside its channel',
+    async (method, status, writer) => {
+      const { currentRequestChannel } =
+        await import('../lib/request-channel.ts');
+      const seen: unknown[] = [];
+      vi.mocked(writer).mockImplementationOnce(async () => {
+        seen.push(currentRequestChannel());
+        return { bound: true, unbound: true };
+      });
+      const response = await mount({
+        apiKeyId: 'key-7',
+        requestId: 'req-9',
+      }).app.request(
+        '/api/v1/projects/p-1/automations/billing__dunning',
+        json(method),
+      );
+      expect(response.status).toBe(status);
+      expect(seen).toEqual([
+        { via: 'api-key', requestId: 'req-9', apiKeyId: 'key-7' },
+      ]);
+      expect(writer).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ actor: 'api-key:user-1' }),
+      );
+    },
+  );
+});
+
+describe('legacy quarantine stop requests', () => {
+  const request = {
+    action: 'stop',
+    expectedClaimEpoch: 4,
+    expectedObservedAt: 1_700_000_000_000,
+    acknowledgeUnknownExternalEffects: true,
+  };
+  const legacyQuarantine = {
+    reason: 'legacy_execution_unproven',
+    observedAt: request.expectedObservedAt,
+    claimEpoch: 4,
+    priorStatus: 'running',
+    resolution: { action: 'stop', actor: 'user-1', at: 1_700_000_000_001 },
+  };
+  const receipt = { requested: true, status: 'quarantined', legacyQuarantine };
+
+  it.each([
+    {
+      path: '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      projectId: 'p-1',
+    },
+    { path: '/api/v1/runs/run-1/legacy-quarantine', projectId: null },
+  ])(
+    'requests a stop in the exact $path scope without clearing the hold',
+    async ({ path, projectId }) => {
+      vi.mocked(getRun).mockResolvedValue({
+        ...run,
+        projectId,
+        status: 'quarantined',
+      } as never);
+      vi.mocked(requestLegacyRunStopInTx).mockResolvedValue(receipt as never);
+      const { app, sql, begin } = mount();
+      const response = await app.request(path, json('POST', request));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(receipt);
+      expect(begin).toHaveBeenCalledTimes(1);
+      expect(requestLegacyRunStopInTx).toHaveBeenCalledWith(sql, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        actor: 'user-1',
+        request,
+      });
+      expect(cancelRunInTx).not.toHaveBeenCalled();
+      expect(cancelRun).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {
+      path: '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      projectId: null,
+    },
+    {
+      path: '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      projectId: 'p-2',
+    },
+    { path: '/api/v1/runs/run-1/legacy-quarantine', projectId: 'p-1' },
+  ])(
+    'hides runs outside the URL scope: $path / $projectId',
+    async ({ path, projectId }) => {
+      vi.mocked(getRun).mockResolvedValue({ ...run, projectId } as never);
+      const response = await mount({ role: 'admin' }).app.request(
+        path,
+        json('POST', request),
+      );
+      expect(response.status).toBe(404);
+      expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { options: { project: null }, status: 404 },
+    { options: { project: { organizationId: 'org-2' } }, status: 404 },
+    { options: { project: { teamId: 'private-team' } }, status: 404 },
+    { options: { project: { archivedAt: 1 } }, status: 403 },
+    { options: { role: 'member' }, status: 403 },
+  ])(
+    'preserves the project write gate: $options',
+    async ({ options, status }) => {
+      const response = await mount(options).app.request(
+        '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+        json('POST', request),
+      );
+      expect(response.status).toBe(status);
+      expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {},
+    { ...request, action: 'resume' },
+    { ...request, acknowledgeUnknownExternalEffects: false },
+    { ...request, expectedClaimEpoch: -1 },
+    { ...request, expectedObservedAt: 1.5 },
+    { ...request, actor: 'another-user' },
+    { ...request, projectId: 'p-2' },
+  ])(
+    'refuses invalid or authority-bearing request fields: %j',
+    async (body) => {
+      const response = await mount().app.request(
+        '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+        json('POST', body),
+      );
+      expect(response.status).toBe(400);
+      expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+      expect(getRun).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses organization stop requests without developer authority', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...run, projectId: null } as never);
+    const response = await mount({ role: 'member' }).app.request(
+      '/api/v1/runs/run-1/legacy-quarantine',
+      json('POST', request),
+    );
+    expect(response.status).toBe(403);
+    expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+  });
+
+  it('hides missing runs before the stop mutation', async () => {
+    vi.mocked(getRun).mockResolvedValue(null);
+    const response = await mount().app.request(
+      '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      json('POST', request),
+    );
+    expect(response.status).toBe(404);
+    expect(requestLegacyRunStopInTx).not.toHaveBeenCalled();
+  });
+
+  it('preserves a stale quarantine 409 from the store', async () => {
+    vi.mocked(requestLegacyRunStopInTx).mockRejectedValue(
+      new AutomationError('RUN_QUARANTINE_CHANGED', 'Quarantine changed', 409),
+    );
+    const response = await mount().app.request(
+      '/api/v1/projects/p-1/runs/run-1/legacy-quarantine',
+      json('POST', request),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: 'RUN_QUARANTINE_CHANGED',
+    });
   });
 });

@@ -274,24 +274,27 @@ describe('REST thread paths enforce project scope', () => {
     '/projects/p-a/threads/t-other-user',
     '/projects/p-a/threads/t-other-org',
     '/projects/p-a/threads/t-trash',
-  ])('treats %s and all its subordinate resources as absent', async (path) => {
-    const { app, queries } = mount();
-    for (const suffix of ['', '/messages', '/generation']) {
-      const response = await app.request(`${path}${suffix}`);
-      expect(response.status).toBe(404);
-    }
-    expect((await send(app, `${path}/messages`, message)).status).toBe(404);
-    expect(addJobInTx).not.toHaveBeenCalled();
-    expect(
-      queries.some(
-        (query) =>
-          query.text.includes('FROM app.messages') ||
-          query.text.includes('FROM app.generations'),
-      ),
-    ).toBe(false);
-  });
+  ])(
+    'treats %s and all its subordinate resources as absent [CHAT-R1]',
+    async (path) => {
+      const { app, queries } = mount();
+      for (const suffix of ['', '/messages', '/generation']) {
+        const response = await app.request(`${path}${suffix}`);
+        expect(response.status).toBe(404);
+      }
+      expect((await send(app, `${path}/messages`, message)).status).toBe(404);
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(
+        queries.some(
+          (query) =>
+            query.text.includes('FROM app.messages') ||
+            query.text.includes('FROM app.generations'),
+        ),
+      ).toBe(false);
+    },
+  );
 
-  it('lets an ordinary member create a direct thread in a readable project', async () => {
+  it('lets an ordinary member create a direct thread in a readable project [CHAT-R14]', async () => {
     const { app, queries } = mount({ role: 'member' });
     const response = await send(app, '/projects/p-a/threads', {
       title: 'Project chat',
@@ -407,7 +410,7 @@ describe('REST thread paths enforce project scope', () => {
   });
 
   it.each(['/threads', '/projects/p-a/threads'])(
-    'refuses project scope or agent selectors in the %s body',
+    'refuses project scope or agent selectors in the %s body [CHAT-R14]',
     async (path) => {
       const { app, queries } = mount();
       for (const field of [
@@ -454,7 +457,7 @@ describe('REST thread paths enforce project scope', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('reads archived projects but cannot create, send, archive, delete or cancel in them', async () => {
+  it('reads archived projects but cannot create, send, archive, delete or cancel in them [CHAT-R16]', async () => {
     const { app } = mount({ archivedProject: true });
     expect((await app.request('/projects/p-a/threads/t-a')).status).toBe(200);
     expect((await send(app, '/projects/p-a/threads', {})).status).toBe(403);
@@ -485,7 +488,7 @@ describe('REST thread paths enforce project scope', () => {
   });
 
   it.each(['t-archived', 't-sandbox'])(
-    'keeps %s readable but refuses messages',
+    'keeps %s readable but refuses messages [CHAT-R16]',
     async (threadId) => {
       const { app } = mount();
       expect((await app.request(`/threads/${threadId}`)).status).toBe(200);

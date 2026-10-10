@@ -700,7 +700,11 @@ Used in AI chat responses for section hierarchy within rich text output.
 **Code body** (`ny4z0`):
 
 - Vertical layout, `padding: 16`, `gap: 2`, fill `#F9FAFB`
-- Code lines: JetBrains Mono 13px, `#111827`, `lineHeight: 1.6`
+- Code lines: JetBrains Mono 13px, `lineHeight: 1.6`, coloured by the `--code-*` palette in
+  `packages/ui/src/globals.css`: `--code-foreground` for plain text and one `--code-token-*` per
+  syntax role (keyword, string, template expression, constant, function, parameter, comment,
+  punctuation). The palette is AA on the code-block surface in both themes, and every read-only
+  code block and the code editor share it — never colour code with hex values.
 
 **Dark mode overrides:**
 
@@ -708,7 +712,7 @@ Used in AI chat responses for section hierarchy within rich text output.
 - Header bottom border: `#374151`
 - Language label + copy button: `#9CA3AF`
 - Code body fill: `#111827`
-- Code lines: `#E5E7EB`
+- Code lines: the dark values of the same `--code-*` variables
 
 **Behavior:**
 

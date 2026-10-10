@@ -15,7 +15,12 @@
 
 import type { ApiFormat } from '@tale/shared/schemas/providers';
 
-import type { TurnFinishReason, TurnUsage } from '../../../lib/chat/types';
+import { servedBy } from '../../../lib/chat/serving';
+import type {
+  ServedBy,
+  TurnFinishReason,
+  TurnUsage,
+} from '../../../lib/chat/types';
 import { isRecord } from '../../../lib/utils/type-utils';
 
 /** What a stream is read as: a connector's API format, or the OpenAI
@@ -406,6 +411,55 @@ export function readEvent(
     ...(reasoningDelta ? { reasoning: reasoningDelta } : {}),
     ...(finishReason !== undefined ? { finishReason } : {}),
   };
+}
+
+/**
+ * What one streamed event says about where the answer is served: the model
+ * id the provider reports, the upstream a gateway routed the request to, and
+ * the region the provider names. OpenAI-compatible chunks carry `model`, and
+ * OpenRouter adds `provider`, the upstream serving the request (`Anthropic`,
+ * `Google Vertex`); the Responses API names the model on the response its
+ * lifecycle events carry; the Anthropic wire names the model on
+ * `message_start` and echoes the request's inference geography (`global`,
+ * `us`) as `usage.inference_geo`. Undefined for an event that names nothing.
+ */
+export function readServedBy(
+  dialect: StreamDialect,
+  event: Record<string, unknown>,
+): ServedBy | undefined {
+  if (dialect === 'openai-responses') {
+    if (
+      event.type !== 'response.created' &&
+      event.type !== 'response.completed'
+    ) {
+      return undefined;
+    }
+    return servedBy({ model: asRecord(event.response)?.model });
+  }
+  if (dialect === 'anthropic') {
+    if (event.type === 'message_start') {
+      const message = asRecord(event.message);
+      return servedBy({
+        model: message?.model,
+        region: asRecord(message?.usage)?.inference_geo,
+      });
+    }
+    if (event.type === 'message_delta') {
+      return servedBy({ region: asRecord(event.usage)?.inference_geo });
+    }
+    return undefined;
+  }
+  return servedBy({ provider: event.provider, model: event.model });
+}
+
+/**
+ * What a response's headers say about where it is served, read before the
+ * first byte of the body. Azure OpenAI names the region of the resource that
+ * processed the request in `x-ms-region` (`Sweden Central`,
+ * `Switzerland North`). Undefined when the headers name nothing.
+ */
+export function readServedByHeaders(headers: Headers): ServedBy | undefined {
+  return servedBy({ region: headers.get('x-ms-region') ?? undefined });
 }
 
 /** A failure a provider reported INSIDE a stream it had already opened. */

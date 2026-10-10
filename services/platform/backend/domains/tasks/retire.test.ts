@@ -46,7 +46,7 @@ const TASKS = [
   },
 ];
 
-function fakeTx(): { tx: TransactionSql; statements: Statement[] } {
+function fakeTx(held = false): { tx: TransactionSql; statements: Statement[] } {
   const statements: Statement[] = [];
   const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
@@ -62,6 +62,8 @@ function fakeTx(): { tx: TransactionSql; statements: Statement[] } {
       return Promise.resolve([{ id: 'run-a', taskId: 'task-1' }]);
     }
     if (text.startsWith('SELECT id FROM app.automation_runs')) {
+      if (text.includes("status = 'quarantined'"))
+        return Promise.resolve(held ? [{ id: 'held' }] : []);
       return Promise.resolve([{ id: 'wf-run-1' }]);
     }
     if (text.startsWith('SELECT r.ref FROM unnest')) {
@@ -86,7 +88,20 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('retireTasksInTx', () => {
+describe('retireTasksInTx [TASK-R13]', () => {
+  it('refuses an unresolved hold before cancellation, deletion or blob release', async () => {
+    const { tx, statements } = fakeTx(true);
+    await expect(retireTasksInTx(tx, ARGS)).rejects.toMatchObject({
+      code: 'TASK_HAS_LIVE_RUN',
+      status: 409,
+    });
+    expect(cancelRunInTx).not.toHaveBeenCalled();
+    expect(cancelAgentRunInTx).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(
+      statements.every((statement) => statement.text.startsWith('SELECT')),
+    ).toBe(true);
+  });
   it('does nothing for an empty set', async () => {
     const { tx, statements } = fakeTx();
     await expect(

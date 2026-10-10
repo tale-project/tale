@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => ({
   setVirtualKeyBudget: vi.fn(),
 }));
 
-vi.mock('./op-attribution.ts', () => ({
+vi.mock('./op-attribution.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./op-attribution.ts')>()),
   resolveSessionOpAttribution: mocks.attribution,
 }));
 vi.mock('../governance/budget-gate.ts', () => ({
@@ -134,6 +135,31 @@ beforeEach(() => {
 });
 
 describe('resolveImageTurnContext', () => {
+  it('keeps admitted projects while retaining live-run authorization [GOV-R14]', async () => {
+    const { sql } = scriptedSql([
+      { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
+      {
+        match: 'FROM app.sandbox_session_ops',
+        rows: [{ projectIds: ['original-project'] }],
+      },
+    ]);
+    mocks.attribution.mockResolvedValue({
+      userId: 'user_starter',
+      projectIds: ['new-project'],
+    });
+    await expect(
+      resolveImageTurnContext(sql, {
+        organizationId: 'org_1',
+        sessionId: 'pa-alice',
+        kind: 'task-agent',
+        execId: 'exec_1',
+      }),
+    ).resolves.toMatchObject({
+      status: 'live',
+      subject: { projectIds: ['original-project'] },
+    });
+  });
+
   it('delivers a live task run into its task’s own box, for its starter', async () => {
     const { sql, statements } = scriptedSql([
       { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
@@ -204,6 +230,27 @@ describe('resolveImageTurnContext', () => {
     },
   );
 
+  it('names the project the turn’s run is in [GOV-R14]', async () => {
+    const { sql } = scriptedSql([
+      { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
+    ]);
+    mocks.attribution.mockResolvedValue({
+      userId: '__automation__',
+      agentSlug: 'agent_1',
+      projectIds: ['project_1'],
+    });
+    await expect(
+      resolveImageTurnContext(sql, {
+        organizationId: 'org_1',
+        sessionId: 'pa-alice',
+        kind: 'task-agent',
+        execId: 'exec_1',
+      }),
+    ).resolves.toMatchObject({
+      subject: { userId: '__automation__', projectIds: ['project_1'] },
+    });
+  });
+
   it('books a run nobody started under the automation sentinel', async () => {
     const { sql } = scriptedSql([
       { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
@@ -221,6 +268,29 @@ describe('resolveImageTurnContext', () => {
 });
 
 describe('admitImageGeneration', () => {
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    'checks the projects held by the op even with stale image context: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      const { sql, statements } = opSql({ projectIds });
+      const result = await admitImageGeneration(
+        sql,
+        {
+          ...ADMIT,
+          subject: { ...ADMIT.subject, projectIds: ['new-project'] },
+        },
+        deps,
+      );
+      expect(result.admitted).toBe(true);
+      expect(mocks.findBudgetViolation).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectIds }),
+        expect.anything(),
+      );
+      expect(holdWrite(statements)?.values).toContainEqual(projectIds);
+      expect(holdWrite(statements)?.values).not.toContainEqual(['new-project']);
+    },
+  );
+
   it('admits under every bound, holding the estimate on the op row', async () => {
     const { sql, statements } = opSql();
     await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toEqual({
@@ -261,7 +331,8 @@ describe('admitImageGeneration', () => {
     expect(write?.text).toContain('image_hold_requests = ?');
     expect(write?.text).toContain('images_admitted = images_admitted + ?');
     expect(write?.text).toContain('user_id = coalesce(user_id, ?)');
-    expect(write?.values).toEqual([NOW, 75, 3, 3, 'user_starter', 'op_1']);
+    // A turn outside any project holds its images in none.
+    expect(write?.values).toEqual([NOW, 75, 3, 3, 'user_starter', [], 'op_1']);
   });
 
   it('measures the images against what the allowance has left after the model’s live spend', async () => {
@@ -334,23 +405,29 @@ describe('admitImageGeneration', () => {
     ).toBe(true);
   });
 
-  it('measures a subscription turn against the deployment’s default allowance', async () => {
-    const { sql } = opSql({ budgetCents: null, imageSpentCents: 450 });
-    await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toMatchObject(
-      { admitted: false, code: 'turn_allowance' },
-    );
-    await expect(
-      admitImageGeneration(sql, { ...ADMIT, images: 2 }, deps),
-    ).resolves.toMatchObject({ admitted: true });
-    // Its model spend is the vendor's: no gateway key to read, or to cap.
-    expect(mocks.readVirtualKeySpend).not.toHaveBeenCalled();
-    expect(mocks.setVirtualKeyBudget).not.toHaveBeenCalled();
+  it.each([
+    ['one that reserved nothing', null],
+    ['one holding its request at no cost [GOV-R16]', 0],
+  ])(
+    'measures a subscription turn — %s — against the deployment’s default allowance',
+    async (_label, budgetCents) => {
+      const { sql } = opSql({ budgetCents, imageSpentCents: 450 });
+      await expect(
+        admitImageGeneration(sql, ADMIT, deps),
+      ).resolves.toMatchObject({ admitted: false, code: 'turn_allowance' });
+      await expect(
+        admitImageGeneration(sql, { ...ADMIT, images: 2 }, deps),
+      ).resolves.toMatchObject({ admitted: true });
+      // Its model spend is the vendor's: no gateway key to read, or to cap.
+      expect(mocks.readVirtualKeySpend).not.toHaveBeenCalled();
+      expect(mocks.setVirtualKeyBudget).not.toHaveBeenCalled();
 
-    process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS = '1000';
-    await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toMatchObject(
-      { admitted: true },
-    );
-  });
+      process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS = '1000';
+      await expect(
+        admitImageGeneration(sql, ADMIT, deps),
+      ).resolves.toMatchObject({ admitted: true });
+    },
+  );
 
   it('refuses a second call while one is in flight, and takes over one whose process died', async () => {
     const running = opSql({ callStartedAt: NOW - 60_000 });
@@ -390,7 +467,7 @@ describe('admitImageGeneration', () => {
     });
   });
 
-  it('refuses a reached cap with the gate’s own sentence and holds nothing', async () => {
+  it('refuses a reached cap with the gate’s own sentence and holds nothing [SBX-R16]', async () => {
     const { sql, statements } = opSql();
     mocks.findBudgetViolation.mockResolvedValue({
       scope: 'user',
@@ -439,6 +516,37 @@ describe('admitImageGeneration', () => {
     expect(holdWrite(statements)?.values).toContain('__automation__');
   });
 
+  it('holds the images in the turn’s project, on an op its reservation did not stamp [GOV-R14]', async () => {
+    const { sql, statements } = opSql();
+    await admitImageGeneration(
+      sql,
+      {
+        ...ADMIT,
+        subject: { userId: 'user_starter', projectIds: ['project_1'] },
+      },
+      deps,
+    );
+    const hold = holdWrite(statements);
+    expect(hold?.text).toContain('project_ids = coalesce( project_ids, ? )');
+    expect(hold?.values).toContainEqual(['project_1']);
+  });
+
+  it('holds an image in a project to the project’s caps, whoever the turn is for [GOV-R14]', async () => {
+    for (const subject of [
+      { userId: 'user_starter', projectIds: ['project_1'] },
+      { userId: '__automation__', projectIds: ['project_1'] },
+    ]) {
+      mocks.findBudgetViolation.mockClear();
+      const { sql } = opSql();
+      await admitImageGeneration(sql, { ...ADMIT, subject, images: 1 }, deps);
+      expect(mocks.findBudgetViolation).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectIds: ['project_1'] }),
+        expect.anything(),
+      );
+    }
+  });
+
   it.each([
     ['the op is gone', [] as unknown[]],
     ['the op has ended', [opRow({ status: 'completed' })]],
@@ -476,6 +584,28 @@ describe('admitImageGeneration', () => {
 });
 
 describe('settleImageGeneration', () => {
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    'books the admitted projects after bindings changed during provider work: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      const { sql } = opSql({ projectIds });
+      await settleImageGeneration(sql, {
+        organizationId: 'org_1',
+        sessionId: 'pa-alice',
+        execId: 'exec_1',
+        callStartedAt: NOW,
+        subject: { ...ADMIT.subject, projectIds: ['new-project'] },
+        provider: 'provider',
+        model: 'model',
+        charges: [5],
+        timestamp: NOW,
+      });
+      expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectIds, costEstimateCents: 5 }),
+      );
+    },
+  );
+
   const SETTLE = {
     organizationId: 'org_1',
     sessionId: 'pa-alice',
@@ -525,6 +655,22 @@ describe('settleImageGeneration', () => {
       'pa-alice',
       'exec_1',
     ]);
+  });
+
+  it('books an image in a project to the project too [GOV-R14]', async () => {
+    const { sql } = scriptedSql([]);
+    await settleImageGeneration(sql, {
+      ...SETTLE,
+      subject: { ...SETTLE.subject, projectIds: ['project_1'] },
+      charges: [3.9],
+    });
+    expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        projectIds: ['project_1'],
+        costEstimateCents: 3.9,
+      }),
+    );
   });
 
   it("moves the key's cap to the allowance less every image booked or still held", async () => {

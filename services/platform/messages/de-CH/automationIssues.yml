@@ -1,0 +1,107 @@
+quote: «{text}»
+codes:
+  UNKNOWN_TOP_FIELD:
+    cause: Das Dokument hat ein Feld «{field}».
+  NAME_INVALID:
+    explanation: Der Name identifiziert die Automatisierung. Er ist kleingeschrieben, mit «/» zwischen Ordnern, etwa billing/dunning-reminder.
+    cause: '{name, select, none {Das Dokument hat keinen Namen.} other {«{name}» ist kein gültiger Name.}}'
+    fix: Verwende Kleinbuchstaben und Ziffern, «-» oder «_» zwischen Wörtern und «/» zwischen Ordnern, mit höchstens 200 Zeichen.
+  NODE_ID_INVALID:
+    cause: '{id, select, none {Node {position} hat keine ID.} other {Node {position} hat die ID «{id}».}}'
+  NODE_ID_DUPLICATE:
+    cause: Node {firstPosition} hat bereits die ID «{node}».
+  UNKNOWN_NODE_TYPE:
+    cause: '{type, select, none {{nodeLabel, select, none {Eine Node} other {{nodeLabel}}} hat keinen Typ.} connector {{nodeLabel, select, none {Eine Node} other {{nodeLabel}}} hat den Typ «connector», der kein Capability-Name ist.} other {{nodeLabel, select, none {Eine Node} other {{nodeLabel}}} hat den Typ «{type}», den dieses Deployment nicht kennt.}}'
+    fix: '{suggestion, select, none {{type, select, connector {Setze als Typ den Namen der Capability selbst, so wie der Katalog sie aufführt.} other {Verwende transform, llm, agent, subautomation oder den Namen einer Capability aus dem Katalog.}}} other {Meintest du «{suggestion}»?}}'
+  NODE_UNKNOWN_FIELD:
+    cause: '{nodeLabel} ist eine {type}-Node und hat kein Feld «{field}».'
+  NODE_FIELD_TYPE:
+    cause: '{expected, select, repeatUntil {{fieldLabel} von {nodeLabel} wirkt nur zusammen mit einer Bedingung «Wiederholen bis».} other {{fieldLabel} von {nodeLabel} muss {expected, select, template {ein einzelnes Template sein, etwa ''{{'' nodes.check.output.ok ''}}''} nodeId {die ID einer anderen Node sein} object {ein Objekt sein} string {Text sein} stringArray {eine Liste von Namen sein} filesMap {eine Zuordnung von Namen zu Dateien oder Ordnern sein} other {vom Typ {expected} sein}}.}}'
+    fix: '{expected, select, repeatUntil {Füge eine Bedingung «Wiederholen bis» hinzu oder entferne {fieldLabel}.} other {Gib {fieldLabel} einen Wert dieses Typs.}}'
+  CODE_NO_IO:
+    cause: Der Code von {nodeLabel} verwendet «{token}».
+  ELSEOF_TARGET_INVALID:
+    title: «Sonst zu» nennt die falsche Node
+    explanation: «Sonst zu» macht eine Node zur Alternative einer anderen Node mit einer Bedingung «Wenn». Sie läuft genau dann, wenn jene Node durch ihre Bedingung übersprungen wird.
+    cause: '{reason, select, self {{nodeLabel} nennt sich in «Sonst zu» selbst.} other {«{target}» ist keine andere Node mit einer Bedingung «Wenn».}}'
+    fix: Nenne in «Sonst zu» eine andere Node, die eine Bedingung «Wenn» hat.
+  REPEAT_MAX_INVALID:
+    title: Wiederholungsgrenze ausserhalb des Bereichs
+  ONERROR_INVALID:
+    cause: '{nodeLabel} setzt den Wert «{value}».'
+  SUBAUTOMATION_REF_INVALID:
+    cause: '{nodeLabel} ruft «{ref}» auf.'
+  SUBAUTOMATION_NOT_FOUND:
+    cause: '{version, select, none {Keine gespeicherte Automatisierung heisst {automationLabel}.} other {{automationLabel} hat keine Version {version}{latest, select, none {} other {. Die neueste ist Version {latest}}}.}}'
+    fix: '{suggestion, select, none {{version, select, none {Speichere diese Automatisierung zuerst oder rufe eine bestehende auf.} other {Rufe eine bestehende Version auf oder lass die Version weg, um die live geschaltete aufzurufen.}}} other {Meintest du «{suggestion}»?}}'
+  REF_UNKNOWN_NODE:
+    fix: '{suggestion, select, none {{knownCount, plural, =0 {Füge die Node hinzu oder entferne die Referenz.} other {Verwende die ID einer bestehenden Node: {knownList}.}}} other {Meintest du «{suggestion}»?}}'
+  ITEM_WITHOUT_FOREACH:
+    title: «item» ausserhalb einer Schleife verwendet
+    explanation: item und index gibt es nur in einer Node mit «Für jedes». Anderswo schlägt ein Template oder eine Bedingung damit fehl, und Code liest sie als undefined.
+    cause: '{place} {namesCount, plural, one {wird {namesList} verwendet} other {werden {namesList} verwendet}}, aber {nodeLabel} hat kein «Für jedes».'
+    fix: Füge {nodeLabel} ein «Für jedes» hinzu oder lies den Wert aus der Eingabe des Laufs oder aus einer anderen Node.
+  INPUT_KEY_UNKNOWN:
+    cause: '{place} liest input.{key} den Wert «{key}», den das Eingabeschema nicht deklariert.'
+    fix: '{suggestion, select, none {Deklariere «{key}» im Eingabeschema{declaredCount, plural, =0 {} other { oder verwende eine dieser Eingaben: {declaredList}}}.} other {Meintest du «{suggestion}»?}}'
+  TEMPLATE_UNTERMINATED:
+    cause: '{place} hat ein ''{{'' kein schliessendes ''}}''.'
+    fix: Schliesse das Template mit '}}' oder entferne das überzählige '{{'.
+  EXPR_UNKNOWN_NAME:
+    cause: '{place} gibt es «{name}» nicht.{availableCount, plural, =0 {} one { Verfügbar ist dort: {availableList}.} other { Verfügbar sind dort: {availableList}.}}'
+    fix: '{suggestion, select, none {{name, select, output {output gibt es nur in «Wiederholen bis». Lies stattdessen nodes.<id>.output.} other {Verwende einen der verfügbaren Namen.}}} other {Meintest du «{suggestion}»?}}'
+  ITEM_OUT_OF_SCOPE:
+    title: «item» vor der Schleife verwendet
+    explanation: «Wenn» und «Für jedes» werden einmal gelesen, bevor die Node ihre Elemente durchläuft. item und index gibt es dort noch nicht, deshalb schlägt die Node fehl.
+    cause: '{place} wird «{name}» verwendet.'
+    fix: '{field, select, when {Um einzelne Elemente auszulassen, filtere stattdessen die Liste in «Für jedes».} other {«Für jedes» nennt die Liste selbst. Lies sie aus der Eingabe des Laufs oder aus einer anderen Node.}}'
+  REF_UNKNOWN_FIELD:
+    cause: '{place} liest {ref} das Feld «{key}» aus {sourceLabel}, aber dieses Feld gibt es dort nicht.{listWrapped, select, true { Dieser Wert ist eine Liste.} other {{knownCount, plural, =0 {} other { Vorhandene Felder: {knownList}.}}}}'
+    fix: '{suggestion, select, none {{listWrapped, select, true {Lies ein einzelnes Element der Liste oder gehe sie mit map durch.} other {{root, select, input {{field, select, code {Füge «{key}» der Eingabe dieser Node hinzu, um den Wert weiterzureichen.} other {Deklariere «{key}» im Eingabeschema oder lies ein Feld, das es deklariert.}}} other {Verwende ein vorhandenes Feld oder ändere, was diese Daten erzeugt.}}}}} other {Meintest du «{suggestion}»?}}'
+  TYPE_MISMATCH:
+    cause: '{consumer, select, forEach {«Für jedes» von {nodeLabel} braucht eine Liste, aber {expr} ist {actualText}.} subautomationInput {Die Eingabe «{property}» von {automationLabel} braucht {expectedText}, aber {expr} ist {actualText}.} other {Die Eingabe «{property}» von {nodeLabel} braucht {expectedText}, aber {expr} ist {actualText}.}}'
+    fix: '{consumer, select, forEach {Lass «Für jedes» auf eine Liste zeigen{suggestion, select, none {} other {, etwa ''{{'' {expr}.{suggestion} ''}}''}}.} other {Übergib hier {expectedText}.}}'
+  TEMPLATE_NULL_INTERPOLATION:
+    explanation: Ein Wert, der in Text eingesetzt wird, kann leer sein. Dann schlägt die Node fehl, statt «undefined» in den Text zu schreiben.
+  FOREACH_NOT_ARRAY:
+    title: «Für jedes» ist keine Liste
+    explanation: «Für jedes» führt eine Node einmal pro Element einer Liste aus. Dieser Wert kann nie eine Liste sein, deshalb schlägt die Node bei jedem Lauf fehl.
+    cause: '{reason, select, notATemplate {«Für jedes» von {nodeLabel} ist «{value}». Ohne Template bleibt das reiner Text.} mixedText {Text um das Template macht «Für jedes» von {nodeLabel} zu Text.} other {«Für jedes» von {nodeLabel} ist immer {kind, select, null {null} undefined {undefined} string {Text} number {eine Zahl} boolean {wahr oder falsch} object {ein Objekt} other {{kind}}}.}}'
+    fix: Schreibe «Für jedes» als ein einzelnes Template, das eine Liste ergibt, etwa '{{' nodes.fetch.output.items '}}'.
+  MAYBE_NULL:
+    fix: Sichere das Lesen ab, zum Beispiel mit {suggestion}. Oder füge mit «Sonst zu» eine alternative Node hinzu.
+  UNREACHABLE:
+    cause: '{cause, select, constantWhen {Die Bedingung «Wenn» von {nodeLabel} ist immer falsch.} elsePartnerAlwaysRuns {{nodeLabel} springt für {partnerLabel} ein, die immer läuft.} elsePartnerUnreachable {{nodeLabel} springt für {partnerLabel} ein, die nie läuft.} readsPartner {{nodeLabel} liest {partnerLabel}, für die sie einspringt.} exclusiveBranches {{nodeLabel} liest {aLabel} und {bLabel}, die nie zusammen laufen.} other {{nodeLabel} liest {viaLabel}, die nie laufen kann.}}'
+  REPEAT_NEVER_TRUE:
+    explanation: «Wiederholen bis» ist immer falsch, deshalb durchläuft die Node immer die Höchstzahl an Durchgängen.
+  REPEAT_UNTIL_STATIC:
+    explanation: «Wiederholen bis» liest das Ergebnis des Durchgangs nicht und liefert deshalb nach jedem Durchgang dieselbe Antwort.
+    cause: Die Bedingung «Wiederholen bis» von {nodeLabel} liest weder output noch das Ergebnis der Node selbst.
+  OUTPUT_MAYBE_EMPTY:
+    fix: Lies zusätzlich eine Node, die immer läuft, oder füge mit «Sonst zu» eine alternative Node hinzu.
+  CONNECTOR_INPUT_INVALID:
+    cause: '{keyword, select, required {{nodeLabel} ({type}) braucht die Eingabe «{property}».} additionalProperties {{nodeLabel} ({type}) akzeptiert keine Eingabe «{property}».} other {{property, select, none {Die Eingabe von {nodeLabel} ({type}) passt nicht zu dem, was die Capability akzeptiert.} other {Die Eingabe «{property}» von {nodeLabel} ({type}) passt nicht zu dem, was die Capability akzeptiert.}}}}'
+    fix: '{suggestion, select, none {Passe die Eingabe an das an, was die Capability akzeptiert. Die technischen Details zeigen, was die Prüfung gefunden hat.} other {Meintest du «{suggestion}»?}}'
+  TESTS_INPUT_INVALID:
+    cause: Der Test «{name}» {missingCount, plural, =0 {hat Werte, die das Eingabeschema nicht akzeptiert} one {lässt {missingList} aus} other {lässt {missingList} aus}}.
+  TESTS_EFFECT_UNKNOWN:
+    cause: Der Test «{name}» erwartet «{connector}».{possibleCount, plural, =0 { Keine Node hier führt eine Aktion aus.} one { Die Nodes hier führen {possibleList} aus.} other { Die Nodes hier führen {possibleList} aus.}}
+    fix: '{suggestion, select, none {Erwarte eine Aktion, die eine Node ausführt.} other {Meintest du «{suggestion}»?}}'
+  TESTS_EXPECT_TYPE:
+    cause: Der Test «{name}» erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
+  LLM_MODEL_UNAVAILABLE:
+    cause: '{nodeLabel} verwendet «{model}», das kein verbundener Anbieter bereitstellt.'
+  SKILL_UNKNOWN:
+    cause: '{nodeLabel} verlangt den Skill «{skill}».'
+    fix: '{suggestion, select, none {Füge den Skill unter Einstellungen › Skills hinzu oder entferne ihn aus der Node.} other {Meintest du «{suggestion}»?}}'
+  CONNECTOR_NOT_CONNECTED:
+    cause: '{catalogued, select, true {{nodeLabel} verwendet «{connector}», den noch niemand verbunden hat.} other {{nodeLabel} verwendet «{connector}», den dieses Deployment nicht anbietet.}}'
+    fix: '{catalogued, select, true {Verbinde ihn unter Einstellungen › Connectors.} other {{suggestion, select, none {Wähle einen Connector aus dem Katalog.} other {Meintest du «{suggestion}»?}}}}'
+  SECRET_UNKNOWN:
+    cause: '{nodeLabel} verlangt das Secret «{secret}».'
+    fix: '{suggestion, select, none {Füge das Secret unter Secrets in dieser Node hinzu oder entferne es aus der Node.} other {Meintest du «{suggestion}»?}}'
+  HARNESS_UNKNOWN:
+    cause: '{nodeLabel} verwendet «{harness}». Verfügbar: {availableList}.'
+  EVENT_UNKNOWN:
+    cause: 'Der Trigger wartet auf «{event}».'
+    fix: '{suggestion, select, none {Wähle ein Ereignis aus der Liste.} other {Meintest du «{suggestion}»?}}'

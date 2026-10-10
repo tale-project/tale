@@ -27,9 +27,17 @@ import {
   useTasksAcrossProjects,
   useTasksByProject,
 } from '../hooks/queries';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ActorDirectoryProvider,
+  useActorDirectory,
+} from '../hooks/use-actor-directory';
+import { useCollapsedLanes } from '../hooks/use-collapsed-lanes';
 import { useTaskAccess } from '../hooks/use-task-access';
-import { BOARD_TASK_STATUSES, TASK_PRIORITY_ORDER } from '../lib/display';
+import {
+  BOARD_TASK_STATUSES,
+  TASK_PRIORITY_ORDER,
+  type TaskStatus,
+} from '../lib/display';
 import {
   ALL_ASSIGNEE_FILTER,
   ALL_PRIORITY_FILTER,
@@ -42,6 +50,7 @@ import {
 import { readFailed, readRetrying } from '../lib/read-state';
 import { isTaskView, type TaskView } from '../lib/view';
 import { KanbanBoard } from './kanban-board';
+import type { LaneQuickAddConfig } from './lane-quick-add';
 import { TaskBoardProvider } from './task-board-context';
 import type { TaskRow } from './task-card';
 import { TaskModal } from './task-modal';
@@ -84,6 +93,8 @@ export function TasksWorkspace({
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const trimmedSearchQuery = debouncedSearchQuery.trim();
+  // Done and Cancelled can fold to a rail; each board remembers its own.
+  const lanes = useCollapsedLanes(allProjects ? 'all' : projectId);
   const [assigneeFilter, setAssigneeFilter] = useState(ALL_ASSIGNEE_FILTER);
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
@@ -205,6 +216,45 @@ export function TasksWorkspace({
       project.archivedAt === undefined);
 
   const [createOpen, setCreateOpen] = useState(false);
+  // The status a create opens in: the toolbar's To do, or the lane whose "+"
+  // was pressed.
+  const [createStatus, setCreateStatus] = useState<TaskStatus>('todo');
+  const openCreateIn = useCallback((status: TaskStatus) => {
+    setCreateStatus(status);
+    setCreateOpen(true);
+  }, []);
+  // Where a lane's "Add task" row creates, for whoever may create here: the
+  // project, and the one priority or assignee the board is filtered to, so a
+  // task added to a filtered board stays on it.
+  const laneCreate = useMemo((): LaneQuickAddConfig | undefined => {
+    if (!controlsCanCreate || allProjects) return undefined;
+    const isAgent =
+      assigneeQueryFilter !== undefined &&
+      agents.some((agent) => agent.id === assigneeQueryFilter);
+    return {
+      organizationId,
+      projectId: typedProjectId,
+      ...(priorityFilter !== ALL_PRIORITY_FILTER && priorityFilter !== 'none'
+        ? { priority: priorityFilter }
+        : {}),
+      ...(assigneeQueryFilter !== undefined
+        ? {
+            assignee: {
+              type: isAgent ? ('agent' as const) : ('user' as const),
+              id: assigneeQueryFilter,
+            },
+          }
+        : {}),
+    };
+  }, [
+    controlsCanCreate,
+    allProjects,
+    assigneeQueryFilter,
+    agents,
+    organizationId,
+    typedProjectId,
+    priorityFilter,
+  ]);
   const [openTaskId, setOpenTaskIdState] = useState(
     openTaskParam ? asTaskId(openTaskParam) : null,
   );
@@ -408,7 +458,7 @@ export function TasksWorkspace({
               <DataTableActionMenu
                 label={t('actions.create')}
                 icon={Plus}
-                onClick={() => setCreateOpen(true)}
+                onClick={() => openCreateIn('todo')}
               />
             </Skeletonize>
           ) : null
@@ -460,7 +510,11 @@ export function TasksWorkspace({
           onFocusLost={focusBoard}
         />
       ) : isFirstLoad ? (
-        <TasksSkeleton view={view} canEdit={skeletonCanEdit} />
+        <TasksSkeleton
+          view={view}
+          canEdit={skeletonCanEdit}
+          collapsedLanes={lanes.collapsed}
+        />
       ) : (
         <>
           {tasksRead.kind === 'stale' ? (
@@ -513,35 +567,51 @@ export function TasksWorkspace({
             askingTaskIds={askingTaskIds}
             pendingReviews={pendingReviewRefs}
           >
-            <div
-              ref={boardRegionRef}
-              role="region"
-              aria-label={view === 'board' ? t('views.board') : t('views.list')}
-              aria-busy={updating || undefined}
-              tabIndex={-1}
-              className={cn(
-                'focus-visible:ring-ring min-h-0 flex-1 rounded-lg transition-opacity duration-200 outline-none focus-visible:ring-2 motion-reduce:transition-none',
-                // Dimmed only once an answer is slow, so a quick one never
-                // flickers the board.
-                updating && 'opacity-60 delay-300',
-              )}
+            {/* One directory names every card's assignee and reviewer; a card
+                read its own, five reads and a member index per card. The
+                all-projects board spans projects, so its cards read their
+                own. */}
+            <ActorDirectoryProvider
+              organizationId={organizationId}
+              projectId={allProjects ? undefined : projectId}
             >
-              {view === 'board' ? (
-                <KanbanBoard
-                  tasks={tasks}
-                  onOpenTask={handleOpenTask}
-                  projectKey={projectKey}
-                  canWorkTask={access.canWorkTask}
-                />
-              ) : (
-                <TasksList
-                  tasks={tasks}
-                  onOpenTask={handleOpenTask}
-                  projectKey={projectKey}
-                  canWorkTask={access.canWorkTask}
-                />
-              )}
-            </div>
+              <div
+                ref={boardRegionRef}
+                role="region"
+                aria-label={
+                  view === 'board' ? t('views.board') : t('views.list')
+                }
+                aria-busy={updating || undefined}
+                tabIndex={-1}
+                className={cn(
+                  'focus-visible:ring-ring min-h-0 flex-1 rounded-lg transition-opacity duration-200 outline-none focus-visible:ring-2 motion-reduce:transition-none',
+                  // Dimmed only once an answer is slow, so a quick one never
+                  // flickers the board.
+                  updating && 'opacity-60 delay-300',
+                )}
+              >
+                {view === 'board' ? (
+                  <KanbanBoard
+                    tasks={tasks}
+                    onOpenTask={handleOpenTask}
+                    projectKey={projectKey}
+                    canWorkTask={access.canWorkTask}
+                    {...(laneCreate !== undefined
+                      ? { onAddTask: openCreateIn, quickAdd: laneCreate }
+                      : {})}
+                    collapsedLanes={lanes.collapsed}
+                    onLaneCollapsedChange={lanes.setCollapsed}
+                  />
+                ) : (
+                  <TasksList
+                    tasks={tasks}
+                    onOpenTask={handleOpenTask}
+                    projectKey={projectKey}
+                    canWorkTask={access.canWorkTask}
+                  />
+                )}
+              </div>
+            </ActorDirectoryProvider>
           </TaskBoardProvider>
         </>
       )}
@@ -552,7 +622,7 @@ export function TasksWorkspace({
           projectId={typedProjectId}
           open={createOpen}
           onOpenChange={setCreateOpen}
-          defaultStatus="todo"
+          defaultStatus={createStatus}
           // A template create lands the user inside the new task, where the
           // subject panel names the next step (upload input files / Start).
           onOpenTask={(id) => setOpenTaskId(id, typedProjectId)}

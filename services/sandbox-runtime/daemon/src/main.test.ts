@@ -1,6 +1,6 @@
 // Drive runnerd over HTTP without Docker: the retired viewing surface must be
 // gone while ordinary command execution still streams stdout and exit status.
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import {
   existsSync,
   mkdtempSync,
@@ -18,11 +18,15 @@ import {
 } from 'node:http';
 import { tmpdir } from 'node:os';
 
+import { InnerDockerHealth } from './inner-docker-health.ts';
+
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
 const token = 'runnerd-http-test-token';
+const incarnation = '1760000000000';
 const previous = {
   workspace: process.env.TALE_WORKSPACE_ROOT,
   token: process.env.TALE_RUNNERD_TOKEN,
+  incarnation: process.env.TALE_RUNNERD_INCARNATION,
   browser: process.env.TALE_BROWSER_CDP,
 };
 let server: Server;
@@ -31,6 +35,7 @@ let baseUrl: string;
 beforeAll(async () => {
   process.env.TALE_WORKSPACE_ROOT = workspace;
   process.env.TALE_RUNNERD_TOKEN = token;
+  process.env.TALE_RUNNERD_INCARNATION = incarnation;
   // An old deployment's leftover env cannot revive the retired stack.
   process.env.TALE_BROWSER_CDP = '1';
   ({ server } = await import('./main.ts'));
@@ -49,6 +54,7 @@ afterAll(async () => {
   for (const [name, value] of [
     ['TALE_WORKSPACE_ROOT', previous.workspace],
     ['TALE_RUNNERD_TOKEN', previous.token],
+    ['TALE_RUNNERD_INCARNATION', previous.incarnation],
     ['TALE_BROWSER_CDP', previous.browser],
   ] as const) {
     if (value === undefined) delete process.env[name];
@@ -106,6 +112,66 @@ async function currentActiveOperations(): Promise<number> {
 }
 
 describe('runnerd HTTP service', () => {
+  test('a failed Docker capability blocks readiness and new execs without hiding live process state', async () => {
+    const snapshot = spyOn(
+      InnerDockerHealth.prototype,
+      'snapshot',
+    ).mockResolvedValue({ dockerReady: false });
+    try {
+      const ready = await fetch(`${baseUrl}/readyz`);
+      expect(ready.status).toBe(503);
+      expect(await ready.json()).toEqual({ ok: false });
+      const live = await fetch(`${baseUrl}/livez`);
+      expect(live.status).toBe(200);
+      expect(await live.json()).toEqual({ ok: true });
+      const health = await fetch(`${baseUrl}/healthz`, { headers });
+      expect(health.status).toBe(200);
+      expect(await health.json()).toMatchObject({
+        ok: true,
+        dockerReady: false,
+        dependencies: { docker: { ok: false } },
+        liveExecs: 0,
+      });
+      const staged = await fetch(`${baseUrl}/files/stage`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          files: [{ path: 'docker-down-file.txt', contentBase64: 'b2s=' }],
+        }),
+      });
+      expect(staged.status).toBe(200);
+      expect(readFileSync(`${workspace}/docker-down-file.txt`, 'utf8')).toBe(
+        'ok',
+      );
+      const acquire = await fetch(`${baseUrl}/acquire`, {
+        method: 'POST',
+        headers,
+      });
+      expect(acquire.status).toBe(503);
+      expect(await acquire.json()).toEqual({ error: 'docker_unavailable' });
+      const exec = await fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          execId: 'docker-down',
+          command: ['/bin/echo', 'must not run'],
+        }),
+      });
+      expect(exec.status).toBe(503);
+      expect(await exec.json()).toEqual({ error: 'docker_unavailable' });
+      const cancelled = await fetch(`${baseUrl}/execs/docker-down/cancel`, {
+        method: 'POST',
+        headers,
+      });
+      expect(cancelled.status).toBe(200);
+      expect(await cancelled.json()).toEqual({ killed: false });
+      expect(await currentActiveOperations()).toBe(0);
+    } finally {
+      snapshot.mockRestore();
+    }
+    expect((await fetch(`${baseUrl}/readyz`)).status).toBe(200);
+  });
+
   test('rejects unauthenticated execution', async () => {
     const response = await fetch(`${baseUrl}/execs`, {
       method: 'POST',
@@ -113,6 +179,68 @@ describe('runnerd HTTP service', () => {
     });
     expect(response.status).toBe(401);
   });
+
+  test('refuses a new exec while the session’s memory is nearly spent, and runs it once there is room', async () => {
+    const cgroup = mkdtempSync(`${tmpdir()}/runnerd-cgroup-`);
+    const previousRoot = process.env.TALE_CGROUP_ROOT;
+    process.env.TALE_CGROUP_ROOT = cgroup;
+    const fill = (currentMiB: number, inactiveFileMiB: number) => {
+      writeFileSync(`${cgroup}/memory.current`, `${currentMiB * 1048576}\n`);
+      writeFileSync(`${cgroup}/memory.max`, `${1024 * 1048576}\n`);
+      writeFileSync(
+        `${cgroup}/memory.stat`,
+        `anon 1\ninactive_file ${inactiveFileMiB * 1048576}\nactive_file 0\n`,
+      );
+    };
+    const post = (execId: string) =>
+      fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          execId,
+          command: ['/bin/echo', 'ran'],
+          timeoutMs: 5_000,
+          stdoutMaxBytes: 1_000,
+          stderrMaxBytes: 1_000,
+        }),
+      });
+    try {
+      // 950 MiB of 1 GiB in use, none of it cache the kernel can drop.
+      fill(950, 0);
+      const refused = await post('memory-busy');
+      expect(refused.status).toBe(429);
+      expect(refused.headers.get('retry-after')).toBe('5');
+      expect(await refused.json()).toEqual({
+        error: 'session_memory_busy',
+        code: 'SESSION_MEMORY_BUSY',
+        message: 'the session is using 90% or more of its memory limit',
+      });
+      const status = await fetch(`${baseUrl}/execs/memory-busy`, { headers });
+      expect(status.status).toBe(404);
+
+      // The same 950 MiB, 300 of them inactive file cache: room.
+      fill(950, 300);
+      const admitted = await post('memory-room');
+      expect(admitted.status).toBe(200);
+      expect(await admitted.text()).toContain('"t":"exit"');
+    } finally {
+      if (previousRoot === undefined) delete process.env.TALE_CGROUP_ROOT;
+      else process.env.TALE_CGROUP_ROOT = previousRoot;
+      rmSync(cgroup, { recursive: true, force: true });
+    }
+  });
+
+  test.each(['-1', '1.5', 'Infinity', 'not-a-number', '9007199254740992'])(
+    'refuses malformed replay cursor %s before attachment',
+    async (cursor) => {
+      const response = await fetch(
+        `${baseUrl}/execs/unknown/attach?sinceSeq=${cursor}`,
+        { headers },
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalid_since_seq' });
+    },
+  );
 
   test('removed browser controls and viewing tunnel return 404', async () => {
     for (const [method, path] of [
@@ -132,6 +260,7 @@ describe('runnerd HTTP service', () => {
     expect(await response.json()).toEqual({
       ok: true,
       bootedAtMs: expect.any(Number),
+      incarnation,
       lastActivityAtMs: expect.any(Number),
       liveExecs: 0,
       activity: {
@@ -171,6 +300,85 @@ describe('runnerd HTTP service', () => {
     });
   });
 
+  test('checkpoint state is bounded, monotonic and scoped to a retained exec', async () => {
+    const response = await fetch(`${baseUrl}/execs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        execId: 'checkpoint-http',
+        command: ['/bin/sh', '-c', 'printf checkpoint'],
+        cwd: workspace,
+        timeoutMs: 5_000,
+        stdoutMaxBytes: 10_000,
+        stderrMaxBytes: 10_000,
+      }),
+    });
+    const events = (await response.text())
+      .trim()
+      .split('\n')
+      .map((line) => record(JSON.parse(line)));
+    const seq = Number(events.at(-1)?.seq);
+    const url = `${baseUrl}/execs/checkpoint-http/checkpoint`;
+    expect(await (await fetch(url, { headers })).json()).toEqual({
+      checkpoint: null,
+    });
+    const put = (body: unknown) =>
+      fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) });
+    expect(
+      (await put({ seq, state: { pendingTasks: ['task-1'] } })).status,
+    ).toBe(200);
+    expect(await (await fetch(url, { headers })).json()).toEqual({
+      checkpoint: { seq, state: { pendingTasks: ['task-1'] } },
+    });
+    expect((await put({ seq: seq - 1, state: {} })).status).toBe(409);
+    expect((await put({ seq: seq + 1, state: {} })).status).toBe(400);
+    expect((await put({ seq, state: 'a'.repeat(1024 * 1024) })).status).toBe(
+      413,
+    );
+    expect(
+      (await fetch(`${baseUrl}/execs/missing/checkpoint`, { headers })).status,
+    ).toBe(404);
+  });
+
+  test('disconnected staging stops fetching and releases its operation', async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<Response>();
+    const source = Bun.serve({
+      port: 0,
+      fetch: () => {
+        entered.resolve();
+        return release.promise;
+      },
+    });
+    const caller = new AbortController();
+    try {
+      const staging = fetch(`${baseUrl}/files/stage`, {
+        method: 'POST',
+        headers,
+        signal: caller.signal,
+        body: JSON.stringify({
+          files: [
+            { path: 'cancelled-stage', url: `http://127.0.0.1:${source.port}` },
+          ],
+        }),
+      }).catch(() => null);
+      await entered.promise;
+      caller.abort();
+      await staging;
+      const deadline = Date.now() + 1_000;
+      let active = await currentActiveOperations();
+      while (active > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active = await currentActiveOperations();
+      }
+      expect(active).toBe(0);
+      expect(existsSync(`${workspace}/cancelled-stage`)).toBe(false);
+    } finally {
+      release.resolve(new Response('released'));
+      await source.stop(true);
+    }
+  });
+
   test('a partial exec request body already protects the runtime from release and reclaim', async () => {
     const completed = Promise.withResolvers<number>();
     const upload = request(
@@ -200,10 +408,10 @@ describe('runnerd HTTP service', () => {
       expect(activeOperations).toBe(1);
       expect(
         (await activityPost('/release', await releaseTicket())).value,
-      ).toEqual({ released: false });
+      ).toEqual({ released: false, incarnation });
       expect(
         (await activityPost('/reclaim', { claimId: 'upload' })).value,
-      ).toEqual({ claimed: false });
+      ).toEqual({ claimed: false, incarnation });
     } finally {
       upload.end('}');
     }
@@ -230,10 +438,10 @@ describe('runnerd HTTP service', () => {
       await fetched.promise;
       expect(
         (await activityPost('/release', await releaseTicket())).value,
-      ).toEqual({ released: false });
+      ).toEqual({ released: false, incarnation });
       expect(
         (await activityPost('/reclaim', { claimId: 'staging' })).value,
-      ).toEqual({ claimed: false });
+      ).toEqual({ claimed: false, incarnation });
       complete.resolve();
       expect((await staging).value).toEqual({
         staged: [{ path: 'pressure.txt', bytes: 9 }],
@@ -312,6 +520,108 @@ describe('runnerd HTTP service', () => {
         source.close((error) => (error ? reject(error) : resolve()));
         source.closeAllConnections();
       });
+    }
+  });
+
+  test('invalid attach cursors fail explicitly without consuming or damaging retained output', async () => {
+    const response = await fetch(`${baseUrl}/execs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        execId: 'invalid-http-cursor',
+        command: ['/bin/sh', '-c', 'printf retained'],
+        cwd: workspace,
+        timeoutMs: 5000,
+        stdoutMaxBytes: 1024,
+        stderrMaxBytes: 1024,
+      }),
+    });
+    expect(response.status).toBe(200);
+    await response.text();
+    for (const cursor of ['-1', 'NaN', '0.5', 'Infinity', '9007199254740991']) {
+      const refused = await fetch(
+        `${baseUrl}/execs/invalid-http-cursor/attach?sinceSeq=${cursor}`,
+        { headers },
+      );
+      if (cursor !== '9007199254740991') {
+        expect(refused.status).toBe(400);
+        expect(await refused.json()).toEqual({ error: 'invalid_since_seq' });
+        continue;
+      }
+      expect(refused.status).toBe(200);
+      expect(
+        (await refused.text())
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line)),
+      ).toEqual([
+        {
+          t: 'fail',
+          code: 'REPLAY_UNAVAILABLE',
+          message: 'Invalid execution replay cursor.',
+        },
+      ]);
+    }
+    const replay = await fetch(`${baseUrl}/execs/invalid-http-cursor/attach`, {
+      headers,
+    });
+    const events = (await replay.text())
+      .trim()
+      .split('\n')
+      .map((line) => record(JSON.parse(line)));
+    expect(
+      events.some(
+        (event) =>
+          event.t === 'stdout' &&
+          event.b64 === Buffer.from('retained').toString('base64'),
+      ),
+    ).toBe(true);
+    expect(events.at(-1)).toMatchObject({ t: 'exit', exitCode: 0 });
+    expect(await currentActiveOperations()).toBe(0);
+  });
+
+  test('partial exec uploads consume the shared reader slots and release them on disconnect', async () => {
+    const uploads = Array.from({ length: 8 }, () => {
+      const upload = request(
+        `${baseUrl}/execs`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'content-length': '2' },
+        },
+        (response) => response.resume(),
+      );
+      // Disconnect is the fixture action; it must release admission even when
+      // the upload never reaches JSON parsing or starts a child process.
+      upload.on('error', () => {});
+      upload.write('{');
+      return upload;
+    });
+    try {
+      let deadline = Date.now() + 5000;
+      while ((await currentActiveOperations()) < 8 && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(await currentActiveOperations()).toBe(8);
+      const refused = await fetch(`${baseUrl}/execs/no-such-exec/attach`, {
+        headers,
+      });
+      expect(refused.status).toBe(503);
+      expect(await refused.json()).toEqual({ error: 'busy' });
+      uploads.pop()?.destroy();
+      deadline = Date.now() + 5000;
+      while ((await currentActiveOperations()) >= 8 && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(await currentActiveOperations()).toBe(7);
+      const admitted = await fetch(`${baseUrl}/execs/no-such-exec/attach`, {
+        headers,
+      });
+      expect(admitted.status).toBe(404);
+      expect(await admitted.json()).toEqual({ error: 'not_found' });
+    } finally {
+      for (const upload of uploads) upload.destroy();
+      const deadline = Date.now() + 5000;
+      while ((await currentActiveOperations()) !== 0 && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(await currentActiveOperations()).toBe(0);
     }
   });
 
@@ -537,6 +847,57 @@ describe('runnerd HTTP service', () => {
     },
   );
 
+  test('activity answers name the incarnation, and a request meant for another is refused before it changes anything', async () => {
+    const before = await releaseTicket();
+    expect(before).toEqual({ generation: expect.any(String), incarnation });
+    const other = { ...headers, 'x-tale-runnerd-incarnation': '1' };
+    for (const [method, path, body] of [
+      ['GET', '/release', undefined],
+      ['POST', '/acquire', undefined],
+      ['POST', '/release', { generation: before.generation }],
+      ['POST', '/pin', { pinned: true }],
+      [
+        'POST',
+        '/reclaim',
+        { claimId: 'replacement', generation: before.generation },
+      ],
+    ] as const) {
+      const refused = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: other,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toEqual({
+        error: 'incarnation_mismatch',
+        incarnation,
+      });
+    }
+    const health = record(
+      await (await fetch(`${baseUrl}/healthz`, { headers })).json(),
+    );
+    expect(health.incarnation).toBe(incarnation);
+    expect(record(health.activity)).toMatchObject({
+      generation: before.generation,
+      pinned: false,
+      reclaiming: false,
+    });
+    const own = await fetch(`${baseUrl}/acquire`, {
+      method: 'POST',
+      headers: { ...headers, 'x-tale-runnerd-incarnation': incarnation },
+    });
+    expect(own.status).toBe(200);
+    const acquired = record(await own.json());
+    expect(acquired).toEqual({ generation: expect.any(String), incarnation });
+    expect(acquired.generation).not.toBe(before.generation);
+    // Whether it releases depends on work earlier tests left in flight; the
+    // answer names the incarnation either way.
+    expect(
+      (await activityPost('/release', { generation: acquired.generation }))
+        .value,
+    ).toEqual({ released: expect.any(Boolean), incarnation });
+  });
+
   // KEEP LAST: the claim below freezes the one daemon this file shares —
   // by design a successful claim never expires — so every request a later
   // test would make answers 503 `reclaiming`.
@@ -545,6 +906,7 @@ describe('runnerd HTTP service', () => {
     expect((await activityPost('/acquire')).status).toBe(200);
     expect((await activityPost('/release', stale)).value).toEqual({
       released: false,
+      incarnation,
     });
     const current = await releaseTicket();
     for (const idleBeforeMs of [null, '0', -1, 1.5]) {
@@ -564,20 +926,21 @@ describe('runnerd HTTP service', () => {
           idleBeforeMs: 0,
         })
       ).value,
-    ).toEqual({ claimed: false });
+    ).toEqual({ claimed: false, incarnation });
     expect((await activityPost('/release', current)).value).toEqual({
       released: true,
+      incarnation,
     });
     expect((await activityPost('/pin', { pinned: true })).status).toBe(200);
     expect(
       (await activityPost('/reclaim', { claimId: 'pressure' })).value,
-    ).toEqual({ claimed: false });
+    ).toEqual({ claimed: false, incarnation });
     expect((await activityPost('/pin', { pinned: false })).status).toBe(200);
     expect(
       (await activityPost('/reclaim', { claimId: 'pressure' })).value,
-    ).toEqual({ claimed: true });
+    ).toEqual({ claimed: true, incarnation });
     expect((await activityPost('/reclaim', { claimId: 'peer' })).value).toEqual(
-      { claimed: true },
+      { claimed: true, incarnation },
     );
     for (const [path, body] of [
       ['/acquire', {}],

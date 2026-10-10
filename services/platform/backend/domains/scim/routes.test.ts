@@ -14,7 +14,7 @@ describe('scimResponseForAppError', () => {
     ['scim_identity_shared', 403, 'mutability'],
     ['scim_invalid_member', 400, 'invalidValue'],
   ])(
-    'maps %s to %i %s, carrying the detail',
+    'maps %s to %i %s, carrying the detail [SCIM-R8]',
     async (code, status, scimType) => {
       const res = scimResponseForAppError(
         new AppError({ code, message: 'why' }),

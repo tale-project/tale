@@ -1,10 +1,14 @@
 // @vitest-environment node
 
+import { Hono, type Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../auth/auth.ts';
+import { createAuditLog } from '../domains/audit_logs/service.ts';
+import { runInRequestChannel } from '../lib/request-channel.ts';
+import type { RestEnv } from './shared.ts';
 import { createRestV1Routes } from './v1.ts';
 
 /**
@@ -48,6 +52,11 @@ function fakeSql(
     slugless?: Set<string>;
     /** Fail every query whose text matches — a database outage. */
     outage?: RegExp;
+    /** The binding of a key bound to one organization, by key id
+     * (`app.api_key_owners`); a key without one is a person's own. */
+    keyOwners?: Record<string, object>;
+    /** Member roles by user id; anyone else a member is a `member`. */
+    roles?: Record<string, string>;
   } = {},
 ): {
   sql: Sql;
@@ -75,6 +84,10 @@ function fakeSql(
     if (text.includes('FROM app.rate_limits')) {
       return Promise.resolve([{ value: '0', ts: String(Date.now()) }]);
     }
+    if (text.includes('FROM app.api_key_owners WHERE api_key_id')) {
+      const owner = world.keyOwners?.[String(values[0])];
+      return Promise.resolve(owner === undefined ? [] : [owner]);
+    }
     if (text.includes('FROM "member" WHERE "userId"')) {
       return Promise.resolve(
         [...memberOf].map((organizationId) => ({
@@ -96,7 +109,10 @@ function fakeSql(
     if (text.includes('FROM "organization" WHERE "id"')) {
       const [organizationId] = values;
       return Promise.resolve([
-        { slug: slugless.has(String(organizationId)) ? null : 'acme' },
+        {
+          slug: slugless.has(String(organizationId)) ? null : 'acme',
+          name: 'Acme',
+        },
       ]);
     }
     if (text.includes('FROM "organization" WHERE "slug"')) {
@@ -105,7 +121,7 @@ function fakeSql(
       return Promise.resolve(org === undefined ? [] : [org]);
     }
     if (text.includes('FROM "member" WHERE "organizationId"')) {
-      const [organizationId] = values;
+      const [organizationId, userId] = values;
       const isMember = memberOf.has(String(organizationId));
       if (world.revokeAfterFirstLookup === organizationId) {
         memberOf.delete(String(organizationId));
@@ -116,12 +132,22 @@ function fakeSql(
               {
                 id: 'm-1',
                 organizationId,
-                userId: 'user-1',
-                role: 'member',
+                userId: userId ?? 'user-1',
+                role: world.roles?.[String(userId)] ?? 'member',
               },
             ]
           : [],
       );
+    }
+    if (text.startsWith('SELECT "email" FROM "user"')) {
+      return Promise.resolve([{ email: `${String(values[0])}@example.com` }]);
+    }
+    // A team's or a project's key: its team or project still exists.
+    if (
+      text.startsWith('SELECT "id" FROM "team" WHERE "id"') ||
+      text.startsWith('SELECT id FROM app.projects WHERE id')
+    ) {
+      return Promise.resolve([{ id: values[0] }]);
     }
     return Promise.resolve([]);
   };
@@ -851,6 +877,179 @@ describe('/api/v1 door — an unavailable database', () => {
   });
 });
 
+/** F-B-32: exercise the verified door AND the persisted-row writer, not a
+ * mock of either attribution boundary. The transaction only stands in for
+ * the chain head and captures the INSERT values. */
+describe('/api/v1 door — key-made audit rows [AUDIT-R7]', () => {
+  function auditTransaction() {
+    const inserts: unknown[][] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FOR UPDATE')) {
+        return Promise.resolve([{ lastHash: '', lastTs: 0 }]);
+      }
+      if (text.includes('INSERT INTO app.audit_logs')) {
+        inserts.push(values);
+        return Promise.resolve([{ id: 'audit-1' }]);
+      }
+      return Promise.resolve([]);
+    };
+    tag.json = (value: unknown) => value;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recording transaction double
+    return { tx: tag as unknown as TransactionSql, inserts };
+  }
+
+  function auditDoor(sql: Sql, auth: Auth, tx: TransactionSql) {
+    const app = createRestV1Routes({ sql, auth });
+    app.post('/audit-probe', async (ctx) => {
+      for (const status of ['success', 'failure', 'denied'] as const) {
+        await createAuditLog(tx, {
+          organizationId: ctx.get('organizationId'),
+          actorId: ctx.get('userId'),
+          actorEmail: ctx.get('userEmail'),
+          actorRole: ctx.get('role'),
+          actorType: 'user',
+          action: 'skill.updated',
+          category: 'skill',
+          resourceType: 'skill',
+          resourceId: 'sample',
+          status,
+          metadata: { etag: 'tag-1', apiKeyId: 'spoof' },
+        });
+      }
+      return ctx.json({ subject: ctx.get('userId'), role: ctx.get('role') });
+    });
+    return app;
+  }
+
+  it('records the admin maker and verified key, keeping the member as subject on every status', async () => {
+    const { sql } = fakeSql(new Set(), {
+      keyOwners: {
+        'key-1': {
+          apiKeyId: 'key-1',
+          organizationId: 'org-1',
+          kind: 'member',
+          keyUserId: 'user-1',
+          principalUserId: 'mia',
+          teamId: null,
+          projectId: null,
+          role: null,
+          name: 'Member key',
+          createdBy: 'admin-1',
+          createdAt: '1',
+          revokedAt: null,
+          revokedBy: null,
+        },
+      },
+      roles: { 'admin-1': 'admin' },
+    });
+    const { auth } = fakeAuth();
+    const { tx, inserts } = auditTransaction();
+    const response = await runInRequestChannel(
+      {
+        via: 'mcp',
+        tool: 'audit-probe',
+        apiKeyId: 'key-1',
+        requestId: 'req-channel',
+      },
+      async () =>
+        auditDoor(sql, auth, tx).request('http://localhost/audit-probe', {
+          method: 'POST',
+          ...bearer(GOOD_KEY),
+        }),
+    );
+    expect(response.status).toBe(200);
+    // Audit attribution must never lend the admin's authority to the write.
+    expect(await response.json()).toEqual({ subject: 'mia', role: 'member' });
+    expect(inserts).toHaveLength(3);
+    for (const values of inserts) {
+      expect(values.slice(0, 6)).toEqual([
+        'org-1',
+        'admin-1',
+        null,
+        null,
+        null,
+        'api',
+      ]);
+      expect(values[22]).toEqual({
+        via: 'mcp',
+        tool: 'audit-probe',
+        etag: 'tag-1',
+        apiKeyId: 'key-1',
+        keyAttribution: {
+          makerUserId: 'admin-1',
+          subjectUserId: 'mia',
+          eventActorId: 'mia',
+        },
+      });
+      expect(values).toContain('req-channel');
+      expect(JSON.stringify(values)).not.toContain(GOOD_KEY);
+    }
+    expect(inserts.map((values) => values[20])).toEqual([
+      'success',
+      'failure',
+      'denied',
+    ]);
+  });
+
+  it('retains the actual key id for a member’s own key, whose maker is also its subject', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const { tx, inserts } = auditTransaction();
+    const response = await auditDoor(sql, auth, tx).request(
+      'http://localhost/audit-probe',
+      { method: 'POST', ...bearer(GOOD_KEY) },
+    );
+    expect(response.status).toBe(200);
+    expect(inserts[0]?.slice(0, 6)).toEqual([
+      'org-1',
+      'user-1',
+      null,
+      null,
+      null,
+      'api',
+    ]);
+    expect(inserts[0]?.[22]).toMatchObject({
+      apiKeyId: 'key-1',
+      keyAttribution: {
+        makerUserId: 'user-1',
+        subjectUserId: 'user-1',
+      },
+    });
+  });
+
+  it('keeps a non-key session write’s actor and metadata intact', async () => {
+    const { tx, inserts } = auditTransaction();
+    const app = new Hono();
+    app.post('/session-write', async (ctx) => {
+      await createAuditLog(tx, {
+        organizationId: 'org-1',
+        actorId: 'mia',
+        actorEmail: 'mia@example.com',
+        actorRole: 'member',
+        actorType: 'user',
+        action: 'skill.updated',
+        category: 'skill',
+        resourceType: 'skill',
+        status: 'success',
+        metadata: { via: 'app' },
+      });
+      return ctx.body(null, 204);
+    });
+    const response = await app.request('/session-write', { method: 'POST' });
+    expect(response.status).toBe(204);
+    expect(inserts[0]?.slice(0, 6)).toEqual([
+      'org-1',
+      'mia',
+      'mia@example.com',
+      null,
+      'member',
+      'user',
+    ]);
+    expect(inserts[0]?.[22]).toEqual({ via: 'app' });
+  });
+});
+
 /**
  * A write takes no query parameters on this door — except on the model
  * endpoints, whose vendor SDKs add their own (`POST /v1/messages?beta=true`
@@ -891,4 +1090,163 @@ describe('/api/v1 door — query parameters on writes', () => {
       expect(res.status).toBe(200);
     },
   );
+});
+
+/**
+ * A key an Owner or Admin bound to ONE organization — made for a member, or
+ * a team's, a project's or the organization's own — works there alone,
+ * with no `X-Organization-Slug` needed, and with the role its binding
+ * gives it. A project's key reaches its own project and nothing else.
+ */
+describe('/api/v1 door — a key bound to one organization', () => {
+  function binding(
+    kind: 'member' | 'team' | 'project' | 'organization',
+    extra: Record<string, unknown> = {},
+  ) {
+    return {
+      apiKeyId: 'key-1',
+      organizationId: 'org-1',
+      kind,
+      // The session the plugin verified is the key's own identity.
+      keyUserId: 'user-1',
+      principalUserId: kind === 'member' ? 'mia' : 'user-1',
+      teamId: kind === 'team' ? 'team-1' : null,
+      projectId: kind === 'project' ? 'project-1' : null,
+      role: kind === 'member' ? null : 'editor',
+      name: 'Sync key',
+      createdBy: 'admin-1',
+      createdAt: '1',
+      revokedAt: null,
+      revokedBy: null,
+      ...extra,
+    };
+  }
+  function boundDoor(sql: Sql, auth: Auth) {
+    const app = createRestV1Routes({ sql, auth });
+    const probe = (c: Context<RestEnv>) =>
+      c.json({
+        organizationId: c.get('organizationId'),
+        orgSlug: c.get('orgSlug'),
+        role: c.get('role'),
+        userEmail: c.get('userEmail'),
+        owner: c.get('apiKeyOwner')?.kind ?? null,
+      });
+    // Paths no route of the door serves, so the probe answers whatever the
+    // door let through; which real routes a project's key reaches is
+    // `api-key-scope.test.ts`'s matrix.
+    app.get('/probe', probe);
+    app.get('/projects/:projectId/probe', probe);
+    return app;
+  }
+
+  it('works in its organization with no slug header, acting with the role it was made with [APIKEY-R5]', async () => {
+    const { sql } = fakeSql(new Set(), {
+      // Were the person's memberships read, two would ask for a slug.
+      memberOf: new Set(['org-1', 'org-2']),
+      keyOwners: { 'key-1': binding('organization') },
+    });
+    const { auth } = fakeAuth();
+    const res = await boundDoor(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      role: 'editor',
+      // A key that is not a person has no address of its own.
+      userEmail: '',
+      owner: 'organization',
+    });
+  });
+
+  it('refuses a slug header naming another organization, listing its own [APIKEY-R5]', async () => {
+    const { sql } = fakeSql(new Set(), {
+      memberOf: new Set(['org-1', 'org-2']),
+      keyOwners: { 'key-1': binding('team') },
+    });
+    const { auth } = fakeAuth();
+    const res = await boundDoor(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'org-2' }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'This key works only in organization "acme".',
+      code: 'ORG_FORBIDDEN',
+      data: { organizations: [{ slug: 'acme', name: 'Acme' }] },
+    });
+    // Its own slug, in any case, is accepted.
+    const own = await boundDoor(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'ACME' }),
+    );
+    expect(own.status).toBe(200);
+  });
+
+  it('acts as the member with their live role, and stops once they left [APIKEY-R2]', async () => {
+    const { auth } = fakeAuth();
+    const staying = fakeSql(new Set(), {
+      keyOwners: { 'key-1': binding('member') },
+      roles: { 'admin-1': 'admin' },
+    });
+    const res = await boundDoor(staying.sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      role: 'member',
+      // The member, not the identity the key authenticated as.
+      userEmail: 'mia@example.com',
+      owner: 'member',
+    });
+
+    const gone = fakeSql(new Set(), {
+      memberOf: new Set(['org-2']),
+      keyOwners: { 'key-1': binding('member') },
+      roles: { 'admin-1': 'admin' },
+    });
+    const refused = await boundDoor(gone.sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+  });
+
+  it('answers 401 for a binding that was revoked [APIKEY-R7]', async () => {
+    const { sql } = fakeSql(new Set(), {
+      keyOwners: { 'key-1': binding('team', { revokedAt: '5' }) },
+    });
+    const { auth } = fakeAuth();
+    const res = await boundDoor(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(401);
+    expect(res.headers.get('www-authenticate')).toBe(
+      'Bearer error="invalid_token"',
+    );
+  });
+
+  it('lets a project’s key reach its own project and nothing else [APIKEY-R6]', async () => {
+    const { sql } = fakeSql(new Set(), {
+      keyOwners: { 'key-1': binding('project') },
+    });
+    const { auth } = fakeAuth();
+    const app = boundDoor(sql, auth);
+    const get = (path: string) =>
+      app.request(`http://localhost${path}`, bearer(GOOD_KEY));
+    expect((await get('/projects/project-1/probe')).status).toBe(200);
+    for (const path of ['/probe', '/projects/project-2/probe']) {
+      const res = await get(path);
+      expect(res.status).toBe(403);
+      expect(await res.json()).toEqual({
+        error: 'This key belongs to one project and reaches only that project.',
+        code: 'API_KEY_SCOPE_FORBIDDEN',
+      });
+    }
+  });
 });

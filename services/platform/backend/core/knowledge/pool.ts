@@ -423,12 +423,6 @@ export function isInternalOrCorruptionError(err: unknown): boolean {
   return typeof state === 'string' && state.startsWith('XX');
 }
 
-/** 54000 — a program limit was exceeded, e.g. an HNSW index above pgvector's
- * dimension ceiling. */
-export function isProgramLimitExceeded(err: unknown): boolean {
-  return sqlState(err) === '54000';
-}
-
 /** XX000 — an internal error; how index corruption surfaces. */
 export function isInternalError(err: unknown): boolean {
   return sqlState(err) === 'XX000';

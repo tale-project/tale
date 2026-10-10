@@ -2,25 +2,55 @@
 import '@testing-library/jest-dom/vitest';
 import {
   ActiveEditorProvider,
+  EditorActions,
   useActiveEditor,
   type EditorController,
 } from '@tale/ui/editor';
 import { act } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import {
+  forgetSavedLocale,
+  saveLocale,
+  SHIPPED_LOCALES,
+} from '@/tests/utils/lapsed-session';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@/tests/utils/render';
 
 // Per-test preference row: `undefined` means the user has made no explicit
 // choice and follows the org default.
-let preferences: {
-  customInstructions?: string;
-  customInstructionsEnabled?: boolean;
-} | null = null;
+let preferences:
+  | {
+      customInstructions?: string;
+      customInstructionsEnabled?: boolean;
+    }
+  | null
+  | undefined = null;
 let policyEnabled = false;
+let preferencesLoading = false;
+let preferencesError = false;
+let preferencesFetching = false;
+let preferencesFailureCount = 0;
+const refetchPreferences = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: preferences, isLoading: false }),
+  useBackendQuery: () => ({
+    data: preferences,
+    isLoading: preferencesLoading,
+    isError: preferencesError,
+    error: preferencesError ? new Error('503 Service Unavailable') : null,
+    isFetching: preferencesFetching,
+    errorUpdateCount: preferencesFailureCount,
+    refetch: refetchPreferences,
+  }),
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
@@ -47,13 +77,202 @@ function renderPage() {
   return render(<PreferencesSettings organizationId="org-1" />);
 }
 
+function renderEditor() {
+  const capture = { current: null as EditorController | null };
+  function ActiveProbe() {
+    const controller = useActiveEditor();
+    capture.current = controller;
+    return controller ? <EditorActions controller={controller} /> : null;
+  }
+  const page = () => (
+    <ActiveEditorProvider>
+      <ActiveProbe />
+      <PreferencesSettings organizationId="org-1" />
+    </ActiveEditorProvider>
+  );
+  const result = render(page());
+  return {
+    capture,
+    ...result,
+    rerenderPreferences: () => result.rerender(page()),
+  };
+}
+
 beforeEach(() => {
   preferences = null;
   policyEnabled = false;
+  preferencesLoading = false;
+  preferencesError = false;
+  preferencesFetching = false;
+  preferencesFailureCount = 0;
   vi.clearAllMocks();
 });
 
+afterEach(async () => {
+  cleanup();
+  await forgetSavedLocale();
+});
+
 describe('PreferencesSettings', () => {
+  it.each(SHIPPED_LOCALES)(
+    'shows a failed read and retries without an overwrite path (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      preferences = undefined;
+      preferencesError = true;
+      preferencesFailureCount = 1;
+      const { user, capture, container, rerenderPreferences } = renderEditor();
+      await waitFor(() => expect(i18n.resolvedLanguage).toBe(locale));
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        i18n.t('errors.loadFailed', { ns: 'personalization' }),
+      );
+      expect(screen.queryByRole('switch')).toBeNull();
+      expect(screen.queryByRole('textbox')).toBeNull();
+      expect(capture.current).toBeNull();
+      await checkAccessibility(container);
+      const retry = screen.getByRole('button', {
+        name: i18n.t('actions.tryAgain', { ns: 'common' }),
+      });
+      await user.click(retry);
+      expect(refetchPreferences).toHaveBeenCalledTimes(1);
+      preferencesError = false;
+      preferencesLoading = true;
+      preferencesFetching = true;
+      rerenderPreferences();
+      expect(screen.getByRole('alert')).toBeVisible();
+      expect(retry).toHaveAttribute('aria-busy', 'true');
+      expect(retry).toHaveFocus();
+      await user.click(retry);
+      expect(refetchPreferences).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('switch')).toBeNull();
+      expect(upsert).not.toHaveBeenCalled();
+      expect(setCustomInstructionsEnabled).not.toHaveBeenCalled();
+      preferences = {
+        customInstructionsEnabled: true,
+        customInstructions: 'Saved instructions.',
+      };
+      preferencesLoading = false;
+      preferencesFetching = false;
+      rerenderPreferences();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.getByRole('switch')).toBeChecked();
+      expect(screen.getByRole('textbox')).toHaveValue('Saved instructions.');
+      await waitFor(() => expect(screen.getByRole('region')).toHaveFocus());
+    },
+  );
+
+  it('does not expose controls before the first answer', () => {
+    preferences = undefined;
+    preferencesLoading = true;
+    policyEnabled = true;
+    const { capture } = renderEditor();
+    expect(capture.current).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([false, true])(
+    'keeps failed first reads unknown (org default %s)',
+    (enabled) => {
+      preferences = undefined;
+      preferencesError = true;
+      preferencesFailureCount = 1;
+      policyEnabled = enabled;
+      const { capture } = renderEditor();
+      expect(screen.getByRole('alert')).toBeVisible();
+      expect(screen.queryByRole('switch')).toBeNull();
+      expect(screen.queryByRole('textbox')).toBeNull();
+      expect(capture.current).toBeNull();
+    },
+  );
+
+  it.each(SHIPPED_LOCALES)(
+    'refuses 3201 characters accessibly before save and allows repair to 3200 (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      preferences = {
+        customInstructionsEnabled: true,
+        customInstructions: 'Saved.',
+      };
+      const { capture, user, container } = renderEditor();
+      const field = screen.getByRole('textbox');
+      await waitFor(() => expect(i18n.resolvedLanguage).toBe(locale));
+      const error = i18n.t('errors.tooLong', {
+        ns: 'personalization',
+        max: 3200,
+      });
+      const saveLabel = i18n.t('actions.save', { ns: 'common' });
+
+      fireEvent.change(field, { target: { value: 'a'.repeat(3201) } });
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(error);
+      expect(field).toHaveAttribute('aria-invalid', 'true');
+      expect(field).toHaveAccessibleDescription(expect.stringContaining(error));
+      const format = new Intl.NumberFormat(locale);
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.textContent ===
+            `${format.format(3201)} / ${format.format(3200)}`,
+        ),
+      ).toBeVisible();
+      await waitFor(() => expect(capture.current?.isValid).toBe(false));
+      expect(screen.getByRole('button', { name: saveLabel })).toBeDisabled();
+      expect(upsert).not.toHaveBeenCalled();
+      expect(field).toHaveValue('a'.repeat(3201));
+      await checkAccessibility(container);
+
+      fireEvent.change(field, { target: { value: 'a'.repeat(3200) } });
+      await waitFor(() => expect(capture.current?.isValid).toBe(true));
+      expect(screen.queryByRole('alert')).toBeNull();
+      await user.click(screen.getByRole('button', { name: saveLabel }));
+      await waitFor(() =>
+        expect(upsert).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          customInstructions: 'a'.repeat(3200),
+        }),
+      );
+      await waitFor(() => expect(capture.current?.isDirty).toBe(false));
+    },
+  );
+
+  it('preserves the server refusal instead of replacing it with a generic save error', async () => {
+    preferences = {
+      customInstructionsEnabled: true,
+      customInstructions: 'Saved.',
+    };
+    const refusal = 'Custom instructions exceed 3200 characters.';
+    upsert.mockRejectedValueOnce(
+      new AppError({ code: 'too_long', message: refusal }),
+    );
+    const { capture } = renderEditor();
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Draft.' },
+    });
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
+    await act(async () => {
+      await expect(capture.current?.save()).rejects.toThrow(refusal);
+    });
+    expect(screen.getByRole('textbox')).toHaveValue('Draft.');
+    expect(capture.current?.isDirty).toBe(true);
+  });
+
+  it('uses the translated fallback for an unexpected fault without showing its payload', async () => {
+    preferences = { customInstructionsEnabled: true };
+    upsert.mockRejectedValueOnce(new TypeError('internal failure payload'));
+    const { capture } = renderEditor();
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Draft.' },
+    });
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
+    await act(async () => {
+      await expect(capture.current?.save()).rejects.toThrow(
+        i18n.t('errors.saveFailed', { ns: 'personalization' }),
+      );
+    });
+  });
+
   it('offers exactly one switch — no voice output (a composer mode), no memories (removed)', () => {
     preferences = { customInstructionsEnabled: true };
     renderPage();
@@ -105,6 +324,20 @@ describe('PreferencesSettings', () => {
     expect(
       screen.getAllByText(/Following organization default/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('keeps a successful null read editable when the org default is off', async () => {
+    const { user } = renderPage();
+    const toggle = screen.getByRole('switch', { name: 'Custom instructions' });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeEnabled();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    await user.click(toggle);
+    expect(setCustomInstructionsEnabled).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      enabled: true,
+    });
   });
 
   it('says it is overriding the org default once the user chooses', () => {
@@ -170,6 +403,6 @@ describe('PreferencesSettings', () => {
       customInstructions: 'Be terse.',
     };
     const { container } = renderPage();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

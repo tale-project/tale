@@ -62,6 +62,12 @@ export interface Term {
    * accompanied by a `_note` explaining why.
    */
   readonly _lintExclude?: Partial<Record<string, boolean>>;
+  /**
+   * Non-shipped names a locale must not use for this term, such as a
+   * lowercase loanword or a retired translation. `terminology-ui-label`
+   * reports them case-insensitively wherever it enforces the term.
+   */
+  readonly _avoid?: Partial<Record<string, ReadonlyArray<string>>>;
   readonly _note?: string;
 }
 

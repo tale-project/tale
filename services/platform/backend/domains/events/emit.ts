@@ -1,7 +1,11 @@
 import type { TransactionSql } from 'postgres';
 
-import type { EventType } from '../../../lib/shared/event-types.ts';
+import type {
+  EventPayloads,
+  EventType,
+} from '../../../lib/shared/event-types.ts';
 import { dispatchAutomationEvent } from '../automations/triggers.ts';
+import { currentEventOrigin, type EventOrigin } from './origin.ts';
 
 /**
  * Platform events — the single seam through which entity domains announce
@@ -15,14 +19,19 @@ import { dispatchAutomationEvent } from '../automations/triggers.ts';
  * otherwise leave the caller's transaction aborted — its next statement dies
  * with 25P02, or its COMMIT silently rolls the producing write back.
  *
- * The event-type union lives in `lib/shared/event-types.ts`, shared with the
- * trigger editors in the web app.
+ * The event-type union and what each event carries live in
+ * `lib/shared/event-types.ts`, shared with the trigger editors in the web
+ * app: the compiler holds every producer to its event's documented payload.
+ * Where the event comes from — the platform, or an automation run whose work
+ * raised it — is read from the scope the run's doors entered (`origin.ts`).
  */
 
-export interface EmitEventArgs {
+export interface EmitEventArgs<T extends EventType> {
   organizationId: string;
-  eventType: EventType;
-  eventData?: Record<string, unknown>;
+  eventType: T;
+  eventData: EventPayloads[T];
+  /** Only for tests: a producer never names its origin, the scope does. */
+  origin?: EventOrigin;
 }
 
 /**
@@ -34,17 +43,18 @@ export interface EmitEventArgs {
  * stamp, run rows and job enqueue go with it) and the outer transaction
  * stays valid for the producer's remaining statements and its commit.
  */
-export async function emitEvent(
+export async function emitEvent<T extends EventType>(
   tx: TransactionSql,
-  args: EmitEventArgs,
+  args: EmitEventArgs<T>,
 ): Promise<void> {
+  const origin = args.origin ?? currentEventOrigin();
   try {
     await tx.savepoint((sp) =>
       dispatchAutomationEvent(sp, {
         organizationId: args.organizationId,
         event: args.eventType,
-        ...(args.eventData !== undefined ? { payload: args.eventData } : {}),
-        origin: 'platform',
+        payload: args.eventData,
+        origin,
       }),
     );
   } catch (error) {

@@ -21,13 +21,18 @@ import type {
 } from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
 import { invalidateChatThreads, setChatThreadSharedWithProject } from './chat';
-import { backendEntityPrefix, backendKey } from './query-keys';
+import {
+  backendEntityPrefix,
+  backendKey,
+  projectCapabilityCatalogKey,
+} from './query-keys';
 
 // ---------------------------------------------------------------------------
 // Wire rows (what the pg backend answers) + 0.4-shape projections
 // ---------------------------------------------------------------------------
 
 export type ProjectListItem = ItemOf<'projects/queries:listProjects'>;
+type ProjectDetail = NonNullable<ReturnsOf<'projects/queries:getProject'>>;
 type ProjectOverviewResult = ReturnsOf<'projects/queries:listProjectsOverview'>;
 type ProjectAgentItem = ItemOf<'projects/queries:listProjectAgents'>;
 type SidebarProjectItem = ItemOf<'projects/queries:listSidebarProjects'>;
@@ -68,7 +73,7 @@ interface ProjectWire {
   canAdminister: boolean;
 }
 
-function projectView(row: ProjectWire): ProjectListItem {
+function projectView(row: ProjectWire): ProjectDetail {
   const view: Record<string, unknown> = {
     _id: row.id,
     _creationTime: row.createdAt,
@@ -102,7 +107,13 @@ function projectView(row: ProjectWire): ProjectListItem {
     canAdminister: row.canAdminister,
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one fetch-boundary projection to the 0.4 shape
-  return view as ProjectListItem;
+  return view as ProjectDetail;
+}
+
+/** Strip retained instructions even when an older backend sends full rows. */
+function projectSummaryView(row: ProjectWire): ProjectListItem {
+  const { instructions: _instructions, ...summary } = projectView(row);
+  return summary;
 }
 
 interface ProjectAgentWire {
@@ -110,6 +121,11 @@ interface ProjectAgentWire {
   organizationId: string;
   projectId: string;
   name: string;
+  /** Absent on a row an older backend sent, which knew no handles. */
+  handle?: string;
+  /** What the agent answered to before agents had handles; absent from an
+   * older backend. */
+  legacyHandles?: string[];
   harness: string;
   model: string;
   modelProvider: string | null;
@@ -132,6 +148,10 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
     organizationId: row.organizationId,
     projectId: row.projectId,
     name: row.name,
+    ...(row.handle !== undefined ? { handle: row.handle } : {}),
+    ...(row.legacyHandles !== undefined
+      ? { legacyHandles: row.legacyHandles }
+      : {}),
     harness: row.harness,
     model: row.model,
     ...(row.modelProvider !== null ? { modelProvider: row.modelProvider } : {}),
@@ -251,6 +271,7 @@ export function projectsOverviewQuery(args: {
   const asOf = args.asOf ?? 0;
   const params = new URLSearchParams({
     includeArchived: String(includeArchived),
+    summary: 'true',
     ...(asOf > 0 ? { asOf: String(asOf) } : {}),
   });
   return {
@@ -271,7 +292,7 @@ export function projectsOverviewQuery(args: {
         // The overview shape re-stamps the rollups as REQUIRED numbers
         // (the 0.4 handler's `?? 0`), on top of the list-item projection.
         projects: body.projects.map((row) =>
-          Object.assign(projectView(row), {
+          Object.assign(projectSummaryView(row), {
             openTaskCount: row.openTaskCount,
             doneTaskCount: row.doneTaskCount,
             projectAgentCount: row.projectAgentCount,
@@ -292,9 +313,11 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
       queryKey: backendKey(orgId, 'project', 'list', includeArchived),
       queryFn: () =>
         backendFetch<{ projects: ProjectWire[] }>(
-          `/projects?includeArchived=${includeArchived}`,
+          `/projects?includeArchived=${includeArchived}&summary=true`,
           { orgId },
-        ).then((body): ProjectListItem[] => body.projects.map(projectView)),
+        ).then((body): ProjectListItem[] =>
+          body.projects.map(projectSummaryView),
+        ),
     };
   },
   'projects/queries:listProjectsOverview': (args, ctx) => {
@@ -317,8 +340,8 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
           `/projects/${encodeURIComponent(projectId)}`,
           { orgId },
         ).then(
-          (body): ProjectListItem | null => projectView(body.project),
-          (error: unknown): ProjectListItem | null => {
+          (body): ProjectDetail | null => projectView(body.project),
+          (error: unknown): ProjectDetail | null => {
             // 0.4 answers null for missing / cross-org / inaccessible —
             // never an error state.
             if (
@@ -365,9 +388,12 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(orgId, 'project', 'sidebar'),
       queryFn: () =>
-        backendFetch<{ projects: ProjectWire[] }>('/projects/sidebar', {
-          orgId,
-        }).then((body): SidebarProjectItem[] =>
+        backendFetch<{ projects: ProjectWire[] }>(
+          '/projects/sidebar?summary=true',
+          {
+            orgId,
+          },
+        ).then((body): SidebarProjectItem[] =>
           body.projects.map(sidebarProjectView),
         ),
     };
@@ -380,7 +406,7 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
       queryKey: backendKey(orgId, 'project', 'search', query),
       queryFn: () =>
         backendFetch<{ projects: ProjectWire[] }>(
-          `/projects/search?q=${encodeURIComponent(query)}`,
+          `/projects/search?q=${encodeURIComponent(query)}&summary=true`,
           { orgId },
         ).then((body): ProjectSearchItem[] =>
           body.projects.map(searchProjectView),
@@ -395,7 +421,7 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
       queryKey: backendKey(orgId, 'project', 'palette-search', query),
       queryFn: () =>
         backendFetch<{ projects: ProjectWire[] }>(
-          `/projects/search?q=${encodeURIComponent(query)}`,
+          `/projects/search?q=${encodeURIComponent(query)}&summary=true`,
           { orgId },
         ).then((body): PaletteSearchItem[] =>
           body.projects.map(paletteHitView),
@@ -579,7 +605,14 @@ const projectWriteInvalidate = (
   ctx: AdapterContext,
 ): void => {
   const orgId = orgOf(args, ctx);
-  if (orgId !== undefined) invalidateProjects(client, orgId);
+  if (orgId !== undefined) {
+    invalidateProjects(client, orgId);
+    if (typeof args.projectId === 'string') {
+      void client.invalidateQueries({
+        queryKey: projectCapabilityCatalogKey(orgId, args.projectId),
+      });
+    }
+  }
 };
 
 export const projectWriteAdapters: Record<string, WriteAdapter> = {

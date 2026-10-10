@@ -19,7 +19,7 @@ import {
   RUN_FAILURE_CODES,
 } from './failure.ts';
 
-describe('isPermanentFailureCode', () => {
+describe('isPermanentFailureCode [AUTO-R13]', () => {
   it.each([
     'node_error',
     'connector_error',
@@ -43,8 +43,18 @@ describe('isPermanentFailureCode', () => {
     'turn_crashed',
     'deadline',
     'harness_error',
+    // A run stopped on unreadable saved progress, or failed by a person at a
+    // write that may already have happened: a fresh run starts clean and
+    // repeats neither.
+    'engine_incompatible',
+    'effect_in_doubt',
   ])('leaves %s out', (code) => {
     expect(isPermanentFailureCode(code)).toBe(false);
+  });
+
+  it('names the interruption codes a run can carry', () => {
+    expect(RUN_FAILURE_CODES).toContain('engine_incompatible');
+    expect(RUN_FAILURE_CODES).toContain('effect_in_doubt');
   });
 
   it('leaves out a failure no site classified, and an unknown code', () => {
@@ -106,5 +116,12 @@ describe('PERMANENT_FAILURES_BEFORE_PAUSE', () => {
     // The copy that names it ("{failures} runs in a row") reads as plural,
     // and one failure is no pattern.
     expect(PERMANENT_FAILURES_BEFORE_PAUSE).toBeGreaterThanOrEqual(2);
+  });
+
+  it('is five, the number the trigger docs and the manual suite give [AUTO-R13]', () => {
+    // "After five such failures in a row" (docs/en/platform/automations/
+    // triggers.md) and "After the fifth" (AUTO-F52): moving the number
+    // moves both.
+    expect(PERMANENT_FAILURES_BEFORE_PAUSE).toBe(5);
   });
 });

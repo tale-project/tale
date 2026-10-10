@@ -11,7 +11,7 @@ import {
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Plus, X } from 'lucide-react';
-import { useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
@@ -43,7 +43,7 @@ type TaskRow = TaskDoc;
  * member reading someone else's task may still record that it blocks one of
  * theirs.
  */
-export function TaskDependencies({
+export const TaskDependencies = memo(function TaskDependencies({
   task,
   canEdit,
   projectKey,
@@ -167,7 +167,7 @@ export function TaskDependencies({
       />
     </Stack>
   );
-}
+});
 
 function DependencyGroup({
   label,
@@ -192,21 +192,34 @@ function DependencyGroup({
   onRemove: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
-  const { t: tCommon } = useT('common');
-  // The picker renders an action per option on every render, open or not: a
-  // lookup per option made that quadratic in the project's size (#3939).
-  const candidateById = useMemo(
-    () => new Map(candidates.map((candidate) => [candidate._id, candidate])),
-    [candidates],
-  );
+  // The picker holds a row per task of the project. Until it is first opened
+  // only its trigger renders: building every row on every render of a closed
+  // picker cost a large project's task dialog hundreds of milliseconds to
+  // open. Once opened it stays mounted, so closing it hands focus back to
+  // its own trigger.
+  const [pickerMounted, setPickerMounted] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   if (!canEdit && items.length === 0) return null;
 
-  const options: SearchableSelectOption[] = candidates.map((c) => ({
-    value: c._id,
-    label: c.title,
-    description: formatTaskIdentifier(projectKey, c.number) ?? undefined,
-  }));
+  const trigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      icon={Plus}
+      className="text-foreground hover:bg-muted -mr-1 h-auto px-1.5 py-0.5"
+      {...(pickerMounted
+        ? {}
+        : {
+            onClick: () => {
+              setPickerMounted(true);
+              setPickerOpen(true);
+            },
+          })}
+    >
+      {t('actions.add')}
+    </Button>
+  );
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -214,34 +227,21 @@ function DependencyGroup({
         <Text as="span" variant="caption">
           {label}
         </Text>
-        {canEdit && candidates.length > 0 && (
-          <SearchableSelect
-            value={null}
-            onValueChange={(value) => {
-              const match = candidateById.get(value);
-              if (match) onAdd(match._id);
-            }}
-            options={options}
-            align="end"
-            searchPlaceholder={t('detail.linkTask')}
-            emptyText={tCommon('search.noResults')}
-            aria-label={label}
-            optionAction={(opt) => {
-              const match = candidateById.get(opt.value);
-              return match ? <TaskStatusBadge status={match.status} /> : null;
-            }}
-            trigger={
-              <Button
-                type="button"
-                variant="ghost"
-                icon={Plus}
-                className="text-foreground hover:bg-muted -mr-1 h-auto px-1.5 py-0.5"
-              >
-                {t('actions.add')}
-              </Button>
-            }
-          />
-        )}
+        {canEdit &&
+          candidates.length > 0 &&
+          (pickerMounted ? (
+            <DependencyPicker
+              label={label}
+              candidates={candidates}
+              projectKey={projectKey}
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              onAdd={onAdd}
+              trigger={trigger}
+            />
+          ) : (
+            trigger
+          ))}
       </Row>
       {items.length > 0 ? (
         <Stack as="ul" gap={1} className="w-full">
@@ -307,5 +307,64 @@ function DependencyGroup({
         </Text>
       )}
     </div>
+  );
+}
+
+/** The task picker of a dependency group, mounted once it is first opened. */
+function DependencyPicker({
+  label,
+  candidates,
+  projectKey,
+  open,
+  onOpenChange,
+  onAdd,
+  trigger,
+}: {
+  label: string;
+  candidates: TaskRow[];
+  projectKey?: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdd: (taskId: string) => void;
+  trigger: React.ReactNode;
+}) {
+  const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  // The picker renders an action per option on every render: a lookup per
+  // option made that quadratic in the project's size (#3939).
+  const candidateById = useMemo(
+    () => new Map(candidates.map((candidate) => [candidate._id, candidate])),
+    [candidates],
+  );
+  const options = useMemo<SearchableSelectOption[]>(
+    () =>
+      candidates.map((c) => ({
+        value: c._id,
+        label: c.title,
+        description: formatTaskIdentifier(projectKey, c.number) ?? undefined,
+      })),
+    [candidates, projectKey],
+  );
+
+  return (
+    <SearchableSelect
+      value={null}
+      onValueChange={(value) => {
+        const match = candidateById.get(value);
+        if (match) onAdd(match._id);
+      }}
+      options={options}
+      open={open}
+      onOpenChange={onOpenChange}
+      align="end"
+      searchPlaceholder={t('detail.linkTask')}
+      emptyText={tCommon('search.noResults')}
+      aria-label={label}
+      optionAction={(opt) => {
+        const match = candidateById.get(opt.value);
+        return match ? <TaskStatusBadge status={match.status} /> : null;
+      }}
+      trigger={trigger}
+    />
   );
 }

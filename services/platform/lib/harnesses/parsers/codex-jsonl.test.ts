@@ -177,6 +177,54 @@ describe('codex-jsonl parser', () => {
     },
   );
 
+  it('classifies only the pinned terminal model-capacity sentence without inventing HTTP429', () => {
+    const message =
+      'Selected model is at capacity. Please try a different model.';
+    const events = collectEvents(
+      createParser('codex'),
+      `${JSON.stringify({ type: 'turn.failed', error: { message } })}\n`,
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn-ended',
+      isError: true,
+      providerErrorKind: 'model_capacity',
+    });
+    expect(events.at(-1)).not.toHaveProperty('apiErrorStatus');
+    for (const other of [
+      message.toLowerCase(),
+      `Tool said: ${message}`,
+      `${message} (details)`,
+    ]) {
+      expect(describeTurnFailure(other)).not.toHaveProperty(
+        'providerErrorKind',
+      );
+    }
+    for (const event of [
+      { type: 'error', message },
+      {
+        type: 'item.completed',
+        item: { id: 'msg-1', type: 'agent_message', text: message },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'tool-1',
+          type: 'command_execution',
+          command: 'echo',
+          aggregated_output: message,
+          exit_code: 1,
+          status: 'completed',
+        },
+      },
+    ]) {
+      expect(
+        collectEvents(createParser('codex'), `${JSON.stringify(event)}\n`),
+      ).not.toContainEqual(
+        expect.objectContaining({ providerErrorKind: 'model_capacity' }),
+      );
+    }
+  });
+
   it('does not turn incidental status numbers into a vendor error', () => {
     expect(describeTurnFailure('The tool exited with code 429')).toEqual({
       message: 'The tool exited with code 429',

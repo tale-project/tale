@@ -7,7 +7,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -19,28 +19,33 @@ import {
   invalidBodyResponse,
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  budgetRetryAfterSeconds,
+  ChatBudgetExceededError,
+} from '../chat/budget-admission.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
 import {
   isCredentialSelectionResolvable,
   listCredentials,
 } from '../provider_credentials/service.ts';
-import { websitesAfterEmbeddingChange } from '../websites/service.ts';
 import {
   KnowledgeAdminError,
   deleteKnowledgeConnection,
-  deleteKnowledgeEmbedding,
   listEmbeddingRecommendationsForOrg,
   probeKnowledgeConnection,
   readKnowledgeConnectionView,
   readKnowledgeEmbeddingView,
   writeKnowledgeConnection,
-  writeKnowledgeEmbedding,
 } from './admin.ts';
+import {
+  assertKnowledgeAdmin,
+  removeKnowledgeEmbedding,
+  saveKnowledgeEmbedding,
+} from './embedding-save.ts';
 import {
   fetchKnowledgeDocument,
   KnowledgeError,
   searchKnowledgeForOrg,
-  requeueEmbeddingBlockedDocuments,
 } from './service.ts';
 
 const searchSchema = z.object({
@@ -61,6 +66,18 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof KnowledgeError) {
     return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  // A usage limit refused the search: the cap that binds, and when it
+  // resets, as every budget refusal names it.
+  if (error instanceof ChatBudgetExceededError) {
+    c.header(
+      'Retry-After',
+      String(budgetRetryAfterSeconds(error.data.resetsAt)),
+    );
+    return c.json(
+      { error: error.data.code, message: error.data.message, data: error.data },
+      429,
+    );
   }
   throw error;
 }
@@ -113,6 +130,7 @@ export function createKnowledgeRoutes(deps: {
       const { access } = await callerScope(c);
       const result = await searchKnowledgeForOrg(deps.sql, {
         organizationId: c.get('orgId'),
+        spender: { userId: access.userId, agentSlug: EMBEDDING_SLUG },
         query: body.data.query,
         ...(body.data.corpus !== undefined ? { corpus: body.data.corpus } : {}),
         ...(body.data.limit !== undefined ? { limit: body.data.limit } : {}),
@@ -166,21 +184,24 @@ export function createKnowledgeRoutes(deps: {
 
   // ---- Admin config (data-residency page): connection + embedding -------
   const requireKnowledgeAdmin = (c: Context<OrgEnv>): Response | null => {
-    if (
-      defineAbilityFor(c.get('orgMember').role).cannot('write', 'orgSettings')
-    ) {
-      return c.json(
-        {
-          error: 'ORG_FORBIDDEN',
-          message: `Role "${c.get('orgMember').role}" cannot manage the knowledge configuration.`,
-        },
-        403,
-      );
+    try {
+      assertKnowledgeAdmin(c.get('orgMember').role);
+    } catch (error) {
+      return handleAdminError(c, error);
     }
     return null;
   };
   const orgSlugOf = async (c: Context<OrgEnv>): Promise<string | null> =>
     resolveOrgSlug(deps.sql, c.get('orgId'));
+  /** The admin a change of the knowledge configuration is recorded under. */
+  const actorOf = (c: Context<OrgEnv>) => {
+    const user = c.get('sessionBundle').user;
+    return {
+      organizationId: c.get('orgId'),
+      userId: user.id,
+      ...(user.email !== undefined ? { email: user.email } : {}),
+    };
+  };
   const handleAdminError = (c: Context<OrgEnv>, error: unknown): Response => {
     if (
       error instanceof KnowledgeAdminError ||
@@ -269,34 +290,6 @@ export function createKnowledgeRoutes(deps: {
     }
   });
 
-  // The websites follow the model too: their page says whether search can
-  // reach them, and a saved model is what embeds the pages crawled without
-  // one. Best-effort — the setting is saved either way; a site a failure
-  // here skipped is embedded by its next scheduled scan.
-  const websitesFollowEmbedding = async (
-    organizationId: string,
-    orgSlug: string,
-    change: 'saved' | 'removed',
-  ): Promise<void> => {
-    try {
-      const { queued } = await websitesAfterEmbeddingChange(
-        deps.sql,
-        organizationId,
-        change,
-      );
-      if (queued > 0) {
-        console.info(
-          `[knowledge] embedding configured for ${orgSlug}: queued a scan of ${queued} website(s) to embed their pages`,
-        );
-      }
-    } catch (error) {
-      console.warn(
-        `[knowledge] embedding ${change} for ${orgSlug}: the websites could not follow:`,
-        error instanceof Error ? error.message : error,
-      );
-    }
-  };
-
   app.get('/embedding', async (c) => {
     const denied = requireKnowledgeAdmin(c);
     if (denied) return denied;
@@ -347,25 +340,13 @@ export function createKnowledgeRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      if (expectedHash === undefined)
-        await writeKnowledgeEmbedding(deps.sql, orgSlug, config);
-      else
-        await writeKnowledgeEmbedding(deps.sql, orgSlug, config, expectedHash);
-      // Configuring a model is only half the fix: every document that failed
-      // while there was none stays `failed` until something re-queues it, and
-      // the failure text tells the operator to configure one "then retry
-      // indexing" — one document at a time, by hand. Do it for them, and say
-      // how many, so the page can report the recovery instead of looking as
-      // though nothing happened.
-      const { requeued } = await requeueEmbeddingBlockedDocuments(deps.sql, {
-        organizationId: c.get('orgId'),
-      });
-      if (requeued > 0) {
-        console.info(
-          `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} document(s) that had failed on the embedding model`,
-        );
-      }
-      await websitesFollowEmbedding(c.get('orgId'), orgSlug, 'saved');
+      const { requeued } = await saveKnowledgeEmbedding(
+        deps.sql,
+        { organizationId: c.get('orgId'), orgSlug },
+        config,
+        expectedHash,
+        actorOf(c),
+      );
       return c.json({ ok: true, requeued });
     } catch (error) {
       return handleAdminError(c, error);
@@ -377,8 +358,11 @@ export function createKnowledgeRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    await deleteKnowledgeEmbedding(deps.sql, orgSlug);
-    await websitesFollowEmbedding(c.get('orgId'), orgSlug, 'removed');
+    await removeKnowledgeEmbedding(
+      deps.sql,
+      { organizationId: c.get('orgId'), orgSlug },
+      actorOf(c),
+    );
     return c.json({ ok: true });
   });
 

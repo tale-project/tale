@@ -67,6 +67,17 @@ const end = (activeId: string, overId: string | null): DragEndEvent =>
     over: overId === null ? null : { id: overId },
   }) as unknown as DragEndEvent;
 
+describe('useBoardDnd — options', () => {
+  it('keeps one set of sensors across renders', () => {
+    // `useSensor` memoizes on its options' identity: new options each render
+    // gave DndContext new sensors, re-rendering every draggable under it.
+    const view = setup();
+    const { sensors } = view.result.current;
+    view.rerender({ rows: [...ROWS] });
+    expect(view.result.current.sensors).toBe(sensors);
+  });
+});
+
 describe('useBoardDnd — partitioning', () => {
   it('partitions rows into declared lanes in sorted order; undeclared lanes are excluded', () => {
     const { result } = setup();

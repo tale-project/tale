@@ -1,44 +1,41 @@
-// runnerd wire protocol — CANONICAL SOURCE OF TRUTH.
+// runnerd wire protocol — MIRROR of
+// services/sandbox/src/session/runnerd-protocol.ts (the canonical source).
 //
-// runnerd is the in-container control daemon for persistent sessions (PID 1
-// of the session container, listening on :8200 inside tale-sandbox-net). The
-// spawner is its only legitimate client; every request carries the
-// per-session token in `x-tale-runnerd-token` (see deriveRunnerdToken in
-// session/runnerd-client.ts: HMAC-SHA256(SANDBOX_TOKEN, "runnerd-v1:" +
-// sessionId), so any spawner replica can address any session statelessly).
-//
-// This file is mirrored by `services/sandbox-runtime/daemon/src/protocol.ts`
-// — the daemon is bundled into the runtime image and cannot import across
+// The daemon is bundled into the runtime image and cannot import across
 // service boundaries (same convention as wire.ts ↔ convex/sandbox/wire.ts).
-// Keep both files in sync: runnerd-protocol.test.ts imports both copies and
-// fails on any constant that differs or exists on one side only.
-//
-// Transport notes:
-//  - POST /execs responds with NDJSON (one JSON object per line, flushed per
-//    event). The spawner translates NDJSON → SSE for the platform. NDJSON
-//    (not SSE) daemon-side keeps the in-container parser trivial and makes
-//    the journal replay path byte-identical to the live path.
-//  - stdout/stderr ride as base64 chunks: the bytes must survive the hop
-//    UNALTERED and in order (agent adapters parse JSONL from stdout; any
-//    re-encoding or line-merging corrupts mid-line chunk boundaries).
+// Keep this in sync with the canonical file; protocol.test.ts pins the shapes.
 
 export const RUNNERD_PORT = 8200;
 export const RUNNERD_TOKEN_HEADER = 'x-tale-runnerd-token';
-
-/** Prefix bound into the per-session token derivation. Versioned so a future
- * protocol break can rotate every session token by bumping the string. */
 export const RUNNERD_TOKEN_CONTEXT = 'runnerd-v1:';
+/** Environment variable carrying the session's creation stamp (the value of
+ * the backend object's `tale.created` label) into the container. runnerd names
+ * it in /healthz and in its activity answers, so the spawner can tell the
+ * incarnation it registered from a replacement under the same name without
+ * asking the backend. A container launched without it names none. */
+export const RUNNERD_INCARNATION_ENV = 'TALE_RUNNERD_INCARNATION';
+/** Request header naming the incarnation an activity request is meant for.
+ * runnerd refuses the request with 409 `incarnation_mismatch` (naming its own)
+ * when it serves another, before anything changes. */
+export const RUNNERD_INCARNATION_HEADER = 'x-tale-runnerd-incarnation';
 
-// Caps enforced daemon-side (the spawner also validates request-side; the
-// daemon re-enforces so a compromised spawner replica can't wedge a session).
 export const RUNNERD_MAX_LIVE_EXECS = 4;
-export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
+/** POST /execs refused because the session's memory is nearly spent: its
+ * working set reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of its limit.
+ * HTTP 429 with a {@link RunnerdMemoryBusy} body and a `retry-after` header
+ * in seconds. Nothing started; the execs already running are untouched. */
+export const RUNNERD_MEMORY_BUSY_ERROR = 'session_memory_busy';
+export interface RunnerdMemoryBusy {
+  error: typeof RUNNERD_MEMORY_BUSY_ERROR;
+  code: 'SESSION_MEMORY_BUSY';
+  message: string;
+}
 /** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
  * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
- * response unboundedly. Past this, the daemon disconnects that ONE
- * consumer (the others are unaffected); it reconnects via /attach?sinceSeq=
- * and replays from the disk-backed journal. The diagnostic ring is not replay
- * history. */
+ * response unboundedly — the only thing the old fixed stdout cap incidentally
+ * bounded. Past this, the daemon disconnects that ONE consumer (the others
+ * are unaffected); it reconnects via /attach?sinceSeq= and replays from the
+ * disk-backed journal. */
 export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 /** Cap on ONE request body runnerd accepts, on every route. The spawner's own
  * SANDBOX_MAX_REQUEST_BODY_BYTES is clamped to this at boot, so a stage batch
@@ -49,11 +46,6 @@ export const RUNNERD_MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
 export const RUNNERD_ENV_MAX_ENTRIES = 128;
 export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
 
-/**
- * Env names the daemon refuses to set/unset/overlay — these carry the
- * sandbox plumbing (egress proxy, workspace-home, daemon auth). Checked as
- * exact names except the two prefix rules.
- */
 export const RUNNERD_ENV_DENYLIST = [
   'HOME',
   'PATH',
@@ -64,30 +56,44 @@ export const RUNNERD_ENV_DENYLIST = [
   'TALE_DIND_INNER_POOL_OVERRIDE',
 ] as const;
 export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
-/** Proxy vars are deny-listed case-insensitively (HTTP_PROXY/http_proxy…). */
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;
 
 export function isDeniedEnvName(name: string): boolean {
-  // Case-insensitive: these names carry sandbox plumbing regardless of case,
-  // so a lowercase variant (`home`, `tale_runnerd_token`) must not slip a
-  // reserved name past the deny-list. The reserved constants are uppercase, so
-  // normalize the candidate to compare. (The proxy regex is already `/i`.)
+  // Case-insensitive (mirrors services/sandbox/src/session/runnerd-protocol.ts):
+  // a lowercase variant of a reserved name must not slip past the deny-list.
   const upper = name.toUpperCase();
-  if ((RUNNERD_ENV_DENYLIST as readonly string[]).includes(upper)) return true;
+  if (RUNNERD_ENV_DENYLIST.some((v) => v === upper)) return true;
   if (RUNNERD_ENV_DENY_PROXY_RE.test(name)) return true;
   return RUNNERD_ENV_DENY_PREFIXES.some((p) => upper.startsWith(p));
 }
 
-// --- GET /healthz ----------------------------------------------------------
-
 export interface RunnerdHealth {
   ok: true;
+  /** DinD capability readiness without activation. False blocks new work. */
+  dockerReady?: boolean;
+  /** Sustained probe failure or observed terminal Docker state; permits fenced idle recovery. */
+  dockerRecoveryRequired?: boolean;
+  /** The lazy inner engine: `used` once it has started in this container.
+   * Absent without Docker and on older runtime images. */
+  docker?: { engine: 'cold' | 'running' | 'stopped'; used: boolean };
   bootedAtMs: number;
-  /** Daemon-held activity clock: last exec start/exit, env change, or file
-   * op. The spawner's idle reaper reads this, so idleness stays correct
-   * across spawner restarts. */
+  /** The creation stamp the container was launched with (see
+   * RUNNERD_INCARNATION_ENV); absent when it was launched without one. */
+  incarnation?: string;
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Optional dependency diagnostics; do not affect daemon liveness. */
+  dependencies?: { docker?: { ok: boolean }; egress?: { ok: boolean } };
+  /** The session's memory as its cgroup counts it: in use, the limit (null
+   * for none), the peak since the container started where the kernel
+   * reports one, and how many processes the OOM killer has ended in it.
+   * Absent where the cgroup cannot be read and on older runtime images. */
+  memory?: {
+    currentBytes: number;
+    maxBytes: number | null;
+    peakBytes?: number;
+    oomKills?: number;
+  };
   /** Absent on older runtime images; pressure reclamation then fails closed. */
   activity?: {
     generation: string;
@@ -101,20 +107,11 @@ export interface RunnerdHealth {
 }
 
 export interface RunnerdExecRequest {
-  /** ID_ALPHABET_RE; unique within the session (daemon 409s duplicates). */
   execId: string;
-  /** argv form — spawned directly, no shell. Mutually exclusive with shell. */
   command?: string[];
-  /** shell form — runs via `bash -lc` so login-shell env (PATH exports from
-   * the entrypoint) applies. Mutually exclusive with command. */
   shell?: string;
-  /** Absolute (or /agent-relative) cwd; realpath must stay under
-   * /agent and exist — INVALID_CWD otherwise, no silent mkdir. */
   cwd?: string;
-  /** Per-exec overlay on the session env store (deny-list enforced). */
   env?: Record<string, string>;
-  /** Base64 bytes written to the child's stdin, which is then closed.
-   * Prompts ride here (never argv — process lists leak argv). */
   stdinBase64?: string;
   /** 'hold' keeps the child's stdin open after writing stdinBase64 so the
    * caller can push further NDJSON lines via POST /execs/:id/stdin (Claude
@@ -122,15 +119,13 @@ export interface RunnerdExecRequest {
   stdinMode?: 'close' | 'hold';
   timeoutMs: number;
   /** Cumulative stdout truncation cap; `<= 0` disables truncation. Journal
-   * storage limits still end an exec with OUTPUT_LIMIT. In-memory diagnostic
-   * output and consumer queues remain bounded. The spawner sends 0 for
-   * streaming execs (collectOutput=false), a positive cap otherwise. */
+   * storage limits still end an exec with OUTPUT_LIMIT. Pending disk writes
+   * and consumer queues remain bounded. One-shot collected execs pass
+   * a positive cap; long-lived streaming execs (the agent) pass 0. */
   stdoutMaxBytes: number;
   /** Cumulative stderr truncation cap; `<= 0` disables truncation (see above). */
   stderrMaxBytes: number;
 }
-
-// --- POST /execs/:id/stdin ---------------------------------------------------
 
 /** Cap on one decoded stdin line. Steer batches are hook-capped at 16 KB; the
  * headroom covers JSON envelope + base64 slack without permitting floods. */
@@ -157,75 +152,160 @@ export interface RunnerdStdinWriteResponse {
   reason?: 'NOT_FOUND' | 'STDIN_CLOSED' | 'BAD_LINE' | 'WRITE_FAILED';
 }
 
-/** NDJSON lines emitted while an exec runs. Exactly one terminal `exit` or
- * `fail` line closes the stream; `stdout`/`stderr` chunks are base64 and
- * preserve byte order within their own stream.
- *
- * `seq` is a monotonic per-exec counter assigned to journaled events. A
- * consumer that drops its stream reconnects via `GET /attach?sinceSeq=<lastSeq>`
- * and the daemon replays only events with a higher seq — making reconnect
- * idempotent (no missed or double-counted lines). Replay boundary markers and
- * pre-spawn `fail` lines (which can never be reconnected to) skip the counter.
- * Unavailable history fails explicitly instead of replaying a partial suffix. */
+/** Maximum encoded checkpoint payload; state is opaque to the sandbox. */
+export const RUNNERD_CHECKPOINT_MAX_BYTES = 1024 * 1024;
+export interface RunnerdExecCheckpoint {
+  seq: number;
+  state: unknown;
+}
+
 export type RunnerdExecEvent = (
-  | { t: 'replay-start' }
-  | { t: 'replay-complete'; throughSeq: number }
   | { t: 'start'; execId: string; startedAtMs: number }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
+  | { t: 'gap'; fromSeq: number; toSeq: number }
+  | { t: 'replay-start' }
+  | { t: 'replay-complete'; throughSeq: number }
   | {
       t: 'exit';
       exitCode: number;
       /**
-       * CANONICAL execution wall-clock: measured by runnerd itself, from
+       * CANONICAL execution wall-clock: measured by the daemon itself, from
        * immediately before `spawn()` (the `start` event's `startedAtMs`) to
        * the child's exit with all stdio drained. Excludes everything outside
        * the process — container/Pod scheduling, image pull, session startup,
        * endpoint resolution, input staging, output harvest — so it is
        * identical on the docker and kubernetes backends, which host the same
-       * daemon. Forwarded verbatim into `SessionExecResponse.durationMs`.
+       * daemon. Consumers (the spawner's `SessionExecResponse.durationMs`,
+       * usage analytics) forward this value verbatim.
        */
       durationMs: number;
       truncated: { stdout: boolean; stderr: boolean };
-      /** Set when the daemon killed the process group at timeoutMs. */
       timedOut: boolean;
-      /** Set when a cancel landed before exit. */
       cancelled: boolean;
+      /** Why runnerd itself ended the exec, when it did: `EXEC_STALLED` —
+       * it printed nothing and its processes used under 1% of one CPU for
+       * the whole stall window (`TALE_EXEC_STALL_MS`). Absent on a natural
+       * exit, a cancel and the orphan deadline. */
+      failure?: 'EXEC_STALLED';
+      /** The kernel's OOM killer ended the exec: it died of SIGKILL that
+       * neither a cancel, its deadline nor the stall watch sent, while the
+       * session's `memory.events` counted a new `oom_kill`. Absent
+       * otherwise. */
+      oomKilled?: true;
+      /** The session's memory peak (`memory.peak`) when the exec ended, where
+       * the kernel reports one: since the container started, not this exec's
+       * own. */
+      sessionMemoryPeakBytes?: number;
     }
   | {
       t: 'fail';
-      /** Structured start, replay and output-budget failures. */
       code:
         | 'INVALID_CWD'
         | 'EXEC_LIMIT'
         | 'DUPLICATE_EXEC'
         | 'BAD_REQUEST'
         | 'OUTPUT_LIMIT'
-        | 'REPLAY_UNAVAILABLE';
+        | 'REPLAY_UNAVAILABLE'
+        | 'OUTPUT_GAP'
+        | 'REPLAY_DISK_FULL';
       message: string;
     }
 ) & { seq?: number };
 
-// --- POST /execs/:id/cancel --------------------------------------------------
+/** Validate every record at both replay and HTTP boundaries. Additive fields
+ * are allowed; missing or corrupt payloads must never advance a stream cursor. */
+export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
+  if (!isObject(value)) return false;
+  if (value.seq !== undefined && !positiveInteger(value.seq)) return false;
+  switch (value.t) {
+    case 'gap':
+      return (
+        positiveInteger(value.fromSeq) &&
+        positiveInteger(value.toSeq) &&
+        value.fromSeq <= value.toSeq
+      );
+    case 'replay-start':
+      return true;
+    case 'replay-complete':
+      return (
+        nonNegativeNumber(value.throughSeq) &&
+        Number.isSafeInteger(value.throughSeq)
+      );
+    case 'start':
+      return (
+        typeof value.execId === 'string' &&
+        value.execId.length > 0 &&
+        nonNegativeNumber(value.startedAtMs)
+      );
+    case 'stdout':
+    case 'stderr':
+      // Buffer.from(base64) silently ignores corrupt characters. Validate the
+      // alphabet and padding without decoding/allocating another output copy.
+      return (
+        typeof value.b64 === 'string' &&
+        value.b64.length % 4 === 0 &&
+        /^[A-Za-z0-9+/]*={0,2}$/.test(value.b64)
+      );
+    case 'exit':
+      return (
+        typeof value.exitCode === 'number' &&
+        Number.isSafeInteger(value.exitCode) &&
+        nonNegativeNumber(value.durationMs) &&
+        typeof value.timedOut === 'boolean' &&
+        typeof value.cancelled === 'boolean' &&
+        isObject(value.truncated) &&
+        typeof value.truncated.stdout === 'boolean' &&
+        typeof value.truncated.stderr === 'boolean' &&
+        (value.failure === undefined || value.failure === 'EXEC_STALLED') &&
+        (value.oomKilled === undefined || value.oomKilled === true) &&
+        (value.sessionMemoryPeakBytes === undefined ||
+          (nonNegativeNumber(value.sessionMemoryPeakBytes) &&
+            Number.isSafeInteger(value.sessionMemoryPeakBytes)))
+      );
+    case 'fail':
+      return (
+        typeof value.message === 'string' &&
+        (value.code === 'INVALID_CWD' ||
+          value.code === 'EXEC_LIMIT' ||
+          value.code === 'DUPLICATE_EXEC' ||
+          value.code === 'BAD_REQUEST' ||
+          value.code === 'OUTPUT_LIMIT' ||
+          value.code === 'REPLAY_UNAVAILABLE' ||
+          value.code === 'OUTPUT_GAP' ||
+          value.code === 'REPLAY_DISK_FULL')
+      );
+    default:
+      return false;
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function positiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
 
 export interface RunnerdCancelResponse {
-  /** True when a live process group received the SIGTERM→SIGKILL ladder. */
   killed: boolean;
 }
 
-// --- GET /execs/:id ----------------------------------------------------------
-
-/** Per-exec status without consuming the stream. `running` carries startedAtMs;
- * `exited` carries the real exitCode (retained briefly past process exit);
- * `gone` (evicted past the recent window / never existed) surfaces as 404. */
+/** GET /execs/:id — per-exec status without consuming the stream.
+ * `running` (live) carries startedAtMs; `exited` (recently retained) carries
+ * the real exitCode; `gone` (evicted past the recent window / never existed)
+ * is surfaced as HTTP 404. */
 export interface RunnerdExecStatus {
   execId: string;
   state: 'running' | 'exited' | 'gone';
   startedAtMs?: number;
   exitCode?: number | null;
 }
-
-// --- POST /env ---------------------------------------------------------------
 
 export interface RunnerdEnvPatch {
   set?: Record<string, string>;
@@ -234,15 +314,21 @@ export interface RunnerdEnvPatch {
 
 export interface RunnerdEnvResponse {
   ok: true;
-  /** Names rejected by the deny-list (reported, not fatal — the caller
-   * decides whether a partial apply is acceptable). */
   denied: string[];
 }
 
-// --- error envelope ----------------------------------------------------------
-
-/** Non-2xx JSON body for every endpoint. */
 export interface RunnerdError {
   error: string;
   message?: string;
+}
+
+export const WORKSPACE_ROOT = '/agent';
+export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+/** Missing cursor starts at zero; malformed cursors must never skip history. */
+export function parseRunnerdSequence(value: string | null): number | null {
+  if (value === null) return 0;
+  if (!/^[0-9]+$/.test(value)) return null;
+  const sequence = Number(value);
+  return Number.isSafeInteger(sequence) ? sequence : null;
 }

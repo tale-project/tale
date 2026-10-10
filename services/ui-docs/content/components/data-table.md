@@ -75,6 +75,8 @@ When a `DataTableActionMenu` or `EntityRowActions` item opens a dialog, closing 
 
 Leave it off for a table embedded in a page that scrolls as a whole, such as a section of a settings page. Every collection screen takes it; see the [list-page pattern](/docs/patterns/list-page).
 
+In the normal sticky layout, a collection above 100 rows mounts only the rows near its viewport and any focused row. Heights are measured, and selection and sorting still use the complete loaded data. Tables with `enableExpanding`, tables that scroll with the page, and the short-viewport fallback render their rows in full. Keep mutable cell drafts in the host when they must survive scrolling out of view.
+
 A sticky frame is still only as tall as its rows, so a short list ends high on the page. Add `fillHeight` when the table is the whole screen and nothing follows it: the frame then takes the full bounded height, the count footer stays on the bottom edge, and the rows scroll inside it at any count. The empty, no-results and error states opt out of the stretch on their own — a line of copy centred in an empty frame reads worse than a frame that hugs it. Leave `fillHeight` off wherever the page continues below the table.
 
 ## Loading and errors
@@ -101,7 +103,7 @@ Cursor loading is automatic by default and also provides a load-more control. Su
 
 `enableRowSelection` accepts a boolean or a per-row predicate. Pair controlled `rowSelection` with `onRowSelectionChange`, a stable `getRowId`, and a selection column. A disabled UI row is not a server-side permission boundary.
 
-The `sorting` configuration enables sorting and carries `initialSorting` with `onSortingChange`. Verify whether your host is sorting the complete local set or requesting a sorted backend set; sorting only the currently loaded page is not a global ordering.
+The `sorting` configuration enables sorting and carries `initialSorting` with `onSortingChange`. Set `sorting.manual` when the host already supplies a globally ordered window (from the server or the complete TanStack model in `useListPage`); header toggles still update the controlled sort, but the table preserves the supplied row order. Verify whether your host is sorting the complete local set or requesting a sorted backend set; sorting only the currently loaded page is not a global ordering.
 
 `onRowClick` receives a TanStack `Row`, so domain data is in `row.original`. `isRowClickable` can exclude aggregate or restricted rows. Keep a named keyboard-accessible link or action in the row; a pointer click handler alone is not equivalent to a navigation link. Use `onRowMouseEnter` for optional route preloading.
 

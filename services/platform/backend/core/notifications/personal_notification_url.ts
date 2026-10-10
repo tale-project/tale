@@ -85,6 +85,11 @@ export function buildPersonalNotificationUrl(args: {
   if (args.params?.budgets === true) {
     return `${base}/dashboard/${args.organizationId}/settings/governance/policies-limits`;
   }
+  // A key made for the member opens their API keys — parity with
+  // `personalNotificationTarget`.
+  if (args.params?.apiKeys === true) {
+    return `${base}/dashboard/${args.organizationId}/settings/api/rest`;
+  }
   // A paused schedule opens its automation's General tab — parity with
   // `personalNotificationTarget`.
   if (args.params?.trigger === true && typeof args.params.name === 'string') {

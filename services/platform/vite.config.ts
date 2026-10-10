@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
+import { messageTopics } from '@tale/ui/vite/message-topics';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
@@ -73,6 +74,40 @@ const devFsAllow = [
 ];
 
 /**
+ * Routes whose components stay in the entry chunk: the sign-in pages and
+ * the signed-in landing (`/dashboard/$id` redirects to the chat), so neither
+ * waits on a second wave of chunks. Every other route's component loads
+ * with its route, which the router's intent preload starts on hover.
+ */
+const ENTRY_ROUTES = new Set<string>([
+  '/',
+  '/_auth',
+  '/_auth/log-in',
+  '/_auth/sign-up',
+  '/_auth/2fa',
+  '/2fa-enroll',
+  '/forced-change-password/$id',
+  '/dashboard',
+  '/dashboard/',
+  '/dashboard/$id',
+  '/dashboard/$id/',
+  '/dashboard/$id/chat',
+  '/dashboard/$id/chat/',
+  '/dashboard/$id/chat/$threadId',
+  '/dashboard/$id/home',
+]);
+
+/**
+ * Packages the core patterns below match by name (`/react/`, `@tanstack`)
+ * that load with the surfaces using them, not with every page: the flow
+ * canvas (which brings its d3 modules) and the table and virtual-list cores.
+ * In vendor-core they loaded with every page, the sign-in page's included,
+ * whoever imported them.
+ */
+const NOT_CORE =
+  /\/node_modules\/(?:@xyflow|@tanstack\/(?:table-core|react-table|virtual-core|react-virtual))\//;
+
+/**
  * The chunk every route loads first: React, the router and query stack,
  * and Vite's dynamic-import helper (`\0vite/preload-helper.js`), which every
  * module that lazy-loads imports statically. Its own group at a higher
@@ -85,6 +120,9 @@ const devFsAllow = [
 function coreChunk(id: string): string | null {
   if (id.includes('vite/preload-helper')) {
     return 'vendor-core';
+  }
+  if (NOT_CORE.test(id)) {
+    return null;
   }
   if (
     id.includes('node_modules') &&
@@ -100,6 +138,10 @@ function coreChunk(id: string): string | null {
   return null;
 }
 
+/** What `@tale/ui/code-editor` loads, and nothing else of CodeMirror's. */
+const CODE_EDITOR_PACKAGES =
+  /\/node_modules\/(?:@codemirror\/(?:state|view|language|commands|autocomplete|lint|search|lang-javascript|lang-json|lang-yaml)|@lezer\/(?:common|highlight|lr|javascript|json|yaml|markdown)|style-mod|w3c-keyname|crelt|@marijn\/find-cluster-break)\//;
+
 /** The vendor chunk a dependency belongs to; `null` leaves it to the default chunking. */
 function vendorChunk(id: string): string | null {
   if (!id.includes('node_modules')) {
@@ -114,14 +156,26 @@ function vendorChunk(id: string): string | null {
   if (id.includes('pdfjs-dist')) {
     return 'vendor-pdf';
   }
-  if (id.includes('katex')) {
+  // The flow canvas, named so the cold-load budget can forbid it
+  // (`scripts/check-entry-budget.ts`): only the automation editor and run
+  // pages load it. Recharts has no such group: its own dependencies
+  // are shared with the entry, so a group capturing them would be preloaded.
+  if (id.includes('/node_modules/@xyflow/')) {
+    return 'vendor-flow';
+  }
+  // The KaTeX package alone: it has no dependencies of its own to drag in.
+  // Matching every path with `katex` in it took `rehype-katex` too, and with
+  // it the hast utilities the markdown renderers share, so the entry needed
+  // this chunk and KaTeX loaded with every page.
+  if (id.includes('/node_modules/katex/')) {
     return 'vendor-katex';
   }
-  if (
-    id.includes('codemirror') ||
-    id.includes('@codemirror') ||
-    id.includes('@lezer')
-  ) {
+  // The code editor's own packages: CodeMirror's core, the grammars the
+  // editor reads (JavaScript, JSON, YAML, Markdown) and their helpers. The
+  // other languages (Milkdown's code blocks reach every one through
+  // `@codemirror/language-data`) keep the default chunking, one lazy chunk
+  // per language; grouped here, the first code field loaded them all.
+  if (CODE_EDITOR_PACKAGES.test(id)) {
     return 'vendor-codemirror';
   }
   if (id.includes('lucide-react')) {
@@ -222,9 +276,12 @@ export default defineConfig({
       // discovers it mid-session and triggers a re-optimization that 504s the
       // in-flight dynamic import (an "Outdated Optimize Dep"), crashing the
       // feature into its error boundary:
-      //   - `elkjs`       -> the shared flow layout engine (lazy `elk.bundled.js`)
-      //   - react-json-view -> the JSON input/viewer (workflow step config panel)
+      //   - `elkjs`       -> the shared flow layout engine (lazy `elk-api`,
+      //     which starts the layout worker, and `elk.bundled.js`, the
+      //     main-thread fallback)
+      //   - react-json-view -> the JSON input (the viewer is `ValueTree` now)
       // Pre-bundling them keeps the optimizer hash stable from cold start.
+      'elkjs/lib/elk-api',
       'elkjs/lib/elk.bundled.js',
       '@microlink/react-json-view',
     ],
@@ -241,17 +298,59 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
+        // A topic file fetched on first use names its locale (`de-auth-….js`),
+        // so a session's language reads off the network panel.
+        chunkFileNames: (chunk) => {
+          const topic = /[\\/]messages[\\/]([^\\/]+)[\\/]([^\\/]+)\.yml$/.exec(
+            chunk.facadeModuleId ?? '',
+          );
+          return topic
+            ? `assets/${topic[1]}-${topic[2]}-[hash].js`
+            : 'assets/[name]-[hash].js';
+        },
         // Rolldown's native chunk groups rather than the `manualChunks`
         // shim, which cannot order them — see `coreChunk`.
         codeSplitting: {
-          groups: [{ name: coreChunk, priority: 1 }, { name: vendorChunk }],
+          groups: [
+            { name: coreChunk, priority: 3 },
+            { name: vendorChunk, priority: 2 },
+            // Everything else the entry loads statically, in three chunks
+            // rather than one per set of importers: with the routes split,
+            // each module the entry shares with a route became a chunk of
+            // its own, 89 of them under 1 KB gzip, every one preloaded. Three,
+            // not one, so the browser compiles them side by side; split along
+            // the import direction (the app imports the libraries and the
+            // catalogs, never the reverse), so their order cannot cycle.
+            {
+              name: 'vendor-initial',
+              tags: ['$initial'],
+              test: /[\\/]node_modules[\\/]/,
+              priority: 1,
+            },
+            {
+              name: 'messages',
+              tags: ['$initial'],
+              test: /[\\/]messages[\\/](?:[^\\/]+[\\/])?[^\\/]+\.yml$/,
+              priority: 1,
+            },
+            { name: 'app', tags: ['$initial'] },
+          ],
         },
       },
     },
   },
   plugins: [
     yamlImports(),
-    tanstackRouter(),
+    // English messages ride with the modules that read them; see
+    // `lib/i18n/i18n.ts`.
+    messageTopics({ messagesDir: resolve(import.meta.dirname, 'messages') }),
+    tanstackRouter({
+      autoCodeSplitting: true,
+      codeSplittingOptions: {
+        splitBehavior: ({ routeId }) =>
+          ENTRY_ROUTES.has(routeId) ? [] : undefined,
+      },
+    }),
     injectAcceptLanguage(),
     stubSSRImports(),
     viteReact(),

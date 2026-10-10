@@ -22,8 +22,11 @@ has the structure. Generated API contract notes and the PR list follow these sec
 
 Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select.
 Only select a candidate containing that reviewed file. The existing candidate gate checks CI
-and source identity; it does not check the prose. Release Prepare independently rejects missing,
-empty or placeholder sections before any image builds. Content-only `sites_only` builds are exempt.
+and source identity; it does not check the prose. Release Prepare runs the same validator before
+any image builds. It rejects a missing file, a missing, repeated or misordered section, and a
+section that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers. It cannot
+recognise leftover template prose or a wrong claim; the review must. Content-only `sites_only`
+builds are exempt.
 
 ## 1. Choose the candidate
 
@@ -50,9 +53,13 @@ gh api repos/tale-project/tale/dispatches -f event_type=release-candidate \
 ```
 
 That event starts **Build, Checks, SAST, Commitlint, E2E, CLI and Security**, each titled
-`Release candidate <sha>`. It reuses their existing jobs, including all E2E shards and all five
+`Release candidate <sha>`. It reuses their existing jobs, including all four E2E platform shards, all four UI shards and all five
 CLI build targets. Candidate validation never attaches CLI binaries to a release. Normal
 pull request, push, nightly and manual events keep their existing behavior.
+They skip the standalone candidate-source resolver and retain their event's checkout
+commit (including pull-request and merge-group merge commits); manual CLI publication
+still resolves its requested release tag. Downstream jobs explicitly admit that intentional
+skip while retaining their dependency, cancellation and scope checks.
 
 Follow the runs in Actions or list one workflow at a time:
 
@@ -65,6 +72,11 @@ gh run watch <run id> --repo tale-project/tale
 
 The Build **Run workflow** action remains available for an individual Build validation; it
 does not start the other six workflows. Use the repository event for a complete candidate round.
+
+Candidate service scopes always select the complete graph. The stable UI aggregate and all four
+UI shard names, the E2E scope, and every E2E leg are required receipt evidence. Candidates skip
+unused informational SARIF generation; their blocking Opengrep and vulnerability gates still
+execute. The scheduling and cache contracts are in [CI.md](CI.md).
 
 Each workflow has a separate `<workflow>-candidate-<sha>` concurrency group with cancellation
 disabled. Main merges cannot cancel these runs. The shared **Candidate source / Resolve source**
@@ -138,7 +150,7 @@ To be `eligible`, the candidate must pass all of these:
   would skip the commit. Repository dispatches only count through their C-bound receipts;
   their GitHub `head_sha` describes H. CLI manual publication dispatches do not count as normal
   source evidence because their input tag can differ from the workflow source. The Build push
-  run does not count: path filters skip checks there and later merges cancel it.
+  run does not count: its path filters can skip required candidate checks.
 
 "Newest" uses GitHub's `run_started_at`, not the run's original creation time or id. Re-running an
 older run after a newer success makes that rerun the deciding evidence: its failure blocks, an
@@ -171,16 +183,21 @@ lists whose totals matched their pages, yet the newest runs were missing, or eve
   this category appear under `excluded`. Among eligible originals, the newest current attempt
   still decides. Delayed push workflows and later pushes never move the cutoff. The report's
   `arrival` field names the verified PR, repository id and canonical merge time (`createdAt`).
-- **The unfiltered walk goes past the cutoff and every listed original run**, including those
-  excluded from validation. An eligible run omitted by either read, different attempts or
-  completed outcomes, a repeated push of C, or an observed push before the canonical merge
-  answers `blocked`. A run still going in either read is judged as still going. Out-of-order
-  IDs or creation times, changed repeated records, incomplete pages or failure to cross the
-  boundary within 3,000 runs also block. Read again; do not tag from an incomplete result.
+- **The unfiltered walk goes a minute past the cutoff and past every listed original run**,
+  including those excluded from validation. An eligible run omitted by either read, different
+  attempts or completed outcomes, a repeated push of C, or an observed push before the canonical
+  merge answers `blocked`. A run still going in either read is judged as still going.
+  Out-of-order IDs, a creation time more than a minute later than the earliest one listed before
+  it, changed repeated records, incomplete pages or failure to cross the boundary within 3,000
+  runs also block. Read again; do not tag from an incomplete result.
 
-The accepted enumeration model is an unfiltered list in descending run-id and non-increasing
-original-creation-time order. Identical leading repeats caused by new runs shifting pagination
-are tolerated. GitHub does not document an immutable snapshot or ID/time-order guarantee; the
+The accepted enumeration model is an unfiltered list in descending run-id order whose original
+creation times never rise more than a minute above the earliest one listed before them. The
+observed inversion in #4330 was one second between runs of the same event. Sixty seconds is the
+gate's chosen tolerance, not an observed maximum or a GitHub guarantee. Under this model, the
+walk's extra minute past the cutoff keeps every run that could still count. Identical leading
+repeats caused by new runs shifting pagination are tolerated. GitHub does not document an
+immutable snapshot or ID/time-order guarantee; the
 gate checks observed ordering and disagreements under this model. It does not reconstruct every
 historical ref update or prove the first-ever arrival of C, and cannot detect arbitrary history
 omitted by every API read. Stronger lifetime guarantees require durable ref-update evidence.
@@ -208,10 +225,21 @@ git push origin refs/tags/vX.Y.Z
 
 The tag starts `release.yml` and `publish-packages.yml`. `release.yml` builds both
 architectures from the tag, runs its container test gate, then publishes the manifests, the
-GitHub release and the CLI binaries.
+GitHub release and the CLI binaries. Both validate the version's authored notes before they
+publish anything: Release in Prepare, and Publish packages before it pins `ui-vX.Y.Z` and
+`marketing-ui-vX.Y.Z`, so a version whose notes Release refuses at that tag gets no package
+tags from that tag push. The two workflows run independently: package tags can already exist
+when Release fails after Prepare.
 
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
+
+`publish-packages.yml` also validates notes at the ref its dispatch runs on, not by looking up
+`tag_version`'s tag. Dispatch it on the matching immutable tag when retrying that version's
+snapshot. A dispatch from a newer branch could validate notes added after a refused tag and
+publish that branch's snapshot under the requested package version; it is not evidence for the
+original tag. A ref predating the notes gate does not gain it retroactively. Keep existing
+package tags immutable and choose a new version for corrected source.
 
 ## 5. Verify the release
 
@@ -250,18 +278,55 @@ A published version is not a deployment. Deployments follow their own procedure.
   continues.
 - **A real defect.** Do not release. Fix it on `main`, then choose a new candidate explicitly and
   say that it replaces the old one. Never tag a SHA other than the validated one.
-- **Do not re-run an old `main` Build run** to validate a candidate. It keeps its original group,
-  and the next merge cancels it again.
+- **Do not re-run an old `main` Build run** to validate a candidate. It keeps its ordinary
+  path-filtered graph and does not produce the complete candidate receipt.
 - **An expired receipt** (after 90 days) makes the gate ask for a new validation.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release
   the corrected candidate under the next version; never repair its source by moving the tag.
+  Publish packages also refuses notes from that same tag on its tag-push run. A branch dispatch
+  with later notes is a different source; do not use it to repair the refused version.
 - **A release publication retry.** A published release is preserved, including its edited notes
   and attached assets. A draft with the same tag stops publication for the release lane to
   reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures
-  remain failures instead of being reported as an existing release.
-- **A failed Release run after the tag.** Never move the tag. Re-run the Release run's failed
-  jobs (its concurrency never cancels a release), or release the fix as the next version.
+  remain failures instead of being reported as an existing release. The draft check is
+  `gh release view <tag>`: gh looks a published release up by its tag and a draft by its pending
+  tag (GraphQL `release(tagName:)`, `FetchRelease` in cli/cli `pkg/cmd/release/shared/fetch.go`).
+  The workflow test stubs `gh`, so it proves the step's branching, not GitHub's lookup. This is
+  a recorded decision: the step treats any failed lookup as a missing release and calls
+  `gh release create`, so the draft check is only as reliable as gh's lookup.
+- **A failed Release run after the tag.** Never move the tag, and never rebuild a version
+  whose `:X.Y.Z` images are published. The maintained adopter requires the complete
+  publication job matrix from one current attempt; failed-job-only retries omit earlier
+  successes, and mixing attempts is refused. A full re-run builds new images, though:
+  `Build <service> (<arch>)` stamps `org.opencontainers.image.created` with the attempt's
+  time, so every attempt pushes new digests, and `Manifest <service>` then points `:X.Y.Z`
+  and `:latest` at them. So decide by what the registry holds, not by which job failed.
+  Before any retry, look up `:X.Y.Z` for every service in the run's `Build` jobs, as the
+  `Verify manifests are pullable` step of `Create release` does:
+
+  ```bash
+  docker manifest inspect ghcr.io/tale-project/tale/tale-<service>:X.Y.Z
+  ```
+
+  Count a service as missing only on a not-found answer (`manifest unknown`). An
+  authentication, rate-limit or network error proves nothing, so treat that service as
+  published.
+
+  - **No service has `:X.Y.Z`** (typically a failure in `Prepare`, a `Build` job or the
+    `Container test gate`): for a transient failure, re-run **all jobs** of the same Release
+    run (its concurrency never cancels a release). The re-run replaces only the `X.Y.Z-amd64`
+    and `X.Y.Z-arm64` tags, which only the run's own jobs read.
+  - **Any service has `:X.Y.Z`** (typically a failure in `Manifest <service>`,
+    `Create release`, `Trigger CLI build` or `Summary`): re-run no job of that run. A full
+    re-run re-points the published tags, re-running a failed `Manifest` job pushes them again,
+    and the adopter refuses a failed-job-only attempt anyway. Leave the tag, the images and
+    the run as they are; until the next version publishes, `:latest` can name different
+    versions per service.
+
+  For a published version, or a failure that needs a source change, recover forward: fix
+  `main` where needed, then validate a new candidate and release it as the next version
+  (steps 1–5).
 
 ## Merging during a release, and the release lease
 
@@ -293,3 +358,36 @@ After expiry, the next holder takes the lease over only after reconciling the re
    failed, follow the rule above; no tag moves.
 
 Never start a second release while a Release run is in flight.
+
+
+## Source contract shared with Ops
+
+`.github/release-candidate-contract.json` is the source of the evaluator's required
+workflow/job map. The existing workflow guard checks its exact receipt dependencies
+and every matrix/reusable job. The same file declares candidate, ordinary main and
+CLI publication result sets and the source admission assertions consumed by Ops.
+No fetched executable evaluator is used by Ops.
+
+After changing an admission condition, needs edge, matrix, conditional step/input,
+execution defaults, runner/container/service selectors, permissions, timeouts,
+or the source/receipt helpers, refresh the descriptor with:
+
+```sh
+bun tools/cli/scripts/release-candidate-contract.ts --write
+```
+
+Review the descriptor diff and run the existing release-candidate workflow and gate
+tests. The refresh retains the required job map; it cannot remove a mandatory check
+on its own. Exact workflow/job/step key sets bind field presence and absence,
+including unknown future selectors. Every field value is bound except workflow
+and step display names and run bodies; job names remain required evidence.
+Reviewed-main run bodies still require code review, and this contract does not
+prove their semantic equivalence. Body/comment or display-name edits that preserve
+this admission shape need no Ops digest update.
+Admission changes require review of the complete canonical descriptor digest in Ops
+before a release uses them. A failed source-contract check is a compatibility task,
+never permission to weaken mandatory work or accept an unknown receipt shape.
+
+Ops policy v1 remains the historical v0.5.72 lane. Its descriptor-only v2 must be
+activated with a minimum source containing this descriptor, after both repositories'
+normal gates are green. This data extraction does not activate policy or deploy.

@@ -1,7 +1,12 @@
 import type { Sql } from 'postgres';
 import { describe, expect, test } from 'vitest';
 
-import { listSandboxViewsForOrg, type SessionRow } from './sessions.ts';
+import { parkedRunSql } from '../tasks/agent-runs.ts';
+import {
+  countWaitingAgentRuns,
+  listSandboxViewsForOrg,
+  type SessionRow,
+} from './sessions.ts';
 
 function session(sessionId: string, createdAt = 1): SessionRow {
   return {
@@ -50,8 +55,24 @@ function viewSql(sessions: SessionRow[], ops: ReturnType<typeof operation>[]) {
     if (text.includes('FROM "user"')) return Promise.resolve([]);
     if (text.includes('FROM app.project_agent_runs'))
       return Promise.resolve([
-        { sessionId: 'busy', execId: 'live-new', taskId: 'task-new' },
-        { sessionId: 'busy', execId: 'live-old', taskId: 'task-old' },
+        {
+          sessionId: 'busy',
+          execId: 'live-new',
+          taskId: 'task-new',
+          projectId: 'project-1',
+          title: 'Release notes',
+          number: 12,
+          projectKey: 'REL',
+        },
+        {
+          sessionId: 'busy',
+          execId: 'live-old',
+          taskId: 'task-old',
+          projectId: 'project-1',
+          title: 'Changelog',
+          number: 7,
+          projectKey: null,
+        },
       ]);
     throw new Error(`Unexpected session view query: ${text}`);
   };
@@ -158,6 +179,93 @@ describe('listSandboxViewsForOrg', () => {
       totalSpentCents: 2,
       currentOp: { execId: 'finalized-only', status: 'running' },
       runningOps: [],
+    });
+  });
+});
+
+describe('agent workers on the Sandboxes page', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+
+  test('names each worker of an agent and the task it works [SBX-R18]', async () => {
+    const worker = (sessionId: string, createdAt: number): SessionRow => ({
+      ...session(sessionId, createdAt),
+      ownerId: AGENT,
+    });
+    const views = await listSandboxViewsForOrg(
+      viewSql(
+        [
+          worker(`pa-${AGENT}`, 1),
+          worker(`pa-${AGENT}-w2`, 2),
+          worker(`pa-${AGENT}-mabcdef0123456789-w3`, 3),
+          { ...session('wf-run', 4), ownerType: 'workflow_run' },
+        ],
+        [],
+      ),
+      'org-1',
+    );
+    const workers = Object.fromEntries(
+      views.map((view) => [view.sessionId, view.worker]),
+    );
+    expect(workers).toEqual({
+      [`pa-${AGENT}`]: { number: 1, scope: 'agent' },
+      [`pa-${AGENT}-w2`]: { number: 2, scope: 'agent' },
+      [`pa-${AGENT}-mabcdef0123456789-w3`]: { number: 3, scope: 'member' },
+      'wf-run': undefined,
+    });
+  });
+
+  test("shows a running task's key and title, and the title alone without a key", async () => {
+    const ops = [
+      {
+        ...operation('busy', 'live-new', 60),
+        status: 'running',
+        finalizedAt: null,
+      },
+      {
+        ...operation('busy', 'live-old', 30),
+        status: 'running',
+        finalizedAt: null,
+      },
+    ];
+    const views = await listSandboxViewsForOrg(
+      viewSql([session('busy', 1)], ops),
+      'org-1',
+    );
+    expect(views[0]?.runningOps.map((op) => op.task)).toEqual([
+      { id: 'task-old', projectId: 'project-1', title: 'Changelog' },
+      {
+        id: 'task-new',
+        projectId: 'project-1',
+        key: 'REL-12',
+        title: 'Release notes',
+      },
+    ]);
+  });
+
+  test('counts every waiting run by its reason, a park without one as unknown [SBX-R18]', async () => {
+    const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      // A run waits while it is parked, as every read of one tells it.
+      expect(values).toContain(parkedRunSql());
+      expect(text).not.toContain('LIMIT');
+      return Promise.resolve([
+        { reason: 'org_limit', count: 4 },
+        { reason: null, count: 1 },
+        { reason: 'host', count: 2 },
+      ]);
+    };
+    const sql = Object.assign(query, { unsafe: (text: string) => text });
+    await expect(
+      countWaitingAgentRuns(sql as unknown as Sql, 'org-1'),
+    ).resolves.toEqual({
+      total: 7,
+      byReason: {
+        org_limit: 4,
+        host: 2,
+        destroy_pending: 0,
+        exec_limit: 0,
+        unknown: 1,
+      },
     });
   });
 });

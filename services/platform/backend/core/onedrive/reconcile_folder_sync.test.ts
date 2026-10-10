@@ -55,7 +55,7 @@ describe('buildSyncImportItems', () => {
 describe('selectDocumentsToPrune', () => {
   const currentIds = new Set(['f1']);
 
-  it('prunes an auto document whose source file disappeared', () => {
+  it('prunes an auto document whose source file disappeared [ODRIVE-R1]', () => {
     expect(
       selectDocumentsToPrune('cfg-1', currentIds, [
         {
@@ -74,7 +74,7 @@ describe('selectDocumentsToPrune', () => {
     ).toEqual(['doc-gone']);
   });
 
-  it('never touches manual uploads or other configs', () => {
+  it('never touches manual uploads or other configs [ODRIVE-R2]', () => {
     expect(
       selectDocumentsToPrune('cfg-1', currentIds, [
         {

@@ -133,7 +133,7 @@ describe('computeFeedbackStats', () => {
     ]);
   });
 
-  it('arena rows are excluded from topAgents and topModels', () => {
+  it('arena rows are excluded from topAgents and topModels [FDBK-R6]', () => {
     const out = computeFeedbackStats(
       [
         row({
@@ -160,7 +160,7 @@ describe('computeFeedbackStats', () => {
     expect(out.topModels[0].total).toBe(1);
   });
 
-  it('flips capped flag and stops once maxScan is exceeded', () => {
+  it('flips capped flag and stops once maxScan is exceeded [FDBK-R5]', () => {
     const rows = [
       row({ rating: 'positive' }),
       row({ rating: 'positive' }),
@@ -267,7 +267,7 @@ describe('computeFeedbackStats', () => {
     expect(out.arena.byVerdict.a_better).toBe(3);
   });
 
-  it('keeps the verdict summary equal to the matchup table by counting self-matches apart', () => {
+  it('keeps the verdict summary equal to the matchup table by counting self-matches apart [FDBK-R7]', () => {
     const out = computeFeedbackStats(
       [
         row({

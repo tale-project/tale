@@ -66,6 +66,9 @@ export interface ConnectorCredentialsContract {
         description?: string;
         default?: string | number | boolean;
         enum?: string[];
+        integer?: boolean;
+        min?: number;
+        max?: number;
         required: boolean;
         type: 'string' | 'number' | 'boolean';
         key: string;

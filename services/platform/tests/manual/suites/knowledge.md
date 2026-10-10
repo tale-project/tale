@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 71 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -36,7 +36,8 @@ records and delete them after.
 > not a direct dialog. Each row's **Open menu** (`common.actions.openMenu`)
 > 3-dot button starts with **View** (`common.actions.view`) for every member;
 > edit/delete follow for writers — contacts expose them only on manually-created
-> rows. A row click opens the same details dialog. Verify every write by reloading the route and reading the row back,
+> rows, and only those rows carry a checkbox for **Delete selected**. A row
+> click opens the same details dialog. Verify every write by reloading the route and reading the row back,
 > never by the toast. Document **indexing** needs the RAG service, which is
 > NOT in the hermetic mock stack, so an uploaded doc lands **Queued** then
 > flips to **Failed** (terminal here) — both are valid hermetic landing
@@ -76,6 +77,15 @@ records and delete them after.
   confirm + reload the folder row is gone. **From Microsoft 365** remains
   available before an account is connected; its first-use flow shows the
   required setup or connection step.
+- [ ] `KNOW-F37` · **Deleting a subfolder keeps your place** — Documents →
+  open folder A that holds folder B; open B, copy the address bar and go back
+  to A → B's row **Open menu** → **Delete** (`common.actions.delete`) →
+  **Delete folder** (`documents.deleteFolder.deleteButton`) → B's row is gone
+  and you are still in A: the URL keeps A's `?folderId=` and the breadcrumb
+  still ends at A, not at the Documents root. Now open B's copied address →
+  the toast **Folder not found or no longer accessible**
+  (`documents.folderNotFound`) shows and the page lands on the Documents
+  root; Back does not return to B's address.
 - [ ] `KNOW-F29` · **Rename a folder** — Documents → a folder row's **Open
   menu** → **Rename** (`documents.actions.rename`) → the **Rename folder**
   dialog (`documents.folder.renameFolder`) opens on the current name → change
@@ -511,6 +521,22 @@ records and delete them after.
   not all of them; the content search ignores the filter. Keyboard: Tab
   reaches the segments and the arrow keys switch them.
 
+- [ ] `KNOW-F38` · **An agent adds and then edits a knowledge entry** — With
+  a provider credential and a project agent whose equipment includes **Add and
+  edit knowledge entries** (`projects.agents.tool.knowledge_entry_write`),
+  **Start agent** on a task that asks it to "save our support hours, Mon–Fri
+  8–18, as a knowledge entry" → when the run settles, **Knowledge entries**
+  lists `Support hours` with Source **Agent** (`knowledgeEntries.source.agent`).
+  Comment "@agent support hours are now 8–17" → the entry reads 8–17, and its
+  details' **Version history** keeps the 8–18 text as the earlier version.
+  **Settings → Governance → Logs** shows the two saves by the agent.
+- [ ] `KNOW-F39` · **An agent's stale edit is merged, not overwritten** —
+  Continue KNOW-F38: edit `Support hours` yourself to add "Sat 9–12", then ask
+  the agent (by comment) to change the weekday hours to 8–16 → the run's
+  **Details** shows a `knowledge_entry_write` answer `refused` with reason
+  `version_conflict` and the current text, then a second call answering
+  `updated`; the entry keeps "Sat 9–12" and reads 8–16 for weekdays.
+
 ## Boundary & error tests
 
 - [ ] `KNOW-B1` · **Required name** — KNOW-F4/KNOW-F5/KNOW-F6 manual entry:
@@ -575,6 +601,9 @@ records and delete them after.
   `products.edit.validation.stockInteger`; **Review** is never shown. Price
   `12.50`, stock `3` → **Next** → **Create** → the row shows them. **Edit** a
   product to price `-5` → **Save** → the same field error, nothing saved.
+  Stock `1e3` (the number field takes an exponent) → **Review** shows `1e3`
+  → **Create** → the row shows `1000`, never `1`; **Edit** that stock to
+  `2.5e2` → **Save** → `250`.
 - [ ] `KNOW-B10` · **A refused image says why** — **Add product** → **Basics**:
   upload an SVG carrying `onload="alert(1)"` → under **Image** and as a toast,
   `products.edit.imageActiveContent` (names scripts/event handlers), never
@@ -736,6 +765,38 @@ records and delete them after.
   (`documents.onedrive.filesImportedCount`). The same with Google Drive, and
   in German and French: the titles read in the page's language, the size
   sentence stays the door's own.
+- [ ] `KNOW-B21` · **Bulk delete takes only what the row menu would** — As
+  an Editor, add one contact by **Manual entry**
+  (`contacts.importMenu.manualEntry`), one **From your device**
+  (`contacts.importMenu.fromDevice`), and one a sync owns:
+  `POST /api/v1/contacts` with `"source": "salesforce"` (any source but
+  `manual_import` / `file_upload`) → the synced row's **Open menu**
+  (`common.actions.openMenu`) offers **View** but no **Edit** or **Delete**,
+  and the row has no **Select row** checkbox (`common.aria.selectRow`) — not
+  even a disabled one. Tick **Select all** (`common.aria.selectAll`) → the
+  bar reads **2 items selected** (`common.bulkActions.itemsSelected`) →
+  **Delete selected** (`common.actions.deleteSelected`) → **Delete** →
+  reload `/dashboard/{org}/contacts`: the two own contacts are gone, the
+  synced one stays, and `GET /api/v1/contacts/{id}` still answers it. Tick a
+  manually entered contact, then `PATCH /api/v1/contacts/{id}` it to
+  `"source": "hubspot"` → its checkbox and the bar go, and nothing deletes
+  it. A list of synced contacts only, or a Member's view, shows no checkbox
+  and no **Select all**; a screen reader names the first column **Select
+  row**.
+- [ ] `KNOW-B22` · **A product without a price reads as unpriced** — Products
+  → **Add product** with a name only, no **Price** and no **Stock** →
+  **Create**; a second with price `0`, currency `CHF` and stock `0` → reload
+  `/dashboard/{org}/products`: the first row's **Price** and **Stock** read
+  `-`, never `$0.00` or a blank cell, and its details (row click) show
+  neither; the second reads `CHF 0.00` and `0`, its details `CHF 0.00` and
+  **0 units** (`common.units.stock`). **Edit** the second, empty **Price**
+  and **Stock** → **Save** → reload → both read `-`.
+
+- [ ] `KNOW-B25` · **Agent saves have their own limit** — With an agent
+  granted **Add and edit knowledge entries**, ask it in one task to save 30
+  distinct one-line facts → past the agents' per-minute limit its calls answer
+  `rate_limited` with a retry time and save nothing more until then; meanwhile
+  **Add entry** in Knowledge entries still saves your own entry at once.
 
 ## Accessibility (WCAG 2.1 AA)
 

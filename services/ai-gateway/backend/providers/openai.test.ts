@@ -283,6 +283,19 @@ describe('fetchUsage', () => {
     expect(calls[0]?.headers.has('chatgpt-account-id')).toBe(false);
   });
 
+  it('types an authenticated usage rejection without reading its response body', async () => {
+    const { fetchImpl } = stubFetch(() => json({ secret: 'never-read' }, 401));
+    await expect(
+      createOpenAiProvider({ fetchImpl }).fetchUsage({
+        accessToken: 'access-1',
+        accountId: null,
+      }),
+    ).rejects.toMatchObject({
+      code: 'access_token_rejected',
+      message: 'The OpenAI usage endpoint answered 401.',
+    });
+  });
+
   it.each([
     {},
     { error: { code: 'rate_limit_error' } },

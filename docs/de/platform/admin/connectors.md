@@ -47,7 +47,7 @@ Das Löschen von Zugangsdaten entzieht abhängigen Automatisierungen und Agenten
 
 ## Eine OAuth-App vorbereiten
 
-Unter **OAuth-Apps** am Seitenende konfigurieren Inhaber und Admins die Anbieter-Apps, über die Mitglieder den Zugriff freigeben. Eine organisationsspezifische App hat Vorrang vor der Bereitstellungs-App. Fehlen beide, kann der Connector keine Anmeldung starten. Die Seite zeigt den fehlenden Einrichtungsstand an.
+Unter **OAuth-Apps** am Seitenende konfigurieren Inhaber und Admins die Anbieter-Apps, über die Mitglieder den Zugriff freigeben. Eine organisationsspezifische App hat Vorrang vor der Bereitstellungs-App. Fehlen beide, kann der Connector keine Anmeldung starten. Die Seite zeigt den fehlenden Einrichtungsstand an. Kann Tale nicht prüfen, ob eine App für den Wissens-Import eingerichtet ist, zeigt ihre Zeile **Status nicht verfügbar** ohne **Einrichten**, und **Erneut versuchen** startet die Prüfung neu. Du kannst die App einrichten, sobald die Prüfung klappt.
 
 Wähle **Einrichten**, gib Client-ID und Geheimnis des Anbieters ein und registriere dort exakt die im Dialog gezeigten Weiterleitungsadressen. Microsoft-Apps benötigen gegebenenfalls auch die Verzeichnis- oder Mandanten-ID. Bei späteren Änderungen lässt du ein gespeichertes Geheimnis leer, um es beizubehalten.
 

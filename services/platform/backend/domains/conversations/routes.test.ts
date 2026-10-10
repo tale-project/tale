@@ -514,6 +514,30 @@ describe('conversations route — an email that carries only files', () => {
     expect(res.status).toBe(400);
     expect(replyToConversation).not.toHaveBeenCalled();
   });
+
+  // The door asks whose files these are before the send is reached: a file
+  // that is not the sender's own upload stops a reply and a new email alike.
+  it('refuses a file that is not the sender’s own upload, on a reply and on a new email [CONV-R11]', async () => {
+    firstForeignUpload.mockResolvedValue('blob-1');
+    const reply = await post('/c1/reply', {
+      content: 'See attached.',
+      attachments: [FILE],
+    });
+    const compose = await post('/compose', {
+      ...COMPOSE,
+      content: 'See attached.',
+      attachments: [FILE],
+    });
+
+    for (const res of [reply, compose]) {
+      expect(res.status).toBe(403);
+      await expect(res.json()).resolves.toMatchObject({
+        error: 'ATTACHMENT_NOT_OWNED',
+      });
+    }
+    expect(replyToConversation).not.toHaveBeenCalled();
+    expect(composeEmailConversation).not.toHaveBeenCalled();
+  });
 });
 
 /**
@@ -523,7 +547,7 @@ describe('conversations route — an email that carries only files', () => {
  * assignment predicate hides from them; the guard the attachments door
  * already ran now fronts undo, retry and discard too.
  */
-describe('conversations route — message doors share the visibility guard', () => {
+describe('conversations route — message doors share the visibility guard [CONV-R3]', () => {
   const doors = [
     ['undo', undoSendMessage],
     ['retry', retrySendMessage],
@@ -681,7 +705,7 @@ describe('conversations route — the assignment doors name their target', () =>
  * the number the Inbox batches a larger selection by, so the two cannot
  * disagree (#3733).
  */
-describe('conversations route — a bulk verb names at most one batch', () => {
+describe('conversations route — a bulk verb names at most one batch [CONV-R16]', () => {
   const post = (count: number) =>
     makeApp().request('/bulk/close?orgId=o1', {
       method: 'POST',
@@ -701,6 +725,10 @@ describe('conversations route — a bulk verb names at most one batch', () => {
         errors: [],
       }),
     );
+  });
+
+  it('holds one batch to 200 conversations', () => {
+    expect(BULK_CONVERSATION_LIMIT).toBe(200);
   });
 
   it('takes a full batch', async () => {
@@ -800,7 +828,7 @@ describe('conversations route — every write door checks the role', () => {
  * is PRESENT on each door; this proves it DECIDES correctly, and that the
  * refusal lands before the handler touches the service.
  */
-describe('conversations route — the write gate decides by role', () => {
+describe('conversations route — the write gate decides by role [CONV-R3]', () => {
   /** Every write-shaped door except the admin-only assignment pair. */
   const doors = [
     ['PATCH', '/c1', { status: 'closed' }],
@@ -922,12 +950,114 @@ describe('conversations route — the write gate decides by role', () => {
 });
 
 /**
+ * The role is half of the gate; the other half is the conversation itself.
+ * An editor changes only a conversation they can open: one hidden from them
+ * answers what a missing one answers, and nothing behind the door runs. A
+ * bulk verb skips such a conversation and reports it beside the rest.
+ */
+describe('conversations route — a change needs a conversation the viewer can open [CONV-R3]', () => {
+  const begin = vi.fn();
+  const call = (method: string, path: string, body: unknown) =>
+    createConversationRoutes({
+      sql: { begin } as never,
+      auth: {} as never,
+    }).request(`${path}?orgId=o1`, {
+      method,
+      ...(body === undefined
+        ? {}
+        : {
+            body: JSON.stringify(body),
+            headers: { 'content-type': 'application/json' },
+          }),
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    viewerRole.current = 'editor';
+    firstForeignUpload.mockResolvedValue(null);
+  });
+  afterEach(() => {
+    viewerRole.current = 'admin';
+  });
+
+  it.each([
+    ['PATCH', '/c1', { status: 'closed' }],
+    ['POST', '/c1/read', {}],
+    ['POST', '/c1/messages', { content: 'a note' }],
+    ['POST', '/c1/reply', { content: 'a reply' }],
+    ['DELETE', '/c1', undefined],
+  ])(
+    'answers %s %s on a hidden conversation as not found and changes nothing',
+    async (method, path, body) => {
+      loadVisibleConversation.mockRejectedValue(
+        new ConversationError(
+          'conversation_not_found',
+          'Conversation not found',
+          404,
+        ),
+      );
+      const res = await call(method, path, body);
+
+      expect(res.status).toBe(404);
+      await expect(res.json()).resolves.toMatchObject({
+        error: 'conversation_not_found',
+      });
+      expect(loadVisibleConversation).toHaveBeenCalledWith(
+        expect.anything(),
+        { organizationId: 'o1', userId: 'u1', role: 'editor' },
+        'c1',
+      );
+      // No write was opened and no send was queued.
+      expect(begin).not.toHaveBeenCalled();
+      expect(addMessageToConversation).not.toHaveBeenCalled();
+      expect(replyToConversation).not.toHaveBeenCalled();
+    },
+  );
+
+  it('skips a hidden conversation in a bulk verb and reports it as failed', async () => {
+    loadVisibleConversation.mockImplementation(
+      async (_sql: unknown, _viewer: unknown, id: string) => {
+        if (id === 'c-hidden') {
+          throw new ConversationError(
+            'conversation_not_found',
+            'Conversation not found',
+            404,
+          );
+        }
+        return { id };
+      },
+    );
+    bulkSetConversationStatus.mockImplementation(
+      async (_sql: unknown, args: { conversationIds: string[] }) => ({
+        successCount: args.conversationIds.length,
+        failedCount: 0,
+        errors: [],
+      }),
+    );
+    const res = await call('POST', '/bulk/close', {
+      conversationIds: ['c1', 'c-hidden'],
+    });
+
+    expect(res.status).toBe(200);
+    expect(bulkSetConversationStatus).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ conversationIds: ['c1'], verb: 'close' }),
+    );
+    await expect(res.json()).resolves.toEqual({
+      successCount: 1,
+      failedCount: 1,
+      errors: ['Conversation c-hidden not found'],
+    });
+  });
+});
+
+/**
  * The predicate itself, across the whole role vocabulary. The route suites
  * above drive the boundary role (`editor`) and the two refused ones; this
  * pins the remaining three, so widening `viewerCanWrite` — or a matrix edit
  * that widens it by accident — cannot pass unnoticed.
  */
-describe('viewerCanWrite', () => {
+describe('viewerCanWrite [CONV-R3]', () => {
   const cases = [
     ['owner', true],
     ['admin', true],

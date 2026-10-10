@@ -37,7 +37,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomeRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import { BulkSendDialog } from '@/app/features/conversations/components/bulk-send-dialog';
@@ -69,8 +69,8 @@ import {
   type HomeConversationItem,
   type InboxStatus,
 } from '../lib/home-items';
-import { moveRowFocus } from '../lib/row-navigation';
 import { HomeConversationRow } from './home-rows';
+import { HomeStream } from './home-stream';
 
 const PAGE_SIZE = 30;
 const NO_ASSIGNEES: string[] = [];
@@ -264,6 +264,17 @@ export function HomeInboxList({
       )
       .join('|')}`,
   );
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const indicatorContainerRef = indicator.containerRef;
+  const setScrollerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setScrollElement(node);
+      indicatorContainerRef(node);
+    },
+    [indicatorContainerRef],
+  );
 
   const selectStatus = (next: InboxStatus) => {
     selection.clearSelection();
@@ -437,7 +448,7 @@ export function HomeInboxList({
       </div>
 
       <div
-        ref={indicator.containerRef}
+        ref={setScrollerRef}
         className="mobile-nav-clearance mobile-nav-inset mobile-nav-scroll scrollbar-thin relative min-h-0 flex-1 overflow-y-auto px-2.5"
       >
         <SlidingHighlight indicator={indicator} />
@@ -471,47 +482,47 @@ export function HomeInboxList({
             </div>
           )
         ) : (
-          <ol
+          <HomeStream
             key={status}
-            aria-label={t('aria.inbox')}
-            onKeyDown={moveRowFocus}
-            className="animate-in fade-in-0 flex flex-col gap-1 duration-200 motion-reduce:animate-none"
-          >
-            {groups.map((group) => (
-              <li key={group.key}>
-                <h3 className="bg-background text-muted-foreground sticky top-0 z-20 px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
-                  {t(`groups.${group.key}`)}
-                </h3>
-                <ul role="list" className="flex flex-col gap-px">
-                  {group.items.map((item) =>
-                    item.kind === 'conversation' ? (
-                      <HomeConversationRow
-                        key={item.id}
-                        entering={entering.has(item.id)}
-                        draft={
-                          item.id !== activeConversationId &&
-                          hasDraft(
-                            homeDraftKey(item, me?.userId, organizationId),
-                            item.kind,
-                          )
-                        }
-                        item={item}
-                        organizationId={organizationId}
-                        active={item.id === activeConversationId}
-                        selection={{
-                          checked: selection.isConversationSelected(item.id),
-                          active: selection.hasSelectedItems,
-                          onChange: (checked) =>
-                            selection.handleConversationCheck(item.id, checked),
-                          label: tDialogs('selectConversation'),
-                        }}
-                      />
-                    ) : null,
-                  )}
-                </ul>
-              </li>
-            ))}
-          </ol>
+            groups={groups}
+            scrollElement={scrollElement}
+            draft={null}
+            activeKey={
+              activeConversationId === undefined
+                ? null
+                : homeItemKey({
+                    kind: 'conversation',
+                    id: activeConversationId,
+                  })
+            }
+            ariaLabel={t('aria.inbox')}
+            renderRow={(item, placement) =>
+              item.kind === 'conversation' ? (
+                <HomeConversationRow
+                  key={item.id}
+                  placement={placement}
+                  entering={entering.has(item.id)}
+                  draft={
+                    item.id !== activeConversationId &&
+                    hasDraft(
+                      homeDraftKey(item, me?.userId, organizationId),
+                      item.kind,
+                    )
+                  }
+                  item={item}
+                  organizationId={organizationId}
+                  active={item.id === activeConversationId}
+                  selection={{
+                    checked: selection.isConversationSelected(item.id),
+                    active: selection.hasSelectedItems,
+                    onChange: (checked) =>
+                      selection.handleConversationCheck(item.id, checked),
+                    label: tDialogs('selectConversation'),
+                  }}
+                />
+              ) : null
+            }
+          />
         )}
         <div ref={sentinelRef} aria-hidden className="h-px" />
         {pageStatus === 'LoadingMore' && (

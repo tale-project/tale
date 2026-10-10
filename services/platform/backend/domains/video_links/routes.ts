@@ -7,6 +7,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
+import { projectChatAccess } from '../chat/threads.ts';
 import {
   bindCompletedJobsToMessage,
   cancelVideoLink,
@@ -66,6 +67,9 @@ export function createVideoLinkRoutes(deps: {
         url: z.string().min(1).max(4096),
         pastedToken: z.string().min(1).max(4096),
         threadId: z.string().max(200).optional(),
+        /** A project's new chat, before its thread exists: what the link's
+         * transcription costs counts toward it. */
+        projectId: z.string().max(128).optional(),
         userLocale: z.string().max(35).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
@@ -80,6 +84,24 @@ export function createVideoLinkRoutes(deps: {
           body.data.threadId,
         );
       }
+      // A thread names its own project; a project named beside none must be
+      // one the member may chat in.
+      const projectId =
+        body.data.threadId === undefined ? body.data.projectId : undefined;
+      if (projectId !== undefined) {
+        const access = await projectChatAccess(deps.sql, {
+          projectId,
+          organizationId: c.get('orgId'),
+          userId,
+        });
+        if (access !== 'ok') {
+          throw new VideoLinkError(
+            'projectUnavailable',
+            'Project unavailable',
+            403,
+          );
+        }
+      }
       await checkOrganizationRateLimit(deps.sql, 'file:upload', c.get('orgId'));
       const jobId = await ingestVideoUrl(deps.sql, {
         organizationId: c.get('orgId'),
@@ -87,6 +109,7 @@ export function createVideoLinkRoutes(deps: {
         ...(body.data.threadId !== undefined
           ? { threadId: body.data.threadId }
           : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
         url: body.data.url,
         pastedToken: body.data.pastedToken,
         ...(body.data.userLocale !== undefined

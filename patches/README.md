@@ -64,3 +64,31 @@ connection, what `closed()` leaves pending, and the pool's hand-back of a closed
 the pin in `services/platform` and `packages/shared`, delete this file's entry and its
 `patchedDependencies` line, and keep the regression suite: it must pass on that release unpatched. If a
 release fixes only part of it, regenerate the rest against that release with `bun patch`.
+
+## `@tanstack%2Frouter-core@1.168.9.patch`
+
+**Why.** The platform build splits every route component outside the sign-in pages and the landing
+into a chunk of its own (`services/platform/vite.config.ts`, `ENTRY_ROUTES`;
+[#4089](https://github.com/tale-project/tale/issues/4089)), so preloading such a route waits on its
+chunk. When a navigation commits during that wait, `clearExpiredCache` drops the cached matches of
+routes without a loader, and `loadRouteMatch` then reads the vanished match: `TypeError: Cannot read
+properties of undefined (reading '_nonReactive')`, which `preloadRoute` logs. The sidebar's links
+preload their sections on render, so every landing through `/` or `/dashboard` logged it three
+times. Router-core already returns early when the match is gone before its loader runs
+(`shouldSkipLoader`); only the two reads after an await lacked the check. 1.168.18, the last 1.168
+release, reads them the same way; 1.171.34 has a rewritten loader (`load-client.js`).
+
+**What.** In `loadRouteMatch` (`dist/esm/load-matches.js` and `dist/cjs/load-matches.cjs`), each
+`inner.router.getMatch(matchId)` after an await returns `inner.matches[index]` when the match is
+gone, as the branch that skips the loader does. The hunks are marked `Tale:`.
+
+**Proof.** `services/platform/app/lib/router-split-preload.test.ts` preloads a split route without a
+loader, navigates elsewhere while its chunk is pending, then delivers the chunk: unpatched, the
+preload logs the `TypeError`; patched, it settles quietly, and an uninterrupted preload still loads
+the route.
+
+**Behaviour change.** None beyond the missing error: the dropped match was never going to be used.
+
+**Remove it when** the router packages move to a release whose loader passes the test unpatched
+(1.171's rewrite is the candidate). Bump `@tanstack/react-router` and the router plugin together,
+delete this entry and its `patchedDependencies` line, and keep the test.

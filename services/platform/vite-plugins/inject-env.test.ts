@@ -45,6 +45,8 @@ describe('the dev and preview pages', () => {
     async (mode) => {
       vi.stubEnv('SITE_URL', 'https://tale.example.com');
       vi.stubEnv('TALE_CONTACT_SUPPORT_URL', SUPPORT_URL);
+      vi.stubEnv('TOTP_CLIENT_NAME', ' Example  plus ');
+      vi.stubEnv('TOTP_ENVIRONMENT', 'te');
       const root = await mkdtemp(join(tmpdir(), 'tale-inject-env-'));
       let closeVite: (() => Promise<void>) | undefined;
       try {
@@ -96,6 +98,8 @@ describe('the dev and preview pages', () => {
         expect(window.__ENV__).toMatchObject({
           SITE_URL: 'https://tale.example.com',
           TALE_CONTACT_SUPPORT_URL: SUPPORT_URL,
+          TOTP_CLIENT_NAME: 'Example plus',
+          TOTP_ENVIRONMENT: 'TE',
         });
         expect(window.__ACCEPT_LANGUAGE__).toBe(ACCEPT_LANGUAGE);
         expect(window).not.toHaveProperty('injected');

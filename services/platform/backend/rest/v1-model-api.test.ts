@@ -184,7 +184,7 @@ afterEach(() => {
 });
 
 describe('the door is shut', () => {
-  it('answers an organization that has not turned the endpoints on with 403 in each wire’s shape', async () => {
+  it('answers an organization that has not turned the endpoints on with 403 in each wire’s shape [MAPI-R1]', async () => {
     gate.resolveModelApiGate.mockResolvedValue({ kind: 'disabled' });
     const openai = await post('/openai/chat/completions', CHAT);
     expect(openai.status).toBe(403);
@@ -213,7 +213,7 @@ describe('the door is shut', () => {
     expect(metering.openModelApiLease).not.toHaveBeenCalled();
   });
 
-  it('refuses a member without the right, and says when the policy cannot be read', async () => {
+  it('refuses a member without the right, and says when the policy cannot be read [MAPI-R2]', async () => {
     gate.resolveModelApiGate.mockResolvedValue({ kind: 'forbidden' });
     const forbidden = await post('/openai/chat/completions', CHAT);
     expect(forbidden.status).toBe(403);
@@ -228,7 +228,7 @@ describe('the door is shut', () => {
 });
 
 describe('GET /openai/models', () => {
-  it('lists the callable models in the OpenAI shape, under the id both wires take', async () => {
+  it('lists the callable models in the OpenAI shape, under the id both wires take [MAPI-R4]', async () => {
     const response = await mount().request('http://localhost/openai/models');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -260,7 +260,7 @@ describe('GET /openai/models', () => {
 });
 
 describe('which model', () => {
-  it('refuses a model the key holder’s model access blocks, and one nobody lists', async () => {
+  it('refuses a model the key holder’s model access blocks, and one nobody lists [MAPI-R4]', async () => {
     const blocked = await post('/openai/chat/completions', {
       ...CHAT,
       model: 'openai/gpt-blocked',
@@ -281,7 +281,7 @@ describe('which model', () => {
     expect(metering.openModelApiLease).not.toHaveBeenCalled();
   });
 
-  it('refuses images for a model without vision', async () => {
+  it('refuses images for a model without vision [MAPI-R5]', async () => {
     const response = await post('/openai/chat/completions', {
       model: 'deepseek/deepseek-v4-flash',
       messages: [
@@ -314,7 +314,7 @@ describe('which model', () => {
 });
 
 describe('guardrails and budget', () => {
-  it('refuses what the guardrails block before anything is held or relayed', async () => {
+  it('refuses what the guardrails block before anything is held or relayed [MAPI-R6]', async () => {
     guardrails.apply.mockRejectedValueOnce(
       new ModelApiRefusal(
         400,
@@ -335,7 +335,7 @@ describe('guardrails and budget', () => {
     expect(gatewayCalls).toHaveLength(0);
   });
 
-  it('relays the text as the guardrails masked it', async () => {
+  it('relays the text as the guardrails masked it [MAPI-R6]', async () => {
     guardrails.apply.mockImplementationOnce(async (request: JudgedRequest) => {
       for (const segment of request.segments) {
         segment.write(segment.read().replace('jane@example.com', '[EMAIL]'));
@@ -359,7 +359,7 @@ describe('guardrails and budget', () => {
     ]);
   });
 
-  it('answers a reached cap with 429 BUDGET_EXCEEDED, its wait, and no retry, in each shape', async () => {
+  it('answers a reached cap with 429 BUDGET_EXCEEDED, its wait, and no retry, in each shape [MAPI-R7]', async () => {
     const refusal = new ModelApiRefusal(
       429,
       'BUDGET_EXCEEDED',
@@ -388,7 +388,7 @@ describe('guardrails and budget', () => {
     expect(gatewayCalls).toHaveLength(0);
   });
 
-  it('holds the request’s worst case for the key holder and the key', async () => {
+  it('holds the request’s worst case for the key holder and the key [MAPI-R7]', async () => {
     gateway(() => Response.json({ model: 'x', choices: [], usage: {} }));
     await post('/openai/chat/completions', { ...CHAT, max_tokens: 1_000 });
     expect(metering.openModelApiLease).toHaveBeenCalledWith(
@@ -519,7 +519,7 @@ describe('a relayed call', () => {
     expect(gatewayCalls[0]?.url).toMatch(/\/anthropic\/v1\/messages$/);
   });
 
-  it('refuses a key-less call', async () => {
+  it('refuses a key-less call [MAPI-R3]', async () => {
     const response = await mount({ apiKeyId: '' }).request(
       'http://localhost/openai/chat/completions',
       { method: 'POST', body: JSON.stringify(CHAT) },

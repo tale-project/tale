@@ -8,11 +8,13 @@ Ein Gerät ist ein Rechner, den du mit deiner Organisation verbindest, damit ihr
 ## Prüfen, was der Rechner braucht
 
 - Linux auf x86_64 oder arm64 oder macOS auf Apple Silicon oder Intel.
-- Docker: Docker Engine unter Linux, unter macOS Docker Desktop, OrbStack oder Colima. Fehlt Docker, bietet die Tale CLI an, es zu installieren.
+- Docker: Docker Engine 24.0 oder neuer unter Linux, unter macOS Docker Desktop, OrbStack oder Colima. Fehlt Docker, bietet die Tale CLI an, es zu installieren. Die Schichten der Tale-Images sind mit zstd komprimiert, und ältere Engines können sie nicht laden. Deshalb brechen `tale sandbox connect` und `tale sandbox update` bei einer älteren Engine ab, bevor sie den Verbindungsbefehl einlösen oder etwas herunterladen.
 - Ausgehendes HTTPS zu deiner Tale-Seite. Das Gerät baut die Verbindung zu Tale selbst auf; nichts muss den Rechner von außen erreichen, deshalb funktioniert es auch hinter einem Router oder einer Firewall.
 - Speicherplatz für die Sandbox-Images, einige Gigabyte, und für die Arbeitsbereiche, die es aufnehmen wird.
 
 Standardmäßig führt ein Gerät je zwei CPUs und je 4 GiB Arbeitsspeicher, die Docker nutzen kann, eine Sandbox aus, höchstens 16 gleichzeitig, denn jede Agenten-Sandbox erhält 2 CPUs und 4 GiB. Beim Verbinden kannst du eine andere Zahl wählen.
+
+Diese Zahl ist eine Obergrenze. Vor dem Start prüft das Gerät zusätzlich den verfügbaren Arbeitsspeicher des Hosts und den freien Speicherplatz für Arbeitsbereiche. Ein freier Platz allein reicht deshalb nicht immer für eine weitere Sandbox.
 
 <Warning>
 
@@ -64,6 +66,8 @@ Das Gerät läuft nach einem Neustart des Rechners weiter, sofern Docker mitstar
 ## Verstehen, wo Sandboxes laufen
 
 Neue Arbeitsbereiche für Agenten und Automatisierungen starten auf einem verbundenen Gerät mit freiem Platz. Hat keines Platz, starten sie auf dem Tale-Server. Ein Arbeitsbereich bleibt mit seinen Dateien auf dem Rechner, auf dem er gestartet ist; ein Agent, der schon einen Arbeitsbereich auf dem Server hat, nutzt diesen also weiter. Seiten, die beim Crawlen von Websites gerendert werden, bleiben immer auf dem Server.
+
+Haben mehrere Geräte Platz, berücksichtigt Tale sowohl freie Plätze als auch den gemessenen verfügbaren Arbeitsspeicher. Lehnt ein Gerät den Start wegen fehlender Kapazität ab, kann ein anderes Gerät oder der Server übernehmen. Geht die Antwort verloren oder meldet das Gerät einen Serverfehler, bleiben Wiederholungen auf diesem Gerät: Es könnte den Arbeitsbereich bereits angelegt haben.
 
 Sobald deine Organisation ein Gerät hat, zeigt die Liste **Arbeitsbereiche**, wo jeder Arbeitsbereich läuft: **Auf dem Server** oder auf einem Gerät mit dessen Namen. Solange ein Gerät offline ist, schlägt Arbeit, die einen seiner Arbeitsbereiche braucht, mit der Meldung fehl, dass das Gerät nicht verbunden ist. Starte sie erneut, sobald das Gerät wieder online ist; Arbeitsbereiche wechseln nie von selbst auf einen anderen Rechner.
 

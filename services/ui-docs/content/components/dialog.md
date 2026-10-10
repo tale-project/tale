@@ -46,6 +46,14 @@ For a type-to-confirm decision, set `requireConfirmPhrase`. The trimmed input mu
 
 The base Dialog itself uses a bottom-sheet layout below `md` and a centered modal above it. Its header and footer remain outside the scrollable body. Test long content on a phone; choosing a large desktop size does not remove the need for that check.
 
+## Put actions beside Close
+
+<Demo name="dialog/header-actions" />
+
+Open the example and look at the top-right corner: **Copy link** and **Open as page** sit in one cluster with **Close**. Copy link only changes the example's text; Open as page points at an anchor on this page.
+
+`ResponsiveDialogContent` takes `headerActions` for icon actions that belong to the dialog's chrome rather than to its content, such as opening a record on its own page. They render in one cluster before Close, on the centred dialog and on the phone's drawer alike, and follow the content in the tab order, so Close stays the last stop. Give each action its own accessible name, make an action that navigates a real link, and leave room for the cluster on the content's first row. The close control reads the shared translated "Close" unless `closeLabel` names a more specific verb; `hideClose` removes it on both layouts.
+
 ## Keep record details scannable
 
 `EntityViewDialog` uses the `lg` reading width and sizes its height to the content.
@@ -70,12 +78,19 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 | `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, `entity`, or `wide`; default `default`. `entity` gives record forms a shared width and content-driven height. `EntityViewDialog` uses the wider `lg` reading measure. |
 | `children`, `footer` | Body and action content; either may be omitted. |
 | `icon`, `headerActions` | Additional header content. |
-| `onBack`, `backLabel` | A labelled back control for an in-dialog subview. |
+| `onBack`, `backLabel`, `backDisabled` | A labelled back control for an in-dialog subview. Set `backDisabled` while the subview can't be left, such as during a save that also disables its Cancel. |
 | `customHeader` | Replaces the visible header; the required title remains available to assistive technology. |
 | `hideClose` | Hides the close control; provide an accessible dismiss path unless the current operation deliberately blocks it. |
 | `className`, `headerClassName`, `bodyClassName`, `footerClassName` | Targeted layout adjustments. |
 | `restoreFocusRef` | Stable fallback when the captured opener unmounts or moves, for example a toolbar button the first row replaces. A dialog opened from a menu item needs none: it returns to that menu's button. |
-| `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. |
+| `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. `ResponsiveDialogContent` takes it too, for a close that hands the reader on to another panel. |
+| `onCloseAutoFocus` | Called after the close focus handler runs. Available on `Dialog`, `ConfirmDialog` and `DeleteDialog`; use it to release a retained virtual row after focus returns to its opener. |
+
+## Widgets that use Escape
+
+A widget inside a dialog may use Escape itself: a code editor closes its completion list, then arms leaving the field. The dialog hears Escape first, so every `@tale/ui` overlay (`Dialog`, `ResponsiveDialog`, `Sheet`, `Popover`, `DropdownMenu`) leaves an Escape alone when an element around the focus carries `data-claims-escape`: it cancels the event and stays open.
+
+Set the attribute while your widget needs Escape and remove it once it does not; the next Escape then closes the layer. A cancelled event still reaches your widget, but some libraries skip cancelled events. Such a widget handles a claimed Escape before the overlay does, in a capture listener on `window`. [`CodeEditor`](/docs/components/code-editor) does all of this itself.
 
 ## Handle lifecycle and focus deliberately
 

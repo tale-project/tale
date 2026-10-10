@@ -1,34 +1,24 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Tooltip } from '@tale/ui/tooltip';
 import { Workflow } from 'lucide-react';
+import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { useProvidedActorDirectory } from '../hooks/use-actor-directory';
 import {
-  useTaskSubjectContract,
+  type ContractAutomationEntry,
+  type ResolvedTaskSubjectContract,
+  resolveTaskSubjectContract,
   type TaskOwnershipFields,
+  useTaskContractAutomations,
 } from '../hooks/use-task-subject-contract';
 import { deriveSubjectState } from '../lib/subject-state';
 
-/**
- * The ownership marker for an automation-owned task — the one always-visible
- * signal that this card does NOT behave like a plain task (its status verbs
- * run the owning workflow). Icon + automation name in the modal; on the dense
- * board card the icon carries a SHORT state chip when the subject has a next
- * step to tell ("Ready to start" / "Waiting for files"), so the board itself
- * says what the task is waiting for instead of leaving the choreography
- * implicit. Both render the explanatory tooltip. Renders nothing for unowned
- * tasks.
- */
-export function TaskAutomationBadge({
-  organizationId,
-  task,
-  showName = false,
-  runActive = false,
-  className,
-}: {
+interface TaskAutomationBadgeProps {
   organizationId: string;
   task: TaskOwnershipFields & {
     projectId: string;
@@ -44,10 +34,67 @@ export function TaskAutomationBadge({
    * already tells that story, so the chip stays quiet. */
   runActive?: boolean;
   className?: string;
+}
+
+/**
+ * The ownership marker for an automation-owned task — the one always-visible
+ * signal that this card does NOT behave like a plain task (its status verbs
+ * run the owning workflow). Icon + automation name in the modal; on the dense
+ * board card the icon carries a SHORT state chip when the subject has a next
+ * step to tell ("Ready to start" / "Waiting for files"), so the board itself
+ * says what the task is waiting for instead of leaving the choreography
+ * implicit. Both render the explanatory tooltip. Renders nothing for unowned
+ * tasks.
+ *
+ * The automation listing comes from the directory an `ActorDirectoryProvider`
+ * provides (the board's, the task's): every board card carries a badge, and
+ * two listing reads per card were most of a 2,000-card board's observers.
+ * A badge outside a provider reads the listing itself.
+ */
+export function TaskAutomationBadge(props: TaskAutomationBadgeProps) {
+  const provided = useProvidedActorDirectory(
+    props.organizationId,
+    props.task.projectId,
+  );
+  return provided ? (
+    <OwnedTaskBadge {...props} automations={provided.contractAutomations} />
+  ) : (
+    <TaskAutomationBadgeOwnRead {...props} />
+  );
+}
+
+function TaskAutomationBadgeOwnRead(props: TaskAutomationBadgeProps) {
+  const automations = useTaskContractAutomations(
+    props.organizationId,
+    props.task.projectId,
+  );
+  return <OwnedTaskBadge {...props} automations={automations} />;
+}
+
+/** Resolves the task's owner; the chip mounts only for an owned task. */
+function OwnedTaskBadge({
+  automations,
+  ...props
+}: TaskAutomationBadgeProps & {
+  automations: readonly ContractAutomationEntry[];
 }) {
+  const { locale } = useLocale();
+  const { task } = props;
+  const resolved = useMemo(
+    () => resolveTaskSubjectContract(task, automations, locale),
+    [task, automations, locale],
+  );
+  return resolved ? <AutomationChip {...props} resolved={resolved} /> : null;
+}
+
+function AutomationChip({
+  task,
+  showName = false,
+  runActive = false,
+  className,
+  resolved,
+}: TaskAutomationBadgeProps & { resolved: ResolvedTaskSubjectContract }) {
   const { t } = useT('tasks');
-  const resolved = useTaskSubjectContract(organizationId, task);
-  if (!resolved) return null;
 
   const name = resolved.displayName;
   const hint = t('automation.hint', { name });

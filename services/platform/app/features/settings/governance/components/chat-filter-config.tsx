@@ -40,7 +40,9 @@ import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface ChatFilterConfigProps {
   organizationId: string;
@@ -113,9 +115,10 @@ function deriveDraft(policy: ChatFilterPolicy): ChatFilterDraft {
 // NOTE: exported as `ChatFilterConfigView` because the guardrails route already
 // imports that name as the entry point — keep it stable.
 // =============================================================================
-export function ChatFilterConfigView({
+function ChatFilterConfigViewContent({
   organizationId,
 }: ChatFilterConfigProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -348,7 +351,7 @@ export function ChatFilterConfigView({
             </FormSection>
 
             <CategoryEditSheet
-              open={editorIndex !== null}
+              open={policyReadAvailable && editorIndex !== null}
               index={editorIndex}
               initial={
                 editorIndex === null || editorIndex === 'new'
@@ -363,7 +366,7 @@ export function ChatFilterConfigView({
             />
 
             <ConfirmDialog
-              open={deletingIndex !== null}
+              open={policyReadAvailable && deletingIndex !== null}
               onOpenChange={(open) => {
                 if (!open) setDeletingIndex(null);
               }}
@@ -771,3 +774,8 @@ function CategoryEditSheet({
     </Sheet>
   );
 }
+
+export const ChatFilterConfigView = withGovernancePolicyReadBoundary(
+  ChatFilterConfigViewContent,
+  'chat_filter',
+);

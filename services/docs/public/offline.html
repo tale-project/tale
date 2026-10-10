@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>You are offline</title>
+    <title>Can't reach Tale</title>
     <style>
       /* Inline copy of the platform's `:root` / `.dark` tokens (see
          packages/ui/src/globals.css) so this static shell matches the app
@@ -249,10 +249,9 @@
         </svg>
       </div>
 
-      <h1>You're offline</h1>
-      <p>
-        Tale needs an internet connection. We'll reconnect as soon as you're
-        back online.
+      <h1 id="offline-title">You're offline</h1>
+      <p id="offline-description">
+        We'll reconnect when Tale is available again.
       </p>
 
       <div class="status" id="status" role="status" aria-live="polite">
@@ -267,78 +266,6 @@
       </div>
     </main>
 
-    <script>
-      // `navigator.onLine` only reports the OS network adapter state, not
-      // whether the app server is actually reachable. So we drive the UI
-      // from a real fetch probe instead — a cache-busted, non-navigation
-      // request bypasses the service worker's navigation fallback and
-      // truly tests whether the server responds. We only reload once a
-      // probe succeeds; otherwise repeated reloads against a dead server
-      // surface a raw browser error instead of this shell.
-      (function () {
-        const statusEl = document.getElementById('status');
-        const statusTextEl = document.getElementById('status-text');
-        const retryButton = document.getElementById('retry-button');
-
-        const LABELS = {
-          offline: 'Offline',
-          checking: 'Checking connection…',
-          online: 'Back online',
-        };
-
-        let probing = false;
-
-        function setState(state) {
-          statusTextEl.textContent = LABELS[state];
-          statusEl.classList.toggle('online', state === 'online');
-        }
-
-        async function probeServer() {
-          try {
-            const res = await fetch('/?pwa-probe=' + Date.now(), {
-              method: 'GET',
-              cache: 'no-store',
-              credentials: 'same-origin',
-              redirect: 'manual',
-              headers: { 'X-PWA-Probe': '1' },
-            });
-            // Any reply (including redirects/4xx) means the server is up.
-            // Only network failures throw, which is what we want to catch.
-            return res.type === 'opaqueredirect' || res.status > 0;
-          } catch (_err) {
-            return false;
-          }
-        }
-
-        async function tryReconnect() {
-          if (probing) return;
-          probing = true;
-          retryButton.disabled = true;
-          setState('checking');
-          const ok = await probeServer();
-          if (ok) {
-            setState('online');
-            // Short delay so the user sees the success state before reload.
-            window.setTimeout(() => window.location.reload(), 400);
-            return;
-          }
-          setState('offline');
-          retryButton.disabled = false;
-          probing = false;
-        }
-
-        retryButton.addEventListener('click', tryReconnect);
-
-        // The `online` event fires when the OS regains connectivity. That
-        // doesn't guarantee the server is up, so we still probe before
-        // reloading.
-        window.addEventListener('online', tryReconnect);
-        window.addEventListener('offline', () => {
-          if (!probing) setState('offline');
-        });
-
-        setState('offline');
-      })();
-    </script>
+    <script src="/pwa-recovery.js"></script>
   </body>
 </html>

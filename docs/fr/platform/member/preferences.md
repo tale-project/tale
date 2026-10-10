@@ -11,9 +11,13 @@ Ouvre **Paramètres > Compte**. Sous **Profil**, modifie **Nom**, puis clique su
 
 Ton nom est visible par les collègues et ne doit pas dépasser 100 caractères. Ce n’est pas une instruction privée destinée à l’assistant.
 
+## Quand un changement de mot de passe est requis
+
+Si un administrateur définit ou réinitialise ton mot de passe, ou si celui-ci expire selon la politique de rotation de ton organisation, l’écran **Changement de mot de passe requis** s’affiche à la connexion. Saisis un nouveau mot de passe qui respecte les exigences affichées, confirme-le, puis sélectionne **Mettre à jour le mot de passe** pour continuer. Les messages exacts figurent dans [Membres et rôles](/fr/platform/admin/members-and-roles).
+
 ## Protéger la connexion
 
-La section **Mot de passe** propose **Changer le mot de passe**, ou **Définir le mot de passe** si ton compte n’en possède pas encore. Respecte les exigences affichées dans le dialogue. Elles proviennent de la politique de mot de passe de ton organisation. Si tu appartiens à plusieurs organisations, ton mot de passe doit respecter les exigences de chacune d’elles. Changer le mot de passe ferme tes sessions : garde le nouveau à portée de main avant de confirmer.
+La section **Mot de passe** propose **Changer le mot de passe**, ou **Définir un mot de passe** si ton compte n’en possède pas encore. Respecte les exigences affichées dans le dialogue. Elles proviennent de la politique de mot de passe de ton organisation. Si tu appartiens à plusieurs organisations, ton mot de passe doit respecter les exigences de chacune d’elles. Changer le mot de passe ferme tes sessions : garde le nouveau à portée de main avant de confirmer. Un mot de passe actuel erroné compte pour le verrouillage temporaire, comme un échec de connexion.
 
 Configure une application sous **Authentification à deux facteurs** ou ajoute une passkey dans la section correspondante. Conserve les codes de secours dans un endroit accessible sans connexion à Tale. [Authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) couvre la configuration, la récupération et les exigences de l’organisation.
 
@@ -29,7 +33,7 @@ Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajout
 
 ## Voir tes équipes {#teams}
 
-**Paramètres > Compte > Tes équipes** liste les équipes dont tu fais partie. Les équipes déterminent quels documents d’équipe, projets et files de la boîte de réception tu vois ; ce qui est partagé avec toute l’organisation te reste visible dans tous les cas. Si tu n’es dans aucune équipe, la section le dit.
+**Paramètres > Compte > Tes équipes** liste les équipes dont tu fais partie. Les équipes déterminent quels documents d’équipe, projets et files de la boîte de réception tu vois ; ce qui est partagé avec toute l’organisation te reste visible dans tous les cas. Si tu n’es dans aucune équipe, la section le dit. Si tes équipes ne peuvent pas être chargées, la section l’indique au lieu d’affirmer que tu n’es dans aucune équipe. Choisis **Réessayer** pour les charger. Quand une actualisation échoue, les équipes déjà affichées restent visibles, avec un message indiquant qu’elles ne sont peut-être plus à jour.
 
 Pour restreindre une liste à certains travaux, utilise son filtre **Équipes** : **Toute l'organisation** n’affiche que les éléments sans équipe, **Mes équipes** affiche ceux qu’une de tes équipes peut voir, et chaque équipe figure par son nom. La boîte de réception propose un filtre **Responsable** derrière son champ de recherche, qui réunit personnes et équipes. Un filtre change la vue, sans accorder l’accès aux données d’une autre équipe.
 
@@ -53,7 +57,7 @@ Tes instructions ne remplacent jamais les instructions obligatoires de l’organ
 
 ## Consulter tes limites d’utilisation {#usage-limits}
 
-Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des limites que ton organisation t’applique. Si aucune limite ne te concerne, la page l’indique.
+Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des limites que ton organisation t’applique. Si aucune limite ne te concerne, la page l’indique. La limite d’un projet, qui plafonne tout ce qui est dépensé dans ce projet, n’y figure pas : dans les chats du projet, le bandeau au-dessus de la zone de saisie la signale, et une requête qu’elle refuse le dit.
 
 <Frame caption="Paramètres > Utilisation affiche chaque limite qui te concerne, avec son utilisation et sa prochaine réinitialisation.">
 
@@ -65,7 +69,7 @@ Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des l
 - **Limites partagées** comptent l’utilisation de toutes les personnes qu’elles couvrent, par exemple une équipe dont tu fais partie ou l’organisation entière. Elles peuvent donc être atteintes avant tes propres limites.
 - **Stockage** compare les fichiers que tu as téléversés avec ta limite de stockage. Une fois celle-ci atteinte, les nouveaux téléversements de documents sont refusés.
 
-Chaque limite d’utilisation indique la quantité utilisée, la limite et le moment de sa réinitialisation, dans ton fuseau horaire. Les périodes suivent l’heure UTC : les limites quotidiennes repartent à minuit, les limites hebdomadaires le lundi et les limites mensuelles le premier du mois. Si un admin a défini un seuil d’alerte, la barre passe à l’orange dès que ton utilisation l’atteint. Quand un bandeau au-dessus de la zone de saisie signale une limite, **Voir l'utilisation** ouvre cette page. Les admins voient aussi **Gérer les limites**, qui ouvre **Gouvernance > Politiques et limites**.
+Chaque limite d’utilisation indique la quantité utilisée, la limite et le moment de sa réinitialisation, dans ton fuseau horaire. Les périodes suivent l’heure UTC : les limites quotidiennes repartent à minuit, les limites hebdomadaires le lundi et les limites mensuelles le premier du mois. Si un admin a défini un seuil d’alerte, la barre passe à l’orange dès que ton utilisation l’atteint. Quand un bandeau au-dessus de la zone de saisie signale une limite, **Voir l'utilisation** ouvre cette page ; un bandeau sur la limite d’un projet nomme plutôt le projet. Les admins voient aussi **Gérer les limites**, qui ouvre **Gouvernance > Politiques et limites**.
 
 ## Archiver des chats ou se déconnecter
 

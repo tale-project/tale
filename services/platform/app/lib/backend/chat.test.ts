@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import { BackendApiError } from './api-client';
+import { budgetScopeOf } from './budget-refusal';
 import {
   sendChatTurn,
   videoJobsForThreadQuery,
@@ -20,7 +21,7 @@ const TOO_BIG = 'Too big: expected string to have <=200000 characters';
  * code to the caller beside the reason.
  */
 describe('sendChatTurn', () => {
-  it('hands a refusal’s code to the caller beside its reason', async () => {
+  it('hands a refusal’s code to the caller beside its reason, and whose cap it names', async () => {
     const fetchMock = vi.fn(async () =>
       Response.json(
         {
@@ -41,10 +42,20 @@ describe('sendChatTurn', () => {
         status: 'refused',
         reason: 'Usage limit reached.',
         code: 'BUDGET_EXCEEDED',
+        budgetScope: 'user',
         persisted: false,
       });
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+
+  it('reads the scope of the cap a refusal names, and none from anything else', () => {
+    expect(budgetScopeOf({ scope: 'project', projectId: 'p1' })).toBe(
+      'project',
+    );
+    for (const data of [undefined, null, 'project', {}, { scope: 7 }]) {
+      expect(budgetScopeOf(data)).toBeUndefined();
     }
   });
 

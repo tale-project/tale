@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   checkProductionReadiness,
+  runDeployPreflight,
   validateTlsPrereqs,
 } from './deploy-preflight';
 
@@ -125,5 +126,75 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
         TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
       }),
     ).toEqual([]);
+  });
+});
+
+describe('runDeployPreflight Docker checks', () => {
+  const reachable = async () => ({
+    name: 'docker daemon',
+    status: 'ok' as const,
+    detail: 'reachable',
+  });
+  const engine = (status: 'ok' | 'warn' | 'fail') => async () => ({
+    id: 'engine',
+    status,
+    detail: `Docker Engine verdict ${status}.`,
+    fix: 'Upgrade Docker so that the server runs Docker Engine 24.0 or later, then retry.',
+  });
+
+  test('an engine below the floor blocks the deploy with its fix', async () => {
+    const result = await runDeployPreflight({
+      env: {},
+      dryRun: true,
+      docker: { daemon: reachable, engine: engine('fail') },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.blocking).toEqual([
+      {
+        message:
+          'Docker Engine verdict fail. Upgrade Docker so that the server runs Docker Engine 24.0 or later, then retry.',
+      },
+    ]);
+    await expect(
+      runDeployPreflight({
+        env: {},
+        docker: { daemon: reachable, engine: engine('fail') },
+      }),
+    ).rejects.toThrow('Deploy preflight failed (1 issue)');
+  });
+
+  test('an engine whose version cannot be judged is only reported', async () => {
+    for (const status of ['ok', 'warn'] as const) {
+      const result = await runDeployPreflight({
+        env: {},
+        docker: { daemon: reachable, engine: engine(status) },
+      });
+      expect(result).toEqual({ ok: true, blocking: [] });
+    }
+  });
+
+  test('an unreachable daemon is not asked for its engine', async () => {
+    let asked = false;
+    const result = await runDeployPreflight({
+      env: {},
+      dryRun: true,
+      docker: {
+        daemon: async () => ({
+          name: 'docker daemon',
+          status: 'fail' as const,
+          detail: 'not reachable — refused',
+          fix: 'Start Docker Desktop',
+        }),
+        engine: async () => {
+          asked = true;
+          return engine('ok')();
+        },
+      },
+    });
+    expect(asked).toBe(false);
+    expect(result.blocking).toHaveLength(1);
+    expect(result.blocking[0]?.message).toContain(
+      'Docker daemon not reachable',
+    );
   });
 });

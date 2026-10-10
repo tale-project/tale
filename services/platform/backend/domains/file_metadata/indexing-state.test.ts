@@ -10,7 +10,7 @@ import { indexingStateFrom } from './indexing-state.ts';
  * wins over a stale status column, a never-queued file is `pending`, and
  * the optional columns ride only when the row carries them.
  */
-describe('indexingStateFrom', () => {
+describe('indexingStateFrom [FMETA-R1]', () => {
   it('reads a persisted opt-out as skipped whatever the status column says', () => {
     expect(
       indexingStateFrom({ skipRagIndexing: true, ragStatus: null }).status,

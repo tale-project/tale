@@ -19,11 +19,11 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Input } from '@tale/ui/input';
 import {
   SUB_PANEL_ROW_CLASS,
   useSubPanelRowTreatment,
 } from '@tale/ui/sub-panel-list';
-import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Archive,
@@ -40,7 +40,7 @@ import {
   Swords,
   Trash2,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { useT } from '@/lib/i18n/client';
@@ -54,7 +54,7 @@ import type { ChatThreadSummary } from '../types';
 import { LegalHoldIndicator } from './legal-hold-indicator';
 import { ThreadDeleteDialog } from './thread-delete-dialog';
 import { useThreadDraggable } from './thread-dnd';
-import { useThreadListFrame } from './thread-list-context';
+import { useActiveThreadId, useThreadListFrame } from './thread-list-context';
 
 interface ThreadRowProps {
   thread: ChatThreadSummary;
@@ -64,8 +64,8 @@ interface ThreadRowProps {
 
 export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
   const { t } = useT('chat');
-  const { organizationId, activeThreadId, orgHeld, heldThreadIds } =
-    useThreadListFrame();
+  const { organizationId, orgHeld, heldThreadIds } = useThreadListFrame();
+  const activeThreadId = useActiveThreadId();
   const active = thread.id === activeThreadId;
   // The lock renders only for a hold on THIS thread — an org-wide hold on
   // every row would read as noise; the menu's disabled items carry it there.
@@ -190,7 +190,10 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
   );
 }
 
-/** The in-place rename field — Enter commits, Escape cancels, blur commits. */
+/**
+ * The in-place rename field — Enter commits, Escape cancels, blur commits;
+ * keys pressed mid-composition stay with the IME.
+ */
 export function ThreadRenameInput({
   thread,
   organizationId,
@@ -205,30 +208,77 @@ export function ThreadRenameInput({
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Committed once, whether Enter or blur lands first.
   const settledRef = useRef(false);
+  const cancelledRef = useRef(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  // React's synthetic events don't expose `isComposing`, so the DOM
+  // composition events keep this mirror for the key guard.
+  const isComposingRef = useRef(false);
 
   const commit = async () => {
     if (settledRef.current) return;
-    settledRef.current = true;
     const next = inputRef.current?.value.trim() ?? '';
-    onDone();
-    if (next.length === 0 || next === (thread.title ?? '')) return;
-    if (!(await actions.rename(thread.id, next))) {
-      toast({
-        title: t('history.toast.renameFailed'),
-        variant: 'destructive',
-      });
+    if (next.length === 0) {
+      setError(t('history.renameEmpty'));
+      return;
     }
+    if (next.length > 500) {
+      setError(t('history.renameTooLong'));
+      return;
+    }
+    if (next === (thread.title ?? '')) {
+      settledRef.current = true;
+      onDone();
+      return;
+    }
+    settledRef.current = true;
+    setPending(true);
+    setError(undefined);
+    const renamed = await actions.rename(thread.id, next);
+    if (cancelledRef.current) return;
+    if (renamed) {
+      onDone();
+      return;
+    }
+    settledRef.current = false;
+    setPending(false);
+    setError(t('history.toast.renameFailed'));
   };
 
   return (
-    <input
+    <Input
       ref={inputRef}
+      wrapperClassName="min-w-0 flex-1"
+      wideControl
       defaultValue={thread.title ?? ''}
       aria-label={t('history.renameChat')}
+      aria-busy={pending}
+      readOnly={pending}
+      variant="default"
+      {...(error !== undefined ? { errorMessage: error } : {})}
       autoFocus
       onFocus={(event) => event.currentTarget.select()}
+      onChange={() => setError(undefined)}
       onBlur={() => void commit()}
+      onCompositionStart={() => {
+        isComposingRef.current = true;
+      }}
+      onCompositionEnd={() => {
+        isComposingRef.current = false;
+      }}
       onKeyDown={(event) => {
+        // IME composition guard, as in the composer: Japanese or Chinese
+        // input commits its composition with Enter and cancels it with
+        // Escape — neither may save or drop the rename. `isComposing` is the
+        // UI Events flag, the ref is the React mirror, and `keyCode === 229`
+        // is the legacy Safari path.
+        if (
+          event.nativeEvent.isComposing ||
+          isComposingRef.current ||
+          event.keyCode === 229
+        ) {
+          return;
+        }
         if (event.key === 'Enter') {
           event.preventDefault();
           void commit();
@@ -236,6 +286,7 @@ export function ThreadRenameInput({
         if (event.key === 'Escape') {
           event.preventDefault();
           settledRef.current = true;
+          cancelledRef.current = true;
           onDone();
         }
       }}
@@ -253,15 +304,18 @@ export function ThreadRowMenu({
   variant,
   active,
   onStartRename,
+  onInteractionChange,
 }: {
   thread: ChatThreadSummary;
   variant: 'default' | 'archived';
   active: boolean;
   onStartRename: () => void;
+  /** A windowed list retains a row while its portal owns focus. */
+  onInteractionChange?: (active: boolean) => void;
 }) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
-  const { t: tGovernance } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const navigate = useNavigate();
   const { organizationId, projects, orgHeld, heldThreadIds } =
     useThreadListFrame();
@@ -269,6 +323,11 @@ export function ThreadRowMenu({
   // Row-only actions (mark read) live outside the shared menu handlers.
   const actions = useThreadActions(organizationId);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    onInteractionChange?.(menuOpen || deleteOpen);
+  }, [menuOpen, deleteOpen, onInteractionChange]);
+  useEffect(() => () => onInteractionChange?.(false), [onInteractionChange]);
   // The server enforces every hold on the mutation; this only explains the
   // disabled destructive items up front.
   const held = orgHeld || heldThreadIds.has(thread.id);
@@ -305,13 +364,15 @@ export function ThreadRowMenu({
         [
           {
             type: 'label',
-            content: tGovernance('legalHold.badges.blockedByHold'),
+            content: tLegalHold('blockedByHold'),
           },
         ],
       ]
     : [];
 
-  const items: DropdownMenuGroup[] =
+  // Built when the menu opens: every chat row carries this menu, and its
+  // Move-to-project submenu lists every project of the organization.
+  const items = (): DropdownMenuGroup[] =>
     variant === 'archived'
       ? [
           ...heldNotice,
@@ -390,6 +451,7 @@ export function ThreadRowMenu({
     <>
       <DropdownMenu
         align="end"
+        onOpenChange={setMenuOpen}
         trigger={
           <Button
             variant="ghost"
@@ -411,7 +473,6 @@ export function ThreadRowMenu({
           organizationId={organizationId}
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
-          onDeleted={leaveIfActive}
         />
       )}
     </>
