@@ -85,7 +85,7 @@ import { jsonParam, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { engineVersion, instanceId } from '../../lib/instance.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import {
   dismissAgentQuestionNotifications,
   dismissTriggerPausedNotifications,
@@ -407,9 +407,7 @@ export async function saveVersion(
 ): Promise<SavedVersion> {
   const name = assertAutomationName(args.name);
   return sql.begin(async (tx) => {
-    // The audit chain before the name: the order every definition writer
-    // takes them in (`audit.ts`), so two writers never wait on each other.
-    await lockAuditChain(tx, args.organizationId);
+    // The name first, as every definition writer takes it (`audit.ts`).
     await lockAutomationName(tx, args.organizationId, name);
     // The latest version, read under the lock: null is the create (a name
     // the router keeps for itself is refused here, once, before anything is
@@ -816,8 +814,6 @@ export async function deploy(
   await sql.begin(async (tx) => {
     // Serialize promotion with saves and other promoters. Existing runs keep
     // their immutable version; only future admissions read this pointer.
-    // The audit chain first, as every definition writer takes it (`audit.ts`).
-    await lockAuditChain(tx, args.organizationId);
     await lockAutomationName(tx, args.organizationId, args.name);
     const live =
       (await deployedVersion(tx, args.organizationId, args.name)) ?? null;
@@ -1231,8 +1227,7 @@ export async function setAutomationProjects(
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
-    // Every definition writer takes the audit chain before its name lock.
-    await lockAuditChain(tx, args.organizationId);
+    // The name first, as every definition writer takes it (`audit.ts`).
     await lockAutomationName(tx, args.organizationId, args.name);
     let projectIds = args.projectIds;
     if (args.visibleProjectIds !== undefined) {
@@ -1763,8 +1758,7 @@ export async function setTrigger(
   const mintedHash =
     minted !== undefined ? await hashWebhookToken(minted) : null;
   const { rows, revoked, nextRunAt } = await sql.begin(async (tx) => {
-    // The audit chain precedes the name and trigger row for every writer.
-    await lockAuditChain(tx, args.organizationId);
+    // The name precedes the trigger row for every writer.
     await lockAutomationName(tx, args.organizationId, args.name);
     if (args.managed) {
       await assertManagedProject(
@@ -2227,7 +2221,6 @@ export async function lockAutomationProjectBindingsInTx(
   args: { organizationId: string; name: string },
   projectIds: readonly string[],
 ): Promise<void> {
-  await lockAuditChain(tx, args.organizationId);
   await lockAutomationName(tx, args.organizationId, args.name);
   await lockWakeClaimKeys(tx, args.organizationId, args.name, projectIds);
 }
@@ -2288,8 +2281,7 @@ export async function deleteTrigger(
   actor: string,
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
-    // The audit chain before the trigger row (`trigger-failures.ts`).
-    await lockAuditChain(tx, organizationId);
+    // The name before the trigger row (`trigger-failures.ts`).
     await lockAutomationName(tx, organizationId, name);
     const rows = await tx<
       {
@@ -3655,13 +3647,8 @@ export async function deleteRunInTx(
   }
   // The delete clears the run from the trigger that names it (`last_run_id`
   // and `last_failed_run_id` are `ON DELETE SET NULL`), a write of that
-  // trigger row: the organization's audit chain goes first, as in a landing
-  // run (the lock order in `trigger-failures.ts`), and after the run's own
-  // row, which a landing run holds before the chain. Taken whether or not a
-  // trigger names the run: the removal's own audit row takes it three
-  // single-row deletes later anyway (the retention sweep, whose delete
-  // takes a thousand runs, asks first).
-  await lockAuditChain(tx, args.organizationId);
+  // trigger row after the run's own row — the order a landing run takes
+  // them in (`trigger-failures.ts`).
   await tx`
     DELETE FROM app.automation_webhook_deliveries WHERE run_id = ${args.runId}
   `;
@@ -4464,10 +4451,9 @@ export async function finishRun(
         },
       });
       // A trigger's run keeps the trigger's failure streak — and the
-      // schedule it pauses, when its runs keep failing the same way. After
-      // the audit row, never before it: the organization's audit chain is
-      // locked ahead of any trigger row, here as in an event dispatch and a
-      // run removal (the lock order in `trigger-failures.ts`).
+      // schedule it pauses, when its runs keep failing the same way. The
+      // trigger row comes after the run's own, here as in a run removal
+      // (the lock order in `trigger-failures.ts`).
       const trigger = await recordTriggerRunOutcome(tx, {
         organizationId: args.organizationId,
         runId: args.runId,
@@ -4730,9 +4716,8 @@ export async function deleteAutomationCascade(
   },
 ): Promise<{ versions: number }> {
   return sql.begin(async (tx) => {
-    // The audit chain first, then the name, then the trigger row: the order
-    // every definition writer takes them in (`audit.ts`).
-    await lockAuditChain(tx, args.organizationId);
+    // The name, then the trigger row: the order every definition writer
+    // takes them in (`audit.ts`).
     await lockAutomationName(tx, args.organizationId, args.name);
     if (args.expectedLatestVersion !== undefined) {
       const heads = await tx<{ latest: number | null }[]>`

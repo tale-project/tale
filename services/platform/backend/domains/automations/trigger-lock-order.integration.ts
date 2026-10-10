@@ -16,11 +16,12 @@ import {
   saveVersion,
   setTrigger,
 } from './store.ts';
-/** Real Postgres proof of the one order an organization's audit chain and a
- * trigger row are locked in (`trigger-failures.ts`, the module note): a run
- * landing through `finishRun` (its audit row, then the trigger's failure
- * streak) never deadlocks beside another transaction that writes the same
- * trigger row and audits —
+/** Real Postgres proof of the order a trigger row is locked in
+ * (`trigger-failures.ts`, the module note) — after the rows a transaction
+ * decides on, while an audit row takes no lock at all: a run landing through
+ * `finishRun` (its audit row, then the trigger's failure streak) never
+ * deadlocks beside another transaction that writes the same trigger row and
+ * audits —
  *
  * - an event producer stamping the trigger through `emitEvent`, whichever of
  *   its two steps it takes first: audit then emit (a task or a contact
@@ -32,8 +33,10 @@ import {
  *   name (the foreign key's `ON DELETE SET NULL`), a write of the trigger
  *   row, before the removal's audit row.
  *
- * Each case holds the other transaction between its two steps until the
- * landing run waits on it, then lets it go on: both must commit — the run
+ * Each case holds the other transaction between its two steps — until the
+ * landing run waits on the trigger row it holds, or, when it holds none
+ * (a producer that audited first), until the landing has committed — then
+ * lets it go on: both must commit — the run
  * door on its first attempt, since a retry would hide a deadlock it lost —
  * the other transaction's own write must land (a deadlock raised inside
  * `emitEvent`'s savepoint is swallowed and would take the dispatch's stamp)
@@ -43,9 +46,8 @@ import {
  * stamp — and no run of its own lands afterwards to move the streak under
  * the check.
  *
- * The chain is held no wider than that order needs: a sweep whose batch no
- * trigger names, held after its delete, lets an audit writer of the same
- * organization commit meanwhile. */
+ * Nothing organization-wide is held: a sweep held after its delete lets an
+ * audit writer of the same organization commit meanwhile. */
 import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 interface TriggerState {
@@ -61,6 +63,25 @@ interface TriggerState {
 const BLOCK_WAIT_MS = 10_000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Whether `promise` settles within `timeoutMs`. */
+async function settlesWithin(
+  promise: Promise<unknown>,
+  timeoutMs: number,
+): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled = await Promise.race([
+    promise.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  return settled;
+}
 
 async function waitFor(
   predicate: () => Promise<boolean>,
@@ -309,17 +330,21 @@ export async function checkTriggerStreakLockOrder(
         runId,
         `itest: lands beside an event producer (${order})`,
       );
-      // The landing run queues behind the producer's first step — the
-      // chain it holds (audit first) or the chain and the trigger row its
-      // dispatch holds (emit first) — before the producer takes its second.
-      const queued = await blockedBy(() => producerPid);
+      // An audit row takes no lock, so a producer that audited first holds
+      // nothing the landing needs: the landing commits while the producer
+      // waits. One that emitted first holds the trigger row its dispatch
+      // stamped, and the landing queues behind it for the streak.
+      const settled =
+        order === 'audit first'
+          ? await settlesWithin(landing, BLOCK_WAIT_MS)
+          : await blockedBy(() => producerPid);
       halfway.release();
       const [produced, landed] = await Promise.allSettled([producer, landing]);
       const after = await trigger();
       const status = await runStatus(runId);
       record(
         `a run landing beside an event producer that emits ${order === 'audit first' ? 'after' : 'before'} it audits: both commit, the stamp lands and the streak counts`,
-        queued &&
+        settled &&
           produced.status === 'fulfilled' &&
           landed.status === 'fulfilled' &&
           status === 'failed' &&
@@ -328,7 +353,7 @@ export async function checkTriggerStreakLockOrder(
           after.lastSkippedAt >= startedAt &&
           after.consecutiveFailures === before.consecutiveFailures + 1 &&
           after.lastFailedRunId === runId,
-        `landing queued behind the producer=${queued}, producer ${failure(produced)}, landing ${failure(landed)} (run ${status}), dispatch stamp=${after.lastSkipReason}${after.lastSkippedAt !== null && after.lastSkippedAt >= startedAt ? ' (this case)' : ' (stale)'}, streak ${before.consecutiveFailures}→${after.consecutiveFailures} (want +1), last failed run=${after.lastFailedRunId === runId ? 'this run' : after.lastFailedRunId}`,
+        `${order === 'audit first' ? 'landing committed while the producer waited' : 'landing queued behind the producer on the trigger row'}=${settled}, producer ${failure(produced)}, landing ${failure(landed)} (run ${status}), dispatch stamp=${after.lastSkipReason}${after.lastSkippedAt !== null && after.lastSkippedAt >= startedAt ? ' (this case)' : ' (stale)'}, streak ${before.consecutiveFailures}→${after.consecutiveFailures} (want +1), last failed run=${after.lastFailedRunId === runId ? 'this run' : after.lastFailedRunId}`,
       );
     }
 
@@ -393,10 +418,9 @@ export async function checkTriggerStreakLockOrder(
         `itest: lands beside a removal (${remover})`,
         organizationId,
       );
-      // The landing run queues behind the removal, on the chain the removal
-      // took before its delete. Without that, the landing run would take the
-      // chain first and wait on the trigger row the delete cleared, while
-      // the removal waited on the chain for its audit row.
+      // The landing run queues behind the removal on the trigger row the
+      // delete cleared (its run row first, like the landing's), and the
+      // removal's audit row waits on nothing.
       const queued = await blockedBy(() => removerPid);
       halfway.release();
       const [removed, landed] = await Promise.allSettled([removal, landing]);
@@ -418,8 +442,7 @@ export async function checkTriggerStreakLockOrder(
       );
     }
 
-    // A sweep whose batch no trigger names writes no trigger row, so it
-    // takes the chain only for its own audit row: an audit writer of the
+    // A sweep holds nothing organization-wide: an audit writer of the
     // organization commits while the sweep sits after its delete, instead
     // of queueing behind a delete of up to a thousand runs.
     {
@@ -476,7 +499,7 @@ export async function checkTriggerStreakLockOrder(
       const [sweptOut, written] = await Promise.allSettled([swept, writer]);
       const gone = await runStatus(unnamedRunId, removalOrgId);
       record(
-        'a retention sweep whose batch no trigger names holds no audit chain across its delete: an audit writer of the organization commits meanwhile',
+        'a retention sweep held after its delete holds nothing organization-wide: an audit writer of the organization commits meanwhile',
         wroteWhileHeld &&
           sweptOut.status === 'fulfilled' &&
           sweptOut.value === 1 &&

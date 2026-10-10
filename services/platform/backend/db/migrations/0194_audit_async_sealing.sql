@@ -1,4 +1,4 @@
--- 0.5 app migration 0182: seal the audit chain off the write path.
+-- 0.5 app migration 0194: seal the audit chain off the write path.
 --
 -- Every audited write used to append to its organization's chain inside the
 -- writer's own transaction: the chain head locked FOR UPDATE, the prior hash
@@ -20,6 +20,16 @@ ALTER TABLE app.audit_logs ALTER COLUMN integrity_hash DROP NOT NULL;
 -- Position in the org's chain; NULL on a row sealed before this migration
 -- (chained in (ts, id) order) and on a row not sealed yet.
 ALTER TABLE app.audit_logs ADD COLUMN IF NOT EXISTS chain_seq bigint;
+
+-- The transaction that wrote the row. `ts` no longer rises strictly per
+-- organization (nothing serializes the writers any more), but two writers
+-- a lock serializes — a deletion and a later deploy of one automation —
+-- get increasing ids: an id is assigned at a transaction's first write,
+-- and the later one writes only once the earlier has committed. NULL on a
+-- row written before this migration, whose `ts` still orders them. The
+-- default is set apart from the column so existing rows are not rewritten.
+ALTER TABLE app.audit_logs ADD COLUMN IF NOT EXISTS writer_xid xid8;
+ALTER TABLE app.audit_logs ALTER COLUMN writer_xid SET DEFAULT pg_current_xact_id();
 
 -- The chain_seq of the org's newest sealed row.
 ALTER TABLE app.audit_chain_heads

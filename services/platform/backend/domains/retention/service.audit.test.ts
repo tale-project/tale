@@ -11,12 +11,11 @@
  * so "the same transaction" is a checked fact rather than a hope.
  */
 
-import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
 import { releaseRefs } from '../knowledge/release.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
@@ -877,10 +876,9 @@ describe('sweepOrgPhase2 — destruction rows', () => {
   // organization's audit chain goes between the runs' own rows and that
   // delete — the order a landing run takes them in
   // (`automations/trigger-failures.ts`).
-  it('locks the automation runs it removes, then the audit chain, then deletes them, in one transaction', async () => {
+  it('locks the automation runs it removes, then deletes them, in one transaction, with no organization-wide lock', async () => {
     const fake = fakeSql({
       'SELECT id FROM app.automation_runs': ids(2, 'run-'),
-      'SELECT 1 AS named FROM app.automation_triggers': [{ named: 1 }],
       'DELETE FROM app.automation_runs': ids(2, 'run-'),
     });
 
@@ -900,77 +898,23 @@ describe('sweepOrgPhase2 — destruction rows', () => {
     const batch = at((text) =>
       text.startsWith('SELECT id FROM app.automation_runs'),
     );
-    const probe = at((text) =>
-      text.startsWith('SELECT 1 AS named FROM app.automation_triggers'),
-    );
-    const chain = at((text) => text.includes('pg_advisory_xact_lock'));
     const removal = at((text) =>
       text.startsWith('DELETE FROM app.automation_runs'),
     );
     expect(inTx[batch]?.text).toContain('FOR UPDATE');
-    // Either name a trigger keeps, among this organization's triggers.
-    expect(inTx[probe]?.text).toContain(
-      'WHERE org_id = ? AND (last_run_id = ANY(?::text[]) OR last_failed_run_id = ANY(?::text[])) LIMIT 1',
-    );
-    expect(inTx[probe]?.values).toEqual([
-      'org_1',
-      ['run-0', 'run-1'],
-      ['run-0', 'run-1'],
-    ]);
-    expect(inTx[chain]?.values).toEqual([
-      RETRY_QUEUE_LOCK_CLASS,
-      auditChainQueueKey('org_1'),
-    ]);
     expect(batch).toBeGreaterThan(-1);
-    expect(probe).toBeGreaterThan(batch);
-    expect(chain).toBeGreaterThan(probe);
-    expect(removal).toBeGreaterThan(chain);
+    // The run rows, then the delete that clears a trigger naming one of them
+    // (`ON DELETE SET NULL`) — the order a landing run takes them in — and
+    // nothing in between: no probe of the triggers, no advisory lock.
+    expect(removal).toBe(batch + 1);
+    expect(inTx.some((s) => s.text.includes('pg_advisory_xact_lock'))).toBe(
+      false,
+    );
     expect(inTx[removal]?.values).toEqual([['run-0', 'run-1']]);
     expect(appendOf('automation_run.retention_deleted').tx).toBe(tx);
   });
 
-  // No trigger names a run of the batch: the delete writes no trigger row,
-  // so the chain waits for the category's audit row instead of queueing the
-  // organization's audit writers behind a delete of a thousand runs.
-  it('deletes a batch no trigger names without taking the audit chain ahead of the delete', async () => {
-    const fake = fakeSql({
-      'SELECT id FROM app.automation_runs': ids(3, 'run-'),
-      'SELECT 1 AS named FROM app.automation_triggers': [],
-      'DELETE FROM app.automation_runs': ids(3, 'run-'),
-    });
-
-    await sweepOrgPhase2(
-      fake.sql,
-      {
-        organizationId: 'org_1',
-        config: { workflowLogEnabled: true, workflowLogRetentionDays: 30 },
-      },
-      { orgHeld: false, userMembershipIds: new Set() },
-    );
-
-    const tx = txOf(fake.statements, 'DELETE FROM app.automation_runs');
-    const inTx = fake.statements.filter((s) => s.tx === tx);
-    expect(
-      inTx.findIndex((s) =>
-        s.text.startsWith('SELECT 1 AS named FROM app.automation_triggers'),
-      ),
-    ).toBeGreaterThan(-1);
-    expect(inTx.some((s) => s.text.includes('pg_advisory_xact_lock'))).toBe(
-      false,
-    );
-    expect(
-      inTx.find((s) => s.text.startsWith('DELETE FROM app.automation_runs'))
-        ?.values,
-    ).toEqual([['run-0', 'run-1', 'run-2']]);
-    const automationRuns = appendOf('automation_run.retention_deleted');
-    expect(automationRuns.tx).toBe(tx);
-    expect(automationRuns.row.metadata).toEqual({
-      category: 'automationRuns',
-      deleted: 3,
-    });
-  });
-
-  it('takes no audit chain and deletes nothing when no automation run is due', async () => {
+  it('takes no lock and deletes nothing when no automation run is due', async () => {
     const fake = fakeSql({});
 
     await sweepOrgPhase2(

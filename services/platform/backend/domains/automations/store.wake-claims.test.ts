@@ -91,15 +91,17 @@ const inserts = (statements: Statement[]) =>
 const base = { organizationId: 'org-1', name: 'ops/manager', actor: 'user-1' };
 
 describe('binding doors and the database-kept wake claim (#4540) [AUTO-R29]', () => {
-  it('setAutomationProjects takes audit then name locks, then its claim keys for every asked-for project, before any binding write', async () => {
+  it('setAutomationProjects takes the name lock, then its claim keys for every asked-for project, before any binding write', async () => {
     const fake = fakeStore();
     await setAutomationProjects(fake.sql, {
       ...base,
       projectIds: ['p-2', 'p-1'],
     });
     const texts = fake.statements.map((row) => row.text);
-    expect(fake.statements[0]?.values).toContain('audit-chain:org-1');
-    expect(fake.statements[1]?.text).toContain("'automation:'");
+    expect(fake.statements[0]?.text).toContain("'automation:'");
+    expect(
+      fake.statements.some((row) => row.values.includes('audit-chain:org-1')),
+    ).toBe(false);
     const keys = fake.statements.findIndex((row) =>
       row.text.includes('app.lock_automation_wake_keys'),
     );
@@ -144,15 +146,17 @@ describe('binding doors and the database-kept wake claim (#4540) [AUTO-R29]', ()
     expect(inserts(fake.statements)[0]?.text).not.toContain('wakes');
   });
 
-  it('bindProjectInTx takes the audit chain then name and claim keys and answers a second claim with 409', async () => {
+  it('bindProjectInTx takes the name and claim keys and answers a second claim with 409', async () => {
     const fake = fakeStore({ failOn: 'p-3' });
     const refused = await bindProjectInTx(fake.tx, {
       ...base,
       projectId: 'p-3',
     }).catch((error: unknown) => error);
-    expect(fake.statements[0]?.values).toContain('audit-chain:org-1');
-    expect(fake.statements[1]?.text).toContain("'automation:'");
-    expect(fake.statements[2]?.text).toContain('app.lock_automation_wake_keys');
+    expect(fake.statements[0]?.text).toContain("'automation:'");
+    expect(fake.statements[1]?.text).toContain('app.lock_automation_wake_keys');
+    expect(
+      fake.statements.some((row) => row.values.includes('audit-chain:org-1')),
+    ).toBe(false);
     expect(refused).toMatchObject({
       code: 'AUTOMATION_TRIGGER_INVALID',
       status: 409,

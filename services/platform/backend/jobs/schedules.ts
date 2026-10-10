@@ -132,7 +132,7 @@ export const SCHEDULES: CronSchedule[] = [
  *   transaction that deletes the team) and every scope write validates its
  *   team ids (0109).
  * - `audit.integrity_check` — the nightly chain walk, renamed
- *   `audit.chain_check` when sealing moved off the write path (0182): a
+ *   `audit.chain_check` when sealing moved off the write path (0194): a
  *   worker on an older image walks in timestamp order and would read the
  *   sealer's order as a break, so the name it listens on stops firing.
  */
