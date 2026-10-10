@@ -263,6 +263,8 @@ videoLink:
     transient: Vorübergehender Fehler — erneut versuchen
     botDetection: Video-Plattform hat automatisierten Zugriff blockiert — später erneut versuchen oder andere Plattform nutzen
     rateLimited: Video-Plattform drosselt Anfragen — einige Minuten warten und erneut versuchen
+    RATE_LIMITED: Das Upload-Limit ist erreicht. Versuch es in einem Moment erneut.
+    RATE_LIMITED_RETRY: 'Das Upload-Limit ist erreicht. Versuch es in {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut.'
     forbidden: Video-Plattform hat den Zugriff verweigert (403) — später erneut versuchen
     liveStream: Live-Streams werden nicht unterstützt
     premiere: Premiere/Vorschau-Video noch nicht verfügbar
