@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -50,6 +50,9 @@ const fixtures = vi.hoisted(() => ({
   },
   /** What the chat-health read rejected with, when a test makes it fail. */
   healthError: undefined as unknown,
+  guardrailsError: undefined as unknown,
+  refetchGuardrails: vi.fn(),
+  refetchHealth: vi.fn(),
   guardrails: {
     byKind: [
       { key: 'detected', count: 6 },
@@ -66,9 +69,18 @@ const fixtures = vi.hoisted(() => ({
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string) =>
     name.includes('getGuardrailStats')
-      ? { data: fixtures.guardrails, isLoading: false }
+      ? {
+          data: fixtures.guardrailsError ? undefined : fixtures.guardrails,
+          isLoading: false,
+          error: fixtures.guardrailsError,
+          refetch: fixtures.refetchGuardrails,
+        }
       : fixtures.healthError === undefined
-        ? { data: fixtures.health, isLoading: false }
+        ? {
+            data: fixtures.health,
+            isLoading: false,
+            refetch: fixtures.refetchHealth,
+          }
         : { data: undefined, isLoading: false, error: fixtures.healthError },
 }));
 
@@ -194,4 +206,145 @@ describe('ChatHealthMetricsPage after a lapsed session', () => {
       expect(screen.queryByText(/"code"/)).not.toBeInTheDocument();
     },
   );
+});
+
+describe('ChatHealthMetricsPage guardrail read failures', () => {
+  const health = structuredClone(fixtures.health);
+  const guardrails = structuredClone(fixtures.guardrails);
+
+  beforeEach(() => {
+    fixtures.health = structuredClone(health);
+    fixtures.guardrails = structuredClone(guardrails);
+    fixtures.healthError = undefined;
+    fixtures.guardrailsError = undefined;
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    cleanup();
+    fixtures.health = structuredClone(health);
+    fixtures.guardrails = structuredClone(guardrails);
+    fixtures.healthError = undefined;
+    fixtures.guardrailsError = undefined;
+    await forgetSavedLocale();
+  });
+
+  function page() {
+    return (
+      <ChatHealthMetricsPage
+        organizationId="org-1"
+        period="7"
+        onChangePeriod={() => undefined}
+      />
+    );
+  }
+
+  it.each(SHIPPED_LOCALES)(
+    'retains chat data and offers a localized guardrail retry (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      fixtures.guardrailsError = await lapsedSessionRefusal().catch(
+        (refusal: unknown) => refusal,
+      );
+      render(page());
+      expect(
+        screen.getByText(
+          i18n.t('chatHealth.errors.guardrailsLoadFailed', { ns: 'analytics' }),
+          { exact: false },
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByText(SESSION_ENDED[locale], { exact: false }),
+      ).toBeVisible();
+      expect(screen.getByText('25')).toBeVisible();
+      expect(
+        screen.getByRole('button', {
+          name: i18n.t('actions.tryAgain', { ns: 'common' }),
+        }),
+      ).toBeVisible();
+      expect(screen.queryByText(/"code"/)).not.toBeInTheDocument();
+    },
+  );
+
+  it('keeps the guardrail failure and Retry alongside the no-chat-data panel', () => {
+    fixtures.health.summary.hasAnyData = false;
+    fixtures.health.summary.totalTurns = 0;
+    fixtures.guardrailsError = new Error('Guardrail read unavailable');
+    render(page());
+    expect(
+      screen.getByText(i18n.t('chatHealth.empty.title', { ns: 'analytics' })),
+    ).toBeVisible();
+    expect(screen.getByText(/Guardrail read unavailable/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
+    expect(screen.queryByText('Assistant turns')).not.toBeInTheDocument();
+  });
+
+  it.each([true, false])(
+    'Retry refetches only guardrails and recovery clears the failure (has chat data: %s)',
+    async (hasAnyData) => {
+      fixtures.health.summary.hasAnyData = hasAnyData;
+      fixtures.guardrailsError = new Error('Guardrail read unavailable');
+      const { user, rerender } = render(page());
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(fixtures.refetchGuardrails).toHaveBeenCalledExactlyOnceWith();
+      expect(fixtures.refetchHealth).not.toHaveBeenCalled();
+      fixtures.guardrailsError = undefined;
+      rerender(page());
+      expect(
+        screen.queryByText(/Guardrail read unavailable/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('treats a successful zero-events read as empty without a failure or Retry', () => {
+    fixtures.guardrails = {
+      byKind: [],
+      byFilter: [],
+      byDirection: [],
+      byCategory: [],
+      series: [],
+      capped: false,
+    };
+    const { rerender } = render(page());
+    expect(
+      screen.getByText(
+        i18n.t('chatHealth.guardrails.chart.noData', { ns: 'analytics' }),
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+    fixtures.health.summary.hasAnyData = false;
+    fixtures.health.summary.totalTurns = 0;
+    rerender(page());
+    expect(
+      screen.getByText(i18n.t('chatHealth.empty.title', { ns: 'analytics' })),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('preserves the full chat-health failure instead of showing partial metrics', () => {
+    fixtures.healthError = new Error('Chat health unavailable');
+    fixtures.guardrailsError = new Error('Guardrail read unavailable');
+    render(page());
+    expect(
+      screen.getByText(
+        i18n.t('chatHealth.errors.loadFailed', { ns: 'analytics' }),
+      ),
+    ).toBeVisible();
+    expect(screen.getByText('Chat health unavailable')).toBeVisible();
+    expect(
+      screen.queryByText(/Guardrail read unavailable/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Assistant turns')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+  });
 });
