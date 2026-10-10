@@ -1207,6 +1207,13 @@ by `backend/core/automations/stepper.credential.test.ts`, the editor's checks by
 corpus. `AUTO-F123`–`AUTO-F126` keep the live calls against a real API, the editor's warnings
 in place and a send's approval in the manual layer.
 
+The knowledge search step's guarantees are automated in
+`lib/connectors/natives/platform-knowledge.test.ts` and
+`backend/domains/knowledge/automation-search.test.ts`: it searches only as an automation run,
+reads what the run's agent steps read (its project, its automation's bound projects, or the
+hub), spends as the run, and a refused search says why. `AUTO-F127` and `AUTO-F128` keep a
+live search over real documents and its failures on the run page in the manual layer.
+
 ## Moving a box here
 
 When a spec takes a box over end to end, **delete the box and add its row to
