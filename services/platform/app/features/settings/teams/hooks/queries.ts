@@ -9,7 +9,7 @@ import {
   type MyTeamRow,
   type TeamDirectoryEntry,
 } from '@/app/lib/backend/org';
-import { readStateOf } from '@/app/lib/backend/read-state';
+import { type ReadState, readStateOf } from '@/app/lib/backend/read-state';
 
 export type Team = MyTeamRow;
 
@@ -21,29 +21,35 @@ export type Team = MyTeamRow;
  */
 export function useTeamDirectory() {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     ...teamDirectoryQuery(organizationId ?? ''),
     enabled: !!organizationId,
   });
+  const { refetch } = query;
   return {
-    teams: data ?? undefined,
-    isLoading,
+    teams: query.data ?? undefined,
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry: () => void refetch(),
   };
 }
 
 /** `useTeamDirectory` as an id → name lookup (empty while loading). The
- * lookup is stable per directory load, so it can sit in a memo's deps. */
+ * lookup is stable per directory load, so it can sit in a memo's deps. A
+ * name it has not read — still loading, or the read failed (`readStateOf`) —
+ * is not an unknown team: only an answered directory can say that. */
 export function useTeamNames(): {
   nameOf: (teamId: string) => string | undefined;
   isLoading: boolean;
   teams: TeamDirectoryEntry[] | undefined;
-} {
-  const { teams, isLoading } = useTeamDirectory();
+  retry: () => void;
+} & ReadState {
+  const { teams, isLoading, ...read } = useTeamDirectory();
   const nameOf = useMemo(() => {
     const byId = new Map((teams ?? []).map((team) => [team.id, team.name]));
     return (teamId: string) => byId.get(teamId);
   }, [teams]);
-  return { nameOf, isLoading, teams };
+  return { nameOf, isLoading, teams, ...read };
 }
 
 /**
@@ -67,19 +73,24 @@ export function useTeams() {
   };
 }
 
+/**
+ * The teams the signed-in member may ASSIGN — their own, every team for an
+ * admin — with how the read stands (`readStateOf`): a failed read is the
+ * caller's to name and retry, never an organization without teams (#3766).
+ */
 export function useOrgTeams() {
   const organizationId = useOrganizationId();
-  const { data, isLoading, isError, isFetching, refetch } = useBackendQuery(
+  const query = useBackendQuery(
     'members/queries:listOrgTeams',
     organizationId ? { organizationId } : 'skip',
   );
+  const { refetch } = query;
 
   return {
-    teams: data ?? undefined,
-    isLoading,
-    isError,
-    isFetching,
-    refetch,
+    teams: query.data ?? undefined,
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry: () => void refetch(),
   };
 }
 
