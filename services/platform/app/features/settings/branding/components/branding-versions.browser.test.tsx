@@ -139,46 +139,39 @@ const LOGO_URL = `data:image/svg+xml;base64,${btoa(svg('#443366'))}`;
 const THEIRS = `data:image/svg+xml;base64,${btoa(svg('#e8590c'))}`;
 
 /**
- * Holds the decode `deriveFaviconPngBase64` starts, and only that one: its
- * `new Image()` is marked, and setting a marked image's `src` is kept back
- * until `release`. React's own `<img>` elements are not marked.
+ * Holds the decode `deriveFaviconPngBase64` starts, and only that one: each
+ * image its `new Image()` builds gets an own `src` that keeps the value back
+ * until `release` removes it, and the native setter then starts the decode.
+ * React's own `<img>` elements keep the native `src`.
  */
 function holdDerivedDecode() {
   const NativeImage = window.Image;
-  const descriptor = Object.getOwnPropertyDescriptor(
-    HTMLImageElement.prototype,
-    'src',
-  );
-  const setSrc = descriptor?.set;
-  if (descriptor === undefined || setSrc === undefined) {
-    throw new Error('HTMLImageElement.src has no setter to hold');
-  }
-  const marked = new WeakSet<HTMLImageElement>();
   const held: { image: HTMLImageElement; value: string }[] = [];
   function MarkedImage(width?: number, height?: number) {
     const image = new NativeImage(width, height);
-    marked.add(image);
+    Object.defineProperty(image, 'src', {
+      configurable: true,
+      get: () => '',
+      set: (value: string) => {
+        held.push({ image, value });
+      },
+    });
     return image;
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a constructor stand-in that returns the native image
   window.Image = MarkedImage as unknown as typeof Image;
-  Object.defineProperty(HTMLImageElement.prototype, 'src', {
-    ...descriptor,
-    set(this: HTMLImageElement, value: string) {
-      if (marked.has(this)) held.push({ image: this, value });
-      else setSrc.call(this, value);
-    },
-  });
   const restore = () => {
     window.Image = NativeImage;
-    Object.defineProperty(HTMLImageElement.prototype, 'src', descriptor);
   };
   restores.push(restore);
   return {
     held,
     release() {
       restore();
-      for (const { image, value } of held.splice(0)) setSrc.call(image, value);
+      for (const { image, value } of held.splice(0)) {
+        Reflect.deleteProperty(image, 'src');
+        image.src = value;
+      }
     },
   };
 }

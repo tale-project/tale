@@ -45,12 +45,26 @@ export interface Hold {
   refuse: (error: unknown) => void;
 }
 
-function deferred<T = void>() {
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+function deferred<T = void>(): Deferred<T> {
   let resolve: (value: T) => void = () => {};
   const promise = new Promise<T>((done) => {
     resolve = done;
   });
   return { promise, resolve };
+}
+
+function isImageType(value: unknown): value is ImageType {
+  return typeof value === 'string' && value in FIELD;
+}
+
+/** A request field as text, or `fallback` when it is not a string. */
+function text(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
 }
 
 /** A version that changes with the stored content, as the server's SHA-256
@@ -70,10 +84,10 @@ export function brandingServer(initial: Stored | null) {
   const holds: {
     key: string;
     taken: boolean;
-    arrived: ReturnType<typeof deferred<SentRequest>>;
-    commit: ReturnType<typeof deferred>;
-    answer: ReturnType<typeof deferred>;
-    lost: ReturnType<typeof deferred>;
+    arrived: Deferred<SentRequest>;
+    commit: Deferred<void>;
+    answer: Deferred<void>;
+    lost: Deferred<void>;
     refusal?: { error: unknown };
     outcome?: Promise<
       { ok: true; value: unknown } | { ok: false; error: unknown }
@@ -133,7 +147,7 @@ export function brandingServer(initial: Stored | null) {
       return { snapshot: null };
     }
     if (method === 'POST' && path === '/branding/save') {
-      const what = `save ${String(body?.accentColor ?? 'cleared')}`;
+      const what = `save ${text(body?.accentColor, 'cleared')}`;
       checkVersion(body, what);
       const next: Stored = {};
       for (const [key, value] of Object.entries(body ?? {})) {
@@ -146,7 +160,9 @@ export function brandingServer(initial: Stored | null) {
       return { hash: versionOf(stored) };
     }
     if (method === 'POST' && path === '/branding/images') {
-      const type = String(body?.type) as ImageType;
+      const type = body?.type;
+      if (!isImageType(type))
+        throw new Error(`unexpected image type ${text(type)}`);
       const ext = body?.mimeType === 'image/png' ? 'png' : 'svg';
       const filename = `${type}.${ext}`;
       const what = `upload ${filename}`;
@@ -154,19 +170,18 @@ export function brandingServer(initial: Stored | null) {
       log.push(what);
       images.set(
         filename,
-        `data:${String(body?.mimeType)};base64,${String(body?.base64)}`,
+        `data:${text(body?.mimeType)};base64,${text(body?.base64)}`,
       );
       return { filename, ...writeImage(type, filename) };
     }
     if (method === 'DELETE' && path.startsWith('/branding/images/')) {
-      const type = path.slice('/branding/images/'.length) as ImageType;
+      const type = path.slice('/branding/images/'.length);
+      if (!isImageType(type)) throw new Error(`unexpected image type ${type}`);
       log.push(`delete ${type}`);
       return { ok: true, ...writeImage(type, undefined) };
     }
     throw new Error(`unexpected ${method} ${path}`);
   }
-
-  const LOST = Symbol('lost');
 
   vi.mocked(backendFetch).mockImplementation(async (path, options) => {
     const method =
@@ -199,10 +214,10 @@ export function brandingServer(initial: Stored | null) {
       return settled;
     });
     const first = await Promise.race([
-      held.lost.promise.then(() => LOST),
+      held.lost.promise.then(() => ({ lost: true as const })),
       answered,
     ]);
-    if (first === LOST) throw new TypeError('Failed to fetch');
+    if ('lost' in first) throw new TypeError('Failed to fetch');
     if (first.ok) return first.value;
     throw first.error;
   });
