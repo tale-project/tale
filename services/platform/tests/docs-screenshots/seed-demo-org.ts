@@ -37,6 +37,7 @@ import {
   DEMO_FAILED_RUN,
   DEMO_HTTP,
   DEMO_INBOX,
+  DEMO_KNOWLEDGE_SEARCH,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
   DEMO_EMBEDDING_MODEL,
@@ -822,9 +823,11 @@ async function ensureProducts(
   // cannot latch once rows exist: settled is the empty-state hero OR a
   // data row.
   const productsEmpty = page.getByText(t('emptyStates.products.title'));
-  await expect(productsEmpty.first().or(dataRows(page).first())).toBeVisible({
-    timeout: TIMEOUT.FIRST_PAINT,
-  });
+  // The empty state is itself a row (its heading inside it), so the union
+  // can hold both — settle on whichever comes first.
+  await expect(
+    productsEmpty.first().or(dataRows(page).first()).first(),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   // The hero flashes while the query is in flight — grant it one window, or a
   // reseed files duplicates the create dialog then refuses to close on.
   if (await isPresent(productsEmpty)) await page.waitForTimeout(750);
@@ -2017,6 +2020,63 @@ async function ensureAutomationFailedRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/**
+ * The knowledge search page's run (DEMO_KNOWLEDGE_SEARCH): saved, installed
+ * in its project and deployed through the app API, then run live in that
+ * project once, after the documents above are indexed.
+ */
+async function ensureKnowledgeSearchRun(
+  page: Page,
+  orgId: string,
+  projects: ReadonlyMap<string, string>,
+): Promise<void> {
+  const { automation, document, input, name, project } = DEMO_KNOWLEDGE_SEARCH;
+  await page.goto(`/dashboard/${orgId}/automations`);
+  if (await hasRun(page, orgId, automation)) return;
+  const projectId = projects.get(project);
+  if (projectId === undefined) {
+    throw new Error(`The project ${project} was not seeded`);
+  }
+  const created = await appApi(page, orgId, `/automations/${automation}/save`, {
+    document,
+    message: name,
+    presentation: { name },
+    create: true,
+  });
+  // 201 is the saved version; 409: an earlier seed saved it already.
+  if (created.status !== 201 && created.status !== 409) {
+    throw new Error(
+      `Saving ${automation} answered ${created.status}: ${JSON.stringify(created.body)}`,
+    );
+  }
+  await appApiOk(page, orgId, `/automations/${automation}/projects`, {
+    projectIds: [projectId],
+  });
+  await appApiOk(page, orgId, `/automations/${automation}/deploy`, {
+    version: await latestVersion(page, orgId, automation),
+  });
+  await appApiOk(page, orgId, `/automations/${automation}/start`, {
+    mode: 'live',
+    projectId,
+    input,
+  });
+  await expect(async () => {
+    const answer = await appApi(
+      page,
+      orgId,
+      `/automations/runs?limit=1&name=${automation}`,
+    );
+    const runs =
+      typeof answer.body === 'object' &&
+      answer.body !== null &&
+      'runs' in answer.body &&
+      Array.isArray(answer.body.runs)
+        ? (answer.body.runs as { status?: unknown }[])
+        : [];
+    expect(runs[0]?.status).toBe('success');
+  }).toPass({ timeout: TIMEOUT.EXECUTION });
+}
+
 /** The HTTP page's automation (DEMO_HTTP), uploaded as a draft and never run. */
 async function ensureHttpAutomation(page: Page, orgId: string): Promise<void> {
   const editorRoute = `/dashboard/${orgId}/automations/${DEMO_HTTP.automation}/editor`;
@@ -2453,6 +2513,9 @@ export async function seedDemoOrg(
     ensureAutomationFailedRun(page, orgId),
   );
   await step('HTTP automation', () => ensureHttpAutomation(page, orgId));
+  await step('knowledge search run', () =>
+    ensureKnowledgeSearchRun(page, orgId, projects),
+  );
   if (relaunchId) {
     await step('launch task brief + ownership + discussion', () =>
       ensureLaunchTaskDetail(page, orgId, relaunchId),

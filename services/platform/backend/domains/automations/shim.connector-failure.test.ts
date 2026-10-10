@@ -110,6 +110,34 @@ describe('the connector action seam', () => {
     expect((caught as NodeFailure).failure).toEqual(refusal.failure);
   });
 
+  it('keeps a usage limit a budget refusal, never a connector one', async () => {
+    const refusal = Object.assign(
+      new ConnectorError('LIVE_BODY_FAILED', 'Usage limit reached.', {
+        connector: 'knowledge',
+        action: 'search',
+      }),
+      {
+        failure: {
+          reason: 'BUDGET_EXCEEDED' as const,
+          params: { detail: 'Usage limit reached.' },
+        },
+      },
+    );
+    runConnectorAction.mockRejectedValueOnce(refusal);
+    const handler = handlers['connectors/execute_action:runConnectorAction'];
+    if (!handler) throw new Error('no connector handler');
+    const caught = await handler({
+      connector: 'knowledge',
+      action: 'search',
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(NodeFailure);
+    expect((caught as NodeFailure).code).toBe('budget_exceeded');
+    expect((caught as NodeFailure).failure).toEqual(refusal.failure);
+  });
+
   it('lets any other failure through untouched', async () => {
     runConnectorAction.mockRejectedValueOnce(new Error('connection reset'));
     const handler = handlers['connectors/execute_action:runConnectorAction'];

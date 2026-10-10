@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.31.0",
+    "version": "3.32.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -42887,7 +42887,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.31.0"
+          "example": "3.32.0"
         }
       },
       "Location": {
@@ -48574,6 +48574,8 @@
               "HTTP_TOO_LARGE",
               "HTTP_NOT_JSON",
               "HTTP_RATE_LIMITED",
+              "KNOWLEDGE_NOT_CONFIGURED",
+              "KNOWLEDGE_UNAVAILABLE",
               "LLM_OUTPUT_INVALID",
               "LLM_PROVIDER",
               "AGENT_FAILED",
@@ -48583,6 +48585,7 @@
               "SUBAUTOMATION_TOO_DEEP",
               "APPROVAL_REJECTED",
               "EXECUTION_LIMIT",
+              "BUDGET_EXCEEDED",
               "EFFECT_IN_DOUBT_FAILED",
               "SIMULATED_FAILURE",
               "UNKNOWN"

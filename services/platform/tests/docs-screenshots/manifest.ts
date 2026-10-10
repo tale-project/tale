@@ -36,6 +36,7 @@ import {
   DEMO_FAILED_RUN,
   DEMO_HTTP,
   DEMO_INBOX,
+  DEMO_KNOWLEDGE_SEARCH,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
   DEMO_ORG_NAME,
@@ -2153,6 +2154,41 @@ export const SHOTS: readonly Shot[] = [
         name: t('automations.editor.fields.input'),
         exact: true,
       }),
+  },
+  {
+    // The Editor with the knowledge search page's automation: its search
+    // step selected, and the step's Input in the inspector — the question
+    // from the run's input, the documents, three passages.
+    name: 'automation-knowledge-search-step',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_KNOWLEDGE_SEARCH.automation}/editor`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, DEMO_KNOWLEDGE_SEARCH.node);
+    },
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.editor.fields.input'),
+        exact: true,
+      }),
+  },
+  {
+    // The seeded live run of that automation in Website relaunch, with its
+    // search step selected: what the step received, and the passages it
+    // returned from the project's files and the shared documents.
+    name: 'automation-knowledge-search-run',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_KNOWLEDGE_SEARCH.automation}/runs`,
+    prepare: async (page) => {
+      await runRow(page, 'success').click();
+      await page
+        .locator(
+          `[data-flow-node="${DEMO_KNOWLEDGE_SEARCH.node}"][data-flow-state="succeeded"]`,
+        )
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByText(t('automationRuns.data.returned'), { exact: true }),
   },
   {
     // Settings > API > MCP — outbound MCP-server management is retired, so the

@@ -302,6 +302,16 @@ runtime:
       explanation: An organization's automations may make a limited number of HTTP calls.
       cause: "Your organization's automations made more than {perMinute} HTTP calls in a minute, or {atOnce} at once."
       fix: Run again later, or call the API for fewer items at once.
+    KNOWLEDGE_NOT_CONFIGURED:
+      title: Knowledge search isn't set up
+      explanation: Searching the organization's knowledge needs an embedding model, and no model is configured.
+      cause: The organization has no embedding model.
+      fix: Ask an administrator to choose one in Settings › Data residency, then run again.
+    KNOWLEDGE_UNAVAILABLE:
+      title: Knowledge search failed
+      explanation: The embedding provider couldn't turn the query into a search, so nothing was searched.
+      cause: The provider of the organization's embedding model refused or failed the call.
+      fix: Run again; if it repeats, an administrator can check the embedding model in Settings › Data residency. The technical details say what failed.
     LLM_OUTPUT_INVALID:
       title: The model's answer didn't fit
       explanation: The step asked the model for a structured answer, and the reply didn't match the output schema.
@@ -347,6 +357,11 @@ runtime:
       explanation: A run may perform a limited number of step executions, counting every item and pass. This one reached it.
       cause: The run reached {limit} step executions.
       fix: Split the work into several automations, or go through fewer items.
+    BUDGET_EXCEEDED:
+      title: A usage limit stopped the step
+      explanation: What the step spends counts toward the limits that bind its run, and one of them has no room left.
+      cause: A usage limit refused the step before it spent anything.
+      fix: Run again once the limit resets, or ask an administrator to raise it. The technical details name the limit.
     EFFECT_IN_DOUBT_FAILED:
       title: Stopped at an interrupted write
       explanation: The run was interrupted while sending to a service, and a person chose to fail it.

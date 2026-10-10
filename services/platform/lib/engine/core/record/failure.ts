@@ -53,6 +53,8 @@ export const STEP_FAILURE_REASONS = [
   'HTTP_TOO_LARGE',
   'HTTP_NOT_JSON',
   'HTTP_RATE_LIMITED',
+  'KNOWLEDGE_NOT_CONFIGURED',
+  'KNOWLEDGE_UNAVAILABLE',
   'LLM_OUTPUT_INVALID',
   'LLM_PROVIDER',
   'AGENT_FAILED',
@@ -62,6 +64,7 @@ export const STEP_FAILURE_REASONS = [
   'SUBAUTOMATION_TOO_DEEP',
   'APPROVAL_REJECTED',
   'EXECUTION_LIMIT',
+  'BUDGET_EXCEEDED',
   'EFFECT_IN_DOUBT_FAILED',
   'SIMULATED_FAILURE',
   'UNKNOWN',
@@ -137,6 +140,9 @@ export const STEP_FAILURE_META: Readonly<
   HTTP_TOO_LARGE: { params: ['host'] },
   HTTP_NOT_JSON: { params: ['host'], optional: ['contentType'] },
   HTTP_RATE_LIMITED: { params: ['perMinute', 'atOnce'] },
+  KNOWLEDGE_NOT_CONFIGURED: NONE,
+  // The provider's or the platform's own words for what failed.
+  KNOWLEDGE_UNAVAILABLE: { params: [], technical: ['detail'] },
   LLM_OUTPUT_INVALID: { params: ['model'] },
   LLM_PROVIDER: { params: ['model', 'providerCode'] },
   AGENT_FAILED: { params: ['agentCode'], optional: ['harness', 'attempts'] },
@@ -146,6 +152,8 @@ export const STEP_FAILURE_META: Readonly<
   SUBAUTOMATION_TOO_DEEP: { params: ['max'] },
   APPROVAL_REJECTED: NONE,
   EXECUTION_LIMIT: { params: ['limit'] },
+  // The refusal's own sentence, which names the limit and when it resets.
+  BUDGET_EXCEEDED: { params: [], technical: ['detail'] },
   EFFECT_IN_DOUBT_FAILED: NONE,
   // The message the test gives the failure, in its author's words; absent
   // when the test gave none, or when it looked like a credential.
@@ -160,10 +168,18 @@ export const STEP_FAILURE_META: Readonly<
  * family itself, from the error it caught.
  */
 export function reasonFamily(reason: string): string {
-  if (reason.startsWith('CONNECTOR_') || reason.startsWith('HTTP_')) {
+  if (
+    reason.startsWith('CONNECTOR_') ||
+    reason.startsWith('HTTP_') ||
+    reason.startsWith('KNOWLEDGE_')
+  ) {
     return 'connector_error';
   }
   switch (reason) {
+    // A limit with no room left may have room at the next occurrence, so
+    // it is never a connector's permanent refusal.
+    case 'BUDGET_EXCEEDED':
+      return 'budget_exceeded';
     case 'LLM_OUTPUT_INVALID':
       return 'llm_output_invalid';
     case 'EXECUTION_LIMIT':

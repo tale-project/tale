@@ -302,6 +302,16 @@ runtime:
       explanation: Die Automatisierungen einer Organisation dürfen nur eine begrenzte Zahl von HTTP-Aufrufen machen.
       cause: Die Automatisierungen deiner Organisation haben mehr als {perMinute} HTTP-Aufrufe in einer Minute oder {atOnce} gleichzeitig gemacht.
       fix: Führe den Lauf später erneut aus, oder rufe die API für weniger Elemente auf einmal auf.
+    KNOWLEDGE_NOT_CONFIGURED:
+      title: Die Wissenssuche ist nicht eingerichtet
+      explanation: Die Suche im Wissen der Organisation braucht ein Embedding-Modell, und es ist keines konfiguriert.
+      cause: Die Organisation hat kein Embedding-Modell.
+      fix: Deine Administration wählt eines unter Einstellungen › Datenresidenz; führe den Lauf danach erneut aus.
+    KNOWLEDGE_UNAVAILABLE:
+      title: Die Wissenssuche ist fehlgeschlagen
+      explanation: Der Embedding-Anbieter konnte die Anfrage nicht in eine Suche umwandeln, deshalb wurde nichts gesucht.
+      cause: Der Anbieter des Embedding-Modells der Organisation hat den Aufruf abgelehnt oder ist dabei fehlgeschlagen.
+      fix: Führe den Lauf erneut aus; wenn es wieder passiert, prüft deine Administration das Embedding-Modell unter Einstellungen › Datenresidenz. Die technischen Details sagen, was fehlgeschlagen ist.
     LLM_OUTPUT_INVALID:
       title: Die Antwort des Modells passte nicht
       explanation: Der Schritt hat das Modell um eine strukturierte Antwort gebeten, und die Antwort entsprach nicht dem Ausgabeschema.
@@ -347,6 +357,11 @@ runtime:
       explanation: Ein Lauf darf nur eine begrenzte Zahl von Schrittausführungen machen, jedes Element und jeder Durchgang zählt mit. Dieser Lauf hat sie erreicht.
       cause: Der Lauf hat {limit} Schrittausführungen erreicht.
       fix: Teile die Arbeit auf mehrere Automatisierungen auf oder geh weniger Elemente durch.
+    BUDGET_EXCEEDED:
+      title: Ein Nutzungslimit hat den Schritt gestoppt
+      explanation: Was der Schritt ausgibt, zählt zu den Limits, die für seinen Lauf gelten, und eines davon hat keinen Spielraum mehr.
+      cause: Ein Nutzungslimit hat den Schritt abgelehnt, bevor er etwas ausgegeben hat.
+      fix: Führe den Lauf erneut aus, sobald das Limit zurückgesetzt ist, oder bitte deine Administration, es zu erhöhen. Die technischen Details nennen das Limit.
     EFFECT_IN_DOUBT_FAILED:
       title: Bei einem unterbrochenen Schreibvorgang gestoppt
       explanation: Der Lauf wurde beim Senden an einen Dienst unterbrochen, und eine Person hat entschieden, ihn fehlschlagen zu lassen.

@@ -41,6 +41,7 @@ import {
 import { withAutomationOrigin } from '../events/origin.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
 import { recordConnectorUsage } from '../governance/service.ts';
+import { knowledgeSearchForRuns } from '../knowledge/automation-search.ts';
 import {
   resolveAutomationRunAttribution,
   type SessionOpAttribution,
@@ -293,6 +294,8 @@ function assembleConnectorHost(sql: Sql): void {
     tasks: pgTaskStore(sql),
     documents: pgDocumentStore(sql),
     conversations: pgConversationStore(sql),
+    // A search step searches as its run: the run's scope and its spend.
+    knowledge: knowledgeSearchForRuns(sql),
     // Outbound mail attachments read from the org's own blob store — the
     // files domain refuses a ref outside the org before any byte moves.
     mailAttachments: ({ organizationId, storageRef }) =>

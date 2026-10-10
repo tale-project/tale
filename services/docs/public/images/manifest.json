@@ -214,6 +214,32 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-knowledge-search-run.webp",
+      "shot": "automation-knowledge-search-run",
+      "route": "/dashboard/:orgId/automations/launch-questions/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-knowledge-search-step.webp",
+      "shot": "automation-knowledge-search-step",
+      "route": "/dashboard/:orgId/automations/launch-questions/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-run-detail.webp",
       "shot": "automation-run-detail",
       "route": "/dashboard/:orgId/automations/github-triage-issues/runs",

@@ -664,6 +664,41 @@ output: '{{ nodes.count.output }}'
 `,
 } as const;
 
+/**
+ * The knowledge search page's demo: an automation installed in Website
+ * relaunch whose one step searches the organization's documents, deployed
+ * and run live once in that project — so its run shows real hits from the
+ * project's files and the shared documents, as the run may read them.
+ */
+export const DEMO_KNOWLEDGE_SEARCH = {
+  automation: 'launch-questions',
+  name: 'Answer launch questions',
+  node: 'related',
+  project: DEMO_PROJECTS[0].name,
+  input: { question: 'What happens on launch day?' },
+  document: {
+    version: 1,
+    name: 'launch-questions',
+    inputs: {
+      type: 'object',
+      required: ['question'],
+      properties: { question: { type: 'string' } },
+    },
+    nodes: [
+      {
+        id: 'related',
+        type: 'knowledge.search',
+        input: {
+          query: '{{ input.question }}',
+          corpus: 'documents',
+          limit: 3,
+        },
+      },
+    ],
+    output: '{{ nodes.related.output }}',
+  },
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

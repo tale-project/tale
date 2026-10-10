@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 177 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 179 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1304,6 +1304,21 @@ output:
       `CREDENTIAL_UNKNOWN` under the field with "Did you mean "Shop API"?"
       when a Shop API credential exists; a live run fails at the step
       saying the credential was not found.
+- [ ] `AUTO-F127` · **In an automation bound to the project Website
+      relaunch, add a `knowledge.search` step with `query: launch checklist`
+      and `corpus: documents`, deploy and **Run live** in that project** → the
+      step's output lists `hits`, best first, each with `text`, `title`,
+      `source: documents` and `documentId`; a file of the project and a
+      document every member shares can appear, a file of another project
+      never does. With `limit: 1` → one hit. A **Test run** answers with the
+      mock's example passage.
+- [ ] `AUTO-F128` · **In an organization with no embedding model (Settings ›
+      Data residency), run live a `knowledge.search` step** → the run fails
+      at the step with `automationRuns.reasons.KNOWLEDGE_NOT_CONFIGURED`,
+      saying where an administrator chooses a model. Choose one, use up a
+      project's cost limit and run the step again in that project → it fails
+      with `automationRuns.reasons.BUDGET_EXCEEDED`, and the technical
+      details name the limit.
 
 ## Boundary & error tests
 

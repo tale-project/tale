@@ -76,6 +76,8 @@ Four types are built in, and every connector action and platform native — know
 
 **`http.get`** and **`http.send`** call any HTTPS API that has no connector of its own, with a stored credential or without one. See [Call an API from an automation](/platform/automations/http).
 
+**`knowledge.search`** searches your documents and indexed websites and returns the passages that match a query best, for a later step to use. It reads what its run may read. See [Search your knowledge from an automation](/platform/automations/knowledge-search).
+
 ### Structured and unstructured output
 
 A **structured** output has named fields that you can reference with `nodes.<id>.output.<field>`. An **unstructured** output is free text. Reference it through `nodes.<id>.output.text` in a string expression; do not treat it as an object with additional fields.
