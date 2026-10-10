@@ -1,4 +1,9 @@
-import { ValueTree, type ValueMarks } from '@tale/ui/value-tree';
+import {
+  ValueTree,
+  type ValueMark,
+  type ValueMarkKind,
+  type ValueMarks,
+} from '@tale/ui/value-tree';
 
 const OUTPUT = {
   summary: 'Login fails on Safari',
@@ -8,7 +13,7 @@ const OUTPUT = {
   customer: { name: 'Acme', plan: 'pro' },
 };
 
-const MARKS: ValueMarks = new Map([
+const MARKS: ValueMarks = new Map<string, ValueMarkKind | ValueMark>([
   ['/score', 'added'],
   ['/labels', { kind: 'type-changed', before: 'bug' }],
   ['/priority', { kind: 'changed', before: 1 }],

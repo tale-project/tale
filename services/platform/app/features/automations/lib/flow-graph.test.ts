@@ -440,9 +440,9 @@ describe('Start and End', () => {
   });
 
   it('holds End’s shape row whenever the check may work it out, so End never grows', () => {
-    const doc = shipped('github/triage-issues');
+    const triage = shipped('github/triage-issues');
     const shapeOf = (extra: Partial<FlowGraphContext>) => {
-      const end = build(doc, extra).graph.nodes.at(-1);
+      const end = build(triage, extra).graph.nodes.at(-1);
       if (end?.kind !== 'exit') throw new Error('no End');
       return end.shape;
     };
