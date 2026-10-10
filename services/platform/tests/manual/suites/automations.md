@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 185 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 186 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1362,6 +1362,15 @@ output:
       change; pick another model with the keyboard and Use this model →
       both steps show it, Save and Discard arm, and Discard brings the old
       model back. The button is absent when no `llm` step names a model.
+- [ ] `AUTO-F135` · **As an owner, on the General tab of an automation
+      whose step sends a Slack message, turn on Slack · Send message under
+      Runs without approval (`automations.allowances.title`), save, and run it
+      live** → the step posts without an approval card; the canvas box shows
+      `automations.canvas.node.runsWithoutApproval`, and the audit log shows
+      the grant. Another automation's Slack step still waits for approval. As
+      a developer, the switches are disabled with
+      `automations.allowances.readOnly`. Add an `approval_policy` rule
+      `slack.send_message: require_approval` → the run waits again.
 
 ## Boundary & error tests
 

@@ -597,13 +597,13 @@ editor:
     modelProvider: Anbieter
 allowances:
   title: Läuft ohne Freigabe
-  hint: Schreibvorgänge, die diese Automatisierung machen darf, ohne dass eine Person jeden Lauf freigibt. Eine Regel der Freigaberichtlinie deiner Organisation, die eine Person verlangt, hat weiterhin Vorrang.
+  hint: Schreibzugriffe, die diese Automatisierung ausführen darf, ohne dass eine Person jeden Lauf freigibt. Eine Regel der Freigaberichtlinie deiner Organisation, die eine Person verlangt, hat weiterhin Vorrang.
   action: '{connector} · {action}'
   grantedBy: 'Erlaubt von {name} am {date}.'
   formerMember: einem ehemaligen Mitglied
   asks: Fragt vor jedem Live-Lauf eine Person.
   unused: Kein Schritt der neuesten Version macht das.
-  none: Diese Automatisierung macht keine Schreibvorgänge, die auf eine Freigabe warten.
+  none: Diese Automatisierung führt keine Schreibzugriffe aus, die auf eine Freigabe warten.
   readOnly: Nur Inhaber und Admins können das ändern.
 bindings:
   title: Projekte
