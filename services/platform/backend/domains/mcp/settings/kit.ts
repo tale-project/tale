@@ -70,7 +70,7 @@ interface ParseFailure {
 }
 
 /** The problems of a failed parse, as issues of the change. */
-export function configIssues(error: ParseFailure): SettingsIssue[] {
+function configIssues(error: ParseFailure): SettingsIssue[] {
   return error.issues.map((issue) => ({
     path: configPointer(issue.path),
     code: issue.code,
@@ -109,7 +109,7 @@ export function droppedMembers(
 }
 
 /** The refusal of a change whose config its kind does not take. */
-export function invalidSettings(
+function invalidSettings(
   what: string,
   issues: readonly SettingsIssue[],
 ): SettingsRefusalError {
