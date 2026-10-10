@@ -93,6 +93,7 @@ beforeEach(() => {
   mocks.refetch.mockResolvedValue(null);
   mocks.data = {
     reviewer: { kind: 'inherit' },
+    resolvedReviewer: { kind: 'agent', agentId: 'reviewer' },
     projectReviewer: { kind: 'agent', agentId: 'reviewer' },
     pendingReview: {
       approvalId: 'approval-1',
@@ -282,6 +283,55 @@ describe('TaskReviewerField', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
+  it.each([true, false])(
+    'names the inherited person before a review exists (editable: %s)',
+    async (canEdit) => {
+      mocks.data = {
+        reviewer: { kind: 'inherit' },
+        resolvedReviewer: { kind: 'user', userId: 'alice' },
+        projectReviewer: { kind: 'human_default' },
+        pendingReview: null,
+      };
+      const { user } = render(
+        <TaskReviewerField task={task} canEdit={canEdit} />,
+      );
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+      expect(
+        screen.queryByText('Project default · person'),
+      ).not.toBeInTheDocument();
+      if (canEdit) {
+        await user.click(screen.getByRole('button', { name: 'Reviewer' }));
+        expect(
+          screen.getByRole('button', { name: 'Reviewer' }),
+        ).toHaveTextContent('Alice');
+        expect(
+          screen.getByRole('option', { name: 'Project default · person' }),
+        ).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+        expect(
+          screen.getByRole('button', { name: 'Reviewer' }),
+        ).toHaveTextContent('Alice');
+      } else {
+        expect(
+          screen.queryByRole('button', { name: 'Reviewer' }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
+
+  it('does not invent a person when no eligible reviewer can be routed', () => {
+    mocks.data = {
+      reviewer: { kind: 'inherit' },
+      resolvedReviewer: null,
+      projectReviewer: { kind: 'human_default' },
+      pendingReview: null,
+    };
+    render(<TaskReviewerField task={task} canEdit />);
+    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
+      'No reviewer',
+    );
+  });
+
   it('reports a stale decision once and reloads instead of retrying a handoff automatically', async () => {
     mocks.mutate.mockRejectedValue(
       new AppError({ code: 'TASK_REVIEWER_STALE' }),
@@ -327,6 +377,7 @@ describe('TaskReviewerField', () => {
   it('discloses a missing review grant without granting it or starting a run', () => {
     mocks.data = {
       reviewer: { kind: 'agent', agentId: 'reviewer' },
+      resolvedReviewer: { kind: 'agent', agentId: 'reviewer' },
       projectReviewer: { kind: 'human_default' },
       pendingReview: null,
     };

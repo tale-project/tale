@@ -68,7 +68,7 @@ function describeReviewer(
           reviewer: resolveActor('agent', projectReviewer.agentId).name,
         })
       : t('reviewer.projectDefaultHuman');
-  const label = resolved?.name ?? inheritLabel;
+  const label = resolved?.name ?? t('reviewer.none');
   return { effective, actorId, resolved, inheritLabel, label };
 }
 

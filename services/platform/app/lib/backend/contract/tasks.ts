@@ -66,6 +66,8 @@ export type TaskStatusWriteResult = {
 
 export interface TaskReviewerState {
   reviewer: TaskReviewer;
+  /** Live routing recipient before a review is captured. */
+  resolvedReviewer: TaskReviewRecipient | null;
   projectReviewer: ProjectTaskReviewer;
   pendingReview: PendingTaskReview | null;
 }

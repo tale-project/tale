@@ -11,8 +11,9 @@ import {
   getPendingReviewForTask,
   retargetPendingTaskReview,
   reviewerEligibility,
+  resolveTaskReviewer,
 } from './reviews.ts';
-import { type TaskRow, updateTask } from './service.ts';
+import { getTaskReviewer, type TaskRow, updateTask } from './service.ts';
 
 vi.mock('../collab/service.ts', () => ({
   autoSubscribe: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('./reviews.ts', () => ({
   requestTaskReview: vi.fn(),
   retargetPendingTaskReview: vi.fn(),
   reviewerEligibility: vi.fn(),
+  resolveTaskReviewer: vi.fn(),
 }));
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
@@ -402,5 +404,26 @@ describe('legacy reviewer edits preserve delegated ownership', () => {
       updateTask(tx, auth, { taskId: 't-1', reviewerUserId: null }),
     ).rejects.toMatchObject({ code: 'TASK_REVIEWER_HANDOFF_REQUIRED' });
     expect(statements.some((text) => text.startsWith('UPDATE'))).toBe(false);
+  });
+});
+
+describe('getTaskReviewer — live routing identity', () => {
+  it('returns the routed person before a review exists without changing inheritance', async () => {
+    const task = taskRow({ reviewerUserId: null, status: 'todo' });
+    const tx = fakeTx(task);
+    vi.mocked(resolveTaskReviewer).mockResolvedValue({
+      kind: 'user',
+      userId: 'u-owner',
+    });
+    expect(await getTaskReviewer(tx, auth, task.id)).toEqual({
+      reviewer: { kind: 'inherit' },
+      resolvedReviewer: { kind: 'user', userId: 'u-owner' },
+      projectReviewer: { kind: 'human_default' },
+      pendingReview: null,
+    });
+    expect(resolveTaskReviewer).toHaveBeenCalledWith(tx, task);
+    expect(
+      statements.every((statement) => statement.startsWith('SELECT')),
+    ).toBe(true);
   });
 });
