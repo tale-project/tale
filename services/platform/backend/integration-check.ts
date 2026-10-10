@@ -72,6 +72,7 @@ import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
+import { checkApprovalAllowances } from './domains/automations/approval-allowances.integration.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
 import { checkEventScopeAndIsolation } from './domains/automations/event-scope.integration.ts';
@@ -65054,6 +65055,10 @@ async function main(): Promise<void> {
       [
         'checkAutomationMessages',
         () => checkAutomationMessages(sql, authCtx, record),
+      ],
+      [
+        'checkApprovalAllowances',
+        () => checkApprovalAllowances(sql, authCtx, record),
       ],
       [
         'checkTaskSourceThread',
