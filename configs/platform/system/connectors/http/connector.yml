@@ -29,6 +29,13 @@ configFields:
       The address every call with this credential stays under, such as
       https://api.example.com/v2. A call may name a path below it, or a full
       URL that starts with it.
+    i18n:
+      de:
+        label: 'Basis-URL'
+        description: 'Die Adresse, unter der jeder Aufruf mit diesen Zugangsdaten bleibt, etwa https://api.example.com/v2. Ein Aufruf kann einen Pfad darunter nennen oder eine vollständige URL, die mit ihr beginnt.'
+      fr:
+        label: 'URL de base'
+        description: 'L’adresse sous laquelle reste chaque appel avec ces identifiants, comme https://api.example.com/v2. Un appel peut nommer un chemin en dessous, ou une URL complète qui commence par elle.'
   - key: apiKeyHeader
     label: API key header
     type: string
@@ -36,6 +43,13 @@ configFields:
     description: >-
       The request header an API key is sent in. Used only by an API key
       credential.
+    i18n:
+      de:
+        label: 'API-Key-Header'
+        description: 'Der Request-Header, in dem ein API-Key gesendet wird. Nur für Zugangsdaten mit API-Key verwendet.'
+      fr:
+        label: 'En-tête de la clé d’API'
+        description: 'L’en-tête de requête dans lequel une clé d’API est envoyée. Utilisé uniquement par des identifiants à clé d’API.'
 auth:
   - method: bearer
   - method: api-key
