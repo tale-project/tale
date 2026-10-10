@@ -142,7 +142,13 @@ export const STEP_FAILURE_META: Readonly<
   HTTP_RATE_LIMITED: { params: ['perMinute', 'atOnce'] },
   KNOWLEDGE_NOT_CONFIGURED: NONE,
   // The provider's or the platform's own words for what failed.
-  KNOWLEDGE_UNAVAILABLE: { params: [], technical: ['detail'] },
+  KNOWLEDGE_UNAVAILABLE: {
+    params: [],
+    // How the provider failed, in the platform's code: an upstream failure
+    // may pass next time, a refused account will not.
+    optional: ['providerCode'],
+    technical: ['detail', 'providerCode'],
+  },
   LLM_OUTPUT_INVALID: { params: ['model'] },
   LLM_PROVIDER: { params: ['model', 'providerCode'] },
   AGENT_FAILED: { params: ['agentCode'], optional: ['harness', 'attempts'] },
@@ -189,7 +195,10 @@ export function reasonFamily(reason: string, params?: FailureParams): string {
   if (
     TRANSIENT_CONNECTOR_REASONS.has(reason) ||
     ((reason === 'HTTP_STATUS' || reason === 'CONNECTOR_FAILED') &&
-      busyStatus(params))
+      busyStatus(params)) ||
+    // The embedding provider failing on its side, not refusing the account.
+    (reason === 'KNOWLEDGE_UNAVAILABLE' &&
+      params?.providerCode === 'EMBEDDING_UPSTREAM_ERROR')
   ) {
     return 'connector_unavailable';
   }
