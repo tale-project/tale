@@ -33,6 +33,7 @@ const { state } = vi.hoisted(() => ({
       enabled: boolean;
       rules: unknown[];
     } | null,
+    accessConfig: null as Record<string, unknown> | null,
     result: undefined as unknown,
   },
 }));
@@ -46,7 +47,15 @@ function refreshPolicy() {
 refreshPolicy();
 
 vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => state.result,
+  useGovernancePolicy: (_organizationId: string, policyType: string) => ({
+    isLoading: state.isLoading,
+    data: state.isLoading
+      ? undefined
+      : {
+          config:
+            policyType === 'model_access' ? state.accessConfig : state.config,
+        },
+  }),
 }));
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
@@ -88,11 +97,13 @@ function setLoaded() {
       { scope: 'default', providerName: 'openai', modelId: 'openai/gpt-4o' },
     ],
   };
+  state.accessConfig = null;
   refreshPolicy();
 }
 function setLoading() {
   state.isLoading = true;
   state.config = null;
+  state.accessConfig = null;
   refreshPolicy();
 }
 

@@ -1422,6 +1422,9 @@ modelAccess:
   confirm: Confirmer
   saved: La politique d'accès aux modèles a été mise à jour
   saveFailed: Échec de l'enregistrement de la politique d'accès aux modèles
+  targetRequired: Sélectionne une cible pour cette règle.
+  missingTarget: Cible manquante
+  targetsNeedRepair: Certaines règles n’ont pas de cible et ne s’appliquent à personne. Sélectionne une cible pour chaque règle ou supprime-la. Les modifications ne sont enregistrées que lorsque toutes les règles ont une cible.
   removeDefaultConfirmTitle: Révoquer l'accès à un modèle par défaut actif ?
   removeDefaultConfirmBody:
     'Les règles de modèle par défaut suivantes utilisent

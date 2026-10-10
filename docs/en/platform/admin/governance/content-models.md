@@ -18,6 +18,10 @@ The default is used when there is no explicit model choice. A team rule takes pr
 
 Under **Model access**, choose the mode and add rules for the users, teams, roles, or default scope you want to cover.
 
+User, team and role rules require a target before you can confirm them, in either mode. The default scope applies to everyone and needs no target. Changing scope clears the previous target; select a target in the new scope.
+
+Older rules saved without a target remain visible as **Missing target**, with a warning: they do not apply to anyone. Edit each affected rule to select its intended target, or delete it. Changes are not saved until every targeted rule has a target; completing the last repair saves the corrected policy. Tale does not guess targets or discard existing rules automatically.
+
 | Mode | Effect for a matching rule |
 | --- | --- |
 | **Allowlist** | Only listed allowed models may be used; a blocked model remains denied. |

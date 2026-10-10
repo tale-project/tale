@@ -18,6 +18,10 @@ Der Standard greift, wenn kein Modell ausdrücklich gewählt wurde. Eine Teamreg
 
 Wähle unter **Modellzugriff** den Modus und ergänze Regeln für Personen, Teams, Rollen oder den Standardbereich.
 
+Regeln für Personen, Teams und Rollen benötigen in beiden Modi ein Ziel, bevor du sie bestätigen kannst. Der Standardbereich gilt für alle und benötigt kein Ziel. Wenn du den Bereich änderst, wird das bisherige Ziel zurückgesetzt. Wähle dann ein Ziel im neuen Bereich.
+
+Ältere Regeln, die ohne Ziel gespeichert wurden, bleiben mit **Ziel fehlt** und einem Warnhinweis sichtbar: Sie gelten für niemanden. Bearbeite jede betroffene Regel und wähle das vorgesehene Ziel oder lösche sie. Änderungen werden erst gespeichert, wenn jede gezielte Regel ein Ziel hat. Mit der letzten Korrektur wird die korrigierte Richtlinie gespeichert. Tale errät keine Ziele und entfernt bestehende Regeln nicht automatisch.
+
 | Modus | Wirkung einer passenden Regel |
 | --- | --- |
 | Erlaubte Liste | Nur aufgeführte erlaubte Modelle dürfen verwendet werden; ein gesperrtes Modell bleibt abgelehnt. |

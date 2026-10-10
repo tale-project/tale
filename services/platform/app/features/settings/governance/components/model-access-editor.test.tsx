@@ -58,12 +58,14 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
-const STABLE_MEMBERS = { members: [] };
+const STABLE_MEMBERS = {
+  members: [{ userId: 'member-proof', displayName: 'Proof member' }],
+};
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => STABLE_MEMBERS,
 }));
 
-const STABLE_TEAMS = { teams: [] };
+const STABLE_TEAMS = { teams: [{ id: 'team-proof', name: 'Proof team' }] };
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => STABLE_TEAMS,
 }));
@@ -100,6 +102,11 @@ function setLoading() {
   state.isLoading = true;
   state.config = null;
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete window.__ENV__;
+});
 
 describe('ModelAccessEditor', () => {
   beforeEach(() => {

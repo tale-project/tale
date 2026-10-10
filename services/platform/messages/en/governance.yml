@@ -1334,6 +1334,9 @@ modelAccess:
   confirm: Confirm
   saved: Model access policy updated
   saveFailed: Couldn't save model access policy
+  targetRequired: Select a target for this rule.
+  missingTarget: Missing target
+  targetsNeedRepair: Some rules have no target and do not apply to anyone. Select a target for each rule or delete it. Changes are not saved until all rules have targets.
   removeDefaultConfirmTitle: Remove permission for active default model?
   removeDefaultConfirmBody:
     'The following default model rule(s) currently assign

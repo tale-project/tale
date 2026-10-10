@@ -1380,6 +1380,9 @@ modelAccess:
   confirm: Bestätigen
   saved: Modellzugriffsrichtlinie aktualisiert
   saveFailed: Modellzugriffsrichtlinie konnte nicht gespeichert werden
+  targetRequired: Wähle ein Ziel für diese Regel.
+  missingTarget: Ziel fehlt
+  targetsNeedRepair: Einige Regeln haben kein Ziel und gelten für niemanden. Wähle für jede Regel ein Ziel oder lösche sie. Änderungen werden erst gespeichert, wenn alle Regeln ein Ziel haben.
   removeDefaultConfirmTitle: Berechtigung für aktives Standardmodell entfernen?
   removeDefaultConfirmBody:
     'Folgende Standardmodell-Regel(n) verwenden Modelle,
