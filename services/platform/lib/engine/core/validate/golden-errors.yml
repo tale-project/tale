@@ -198,7 +198,7 @@ unknown-node-type:
     - code: UNKNOWN_NODE_TYPE
       nodeId: main
       message: unknown node type "transfrom"
-      hint: 'did you mean "transform"? registered types include: transform, llm, agent, subautomation, weather.current, mail.send, web.fetch_text — search the catalog for the full list'
+      hint: 'did you mean "transform"? registered types include: transform, llm, agent, subautomation, weather.current, http.get, mail.send, web.fetch_text — search the catalog for the full list'
       at:
         pointer: /nodes/0/type
       params:
@@ -211,7 +211,7 @@ unknown-node-type-keyword:
     - code: UNKNOWN_NODE_TYPE
       nodeId: fetch
       message: unknown node type "connector"
-      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, agent, subautomation, weather.current, mail.send, web.fetch_text — search the catalog for the full list'
+      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, agent, subautomation, weather.current, http.get, mail.send, web.fetch_text — search the catalog for the full list'
       at:
         pointer: /nodes/0/type
       params:
@@ -758,6 +758,45 @@ connector-input-invalid:
         property: units
         keyword: enum
         detail: must be equal to one of the allowed values
+  warnings: []
+http-input-checks:
+  errors:
+    - code: HTTP_SECRET_IN_URL
+      nodeId: orders
+      path: /url
+      message: 'node "orders" (http.get): the URL carries a credential in "api_key"'
+      hint: store the credential in Settings → Connectors and name it in the step's credential field
+      at:
+        pointer: /nodes/0/input/url
+      params:
+        node: orders
+        type: http.get
+        place: api_key
+    - code: HTTP_HEADER_RESERVED
+      nodeId: orders
+      path: /headers/Authorization
+      message: 'node "orders" (http.get): the step sets the Authorization header, which only a credential sets'
+      hint: remove the header and name a credential in the step's credential field
+      at:
+        pointer: /nodes/0/input/headers/Authorization
+        subject: key
+      params:
+        node: orders
+        type: http.get
+        header: Authorization
+  warnings:
+    - code: HTTP_URL_NOT_HTTPS
+      nodeId: orders
+      path: /url
+      message: 'node "orders" (http.get): the URL is plain http, which a call without a credential refuses for a public host'
+      hint: use the https:// address
+      at:
+        pointer: /nodes/0/input/url
+      params:
+        node: orders
+        type: http.get
+http-credentialed-step:
+  errors: []
   warnings: []
 output-missing:
   errors: []

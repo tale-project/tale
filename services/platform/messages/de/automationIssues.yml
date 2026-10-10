@@ -303,6 +303,21 @@ codes:
     explanation: Jede Capability legt fest, welche Eingabe sie akzeptiert. Eine unpassende Eingabe wird abgelehnt, deshalb schlägt die Node fehl.
     cause: '{keyword, select, required {{nodeLabel} ({type}) braucht die Eingabe „{property}“.} additionalProperties {{nodeLabel} ({type}) akzeptiert keine Eingabe „{property}“.} other {{property, select, none {Die Eingabe von {nodeLabel} ({type}) passt nicht zu dem, was die Capability akzeptiert.} other {Die Eingabe „{property}“ von {nodeLabel} ({type}) passt nicht zu dem, was die Capability akzeptiert.}}}}'
     fix: '{suggestion, select, none {Passe die Eingabe an das an, was die Capability akzeptiert. Die technischen Details zeigen, was die Prüfung gefunden hat.} other {Meintest du „{suggestion}“?}}'
+  HTTP_URL_NOT_HTTPS:
+    title: Adresse ist kein HTTPS
+    explanation: Ein HTTP-Schritt ohne Zugangsdaten ruft öffentliche Adressen nur über HTTPS auf, deshalb lehnt ein Lauf diese Adresse ab.
+    cause: '{nodeLabel} ruft eine einfache http://-Adresse auf.'
+    fix: Verwende die https://-Adresse. Einfaches http erreicht nur einen privaten Host, den diese Installation erlaubt.
+  HTTP_SECRET_IN_URL:
+    title: Zugangsdaten in der Adresse
+    explanation: Zugangsdaten in der Adresse eines Schritts werden mit jeder Version gespeichert und erscheinen in jedem Lauf. Stattdessen melden gespeicherte Zugangsdaten die Anfrage an.
+    cause: '{place, select, password {Die Adresse von {nodeLabel} enthält ein Passwort.} other {Die Adresse von {nodeLabel} enthält Zugangsdaten in „{place}“.}}'
+    fix: Speichere sie unter Einstellungen → Connectors als HTTP-Zugangsdaten, nenne diese Zugangsdaten im Feld credential des Schritts und entferne sie aus der Adresse.
+  HTTP_HEADER_RESERVED:
+    title: Header gehört zu den Zugangsdaten
+    explanation: Authorization und Cookie kommen aus den Zugangsdaten des Schritts, nie vom Schritt selbst, deshalb lehnt ein Lauf diesen Schritt ab.
+    cause: '{nodeLabel} setzt den Header {header}.'
+    fix: Entferne den Header und nenne Zugangsdaten im Feld credential des Schritts.
   SUBAUTOMATION_INPUT_INVALID:
     title: Eingabe passt nicht zur aufgerufenen Automatisierung
     explanation: Die Werte, die an die aufgerufene Automatisierung gehen, passen nicht zu dem, was sie akzeptiert. Sie startet deshalb nicht, und diese Node schlägt fehl.

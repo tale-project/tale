@@ -1,5 +1,7 @@
 quote: «{text}»
 codes:
+  HTTP_SECRET_IN_URL:
+    cause: '{place, select, password {Die Adresse von {nodeLabel} enthält ein Passwort.} other {Die Adresse von {nodeLabel} enthält Zugangsdaten in «{place}».}}'
   UNKNOWN_TOP_FIELD:
     cause: Das Dokument hat ein Feld «{field}».
   NAME_INVALID:

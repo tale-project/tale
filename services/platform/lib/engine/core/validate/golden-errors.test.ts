@@ -135,6 +135,32 @@ beforeAll(async () => {
       mock: () => ({ tempC: 21 }),
     },
   });
+  // The HTTP connector's read, as its connector declares it in short.
+  registerNodeType({
+    type: 'http.get',
+    kind: 'connector',
+    outputKind: 'structured',
+    description: 'test connector: an HTTP GET',
+    allowedFields: ['input', 'credential'],
+    requiredFields: ['input'],
+    connector: {
+      name: 'http.get',
+      description: 'read from an HTTPS API',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          url: { type: 'string' },
+          query: { type: 'object' },
+          headers: { type: 'object', additionalProperties: { type: 'string' } },
+        },
+        required: ['url'],
+        additionalProperties: false,
+      },
+      outputSignature: '{ status: number, body: unknown }',
+      hasEffect: false,
+      mock: () => ({ status: 200, body: null }),
+    },
+  });
   registerNodeType({
     type: 'mail.send',
     kind: 'connector',
@@ -516,6 +542,30 @@ const fixtures: Record<string, unknown> = {
       },
     ],
     output: '{{ nodes.w.output }}',
+  }),
+  'http-input-checks': flow({
+    nodes: [
+      {
+        id: 'orders',
+        type: 'http.get',
+        input: {
+          url: 'http://api.example.com/orders?api_key=abcdef0123456789abcd',
+          headers: { Authorization: 'Basic x', Accept: 'application/json' },
+        },
+      },
+    ],
+    output: '{{ nodes.orders.output }}',
+  }),
+  'http-credentialed-step': flow({
+    nodes: [
+      {
+        id: 'orders',
+        type: 'http.get',
+        credential: 'Shop API',
+        input: { url: '/orders', query: { status: 'open' } },
+      },
+    ],
+    output: '{{ nodes.orders.output }}',
   }),
   'output-missing': {
     version: 1,
@@ -1040,6 +1090,9 @@ const VALIDATION_CODES: IssueCode[] = [
   'INPUT_KEY_UNKNOWN',
   'TEMPLATE_UNTERMINATED',
   'CONNECTOR_INPUT_INVALID',
+  'HTTP_URL_NOT_HTTPS',
+  'HTTP_SECRET_IN_URL',
+  'HTTP_HEADER_RESERVED',
   'LLM_MODEL_UNAVAILABLE',
   'SKILL_UNKNOWN',
   'CONNECTOR_NOT_CONNECTED',
