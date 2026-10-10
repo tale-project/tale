@@ -277,6 +277,39 @@ describe('the Docker Engine floor', () => {
     expect(result.detail).toContain('Podman Engine');
   });
 
+  test('reads Podman as another engine though the Docker CLI adds an Engine component for it', () => {
+    // What `docker version --format '{{json .Server}}'` prints against a
+    // Podman socket: the CLI appends {Name: 'Engine'} with Podman's version.
+    const podmanViaDockerCli = {
+      Platform: { Name: 'linux/arm64/fedora-40' },
+      Version: '5.2.0',
+      Components: [
+        { Name: 'Podman Engine', Version: '5.2.0' },
+        { Name: 'Conmon', Version: 'conmon version 2.1.12' },
+        { Name: 'OCI Runtime (crun)', Version: 'crun version 1.17' },
+        { Name: 'Engine', Version: '5.2.0' },
+      ],
+    };
+    const result = checkDockerEngine(podmanViaDockerCli);
+    expect(result.status).toBe('warn');
+    expect(result.detail).toContain('Podman Engine');
+    expect(result.detail).not.toContain(', Engine');
+  });
+
+  test('still judges Docker Desktop by its Engine component', () => {
+    const desktop = {
+      Platform: { Name: 'Docker Desktop 4.37.1 (178610)' },
+      Version: '27.4.0',
+      Components: [
+        { Name: 'Engine', Version: '27.4.0' },
+        { Name: 'containerd', Version: '1.7.21' },
+        { Name: 'runc', Version: '1.1.13' },
+        { Name: 'docker-init', Version: '0.19.0' },
+      ],
+    };
+    expect(checkDockerEngine(desktop)).toMatchObject({ status: 'ok' });
+  });
+
   test('unreadable metadata is an advisory, not a refusal', () => {
     for (const server of [
       null,
