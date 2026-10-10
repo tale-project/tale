@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { defaultLocale as appDefaultLocale } from '../../../lib/i18n/config.ts';
+import { classifyMessageLink } from '../../../lib/shared/notifications/message-link.ts';
 import { clampToSupportedLocale } from '../../../lib/shared/utils/get-organization-default-locale.ts';
 import { sendConnectorAction } from '../../core/conversations/connector_slug.ts';
 import { ACTIONABLE_EMAIL_CONNECTORS } from '../../core/notifications/actionable_email_connectors.ts';
@@ -132,16 +133,24 @@ export async function runNotificationEmailJob(
     notification.organizationId,
   );
   const params = notification.params ?? {};
-  const deepLink = buildPersonalNotificationUrl({
-    organizationId: notification.organizationId,
-    ...(notification.taskId !== null ? { taskId: notification.taskId } : {}),
-    params,
-  });
+  // An automation's message that links to the web takes its button there,
+  // named for what it is; every other row opens its page in Tale.
+  const webLink = classifyMessageLink(params.link, notification.organizationId);
   const { subject, text, html } = renderActionableEmailContent(locale, {
     titleKey: notification.titleKey,
     bodyKey: notification.bodyKey,
     params,
-    deepLink,
+    ...(webLink?.kind === 'web'
+      ? { deepLink: webLink.url, ctaKey: 'email.openLink' as const }
+      : {
+          deepLink: buildPersonalNotificationUrl({
+            organizationId: notification.organizationId,
+            ...(notification.taskId !== null
+              ? { taskId: notification.taskId }
+              : {}),
+            params,
+          }),
+        }),
   });
 
   const { connector, action } = sendConnectorAction(mailbox.connectorSlug);

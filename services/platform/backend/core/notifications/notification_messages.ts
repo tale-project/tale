@@ -89,11 +89,15 @@ export const ACTIONABLE_INBOX_KEYS = [
   'usageCreditsRequestedBody',
   'automationTriggerPaused',
   'automationTriggerPausedBody',
+  'automationMessage',
+  'automationMessageBody',
+  'automationMessageBodyNoText',
   'agentRunFailed',
   'agentRunFailedBody',
   'agentRunFailedBudgetBody',
   'agentRunFailedSetupBody',
   'email.cta',
+  'email.openLink',
   'email.footer',
 ] as const;
 
@@ -166,6 +170,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     automationTriggerPaused: 'Schedule paused',
     automationTriggerPausedBody:
       '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.',
+    automationMessage: '{title}',
+    automationMessageBody:
+      '{message}\n\nSent by the automation "{automation}".',
+    automationMessageBodyNoText: 'Sent by the automation "{automation}".',
     agentRunFailed: 'Agent run failed',
     agentRunFailedBody:
       'The agent couldn\'t finish "{title}". Open the task to see why and start it again.',
@@ -174,6 +182,7 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     agentRunFailedSetupBody:
       'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project\'s Agents tab.',
     'email.cta': 'Open in Tale',
+    'email.openLink': 'Open the link',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
   },
@@ -246,6 +255,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     automationTriggerPaused: 'Zeitplan pausiert',
     automationTriggerPausedBody:
       '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.',
+    automationMessage: '{title}',
+    automationMessageBody:
+      '{message}\n\nGesendet von der Automatisierung "{automation}".',
+    automationMessageBodyNoText:
+      'Gesendet von der Automatisierung "{automation}".',
     agentRunFailed: 'Agenten-Lauf fehlgeschlagen',
     agentRunFailedBody:
       'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.',
@@ -254,6 +268,7 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     agentRunFailedSetupBody:
       'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.',
     'email.cta': 'In Tale öffnen',
+    'email.openLink': 'Link öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
   },
@@ -325,6 +340,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     automationTriggerPaused: 'Planification en pause',
     automationTriggerPausedBody:
       '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.',
+    automationMessage: '{title}',
+    automationMessageBody:
+      '{message}\n\nEnvoyé par l’automatisation « {automation} ».',
+    automationMessageBodyNoText:
+      'Envoyé par l’automatisation « {automation} ».',
     agentRunFailed: 'Échec de l’exécution de l’agent',
     agentRunFailedBody:
       'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.',
@@ -333,6 +353,7 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     agentRunFailedSetupBody:
       'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.',
     'email.cta': 'Ouvrir dans Tale',
+    'email.openLink': 'Ouvrir le lien',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',
   },
@@ -376,11 +397,13 @@ export function renderActionableEmailContent(
     bodyKey: string;
     params?: Record<string, unknown>;
     deepLink: string;
+    /** The button's words: "Open in Tale" unless the link leaves Tale. */
+    ctaKey?: 'email.cta' | 'email.openLink';
   },
 ): { subject: string; text: string; html: string } {
   const subject = renderInboxMessage(locale, args.titleKey, args.params);
   const body = renderInboxMessage(locale, args.bodyKey, args.params);
-  const cta = renderInboxMessage(locale, 'email.cta');
+  const cta = renderInboxMessage(locale, args.ctaKey ?? 'email.cta');
   const footer = renderInboxMessage(locale, 'email.footer');
 
   const text = `${body}\n\n${cta}: ${args.deepLink}\n\n${footer}`;

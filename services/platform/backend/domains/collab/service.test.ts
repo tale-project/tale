@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
@@ -14,6 +14,7 @@ import {
   markAllNotificationsRead,
   notifyAgentQuestionAsked,
   notifyAgentRunFailed,
+  notifyAutomationMessage,
   notifyTaskAssigned,
   notifyTaskComment,
   notifyTaskMentions,
@@ -1235,5 +1236,153 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
         entityId: null,
       },
     ]);
+  });
+});
+
+describe('the message an automation step sends (automation_message) [COLLAB-R13]', () => {
+  type Call = { text: string; values: unknown[] };
+  /** The run's earlier rows, as `{ userId, deliveryKey }`. */
+  function fakeTx(args: {
+    sent?: { userId: string; deliveryKey: string }[];
+    muted?: readonly string[];
+  }): { tx: TransactionSql; calls: Call[] } {
+    const calls: Call[] = [];
+    let inserted = 0;
+    const tag = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<Row[]> => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      calls.push({ text, values });
+      if (text.includes("params->>'deliveryKey'")) {
+        return Promise.resolve(args.sent ?? []);
+      }
+      if (text.includes('FROM app.notification_preferences')) {
+        return Promise.resolve(
+          args.muted?.includes(String(values[0]))
+            ? [{ automation_messages: false }]
+            : [],
+        );
+      }
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        inserted += 1;
+        return Promise.resolve([{ id: `n-${inserted}` }]);
+      }
+      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
+        return Promise.resolve([{ emailEpoch: 1 }]);
+      }
+      return Promise.resolve([]);
+    };
+    const tx = Object.assign(tag, { json: (value: unknown) => value });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js transaction
+    return { tx: tx as unknown as TransactionSql, calls };
+  }
+
+  const SEND = {
+    organizationId: 'org-1',
+    runId: 'run-1',
+    deliveryKey: 'run-1/tell/0/0',
+    userIds: ['u-ada', 'u-noah', 'u-ada', 'u-mia'],
+    automation: 'reports/weekly',
+    title: 'Weekly report ready',
+    message: 'Revenue is up 4 %.',
+    link: '/dashboard/org-1/documents',
+    runCap: 100,
+  };
+  const inserts = (calls: Call[]) =>
+    calls.filter((call) =>
+      call.text.startsWith('INSERT INTO app.user_notifications'),
+    );
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  it('writes one actionable row per recipient who has not muted automation messages', async () => {
+    const { tx, calls } = fakeTx({ muted: ['u-noah'] });
+    await expect(notifyAutomationMessage(tx, SEND)).resolves.toEqual({
+      ok: true,
+      delivered: ['u-ada', 'u-mia'],
+      muted: ['u-noah'],
+    });
+    // The run's lock comes first: its steps' sends are counted one at a time.
+    expect(calls[0]?.text).toContain('pg_advisory_xact_lock');
+    expect(calls[0]?.values).toEqual(['automation-messages:org-1:run-1']);
+    // The preference read names the column the toggle writes.
+    expect(
+      calls.find((c) => c.text.includes('FROM app.notification_preferences'))
+        ?.text,
+    ).toContain('automation_messages');
+    const rows = inserts(calls);
+    expect(rows.map((row) => row.values[0])).toEqual(['u-ada', 'u-mia']);
+    expect(rows[0]?.values).toEqual(
+      expect.arrayContaining([
+        'org-1',
+        'automation_message',
+        'automationMessage',
+        'automationMessageBody',
+        {
+          automation: 'reports/weekly',
+          runId: 'run-1',
+          title: 'Weekly report ready',
+          message: 'Revenue is up 4 %.',
+          link: '/dashboard/org-1/documents',
+          deliveryKey: 'run-1/tell/0/0',
+        },
+        'automation_run',
+        'run-1',
+        'system',
+      ]),
+    );
+    // Each message is news: it never collapses into another row.
+    expect(rows[0]?.values.at(-1)).toBeNull();
+    // Actionable: it leaves the app by email too.
+    expect(addJobInTx).toHaveBeenCalledTimes(2);
+  });
+
+  it('a retry of the same step execution writes nothing twice', async () => {
+    const { tx, calls } = fakeTx({
+      sent: [
+        { userId: 'u-ada', deliveryKey: 'run-1/tell/0/0' },
+        { userId: 'u-mia', deliveryKey: 'run-1/tell/0/0' },
+        { userId: 'u-ada', deliveryKey: 'run-1/tell/1/0' },
+      ],
+      // Muting since the first try does not take back what was sent.
+      muted: ['u-noah', 'u-mia'],
+    });
+    await expect(notifyAutomationMessage(tx, SEND)).resolves.toEqual({
+      ok: true,
+      delivered: ['u-ada', 'u-mia'],
+      muted: ['u-noah'],
+    });
+    expect(inserts(calls)).toEqual([]);
+  });
+
+  it('writes nothing when the run would pass its cap', async () => {
+    const { tx, calls } = fakeTx({
+      sent: Array.from({ length: 99 }, (_, at) => ({
+        userId: `u-${at}`,
+        deliveryKey: `run-1/earlier/${at}/0`,
+      })),
+    });
+    await expect(notifyAutomationMessage(tx, SEND)).resolves.toEqual({
+      ok: false,
+      sent: 99,
+    });
+    expect(inserts(calls)).toEqual([]);
+  });
+
+  it('frames a message without words of its own', async () => {
+    const { tx, calls } = fakeTx({});
+    const { message: _message, link: _link, ...bare } = SEND;
+    await notifyAutomationMessage(tx, { ...bare, userIds: ['u-ada'] });
+    const row = inserts(calls)[0];
+    expect(row?.values).toContain('automationMessageBodyNoText');
+    expect(row?.values).toContainEqual({
+      automation: 'reports/weekly',
+      runId: 'run-1',
+      title: 'Weekly report ready',
+      deliveryKey: 'run-1/tell/0/0',
+    });
   });
 });

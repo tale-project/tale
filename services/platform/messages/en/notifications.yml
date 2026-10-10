@@ -7,6 +7,7 @@ emptyOlderUnreadDescription: Load more to see them.
 emptyAllTitle: No notifications yet
 emptyAllDescription: Alerts and system updates will appear here when they arrive.
 markAsRead: Mark as read
+openWebLink: Open {host}
 markAllAsRead: Mark all as read
 expand: Expand
 filterLabel: Show

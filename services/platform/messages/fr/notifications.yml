@@ -8,6 +8,7 @@ emptyAllTitle: Aucune notification pour l'instant
 emptyAllDescription: Les alertes et mises à jour système apparaîtront ici à
   mesure qu'elles arriveront.
 markAsRead: Marquer comme lu
+openWebLink: Ouvrir {host}
 markAllAsRead: Tout marquer comme lu
 expand: Agrandir
 filterLabel: Afficher

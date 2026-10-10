@@ -18,7 +18,12 @@ const MAILBOX = [...ACTIONABLE_EMAIL_CONNECTORS][0];
  * text: the row, the reader check, the address, the preference, the
  * organization's mailboxes and its locale.
  */
-function fakeSql(world: { taskId: string | null; readers: string[] }): {
+function fakeSql(world: {
+  taskId: string | null;
+  readers: string[];
+  /** The row's own fields, over a task assignment's. */
+  row?: Row;
+}): {
   sql: Sql;
   statements: string[];
 } {
@@ -44,6 +49,7 @@ function fakeSql(world: { taskId: string | null; readers: string[] }): {
           taskId: world.taskId,
           read: false,
           emailEpoch: 2,
+          ...world.row,
         },
       ];
     } else if (text.startsWith('WITH audience AS')) {
@@ -114,5 +120,57 @@ describe('the notification email sink [COLLAB-R2]', () => {
       false,
     );
     expect(runConnectorAction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("an automation message's email", () => {
+  const message = (link: string): Row => ({
+    type: 'automation_message',
+    titleKey: 'automationMessage',
+    bodyKey: 'automationMessageBody',
+    params: {
+      automation: 'reports/weekly',
+      runId: 'run-1',
+      title: 'Weekly report ready',
+      message: 'Revenue is up.',
+      link,
+      deliveryKey: 'run-1/tell/0/0',
+    },
+  });
+  const sentEmail = (): string =>
+    JSON.stringify(vi.mocked(runConnectorAction).mock.calls[0]?.[1].input);
+
+  beforeEach(() => {
+    vi.mocked(runConnectorAction).mockReset();
+    vi.mocked(runConnectorAction).mockResolvedValue({
+      status: 'ok',
+    } as Awaited<ReturnType<typeof runConnectorAction>>);
+  });
+
+  it('takes its button to a web link, named for what it opens', async () => {
+    const { sql } = fakeSql({
+      taskId: null,
+      readers: [],
+      row: message('https://reports.example.com/weekly'),
+    });
+    await runNotificationEmailJob(sql, PAYLOAD);
+    const email = sentEmail();
+    expect(email).toContain('Weekly report ready');
+    expect(email).toContain(
+      'Open the link: https://reports.example.com/weekly',
+    );
+    expect(email).not.toContain('Open in Tale');
+  });
+
+  it('opens a page of the organization in Tale', async () => {
+    const { sql } = fakeSql({
+      taskId: null,
+      readers: [],
+      row: message('/dashboard/org-1/documents'),
+    });
+    await runNotificationEmailJob(sql, PAYLOAD);
+    expect(sentEmail()).toMatch(
+      /Open in Tale: https?:[^"]*\/dashboard\/org-1\/documents/,
+    );
   });
 });

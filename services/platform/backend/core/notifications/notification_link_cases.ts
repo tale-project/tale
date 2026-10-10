@@ -154,6 +154,20 @@ export const PERSONAL_LINK_CASES: Record<
     },
     path: `/dashboard/${ORG}/settings/api/rest`,
   },
+  // The page of the organization the step's message linked to. A message
+  // linking to the web opens it from the bell's own action beside the row.
+  automation_message: {
+    row: {
+      params: {
+        automation: 'reports/weekly',
+        runId: 'run_1',
+        title: 'Weekly report ready',
+        link: `/dashboard/${ORG}/projects/proj_1/tasks?task=task_1`,
+        deliveryKey: 'run_1/tell/0/0',
+      },
+    },
+    path: TASK_PATH,
+  },
   workforce_digest: {
     row: { params: { title: 'Your week' } },
     path: `/dashboard/${ORG}`,
@@ -199,10 +213,15 @@ export function notificationTargetPath(target: {
   params: Record<string, string>;
   search?: Record<string, string | undefined>;
 }): string {
-  const path = target.to.replaceAll(/\$([A-Za-z]+)/g, (whole, name: string) => {
-    const value = target.params[name];
-    return value === undefined ? whole : encodeURIComponent(value);
-  });
+  const path = target.to.replaceAll(
+    /\$([A-Za-z]+)|\$$/g,
+    (whole, name: string | undefined) => {
+      const value = target.params[name ?? '_splat'];
+      if (value === undefined) return whole;
+      // The catch-all's `_splat` is a path of its own: its slashes stay.
+      return name === undefined ? value : encodeURIComponent(value);
+    },
+  );
   const query = Object.entries(target.search ?? {})
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
