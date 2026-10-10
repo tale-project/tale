@@ -116,6 +116,113 @@ describe('transientRecord', () => {
     ).toBe('cancelled');
   });
 
+  describe('a step test', () => {
+    const FLOW: Automation = {
+      version: 1,
+      name: 'step-test',
+      nodes: [
+        { id: 'fetch', type: 'transform', code: 'return { n: 3 };' },
+        {
+          id: 'gate',
+          type: 'transform',
+          when: '{{ nodes.fetch.output.n > 1 }}',
+          code: 'return "big";',
+        },
+        {
+          id: 'other',
+          type: 'transform',
+          elseOf: 'gate',
+          code: 'return "small";',
+        },
+        {
+          id: 'send',
+          type: 'transform',
+          input: { v: '{{ nodes.gate.output }}' },
+          code: 'return { sent: input.v };',
+        },
+        { id: 'side', type: 'transform', code: 'return 1;' },
+      ],
+      output: { v: '{{ nodes.send.output }}' },
+    };
+
+    async function stepTest(
+      bench: NonNullable<Parameters<typeof execute>[1]>['bench'],
+      doc: Automation = FLOW,
+    ) {
+      const { result, startedAt, finishedAt } = await recorded(doc, { bench });
+      const record = transientRecord({
+        doc,
+        result,
+        id: 'step-1',
+        startedAt,
+        finishedAt,
+      });
+      const rows = record?.view.nodes.map((n) => [
+        n.path,
+        n.status,
+        n.meta.bench ?? null,
+        n.notRun ?? null,
+      ]);
+      return { result, record, rows };
+    }
+
+    it('reads the steps it leaves out as left out, and End as never evaluated', async () => {
+      const { result, record, rows } = await stepTest({ upTo: 'gate' });
+      expect(result.status).toBe('success');
+      expect(rows).toEqual([
+        ['__start', 'succeeded', null, null],
+        ['fetch', 'succeeded', null, null],
+        ['gate', 'succeeded', null, null],
+        ['other', 'not_run', 'left-out', null],
+        ['send', 'not_run', 'left-out', null],
+        ['side', 'not_run', 'left-out', null],
+        // The document output is not evaluated in a step test.
+        ['__end', 'not_run', 'left-out', null],
+      ]);
+      // A path read from part of the conditions is no path the
+      // automation takes.
+      expect(record?.view.path).toBeUndefined();
+    });
+
+    it('reads a node run alone with its pinned data, and no path from the pins', async () => {
+      const { record, rows } = await stepTest({
+        only: 'send',
+        mocks: { gate: 'pinned' },
+      });
+      expect(rows).toEqual([
+        ['__start', 'succeeded', null, null],
+        ['fetch', 'not_run', 'left-out', null],
+        ['gate', 'succeeded', 'pinned', null],
+        ['other', 'not_run', 'left-out', null],
+        ['send', 'succeeded', null, null],
+        ['side', 'not_run', 'left-out', null],
+        ['__end', 'not_run', 'left-out', null],
+      ]);
+      expect(record?.view.path).toBeUndefined();
+    });
+
+    it('reads what it leaves out as left out after a failure too, never as where the run ended', async () => {
+      const failing = structuredClone(FLOW);
+      const send = failing.nodes.find((n) => n.id === 'send');
+      if (send !== undefined) send.code = 'return null;';
+      const { result, rows } = await stepTest({ upTo: 'send' }, failing);
+      expect(result.status).toBe('error');
+      expect(result.trace.find((e) => e.node === 'side')).toMatchObject({
+        status: 'not_run',
+        bench: 'left-out',
+      });
+      expect(rows).toEqual([
+        ['__start', 'succeeded', null, null],
+        ['fetch', 'succeeded', null, null],
+        ['gate', 'succeeded', null, null],
+        ['other', 'not_run', 'left-out', null],
+        ['send', 'failed', null, null],
+        ['side', 'not_run', 'left-out', null],
+        ['__end', 'not_run', 'left-out', null],
+      ]);
+    });
+  });
+
   it('answers nothing for a run that kept no record', async () => {
     const result = await execute(DOC, { mode: 'mock' });
     expect(

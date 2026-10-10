@@ -224,6 +224,19 @@ export async function execute(
     plan = planned.plan;
   }
 
+  /** A step the run does not get to. One a step test leaves out says so,
+   * whether the run ended before it or not: it would not have run anyway. */
+  const notRun = (node: { id: string; type: string }): NodeTrace =>
+    plan?.call(node.id).kind === 'left-out'
+      ? {
+          node: node.id,
+          type: node.type,
+          status: 'not_run',
+          bench: 'left-out',
+          note: 'left out of this test',
+        }
+      : { node: node.id, type: node.type, status: 'not_run' };
+
   /** What a run with a bench says beside its outcome: its scope, and the
    * stand-ins it never used because their nodes were skipped or left out. */
   const benchFacts = (): Pick<RunResult, 'focus' | 'unusedMocks'> => {
@@ -279,9 +292,7 @@ export async function execute(
       inside.status = 'error';
       inside.error = message;
     }
-    for (const node of rest) {
-      trace.push({ node: node.id, type: node.type, status: 'not_run' });
-    }
+    for (const node of rest) trace.push(notRun(node));
     return {
       ...fail({
         ...(inside !== undefined && { nodeId: inside.node }),
@@ -347,14 +358,8 @@ export async function execute(
     const call = plan?.call(n.id) ?? CALL_AS_WRITTEN;
     if (call.kind === 'left-out') {
       // Outside the step test's scope: nothing of it runs, and it has no
-      // record — the record reads it as not run, the run's focus says why.
-      trace.push({
-        node: n.id,
-        type: n.type,
-        status: 'not_run',
-        bench: 'left-out',
-        note: 'left out of this test',
-      });
+      // record — the record reads it as not run, its trace says why.
+      trace.push(notRun(n));
       continue;
     }
     const def = nodeTypes().get(n.type);
@@ -1026,7 +1031,7 @@ export async function execute(
       }
       rec.unitFinished(nodeKey, { status: 'failed', failure });
       for (const rest of ordered.slice(position + 1)) {
-        trace.push({ node: rest.id, type: rest.type, status: 'not_run' });
+        trace.push(notRun(rest));
       }
       return fail({ nodeId: n.id, message, ...(hint && { hint }), failure });
     }

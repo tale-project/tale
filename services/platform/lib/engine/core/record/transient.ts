@@ -6,6 +6,11 @@
  * steps first (with the run's input and output), then their items and
  * passes, as long as they fit {@link TRANSIENT_DETAILS_MAX_BYTES}.
  *
+ * A step test (`upTo`, `only`) runs part of the automation: what it leaves
+ * out — the steps outside its scope, and End, whose output it never
+ * evaluates — reads as left out (`meta.bench: 'left-out'`), never as
+ * succeeded nor as where the run ended, and its view names no path.
+ *
  * Pure and browser-safe.
  */
 
@@ -16,7 +21,9 @@ import {
   recordView,
   runFactsOf,
   type RunRecordView,
+  withinBudget,
 } from './read';
+import { END_PATH } from './types';
 import { RECORD_RUN_BUDGET, utf8Bytes } from './value';
 import { latestPerUnit } from './view';
 
@@ -37,6 +44,35 @@ export const TRANSIENT_DETAILS_MAX_BYTES = RECORD_RUN_BUDGET;
 function statusOf(result: RunResult): string {
   if (result.stoppedBy !== undefined) return 'cancelled';
   return result.status === 'success' ? 'success' : 'failed';
+}
+
+/**
+ * The view of a step test. The steps it leaves out have no record, so the
+ * shared projection reads them as steps the run never got to and End, of a
+ * run that succeeded, as succeeded; they read as left out instead. A path
+ * read from part of the conditions, or from data pinned in place of the
+ * steps that decide them, is no path the automation takes: there is none.
+ */
+function stepTestView(view: RunRecordView, result: RunResult): RunRecordView {
+  const leftOut = new Set([
+    END_PATH,
+    ...result.trace
+      .filter((entry) => entry.bench === 'left-out')
+      .map((entry) => entry.node),
+  ]);
+  const { path: _path, ...rest } = view;
+  return withinBudget({
+    ...rest,
+    nodes: view.nodes.map((node) => {
+      if (!leftOut.has(node.path)) return node;
+      const { notRun: _notRun, ...kept } = node;
+      return {
+        ...kept,
+        status: 'not_run',
+        meta: { ...node.meta, bench: 'left-out' },
+      };
+    }),
+  });
 }
 
 /**
@@ -107,5 +143,9 @@ export function transientRecord(args: {
     bytes += size;
     details.push(detail);
   }
-  return { view, details, ...(truncated && { detailsTruncated: true }) };
+  return {
+    view: result.focus === undefined ? view : stepTestView(view, result),
+    details,
+    ...(truncated && { detailsTruncated: true }),
+  };
 }
