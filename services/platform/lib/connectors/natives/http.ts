@@ -49,15 +49,15 @@ import { ConnectorError, type ConnectorErrorCode } from '../errors';
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** The largest answer a step reads; a larger one is refused. */
-export const HTTP_MAX_RESPONSE_BYTES = 1_048_576;
+const HTTP_MAX_RESPONSE_BYTES = 1_048_576;
 
 /** Redirects a call follows before it gives up. */
 const MAX_REDIRECTS = 5;
 
 /** Calls an organization's automations may make in a minute, across the
  * deployment, and at once, in one server process. */
-export const HTTP_CALLS_PER_MINUTE = 120;
-export const HTTP_CALLS_AT_ONCE = 10;
+const HTTP_CALLS_PER_MINUTE = 120;
+const HTTP_CALLS_AT_ONCE = 10;
 
 /** Headers only a credential sets. */
 const RESERVED_HEADERS = new Set([
