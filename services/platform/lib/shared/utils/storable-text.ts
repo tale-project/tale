@@ -6,6 +6,50 @@
  * record core and the stores share it.
  */
 
+/** Why a door refuses a text with a NUL character in it. */
+export const NUL_TEXT_PROBLEM = 'must not contain a NUL character (U+0000)';
+
+/** Why a door refuses a text with half a surrogate pair in it. */
+export const SURROGATE_TEXT_PROBLEM =
+  'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored';
+
+/** What keeps Postgres from storing `text` as it is — a NUL first, then an
+ * unpaired surrogate — or null when it stores it. */
+export function unstorableTextProblem(text: string): string | null {
+  if (text.includes('\u0000')) return NUL_TEXT_PROBLEM;
+  return text.isWellFormed() ? null : SURROGATE_TEXT_PROBLEM;
+}
+
+/** One text in a JSON value that Postgres could not store: where (an RFC
+ * 6901 pointer, the member's own when its name is the text) and why. */
+export interface UnstorableText {
+  readonly pointer: string;
+  readonly problem: string;
+}
+
+/** Every text in a JSON value — a value or a member name — that Postgres
+ * could not store, in document order. */
+export function unstorableTexts(value: unknown): UnstorableText[] {
+  const found: UnstorableText[] = [];
+  const walk = (entry: unknown, pointer: string): void => {
+    if (typeof entry === 'string') {
+      const problem = unstorableTextProblem(entry);
+      if (problem !== null) found.push({ pointer, problem });
+    } else if (Array.isArray(entry)) {
+      entry.forEach((item, index) => walk(item, `${pointer}/${index}`));
+    } else if (entry !== null && typeof entry === 'object') {
+      for (const [name, item] of Object.entries(entry)) {
+        const at = `${pointer}/${name.replaceAll('~', '~0').replaceAll('/', '~1')}`;
+        const problem = unstorableTextProblem(name);
+        if (problem !== null) found.push({ pointer: at, problem });
+        walk(item, at);
+      }
+    }
+  };
+  walk(value, '');
+  return found;
+}
+
 /** The first `max` UTF-16 units of `text`, one fewer when the cut would
  * split a character that takes two. */
 export function cutText(text: string, max: number): string {

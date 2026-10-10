@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { cutText, storableJson, storableText } from './storable-text';
+import {
+  cutText,
+  storableJson,
+  storableText,
+  unstorableTextProblem,
+  unstorableTexts,
+} from './storable-text';
 
 describe('cutText', () => {
   it('never splits a character that takes two', () => {
@@ -40,5 +46,26 @@ describe('storableJson', () => {
     expect(Object.getPrototypeOf(fixed)).toBe(Object.prototype);
     expect(Object.hasOwn(fixed, '__proto__')).toBe(true);
     expect(fixed.__proto__).toBe('�');
+  });
+});
+
+describe('unstorableTexts', () => {
+  it('names every text Postgres could not store, a member name included, by its pointer', () => {
+    expect(unstorableTextProblem('fine 😀')).toBeNull();
+    expect(
+      unstorableTexts({
+        a: 'nul \u0000',
+        'b/c\u0000': 1,
+        list: ['ok', 'half \ud83d'],
+        both: '\ud800 and \u0000',
+      }),
+    ).toEqual([
+      { pointer: '/a', problem: unstorableTextProblem('\u0000') },
+      { pointer: '/b~1c\u0000', problem: unstorableTextProblem('\u0000') },
+      { pointer: '/list/1', problem: unstorableTextProblem('\ud800') },
+      // A NUL is named first, as the REST door names it.
+      { pointer: '/both', problem: unstorableTextProblem('\u0000') },
+    ]);
+    expect(unstorableTexts({ fine: ['ok', 1, null, true] })).toEqual([]);
   });
 });

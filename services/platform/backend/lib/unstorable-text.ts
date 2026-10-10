@@ -1,3 +1,7 @@
+import {
+  NUL_TEXT_PROBLEM,
+  SURROGATE_TEXT_PROBLEM,
+} from '../../lib/shared/utils/storable-text.ts';
 import type { BodyIssue } from './invalid-body-response.ts';
 
 /**
@@ -112,16 +116,10 @@ export function toWellFormedJson(value: unknown): void {
  */
 export function findUnstorableText(value: unknown): BodyIssue | null {
   const nul = findNulByte(value);
-  if (nul !== null) {
-    return { path: nul, message: 'must not contain a NUL character (U+0000)' };
-  }
+  if (nul !== null) return { path: nul, message: NUL_TEXT_PROBLEM };
   const surrogate = findStringPath(value, (text) => !text.isWellFormed());
   if (surrogate !== null) {
-    return {
-      path: surrogate,
-      message:
-        'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored',
-    };
+    return { path: surrogate, message: SURROGATE_TEXT_PROBLEM };
   }
   return null;
 }

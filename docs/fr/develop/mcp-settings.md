@@ -118,7 +118,7 @@ Un refus arrive sous forme de données, avec un `error`, un `code`, un `hint` et
 | Code | Ce qu’il signifie |
 | --- | --- |
 | `SETTINGS_STALE` | La ressource a changé depuis sa lecture. Relis-la, planifie par rapport à ce qui est enregistré maintenant et applique avec `data.currentHash`. |
-| `SETTINGS_INVALID` | La configuration ne correspond pas au type. `data.issues` indique chaque problème avec son emplacement dans la configuration, y compris un champ que le paramètre ne connaît pas. |
+| `SETTINGS_INVALID` | La configuration ne correspond pas au type. `data.issues` indique chaque problème avec son emplacement dans la configuration, y compris un champ que le paramètre ne connaît pas et un texte que Tale ne peut pas enregistrer, comme un caractère NUL. |
 | `SECRET_ARGUMENT_REFUSED` | La modification contient un secret. `data.places` indique où. |
 | `SETTINGS_TALE_ONLY` | Cette modification se fait uniquement dans Tale, par exemple pour des identifiants avec une clé. |
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | Le rôle de la personne ne permet pas non plus cette modification dans Tale. Réessayer ne sert à rien. |

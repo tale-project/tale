@@ -19,6 +19,7 @@ import { declaredSettingsNames } from '../../../../lib/mcp/settings-schemas.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
 import { type McpRefusal, refusalFromThrown } from '../refusals.ts';
 import { diffConfigs, type SettingsDiffEntry } from './diff.ts';
+import { unstorableTextRefusal } from './kit.ts';
 import {
   type HandlerPlan,
   type SettingsChange,
@@ -228,6 +229,8 @@ async function planOne(
   if (handler === undefined || refusal !== undefined) {
     return refused(id, refusal ?? unavailable(change.kind));
   }
+  const unstorable = unstorableTextRefusal(change);
+  if (unstorable !== null) return refused(id, refusalOrThrow(unstorable));
   // The member names the resource's schema declares: judged by their text
   // alone, never taken for a secret by name.
   const declared = declaredSettingsNames(change.kind, id);

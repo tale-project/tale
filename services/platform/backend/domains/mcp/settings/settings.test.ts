@@ -292,6 +292,85 @@ describe('get_settings', () => {
 });
 
 describe('plan_settings', () => {
+  it('refuses text Postgres could not store, naming every field it sits in', async () => {
+    const state = seeded();
+    const plan = await planSettings(contextFor(), state.registry, [
+      {
+        kind: 'governance',
+        id: 'budgets',
+        op: 'set',
+        config: {
+          rules: [],
+          note: 'nul \u0000 here',
+          'key\u0000': true,
+          notes: ['fine', 'half \ud800'],
+        },
+      },
+      {
+        kind: 'provider',
+        id: 'vendor',
+        op: 'act',
+        act: 'refresh-catalogs',
+        args: { reason: 'half \udc00' },
+      },
+    ]);
+    expect(plan.ok).toBe(false);
+    expect(plan.changes.map((change) => change.refusal)).toEqual([
+      {
+        error:
+          'the governance change is not valid: /config/note must not contain a NUL character (U+0000) (and 2 more problems)',
+        code: 'SETTINGS_INVALID',
+        hint: expect.any(String),
+        data: {
+          issues: [
+            {
+              path: '/config/note',
+              code: 'unstorable_text',
+              message: 'must not contain a NUL character (U+0000)',
+            },
+            {
+              path: '/config/key\u0000',
+              code: 'unstorable_text',
+              message: 'must not contain a NUL character (U+0000)',
+            },
+            {
+              path: '/config/notes/1',
+              code: 'unstorable_text',
+              message:
+                'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored',
+            },
+          ],
+        },
+      },
+      expect.objectContaining({
+        code: 'SETTINGS_INVALID',
+        data: {
+          issues: [
+            expect.objectContaining({
+              path: '/args/reason',
+              code: 'unstorable_text',
+            }),
+          ],
+        },
+      }),
+    ]);
+    const applied = await applySettings(
+      contextFor(),
+      state.registry,
+      [
+        {
+          kind: 'governance',
+          id: 'budgets',
+          op: 'set',
+          config: { rules: [], note: 'nul \u0000 here' },
+        },
+      ],
+      { 'governance/budgets': null },
+    );
+    expect(applied).toMatchObject({ code: 'SETTINGS_INVALID', applied: [] });
+    expect(state.writes).toEqual([]);
+  });
+
   it('says what each change would do to what is stored, member by member', async () => {
     const state = seeded();
     const plan = await planSettings(contextFor(), state.registry, [

@@ -118,7 +118,7 @@ A refusal is data with an `error`, a `code`, a `hint` and sometimes `data`, neve
 | Code                                                         | What it means                                                                                                                            |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `SETTINGS_STALE`                                             | The resource changed since it was read. Read it again, plan against what is stored now, and apply with `data.currentHash`.               |
-| `SETTINGS_INVALID`                                           | The config is not the kind's. `data.issues` names every problem by its place in the config, including a field the setting does not have. |
+| `SETTINGS_INVALID`                                           | The config is not the kind's. `data.issues` names every problem by its place in the config, including a field the setting does not have and text Tale cannot store, such as a NUL character. |
 | `SECRET_ARGUMENT_REFUSED`                                    | The change carries a secret. `data.places` says where.                                                                                   |
 | `SETTINGS_TALE_ONLY`                                         | The change is made in Tale alone, for example a credential with a key.                                                                   |
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | The person's role cannot make this change in Tale either. Retrying does not help.                                                        |

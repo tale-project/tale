@@ -56,7 +56,7 @@ const REFUSALS: ReadonlyArray<readonly [code: string, meaning: string]> = [
   ],
   [
     'SETTINGS_INVALID',
-    "A config is not the kind's: data.issues names every problem by its pointer, a field the setting does not have among them.",
+    "A config is not the kind's: data.issues names every problem by its pointer — a field the setting does not have among them, and text Tale cannot store (a NUL character, half a surrogate pair; code unstorable_text).",
   ],
   [
     'SETTINGS_ID_REQUIRED',

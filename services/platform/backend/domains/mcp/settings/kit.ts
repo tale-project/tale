@@ -8,6 +8,7 @@
 
 import type { SettingsKind } from '@tale/shared/schemas/settings-kinds';
 
+import { unstorableTexts } from '../../../../lib/shared/utils/storable-text.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
 import type { SettingsChange, SettingsContext } from './registry.ts';
 
@@ -125,6 +126,33 @@ function invalidSettings(
       data: { issues: listed },
     },
   );
+}
+
+/**
+ * The refusal of a change whose config or arguments carry text Postgres
+ * could not store — a NUL character, or half a surrogate pair — naming
+ * every field it sits in; null when it carries none. Such a text fails the
+ * write it rides in, or reaches the store silently altered, so a change is
+ * refused before anything reads or writes it.
+ */
+export function unstorableTextRefusal(
+  change: SettingsChange,
+): SettingsRefusalError | null {
+  const issues = [
+    ...unstorableTexts(change.config).map(({ pointer, problem }) => ({
+      path: `/config${pointer}`,
+      code: 'unstorable_text',
+      message: problem,
+    })),
+    ...unstorableTexts(change.args).map(({ pointer, problem }) => ({
+      path: `/args${pointer}`,
+      code: 'unstorable_text',
+      message: problem,
+    })),
+  ];
+  return issues.length === 0
+    ? null
+    : invalidSettings(`the ${change.kind} change`, issues);
 }
 
 /** A schema as a handler reads a change's config through it. */
