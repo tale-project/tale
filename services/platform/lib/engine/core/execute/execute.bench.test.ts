@@ -692,6 +692,11 @@ describe('a run’s time limit and its caller’s stop', () => {
         ['call', 'error'],
         ['after', 'not_run'],
       ]);
+      // What the called automation did before it stopped happened: the
+      // caller lists it, as it lists the effects of one that finished.
+      expect(result.effects.map((e) => [e.node, e.connector])).toEqual([
+        ['call/first', 'ping.send'],
+      ]);
     } finally {
       onPing = undefined;
     }

@@ -776,9 +776,24 @@ export async function execute(
               docRef: `${subName}@${found.meta.version}`,
             },
           });
+          // What the called automation did happened, whether it finished or
+          // was stopped: its effects are this step's, under its path.
+          const adoptEffects = (): void => {
+            for (const ef of sub.effects) {
+              effects.push({
+                node: `${n.id}/${ef.node}`,
+                connector: ef.connector,
+                input: ef.input,
+                ...nestedEffectPlace(ef),
+              });
+            }
+          };
           // A stop inside the called automation stops this run too; it is no
           // failure of this step.
-          if (sub.stoppedBy !== undefined) throw new RunStopped(sub.stoppedBy);
+          if (sub.stoppedBy !== undefined) {
+            adoptEffects();
+            throw new RunStopped(sub.stoppedBy);
+          }
           if (sub.status !== 'success') {
             throw new ExprError(
               'subautomation',
@@ -794,14 +809,7 @@ export async function execute(
               },
             );
           }
-          for (const ef of sub.effects) {
-            effects.push({
-              node: `${n.id}/${ef.node}`,
-              connector: ef.connector,
-              input: ef.input,
-              ...nestedEffectPlace(ef),
-            });
-          }
+          adoptEffects();
           out = sub.output;
         } else if (def.connector && connectorCheck) {
           const resolved = await resolve(n.input ?? {}, `${pointer}/input`);
