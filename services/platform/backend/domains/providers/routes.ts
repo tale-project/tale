@@ -248,12 +248,22 @@ export function createProviderSettingRoutes(deps: {
           );
         }
         const iconUrl = readSystemEntryIcon('providers', provider.name);
+        const subscriptionAuth = provider.auth.find(
+          (entry) => entry.method === 'subscription-key',
+        );
+        const subscriptionAccountIdVar =
+          subscriptionAuth?.method === 'subscription-key'
+            ? subscriptionAuth.accountIdVar
+            : undefined;
         results.push({
           name: provider.name,
           displayName: provider.displayName,
           origin,
           ...(iconUrl !== undefined ? { iconUrl } : {}),
           apiFormat: provider.apiFormat,
+          ...(subscriptionAccountIdVar !== undefined
+            ? { subscriptionAccountIdVar }
+            : {}),
           ...(provider.baseUrl !== undefined
             ? { baseUrl: provider.baseUrl }
             : {}),

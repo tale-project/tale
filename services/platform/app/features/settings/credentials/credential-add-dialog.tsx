@@ -201,7 +201,7 @@ export function CredentialAddDialog<
     vendor !== null &&
     activeMethod !== undefined &&
     name.trim().length > 0 &&
-    secret.isComplete(activeMethod, draft) &&
+    secret.isComplete(activeMethod, draft, vendor ?? undefined) &&
     (!vendor.needsEndpoint || endpointUrl.trim().length > 0) &&
     // A required extra field (a connector's configFields) is as mandatory as
     // the secret — without this the form submits and the server refuses with

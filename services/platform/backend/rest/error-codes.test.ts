@@ -343,6 +343,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Provider and connector credentials — Settings surfaces only.
   'AUTH_METHOD_NOT_SUPPORTED',
   'CONNECTOR_UNKNOWN',
+  'CREDENTIAL_ACCOUNT_ID_INVALID',
   'CREDENTIAL_BROKER_CONFIG_INVALID',
   'CREDENTIAL_CONFIG_INVALID',
   'CREDENTIAL_CONFIG_REQUIRED',

@@ -16,6 +16,13 @@ embedding: supported
 auth:
   - method: api-key
   - method: env
+  - method: subscription-key
+    baseUrl: https://chatgpt.com/backend-api/codex
+    targetEnvVar: TALE_SUBSCRIPTION_TOKEN
+    accountIdVar: TALE_SUBSCRIPTION_ACCOUNT_ID
+    constraints:
+      execution: sandbox
+      harness: codex
   - method: subscription-broker
     baseUrl: https://chatgpt.com/backend-api/codex
     constraints:

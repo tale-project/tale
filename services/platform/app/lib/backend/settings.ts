@@ -1389,6 +1389,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
           authMethod: stringArg(args, 'authMethod'),
           name: stringArg(args, 'name'),
           ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+          ...(typeof args.accountId === 'string'
+            ? { accountId: args.accountId }
+            : {}),
           ...(args.broker !== undefined
             ? { secret: JSON.stringify(args.broker) }
             : {}),
@@ -1431,6 +1434,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
               ? { envName: args.envName }
               : {}),
             ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+            ...(typeof args.accountId === 'string'
+              ? { accountId: args.accountId }
+              : {}),
             ...(args.broker !== undefined
               ? { secret: JSON.stringify(args.broker) }
               : {}),

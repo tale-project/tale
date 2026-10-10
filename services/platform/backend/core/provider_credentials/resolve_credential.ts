@@ -75,6 +75,7 @@ interface CredentialRow {
   encryptedData?: EncryptedSecret;
   envName?: string;
   endpointUrl?: string;
+  accountId?: string;
   status: 'active' | 'disabled';
 }
 
@@ -124,6 +125,7 @@ export type ResolvedProviderCredential =
       /** The harness env var the provider's auth entry delivers the secret
        * under; absent means the harness's default token variable. */
       readonly targetEnvVar?: string;
+      readonly accountId?: string;
     }
   | {
       readonly authMethod: 'subscription-broker';
@@ -569,16 +571,32 @@ async function resolveBrokerPool(
  * too. Undefined when the entry names none (a coding-plan key rides the
  * harness's default token variable).
  */
-async function subscriptionKeyTargetEnvVar(
+async function subscriptionKeyAuth(
   ctx: ActionCtx,
   organizationId: string,
   providerSlug: string,
-): Promise<string | undefined> {
+): Promise<
+  | {
+      targetEnvVar?: string;
+      accountIdVar?: string;
+      baseUrl?: string;
+    }
+  | undefined
+> {
   const providers = await resolveProvidersForOrgId(ctx, organizationId);
   const entry = providers
     .find((provider) => provider.name === providerSlug)
     ?.auth.find((auth) => auth.method === 'subscription-key');
-  return entry?.method === 'subscription-key' ? entry.targetEnvVar : undefined;
+  if (entry?.method !== 'subscription-key') return undefined;
+  return {
+    ...(entry.targetEnvVar !== undefined && {
+      targetEnvVar: entry.targetEnvVar,
+    }),
+    ...(entry.accountIdVar !== undefined && {
+      accountIdVar: entry.accountIdVar,
+    }),
+    ...(entry.baseUrl !== undefined && { baseUrl: entry.baseUrl }),
+  };
 }
 
 /**
@@ -620,7 +638,7 @@ export async function resolveProviderCredential(
       // the forced-harness constraints live on the provider's auth entry
       // and are applied by execution resolution, never here.
       if (!row.encryptedData) throw shapeError(row);
-      const targetEnvVar = await subscriptionKeyTargetEnvVar(
+      const subscription = await subscriptionKeyAuth(
         ctx,
         row.organizationId,
         row.providerSlug,
@@ -630,7 +648,16 @@ export async function resolveProviderCredential(
         credentialId: row._id,
         name: row.name,
         secret: decryptOrExplain(row, row.encryptedData),
-        ...(targetEnvVar !== undefined && { targetEnvVar }),
+        ...(subscription?.targetEnvVar !== undefined && {
+          targetEnvVar: subscription.targetEnvVar,
+        }),
+        ...(row.accountId !== undefined &&
+        subscription?.accountIdVar !== undefined
+          ? { accountId: row.accountId }
+          : {}),
+        ...(subscription?.baseUrl !== undefined
+          ? { endpointUrl: subscription.baseUrl }
+          : {}),
       };
     }
     case 'env': {
