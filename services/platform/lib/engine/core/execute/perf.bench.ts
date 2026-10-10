@@ -16,10 +16,12 @@ import { setCodeRunner } from '../runner';
 import { evalTemplates } from '../template';
 import type { Automation, NodeDef } from '../types';
 import { execute } from './index';
-import { makeScope } from './scope';
+import { freezeScopes, makeScope } from './scope';
 
 const runner = nodeVmRunner();
 setCodeRunner(runner);
+// Production's scopes, not the suites' frozen copies.
+freezeScopes(false);
 
 const LIMITS = { timeoutMs: 5000 };
 
@@ -75,7 +77,16 @@ describe("one forEach item's templates (5 units)", () => {
     },
     { iterations: 20 },
   );
-  bench.todo('the same units through the template fast path');
+  bench(
+    'one unit the runner evaluates, beside 5 MB of an unrelated earlier output',
+    async () => {
+      await evalTemplates(
+        '{{ input.items.length + 1 }}',
+        makeScope({ items: [1, 2, 3] }, five),
+      );
+    },
+    { iterations: 50 },
+  );
 });
 
 /** A transform body that keeps one core busy for about 20 ms. */

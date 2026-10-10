@@ -10,6 +10,7 @@
 
 import { bench, describe } from 'vitest';
 
+import { freezeScopes } from '../../../lib/engine/core/execute/scope';
 import type { Automation } from '../../../lib/engine/core/types';
 import { createShutdownState } from '../../lib/shutdown';
 import { type FakeWorld, fakeStepperWorld } from './stepper.test-helpers.ts';
@@ -17,6 +18,9 @@ import { stepRunImpl } from './stepper.ts';
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
 const RUN = { organizationId: 'org-1', runId: 'run-1' } as never;
+
+// Production's scopes, not the suites' frozen copies.
+freezeScopes(false);
 
 /** How long the stand-in connector takes to answer one read. */
 const CALL_MS = 5;
