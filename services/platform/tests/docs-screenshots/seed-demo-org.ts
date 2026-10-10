@@ -35,6 +35,7 @@ import {
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
   DEMO_FAILED_RUN,
+  DEMO_HTTP,
   DEMO_INBOX,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
@@ -82,6 +83,18 @@ const isPresent = (locator: Locator): Promise<boolean> =>
     .first()
     .isVisible()
     .catch(() => false);
+
+/**
+ * A table's data rows once they have arrived: rows of cells with text. A
+ * loading table paints skeleton rows (rows of empty cells) before its query
+ * answers, and reading one as "the rows are in" made a check-then-create file
+ * a duplicate.
+ */
+const dataRows = (page: Page): Locator =>
+  page
+    .getByRole('row')
+    .filter({ has: page.getByRole('cell') })
+    .filter({ hasText: /\S/ });
 
 /**
  * Block until a list page's rows have actually resolved.
@@ -788,12 +801,12 @@ async function ensureProducts(
   });
   await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   // The products table renders no row-count footer, so `settleListOrEmpty`
-  // cannot latch once rows exist: settled is the empty-state hero OR the
-  // first data row (header is row 0).
+  // cannot latch once rows exist: settled is the empty-state hero OR a
+  // data row.
   const productsEmpty = page.getByText(t('emptyStates.products.title'));
-  await expect(
-    productsEmpty.first().or(page.getByRole('row').nth(1)),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(productsEmpty.first().or(dataRows(page).first())).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
   // The hero flashes while the query is in flight — grant it one window, or a
   // reseed files duplicates the create dialog then refuses to close on.
   if (await isPresent(productsEmpty)) await page.waitForTimeout(750);
@@ -972,6 +985,87 @@ async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
 }
 
 /**
+ * Open Add credential on Settings > Connectors and fill the HTTP connector's
+ * form as the HTTP page's credential (DEMO_HTTP): an API key sent in a
+ * header, under the shop's base URL. The page must be on Settings >
+ * Connectors with its table settled; answers the dialog, left unsubmitted.
+ * `translate` reads the labels: the seed's English one by default, a
+ * capture's own locale for the docs shot. (The connector's config fields,
+ * Base URL among them, carry one label in every language.)
+ */
+export async function fillHttpCredentialForm(
+  page: Page,
+  translate: (key: string) => string = t,
+): Promise<Locator> {
+  await page
+    .getByRole('button', {
+      name: translate('settings.credentials.addCredential'),
+    })
+    .first()
+    .click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // A card's name runs on into its badges, so find it by its title alone.
+  await dialog
+    .getByRole('button')
+    .filter({ has: page.getByText('HTTP', { exact: true }) })
+    .first()
+    .click();
+  // Bearer is offered first; the API key is the method with a header to name.
+  await dialog
+    .getByRole('combobox', { name: translate('settings.credentials.method') })
+    .click();
+  await page
+    .getByRole('option', {
+      name: translate('settings.connectors.authMethod.apiKey'),
+      exact: true,
+    })
+    .click();
+  await dialog
+    .getByRole('textbox', {
+      name: translate('settings.credentials.name'),
+      exact: true,
+    })
+    .fill(DEMO_HTTP.credential);
+  // `exact`: the API key header field's name starts with the same words.
+  await dialog
+    .getByLabel(translate('settings.connectors.dialog.apiKey'), { exact: true })
+    .fill(DEMO_HTTP.apiKey);
+  await dialog
+    .getByRole('textbox', { name: 'Base URL', exact: true })
+    .fill(DEMO_HTTP.baseUrl);
+  return dialog;
+}
+
+/**
+ * The HTTP page's credential (DEMO_HTTP), created through Settings >
+ * Connectors like the Tavily key. The table holds other connectors' rows
+ * too, so it settles on any credential's row (or the empty state) before
+ * looking for this one.
+ */
+async function ensureHttpCredential(page: Page, orgId: string): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/settings/connectors`);
+  await settleCredentialsTable(
+    page,
+    dataRows(page),
+    t('emptyStates.connectors.title'),
+  );
+  const existing = page
+    .getByRole('row')
+    .filter({ hasText: DEMO_HTTP.credential });
+  if (await isPresent(existing)) return;
+
+  const dialog = await fillHttpCredentialForm(page);
+  await dialog
+    .getByRole('button', {
+      name: t('settings.credentials.create'),
+      exact: true,
+    })
+    .click();
+  await expect(existing.first()).toBeVisible({ timeout: TIMEOUT.PERSIST });
+}
+
+/**
  * The mock AI provider, end to end: the org-custom provider DEFINITION
  * (a `providers/e2e-mock.yml` file under the org's config dir, copied from
  * the tracked template in `fixtures/config/docs-demo`) plus the CREDENTIAL
@@ -1006,15 +1100,14 @@ async function ensureMockProvider(
 
   // Only use the fixture root or the capture's explicit --config-dir. Never
   // read process.env.TALE_CONFIG_DIR: bun auto-loads `.env`, which may point
-  // at a development tree this pipeline does not own.
+  // at a development tree this pipeline does not own. The template comes
+  // from that same root, so a copied root pointed at another gateway port
+  // hands the org that port too.
   const target = path.join(configRoot, org.slug, 'providers', 'e2e-mock.yml');
   if (!existsSync(target)) {
     mkdirSync(path.dirname(target), { recursive: true });
     copyFileSync(
-      path.join(
-        PLATFORM_DIR,
-        'tests/e2e/fixtures/config/docs-demo/providers/e2e-mock.yml',
-      ),
+      path.join(configRoot, 'docs-demo', 'providers', 'e2e-mock.yml'),
       target,
     );
     console.log(`[seed] wrote mock provider definition for org "${org.slug}"`);
@@ -1902,6 +1995,20 @@ async function ensureAutomationFailedRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/** The HTTP page's automation (DEMO_HTTP), uploaded as a draft and never run. */
+async function ensureHttpAutomation(page: Page, orgId: string): Promise<void> {
+  const editorRoute = `/dashboard/${orgId}/automations/${DEMO_HTTP.automation}/editor`;
+  const versionSelect = page.getByRole('button', {
+    name: t('automations.detail.versionSelect'),
+    exact: true,
+  });
+  await page.goto(editorRoute);
+  if (await alreadySeeded(versionSelect)) return;
+  await uploadAutomationDraft(page, orgId, DEMO_HTTP.workflow);
+  await page.goto(editorRoute);
+  await expect(versionSelect).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+}
+
 /** Enrich the task through its real dialog after the unassigned-task triage
  * fixture has finished. Repeated seeds leave existing details and discussion
  * intact; the fresh load below verifies that each new write persisted. */
@@ -2314,6 +2421,7 @@ export async function seedDemoOrg(
   );
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
+  await step('HTTP credential', () => ensureHttpCredential(page, orgId));
   await step('automation test run', () => ensureAutomationTestRun(page, orgId));
   await step('trigger skip notice', () => ensureTriggerSkipNotice(page, orgId));
   await step('webhook deliveries', () =>
@@ -2322,6 +2430,7 @@ export async function seedDemoOrg(
   await step('automation failed run', () =>
     ensureAutomationFailedRun(page, orgId),
   );
+  await step('HTTP automation', () => ensureHttpAutomation(page, orgId));
   if (relaunchId) {
     await step('launch task brief + ownership + discussion', () =>
       ensureLaunchTaskDetail(page, orgId, relaunchId),

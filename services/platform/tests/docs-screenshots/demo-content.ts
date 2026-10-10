@@ -629,6 +629,41 @@ output: '{{ nodes.digest.output }}'
 `,
 } as const;
 
+/**
+ * The HTTP page's demo: a credential for a shop's API (an API key sent in a
+ * header, under a base URL) and a small automation whose first step reads
+ * that API as the credential. The automation is only ever opened in the
+ * editor: `api.shop.example` sits under a reserved name that resolves
+ * nowhere, so a live run could never reach it.
+ */
+export const DEMO_HTTP = {
+  credential: 'Shop API',
+  baseUrl: 'https://api.shop.example/v2',
+  apiKey: 'shop-docs-demo-key',
+  automation: 'open-orders',
+  node: 'orders',
+  workflow: `version: 1
+name: open-orders
+description: Read the shop's open orders and count them.
+nodes:
+  - id: orders
+    type: http.get
+    credential: Shop API
+    input:
+      url: /orders
+      query:
+        status: open
+  - id: count
+    type: transform
+    input:
+      answer: '{{ nodes.orders.output.body }}'
+    code: |
+      const orders = Array.isArray(input.answer?.orders) ? input.answer.orders : [];
+      return { open: orders.length };
+output: '{{ nodes.count.output }}'
+`,
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

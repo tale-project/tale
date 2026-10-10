@@ -34,6 +34,7 @@ import {
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
   DEMO_FAILED_RUN,
+  DEMO_HTTP,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
@@ -55,6 +56,7 @@ import {
   MOCK_PROVIDER_SLUG,
 } from './demo-content';
 import { t } from './i18n';
+import { fillHttpCredentialForm } from './seed-demo-org';
 
 const composer = (page: Page): Locator => chatComposer(page, t);
 const messageLog = (page: Page): Locator => chatMessageLog(page, t);
@@ -2112,6 +2114,45 @@ export const SHOTS: readonly Shot[] = [
         .getByRole('dialog', { name: t('settings.credentials.catalog.title') })
         .getByRole('button', { name: /Confluence/ })
         .first(),
+  },
+  {
+    // Settings > Connectors > Add credential > HTTP, filled in as the HTTP
+    // page's credential: API key as the method, the credential's name, the
+    // key (masked), the Base URL every call stays under, and the header the
+    // key is sent in. Nothing is submitted.
+    name: 'automation-http-credential',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/connectors',
+    prepare: async (page) => {
+      // The seeded HTTP row settles the table before Add credential opens.
+      await expect(
+        page.getByRole('row').filter({ hasText: DEMO_HTTP.credential }).first(),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await fillHttpCredentialForm(page, t);
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('settings.credentials.addTitle') })
+        .getByRole('textbox', { name: 'Base URL', exact: true }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('settings.credentials.addTitle') }),
+  },
+  {
+    // The Editor with the HTTP page's automation: its http.get step selected,
+    // and the step's Input in the inspector — a path under the credential's
+    // base URL and the query.
+    name: 'automation-http-step',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_HTTP.automation}/editor`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, DEMO_HTTP.node);
+    },
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.editor.fields.input'),
+        exact: true,
+      }),
   },
   {
     // Settings > API > MCP — outbound MCP-server management is retired, so the
