@@ -91,8 +91,9 @@ export function CompetencesPage({ organizationId }: Props) {
   const [grantOpen, setGrantOpen] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<CompetenceRow | null>(null);
   const [revoking, setRevoking] = useState(false);
-  // A revoked row can leave the filtered list; focus then returns to the table.
-  const tableRegionRef = useRef<HTMLDivElement>(null);
+  // A revoked row can leave the filtered list; focus then returns to the
+  // section around the table.
+  const tableRegionRef = useRef<HTMLElement>(null);
 
   const people = useMemo(() => {
     const map = new Map<string, Person>();
@@ -353,17 +354,17 @@ export function CompetencesPage({ organizationId }: Props) {
           `max-w-3xl` settings measure, and the bounded height lets the
           `stickyLayout` table scroll its own rows (the Trash page's frame). */}
       <SettingsPage fitToContainer fullWidth>
+        {/* The revoke dialog returns focus to the named section once the
+            row has left the list: a region by its heading, since ARIA lets
+            no plain div carry a name. */}
         <SettingsSection
+          ref={tableRegionRef}
           title={t('competences.title')}
           description={t('competences.description')}
-          className="min-h-0 flex-1"
+          tabIndex={-1}
+          className="min-h-0 flex-1 outline-none"
         >
-          <div
-            ref={tableRegionRef}
-            tabIndex={-1}
-            aria-label={t('competences.title')}
-            className="flex min-h-0 flex-1 flex-col outline-none"
-          >
+          <div className="flex min-h-0 flex-1 flex-col">
             <DataTable<CompetenceRow>
               columns={columns}
               stickyLayout

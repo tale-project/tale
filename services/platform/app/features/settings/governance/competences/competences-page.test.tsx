@@ -142,6 +142,35 @@ describe('CompetencesPage', () => {
     );
   });
 
+  // #3791: the revoked row leaves the Active list before the dialog closes,
+  // so focus goes to the list's section — a region named by its heading,
+  // since ARIA lets no plain div carry a name.
+  it('returns focus to the named section once the revoked row leaves', async () => {
+    state.records = [record({ id: 'live' })];
+    state.revoke.mockResolvedValue(null);
+    state.refetch.mockImplementationOnce(async () => {
+      state.records = [
+        record({ id: 'live', revokedAt: NOW, revokedBy: 'user-admin' }),
+      ];
+    });
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    screen
+      .getByRole('button', {
+        name: 'Revoke Act for another member from Integration Worker',
+      })
+      .focus();
+    await user.keyboard('{Enter}');
+    const dialog = await screen.findByRole('dialog');
+    within(dialog).getByRole('button', { name: 'Revoke' }).focus();
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Competences' })).toHaveFocus();
+    });
+  });
+
   it('keeps the dialog while the refused grant is still live', async () => {
     state.records = [record({ id: 'live' })];
     state.revoke.mockRejectedValue({ data: { code: 'COMPETENCE_FORBIDDEN' } });
