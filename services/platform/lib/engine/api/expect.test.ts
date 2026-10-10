@@ -14,6 +14,7 @@ import {
   compareIncludes,
   mismatchesOf,
   reportChange,
+  reportText,
   reportValue,
 } from './expect';
 
@@ -241,6 +242,15 @@ describe('reportValue', () => {
     expect(big.startsWith('{"rows":[0,1,2')).toBe(true);
     // A character that takes two units is never split in half.
     expect(reportValue(`${'a'.repeat(199)}😀tail`)).toBe(`${'a'.repeat(199)}…`);
+  });
+
+  it('cuts text the one way, to whatever length a report keeps of it', () => {
+    expect(reportText('short')).toBe('short');
+    expect(reportText('y'.repeat(5000), 4096)).toBe(`${'y'.repeat(4096)}…`);
+    expect(reportText(`${'a'.repeat(4095)}😀`, 4096)).toBe(
+      `${'a'.repeat(4095)}…`,
+    );
+    expect(reportText('a\u0000b', 4096)).toBe('a�b');
   });
 
   it('makes every string storable', () => {

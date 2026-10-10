@@ -113,27 +113,31 @@ export function compareIncludes(
 const REPORT_CHARS = 200;
 
 /**
+ * Text as a test report keeps it: storable, and past `chars` characters cut
+ * there with "…" (never through a character that takes two units).
+ */
+export function reportText(text: string, chars = REPORT_CHARS): string {
+  return text.length > chars
+    ? `${storableText(cutText(text, chars))}…`
+    : storableText(text);
+}
+
+/**
  * A value as a test report quotes it: plain JSON, text and the JSON of an
  * object or a list cut to `chars` characters with "…" (an object cut that
  * way reads as its cut JSON text), every string storable.
  */
 export function reportValue(value: unknown, chars = REPORT_CHARS): Json {
   const plain: unknown = value === undefined ? null : asCompared(value).value;
-  if (typeof plain === 'string') return cut(plain, chars);
+  if (typeof plain === 'string') return reportText(plain, chars);
   if (plain === null || typeof plain !== 'object') {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a number or a boolean, read back from JSON
     return plain as Json;
   }
   const text = JSON.stringify(plain);
-  if (text.length > chars) return cut(text, chars);
+  if (text.length > chars) return reportText(text, chars);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an object or a list read back from JSON
   return storableJson(plain as Json);
-}
-
-function cut(text: string, chars: number): string {
-  return text.length > chars
-    ? `${storableText(cutText(text, chars))}…`
-    : storableText(text);
 }
 
 /** A change as a report keeps it: its values quoted with

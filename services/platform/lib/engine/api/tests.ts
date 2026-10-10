@@ -24,7 +24,7 @@
 
 import type { ValidateFunction } from 'ajv';
 
-import { cutText, storableText } from '../../shared/utils/storable-text';
+import { storableText } from '../../shared/utils/storable-text';
 import {
   assignmentFromRun,
   flowModel,
@@ -63,7 +63,12 @@ import type {
   TestExpectation,
 } from '../core/types';
 import { inputCheck, testInputRefusal } from '../core/validate/document';
-import { type Mismatch, mismatchesOf, reportChange } from './expect';
+import {
+  type Mismatch,
+  mismatchesOf,
+  reportChange,
+  reportText,
+} from './expect';
 export { stableStringify } from '../../shared/utils/stable-stringify';
 
 /** Why a test did not pass. A `Mismatch` (`./expect`) is one difference,
@@ -207,12 +212,6 @@ const ACTUAL_WORDS: Readonly<Record<ExpectedNodeState | 'not_run', string>> = {
   failed: 'failed',
   not_run: 'did not run',
 };
-
-function english(text: string): string {
-  return text.length > MESSAGE_LENGTH
-    ? `${storableText(cutText(text, MESSAGE_LENGTH))}…`
-    : storableText(text);
-}
 
 /** What a node did, as a test names it. */
 function stateOf(entry: NodeTrace | undefined): ExpectedNodeState | 'not_run' {
@@ -380,7 +379,7 @@ function judgeEnd(
       failure: {
         kind: 'run_failed',
         ...(r.error?.nodeId !== undefined && { node: r.error.nodeId }),
-        message: english(failed),
+        message: reportText(failed, MESSAGE_LENGTH),
         ...(cause !== undefined && {
           failure: {
             code: cause.code,
@@ -414,7 +413,7 @@ function judgeEnd(
         kind: 'failed_elsewhere',
         expectedNode: wanted.node,
         ...(actualNode !== undefined && { actualNode }),
-        message: english(failed),
+        message: reportText(failed, MESSAGE_LENGTH),
       },
       message: `expected the run to fail at "${wanted.node}", but it failed ${actualNode === undefined ? 'outside its nodes' : `at "${actualNode}"`}: ${failed}`,
       final: true,
@@ -429,7 +428,7 @@ function judgeEnd(
       failure: {
         kind: 'failure_message',
         expected: wanted.message,
-        actual: english(failed),
+        actual: reportText(failed, MESSAGE_LENGTH),
         ...(actualNode !== undefined && { node: actualNode }),
       },
       message: `the run failed${on} with "${failed}", which does not contain "${wanted.message}"`,
