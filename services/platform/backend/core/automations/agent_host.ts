@@ -177,6 +177,9 @@ export interface WorkflowAgentRequest {
   /** Mount name → staging source: a folder id string, or
    * `{folderId|folderPath|content}`. */
   files?: Record<string, unknown>;
+  /** The node's resolved `input`, staged for the turn as `input.json` in
+   * its workspace; absent when the node declares none. */
+  input?: unknown;
 }
 
 /** What the stepper parks in the cursor after a kick. */
@@ -414,6 +417,11 @@ export function automationAgentHost(
           `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
         );
       }
+      // An input the start could not stage fails the step here, in the words
+      // its staging would use: before the op row, the scheduled start and the
+      // sandbox session a start spends, and before the retries a refused
+      // start would earn.
+      withStagedInput(request.files, request.input);
       const serving = await resolveWorkflowAgentServing(ctx, {
         organizationId,
         model: request.model,
@@ -542,6 +550,7 @@ export function automationAgentHost(
               ? { secrets: request.secrets }
               : {}),
             ...(request.files !== undefined ? { files: request.files } : {}),
+            ...(request.input !== undefined ? { input: request.input } : {}),
           },
         },
       );
@@ -968,10 +977,16 @@ function parseStagingSource(value: unknown): StagingSource | null {
   return null;
 }
 
+/** A mount name as a path under the workspace: a legacy `workspace/` prefix
+ * and trailing slashes dropped. */
+function mountPathOf(raw: string): string {
+  return raw.replace(/^workspace\//, '').replace(/\/+$/, '');
+}
+
 /** Path-safe mount name under the workspace: strip a legacy `workspace/`
  * prefix, refuse separators-out and dot-tricks. */
 function mountNameOf(raw: string): string {
-  const name = raw.replace(/^workspace\//, '').replace(/\/+$/, '');
+  const name = mountPathOf(raw);
   if (
     name === '' ||
     name.startsWith('/') ||
@@ -982,6 +997,49 @@ function mountNameOf(raw: string): string {
     );
   }
   return name;
+}
+
+/** Where an agent turn's `files` mounts and staged input land, under the
+ * session's `/agent` root. */
+const WORKFLOW_FILES_PREFIX = 'workspace/';
+
+/** The file an agent node's resolved `input` is staged as. */
+const WORKFLOW_INPUT_FILE = 'input.json';
+
+/** The most bytes the staged input may hold. The sandbox takes an inline
+ * file up to 1 MiB and refuses a larger one as `too_large`, so a larger
+ * input is refused before anything is spent, in the same words. */
+export const WORKFLOW_INPUT_MAX_BYTES = 1024 * 1024;
+
+/** The instructions line that tells the agent where its input is. */
+const STAGED_INPUT_GUIDANCE = `This step's input is staged as JSON at /agent/${WORKFLOW_FILES_PREFIX}${WORKFLOW_INPUT_FILE} — read it before you start.`;
+
+/**
+ * The node's `files` map with its resolved `input` added as the inline
+ * `input.json` mount, so the input is staged the way every inline file is;
+ * the map as it is for a node without an input. Refuses an input larger than
+ * {@link WORKFLOW_INPUT_MAX_BYTES} as JSON, and a `files` mount of that name,
+ * which the input would otherwise silently replace.
+ */
+export function withStagedInput(
+  files: Record<string, unknown> | undefined,
+  input: unknown,
+): Record<string, unknown> | undefined {
+  if (input === undefined) return files;
+  const content = `${JSON.stringify(input, null, 2)}\n`;
+  if (Buffer.byteLength(content, 'utf8') > WORKFLOW_INPUT_MAX_BYTES) {
+    throw new Error(
+      `staging input files failed: ${WORKFLOW_FILES_PREFIX}${WORKFLOW_INPUT_FILE} (too_large)`,
+    );
+  }
+  for (const name of Object.keys(files ?? {})) {
+    if (mountPathOf(name) === WORKFLOW_INPUT_FILE) {
+      throw new Error(
+        `the files mount name ${JSON.stringify(name)} is where this step's input is staged — rename the mount`,
+      );
+    }
+  }
+  return { ...files, [WORKFLOW_INPUT_FILE]: { content } };
 }
 
 /**
@@ -1303,6 +1361,8 @@ export interface StartWorkflowAgentTurnArgs {
     tools?: string[];
     secrets?: string[];
     files?: unknown;
+    /** The node's resolved input, staged as `input.json`. */
+    input?: unknown;
   };
 }
 
@@ -1408,10 +1468,19 @@ export async function startWorkflowAgentTurnImpl(
         ctx,
         args.organizationId,
         args.sessionId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated loosely above; parseStagingSource re-guards every entry
-        args.request.files as Record<string, unknown> | undefined,
-        'workspace/',
+        withStagedInput(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated loosely above; parseStagingSource re-guards every entry
+          args.request.files as Record<string, unknown> | undefined,
+          args.request.input,
+        ),
+        WORKFLOW_FILES_PREFIX,
       );
+      // The staged input has its own line in the instructions, so it is not
+      // listed again among the mounts.
+      const fileMounts =
+        args.request.input === undefined
+          ? mounts
+          : mounts.filter((name) => name !== WORKFLOW_INPUT_FILE);
       // A serving that cannot see images must not run blind over image
       // inputs: refuse with the reason (it lands on the run as why the turn
       // could not start), else brief the agent so it reports an unread image
@@ -1562,11 +1631,12 @@ export async function startWorkflowAgentTurnImpl(
           ),
         ),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        ...(mounts.length > 0
+        ...(args.request.input !== undefined ? [STAGED_INPUT_GUIDANCE] : []),
+        ...(fileMounts.length > 0
           ? [
               [
                 'Input files staged for this task:',
-                ...mounts.map((name) => `- /agent/workspace/${name}/`),
+                ...fileMounts.map((name) => `- /agent/workspace/${name}/`),
               ].join('\n'),
             ]
           : []),
@@ -2225,6 +2295,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
             },
           ),
         ),
+        ...(request.input !== undefined ? [STAGED_INPUT_GUIDANCE] : []),
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
@@ -2405,6 +2476,9 @@ function readWorkflowAgentRequest(input: Record<string, unknown>): {
   connectors?: string[];
   tools?: string[];
   secrets?: string[];
+  /** The node's resolved input: the start staged it, and the session's
+   * workspace keeps it for the resumed turn. */
+  input?: unknown;
 } {
   const connectors = readStringArray(input.connectors);
   const tools = readStringArray(input.tools);
@@ -2421,6 +2495,7 @@ function readWorkflowAgentRequest(input: Record<string, unknown>): {
     ...(connectors !== undefined ? { connectors } : {}),
     ...(tools !== undefined ? { tools } : {}),
     ...(secrets !== undefined ? { secrets } : {}),
+    ...(input.input !== undefined ? { input: input.input } : {}),
   };
 }
 

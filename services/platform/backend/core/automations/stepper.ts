@@ -704,6 +704,10 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       node.files === undefined
         ? undefined
         : await evalTemplates(node.files, scope(), `${at}/files`);
+    const context =
+      node.input === undefined
+        ? undefined
+        : await evalTemplates(node.input, scope(), `${at}/input`);
     const agentInput = {
       model,
       ...(node.modelProvider !== undefined && {
@@ -717,6 +721,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       ...(node.tools !== undefined && { tools: node.tools }),
       ...(node.secrets !== undefined && { secrets: node.secrets }),
       ...(files !== undefined && { files }),
+      ...(context !== undefined && { input: context }),
     };
     if (record) trace.input = agentInput;
     await noteInput(args, agentInput, { model });
@@ -1854,6 +1859,11 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       node.files === undefined
         ? undefined
         : await evalTemplates(node.files, scope, `${at}/files`);
+    // The node's own input, staged for the turn as `input.json`.
+    const context =
+      node.input === undefined
+        ? undefined
+        : await evalTemplates(node.input, scope, `${at}/input`);
     const request: WorkflowAgentRequest = {
       model,
       ...(node.modelProvider !== undefined && {
@@ -1870,6 +1880,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- evalTemplates preserves the record shape of `files`
         files: files as Record<string, unknown>,
       }),
+      ...(context !== undefined && { input: context }),
     };
     await noteInput({ run, unit: args.unit }, request, { model });
     await run.recordStarted([args.unit]);
