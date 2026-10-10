@@ -1,9 +1,7 @@
 /**
  * The detail pane holds the editor form in local state, seeded from the fetched
- * document and cleared when the pane navigates to another skill. The ORDER of
- * those two effects is the whole contract: both fire in one commit when the new
- * slug's document is already cached, so seeding before clearing leaves the form
- * permanently null and the editor blank.
+ * document until a local draft overrides it. Navigation clears that draft,
+ * including when the next skill's document is already cached.
  *
  * A failed read is its own state (#3752): never "Skill not found", always a
  * way to try again, and a failed refresh never takes a draft away. The labels

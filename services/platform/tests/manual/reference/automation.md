@@ -13,6 +13,10 @@ drawer test verifies that preserved runs are counted separately and their reason
 is explained. `backend/core/governance/erasure_counts.test.ts` and the receipt read
 regression keep summary and breakdown counts consistent for both stored shapes. These checks do not claim a retirement or hold-release mechanism.
 
+## Skill editor successful saves (#3642)
+
+The component/HTTP suite `app/features/skills/components/skill-detail-pane.save.test.tsx` owns keeping Description, Labels, Visibility and Instructions visible with saved values and a clean Save state after a normalized no-op or a changed save, with detail and library refreshes completing in either order. It uses the real skills hooks, React Query and HTTP adapters with an in-memory door; a refused save keeps the draft and stored document, and an untouched skill reopens intact without a PUT. Real file-store normalization and browser layout remain outside this suite.
+
 ## Coverage map
 
 Default credential reads share one query per organization within a request or
