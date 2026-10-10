@@ -307,12 +307,12 @@ codes:
     title: Adresse ist kein HTTPS
     explanation: Ein HTTP-Schritt ohne Zugangsdaten ruft öffentliche Adressen nur über HTTPS auf, deshalb lehnt ein Lauf diese Adresse ab.
     cause: '{nodeLabel} ruft eine einfache http://-Adresse auf.'
-    fix: Verwende die https://-Adresse. Einfaches http erreicht nur einen privaten Host, den diese Installation erlaubt.
+    fix: Verwende die https://-Adresse. Einfaches http erreicht nur einen privaten Host, den dieses Deployment erlaubt.
   HTTP_SECRET_IN_URL:
     title: Zugangsdaten in der Adresse
     explanation: Zugangsdaten in der Adresse eines Schritts werden mit jeder Version gespeichert und erscheinen in jedem Lauf. Stattdessen melden gespeicherte Zugangsdaten die Anfrage an.
     cause: '{place, select, password {Die Adresse von {nodeLabel} enthält ein Passwort.} other {Die Adresse von {nodeLabel} enthält Zugangsdaten in „{place}“.}}'
-    fix: Speichere sie unter Einstellungen → Connectors als HTTP-Zugangsdaten, nenne diese Zugangsdaten im Feld credential des Schritts und entferne sie aus der Adresse.
+    fix: Speichere sie unter Einstellungen › Connectors als HTTP-Zugangsdaten, nenne diese Zugangsdaten im Feld credential des Schritts und entferne sie aus der Adresse.
   HTTP_HEADER_RESERVED:
     title: Header gehört zu den Zugangsdaten
     explanation: Authorization und Cookie kommen aus den Zugangsdaten des Schritts, nie vom Schritt selbst, deshalb lehnt ein Lauf diesen Schritt ab.
@@ -413,6 +413,11 @@ codes:
     explanation: Eine Node verwendet einen Connector, der in dieser Organisation nicht verbunden ist. Ein Live-Lauf erreicht diese App deshalb nicht.
     cause: '{catalogued, select, true {{nodeLabel} verwendet „{connector}“, den noch niemand verbunden hat.} other {{nodeLabel} verwendet „{connector}“, den dieses Deployment nicht anbietet.}}'
     fix: '{catalogued, select, true {Verbinde ihn unter Einstellungen › Connectors.} other {{suggestion, select, none {Wähle einen Connector aus dem Katalog.} other {Meintest du „{suggestion}“?}}}}'
+  CREDENTIAL_UNKNOWN:
+    title: Zugangsdaten nicht gefunden
+    explanation: Ein Schritt nennt die gespeicherten Zugangsdaten, mit denen er sich anmeldet. Diese gehören nicht zu den Zugangsdaten seines Connectors, die in Betrieb sind, deshalb scheitert ein Live-Lauf an diesem Schritt.
+    cause: '{nodeLabel} nennt die Zugangsdaten „{credential}“ von „{connector}“, die es nicht gibt oder die deaktiviert sind.'
+    fix: '{suggestion, select, none {Füge sie unter Einstellungen › Connectors hinzu oder aktiviere sie, oder nenne andere Zugangsdaten.} other {Meintest du „{suggestion}“?}}'
   SECRET_UNKNOWN:
     title: Secret nicht gefunden
     explanation: Eine Agent-Node verlangt ein Secret, das diese Organisation nicht gespeichert hat. Der Agent läuft dann ohne dieses Secret.

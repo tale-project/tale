@@ -312,12 +312,12 @@ codes:
     title: Address isn't HTTPS
     explanation: An HTTP step without a credential calls public addresses over HTTPS only, so a run refuses this address.
     cause: '{nodeLabel} calls a plain http:// address.'
-    fix: Use the https:// address. Plain http reaches only a private host this installation allows.
+    fix: Use the https:// address. Plain http reaches only a private host this deployment allows.
   HTTP_SECRET_IN_URL:
     title: Credential in the address
     explanation: A credential written into a step's address is saved with every version and shows in every run. A stored credential signs the request instead.
     cause: '{place, select, password {The address of {nodeLabel} carries a password.} other {The address of {nodeLabel} carries a credential in "{place}".}}'
-    fix: Store it as an HTTP credential in Settings → Connectors, name that credential in the step's credential field, and remove it from the address.
+    fix: Store it as an HTTP credential in Settings › Connectors, name that credential in the step's credential field, and remove it from the address.
   HTTP_HEADER_RESERVED:
     title: Header belongs to the credential
     explanation: Authorization and Cookie come from the step's credential, never from the step itself, so a run refuses this step.
@@ -418,6 +418,11 @@ codes:
     explanation: A node uses a connector that isn't connected in this organization, so a live run can't reach that app.
     cause: '{catalogued, select, true {{nodeLabel} uses "{connector}", which nobody has connected yet.} other {{nodeLabel} uses "{connector}", which this deployment doesn''t offer.}}'
     fix: '{catalogued, select, true {Connect it in Settings › Connectors.} other {{suggestion, select, none {Pick a connector from the catalog.} other {Did you mean "{suggestion}"?}}}}'
+  CREDENTIAL_UNKNOWN:
+    title: Credential not found
+    explanation: A step names the stored credential it signs in with. This one isn't among its connector's credentials in service, so a live run fails at this step.
+    cause: '{nodeLabel} names the credential "{credential}" of "{connector}", which doesn''t exist or is disabled.'
+    fix: '{suggestion, select, none {Add or enable it in Settings › Connectors, or name another credential.} other {Did you mean "{suggestion}"?}}'
   SECRET_UNKNOWN:
     title: Secret not found
     explanation: An agent node asks for a secret this organization hasn't stored, so the agent runs without it.

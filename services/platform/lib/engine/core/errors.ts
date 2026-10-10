@@ -140,6 +140,8 @@ export const CODES = {
     "an agent step's skills should be skills a run of the automation can reach",
   CONNECTOR_NOT_CONNECTED:
     'a connector a step uses should be one the organization connected',
+  CREDENTIAL_UNKNOWN:
+    "the credential a connector step names should be one of its connector's credentials in service",
   SECRET_UNKNOWN:
     "an agent step's secrets should be secrets the organization stored",
   HARNESS_UNKNOWN:
@@ -586,6 +588,11 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     level: 'warning',
     family: 'contract',
     params: ['node', 'connector', 'catalogued', 'suggestion?'],
+  },
+  CREDENTIAL_UNKNOWN: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'connector', 'credential', 'suggestion?'],
   },
   SECRET_UNKNOWN: {
     level: 'warning',

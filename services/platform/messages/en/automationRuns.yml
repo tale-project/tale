@@ -270,7 +270,7 @@ runtime:
     HTTP_BLOCKED_HOST:
       title: The address isn't allowed
       explanation: Automations call public addresses, over HTTPS.
-      cause: "{why, select, private {{host} is a private network address, which automations may not call on this installation.} metadata {{host} is a cloud metadata address, which is never called.} other {{host} was called over plain HTTP, which could expose what the request carries.}}"
+      cause: "{why, select, private {{host} is a private network address, which this deployment doesn't let automations call.} metadata {{host} is a cloud metadata address, which is never called.} other {{host} was called over plain HTTP, which could expose what the request carries.}}"
       fix: '{why, select, private {Call a public address, or ask the people who run Tale to allow private addresses.} metadata {Call a public address.} other {Use the address with https://.}}'
     HTTP_OFF_ORIGIN:
       title: The address is outside the credential's

@@ -798,6 +798,21 @@ http-input-checks:
 http-credentialed-step:
   errors: []
   warnings: []
+credential-unknown:
+  errors: []
+  warnings:
+    - code: CREDENTIAL_UNKNOWN
+      nodeId: orders
+      path: credential
+      message: 'node "orders": connector "http" has no credential "Shop APII" in service — a live run fails at this step'
+      hint: a person adds or enables it in Settings › Connectors; did you mean "Shop API"?
+      at:
+        pointer: /nodes/0/credential
+      params:
+        node: orders
+        connector: http
+        credential: Shop APII
+        suggestion: Shop API
 output-missing:
   errors: []
   warnings:

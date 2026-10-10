@@ -362,6 +362,12 @@ export interface OrgFacts {
     catalogued: ReadonlySet<string>;
     connected: ReadonlySet<string>;
     needsCredential: ReadonlySet<string>;
+    /** Each connector's credentials in service, by id and name — what a
+     * step's `credential` may name. Absent: cannot tell. */
+    credentials?: ReadonlyMap<
+      string,
+      ReadonlyArray<{ readonly id: string; readonly name: string }>
+    >;
   };
   /** The names of the organization's agent secrets — never their values. */
   secrets?: ReadonlySet<string>;

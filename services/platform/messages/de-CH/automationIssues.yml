@@ -1,5 +1,8 @@
 quote: «{text}»
 codes:
+  CREDENTIAL_UNKNOWN:
+    cause: '{nodeLabel} nennt die Zugangsdaten «{credential}» von «{connector}», die es nicht gibt oder die deaktiviert sind.'
+    fix: '{suggestion, select, none {Füge sie unter Einstellungen › Connectors hinzu oder aktiviere sie, oder nenne andere Zugangsdaten.} other {Meintest du «{suggestion}»?}}'
   HTTP_SECRET_IN_URL:
     cause: '{place, select, password {Die Adresse von {nodeLabel} enthält ein Passwort.} other {Die Adresse von {nodeLabel} enthält Zugangsdaten in «{place}».}}'
   UNKNOWN_TOP_FIELD:

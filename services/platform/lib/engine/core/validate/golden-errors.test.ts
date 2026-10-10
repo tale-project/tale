@@ -55,6 +55,7 @@ const store = memoryStore({
       catalogued: new Set(['github', 'gmail', 'task']),
       connected: new Set(['github']),
       needsCredential: new Set(['github', 'gmail']),
+      credentials: new Map([['http', [{ id: 'cred_shop', name: 'Shop API' }]]]),
     },
     secrets: new Set(['SUPPORT_SIGNATURE']),
     harnesses: new Set(['claude-code', 'codex']),
@@ -563,6 +564,17 @@ const fixtures: Record<string, unknown> = {
         type: 'http.get',
         credential: 'Shop API',
         input: { url: '/orders', query: { status: 'open' } },
+      },
+    ],
+    output: '{{ nodes.orders.output }}',
+  }),
+  'credential-unknown': flow({
+    nodes: [
+      {
+        id: 'orders',
+        type: 'http.get',
+        credential: 'Shop APII',
+        input: { url: '/orders' },
       },
     ],
     output: '{{ nodes.orders.output }}',
@@ -1096,6 +1108,7 @@ const VALIDATION_CODES: IssueCode[] = [
   'LLM_MODEL_UNAVAILABLE',
   'SKILL_UNKNOWN',
   'CONNECTOR_NOT_CONNECTED',
+  'CREDENTIAL_UNKNOWN',
   'SECRET_UNKNOWN',
   'HARNESS_UNKNOWN',
   'EVENT_UNKNOWN',
