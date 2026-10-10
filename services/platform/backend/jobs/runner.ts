@@ -10,6 +10,8 @@ import { traceBackendTask, traceWorkerPhase } from '../tracing.ts';
 import { bossDbInTx } from './enqueue.ts';
 import type { BackendTaskList } from './task-list.ts';
 import {
+  physicalTaskQueue,
+  queueGroupConcurrency,
   slotQueueSlots,
   TASK_WORKER_BATCH_LIMITS,
   TASK_WORKER_IDLE_POLL_SECONDS,
@@ -28,6 +30,9 @@ export type WorkerOptions = {
   agentStartSlots?: number | undefined;
   /** One-job slots of the agent drive queues (AGENT_DRIVE_SLOTS). */
   agentDriveSlots?: number | undefined;
+  /** Automation steps one organization runs at once across every worker
+   * (AUTOMATION_ORG_CONCURRENCY); 0 or unset, no limit. */
+  automationOrgConcurrency?: number | undefined;
 } & (
   | { shouldDefer?: undefined; sql?: undefined }
   | {
@@ -94,7 +99,8 @@ function claimsEnded(answer: unknown): 0 | 1 {
  * before. The queue's own retry and expiry options apply to the successor,
  * as they applied to the job, and the job's own heartbeat travels with it:
  * a queue created before its heartbeat was declared has none to lend
- * (`TaskQueueOptions.heartbeatSeconds`).
+ * (`TaskQueueOptions.heartbeatSeconds`). So does its group, or the
+ * successor would run outside its organization's limit (`TASK_JOB_GROUP`).
  */
 async function handOver(
   boss: PgBoss,
@@ -115,6 +121,16 @@ async function handOver(
       ...(job.priority !== 0 ? { priority: job.priority } : {}),
       ...(typeof job.heartbeatSeconds === 'number'
         ? { heartbeatSeconds: job.heartbeatSeconds }
+        : {}),
+      ...(typeof job.groupId === 'string'
+        ? {
+            group: {
+              id: job.groupId,
+              ...(typeof job.groupTier === 'string'
+                ? { tier: job.groupTier }
+                : {}),
+            },
+          }
         : {}),
     });
     if (successor !== null) return 'handed_over';
@@ -139,9 +155,13 @@ async function handOver(
 export async function startWorker(options: WorkerOptions): Promise<void> {
   const concurrency = options.concurrency ?? 5;
   for (const [name, handler] of Object.entries(options.taskList)) {
+    const queue = physicalTaskQueue(name);
     const pollSeconds = TASK_WORKER_IDLE_POLL_SECONDS.get(name) ?? 2;
+    const groupConcurrency = queueGroupConcurrency(name, {
+      automationOrgConcurrency: options.automationOrgConcurrency,
+    });
     await options.boss.work(
-      name,
+      queue,
       {
         ...(TASK_WORKER_SLOT_QUEUES.has(name)
           ? {
@@ -158,6 +178,12 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                 TASK_WORKER_BATCH_LIMITS.get(name) ?? concurrency,
               ),
             }),
+        // Counted in the database across every worker: a fetch skips a job
+        // whose group already has this many active, and takes the next
+        // group's. Each fetch counts for itself, so slots fetching in the
+        // same instant can each take one past the limit. A job without a
+        // group is never held back.
+        ...(groupConcurrency !== undefined ? { groupConcurrency } : {}),
         perJobResults: true,
         // The hand-over re-sends a job with its own singleton key and
         // priority, which only the metadata carries.
@@ -194,7 +220,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                   const sql = options.sql;
                   const data = job.data;
                   const outcome = await traceWorkerPhase('handover', () =>
-                    handOver(options.boss, sql, name, job, data),
+                    handOver(options.boss, sql, queue, job, data),
                   );
                   if (outcome === 'claim_ended') {
                     console.log(
@@ -206,10 +232,19 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                 // pg-boss aborts `job.signal` once the batch outlives the
                 // queue's `expireInSeconds` and retries the job; a handler that
                 // honours it stops instead of running beside its retry.
-                await traceWorkerPhase('handler', () =>
+                const result = await traceWorkerPhase('handler', () =>
                   handler(job.data, { signal: job.signal, jobId: job.id }),
                 );
-                return { id: job.id, status: 'completed' };
+                return {
+                  id: job.id,
+                  status: 'completed',
+                  // An expired/shutting-down attempt must not certify a
+                  // successful scan, even if its handler ignored the signal.
+                  // pg-boss also fences the stored completion to active jobs.
+                  ...(result !== undefined && !job.signal.aborted
+                    ? { output: result.output }
+                    : {}),
+                };
               } catch (error) {
                 span?.setStatus({ code: 2, message: 'internal_error' });
                 if (isDatabaseUnavailable(error)) {

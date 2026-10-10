@@ -2,9 +2,9 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 import { render, screen } from '@/tests/utils/render';
 
-import enMessages from '../../../messages/en.yml';
 import { DashboardNotFound } from './dashboard-not-found';
 
 // `LinkButton` renders a TanStack `Link`, which needs a router context. Stub it

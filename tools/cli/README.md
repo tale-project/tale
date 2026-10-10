@@ -69,7 +69,7 @@ resume. If `tale dev --help` lists `--stop`, you can start in the background wit
 keep the foreground run. The production deployment uses separate data volumes and
 does not import the local instance's data.
 
-When available, `doctor` checks Docker, Compose, daemon architecture and local port availability
+When available, `doctor` checks Docker, the Docker Engine version (24.0 or later), Compose, daemon architecture and local port availability
 without installing dependencies or changing files. Use `tale doctor --port 8443`
 when selecting another HTTPS port, or `tale doctor --json` for structured output.
 Its warnings include limitations such as ARM64 emulation; a successful check is
@@ -99,7 +99,16 @@ make every operation downtime-free.
 `tale rollback` is limited to a recorded compatible patch version. Recovery across
 minor or major migrations uses a snapshot and its matching version; see the
 [upgrade guide](../../docs/en/self-hosted/operate/upgrades.md) before crossing a
-release line. The 0.5 cutover requires a fresh deployment from earlier lines.
+release line. After the automation writer-protocol cutover, deploy and rollback
+also require a compatible, source-identified image and a readable installed
+protocol floor. Already-created protocol-2 backend images raise that floor even
+before their migration commits. The CLI rereads it after slow preparation;
+concurrent manual or older-CLI mutation is outside its deployment lock.
+An older CLI cannot enforce this guard; a snapshot cannot undo
+external effects. Repair forward with a compatible runtime. Tag deployments with
+an external `DATABASE_URL` or a custom application database are refused until a
+separately verified database readback path is available. The 0.5 cutover requires
+a fresh deployment from earlier lines.
 
 Commands such as `reset`, `restore`, `--override` and `--override-all` change or
 replace state. Read their reference and preview what is available before using
@@ -115,6 +124,14 @@ Preparation checks configurations before it pulls runtime images. It refuses a
 pack that declares fields this CLI does not know and names those fields, so pin a
 CLI at least as new as the Tale your packs target.
 
+Git acquisition failures identify the runtime or configuration source, the Git
+stage and its exit status when available. The fixed failure hint distinguishes
+disk space, name resolution, timeout and output-limit failures; `unknown` retains
+no unrecognized Git text. Hints narrow the investigation without proving a cause.
+Check the preparation runner at the reported stage before retrying. Each Git
+command has a five-minute deadline and a 1 MiB combined output limit; diagnostics
+omit repository URLs, local paths, credentials and raw Git output.
+
 ```bash
 tale deploy prepare --spec "$TALE_DEPLOY_SPEC" --output "$TALE_DEPLOY_BUNDLE" --json
 tale deploy verify-bundle --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --json
@@ -127,11 +144,128 @@ bundle commands require POSIX custody checks and are unavailable on Windows.
 Retain the bundle, source pins and receipts together. Serialize competing
 deployments externally: a local lock does not coordinate separate hosts.
 
+The protocol-1 to protocol-2 automation upgrade uses a bounded admission barrier
+for the bundled database and the verified `b4931db4` legacy runtime. It requires
+the complete legacy migration inventory in one validated `public` or `tale`
+ledger and zero unfinished automation runs across every organization. A second
+or malformed ledger refuses admission. A held database lock blocks new legacy admissions and
+claims while the CLI gracefully stops every recorded backend API and worker
+container. The CLI observes those exact containers exited before releasing the
+lock; the new images install their protocol fence before serving requests or
+starting workers. Busy or unsupported sources and database layouts refuse the
+upgrade before any backend stop. Existing protocol-1 tag deployments must use
+this managed upgrade first; fresh installations and compatible later deployments
+do not need the legacy barrier.
+
+If the lock connection drops, a stop times out, or identities change, the CLI
+leaves the runtime pending and starts no new containers. Keep the bundle and
+`.tale/automation-cutover.json` receipt, then retry the same managed deployment.
+Before another legacy handoff, the retry verifies the recorded identities and
+takes a fresh locked census. If Compose already created some target containers,
+it can resume only with every retained old writer still exactly stopped, each
+replacement on the prepared target image, complete backend roles and the same
+database incarnation. Unknown identities or missing roles require reconciliation
+of the pending deployment. Elapsed time never authorizes a retry. The CLI does not
+force-kill or automatically restart old writers. Do not run an older CLI or
+manually restart containers during this transition. Terminal legacy runs may
+still have historical external effects; this barrier does not claim those
+effects have retired or cancel independent project agents.
+
+After a completed rollout, `tale --json deploy accept --bundle
+"$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT"
+--expected-version "$TALE_RELEASE_VERSION"` collects current read-only acceptance.
+It verifies the exact Ready receipt, runtime image custody and OCI release labels,
+complete SQL/TypeScript migration inventories, and both frontend/API serving
+processes. The canonical HTTPS health responses must carry the same fresh public
+process identities as the captured local containers, including a final reread;
+another installation at the same version is refused. Legacy servers without that
+identity contract cannot supply acceptance. No application/configuration state is
+written. The existing lock and an owned temporary bundle copy preserve custody.
+For a private origin unreachable from the deployment host, pass
+`--origin-container "$TALE_GATEWAY_CONTAINER_ID"` with the full ID of its running
+local gateway. The CLI requires exactly one container network with an IPv4
+address and keeps that container, image, start time, restart count and network
+identity stable through acceptance. It connects through that address while
+preserving the canonical HTTPS hostname, certificate verification and both
+serving-process checks. This observes the local private gateway; it does not
+prove remote staff membership or public DNS reachability. Without this option,
+acceptance uses the origin's normal DNS route. Captured-route receipts include
+`serving.originRoute` with the container ID, network ID and address.
+
+External observations share a 120-second elapsed budget; the bundle's existing
+2 GiB/256 MiB-per-file limits bound preparation resources, but filesystem waits
+and cleanup do not have a cancellable whole-command deadline. Use an external
+process supervisor when a total deadline is required. A receipt is point-in-time
+correlation, not authentication or a guarantee of later routing. `sourceTag` is
+image-reference metadata; OCI labels and frontend health establish the version.
+
+`tale --json deploy observe --spec <file> --cli-ref <sha> --deployment-ref <sha>
+--machine-id-sha256 <digest>` reads an existing admitted host and retained native
+configuration without preparing a bundle or compiling preserved packs. Private stdin
+is `{"environment":{"UPPERCASE_ENV_NAME":"value"}}`: an explicit map only, at most
+64 KiB, 128 keys and 8192 bytes per value. It uses the pinned compiled CLI and local
+Docker socket, existing account/organization custody and credentials, bounded SQL
+and GET verification, temporary root-owned tooling and temporary authentication.
+It performs no provisioning, configuration apply, migration, restart, prune or
+cutover-lock acquisition. Complete reports have `ok:true` and `data.complete:true`;
+missing retained custody or owned-skill ownership preserves partial host/database
+facts with `ok:false`, `data.complete:false` and exit `3`. Identity drift and unsafe
+custody refuse. Refusal summaries identify a bounded, source-authored verification
+phase without returning private input, paths, command output or native responses;
+they identify where verification stopped, not the underlying host cause. Cleanup
+refusals take precedence. Retain partial reports for investigation; neither result is Ready
+acceptance or authorization for a rollout. An external supervisor must also bound
+filesystem waits. The public CLI guide documents the full input and result contract.
+
+`tale deploy smoke --url <url>` checks any running deployment through its public
+URL as a browser would, without credentials or writes: health and version,
+readiness, the app shell, an anonymous session, and the `/events` and `/api/app`
+session gates. `--full` also signs in as `TALE_SMOKE_EMAIL`/`TALE_SMOKE_PASSWORD`
+and creates, observes (live update) and deletes a task (archives it, when the
+account may not delete tasks); `--chat` adds one model
+turn. `--json` reports every check; exit `5` means a check failed.
+
+Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
+retained `name`. To use a canonical reporting label, declare
+`"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }`
+and supply that variable at the destination, for example `example-pr`. The label
+must start with a lowercase letter or digit and contain 1–64 lowercase letters,
+digits or hyphens. Browser, backend and sandbox events use it; deployment identity,
+Compose ownership, state paths and stored credentials keep their existing values.
+
 The managed proxy blocks public account and organization creation. It also serves
 `GET /api/app/organizations/capabilities` with `canCreate: false`, so the app hides
 organization creation and directs users to the operator. Existing deployments need
 a newly prepared and applied runtime bundle to gain this capability response;
 updating the platform image alone does not change their retained proxy policy.
+
+### Apply instruction and workflow changes without a rollout
+
+After a full deployment using a CLI and platform revision that support managed
+instruction and automation resources, prepare a new reviewed bundle and apply it
+with `tale deploy --bundle "$TALE_DEPLOY_BUNDLE" --configuration-only --yes --json`.
+Add `--dry-run` first to verify the runtime prerequisites without applying changes.
+
+This mode requires a completed deployment receipt that records its exact runtime
+and identity basis, the same healthy running containers and images, and no pending
+runtime rollout. Only native `configuration` may change; changing identity, runtime,
+pack sources or other deployment inputs requires a full deployment. An older receipt
+without this capability proof must first complete one normal deployment with the
+updated CLI. A refusal never falls back to a full deployment automatically.
+
+The CLI reuses its existing deployment lock, private native provisioning session,
+configuration plan, journal and readback. It changes only managed instruction and
+automation resources; every declared branding, governance, provider, embedding or
+instance setting must already be unchanged. A retained pending plan that changed
+one of those resources must finish through the full lane, including when its write
+landed before the reply was lost. Existing operator and organization IDs are checked;
+this mode does not bootstrap accounts or reconcile clients or SSO.
+
+The apply takes no snapshot, pauses no containers and performs no Compose rollout
+or restart. It preserves `deployment-ready.json` and writes a separate
+`configuration-ready.json` only after native readback and a second runtime identity
+check. A failed apply retains the native journal for exact-plan recovery. Its receipt
+proves the configuration phase, not a new full runtime deployment.
 
 ### Name managed containers
 
@@ -255,7 +389,9 @@ it. See the [organization-creators guide](../../docs/en/self-hosted/install/cli-
 
 `config validate`, `plan`, `apply` and `read` use the same native configuration
 engine as managed deployments. Supported declarations include branding, governance,
-providers, environment credential metadata, embeddings and deployment settings.
+providers, environment credential metadata, embeddings, deployment settings, project
+and agent instructions, agent tool grants, standing-task descriptions and native automation definitions,
+deployments and schedules.
 
 Review the saved plan before applying it with `--plan`, `--receipt` and `--yes`.
 The plan binds the destination, declaration and prior native state. Concurrent
@@ -279,6 +415,151 @@ Secret values come from environment references. The CLI does not install model
 servers or migrate existing embedding vectors. Read the
 [configuration examples](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)
 for restart requirements, embedding preconditions and exact schemas.
+
+### Adopt instructions and recurring workflows
+
+Native resource kinds `project-instructions`, `agent-instructions` and
+`task-instructions` name existing `projectId`, `agentId` or `taskId` values explicitly.
+They change only `instructions` or the task's `description`. They do not provision a
+new fleet, replace agent equipment, select models, grant secrets, assign tasks or
+change task status. Project and task text retain whitespace; agent instructions use
+the native writer's trimming rule. Each text field is limited to 20,000 UTF-16 code
+units. The native route checks the previous field hash atomically and retains its
+audit and permission rules.
+
+An `agent-tools` resource adopts an existing `projectId` and `agentId` with a
+complete desired `tools` array. Keep every existing grant you intend to retain:
+the array replaces the tool set. The native catalog validates every name, removes
+duplicates and orders grants consistently before hashing. Unknown names fail;
+they are never silently removed. For example, this declaration equips one
+existing reviewer with task lookup and independent review:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "agent-tools",
+      "config": {
+        "projectId": "11111111-1111-4111-8111-111111111111",
+        "agentId": "22222222-2222-4222-8222-222222222222",
+        "tools": ["task_find", "task_get", "task_review"]
+      }
+    }
+  ]
+}
+```
+
+Replace the example IDs with exact identities already read from the platform.
+The caller needs editor access to the active project, and the agent must not be
+managed by the platform. Members can read the narrow configuration but cannot
+apply tool changes. The writer preserves instructions, model, skills, connectors
+and every secret grant exactly, including unavailable equipment. An equal set
+changes no timestamp or audit row; a changed set invalidates stale full-agent
+saves. Plan/readback exposes only identity, tools and their native hash. A runtime
+without this configuration facet or a requested capability refuses the operation.
+Interrupted application uses the same pending receipt recovery described above.
+
+A `task-review-context` resource explicitly enrolls a pristine native operational
+task with `projectId`, `taskId`, `reviewerAgentId` and `enabled`. The editor must
+name an existing open task without retained execution, review or source work,
+external identity, children or dependencies, and an eligible project reviewer
+already granted `task_review`. Enrollment does not grant tools or start work.
+Its reviewer and purpose remain fixed when disabled. A runtime without the
+native facet refuses planning; interrupted application reconciles the same
+native hash before writing again.
+
+To provision a new context, add `createIfMissing: true` beside `kind` and `config`
+and declare a stable UUID as `config.taskId`. The same editor-only transaction
+creates a backlog task assigned to the reviewer and enrolls it; a failed
+enrollment leaves neither the task nor its audit/count changes. The flag never
+changes the stored configuration hash. Existing tasks still pass the pristine
+checks, and an occupied identity is never overwritten. Keep the ID and pending
+receipt when retrying. Omit the flag for adoption only. Disabling a context keeps
+its identity and purpose; it does not delete the task or grant tools.
+
+A live project manager with `task_review` and `task_start_agent` starts an
+occurrence through `task_review` operation `start_batch`, supplying a request
+UUID, `contextTaskId`, and one to twenty exact `{taskId, expected}` targets copied
+from native review reads. Use operation `read_batch` with its `batchId` to recover
+the result. Only matching native decisions from that batch can complete it; a
+settled report does not. An incomplete replay starts nothing. A new occurrence
+must explicitly name the remaining targets. Each source task keeps its original
+independent review gate; the operational context produces no report-review gate.
+
+An `agent-model` resource selects `harness`, `model` and an explicit
+`modelProvider` for an existing `projectId` and `agentId`. The native model
+catalog checks the exact combination and credentials without provider fallback.
+The same project editing permissions and platform-managed-agent restriction
+apply. Only those serving fields change; instructions and all equipment and
+secret grants retain their exact stored values. Queued and running work retains
+the tuple stamped at admission. Future starts use the new selection. An equal
+selection is a no-op, and a changed selection invalidates stale full-agent saves.
+A legacy unset provider is observed as `null`; desired declarations require an
+explicit provider. Plan, apply, interrupted recovery and readback use the same
+configuration flow. A runtime without this facet refuses the operation.
+
+An `automation-definition` resource declares `projectId`, the exact native `name`
+(including folder slashes), `document`, `settings`, `presentation` and `taskContract`.
+The three metadata fields are required: copy their observed native values, or use
+`null` to clear them intentionally. Missing metadata is not evidence that it is empty.
+Native authoring validates the document and requires passing attached tests before
+saving an immutable version. An existing automation must already belong to its
+declared project; a new definition binds to that existing project.
+
+Declare an `automation-deployment` for the same name and project, with
+`definitionSha256` equal to SHA-256 of the complete expanded definition configuration,
+serialized as compact JSON with object keys sorted recursively. Arrays retain their
+order. The CLI refuses a different digest. A schedule also requires both phases in
+the same declaration. Its `automation-schedule` configuration has `projectId`,
+`name`, `cron`, `timezone` and `enabled`, and optionally `wakeOnSlotFreed: true`, which
+also fires the schedule as soon as an agent of its project frees its slot; leave it out
+to opt out. Only one enabled schedule per project may set it: a second one, or binding its
+automation to a project another schedule already wakes, is refused with 409. Application saves definitions, promotes their
+exact tested versions, then reconciles schedules. Existing runs retain their version.
+
+Equal resources are no-ops. Interrupted phases reconcile native readback before
+retrying, so a lost response does not mint another version or trigger. Schedule edits
+retain the existing trigger ID, firing cursors and failure accounting. Configuration
+refuses to re-enable an existing disabled schedule or modify a schedule paused after
+failures: investigate and recover it through the native trigger controls first, then
+plan again. Automation deletion also requires explicit native recovery; a source
+apply cannot resurrect a tombstoned name.
+
+### Capture configuration from owned source files
+
+A deployment specification may use
+`"configurationSource": "autonomous-cycle/configuration.json"` instead of inline
+`configuration`. The referenced JSON contains the same `schemaVersion: 1` and
+`resources` envelope. Keep all existing resources in that one declaration.
+
+Instruction values may be `{ "file": "roles/reviewer.md" }`; task descriptions use
+that reference in `description`. A definition's `document` may be
+`{ "file": "workflows/review.yml" }`. These paths resolve relative to the declaration
+file. For example:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "project-instructions",
+      "config": {
+        "projectId": "existing-project-id",
+        "instructions": { "file": "policy.md" }
+      }
+    }
+  ]
+}
+```
+
+Preparation captures expanded text and parsed YAML inside the immutable bundle;
+application never follows source paths. References must be owned regular files with
+relative paths, no traversal or symlinks: `.md` for instructions, `.yml` or `.yaml` for
+workflows. Duplicate YAML keys, invalid UTF-8, files larger than 512 KiB, more than
+128 referenced files, or a total above 8 MiB are refused. There is no templating,
+environment interpolation or remote fetch. Calculate definition digests from the
+expanded configuration, not the file-reference objects or YAML bytes.
 
 ## Release a configuration pack
 

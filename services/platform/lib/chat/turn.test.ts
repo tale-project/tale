@@ -94,8 +94,13 @@ const API_KEY_CREDENTIAL: CredentialAuth = { authMethod: 'api-key' };
 
 interface StoreCalls {
   readonly appended: Array<Record<string, unknown>>;
-  /** Every streaming-progress write, in order (the full text so far). */
-  readonly streamed: Array<{ messageId: string | undefined; text: string }>;
+  /** Every streaming-progress write, in order (the full text so far); a
+   *  stall's cancel poll carries `poll`. */
+  readonly streamed: Array<{
+    messageId: string | undefined;
+    text: string;
+    poll?: true;
+  }>;
   /** Every settled-parts write, in order (the authoritative parts-so-far). */
   readonly partsWrites: Array<readonly Record<string, unknown>[]>;
   /** Every settle write into the placeholder. */
@@ -182,6 +187,7 @@ function fakeStore(
         calls.streamed.push({
           messageId: update.messageId,
           text: update.text,
+          ...(update.poll === true ? { poll: true as const } : {}),
         });
         const cancelAt = options.cancelAfterStreamWrites;
         // The tool-round boundary is the only write that is both flushed and
@@ -290,7 +296,7 @@ function passFilter(name: GuardrailFilter['name'] = 'pii'): GuardrailFilter {
   };
 }
 
-describe('runTurn — the at-most-one-turn claim', () => {
+describe('runTurn — the at-most-one-turn claim [CHAT-R5]', () => {
   it('propagates a busy refusal from the open and never closes the other turn', async () => {
     const { store, calls } = fakeStore();
     const held: TurnStore = {
@@ -356,6 +362,19 @@ describe('runTurn — the happy path', () => {
     ]);
   });
 
+  it('books the usage of a turn in a project’s thread to the project [GOV-R14]', async () => {
+    const d = deps();
+    await runTurn(request({ projectId: 'project_1' }), d.deps);
+    expect(d.usage).toEqual([
+      expect.objectContaining({ userId: 'user_1', projectIds: ['project_1'] }),
+    ]);
+    const outside = deps();
+    await runTurn(request(), outside.deps);
+    expect(outside.usage).toEqual([
+      expect.not.objectContaining({ projectIds: expect.anything() }),
+    ]);
+  });
+
   it('hands the open what the turn may spend, for the host to hold against the caps', async () => {
     const { store } = fakeStore();
     const spends: unknown[] = [];
@@ -383,6 +402,7 @@ describe('runTurn — the happy path', () => {
     expect(spends).toEqual([
       {
         userId: 'user_1',
+        projectIds: [],
         apiKeyId: 'key_1',
         tokens: expect.any(Number),
         costCents: expect.any(Number),
@@ -793,7 +813,7 @@ describe('runTurn — the happy path', () => {
 });
 
 describe('runTurn — input guardrails', () => {
-  it('short-circuits: nothing after the refusal runs', async () => {
+  it('short-circuits: nothing after the refusal runs [CHAT-R8]', async () => {
     const model = vi.fn();
     const d = deps({
       model: model as unknown as ModelCall,
@@ -809,7 +829,7 @@ describe('runTurn — input guardrails', () => {
     expect(d.store.generations).toEqual([]);
   });
 
-  it('records the user message and the refusal on the thread so the UI can explain it', async () => {
+  it('records the user message and the refusal on the thread so the UI can explain it [CHAT-R8]', async () => {
     const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
     await runTurn(request(), d.deps);
 
@@ -850,7 +870,39 @@ describe('runTurn — input guardrails', () => {
     });
   });
 
-  it('appends only the refusal on a regenerate — the user row already exists', async () => {
+  it('keeps a refused message from every model, its title’s too, and names the key that sent it [CHAT-R8]', async () => {
+    const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
+    await runTurn(request({ apiKeyId: 'key-1' }), d.deps);
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      apiKeyId: 'key-1',
+      nameWithoutModel: true,
+    });
+  });
+
+  it('names the key on a message the execution refused, and lets a model name its thread', async () => {
+    const d = deps();
+    await runTurn(
+      request({
+        apiKeyId: 'key-1',
+        credential: {
+          authMethod: 'subscription-key',
+          constraints: { execution: 'sandbox', harness: 'claude-code' },
+        },
+        executionMode: 'direct',
+      }),
+      d.deps,
+    );
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      apiKeyId: 'key-1',
+    });
+    expect(d.store.appended[0]).not.toHaveProperty('nameWithoutModel');
+  });
+
+  it('appends only the refusal on a regenerate — the user row already exists [CHAT-R8]', async () => {
     const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
     await runTurn(request({ appendUserMessage: false }), d.deps);
 
@@ -1091,6 +1143,43 @@ describe('runTurn — the tool loop', () => {
       },
     };
   }
+
+  it('raises the turn’s hold before each further round, by the round’s worst case [GOV-R5]', async () => {
+    const { model } = oneToolRoundModel();
+    const { executor } = fakeExecutor({ status: 'ok', hits: 3 });
+    const d = deps({ model, tools: executor });
+    const holds: Array<{ tokens: number; costCents: number }> = [];
+    d.deps.store.holdNextRound = (round) => {
+      holds.push({ tokens: round.tokens, costCents: round.costCents });
+      return Promise.resolve();
+    };
+
+    await runTurn(request(), d.deps);
+
+    // One tool round, so one further round: held once, on a transcript
+    // that now carries the round's call and result.
+    expect(holds).toHaveLength(1);
+    expect(holds[0]?.tokens).toBeGreaterThan(0);
+  });
+
+  it('keeps answering when raising the hold fails', async () => {
+    const { model } = oneToolRoundModel();
+    const { executor } = fakeExecutor();
+    const d = deps({ model, tools: executor });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    d.deps.store.holdNextRound = () =>
+      Promise.reject(new Error('connection reset'));
+
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'completed',
+      text: 'Found it: 30 days.',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('for its next round failed'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
 
   it('executes the calls, settles parts in order, and answers', async () => {
     const { model, requests } = oneToolRoundModel();
@@ -1475,7 +1564,7 @@ describe('runTurn — the tool loop', () => {
     ]);
   }, 10_000);
 
-  it('stops when the store reports a cancel and keeps what streamed', async () => {
+  it('stops when the store reports a cancel and keeps what streamed [CHAT-R9]', async () => {
     const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
     const short = 'x'.repeat(40);
     const endless: ModelCall = async function* stream() {
@@ -1668,6 +1757,27 @@ describe('runTurn — the tool loop', () => {
     expect(calls.generations).toEqual(['begin', 'end']);
     // Nothing streamed; the settle is the empty stop, not a hang.
     expect(calls.finalized).toHaveLength(1);
+  }, 10_000);
+
+  it('marks the stall tick after streamed text as a poll, so the store holds it only to the shortest gap', async () => {
+    // The chunk's own write, then the stall's tick: the store answers the
+    // tick with the cancel. Without `poll` it would wait the gap a long
+    // reply's text earns.
+    const { store, calls } = fakeStore({ cancelAfterStreamWrites: 2 });
+    const stalled: ModelCall = async function* stream() {
+      yield { text: 'partial' };
+      await new Promise(() => undefined);
+    };
+    const d = deps({ model: stalled, store });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    expect(calls.streamed.map((write) => write.poll ?? false)).toEqual([
+      false,
+      true,
+    ]);
+    expect(calls.streamed[1]?.text).toBe('partial');
   }, 10_000);
 });
 
@@ -2512,5 +2622,124 @@ describe('runTurn — a failed turn books what it consumed', () => {
     expect(outcome).toMatchObject({ status: 'refused', reason: 'settle lost' });
     expect(d.usage).toHaveLength(1);
     expect(calls.finalized.at(-1)).not.toHaveProperty('usage');
+  });
+});
+
+describe('runTurn — where the reply was served', () => {
+  /** A model whose rounds report where they were served beside their text;
+   * round N answers with `rounds[N]`. */
+  function servedModel(rounds: readonly ModelStreamChunk[][]): ModelCall {
+    let calls = 0;
+    return async function* stream() {
+      const chunks = rounds[Math.min(calls, rounds.length - 1)] ?? [];
+      calls += 1;
+      for (const chunk of chunks) yield chunk;
+    };
+  }
+
+  it('stamps what the responses said beside the counts', async () => {
+    const d = deps({
+      model: servedModel([
+        [
+          { text: '', serving: { region: 'Switzerland North' } },
+          {
+            text: 'Return it within 30 days.',
+            serving: {
+              region: 'Switzerland North',
+              provider: 'Azure',
+              model: 'claude-fable-5-20260115',
+            },
+          },
+        ],
+      ]),
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome.status).toBe('completed');
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      serving: {
+        providers: ['Azure'],
+        regions: ['Switzerland North'],
+        models: ['claude-fable-5-20260115'],
+      },
+    });
+    // The ledger books counts only; where the reply ran is the message's.
+    expect(d.usage[0]).not.toHaveProperty('serving');
+  });
+
+  it('leaves out a model id that only repeats the requested one', async () => {
+    const d = deps({
+      model: servedModel([
+        [{ text: 'Hi.', serving: { provider: 'Anthropic', model: MODEL.id } }],
+      ]),
+    });
+    await runTurn(request(), d.deps);
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      serving: { providers: ['Anthropic'] },
+    });
+    expect(d.store.finalized.at(-1)?.usage).not.toHaveProperty(
+      'serving.models',
+    );
+  });
+
+  it('stamps nothing when no response named anything', async () => {
+    const d = deps();
+    await runTurn(request(), d.deps);
+    expect(d.store.finalized.at(-1)?.usage).not.toHaveProperty('serving');
+  });
+
+  it('lists every upstream a tool loop was routed to, in order', async () => {
+    const executed: ToolCallRequest[] = [];
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        {
+          name: 'rag_search',
+          description: 'Search the knowledge.',
+          parameters: { type: 'object' },
+        },
+      ],
+      execute(call) {
+        executed.push(call);
+        return Promise.resolve({ status: 'ok', results: [] });
+      },
+    };
+    const d = deps({
+      tools: executor,
+      model: servedModel([
+        [
+          { text: '', serving: { provider: 'Google Vertex' } },
+          {
+            text: '',
+            toolCalls: [
+              { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+            ],
+          },
+        ],
+        [
+          { text: '', serving: { provider: 'Anthropic' } },
+          { text: 'Found it: 30 days.' },
+        ],
+      ]),
+    });
+    await runTurn(request(), d.deps);
+    expect(executed).toHaveLength(1);
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      serving: { providers: ['Google Vertex', 'Anthropic'] },
+    });
+  });
+
+  it('keeps where a failed round was served on the failed reply', async () => {
+    const d = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield { text: '', serving: { provider: 'Together' } };
+        yield { text: 'Return it ' };
+        throw new Error('The model provider ended the reply with an error');
+      },
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome.status).toBe('refused');
+    expect(d.store.finalized.at(-1)).toMatchObject({
+      usage: { serving: { providers: ['Together'] } },
+    });
   });
 });

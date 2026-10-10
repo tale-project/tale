@@ -230,48 +230,56 @@ export function useDocumentRecordActions({
     <>
       {organizationId != null && (
         <>
-          <DocumentReplaceFileDialog
-            open={dialogs.isOpen.recordReplace}
-            onOpenChange={dialogs.setOpen.recordReplace}
-            documentId={documentId}
-            documentName={documentName}
-            documentMimeType={mimeType}
-            documentExtension={extension}
-            organizationId={organizationId}
-            recordVersion={record?.version ?? 0}
-            expectedFileId={record?.currentFileId ?? ''}
-            recordState={record?.state}
-            isHeld={isHeld}
-            restoreFocusRef={restoreFocusRef}
-          />
-          <DocumentRecordSubmitDialog
-            open={dialogs.isOpen.recordSubmit}
-            onOpenChange={dialogs.setOpen.recordSubmit}
-            documentId={documentId}
-            documentName={documentName}
-            organizationId={organizationId}
-          />
-          <DocumentRecordSubmitDialog
-            open={dialogs.isOpen.recordReassign}
-            onOpenChange={dialogs.setOpen.recordReassign}
-            documentId={documentId}
-            documentName={documentName}
-            organizationId={organizationId}
-            standingReviewer={{
-              userId: record?.reviewerUserId,
-              name: record?.reviewerName,
-            }}
-          />
+          {dialogs.mounted.recordReplace && (
+            <DocumentReplaceFileDialog
+              open={dialogs.isOpen.recordReplace}
+              onOpenChange={dialogs.setOpen.recordReplace}
+              documentId={documentId}
+              documentName={documentName}
+              documentMimeType={mimeType}
+              documentExtension={extension}
+              organizationId={organizationId}
+              recordVersion={record?.version ?? 0}
+              expectedFileId={record?.currentFileId ?? ''}
+              recordState={record?.state}
+              isHeld={isHeld}
+              restoreFocusRef={restoreFocusRef}
+            />
+          )}
+          {dialogs.mounted.recordSubmit && (
+            <DocumentRecordSubmitDialog
+              open={dialogs.isOpen.recordSubmit}
+              onOpenChange={dialogs.setOpen.recordSubmit}
+              documentId={documentId}
+              documentName={documentName}
+              organizationId={organizationId}
+            />
+          )}
+          {dialogs.mounted.recordReassign && (
+            <DocumentRecordSubmitDialog
+              open={dialogs.isOpen.recordReassign}
+              onOpenChange={dialogs.setOpen.recordReassign}
+              documentId={documentId}
+              documentName={documentName}
+              organizationId={organizationId}
+              standingReviewer={{
+                userId: record?.reviewerUserId,
+                name: record?.reviewerName,
+              }}
+            />
+          )}
         </>
       )}
 
-      <DocumentRecordReviewDialog
-        open={dialogs.isOpen.recordReview}
-        onOpenChange={dialogs.setOpen.recordReview}
-        documentId={documentId}
-        documentName={documentName}
-        record={record}
-      />
+      {dialogs.mounted.recordReview && (
+        <DocumentRecordReviewDialog
+          open={dialogs.isOpen.recordReview}
+          onOpenChange={dialogs.setOpen.recordReview}
+          documentId={documentId}
+          documentName={documentName}
+          record={record}
+        />
+      )}
     </>
   );
 

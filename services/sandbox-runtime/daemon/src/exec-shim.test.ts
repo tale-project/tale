@@ -1,14 +1,22 @@
 // Execs under the subreaper shim (exec-shim/tale-exec-shim.c), built from its
 // source for this run. Everything an exec starts stays the shim's
 // descendant, so a process that leaves the exec's group, moves to a session
-// of its own and drops the exec's tag is still ended with the exec. Linux
-// only, and only where a C compiler is at hand; a compiler that fails to
-// build the shim fails the run. What runnerd makes of the shim's status
-// pipe is checked everywhere, against stand-in shims.
+// of its own and drops the exec's tag is still ended with the exec, and runs
+// with an OOM score above runnerd's. Linux only, and only where a C compiler
+// is at hand; a compiler that fails to build the shim fails the run. What
+// runnerd makes of the shim's status pipe is checked everywhere, against
+// stand-in shims.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -156,6 +164,30 @@ describe.skipIf(SHIM === null)('ExecManager under the subreaper shim', () => {
     expect(events[events.length - 1]).toMatchObject({
       t: 'exit',
       exitCode: 3,
+    });
+  });
+
+  // A cgroup OOM kill picks among the highest scores: the command and what
+  // it starts must rank above runnerd, whose end ends the whole session.
+  test('the command runs with an OOM score of at least 900, and the shim keeps runnerd’s', async () => {
+    using mgr = shimmed();
+    const { events, emit } = collect();
+    const own = Number(readFileSync('/proc/self/oom_score_adj', 'utf8'));
+    await mgr.run(
+      {
+        ...base,
+        execId: 'sh-oom',
+        shell: 'cat /proc/self/oom_score_adj /proc/$PPID/oom_score_adj',
+        cwd: ROOT,
+      },
+      emit,
+    );
+    const [command, shim] = decode(events, 'stdout').trim().split('\n');
+    expect(Number(command)).toBe(Math.max(900, own));
+    expect(Number(shim)).toBe(own);
+    expect(events[events.length - 1]).toMatchObject({
+      t: 'exit',
+      exitCode: 0,
     });
   });
 
@@ -524,4 +556,43 @@ describe('the shim’s status pipe', () => {
       warnings.filter((w) => w.includes('cannot become a subreaper (EINVAL)')),
     ).toHaveLength(1);
   });
+  test('a normally exiting shim that refused the subreaper still uses tag fallback after the grace', async () => {
+    const procRoot = `${ROOT}/refused-proc`;
+    mkdirSync(`${procRoot}/99988`, { recursive: true });
+    writeFileSync(
+      `${procRoot}/99988/stat`,
+      '99988 (server) S 1 99988 99988 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 88888 0 0\n',
+    );
+    writeFileSync(
+      `${procRoot}/99988/environ`,
+      'TALE_EXEC_ID=refused-fallback\0',
+    );
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        selfPid: 0,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+        },
+      },
+      {
+        execShim: standIn(
+          'refused-fallback',
+          ['no-subreaper EINVAL', 'pid 99987', 'exit 0'],
+          0,
+        ),
+      },
+    );
+    await mgr.run(
+      { ...base, execId: 'refused-fallback', command: ['true'], cwd: ROOT },
+      () => {},
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5_300));
+    expect(sent).toContainEqual([99988, 'SIGTERM']);
+    expect(sent).toContainEqual([99988, 'SIGKILL']);
+  }, 10_000);
 });

@@ -1,0 +1,45 @@
+home: Start
+knowledge: Wissen
+automations: Automatisierungen
+userSettings: Einstellungen
+notifications: Benachrichtigungen
+organization: Organisation
+teams: Teams
+members: Mitglieder
+connectors: Connectors
+providers: KI-Anbieter
+skills: Skills
+apiKeys: API-Schlüssel
+api: API
+apiRest: REST
+apiModels: Modelle
+branding: Branding
+governance: Richtlinien
+metrics: Metriken
+personalization: Personalisierung
+account: Konto
+usage: Nutzung
+agents: Agenten
+mcp: MCP
+webdav: WebDAV
+myTeams:
+  label: Teams
+  none: Keine Teams
+  count: '{count, plural, one {# Team} other {# Teams}}'
+orgSwitcher:
+  label: Organisation
+  createOrganization: Organisation erstellen
+  switching: Wird gewechselt…
+  switchingTo: Wechsle zu {name}…
+  switchingLabel: Organisation wird gewechselt
+aria:
+  primaryNavigation: Hauptnavigation
+  unreadConversations: '{count, plural, one {# ungelesene Konversation} other {# ungelesene Konversationen}}'
+  unreadNotifications: '{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}'
+dataResidency: Datenresidenz
+sandboxes: Sandboxes
+enterpriseSso: Enterprise-SSO
+sidebar:
+  landmark: Dashboard-Seitenleiste
+  search: Suchen
+  searchGlobal: Alles durchsuchen

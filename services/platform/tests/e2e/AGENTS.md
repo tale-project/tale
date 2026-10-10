@@ -43,6 +43,7 @@ When a manual case earns automation, bring it here under these rules.
 | [`helpers/fixtures.ts`](helpers/fixtures.ts) | the `org` fixture + extended `test`/`expect`                                                            |
 | [`helpers/auth.ts`](helpers/auth.ts)         | `signUpViaApi`, `signInViaApi`, `uniqueCredentials`, `createOrgViaWizard`, `waitForSeededOrg`           |
 | [`helpers/chat.ts`](helpers/chat.ts)         | `sendNewThreadMessage`, `waitForReplyComplete`, `expectCannedReply`, `deleteThreadById`, `fillComposer` |
+| [`helpers/automations.ts`](helpers/automations.ts) | `uploadAutomationDraft`, `deleteAutomationRow`                                                         |
 | [`helpers/forms.ts`](helpers/forms.ts)       | `reloadAndSettle`                                                                                       |
 | [`helpers/totp.ts`](helpers/totp.ts)         | RFC-6238 codes for the 2FA flow                                                                         |
 | [`helpers/seed.ts`](helpers/seed.ts)         | backend-seeded starter-content names (the "Getting started" project)                                    |

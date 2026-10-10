@@ -51,6 +51,22 @@ export async function readableProjectIds(
   );
 }
 
+/**
+ * Whether the actor sees an automation installed in `bindings`: one installed
+ * nowhere is the organization's and every member's; an installed one is seen
+ * by whoever can read one of its projects. One installed only in projects the
+ * actor cannot read is left out of every listing and answers "not found" on
+ * every read — listed with no installations, it would read as an
+ * organization automation, where it cannot run. The rule of the app's
+ * listing, the MCP tools and the REST API alike.
+ */
+export function automationVisible(
+  bindings: readonly string[],
+  readable: ReadonlySet<string>,
+): boolean {
+  return bindings.length === 0 || bindings.some((id) => readable.has(id));
+}
+
 /** Whether the actor may see a run: an organization run is visible to
  * every member, a project run needs read access to its project. */
 export async function canReadRun(

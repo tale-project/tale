@@ -1,3 +1,9 @@
+import { randomUUID } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
+
+import type { Sql, TransactionSql } from 'postgres';
+
 /**
  * Real Postgres proof of the backfill that removes what organization
  * deletions before 0.5.9 stranded (`…_rows_of_deleted_organizations.sql`).
@@ -15,11 +21,7 @@
  * ledger (an audit row, a slug tombstone); a second deleted organization
  * under an ACTIVE hold; and the live organization the harness signed in to.
  */
-import { randomUUID } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
-import { isDeepStrictEqual } from 'node:util';
-
-import type { Sql, TransactionSql } from 'postgres';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 
 /** What the teardown keeps (`ORG_TEARDOWN_KEEPS`), and so the backfill. */
 const LEDGER: ReadonlySet<string> = new Set([
@@ -59,6 +61,15 @@ const describeRows = (rows: Record<string, number> | undefined): string =>
     .map(([table, count]) => `${table}=${count}`)
     .join(',') || 'none';
 
+const describeChanges = (
+  before: Record<string, number> | undefined,
+  after: Record<string, number> | undefined,
+): string =>
+  [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])]
+    .filter((table) => (before?.[table] ?? 0) !== (after?.[table] ?? 0))
+    .map((table) => `${table}=${before?.[table] ?? 0}→${after?.[table] ?? 0}`)
+    .join(',') || 'none';
+
 class RollbackFixture extends Error {}
 
 export async function checkOrphanedOrgRowsBackfill(
@@ -90,7 +101,10 @@ export async function checkOrphanedOrgRowsBackfill(
   let second: OrgRows = {};
   const deliveries = { before: -1, after: -1 };
   try {
-    await sql.begin(async (tx) => {
+    // Workers from earlier lanes still write to the shared live organization.
+    // Hold one snapshot across the counts: our migration's own writes remain
+    // visible, while unrelated commits cannot masquerade as backfill changes.
+    await sql.begin('isolation level repeatable read', async (tx) => {
       const tables = (
         await tx<{ tableName: string }[]>`
           SELECT c.table_name AS "tableName"
@@ -138,6 +152,7 @@ export async function checkOrphanedOrgRowsBackfill(
           org_id, name, version, deployed_by, deployed_at_ms
         ) VALUES (${dead}, ${name}, 1, 'itest', ${now})
       `;
+      await markAutomationWriterInTx(tx);
       const runs = await tx<{ id: string }[]>`
         INSERT INTO app.automation_runs (
           org_id, name, version, status, mode, started_by, started_at_ms
@@ -240,7 +255,7 @@ export async function checkOrphanedOrgRowsBackfill(
       isDeepStrictEqual(first[held], before[held]) &&
       Object.keys(before[live] ?? {}).length > 0 &&
       isDeepStrictEqual(first[live], before[live]),
-    `held: ${describeRows(before[held])} → ${describeRows(first[held])}; live: ${Object.keys(before[live] ?? {}).length} tables, unchanged=${isDeepStrictEqual(first[live], before[live])}`,
+    `held: ${describeRows(before[held])} → ${describeRows(first[held])}; live: ${Object.keys(before[live] ?? {}).length} tables, unchanged=${isDeepStrictEqual(first[live], before[live])}, changes=${describeChanges(before[live], first[live])}`,
   );
   record(
     'org backfill: re-applying the file changes nothing',

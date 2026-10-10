@@ -24,6 +24,7 @@ const {
   writeKnowledgeEmbedding,
   fetchKnowledgeDocument,
   searchKnowledgeForOrg,
+  requeueDocumentsWithoutVectors,
   requeueEmbeddingBlockedDocuments,
   listEmbeddingRecommendationsForOrg,
   listCredentials,
@@ -34,6 +35,7 @@ const {
   writeKnowledgeEmbedding: vi.fn(),
   fetchKnowledgeDocument: vi.fn(),
   searchKnowledgeForOrg: vi.fn(),
+  requeueDocumentsWithoutVectors: vi.fn(async () => ({ requeued: 0 })),
   requeueEmbeddingBlockedDocuments: vi.fn(),
   listEmbeddingRecommendationsForOrg: vi.fn(),
   listCredentials: vi.fn(async (): Promise<unknown[]> => []),
@@ -80,6 +82,7 @@ vi.mock('./service.ts', () => {
     KnowledgeError,
     fetchKnowledgeDocument,
     searchKnowledgeForOrg,
+    requeueDocumentsWithoutVectors,
     requeueEmbeddingBlockedDocuments,
   };
 });
@@ -158,13 +161,13 @@ const verifyCaConnection = {
 };
 
 describe('reviewed embedding HTTP updates', () => {
-  it('preserves the native requeue effect and passes the preimage to the writer', async () => {
+  it('preserves the native requeue effect and passes the preimage to the writer [KNOW-R10]', async () => {
     writeKnowledgeEmbedding.mockResolvedValue(undefined);
     requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 3 });
     const config = {
       providerSlug: 'local',
       model: 'embedding',
-      dimensions: 16,
+      dimensions: 1024,
     };
     const response = await post('/embedding?orgId=o1', {
       ...config,
@@ -177,11 +180,51 @@ describe('reviewed embedding HTTP updates', () => {
       'acme',
       config,
       null,
+      { organizationId: 'o1', userId: 'u1', email: 'u@example.test' },
     );
     expect(requeueEmbeddingBlockedDocuments).toHaveBeenCalledWith(
       expect.anything(),
       { organizationId: 'o1' },
     );
+  });
+
+  // A model of another width finds no vector of its own on the documents
+  // already indexed: the save puts them back in the queue too, and reports
+  // them with the ones that had failed.
+  it('re-queues the indexed documents that have no vector of the saved width, and counts them [KNOW-R17]', async () => {
+    writeKnowledgeEmbedding.mockResolvedValue(undefined);
+    requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 1 });
+    requeueDocumentsWithoutVectors.mockResolvedValueOnce({ requeued: 40 });
+    const response = await post('/embedding?orgId=o1', {
+      providerSlug: 'local',
+      model: 'embedding',
+      dimensions: 1024,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, requeued: 41 });
+    expect(requeueDocumentsWithoutVectors).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { organizationId: 'o1', orgSlug: 'acme' },
+    );
+  });
+
+  // The setting is saved by then: a corpus that cannot be read must not
+  // turn a save that happened into an error.
+  it('keeps the save when the indexed documents cannot follow [KNOW-R17]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    writeKnowledgeEmbedding.mockResolvedValue(undefined);
+    requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 2 });
+    requeueDocumentsWithoutVectors.mockRejectedValueOnce(
+      new Error('the knowledge database is unreachable'),
+    );
+    const response = await post('/embedding?orgId=o1', {
+      providerSlug: 'local',
+      model: 'embedding',
+      dimensions: 1024,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, requeued: 2 });
+    warn.mockRestore();
   });
 
   it('names the body when it is not a JSON object', async () => {

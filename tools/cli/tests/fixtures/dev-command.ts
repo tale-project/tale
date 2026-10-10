@@ -47,6 +47,7 @@ mock.module('../../src/lib/docker/daemon-reachable', () => ({
 }));
 mock.module('../../src/lib/docker/setup-checks', () => ({
   assertComposeAvailable: async () => call('composePreflight'),
+  assertDockerEngineSupported: async () => call('enginePreflight'),
 }));
 mock.module('../../src/lib/docker/ensure-sandbox-runtime-image', () => ({
   ensureSandboxRuntimeImage: async () => call('runtimeImage'),

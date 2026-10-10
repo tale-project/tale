@@ -1,0 +1,253 @@
+availabilityError: Deine Posteingangsquellen konnten nicht geprüft werden. Versuch es erneut, um die Verfügbarkeit des Posteingangs zu aktualisieren.
+title: Inbox
+unknownContact: Unbekannter Kontakt
+messagePlaceholder: Nachricht eingeben
+searchPlaceholder: Konversationen durchsuchen
+suggestEditsPlaceholder: Änderungen am Text vorschlagen (optional)
+fallbackImageAttachment: Bildanhang
+fallbackAttachment: Anhang
+status:
+  open: Offen
+  closed: Geschlossen
+  spam: Spam
+  archived: Archiviert
+improvement:
+  title: Nachrichtenverbesserung Vorschau
+  description: Prüfe die KI-verbesserte Version und übernimm oder verwirf die Änderungen
+  original: Original
+  improved: Verbessert
+  reject: Ablehnen
+  accept: Änderungen übernehmen
+bulkSend:
+  title: '{count, plural, one {# Nachricht senden} other {# Nachrichten senden}}'
+  description:
+    Du sendest Antworten für {count, plural, one {# Konversation} other
+    {# Konversationen}}. Diese Aktion kann nicht rückgängig gemacht werden.
+  messageLabel: Nachricht
+  messagePlaceholder: Antwort eingeben...
+  send: Senden
+compose:
+  compose: Verfassen
+  newEmail: Neue E-Mail
+  title: Neue E-Mail
+  description: Beginne eine neue E-Mail-Konversation mit einem Kontakt.
+  to: An
+  toPlaceholder: Kontakt auswählen
+  searchContacts: Kontakte durchsuchen
+  contactsLoading: Kontakte werden geladen…
+  noContacts: Noch keine Kontakte mit E-Mail-Adresse
+  noContactsFound: Kein Kontakt passt zu „{query}“
+  noContactsFoundAddHint: Kein Kontakt passt zu „{query}“. Gib eine
+    vollständige E-Mail-Adresse ein, um einen neuen Kontakt hinzuzufügen.
+  addContact: „{email}“ als Kontakt hinzufügen
+  contactExistsSelected: Schon ein Kontakt — ausgewählt
+  inboxLabel: Postfach
+  inboxPlaceholder: Postfach auswählen
+  fromLabel: Absender
+  fromDomainHint: Beliebige Adresse unter {domain}
+  fromLocalPlaceholder: support
+  from: 'Absender: {from}'
+  noEmailConnectorTitle: Noch nicht sendebereit
+  noEmailConnector: Verbinde ein E-Mail-Postfach unter Einstellungen >
+    Connectors.
+  noEmailConnectorAskAdmin: Bitte einen Org-Admin, ein E-Mail-Postfach zu
+    verbinden, bevor du senden kannst.
+  emailConnectorReadErrorTitle: E-Mail-Verbindung nicht verfügbar
+  emailConnectorReadError: Deine E-Mail-Verbindungen konnten nicht geladen werden.
+    Dein Entwurf ist sicher. Versuche es erneut.
+  retryEmailConnectorRead: Erneut versuchen
+  openConnectorSettings: Connector-Einstellungen öffnen
+  subject: Betreff
+  subjectPlaceholder: Worum geht es?
+  assignLabel: Zuständig
+  assignPlaceholder: Person oder Team wählen
+  assignSearch: Personen und Teams suchen
+  assignYou: Du
+  bodyPlaceholder: Schreib deine Nachricht…
+  fillRequired: Wähle einen Kontakt, ein Postfach und einen Betreff, um zu senden.
+  discard: Verwerfen
+  discardConfirm:
+    title: Entwurf verwerfen?
+    description: Dieser Entwurf wird endgültig verworfen.
+  sent: E-Mail gesendet
+  sending: Wird gesendet… Der Entwurf ist gesperrt, bis das Senden abgeschlossen ist.
+updating: Konversationen werden aktualisiert...
+bulk:
+  progress: 'Konversationen werden aktualisiert... {settled} von {total}'
+  outcomeWithReason: '{outcome} — {reason}'
+  sendMessages: Nachrichten senden
+  close: Schließen
+  reopen: Erneut öffnen
+  messagesSent: Nachrichten gesendet
+  messagesSentDescription: '{successCount} Nachrichten gesendet{failedCount,
+    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  sendFailed: Nachrichten konnten nicht gesendet werden
+  resolved: Konversationen abgeschlossen
+  resolvedDescription:
+    '{successCount} Konversationen abgeschlossen{failedCount,
+    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  resolveFailed: Konversationen konnten nicht abgeschlossen werden
+  reopened: Konversationen erneut geöffnet
+  reopenedDescription:
+    '{successCount} Konversationen erneut geöffnet{failedCount,
+    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  reopenFailed: Konversationen konnten nicht erneut geöffnet werden
+  selectedCount: '{count, plural, one {# ausgewählt} other {# ausgewählt}}'
+  archive: Archivieren
+  unarchive: Dearchivieren
+  archived: Konversationen archiviert
+  archivedDescription: '{successCount} Konversationen archiviert{failedCount,
+    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  archiveFailed: Konversationen konnten nicht archiviert werden
+  unarchived: Konversationen dearchiviert
+  unarchivedDescription:
+    '{successCount} Konversationen dearchiviert{failedCount,
+    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  unarchiveFailed: Konversationen konnten nicht dearchiviert werden
+  markSpam: Als Spam markieren
+  markedAsSpam: Konversationen als Spam markiert
+  markedAsSpamDescription: '{successCount} Konversationen als Spam
+    markiert{failedCount, plural, =0 {} other {, {failedCount}
+    fehlgeschlagen}}'
+  spamFailed: Konversationen konnten nicht als Spam markiert werden
+header:
+  moreActions: Weitere Aktionen
+  copyLink: Link kopieren
+  linkCopied: Link kopiert
+  contactInfo: Kontaktinfo
+  closeConversation: Konversation schließen
+  closing: Wird geschlossen...
+  reopenConversation: Konversation erneut öffnen
+  reopening: Wird erneut geöffnet...
+  markAsSpam: Als Spam markieren
+  markingAsSpam: Wird als Spam markiert...
+  assignee: Zuständig
+  assign: Zuweisen
+  assignedTo: 'Zuständig: {name}'
+  unassign: Zuweisung aufheben
+  assignError: Zuständigkeit konnte nicht aktualisiert werden
+  inboxSource: 'Postfach: {inbox}'
+  toast:
+    closed: Konversation geschlossen
+    closeFailed: Konversation konnte nicht geschlossen werden — versuch es erneut.
+    reopened: Konversation erneut geöffnet
+    reopenFailed: Konversation konnte nicht geöffnet werden — versuch es erneut.
+    markedAsSpam: Konversation als Spam markiert
+    markAsSpamFailed: Konversation konnte nicht als Spam markiert werden — versuch es erneut.
+  assignedTeam: Team
+  assignedToTeam: An {name} zugewiesen
+  unassignTeam: Team entfernen
+  reclickToUnassign: Wähle erneut, um die Zuweisung aufzuheben
+  peopleSection: Personen
+  teamsSection: Team
+  assignSearchAll: Personen und Teams suchen
+  noAssignees: Keine Personen oder Teams gefunden
+  autoAssignSettings: Automatisch zuweisen
+  apiSource: 'API: {source}'
+  apiSourceShort: API
+  replyVia: 'Antwort geht über {source} raus'
+  replyViaApi: 'Antwort geht über {source} zurück'
+  replyViaUnknown: Diese Unterhaltung hat keinen Kanal für eine Antwort
+editor:
+  noContent: Kein Inhalt zum Verbessern
+  improveFailed: Inhalt konnte nicht verbessert werden. Versuch es erneut.
+  improveUnavailable: Noch kein KI-Anbieter kann Nachrichten umschreiben — verbinde einen unter Einstellungen › KI-Anbieter.
+  improveLimitReached: Nutzungslimit erreicht
+  improveLimitReachedDescription: Ein Nutzungslimit, das für dich gilt, ist erreicht. Unter Einstellungen > Nutzung siehst du, wann es zurückgesetzt wird, und dein Administrator kann es erhöhen.
+  improveNoModelAccess: Keines der Modelle, die diese Nachricht umschreiben könnten, ist für dich freigegeben. Ein Admin kann eines unter Einstellungen → Richtlinien → Modelle → Modellzugriff zulassen.
+  sendFailed: Nachricht konnte nicht gesendet werden. Versuch es erneut.
+  backToEditor: Zurück zum Editor
+  improving: Wird verbessert...
+  improveWithAi: Mit KI verbessern
+  generateImprovement: Verbesserung generieren
+  replyImproved: Antwort verbessert
+  attachFile: Datei anhängen
+  send: Nachricht senden
+attachment:
+  download: Herunterladen
+  unavailable: Nicht mehr verfügbar
+  attachments: '{count, plural, one {# Anhang} other {# Anhänge}}'
+panel:
+  uploadFailed: Anhänge konnten nicht hochgeladen werden. Versuch es erneut.
+  noSelected: Keine Konversation ausgewählt
+  selectToView: Wähle eine Konversation, um Details anzuzeigen
+  notFound: Konversation nicht gefunden
+  noMessages: Noch keine Nachrichten
+  invalidFileAttachment: Ungültiger Dateianhang
+  contactEmailNotFound: 'E-Mail kann nicht gesendet werden: Kontakt-E-Mail nicht gefunden'
+  loadFailed: Konversation konnte nicht geladen werden
+  loadFailedDescription: Beim Laden dieser Konversation ist ein Fehler aufgetreten.
+  tryAgain: Erneut versuchen
+  closedBanner: Geschlossen am {date}
+  closedBannerNoDate: Geschlossen
+  archivedBanner: Archiviert
+  spamBanner: Als Spam markiert
+  unarchive: Dearchivieren
+  notSpam: Kein Spam
+  delete: Löschen
+  deleting: Lösche...
+  deleteSuccess: Konversation gelöscht
+  deleteFailed: Konversation konnte nicht gelöscht werden.
+  showEarlierMessages: '{count} frühere {count, plural, one {Nachricht} other
+    {Nachrichten}} anzeigen'
+  undoSendFailed: Das Senden lässt sich nicht mehr abbrechen — die Nachricht ist vermutlich schon unterwegs.
+  retrySendFailed: Das erneute Senden konnte nicht gestartet werden.
+  discardMessageFailed: Die Nachricht konnte nicht gelöscht werden.
+suggestedReply:
+  title: Antwortvorschlag
+  description: Von einer Automatisierung entworfen und wartet auf dich — gesendet wurde nichts.
+  use: In den Editor übernehmen
+  discard: Verwerfen
+  used: Der Vorschlag steht im Editor. Passe ihn nach Belieben an; mit dem Senden ist er erledigt.
+  discardFailed: Der Vorschlag konnte nicht verworfen werden.
+message:
+  sendingIn: Sendet in {seconds}s
+  undoSend: Rückgängig
+  notDelivered: Nicht zugestellt
+  retrySend: Erneut senden
+  discard: Löschen
+list:
+  empty: Keine Konversationen in diesem Tab
+  loadFailed: Konversationen konnten nicht geladen werden
+  loadFailedDescription: Beim Laden dieser Konversationen ist ein Fehler aufgetreten.
+activate:
+  title: Noch keine Konversationen
+  description: Eingehende Konversationen aus deinen verbundenen Kanälen erscheinen hier.
+  noAutomationTitle: Richte deine Inbox ein
+  noAutomationDescription:
+    Installiere eine E-Mail-Automatisierung (Gmail, Outlook
+    oder IMAP), um hier Konversationen zu lesen und zu beantworten.
+  composeNotice: Um {name} zu schreiben, installiere zuerst eine E-Mail-Automatisierung.
+  composeNoticeReader: Du kannst {name} schreiben, sobald eine E-Mail-Automatisierung live ist.
+  browseAutomations: Automatisierungen durchsuchen
+  noAutomationReaderDescription:
+    Sobald jemand mit der Rolle Inhaber, Admin oder Entwickler eine
+    E-Mail-Automatisierung (Gmail, Outlook oder IMAP) live schaltet, kannst
+    du hier Konversationen lesen und beantworten.
+filter:
+  all: Alle
+  read: Gelesen
+  unread: Ungelesen
+  readStatus: Lesestatus
+  channel: Kanal
+  allChannels: Alle Kanäle
+  mailboxInactive: '{name} (inaktiv)'
+  assignee: Zuständig
+  assigneeMe: Mir zugewiesen
+  assigneeMyTeams: Meine Teams
+  assigneeUnassigned: Nicht zugewiesen
+  assigneePeople: Personen
+  assigneeTeams: Teams
+  assigneeUnknownPerson: Unbekannte Person
+queue:
+  unknownTeam: Unbekanntes Team
+category:
+  churnSurvey: Abwanderungsumfrage
+  productRecommendation: Produktempfehlung
+  serviceRequest: Serviceanfrage
+priority:
+  high: Hoch
+  low: Niedrig
+  medium: Mittel
+history:
+  loadingMore: Weitere Konversationen werden durchsucht…

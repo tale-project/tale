@@ -227,7 +227,7 @@ describe('uploadSkillBundlePg', () => {
     expect(s3DeleteObject).toHaveBeenCalledTimes(1);
   });
 
-  it('answers needs_confirm to the second of two concurrent uploads of one new slug', async () => {
+  it('answers needs_confirm to the second of two concurrent uploads of one new slug [SKILL-R10]', async () => {
     let written = false;
     vi.mocked(readOrgSkill).mockImplementation(async () =>
       written ? existingSkill : null,
@@ -253,7 +253,7 @@ describe('uploadSkillBundlePg', () => {
     expect(s3DeleteObject).toHaveBeenCalledTimes(2);
   });
 
-  it('refuses a forced replacement the member may not edit, without writing', async () => {
+  it('refuses a forced replacement the member may not edit, without writing [SKILL-R5]', async () => {
     vi.mocked(readOrgSkill).mockResolvedValue(existingSkill);
     vi.mocked(listSkillBundleFileEntries).mockResolvedValue([]);
 

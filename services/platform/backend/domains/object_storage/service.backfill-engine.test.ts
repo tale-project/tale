@@ -272,7 +272,7 @@ beforeEach(() => {
 });
 
 describe('runBackfill — moving blobs into the org bucket', () => {
-  it('walks every ref-holding table, copies with the stored content type, verifies, and retires the source', async () => {
+  it('walks every ref-holding table, copies with the stored content type, verifies, and retires the source [OBJ-R3]', async () => {
     seed('default-blobs', 'acme/doc', 'doc-bytes', 'application/pdf');
     seed('default-blobs', 'acme/hist', 'old-doc', 'application/pdf');
     seed('default-blobs', 'acme/file', 'file-bytes', 'image/png');
@@ -341,7 +341,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(completion?.text).toContain("AND status = 'running'");
   });
 
-  it('finishes a move whose source delete was cut off, without copying again', async () => {
+  it('finishes a move whose source delete was cut off, without copying again [OBJ-R3]', async () => {
     seed('default-blobs', 'acme/doc', 'same-bytes', 'application/pdf');
     seed('acme-own', 'acme/doc', 'same-bytes', 'application/pdf');
     const ledger = fakeLedger({
@@ -395,7 +395,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(final?.values.slice(1, 5)).toEqual([1, 0, 1, 0]);
   });
 
-  it('re-copies a target copy of the wrong size instead of trusting it', async () => {
+  it('re-copies a target copy of the wrong size instead of trusting it [OBJ-R3]', async () => {
     seed('default-blobs', 'acme/doc', 'ten-bytes!', 'application/pdf');
     seed('acme-own', 'acme/doc', 'ten', 'application/octet-stream');
     const ledger = fakeLedger({
@@ -410,7 +410,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(bucketOf('default-blobs').objects.has('acme/doc')).toBe(false);
   });
 
-  it('deletes a copy that lands short, keeps the source, and counts it failed', async () => {
+  it('deletes a copy that lands short, keeps the source, and counts it failed [OBJ-R3]', async () => {
     seed('default-blobs', 'acme/doc', 'ten-bytes!', 'application/pdf');
     bucketOf('acme-own').landShort = 3;
     const ledger = fakeLedger({
@@ -425,7 +425,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(final?.values.slice(1, 5)).toEqual([1, 0, 0, 1]);
   });
 
-  it('copies nothing and deletes nothing on a dry run', async () => {
+  it('copies nothing and deletes nothing on a dry run [OBJ-R4]', async () => {
     seed('default-blobs', 'acme/doc', 'doc-bytes', 'application/pdf');
     const ledger = fakeLedger({
       dryRun: true,
@@ -458,7 +458,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(ledger.stamps()).toEqual([]);
   }
 
-  it('refuses to move when the org bucket IS the deployment store', async () => {
+  it('refuses to move when the org bucket IS the deployment store [OBJ-R5]', async () => {
     fakes.connections.set('acme', { bucket: 'default-blobs' });
     seed('default-blobs', 'acme/doc', 'doc-bytes', 'application/pdf');
     const ledger = fakeLedger({
@@ -476,7 +476,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
   // connection files, so `http://minio:9000/` against `http://minio:9000`
   // passed it, and the resume branch then deleted the ONLY copy of every
   // blob the org owned.
-  it('refuses when the org connection spells the deployment endpoint differently', async () => {
+  it('refuses when the org connection spells the deployment endpoint differently [OBJ-R5]', async () => {
     fakes.connections.set('acme', {
       bucket: 'default-blobs',
       endpoint: `${fakes.DEFAULT_ENDPOINT.toUpperCase()}/`,
@@ -492,7 +492,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(bucketOf('default-blobs').probes).toEqual([]);
   });
 
-  it('probes for an alias the config cannot see and refuses when the marker shows up through the source', async () => {
+  it('probes for an alias the config cannot see and refuses when the marker shows up through the source [OBJ-R5]', async () => {
     // A DNS alias for the same MinIO: a different endpoint string, the same
     // physical bucket.
     fakes.connections.set('acme', {
@@ -515,7 +515,7 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(bucketOf('default-blobs').puts).toEqual([]);
   });
 
-  it('refuses an aliased store on a dry run too, before it previews "nothing to move"', async () => {
+  it('refuses an aliased store on a dry run too, before it previews "nothing to move" [OBJ-R5]', async () => {
     fakes.connections.set('acme', {
       bucket: 'default-blobs',
       endpoint: 'http://minio-alias.internal:9000',
@@ -546,7 +546,7 @@ describe('runBackfill — the status fence', () => {
   // Regression: stamps and the completion UPDATE were `WHERE id = ?` only, so
   // an engine the watchdog had already failed kept copying beside a fresh
   // run and finally flipped its own row back to 'completed'.
-  it('stops at a stamp that matches no running row and leaves the terminal row alone', async () => {
+  it('stops at a stamp that matches no running row and leaves the terminal row alone [OBJ-R6]', async () => {
     seed('default-blobs', 'acme/doc', 'doc-bytes', 'application/pdf');
     seed('default-blobs', 'acme/file', 'file-bytes', 'image/png');
     const ledger = fakeLedger({

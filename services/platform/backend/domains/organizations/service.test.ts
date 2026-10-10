@@ -2,6 +2,7 @@ import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
 import { MembershipError } from '../../auth/membership.ts';
 import { setEnqueueBoss } from '../../jobs/enqueue.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
@@ -37,6 +38,7 @@ interface Scenario {
   memberRole: string | null;
   slug: string | null;
   holds: { targetType: string; targetId: string }[];
+  legacyHeld?: boolean;
   /** Rows the final `DELETE FROM "organization" … RETURNING` answers. */
   orgDeleteReturns?: { id: string }[];
   /** What `information_schema.columns` lists as org_id-bearing app tables. */
@@ -105,6 +107,14 @@ function createRecordingTx(scenario: Scenario): {
     }
     if (text.includes('FROM app.legal_holds')) {
       return scenario.holds;
+    }
+    if (text.includes('FROM app.automation_runs')) {
+      return scenario.legacyHeld ? [{ id: 'held-run' }] : [];
+    }
+    if (
+      text === "SELECT set_config('tale.automation_writer_protocol', $, true)"
+    ) {
+      return [];
     }
     if (
       text.startsWith(
@@ -218,7 +228,7 @@ describe('listUserOrganizations', () => {
     return tag as unknown as Sql;
   }
 
-  it('answers every assignable role verbatim — one membership, one role everywhere', async () => {
+  it('answers every assignable role verbatim — one membership, one role everywhere [ORG-R11]', async () => {
     const roles = MEMBER_ROLES.filter((role) => role !== 'disabled');
     const listed = await listUserOrganizations(
       sqlAnswering(
@@ -237,7 +247,7 @@ describe('listUserOrganizations', () => {
     expect(listed.map((o) => o.role)).toContain('editor');
   });
 
-  it('drops disabled memberships and normalizes an off-vocabulary role to member', async () => {
+  it('drops disabled memberships and normalizes an off-vocabulary role to member [ORG-R11]', async () => {
     const listed = await listUserOrganizations(
       sqlAnswering([
         { organizationId: 'a', role: 'Disabled', name: 'A', slug: 'a' },
@@ -253,7 +263,7 @@ describe('listUserOrganizations', () => {
   });
 });
 
-describe('describeOrganizationHoldBlock', () => {
+describe('describeOrganizationHoldBlock [ORG-R7]', () => {
   it('lets an organization without active holds through', () => {
     expect(
       describeOrganizationHoldBlock({
@@ -297,7 +307,7 @@ describe('deleteOrganization', () => {
   // E-22: the most destructive action in the product asks for the
   // organization's name typed back — the service is where the door's
   // proof is checked, before the hold gate and before any write.
-  it('refuses a confirmation that is not the organization name, writing nothing', async () => {
+  it('refuses a confirmation that is not the organization name, writing nothing [ORG-R5]', async () => {
     const sends = installFakeBoss();
     for (const typed of ['', 'Acme Corp', 'Other']) {
       const { tx, statements } = createRecordingTx({
@@ -316,7 +326,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('accepts the name trimmed and in any letter case', async () => {
+  it('accepts the name trimmed and in any letter case [ORG-R5]', async () => {
     installFakeBoss();
     const { tx } = createRecordingTx({
       memberRole: 'owner',
@@ -328,7 +338,7 @@ describe('deleteOrganization', () => {
     ).resolves.toEqual({ orgSlug: 'acme' });
   });
 
-  it('refuses under an org-wide hold without writing or enqueuing anything', async () => {
+  it('refuses under an org-wide hold without writing or enqueuing anything [ORG-R7]', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
       memberRole: 'owner',
@@ -345,7 +355,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('refuses under a custodian hold on any member — nothing is written', async () => {
+  it('refuses under a custodian hold on any member — nothing is written [ORG-R7]', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
       memberRole: 'owner',
@@ -360,7 +370,30 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('refuses non-owners and the default organization before any write', async () => {
+  it('refuses a legacy execution hold before audit, cancellation or deletion [ORG-R12]', async () => {
+    const sends = installFakeBoss();
+    const { tx, statements } = createRecordingTx({
+      memberRole: 'owner',
+      slug: 'acme',
+      holds: [],
+      legacyHeld: true,
+    });
+    await expect(
+      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
+    ).rejects.toMatchObject({
+      code: 'ORG_LEGACY_AUTOMATION_HELD',
+      status: 409,
+    });
+    expect(statements.filter(isWrite)).toEqual([]);
+    expect(sends).toEqual([]);
+    const probe = statements.find((s) =>
+      s.text.includes('FROM app.automation_runs'),
+    );
+    expect(probe?.text).toContain('legacy_quarantine IS NOT NULL');
+    expect(probe?.values).toEqual([ORG_ID]);
+  });
+
+  it('refuses non-owners and the default organization before any write [ORG-R4] [ORG-R6]', async () => {
     const sends = installFakeBoss();
     const admin = createRecordingTx({
       memberRole: 'admin',
@@ -395,7 +428,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('tears down in order — guards, audit, cascade, Better Auth rows, org row, tombstone, cleanup job', async () => {
+  it('tears down in order — guards, audit, cascade, Better Auth rows, org row, tombstone, cleanup job [ORG-R8]', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
       memberRole: 'owner',
@@ -434,13 +467,31 @@ describe('deleteOrganization', () => {
     expect(auditInsert).toBeGreaterThanOrEqual(0);
     expect(auditInsert).toBeLessThan(firstDelete);
 
+    // The cascade reaches protected automation rows on this reserved
+    // transaction, so its writer marker must be local and precede deletion.
+    const markers = statements.filter((s) => s.text.includes('set_config'));
+    expect(markers).toEqual([
+      {
+        text: "SELECT set_config('tale.automation_writer_protocol', $, true)",
+        values: [String(ENGINE_PROTOCOL)],
+      },
+    ]);
+    const markerIndex = statements.indexOf(markers[0]!);
+    expect(markerIndex).toBeGreaterThan(holdRead);
+    expect(markerIndex).toBeLessThan(
+      statements.findIndex((s) => s.text.startsWith('DELETE FROM')),
+    );
+
     // Every org-keyed app table the catalog lists, child before parent
     // (tasks and bindings reference projects) and alphabetical otherwise;
     // the governance ledger and the tombstone table are the deliberate
     // survivors — never a hand-kept list that a new table would miss. The
-    // realtime outbox sits in its own schema, outside the catalog walk.
+    // realtime outbox sits in its own schema, outside the catalog walk. The
+    // API keys bound to the organization go first, before the walk takes
+    // their bindings (none are held here, so no secret or identity follows).
     const deletes = writes.filter((t) => t.startsWith('DELETE FROM'));
     expect(deletes.map((t) => /^DELETE FROM ([\w."]+)/.exec(t)?.[1])).toEqual([
+      'app.api_key_owners',
       'app.automation_project_bindings',
       'app.memories',
       'app.sso_synced_team_members',

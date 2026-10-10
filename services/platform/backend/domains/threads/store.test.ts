@@ -46,7 +46,7 @@ const insertsOf = (statements: string[]): number =>
   statements.filter((text) => text.includes('INSERT INTO app.messages')).length;
 
 describe('saveMessage — claiming a unique slot', () => {
-  it('claims the slot in one statement that reads max+1 and refuses a tie', async () => {
+  it('claims the slot in one statement that reads max+1 and refuses a tie [THREAD-R1]', async () => {
     const { tx, statements } = fakeTx([[{ id: 'm-1', order: 4 }]]);
     await expect(saveMessage(tx, ARGS)).resolves.toEqual({
       messageId: 'm-1',
@@ -65,7 +65,7 @@ describe('saveMessage — claiming a unique slot', () => {
     );
   });
 
-  it('re-claims the next slot after a concurrent append took the computed one', async () => {
+  it('re-claims the next slot after a concurrent append took the computed one [THREAD-R1]', async () => {
     const { tx, statements } = fakeTx([[], [{ id: 'm-2', order: 5 }]]);
     await expect(saveMessage(tx, ARGS)).resolves.toEqual({
       messageId: 'm-2',
@@ -74,7 +74,7 @@ describe('saveMessage — claiming a unique slot', () => {
     expect(insertsOf(statements)).toBe(2);
   });
 
-  it('outlasts a burst larger than any fixed count of lost races', async () => {
+  it('outlasts a burst larger than any fixed count of lost races [THREAD-R1]', async () => {
     const lostRaces = Array.from({ length: 40 }, () => []);
     const { tx, statements } = fakeTx([
       ...lostRaces,
@@ -109,7 +109,7 @@ describe('saveMessage — claiming a unique slot', () => {
     );
   });
 
-  it('gives up only when the deadline is spent', async () => {
+  it('gives up only when the deadline is spent [THREAD-R2]', async () => {
     const { tx, statements } = fakeTx([]);
     // Each clock read advances 4 s: the 10 s budget is gone at the third claim.
     let clock = 0;

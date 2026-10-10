@@ -634,7 +634,7 @@ function ledgerRows(statements: Statement[]) {
 }
 
 describe('settleModelApiOp', () => {
-  it('books the gateway’s figure and the relay’s counts under the person, __direct_api__ and the key, then deletes the key', async () => {
+  it('books the gateway’s figure and the relay’s counts under the person, __direct_api__ and the key, then deletes the key [MAPI-R8]', async () => {
     gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
       status: 'ok',
       cents: 3.25,
@@ -670,7 +670,7 @@ describe('settleModelApiOp', () => {
     expect(jobs.addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('books at least the floor a stream that ended early counted', async () => {
+  it('books at least the floor a stream that ended early counted [MAPI-R8]', async () => {
     gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
       status: 'ok',
       cents: 0,
@@ -843,7 +843,7 @@ describe('closeStaleModelApiOps', () => {
 });
 
 describe('assertModelApiBudgetRoom', () => {
-  it('passes a caller with room, and refuses one at a cap before anything is paid', async () => {
+  it('passes a caller with room, and refuses one at a cap before anything is paid [MAPI-R7]', async () => {
     budget.findBudgetViolation.mockResolvedValue(null);
     await expect(
       assertModelApiBudgetRoom(fakeSql().sql, {

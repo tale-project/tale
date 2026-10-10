@@ -40,7 +40,7 @@ const context = {
 };
 
 describe('workspaceVerdict', () => {
-  it("deletes a deleted agent's workspace even while pinned or warm", () => {
+  it("deletes a deleted agent's workspace even while pinned or warm [SBX-R13]", () => {
     for (const extra of [{}, { pinned: true }, { inUse: true }]) {
       expect(
         workspaceVerdict(facts({ agentExists: false, ...extra }), context),
@@ -48,7 +48,7 @@ describe('workspaceVerdict', () => {
     }
   });
 
-  it('deletes the workspace of a member who left even while pinned or warm', () => {
+  it('deletes the workspace of a member who left even while pinned or warm [SBX-R13]', () => {
     for (const extra of [{}, { pinned: true }, { inUse: true }]) {
       expect(
         workspaceVerdict(facts({ memberLeft: true, ...extra }), context),
@@ -56,7 +56,7 @@ describe('workspaceVerdict', () => {
     }
   });
 
-  it("keeps a live agent's workspace in use, pinned or about to be used", () => {
+  it("keeps a live agent's workspace in use, pinned or about to be used [SBX-R10] [SBX-R12]", () => {
     const old = NOW - 400 * DAY;
     for (const extra of [
       { inUse: true },
@@ -69,7 +69,7 @@ describe('workspaceVerdict', () => {
     }
   });
 
-  it("deletes a live agent's workspace once unused past the window", () => {
+  it("deletes a live agent's workspace once unused past the window [SBX-R12]", () => {
     expect(
       workspaceVerdict(facts({ lastUsedAt: NOW - 31 * DAY }), context),
     ).toEqual({ retire: true, reason: 'unused', mode: 'stopped' });
@@ -78,7 +78,14 @@ describe('workspaceVerdict', () => {
     ).toEqual({ retire: false });
   });
 
-  it('follows the organization policy: its window, or no deletion at all', () => {
+  it('deletes after 30 days, switched on, unless the organization set otherwise [SBX-R12]', () => {
+    expect(DEFAULT_SANDBOX_WORKSPACES).toEqual({
+      deleteUnused: true,
+      unusedDays: 30,
+    });
+  });
+
+  it('follows the organization policy: its window, or no deletion at all [SBX-R12]', () => {
     const lastUsedAt = NOW - 8 * DAY;
     expect(
       workspaceVerdict(facts({ lastUsedAt }), {
@@ -94,7 +101,7 @@ describe('workspaceVerdict', () => {
     ).toEqual({ retire: false });
   });
 
-  it('waits a full window after the rule took effect before deleting for disuse', () => {
+  it('waits a full window after the rule took effect before deleting for disuse [SBX-R12] [SBX-R13]', () => {
     // An upgrade, a rule turned on or a shortened window 29 days ago: a
     // workspace unused for a year still has a day left.
     const justApplied = { ...context, unusedRuleSince: NOW - 29 * DAY };
@@ -185,6 +192,8 @@ describe('leftoverVerdict', () => {
 function scriptedSpawner(script: {
   offline?: ReadonlySet<string>;
   failKeys?: ReadonlySet<string>;
+  /** The gateway cannot remove the organization's provider keys yet. */
+  gatewayDown?: { value: boolean };
   /** How far each workspace's deletion has come, as the spawner answers —
    * `done` unless scripted; `legacy` is a spawner older than the contract,
    * whose answer carries no deletion state at all. */
@@ -220,6 +229,11 @@ function scriptedSpawner(script: {
       calls.push(`revoke ${keyId}`);
       if (script.failKeys?.has(keyId)) throw new Error('gateway down');
     },
+    removeOrganizationFromGateway: async (organizationId) => {
+      calls.push(`gateway ${organizationId}`);
+      if (script.gatewayDown?.value) throw new Error('gateway down');
+      return { records: 1, keys: 2 };
+    },
     unpin: async (sessionId) => {
       calls.push(`unpin ${sessionId}`);
     },
@@ -238,11 +252,54 @@ describe('retireOrganizationSandboxes', () => {
 
   const alone = { otherSlicesPending: async () => 0 };
 
-  it('destroys every workspace whatever runs in it, then tears the organization down', async () => {
+  it('destroys every workspace whatever runs in it, then tears the organization down [SBX-R13]', async () => {
     const { spawner, calls } = scriptedSpawner({});
     await retireOrganizationSandboxes(payload, { ...alone, spawner });
     expect(calls).toEqual([
       'revoke key-1',
+      'gateway org-gone',
+      'destroy pa-1 force',
+      'destroy wf-2 force',
+      'disconnect device-1',
+      'teardown org-gone',
+    ]);
+  });
+
+  it('removes the provider keys it gave the gateway even while a device is out of reach [SBX-R13]', async () => {
+    const { spawner, calls } = scriptedSpawner({ offline: new Set(['pa-1']) });
+    await expect(
+      retireOrganizationSandboxes(payload, { ...alone, spawner }),
+    ).rejects.toThrow(/pa-1 \(offline\)/);
+    // Its credentials leave the gateway at once; only the devices and the
+    // spawner's teardown wait for the device.
+    expect(calls).toEqual([
+      'revoke key-1',
+      'gateway org-gone',
+      'destroy pa-1 force',
+      'destroy wf-2 force',
+    ]);
+  });
+
+  it('throws for a retry while the gateway still holds its provider keys [SBX-R13]', async () => {
+    const gatewayDown = { value: true };
+    const { spawner, calls } = scriptedSpawner({ gatewayDown });
+    await expect(
+      retireOrganizationSandboxes(payload, { ...alone, spawner }),
+    ).rejects.toThrow(/incomplete: gateway provider keys$/);
+    expect(calls).toEqual([
+      'revoke key-1',
+      'gateway org-gone',
+      'destroy pa-1 force',
+      'destroy wf-2 force',
+    ]);
+
+    // The queue's retry, once the gateway answers.
+    gatewayDown.value = false;
+    calls.length = 0;
+    await retireOrganizationSandboxes(payload, { ...alone, spawner });
+    expect(calls).toEqual([
+      'revoke key-1',
+      'gateway org-gone',
       'destroy pa-1 force',
       'destroy wf-2 force',
       'disconnect device-1',
@@ -262,12 +319,13 @@ describe('retireOrganizationSandboxes', () => {
     // would strand its workspace on the machine.
     expect(calls).toEqual([
       'revoke key-1',
+      'gateway org-gone',
       'destroy pa-1 force',
       'destroy wf-2 force',
     ]);
   });
 
-  it('leaves the devices and the teardown to the last slice of a split organization', async () => {
+  it('leaves the gateway, the devices and the teardown to the last slice of a split organization', async () => {
     const { spawner, calls } = scriptedSpawner({});
     await retireOrganizationSandboxes(
       { ...payload, gatewayKeyIds: [], deviceIds: [], teardown: false },
@@ -276,7 +334,7 @@ describe('retireOrganizationSandboxes', () => {
     expect(calls).toEqual(['destroy pa-1 force', 'destroy wf-2 force']);
   });
 
-  it('is not done while a workspace is out of use but its bytes are still on disk', async () => {
+  it('is not done while a workspace is out of use but its bytes are still on disk [SBX-R13]', async () => {
     const deletion = new Map<
       string,
       'done' | 'pending' | 'failed' | 'handed_off' | 'legacy'
@@ -290,7 +348,11 @@ describe('retireOrganizationSandboxes', () => {
       retireOrganizationSandboxes(last, { ...alone, spawner }),
     ).rejects.toThrow(/pa-1 \(deleting\), wf-2 \(deletion_failed\)/);
     // The devices and the spawner's teardown wait for those bytes too.
-    expect(calls).toEqual(['destroy pa-1 force', 'destroy wf-2 force']);
+    expect(calls).toEqual([
+      'gateway org-gone',
+      'destroy pa-1 force',
+      'destroy wf-2 force',
+    ]);
 
     // The queue's retry, once the spawner has deleted them.
     deletion.set('pa-1', 'done');
@@ -298,6 +360,7 @@ describe('retireOrganizationSandboxes', () => {
     calls.length = 0;
     await retireOrganizationSandboxes(last, { ...alone, spawner });
     expect(calls).toEqual([
+      'gateway org-gone',
       'destroy pa-1 force',
       'destroy wf-2 force',
       'disconnect device-1',
@@ -328,7 +391,11 @@ describe('retireOrganizationSandboxes', () => {
     );
     expect(refused).toMatch(/: pa-1 \(deletion_unconfirmed\)$/);
     // Its devices stay connected: one may hold those bytes.
-    expect(calls).toEqual(['destroy pa-1 force', 'destroy wf-2 force']);
+    expect(calls).toEqual([
+      'gateway org-gone',
+      'destroy pa-1 force',
+      'destroy wf-2 force',
+    ]);
 
     // The spawner is updated, and answers how far the deletion came.
     deletion.set('pa-1', 'done');
@@ -347,11 +414,16 @@ describe('retireOrganizationSandboxes', () => {
     await expect(retireOrganizationSandboxes(last, deps)).rejects.toThrow(
       /2 other slice\(s\) still running/,
     );
-    expect(calls).toEqual(['destroy pa-1 force', 'destroy wf-2 force']);
+    expect(calls).toEqual([
+      'gateway org-gone',
+      'destroy pa-1 force',
+      'destroy wf-2 force',
+    ]);
     pending = 0;
     calls.length = 0;
     await retireOrganizationSandboxes(last, deps);
     expect(calls).toEqual([
+      'gateway org-gone',
       'destroy pa-1 force',
       'destroy wf-2 force',
       'disconnect device-1',

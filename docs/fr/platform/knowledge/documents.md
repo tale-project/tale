@@ -42,6 +42,7 @@ Réindexer plusieurs fois un format non pris en charge ne le rend pas interrogea
 | **Indexation** | Le texte est préparé pour la recherche. Attends avant de tester la source. |
 | **Indexé** | L’indexation est terminée. Pose une question précise et ouvre sa citation. |
 | **Réindexation nécessaire** | L’index est périmé. Utilise **Relancer l'indexation** à côté du statut. |
+| **En attente d'une limite d'utilisation** | Une limite d’utilisation qui s’applique à la personne pour qui le document est indexé a été atteinte. L’indexation reprend d’elle-même dans l’heure qui suit la réinitialisation ou le relèvement de la limite ; rien n’est à corriger dans le fichier. |
 | **Échoué** | Lis l’erreur, résous sa cause, puis réessaie. |
 | **Non pris en charge** | Ce contenu ne peut pas être indexé : format incompatible, texte vide ou illisible, ou PDF endommagé, par exemple. Ouvre le badge pour connaître la cause. |
 | **Non indexé** | Aucun index terminé n’est disponible. Vérifie le fichier et lance l’indexation lorsque l’action est proposée. |
@@ -62,6 +63,7 @@ Clique sur **Échoué** ou **Non pris en charge** pour lire l’explication. La 
 | Modèle d’embedding absent ou compte refusé par le fournisseur | Un administrateur doit configurer le modèle dans **Paramètres > Résidence des données**, ou corriger la clé, l’accès au modèle, l’offre ou le solde du compte. Relance ensuite. |
 | Identifiants d’embedding manquants ou inutilisables | Les identifiants qu’utilise le modèle d’embedding ont été supprimés ou désactivés, le fournisseur n’a plus d’identifiants par défaut (**Paramètres > Résidence des données** affiche **Identifiants manquants**), ou leur secret est illisible : il a été enregistré avec une ancienne clé de chiffrement, ou les identifiants renvoient à une variable d’environnement que le serveur ne définit pas. Un administrateur ajoute ou répare les identifiants sous **Paramètres > Fournisseurs IA**, ou en choisit d’autres pour le modèle d’embedding. Chacun de ces enregistrements remet les documents concernés en file d’attente. Si la correction a eu lieu sur le serveur lui-même, par exemple en définissant la variable d’environnement, utilise **Relancer l'indexation**. |
 | Panne temporaire du fournisseur ou du service d’indexation | Les traitements en arrière-plan retentent les échecs temporaires. Si l’erreur persiste, transmets le nom du document et le message à un administrateur. Après réparation, utilise **Relancer l'indexation**. |
+| Une limite d’utilisation est atteinte | L’indexation transforme le texte en vecteurs avec le modèle d’embedding, ce qui compte dans les limites de la personne pour qui le document est indexé : qui l’a téléversé, le propriétaire d’un lecteur synchronisé, ou l’organisation pour une pièce jointe d’e-mail. Le document affiche **En attente d'une limite d'utilisation** et reprend de lui-même dans l’heure qui suit la réinitialisation de la limite ou son relèvement par un administrateur sous **Paramètres > Gouvernance > Politiques et limites**. |
 | Reconstruction ou réparation du moteur de recherche | La reconstruction peut se terminer automatiquement. Si la réparation échoue, l’exploitant doit réparer ou restaurer la base de connaissances avant une nouvelle tentative. |
 
 **Non pris en charge** ne propose pas de relance : traiter les mêmes octets ne corrigerait pas la cause. Un statut **Échoué** peut lui aussi nécessiter une modification de la source ou de la configuration. Une application distingue ces cas avec `indexing.errorCode` ; la [référence API](/fr/develop/api-reference) donne les codes stables.
@@ -94,7 +96,7 @@ Les dossiers organisent la bibliothèque ; pour en renommer un, utilise **Renom
 
 ## Importer depuis Microsoft 365 ou Google Drive
 
-Choisis **Depuis Microsoft 365** ou **Depuis Google Drive** sous **Téléverser des documents**. À la première utilisation, connecte ton compte et autorise l’import. Si Tale indique qu’il n’est pas configuré, un administrateur doit préparer le service dans [Connecteurs](/fr/platform/admin/connectors).
+Choisis **Depuis Microsoft 365** ou **Depuis Google Drive** sous **Téléverser des documents**. À la première utilisation, connecte ton compte et autorise l’import. Si Tale indique qu’il n’est pas configuré, un administrateur doit préparer le service dans [Connectors](/fr/platform/admin/connectors). Si Tale ne parvient pas à vérifier si l’import est configuré, la boîte de dialogue l’indique et propose **Réessayer** à la place du bouton de connexion. Tu pourras te connecter dès que la vérification aboutira.
 
 Sélectionne les fichiers ou dossiers, puis le mode d’import :
 

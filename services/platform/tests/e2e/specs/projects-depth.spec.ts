@@ -283,10 +283,11 @@ test('task live-edit: status/priority/label persist across board and list', asyn
 
     // Priority → "High". The details panel names the priority beside its
     // glyph, and the trigger's name carries both the field and the value it
-    // shows ("Priority: No priority") — the icon keeps its own aria-label.
+    // shows ("Priority: Medium", a new task's default) — the icon keeps its
+    // own aria-label.
     await taskDialog
       .getByRole('button', {
-        name: `${t('tasks.fields.priority')}: ${t('tasks.priority.none')}`,
+        name: `${t('tasks.fields.priority')}: ${t('tasks.priority.p2')}`,
         exact: true,
       })
       .click();

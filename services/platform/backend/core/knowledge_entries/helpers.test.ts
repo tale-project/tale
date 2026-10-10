@@ -4,7 +4,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import { normalizeTopicKey } from './constants';
 import { validateTopicAndContent } from './helpers';
 
-describe('normalizeTopicKey', () => {
+describe('normalizeTopicKey [KENTRY-R2]', () => {
   it('lowercases', () => {
     expect(normalizeTopicKey('Store Hours')).toBe('store hours');
   });
@@ -26,7 +26,7 @@ describe('normalizeTopicKey', () => {
   });
 });
 
-describe('validateTopicAndContent', () => {
+describe('validateTopicAndContent [KENTRY-R1]', () => {
   it('trims and returns normalized topicKey', () => {
     const result = validateTopicAndContent('  Store Hours ', ' Open 9-5 ');
     expect(result.topic).toBe('Store Hours');

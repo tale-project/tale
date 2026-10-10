@@ -839,6 +839,9 @@ export async function ingestVideoLinkImpl(
           source: 'video_link',
           uploadedBy: job.uploadedBy,
           ...(job.threadId !== undefined && { threadId: job.threadId }),
+          // A project's new chat, before its thread existed: the audio's
+          // transcription counts toward that project.
+          ...(job.projectId !== undefined && { projectId: job.projectId }),
           // Video-link provenance (sourceUrl/sourcePlatform/videoTitle/
           // uploader/duration) lives on `videoLinkJobs` — `start_agent_chat.ts`
           // JOINs it by storageId. Single writer; not duplicated here.

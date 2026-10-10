@@ -48,10 +48,7 @@ import {
   ConversationHeader,
   ConversationHeaderSkeleton,
 } from './conversation-header';
-import {
-  ConversationDateHeader,
-  MessageTimestamp,
-} from './conversation-message-layout';
+import { MessageTimestamp } from './conversation-message-layout';
 import { InboxMobileBackButton } from './inbox-mobile-back-button';
 import { Message } from './message';
 import { MessageEditorPlaceholder } from './message-editor/message-editor-placeholder';
@@ -76,6 +73,7 @@ const MessageEditor = lazyComponent(
 );
 
 import { cn } from '@tale/ui/cn';
+import { ThreadDayDivider } from '@tale/ui/thread/thread-day-divider';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useSwapFade } from '@tale/ui/use-swap-fade';
 
@@ -243,13 +241,9 @@ export function ConversationPanel({
   // Mark conversation as read when it's opened and has unread messages
   useEffect(() => {
     if (conversation && selectedConversationId) {
-      // Only mark as read if there are unread messages
-      // (last_message_at is after last_read_at, or last_read_at doesn't exist)
-      const hasUnreadMessages =
-        conversation.last_message_at &&
-        (!conversation.last_read_at ||
-          new Date(conversation.last_message_at) >
-            new Date(conversation.last_read_at));
+      // Delivery/backfill timestamps can precede the read marker. The server's
+      // unread counter is also what the Inbox uses to filter unread threads.
+      const hasUnreadMessages = conversation.unread_count > 0;
 
       if (hasUnreadMessages) {
         markAsRead(
@@ -540,9 +534,9 @@ export function ConversationPanel({
           <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
             {!conversation ? (
               <>
-                <ConversationDateHeader>
+                <ThreadDayDivider>
                   <span className="inline-block w-20">{'\u00a0'}</span>
-                </ConversationDateHeader>
+                </ThreadDayDivider>
                 <VStack gap={4} className="mb-8">
                   {PLACEHOLDER_MESSAGE_BUBBLES.map((row, i) => (
                     <div
@@ -611,9 +605,9 @@ export function ConversationPanel({
                   return (
                     <div key={group.date} className="relative">
                       {/* Sticky Date Header */}
-                      <ConversationDateHeader>
+                      <ThreadDayDivider>
                         {formatDateHeader(group.date)}
-                      </ConversationDateHeader>
+                      </ThreadDayDivider>
 
                       {/* Messages for this date */}
                       <Stack gap={4} className="mb-8">

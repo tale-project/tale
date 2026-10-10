@@ -1,0 +1,612 @@
+sourceStatus:
+  heading: Ablauf der Quelle
+  explanation: Wähle eine Aktion und ergänze die Angaben. Die verbundene Quelle prüft deine Berechtigungen und jeden Übergang, bevor sie diese Aufgabe aktualisiert.
+  submit: Anfrage senden
+  pending: Die Quelle prüft deine Anfrage.
+  accepted: Die Quelle hat deine Anfrage angenommen.
+  refused: Die Quelle hat deine Anfrage abgelehnt.
+  invalidFields: Prüfe die Pflichtfelder und ihr Format.
+  submitFailed: Die Anfrage konnte nicht gesendet werden. Versuche es erneut.
+  loadFailed: Die Aktionen der Quelle konnten nicht geladen werden.
+  retry: Erneut versuchen
+sourceIssue:
+  heading: '{provider}-Issue'
+  state:
+    open: In der Quelle offen
+    closed: In der Quelle geschlossen
+    resolved: In der Quelle behoben
+    ignored: In der Quelle ignoriert
+  unavailable: Diese Verbindung kann nicht mehr auf das Issue zugreifen. Die zuletzt bekannten Angaben bleiben erhalten; die Tale-Aufgabe bleibt unverändert.
+  synced: 'Quelle geprüft: {date}'
+  independentStatus: Der Status der Quelle gilt unabhängig von dieser Aufgabe. Prüfe die Aufgabe und schließe sie in Tale ab.
+  description: Beschreibung aus der Quelle
+run:
+  started: '{name} ist gestartet und übernimmt diese Aufgabe ab jetzt.'
+  alreadyRunning: '{name} arbeitet schon an dieser Aufgabe.'
+  notStarted: '{name} konnte nicht starten — prüfe, ob die Automatisierung deployt ist.'
+  cancelled: Der Lauf wurde abgebrochen.
+  missingInput: Lege zuerst die Eingabedateien ab — unter Dateien ist bei dieser Aufgabe noch nichts.
+  working: '{name} arbeitet an dieser Aufgabe.'
+  waitingAnswer: '{name} hat eine Frage und wartet — sobald du unten antwortest, geht es weiter.'
+  waitingDecision: '{name} wartet auf eine Entscheidung zu einem Schritt, der vielleicht schon gelaufen ist — wähle unten, wie es weitergeht.'
+  waitingDecisionOther: '{name} wartet auf eine Entscheidung zu einem Schritt, der vielleicht schon gelaufen ist.'
+  label: Lauf
+  details: Details
+  detailsTitle: '{name} — Laufdetails'
+  detailsTitleLive: '{name} — Fortschritt'
+  openFull: Vollständigen Lauf öffnen
+subject:
+  runLoadError: "Der Workflow-Status konnte nicht geladen werden. Versuch es erneut, um die verfügbaren Aktionen zu sehen."
+  askLoadError: "Es konnte nicht geprüft werden, ob eine Frage offen ist. Versuch es erneut, um zu sehen, ob eine Antwort nötig ist."
+  ready: 'Bereit zum Start — {name} übernimmt ab hier.'
+  start: Starten
+  startAgain: Erneut starten
+  waitingInput: Wartet auf Eingabedateien — lege sie unten ab und klicke dann auf Starten.
+  stalled: Diese Aufgabe ist In Bearbeitung, aber niemand arbeitet daran — starte sie erneut.
+  review: 'Das Ergebnis von {name} ist bereit zur Prüfung.'
+  reviewWaitingOn: 'Das Ergebnis von {name} ist bereit zur Prüfung — es wartet auf {reviewer}.'
+  approve: Freigeben
+  approveConfirmTitle: 'Ergebnis von {name} freigeben?'
+  approved: Freigegeben — die Aufgabe ist erledigt.
+  requestChanges: Änderungen anfordern
+  requestChangesDialog: 'Dein Feedback wird als Kommentar an dieser Aufgabe gespeichert, und {name} startet damit neu.'
+  requestChangesLabel: Was geändert werden soll
+  requestChangesPlaceholder: 'z. B. Die Zusammenfassung zitiert noch den Vorzeitraum — ersetze diese Zahlen vor dem nächsten Lauf.'
+  requestChangesSend: Zurückschicken
+  requestChangesSent: 'An {name} zurückgeschickt — der neue Lauf greift deine Kommentare auf.'
+  cancel: Lauf abbrechen
+  cancelConfirmTitle: Diesen Lauf abbrechen?
+  cancelConfirmBody: 'Der {name}-Lauf zu dieser Aufgabe stoppt; die Aufgabe parkt auf Abgebrochen und lässt sich erneut starten.'
+  cancelConfirmMove: Ein Lauf arbeitet noch an dieser Aufgabe — verschiebst du sie aus In Bearbeitung, bricht das den Lauf ab. Danach lässt er sich erneut starten.
+agentRun:
+  automationDisabled: 'Die Aufgabenautomatisierung ist ausgeschaltet. Bitte einen Organisationsadmin, sie einzuschalten.'
+  automationUnavailable: 'Die Aufgabenautomatisierung ist nicht verfügbar. Bitte einen Organisationsadmin, die Richtlinie zu prüfen.'
+  previousRun: 'Vorheriger Durchlauf von {name}'
+  label: Lauf
+  started: Der Agent ist dran — er meldet sich zur Prüfung an dieser Aufgabe zurück.
+  alreadyRunning: Der Agent dieser Aufgabe läuft bereits.
+  notStarted: Der Agenten-Lauf konnte nicht starten.
+  agentMissing: Der zugewiesene Agent existiert nicht mehr. Weise einen anderen Agenten zu, damit die Aufgabe läuft.
+  noAgentAssignee: Dieser Aufgabe ist kein Agent zugewiesen. Weise einen zu, um einen Lauf zu starten.
+  cancelled: Der Agenten-Lauf wurde abgebrochen.
+  cancelFailed: Der Agenten-Lauf konnte nicht abgebrochen werden.
+  start: Agent starten
+  willStart: Hier ablegen startet den Agenten-Lauf.
+  willCancel: Hier ablegen bricht den laufenden Agenten-Lauf ab.
+  # Ein kurzes Wort pro Zustand — die Zeile steht im schmalen
+  # Eigenschaften-Panel neben „Lauf“ und dem Status-Chip der Aufgabe.
+  status:
+    queued: Wartet
+    running: Arbeitet…
+    settled: Fertig
+    failed: Fehlgeschlagen
+    cancelled: Abgebrochen
+  # Ersetzt „Wartet", solange der Lauf auf Platz wartet: ein kurzer Zustand
+  # pro Grund; `unknown` ist ein Warten ohne gespeicherten Grund (meist auf
+  # einen Worker). Der Lauf startet von selbst, sobald der Platz frei wird.
+  waiting:
+    org_limit: Wartet auf einen Worker
+    host: Wartet auf freien Platz
+    destroy_pending: Wartet auf einen Arbeitsbereich
+    exec_limit: Wartet auf seine Sandbox
+    unknown: Wartet auf einen Worker
+  # Was der kurze Zustand bedeutet, darunter, solange der Lauf wartet.
+  waitingWhy:
+    org_limit: Alle Agenten-Worker deiner Organisation sind belegt. Der Lauf startet von selbst, sobald einer frei ist.
+    host: Der Sandbox-Host ist voll oder hat zu wenig Arbeitsspeicher oder Speicherplatz. Der Lauf startet von selbst, sobald wieder Platz ist.
+    destroy_pending: Ein Admin löscht gerade den Arbeitsbereich, den dieser Lauf nutzen würde. Danach startet der Lauf in einem neuen.
+    exec_limit: Seine Sandbox beendet noch einen früheren Prozess. Der Lauf startet gleich von selbst.
+    unknown: Der Lauf startet von selbst, sobald Platz für ihn frei ist.
+  # Für Owner und Admins neben „Alle … Agenten-Worker sind belegt".
+  manageWorkers: Agenten-Worker verwalten
+  # Zeile unter dem Status, während die Plattform einen fehlgeschlagenen
+  # Lauf von selbst neu startet — damit klar ist, dass nicht du es warst.
+  autoRetrying: 'Automatischer Versuch {n} von {max}'
+  # Ersetzt diese Zeile, wenn der Broker das Token des Kontos mitten im
+  # Lauf erneuert hat und die Plattform ihn fortsetzt — ohne verbrauchten
+  # Versuch.
+  resumedAfterTokenRefresh: Nach einer Token-Erneuerung fortgesetzt
+  retry: Erneut ausführen
+  cancel: Lauf abbrechen
+  notStartedYet: Der Agent wartet, bis du ihn startest.
+  failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
+  reported: Was der Lauf gemeldet hat
+  logReadFailed: Das Agentenprotokoll konnte nicht geladen werden. Versuch es erneut.
+  runReadFailed: Der Agentenlauf konnte nicht geladen werden. Versuch es erneut.
+  failure:
+    budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
+    setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+    input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — unter "Details" steht, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
+    time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
+    capacity: Der Lauf hat zu lange auf einen freien Worker gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
+    model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
+    start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+    interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
+    out_of_memory: Der Sandbox des Agenten ist der Arbeitsspeicher ausgegangen, deshalb wurde seine Arbeit gestoppt. Starte den Agenten erneut — passiert das wieder, bitte einen Admin, Agenten mehr Arbeitsspeicher zu geben.
+    stalled: 'Der Agent hat nicht mehr reagiert: Er hat lange nichts ausgegeben und kaum gearbeitet, deshalb hat seine Sandbox ihn gestoppt. Starte den Agenten erneut — bleibt er wieder stehen, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+    unknown: 'Der Lauf ist fehlgeschlagen. Starte den Agenten erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+  standardAgent:
+    switchedOff: Der Standard-Agent der Organisation ist ausgeschaltet. Bitte einen Admin, ihn unter Richtlinien einzuschalten.
+    noModel: Kein Modell, das du nutzen darfst, kann den Standard-Agenten ausführen. Bitte einen Admin, einen KI-Anbieter einzurichten oder dir Zugriff auf ein Modell zu geben.
+    pinUnavailable: Das für den Standard-Agenten gewählte Modell steht dir nicht zur Verfügung. Bitte einen Admin, unter Richtlinien ein anderes zu wählen.
+    harnessInvalid: Die für den Standard-Agenten gewählte Agent-Laufzeit ist nicht verfügbar. Bitte einen Admin, unter Richtlinien eine andere zu wählen.
+    unreadable: Die Einstellungen des Standard-Agenten können nicht gelesen werden. Bitte einen Admin, sie unter Richtlinien zu prüfen.
+    notNeeded: Dieses Projekt hat eigene Agenten. Weise stattdessen einen davon zu.
+automation:
+  hint: '{name} betreibt diese Aufgabe und führt sie durch ihre Schritte.'
+  chipReady: Bereit zum Start
+  chipWaiting: Wartet auf Dateien
+  will:
+    start: 'Startet den {name}-Lauf.'
+    request_changes: 'Schickt sie mit deinen Kommentaren an {name} zurück.'
+    cancel: 'Bricht zuerst den laufenden {name}-Lauf ab.'
+outcome:
+  title: Ergebnis
+  pending: Noch nicht bereit
+  untitled: Ohne Titel
+  open: '{name} öffnen'
+inputFiles:
+  title: Dateien
+  titleWithCount: 'Dateien ({count})'
+  more: '+{count} weitere'
+  showLess: Weniger anzeigen
+  open: '{name} öffnen'
+  empty: 'Noch keine Dateien — lege hier die Dokumente ab, mit denen {name} arbeiten soll.'
+  untitled: Ohne Titel
+  uploading: Wird hochgeladen…
+  dropHint: Dateien hier ablegen oder klicken zum Auswählen
+  uploadFailed: Der Upload ist fehlgeschlagen — versuche es erneut.
+  uploadFailedDetail: '{name}: {reason}'
+  remove: '{name} löschen'
+  removeTitle: Diese Datei löschen?
+  removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
+  removeConfirm: Löschen
+  removeFailed: Die Datei konnte nicht gelöscht werden — versuche es erneut.
+template:
+  blank: Leere Aufgabe
+  nameLabel: Name
+  invalidName: 'Muss dem Muster {pattern} entsprechen.'
+  created: Aufgabe erstellt — lege die Eingabedateien ab und klicke dann auf Starten.
+  exists: Für dieses Subjekt existiert bereits eine Aufgabe.
+  setupMissing: 'Der Ordner {folder} fehlt — lege ihn zuerst im Projekt an.'
+  setupIntro:
+    'Richte {name} zuerst für dieses Projekt ein. Die Werte landen als
+    Dateien im Ordner {folder}, und jeder Lauf liest sie von dort.'
+  settingsOpen: Einstellungen
+attachments:
+  label: Anhänge
+  add: Anhänge hinzufügen
+  remove: Anhang entfernen
+  uploading: Wird hochgeladen …
+  emptyHint: Bilder oder Dokumente hinzufügen
+  dropHint: Bilder oder Dokumente hierher ziehen, einfügen oder zum Auswählen klicken
+outputs:
+  label: Ergebnisdateien
+title: Aufgaben
+status:
+  backlog: Backlog
+  todo: Zu erledigen
+  in_progress: In Bearbeitung
+  in_review: In Prüfung
+  done: Erledigt
+  cancelled: Abgebrochen
+priority:
+  p0: Dringend
+  p1: Hoch
+  p2: Mittel
+  p3: Niedrig
+  none: Keine Priorität
+fields:
+  title: Titel
+  titlePlaceholder: Aufgabentitel
+  description: Beschreibung
+  assignee: Zuständig
+  reviewer: Reviewer
+  priority: Priorität
+  labels: Labels
+  status: Status
+  project: Projekt
+  unassigned: Nicht zugewiesen
+  author: Autor
+  created: Erstellt
+labels:
+  add: Label hinzufügen…
+  manage: Labels verwalten
+  manageTitle: Projekt-Labels
+  manageDescription: Labels in diesem Projekt. Anlegen und anhängen machst du im Aufgaben-Picker; umbenennen und löschen hier.
+  empty: Noch keine Labels.
+  emptyHint: Tippe oben einen Namen, um eines anzulegen.
+  createNamed: '„{name}“ anlegen'
+  createHeading: Neues Label
+  namePlaceholder: Labelname
+  rename: Umbenennen
+  deleteConfirmTitle: Dieses Label löschen?
+  deleteConfirmDescription: Entfernt „{label}“ aus dem Projekt und von allen Aufgaben, die es nutzen.
+  errors:
+    TASK_LABEL_NAME_TAKEN: Ein Label mit diesem Namen gibt es schon.
+    TASK_LABEL_UNKNOWN: Dieses Label gibt es im Projekt nicht — wähle eines, das es schon hat. Neue Labels legen Redakteure und höhere Rollen im Picker an.
+    TASK_LABELS_INVALID: Ungültiger Labelname.
+    TASK_LABEL_IN_USE: Dieses Label hängt noch an einer Aufgabe.
+    createFailed: Label konnte nicht angelegt werden.
+    renameFailed: Label konnte nicht umbenannt werden.
+    deleteFailed: Label konnte nicht gelöscht werden.
+actions:
+  create: Aufgabe erstellen
+  createAnother: Weitere erstellen
+  createShortcut: '{shortcut} zum Erstellen'
+  openCreated: Öffnen
+  openCreatedAltText: Neue Aufgabe öffnen
+  createAndStart: Erstellen und Agent starten
+  createOnly: Nur erstellen
+  created: Aufgabe erstellt
+  comment: Kommentieren
+  commentPlaceholder: Schreib einen Kommentar – mit @ erwähnst du eine Person oder einen Agenten
+  commentAgentHint: "Erwähne den zugewiesenen Agenten für Feedback. Wenn er arbeitet, geht die Erwähnung an seinen aktuellen Lauf."
+  commentShortcut: '{shortcut} zum Senden'
+  assign: Zuweisen
+  add: Hinzufügen
+  archive: Archivieren
+  restore: Wiederherstellen
+  delete: Löschen
+searchPlaceholder: Tasks durchsuchen
+views:
+  board: Board
+  list: Liste
+board:
+  agentWorking: '{name} arbeitet daran'
+  addTask: Aufgabe hinzufügen
+  addToLane: 'Aufgabe zu {status} hinzufügen'
+  collapseLane: '{status} einklappen'
+  expandLane: '{status} ausklappen'
+  laneCount: '{count, plural, one {# Aufgabe} other {# Aufgaben}}'
+  quickAddLabel: Titel der neuen Aufgabe
+  quickAdded: '„{title}“ hinzugefügt'
+  noTasks: Keine Aufgaben
+list:
+  showArchived: Archivierte anzeigen
+# Ein Lesevorgang des Boards, der nach allen Wiederholungen gescheitert ist
+# (#3747): was nicht geladen wurde und was die Person solange sieht — nie ein
+# leeres Board. Jeder Hinweis trägt „Erneut versuchen“
+# (common.actions.tryAgain) nur für diesen Lesevorgang.
+read:
+  tasksFailed: Die Aufgaben konnten nicht geladen werden, deshalb wird keine angezeigt. Deine Suche und deine Filter bleiben, wie sie sind.
+  tasksStale: Die Aufgaben konnten nicht aktualisiert werden. Du siehst sie so, wie sie zuletzt geladen wurden.
+  dependenciesFailed: Die Abhängigkeiten konnten nicht geladen werden, deshalb sind blockierte Aufgaben möglicherweise nicht als blockiert markiert.
+  activityFailed: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert.
+  activityFailedReviewFilter: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert, und „Wartet auf mein Review“ lässt vielleicht Aufgaben aus, die auf dich warten.
+  retrying: Wird erneut versucht…
+  # Der Lesevorgang des Boards endet an seiner Obergrenze; die Suche grenzt
+  # den Lesevorgang selbst ein und erreicht so jede Aufgabe. {count} ist die
+  # Zahl der angezeigten Aufgaben.
+  truncated: 'Angezeigt {count, plural, one {wird die erste Aufgabe} other {werden die ersten # Aufgaben}}. Nutze die Suche, um die übrigen zu finden.'
+# Ziehen per Tastatur in Board und Liste: die Anleitung am Titel, dann die
+# Live-Ansagen. {task} ist beim Aufnehmen `KEY-12, Titel`, danach `KEY-12`
+# (ohne Projektschlüssel der Titel). Ein Ablegen nennt den Ort, keinen
+# neuen Status: ein Workflow kann den Wechsel noch ablehnen.
+drag:
+  instructions: Enter öffnet die Aufgabe. Die Leertaste nimmt sie auf; danach verschieben die Pfeiltasten sie, die Leertaste legt sie ab und Escape bricht ab.
+  pickedUp: 'Aufgenommen: {task}. Status {status}, Position {position} von {total}. Verschieben mit den Pfeiltasten, ablegen mit der Leertaste, abbrechen mit Escape.'
+  over: 'Status {status}, Position {position} von {total}.'
+  noTarget: Kein Status als Ziel. Hier ablegen ändert nichts.
+  dropped: 'Abgelegt: {task} im Status {status}, Position {position} von {total}.'
+  droppedInPlace: 'Abgelegt: {task} an der ursprünglichen Stelle im Status {status}, Position {position} von {total}.'
+  droppedOutside: 'Abgelegt ohne Status als Ziel: {task} bleibt im Status {status}, Position {position} von {total}.'
+  cancelled: 'Verschieben abgebrochen: {task} bleibt im Status {status}, Position {position} von {total}.'
+  gone: Die Aufgabe ist hier nicht mehr vorhanden und wurde nicht verschoben.
+archived:
+  badge: Archiviert
+archive:
+  confirmTitle: Aufgabe archivieren?
+  confirmDescription: Die Aufgabe verschwindet aus Board und Liste. Mit
+    „Archivierte anzeigen“ im Filter kannst du sie jederzeit wiederherstellen.
+  restoreDescription: Die Aufgabe erscheint wieder in Board und Liste.
+  success: Aufgabe archiviert
+  error: Aufgabe konnte nicht archiviert werden
+  restoreSuccess: Aufgabe wiederhergestellt
+  restoreError: Aufgabe konnte nicht wiederhergestellt werden
+delete:
+  confirmTitle: "Aufgabe löschen?"
+  confirmDescription: Löscht diese Aufgabe und ihre Teilaufgaben samt Kommentaren und Dateien und stoppt ihre laufenden Agentenläufe. Das lässt sich nicht rückgängig machen.
+  success: Aufgabe gelöscht
+  error: Aufgabe konnte nicht gelöscht werden
+detail:
+  overview: Übersicht
+  commentCount: '{count, plural, one {# Kommentar} other {# Kommentare}}'
+  noComments: Noch keine Kommentare.
+  conversation: Unterhaltung
+  conversationEmpty: Noch keine Kommentare – beginne die Unterhaltung unten.
+  details: Details
+  showDetails: Details einblenden
+  hideDetails: Details ausblenden
+  openBoard: Board
+  openPage: Als Seite öffnen
+  copyLink: Link kopieren
+  linkCopied: Link kopiert
+  copyKey: '{key} kopieren'
+  keyCopied: '{key} kopiert'
+  showEarlierComments: Frühere Kommentare anzeigen
+  subtasks: Teilaufgaben
+  addSubtask: Teilaufgabe hinzufügen…
+  addDescription: Beschreibung hinzufügen…
+  noDescription: Keine Beschreibung.
+  moreFields: Weitere Felder
+  parentCloseGuard: Schließe alle Teilaufgaben ab, bevor du diese Aufgabe abschließt.
+  dependencies: Abhängigkeiten
+  blockedBy: Blockiert von
+  blocks: Blockiert
+  blocked: Blockiert
+  noDependencies: Keine
+  linkTask: Aufgabe verknüpfen…
+  dependencyCycle: Das würde eine zirkuläre Abhängigkeit erzeugen.
+  removeDependency: Abhängigkeit entfernen
+  partOf: Teil von {task}
+  subtask: Teilaufgabe
+  notFound: Wir konnten diese Aufgabe nicht finden. Sie wurde möglicherweise gelöscht.
+comment:
+  edited: bearbeitet
+  agentBadge: Agent
+  deleteConfirm: Diesen Kommentar löschen?
+assignee:
+  unassigned: Nicht zugewiesen
+  assignToMe: Mir zuweisen
+  agents: Agenten
+  agentsInfo:
+    Läuft in einer Sandbox auf der Agent-Laufzeit, die beim Erstellen des Agenten
+    gewählt wurde — vorausgerüstet mit seinen Skills, Connectors und
+    Anweisungen.
+  createAgent: Agent erstellen …
+  createAgentHint:
+    Noch keiner in diesem Projekt — ein Agent übernimmt zugewiesene
+    Aufgaben und arbeitet sie für dich ab.
+  automations: Automatisierungen
+  automationsInfo:
+    Übergib die Aufgabe einer deployten Automatisierung — Statusänderungen
+    laufen dann über deren Workflow.
+  handoffConfirmTitle: Aufgabe neu zuweisen?
+  handoffConfirm:
+    'Diese Aufgabe bearbeitet {name}. Nach der Neuzuweisung steuern
+    Statusänderungen ihren Workflow nicht mehr — du kannst die Aufgabe
+    jederzeit zurückgeben.'
+  handoffConfirmLiveRun:
+    '{name} arbeitet gerade an dieser Aufgabe — die Neuzuweisung bricht
+    den laufenden Lauf zuerst ab.'
+  liveRunGuard:
+    Diese Aufgabe hat gerade einen laufenden Lauf — brich ihn ab, bevor du
+    sie neu zuweist.
+  handoffConfirmAction: Neu zuweisen
+  unassign: Zuweisung aufheben
+  you: Du
+  search: Personen suchen
+  liveAgentsOnly:
+    Hier erscheinen nur die Agenten dieses Projekts — erstelle sie im
+    Tab "Agenten" des Projekts.
+  noAgentsReader: 'Dieses Projekt hat noch keine Agenten — bitte einen Redakteur oder Admin, im Tab "Agenten" des Projekts einen hinzuzufügen.'
+  liveAgentsOnlyReader: 'Hier erscheinen nur die Agenten dieses Projekts — Redakteure und Admins fügen sie im Tab "Agenten" des Projekts hinzu.'
+  standardAgent: Standard-Agent
+  standardAgentHint: Der Agent der Organisation für Projekte ohne eigene Agenten
+  standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
+activity:
+  reviewResponded: "Review entschieden"
+  reviewDelegated: "Review weitergegeben"
+  created: Erstellt
+  updated: Aktualisiert
+  claimed: Übernommen
+  archived: Archiviert
+  restored: Wiederhergestellt
+  reordered: Neu sortiert
+  statusChanged: Status geändert
+  externalStatusProjected: Quellstatus synchronisiert
+  externalStatusRequested: Statusübergang bei der Quelle angefragt
+  assigneeChanged: Zuständigkeit geändert
+  titleChanged: Titel geändert
+  descriptionChanged: Beschreibung geändert
+  priorityChanged: Priorität geändert
+  labelsChanged: Labels geändert
+  attachmentsChanged: Anhänge geändert
+  startDateChanged: Startdatum geändert
+  dueDateChanged: Fälligkeitsdatum geändert
+  reviewerChanged: Reviewer geändert
+  commentAdded: Kommentar hinzugefügt
+  dependencyAdded: Abhängigkeit hinzugefügt
+  dependencyRemoved: Abhängigkeit entfernt
+  agentRunRefused: Ausführung abgelehnt
+  repeatChanged: Wiederholung geändert
+  repeatNext: Nächste Aufgabe erstellt
+  empty:
+    startDate: Kein Startdatum
+    dueDate: Kein Fälligkeitsdatum
+    description: Keine Beschreibung
+    labels: Keine Labels
+    attachments: Keine Anhänge
+review:
+  decisionApproved: "Freigegeben"
+  decisionChangesRequested: "Änderungen angefordert"
+  decisionUnavailable: "Review-Entscheidung nicht verfügbar"
+  needsReview: Review ausstehend
+  waitingOn: 'Wartet auf {name}'
+  waitingOnYou: Wartet auf dein Review
+  filterTitle: Review
+  needsMyReview: Wartet auf mein Review
+  independentReviewerRequired: Deine Organisation verlangt ein unabhängiges
+    Review — die Arbeit muss jemand anderes freigeben.
+  competenceRequired: Für diese Freigabe fehlt dir eine erforderliche
+    Kompetenz. Bitte einen Admin deiner Organisation, sie dir zuzuweisen.
+reviewer:
+  none: Kein Reviewer
+  assignToMe: Selbst prüfen
+  search: "Personen und Agenten suchen"
+  editorsOnly: Reviewer kann nur sein, wer dieses Projekt bearbeiten kann.
+  projectDefaultLabel: "Projektstandard"
+  projectDefault: "Projektstandard · {reviewer}"
+  projectDefaultHuman: "Projektstandard · Person"
+  independentAgent: "Wähle einen anderen Agenten als den, der die Arbeit erledigt hat."
+  agentReview: "Prüft das Ergebnis aus seiner eigenen Review-Aufgabe."
+  routingHint: "Personen brauchen Bearbeitungsrechte. Agenten brauchen die Berechtigung für Aufgabenreviews und dürfen ihre eigene Arbeit nicht prüfen."
+  pendingFor: "Aktuelles Review: {reviewer}"
+  transferHint: "Wenn du einen Reviewer wählst, überträgst du auch dieses ausstehende Review."
+  agentUnavailable: "Dieser Reviewer-Agent ist nicht verfügbar. Wähle einen anderen Reviewer."
+  agentPermissionRequired: "Dieser Agent braucht die Berechtigung für Aufgabenreviews, bevor er entscheiden kann."
+  saveError: "Reviewer konnte nicht geändert werden"
+  loadError: "Das aktuelle Review konnte nicht geladen werden. Versuche es vor einer Änderung erneut."
+  stale: "Reviewer oder Ergebnis haben sich geändert. Prüfe das aktuelle Review und wähle erneut."
+  handoffRequired: "Übertrage das ausstehende Review ausdrücklich, bevor du den Reviewer änderst."
+  busy: "Warte, bis der aktive Lauf oder die offene Frage erledigt ist, bevor du das Review überträgst."
+  sourceRequired: "Für dieses Ergebnis gibt es keinen unterstützten Umsetzungslauf für ein Review."
+  sourceChanged: "Diese Prüfung passt nicht mehr zum ausführenden Lauf oder zum zugewiesenen Agenten. Stelle bei einer geänderten Zuweisung den ursprünglichen Agenten wieder ein oder übertrage die Prüfung an eine berechtigte Person."
+  humanPolicy: "Die Organisationsrichtlinie verlangt für diese Prüfung eine Person. Übertrage sie an ein berechtigtes Mitglied."
+  policyUnavailable: "Die Prüfrichtlinie konnte nicht gelesen werden. Stelle eine gültige Organisationsrichtlinie wieder her, bevor die Prüfung entschieden wird."
+  notIndependent: "Wähle einen Agenten, der dieses Ergebnis nicht erstellt hat."
+  agentRequired: "Der zugewiesene Reviewer-Agent muss über dieses Review entscheiden."
+  invalid: "Wähle ein berechtigtes Projektmitglied oder einen Agenten dieses Projekts."
+watch:
+  watch: Verfolgen
+  unwatch: Nicht mehr verfolgen
+errors:
+  PROJECT_ARCHIVED: Dieses Projekt ist archiviert. Stelle es wieder her, um seine Aufgaben zu ändern.
+  TASK_TITLE_INVALID: Ein Titel braucht 1 bis {max} Zeichen. Die meisten Emojis zählen doppelt.
+  TASK_DESCRIPTION_INVALID: Diese Beschreibung ist zu lang zum Speichern. Erlaubt sind bis zu {max} Zeichen, und die meisten Emojis zählen doppelt.
+runFailure:
+  title: Agent konnte nicht starten
+  description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe
+    bleibt unverändert.'
+agentRuns:
+  working: Agent arbeitet…
+  needsAnswer: Wartet auf deine Antwort
+  totalCost: '{amount} gesamt'
+  costLabel: Agentenkosten
+  status:
+    queued: Wartet
+    running: Läuft
+    completed: Abgeschlossen
+    settled: Fertig
+    failed: Fehlgeschlagen
+    cancelled: Abgebrochen
+    timed_out: Zeitüberschreitung
+  trigger:
+    assignment: Zuweisung
+    mention: Erwähnung
+    revision: Überarbeitung
+    sla_escalation: Eskalation
+    unblock: entblockt
+    decomposition: Aufteilung
+    manual: manuell
+    auto_retry: automatische Wiederholung
+    automation: Automatisierung
+    delegated: delegiert
+  refused:
+    agent_busy: Agent arbeitet an einer anderen Aufgabe
+    agent_disabled: Agent ist nicht installiert oder deaktiviert
+    agent_not_found: Agent nicht gefunden oder falsch konfiguriert
+    automation_disabled: Aufgaben-Automatisierung ist aus
+    budget_paused: Monatsbudget aufgebraucht
+    task_circuit_breaker: Agenten-Läufe sind auf dieser Aufgabe pausiert
+  detail:
+    openAria: '{status}-Details für {agent} öffnen'
+    runningTitle: '{agent} — laufender Durchlauf'
+    failedTitle: '{agent} — Durchlauf fehlgeschlagen'
+    completedTitle: '{agent} — Durchlauf-Details'
+    noLiveDetail: Für diesen Durchlauf gibt es kein Live-Transkript.
+timeline:
+  updates: '{count, plural, one {# Änderung} other {# Änderungen}}'
+  runLabel: Agentenlauf
+  startedByAgent: gestartet von
+  systemActor: System
+  unresolvedWorkflow: Automatisierung
+  deletedAgent: Gelöschter Agent
+  viewMore: "Mehr anzeigen"
+  viewWorkflow: Automatisierung anzeigen
+dueDate:
+  label: Fällig am
+  overdue: Überfällig
+  due: Fällig am {date}
+startDate:
+  label: Startet am
+  afterDue: Startet am muss am oder vor dem Fälligkeitsdatum liegen.
+repeat:
+  label: Wiederholen
+  indicator: 'Wiederholt sich: {rule}'
+  nextTask: 'Nächste Aufgabe: {task}'
+  openNextTask: Nächste Aufgabe öffnen
+  nextCreated: Nächste Aufgabe erstellt
+  nextDueDates: Nächste Fälligkeiten
+  noDueDateHint: Noch kein Fälligkeitsdatum. Wählst du eine Wiederholung, wird die Aufgabe am ersten passenden Tag fällig.
+  becomesDue: 'Diese Aufgabe wird am {date} fällig.'
+  noDueDateSaved: 'Kein Fälligkeitsdatum: Die Fälligkeit der nächsten Aufgabe richtet sich nach dem Tag, an dem diese erledigt oder abgebrochen wird.'
+  dateOutOfRange: Die nächsten Termine liegen außerhalb des unterstützten Datumsbereichs. Wähle ein früheres Datum.
+  dueDateSet: 'Diese Aufgabe ist jetzt am {date} fällig.'
+  ruleOnDue: '{rule}, nächste Aufgabe am Fälligkeitstag'
+  withParent: 'Mit {parent}'
+  onDue:
+    label: Nächste Aufgabe am Fälligkeitstag erstellen
+    description: 'Auch wenn diese am {date} noch offen ist.'
+    descriptionNow: Diese ist schon fällig, deshalb entsteht die nächste Aufgabe sofort.
+  mode:
+    close: Die nächste Aufgabe entsteht, wenn diese erledigt oder abgebrochen wird.
+    dueDate: Die nächste Aufgabe entsteht am Fälligkeitstag – oder früher, wenn diese vorher erledigt oder abgebrochen wird.
+  reason:
+    closed: Öffne diese Aufgabe wieder, um ihre Wiederholung zu ändern.
+    continued: 'Die Serie geht bei {task} weiter. Ändere die Wiederholung dort.'
+    continuedUnnamed: Die Serie geht bei der nächsten Aufgabe weiter. Ändere die Wiederholung dort.
+    stopped: Die Serie wurde beendet.
+    nextDeleted: Die nächste Aufgabe wurde gelöscht. Diese Aufgabe kann sich nicht noch einmal wiederholen.
+    automation: Eine Automatisierung führt diese Aufgabe aus, deshalb wiederholt sie sich nicht.
+    subtask: 'Diese Teilaufgabe kommt mit {parent} wieder: Jedes Mal, wenn sich {parent} wiederholt, bekommt die nächste Aufgabe eine neue Kopie von ihr.'
+    notOpen: Nur offene Aufgaben wiederholen sich.
+  stop:
+    action: Wiederholung beenden
+    altText: 'Du kannst die Wiederholung auch später beenden: Öffne die Aufgabe und wähle bei „Wiederholen“ die Aktion „Wiederholung beenden“.'
+    done: Wiederholung beendet
+    removed: Die nächste Aufgabe wurde entfernt.
+    kept: '{task} wurde schon bearbeitet und bleibt deshalb bestehen – sie wiederholt sich nur nicht mehr.'
+    keptUnnamed: Die nächste Aufgabe wurde schon bearbeitet und bleibt deshalb bestehen – sie wiederholt sich nur nicht mehr.
+mentionPreview:
+  willRespond: '{slug} wird antworten'
+  willQueue: '{slug} wird antworten (wartet — Parallelitätslimit erreicht)'
+  packDisabled: '{slug} antwortet nicht — Aufgaben-Automatisierung ist aus'
+  breakerPaused: '{slug} antwortet nicht — Agenten-Läufe sind auf dieser Aufgabe pausiert'
+  budgetPaused: '{slug} antwortet nicht — Monatsbudget aufgebraucht'
+  agentNotLive: '{slug} antwortet nicht — Agent ist nicht installiert oder deaktiviert'
+  notPermitted: '{slug} antwortet nicht — auf dieser Aufgabe kannst du keine Agenten starten'
+  standardAgentUnavailable: '{slug} antwortet nicht — er steht dir nicht zur Verfügung'
+mentionPicker:
+  title: Mitglied, Agent oder Automatisierung erwähnen
+  empty: Keine Treffer
+mentionChip:
+  kind:
+    user: Person
+    agent: Agent
+    automation: Automatisierung
+  missing:
+    user: Nicht mehr Mitglied
+    automation: Automatisierung nicht verfügbar
+metrics:
+  title: Projekt-Metriken
+  description: Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.
+  cappedNotice:
+    Es werden die letzten 5.000 Zeilen jeder Quelle in diesem Zeitraum
+    gezeigt — ältere Aktivität im Zeitraum wird nicht gezählt.
+  noData: Keine Daten
+  noFlowDescription: An keinem Tagesende dieses Zeitraums war eine Aufgabe offen.
+  noThroughputDescription: In diesem Zeitraum wurde keine Aufgabe erstellt oder abgeschlossen.
+  noCycleTimeDescription: In diesem Zeitraum ging keine Aufgabe von In Bearbeitung zu Erledigt.
+  noCompletionsDescription: In diesem Zeitraum wurde keine Aufgabe abgeschlossen.
+  noCostDescription: In diesem Zeitraum ist kein Agentenlauf gestartet.
+  completed: Abgeschlossen ({days} T.)
+  completedDetail: '{agent} durch Agenten · {human} durch Menschen'
+  cycleTime: Ø Durchlaufzeit
+  created: '{count} erstellt'
+  intervention: Eingriffsquote
+  interventionDetail: '{changes} Änderungswünsche · {escalations} Eskalationen'
+  cost: Ausgaben ({days} T.)
+  costDetail: '{runs} Läufe · {failed} fehlgeschlagen'
+  cumulativeFlow: Kumulativer Fluss (Tagesende)
+  throughput: Durchsatz
+  createdLabel: Erstellt
+  completedLabel: Abgeschlossen
+  cycleTimeTrend: Durchlaufzeit-Trend
+  cycleHoursLabel: Ø Durchlaufzeit (h)
+  agentVsHuman: 'Abschlüsse: Agenten vs. Menschen'
+  agentLabel: Agenten
+  humanLabel: Menschen
+  costTrend: Tägliche Ausgaben
+  costLabel: Ausgaben

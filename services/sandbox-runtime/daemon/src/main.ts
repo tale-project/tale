@@ -12,7 +12,6 @@
 // by the image's Node 24 — so this file uses only node: built-ins, no deps.
 
 import { timingSafeEqual } from 'node:crypto';
-import { once } from 'node:events';
 import {
   createServer,
   type IncomingMessage,
@@ -25,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { ActivityGate } from './activity-gate.ts';
 import { reconcileBakedSkills } from './baked-skills.ts';
 import { exitDaemon } from './daemon-exit.ts';
+import { dependencyHealth } from './dependency-health.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -36,19 +36,56 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import { readJsonBody } from './http-body.ts';
+import { namesOtherIncarnation, readIncarnation } from './incarnation.ts';
 import {
+  InnerDockerHealth,
+  LAZY_DOCKER_HEALTH_SOCKET,
+} from './inner-docker-health.ts';
+import { installProcessGuards } from './process-guard.ts';
+import {
+  RUNNERD_CHECKPOINT_MAX_BYTES,
+  parseRunnerdSequence,
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
+  RUNNERD_INCARNATION_ENV,
+  RUNNERD_INCARNATION_HEADER,
   RUNNERD_MAX_LIVE_EXECS,
+  RUNNERD_MEMORY_BUSY_ERROR,
   RUNNERD_PORT,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
+  type RunnerdHealth,
+  type RunnerdMemoryBusy,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
-let stageRequests = 0;
+import {
+  admissionMemoryPercentFromEnv,
+  MEMORY_BUSY_RETRY_AFTER_SECONDS,
+  memoryRefusesExec,
+  readMemoryPeak,
+  readOomKills,
+  readSessionMemory,
+} from './session-memory.ts';
+let execConsumers = 0;
+const MAX_EXEC_CONSUMERS = 8;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
+const MAX_STAGING_OPERATIONS = 2;
+let stagingOperations = 0;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
+// The share of the session's memory limit past which a new exec is refused
+// (session-memory.ts); the spawner sets it.
+const ADMISSION_MEMORY_PERCENT = admissionMemoryPercentFromEnv();
+// Named in /healthz and every activity answer, so the spawner can trust an
+// answer as coming from the incarnation it registered without asking the
+// backend. Empty for a container launched without a stamp.
+const INCARNATION = readIncarnation(process.env[RUNNERD_INCARNATION_ENV]);
+const incarnation =
+  INCARNATION === undefined ? {} : { incarnation: INCARNATION };
+const innerDocker = new InnerDockerHealth(process.env.TALE_DIND === '1', {
+  socketPath: LAZY_DOCKER_HEALTH_SOCKET,
+  supervisor: true,
+});
 const bootedAtMs = Date.now();
 let lastActivityAtMs = bootedAtMs;
 const touch = () => {
@@ -97,14 +134,53 @@ function tokenOk(req: IncomingMessage): boolean {
   }
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
+/** The session's memory for /healthz: in use, the limit, the peak and the
+ * OOM kills so far, or undefined where the cgroup cannot be read. */
+async function sessionMemoryHealth(): Promise<
+  RunnerdHealth['memory'] | undefined
+> {
+  const [memory, peak, oomKills] = await Promise.all([
+    readSessionMemory(),
+    readMemoryPeak(),
+    readOomKills(),
+  ]);
+  if (memory === null) return undefined;
+  return {
+    currentBytes: memory.currentBytes,
+    maxBytes: memory.maxBytes,
+    ...(peak === null ? {} : { peakBytes: peak }),
+    ...(oomKills === null ? {} : { oomKills }),
+  };
+}
+
+function sendJson(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): void {
   const payload = JSON.stringify(body);
   // A 413 needs no `Connection: close`: `readJsonBody` drains the refused
   // body before the route answers, so the keep-alive connection is clean
   // for the next request (closing it under a half-sent upload hangs Bun
   // 1.3.12's fetch — the spawner — on its next call).
-  res.writeHead(status, { 'content-type': 'application/json' });
+  res.writeHead(status, { 'content-type': 'application/json', ...headers });
   res.end(payload);
+}
+
+/** An activity request meant for another incarnation of this session reached
+ * this one (a replacement under the same name): refuse it before it changes
+ * anything, naming the incarnation served here. */
+function refusedForOtherIncarnation(
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  if (
+    !namesOtherIncarnation(INCARNATION, req.headers[RUNNERD_INCARNATION_HEADER])
+  )
+    return false;
+  sendJson(res, 409, { error: 'incarnation_mismatch', ...incarnation });
+  return true;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -143,15 +219,14 @@ function parseEnvPatch(
 
 /** One HTTP consumer of an exec. A slow reader must lose its connection,
  * buffered writes and subscription together; the detached exec and its replay
- * ring remain available to this reader's next attach. */
+ * journal remain available to this reader's next attach. */
 function execConsumer(
   req: IncomingMessage,
   res: ServerResponse,
   label: string,
 ) {
-  // A detached exec can outlive this HTTP exchange. Its failure continuation
-  // still holds the consumer, so explicitly release the request/response pair
-  // when the connection ends instead of waiting for the command to finish.
+  // A running exec retains its consumer after this exchange ends. Clearing the
+  // nullable transport releases the request/response and their upload buffers.
   let transport: { req: IncomingMessage; res: ServerResponse } | null = {
     req,
     res,
@@ -166,60 +241,58 @@ function execConsumer(
     transport?.req.removeListener('aborted', gone);
     transport?.res.removeListener('close', gone);
     transport = null;
-    // Node's default abort Error captures this close listener's response in
-    // its stack; a still-running exec retains the signal, so use no stack.
+    // Error stacks can retain this close listener's response. A detached exec
+    // needs only the abort state, not an Error carrying that response stack.
     consumer.abort('consumer disconnected');
   };
-  // IncomingMessage 'close' also means a completely received request under
-  // Node. The response's close is the consumer's lifetime; aborted covers an
-  // incomplete request without mistaking normal receipt for a disconnect.
   req.once('aborted', gone);
   res.once('close', gone);
-  const emit = (event: RunnerdExecEvent) => {
-    const response = transport?.res;
-    if (!response || response.destroyed || response.writableEnded) return;
-    const line = `${JSON.stringify(event)}\n`;
-    if (
-      response.writableLength + Buffer.byteLength(line) >
-      RUNNERD_CONSUMER_BUFFER_MAX_BYTES
-    ) {
-      console.warn(
-        `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
-      );
-      gone();
-      // end() would leave the queued bytes waiting on the stalled reader.
-      // Destroying just this response releases its socket and write queue.
-      response.destroy();
-      return;
-    }
-    try {
-      response.write(line);
-    } catch (err) {
-      console.warn(`[runnerd] ${label} write failed:`, err);
-      gone();
-      response.destroy();
-    }
-  };
   return {
     signal: consumer.signal,
     closed,
-    emit,
-    async replay(this: void, event: RunnerdExecEvent) {
-      emit(event);
-      // Only this in-flight write may hold the response. The reusable replay
-      // callback reads the nullable transport, so detach releases it as well.
+    emit: (event: RunnerdExecEvent) => {
       const response = transport?.res;
-      if (response?.writableNeedDrain) {
+      if (!response || response.destroyed || response.writableEnded) return;
+      const line = `${JSON.stringify(event)}\n`;
+      if (
+        response.writableLength + Buffer.byteLength(line) >
+        RUNNERD_CONSUMER_BUFFER_MAX_BYTES
+      ) {
+        console.warn(
+          `[runnerd] ${label} consumer backpressured past ${RUNNERD_CONSUMER_BUFFER_MAX_BYTES}B — disconnecting it (reconnect via /attach)`,
+        );
+        gone();
+        response.destroy();
+        return;
+      }
+      try {
+        response.write(line);
+      } catch (err) {
+        console.warn(`[runnerd] ${label} write failed:`, err);
+        gone();
+        response.destroy();
+      }
+    },
+    ready: (): Promise<void> => {
+      // Only the in-flight wait holds the response; the reusable callback
+      // captures the nullable transport, so detach can release the socket.
+      const response = transport?.res;
+      if (!response?.writableNeedDrain || consumer.signal.aborted)
+        return Promise.resolve();
+      return new Promise((finishReady) => {
+        const settle = () => {
+          response.removeListener('drain', settle);
+          consumer.signal.removeEventListener('abort', settle);
+          clearTimeout(stalled);
+          finishReady();
+        };
         const stalled = setTimeout(() => {
           gone();
           response.destroy();
         }, 2_000);
-        try {
-          await once(response, 'drain', { signal: consumer.signal });
-        } finally {
-          clearTimeout(stalled);
-        }
-      }
+        response.once('drain', settle);
+        consumer.signal.addEventListener('abort', settle, { once: true });
+      });
     },
     end() {
       const response = transport?.res;
@@ -228,6 +301,27 @@ function execConsumer(
         response.end();
     },
   };
+}
+
+/** Bound aggregate response buffers and replay readers, including requests
+ * still receiving an exec body. Every exit path releases the same slot. */
+async function withExecConsumer(
+  req: IncomingMessage,
+  res: ServerResponse,
+  operation: () => Promise<void>,
+): Promise<void> {
+  if (execConsumers >= MAX_EXEC_CONSUMERS) {
+    // Drain a refused POST without buffering it so keep-alive stays framed.
+    if (req.method === 'POST') await readJsonBody(req, 0);
+    sendJson(res, 503, { error: 'busy' });
+    return;
+  }
+  execConsumers += 1;
+  try {
+    await operation();
+  } finally {
+    execConsumers -= 1;
+  }
 }
 
 async function handleExec(
@@ -241,8 +335,27 @@ async function handleExec(
     sendJson(res, body.status, { error: body.error });
     return;
   }
+  if ((await innerDocker.snapshot()).dockerReady === false) {
+    sendJson(res, 503, { error: 'docker_unavailable' });
+    return;
+  }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = body.value as RunnerdExecRequest;
+  // A session about to run out of memory starts nothing more: a new exec
+  // would push the kernel to kill one of the running ones, most often the
+  // agent. Refused before it starts, with a hint to ask again; the execs
+  // already running are left alone.
+  if (memoryRefusesExec(await readSessionMemory(), ADMISSION_MEMORY_PERCENT)) {
+    const refusal: RunnerdMemoryBusy = {
+      error: RUNNERD_MEMORY_BUSY_ERROR,
+      code: 'SESSION_MEMORY_BUSY',
+      message: `the session is using ${ADMISSION_MEMORY_PERCENT}% or more of its memory limit`,
+    };
+    sendJson(res, 429, refusal, {
+      'retry-after': String(MEMORY_BUSY_RETRY_AFTER_SECONDS),
+    });
+    return;
+  }
   if (execManager.liveCount() >= RUNNERD_MAX_LIVE_EXECS) {
     // Report through the NDJSON channel so the spawner's parser handles it
     // uniformly with pre-spawn failures.
@@ -288,6 +401,7 @@ async function handleExec(
 const EXEC_CANCEL_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/cancel$/;
 const EXEC_ATTACH_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/attach$/;
 const EXEC_STDIN_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/stdin$/;
+const EXEC_CHECKPOINT_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})\/checkpoint$/;
 const EXEC_STATUS_RE = /^\/execs\/([a-zA-Z0-9_-]{1,64})$/;
 
 async function handleAttach(
@@ -298,6 +412,10 @@ async function handleAttach(
 ): Promise<void> {
   if (!execManager.canAttach(execId)) {
     sendJson(res, 404, { error: 'not_found' });
+    return;
+  }
+  if (!execManager.hasAttachCapacity) {
+    sendJson(res, 503, { error: 'busy' });
     return;
   }
   res.writeHead(200, {
@@ -312,9 +430,10 @@ async function handleAttach(
   try {
     const stream = execManager.attach(
       execId,
-      consumer.replay,
+      consumer.emit,
       sinceSeq,
       consumer.signal,
+      consumer.ready,
     );
     if (stream) await stream;
   } finally {
@@ -329,9 +448,14 @@ async function router(
   const url = new URL(req.url ?? '/', 'http://runnerd');
   const path = url.pathname;
 
-  // Unauthenticated kubelet probe — returns no session data.
-  if (req.method === 'GET' && path === '/readyz') {
+  // Unauthenticated kubelet probes — return no session data.
+  if (req.method === 'GET' && path === '/livez') {
     sendJson(res, 200, { ok: true });
+    return;
+  }
+  if (req.method === 'GET' && path === '/readyz') {
+    const ok = (await innerDocker.snapshot()).dockerReady !== false;
+    sendJson(res, ok ? 200 : 503, { ok });
     return;
   }
 
@@ -341,26 +465,46 @@ async function router(
   }
 
   if (req.method === 'GET' && path === '/healthz') {
+    const [docker, memory] = await Promise.all([
+      innerDocker.snapshot(),
+      sessionMemoryHealth(),
+    ]);
+    const dependencies = await dependencyHealth(docker.dockerReady);
     const body: Record<string, unknown> = {
       ok: true,
       bootedAtMs,
+      ...incarnation,
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
+      ...(dependencies ? { dependencies } : {}),
+      ...(memory ? { memory } : {}),
+      ...docker,
     };
     sendJson(res, 200, body);
     return;
   }
   if (req.method === 'GET' && path === '/release') {
-    sendJson(res, 200, { generation: activity.snapshot().generation });
+    if (refusedForOtherIncarnation(req, res)) return;
+    sendJson(res, 200, {
+      generation: activity.snapshot().generation,
+      ...incarnation,
+    });
     return;
   }
   if (req.method === 'POST' && path === '/acquire') {
+    if (refusedForOtherIncarnation(req, res)) return;
+    if ((await innerDocker.snapshot()).dockerReady === false) {
+      sendJson(res, 503, { error: 'docker_unavailable' });
+      return;
+    }
     const generation = activity.acquire();
     sendJson(
       res,
       generation === null ? 503 : 200,
-      generation === null ? { error: 'reclaiming' } : { generation },
+      generation === null
+        ? { error: 'reclaiming' }
+        : { generation, ...incarnation },
     );
     return;
   }
@@ -373,6 +517,7 @@ async function router(
       sendJson(res, body.status, { error: body.error });
       return;
     }
+    if (refusedForOtherIncarnation(req, res)) return;
     if (!isObject(body.value)) {
       sendJson(res, 400, { error: 'bad_request' });
       return;
@@ -386,7 +531,7 @@ async function router(
       sendJson(
         res,
         applied ? 200 : 503,
-        applied ? { ok: true } : { error: 'reclaiming' },
+        applied ? { ok: true, ...incarnation } : { error: 'reclaiming' },
       );
       return;
     }
@@ -419,13 +564,14 @@ async function router(
       res,
       200,
       path === '/release'
-        ? { released: activity.release(token) }
+        ? { released: activity.release(token), ...incarnation }
         : {
             claimed: activity.claim(
               token,
               String(body.value.generation),
               typeof idleBeforeMs === 'number' ? idleBeforeMs : undefined,
             ),
+            ...incarnation,
           },
     );
     return;
@@ -456,7 +602,7 @@ async function handleOperation(
 ): Promise<void> {
   const path = url.pathname;
   if (req.method === 'POST' && path === '/execs') {
-    await handleExec(req, res);
+    await withExecConsumer(req, res, () => handleExec(req, res));
     return;
   }
   const cancelMatch = path.match(EXEC_CANCEL_RE);
@@ -472,8 +618,14 @@ async function handleOperation(
   }
   const attachMatch = path.match(EXEC_ATTACH_RE);
   if (req.method === 'GET' && attachMatch) {
-    const sinceSeq = Number(url.searchParams.get('sinceSeq') ?? '0') || 0;
-    await handleAttach(req, res, attachMatch[1] ?? '', sinceSeq);
+    const sinceSeq = parseRunnerdSequence(url.searchParams.get('sinceSeq'));
+    if (sinceSeq === null) {
+      sendJson(res, 400, { error: 'invalid_since_seq' });
+      return;
+    }
+    await withExecConsumer(req, res, () =>
+      handleAttach(req, res, attachMatch[1] ?? '', sinceSeq),
+    );
     return;
   }
   const stdinMatch = path.match(EXEC_STDIN_RE);
@@ -489,6 +641,54 @@ async function handleOperation(
     // 200 with a structured body in every reachable case (mirrors /cancel's
     // killed:false) — the caller branches on `reason`, not the status code.
     sendJson(res, 200, execManager.writeStdin(stdinMatch[1] ?? '', body));
+    return;
+  }
+  const checkpointMatch = path.match(EXEC_CHECKPOINT_RE);
+  if (checkpointMatch && (req.method === 'GET' || req.method === 'PUT')) {
+    const id = checkpointMatch[1] ?? '';
+    if (!execManager.canAttach(id)) {
+      sendJson(res, 404, { error: 'not_found' });
+      return;
+    }
+    if (req.method === 'GET') {
+      sendJson(res, 200, { checkpoint: await execManager.checkpoint(id) });
+      return;
+    }
+    const body = await readJsonBody(req);
+    if (!body.ok) {
+      sendJson(res, body.status, { error: body.error });
+      return;
+    }
+    if (
+      !isObject(body.value) ||
+      typeof body.value.seq !== 'number' ||
+      !Number.isSafeInteger(body.value.seq) ||
+      body.value.seq < 0 ||
+      !Object.hasOwn(body.value, 'state')
+    ) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    if (
+      Buffer.byteLength(JSON.stringify(body.value)) >
+      RUNNERD_CHECKPOINT_MAX_BYTES
+    ) {
+      sendJson(res, 413, { error: 'payload_too_large' });
+      return;
+    }
+    const result = await execManager.saveCheckpoint(id, {
+      seq: body.value.seq,
+      state: body.value.state,
+    });
+    const status =
+      result === 'ok'
+        ? 200
+        : result === 'stale'
+          ? 409
+          : result === 'not_found'
+            ? 404
+            : 400;
+    sendJson(res, status, result === 'ok' ? { ok: true } : { error: result });
     return;
   }
   const statusMatch = path.match(EXEC_STATUS_RE);
@@ -529,12 +729,12 @@ async function handleOperation(
   if (req.method === 'POST' && path === '/files/stage') {
     // Bound JSON intake as well as downloads. Refused bodies are drained
     // without retaining bytes, preserving the keep-alive framing contract.
-    if (stageRequests >= 2) {
+    if (stagingOperations >= MAX_STAGING_OPERATIONS) {
       await readJsonBody(req, 0);
       sendJson(res, 503, { error: 'busy' });
       return;
     }
-    stageRequests += 1;
+    stagingOperations += 1;
     try {
       const stageBody = await readJsonBody(req);
       if (!stageBody.ok) {
@@ -553,17 +753,7 @@ async function handleOperation(
       }
       const files: StageItem[] = [];
       for (const item of incomingFiles) {
-        if (
-          !isObject(item) ||
-          typeof item.path !== 'string' ||
-          (item.url !== undefined && typeof item.url !== 'string') ||
-          (item.contentBase64 !== undefined &&
-            typeof item.contentBase64 !== 'string') ||
-          (item.sourceId !== undefined &&
-            (typeof item.sourceId !== 'string' ||
-              item.sourceId.length > 2048)) ||
-          (item.url !== undefined && item.contentBase64 !== undefined)
-        ) {
+        if (!isStageItem(item)) {
           sendJson(res, 400, { error: 'bad_request' });
           return;
         }
@@ -572,6 +762,8 @@ async function handleOperation(
           url: item.url,
           contentBase64: item.contentBase64,
           sourceId: item.sourceId,
+          sha256: item.sha256,
+          cacheKey: item.cacheKey,
         });
       }
       const options: StageOptions = {};
@@ -580,6 +772,7 @@ async function handleOperation(
         if (value !== undefined) {
           if (
             !Array.isArray(value) ||
+            value.length > 4096 ||
             !value.every((entry): entry is string => typeof entry === 'string')
           ) {
             sendJson(res, 400, { error: 'bad_request' });
@@ -605,7 +798,7 @@ async function handleOperation(
       }
       return;
     } finally {
-      stageRequests -= 1;
+      stagingOperations -= 1;
     }
   }
   if (req.method === 'POST' && path === '/files/delete') {
@@ -678,17 +871,24 @@ if (
   // transcript and a wrapper to remove what it staged before the teardown.
   // Either exit ends the daemon even past a /proc read that never returns
   // (daemon-exit.ts).
+  const shutdown = (code: number): void => {
+    // Journal/file I/O can block libuv too; the hard deadline cannot rely
+    // on the process-table read counter to decide whether exit is safe.
+    setTimeout(() => exitDaemon(code, { force: true }), 2_000);
+    void execManager
+      .terminateAll()
+      .catch((error: unknown) => {
+        console.warn('[runnerd] passing the stop on failed:', error);
+      })
+      .finally(() => server.close(() => exitDaemon(code)));
+  };
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
-    process.on(sig, () => {
-      setTimeout(() => exitDaemon(0), 2_000);
-      void execManager
-        .terminateAll()
-        .catch((error: unknown) => {
-          console.warn('[runnerd] passing the stop on failed:', error);
-        })
-        .finally(() => server.close(() => exitDaemon(0)));
-    });
+    process.on(sig, () => shutdown(0));
   }
+  // An unhandled rejection is logged and survived; an uncaught exception
+  // stops the daemon the same way, with an exit code of its own
+  // (process-guard.ts).
+  installProcessGuards({ shutdown });
 
   // Every harness finds the image's built-in skills among its own from the
   // session's first moment, not only after its first exec.
@@ -699,4 +899,22 @@ if (
       `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; execShim=${execManager.execShim ?? 'off'}`,
     );
   });
+}
+
+function isStageItem(value: unknown): value is StageItem {
+  return (
+    isObject(value) &&
+    typeof value.path === 'string' &&
+    !(value.url !== undefined && value.contentBase64 !== undefined) &&
+    (value.sourceId === undefined ||
+      (typeof value.sourceId === 'string' && value.sourceId.length <= 2048)) &&
+    (value.url === undefined || typeof value.url === 'string') &&
+    (value.contentBase64 === undefined ||
+      typeof value.contentBase64 === 'string') &&
+    (value.sha256 === undefined ||
+      (typeof value.sha256 === 'string' &&
+        /^[a-f0-9]{64}$/.test(value.sha256))) &&
+    (value.cacheKey === undefined ||
+      (typeof value.cacheKey === 'string' && value.cacheKey.length <= 256))
+  );
 }

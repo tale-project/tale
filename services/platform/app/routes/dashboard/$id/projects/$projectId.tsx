@@ -23,7 +23,7 @@ import {
   useMatch,
   useNavigate,
 } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import {
   TabNavigation,
@@ -32,16 +32,12 @@ import {
 import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
-import {
-  clearProjectMemory,
-  isProjectAutomationsPath,
-  persistProjectMemory,
-} from '@/app/features/home/lib/project-memory';
 import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
 import {
   isProjectTasksPath,
   ProjectBreadcrumbSwitcher,
 } from '@/app/features/projects/components/project-breadcrumb-switcher';
+import { ProjectReadError } from '@/app/features/projects/components/project-read-error';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { ensureAdaptedQueryData } from '@/app/lib/backend/prefetch';
@@ -94,9 +90,10 @@ function ProjectDetailLayout() {
   const navigate = useNavigate();
 
   // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
-  // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
-  // tab strip), not inside the project shell — so those child routes render
-  // bare, exactly like the agents layout skips its header on detail pages.
+  // (`AutomationDetailShell` — "<project> / Automations / <name>" breadcrumb
+  // + its own tab strip), not inside the project shell — so those child
+  // routes render bare, exactly like the agents layout skips its header on
+  // detail pages. The rail lights Automations there (`isProjectAutomationPage`).
   // The project-nav Automations tab opens the bound-automations LIST; detail
   // keeps this bare-outlet match so only the list stays under project chrome.
   const isAutomationDetail = useMatch({
@@ -104,55 +101,16 @@ function ProjectDetailLayout() {
     shouldThrow: false,
   });
 
-  const { project, isLoading } = useProject(asProjectId(projectId));
-  const isMissing = !isLoading && !project;
+  const projectRead = useProject(asProjectId(projectId));
+  const { project, isLoading, unavailable: readFailed } = projectRead;
+  // Gone or out of reach: the read ANSWERED without a project. A read that
+  // failed is not that — the shell stays and says so (#3885), rather than
+  // telling the reader their project may have been deleted.
+  const isMissing = !isLoading && !project && !readFailed;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const focusContent = useCallback(() => contentRef.current?.focus(), []);
 
-  // Remember this project's detail page, so the Home rail tile can reopen it
-  // instead of always resuming the last chat thread (see
-  // `use-navigation-items.ts`). Guarded on the pathname still being under
-  // this project's own root: a route change updates `location.pathname` (and
-  // re-runs this effect) on the render just before this component unmounts,
-  // so an unguarded write would persist wherever the user navigated TO,
-  // under THIS project's key. An automation page this viewer may not open
-  // is never remembered: Home would keep reopening the denial.
-  const projectRoot = `/dashboard/${organizationId}/projects/${projectId}`;
   const canUseAutomations = useCanUseAutomations();
-  useEffect(() => {
-    if (isMissing) return;
-    if (
-      location.pathname !== projectRoot &&
-      !location.pathname.startsWith(`${projectRoot}/`)
-    ) {
-      return;
-    }
-    if (!canUseAutomations && isProjectAutomationsPath(location.pathname)) {
-      return;
-    }
-    persistProjectMemory(organizationId, location.pathname);
-  }, [
-    isMissing,
-    organizationId,
-    location.pathname,
-    projectRoot,
-    canUseAutomations,
-  ]);
-
-  // A remembered project can be deleted, or left behind by a membership
-  // change, between one visit and the next. When the rail RESTORED us here,
-  // drop the stale memory and fall back to the list: the user asked for
-  // Home, so give them Home's own place rather than a dead end they never
-  // chose. A link someone shared keeps the explanatory not-found message
-  // below instead of bouncing away.
-  const wasRestored = location.state.navRestore === true;
-  useEffect(() => {
-    if (!isMissing || !wasRestored) return;
-    clearProjectMemory(organizationId);
-    void navigate({
-      to: '/dashboard/$id/projects',
-      params: { id: organizationId },
-      replace: true,
-    });
-  }, [isMissing, wasRestored, organizationId, navigate]);
 
   // The Automations tab is conditional: a project with nothing bound gets no
   // tab rather than one that opens an empty list. `listAutomations` scoped to
@@ -361,9 +319,10 @@ function ProjectDetailLayout() {
                           projectId={asProjectId(projectId)}
                           projectName={project.name}
                         />
-                        {project.archivedAt !== undefined && (
-                          <ProjectArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
-                        )}
+                        {!allProjectsMode &&
+                          project.archivedAt !== undefined && (
+                            <ProjectArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
+                          )}
                       </span>
                     ) : (
                       <SkeletonBox>
@@ -391,14 +350,30 @@ function ProjectDetailLayout() {
             views with a sticky-bottom composer, like the main chat) anchor
             correctly instead of collapsing to content height. Auto-height
             tabs (ContentArea-based) are unaffected — they size to content
-            and top-align as before. */}
-        <Skeletonize
-          loading={isLoading}
-          label={t('title')}
-          className="flex min-h-0 flex-1 flex-col"
+            and top-align as before. The region is where focus lands when a
+            retry that worked takes a focused read error away. */}
+        <div
+          ref={contentRef}
+          role="region"
+          aria-label={project?.name ?? t('title')}
+          tabIndex={-1}
+          className="flex min-h-0 flex-1 flex-col outline-none"
         >
-          <Outlet />
-        </Skeletonize>
+          {readFailed ? (
+            // No tab can stand without its project — Files and Agents would
+            // render nothing — so the failed read takes the tab's place, with
+            // the header and the tab strip kept.
+            <ProjectReadError read={projectRead} onFocusLost={focusContent} />
+          ) : (
+            <Skeletonize
+              loading={isLoading}
+              label={t('title')}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <Outlet />
+            </Skeletonize>
+          )}
+        </div>
       </PageLayout>
     </ActiveEditorProvider>
   );

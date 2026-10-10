@@ -4,10 +4,15 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import {
   EMITTED_EVENT_TYPES,
+  EVENT_DESCRIPTIONS,
+  EVENT_PAYLOAD_EXAMPLES,
+  type EventPayloads,
+  eventProjectId,
+  type EventType,
   isEmittedEventType,
   RESERVED_EVENT_TYPES,
 } from './event-types.ts';
@@ -94,5 +99,50 @@ describe('the platform event vocabulary', () => {
     }
     expect(isEmittedEventType('contact.created ')).toBe(false);
     expect(isEmittedEventType('')).toBe(false);
+  });
+});
+
+describe('the event descriptions', () => {
+  it('say when each raised event fires, and describe no other name', () => {
+    expect(Object.keys(EVENT_DESCRIPTIONS).sort()).toEqual(
+      [...EMITTED_EVENT_TYPES].sort(),
+    );
+    for (const [name, sentence] of Object.entries(EVENT_DESCRIPTIONS)) {
+      expect(sentence.trim(), name).not.toBe('');
+      expect(sentence, name).toMatch(/\.$/);
+    }
+    for (const name of RESERVED_EVENT_TYPES) {
+      expect(Object.hasOwn(EVENT_DESCRIPTIONS, name), name).toBe(false);
+    }
+  });
+});
+
+describe('event payloads', () => {
+  it('describes and exemplifies exactly the emitted events', () => {
+    expectTypeOf<keyof EventPayloads>().toEqualTypeOf<EventType>();
+    expect(Object.keys(EVENT_PAYLOAD_EXAMPLES).sort()).toEqual(
+      [...EMITTED_EVENT_TYPES].sort(),
+    );
+  });
+
+  it('reads the project a task, comment or project event belongs to', () => {
+    for (const type of EMITTED_EVENT_TYPES) {
+      const expected =
+        type.startsWith('contact.') || type.startsWith('conversation.')
+          ? null
+          : '0b9c6a52-5d1e-4f0a-9c3e-2f6d8a1b7e40';
+      expect(eventProjectId(type, EVENT_PAYLOAD_EXAMPLES[type]), type).toBe(
+        expected,
+      );
+    }
+  });
+
+  it('names no project for a payload that carries none', () => {
+    expect(eventProjectId('task.created', undefined)).toBeNull();
+    expect(eventProjectId('task.created', { taskId: 't' })).toBeNull();
+    expect(eventProjectId('task.created', { projectId: 7 })).toBeNull();
+    expect(eventProjectId('comment.created', { projectId: 'p' })).toBeNull();
+    expect(eventProjectId('comment.created', { comment: 'text' })).toBeNull();
+    expect(eventProjectId('contact.created', { projectId: 'p' })).toBeNull();
   });
 });

@@ -20,7 +20,7 @@ description: Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach 
 
 Unter den Assistentennamen können auch Hilfsaufgaben wie die Erzeugung von Chattiteln stehen. Die Zahl der Anfragen entspricht daher nicht immer der Zahl gesendeter Nachrichten. Für die Sprachausgabe gibt es eine eigene Tabelle der Sprachmodelle.
 
-**Nutzung pro Benutzer** ordnet jede Anfrage einer Person zu: dem Mitglied, das die Chatnachricht gesendet oder den Agentenlauf gestartet hat, auch über die REST-API oder den MCP-Endpoint. Läufe, die ein Zeitplan, ein Webhook oder ein Ereignis gestartet hat, haben keine Person dahinter. Ihre Nutzung erscheint als eine Zeile mit dem Namen **Automatisierungen (Trigger)**, die nicht als aktiver Benutzer zählt. In der Assistententabelle stehen ein Projekt-Agent und eine Automatisierung jeweils unter ihrem Namen. [So wird die Nutzung gezählt](/de/platform/admin/governance/usage-attribution) erklärt die Regel für jede Art von Arbeit.
+**Nutzung pro Benutzer** ordnet jede Anfrage einer Person zu: dem Mitglied, das die Chatnachricht gesendet oder den Agentenlauf gestartet hat, auch über die REST-API oder den MCP-Endpoint. Ein API-Schlüssel, der einem Team, einem Projekt oder der Organisation gehört, hat eine eigene Zeile unter seinem Namen und zählt nicht als aktiver Benutzer. Läufe, die ein Zeitplan, ein Webhook oder ein Ereignis gestartet hat, haben keine Person dahinter. Ihre Nutzung erscheint als eine Zeile mit dem Namen **Automatisierungen (Trigger)**, die nicht als aktiver Benutzer zählt. In der Assistententabelle stehen ein Projekt-Agent und eine Automatisierung jeweils unter ihrem Namen. [So wird die Nutzung gezählt](/de/platform/admin/governance/usage-attribution) erklärt die Regel für jede Art von Arbeit.
 
 ## Kosten zusammen mit Tokens lesen
 
@@ -39,3 +39,5 @@ Prüfe die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics),
 ## Fehlende Historie verstehen
 
 Die Diagramme zeigen die Nutzungsdaten, die Tale noch aufbewahrt. Organisations- und Deployment-Einstellungen bestimmen, wie weit die Historie reicht; eine allgemeine Garantie von 365 Tagen gibt es nicht. Prüfe Zeitraum, Filter und Aufbewahrung des Nutzungsprotokolls, wenn erwartete Aktivität fehlt.
+
+Lassen sich die Metriken nicht laden, sagt die Seite das und bietet **Erneut versuchen** an, statt Nullen oder leere Tabellen zu zeigen. Zeitraum und Filter bleiben, wie du sie gewählt hast. Schlägt eine Aktualisierung fehl, bleiben die bereits angezeigten Zahlen stehen, mit dem Hinweis, dass sie womöglich veraltet sind. Scheitert **Erneut versuchen** immer wieder, bitte den Bereitstellungsbetreiber zu prüfen, ob die Dienste von Tale laufen.

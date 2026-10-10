@@ -1,3 +1,10 @@
+import {
+  resourceConverged,
+  resourceId,
+  sameConfiguration,
+  sameEmbeddingModel,
+  type PlatformResource,
+} from '@tale/shared/config/platform-resources';
 import { brandingFormSchema } from '@tale/shared/schemas/branding';
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import { deploymentConfigSchema } from '@tale/shared/schemas/deployment';
@@ -12,14 +19,12 @@ import {
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
-import type { PlatformConfigurationClient } from './platform-client';
 import {
-  resourceConverged,
-  resourceId,
-  sameConfiguration,
-  sameEmbeddingModel,
-  type PlatformResource,
-} from './platform-model';
+  isManagedResource,
+  readManagedResource,
+  writeManagedResource,
+} from './managed-resources';
+import type { PlatformConfigurationClient } from './platform-client';
 
 export interface ResourceObservation {
   config: unknown;
@@ -37,6 +42,7 @@ export async function readResource(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
 ): Promise<ResourceObservation> {
+  if (isManagedResource(resource)) return readManagedResource(client, resource);
   switch (resource.kind) {
     case 'provider': {
       const view = z
@@ -186,7 +192,17 @@ export async function writeResource(
   client: PlatformConfigurationClient,
   resource: PlatformResource,
   current: ResourceObservation,
+  declaredResources: readonly PlatformResource[] = [],
 ): Promise<void> {
+  if (isManagedResource(resource)) {
+    await writeManagedResource(
+      client,
+      resource,
+      current.revision,
+      declaredResources,
+    );
+    return;
+  }
   const expectedHash = current.revision;
   switch (resource.kind) {
     case 'provider':

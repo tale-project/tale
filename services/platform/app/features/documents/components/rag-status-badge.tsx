@@ -1,5 +1,6 @@
 'use client';
 
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import { Badge, type BadgeProps } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { ViewDialog } from '@tale/ui/dialog/view-dialog';
@@ -11,7 +12,10 @@ import { useCallback, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
-import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/backend/core/knowledge/rag_error_codes';
+import {
+  RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+  RAG_ERROR_USAGE_LIMIT,
+} from '@/backend/core/knowledge/rag_error_codes';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
 
@@ -20,7 +24,7 @@ import { EmbeddingNotConfiguredGuidance } from './embedding-settings-action';
 
 interface RagStatusBadgeProps {
   status: RagStatus | undefined;
-  /** Timestamp (in seconds) when the document was indexed */
+  /** When indexing completed, in epoch milliseconds (`rag_indexed_at_ms`) */
   indexedAt?: number;
   /** Error message (for failed status) */
   error?: string;
@@ -137,7 +141,9 @@ export function RagStatusBadge({
 
   // Show clickable dialog with indexed date for completed status
   if (effectiveStatus === 'completed') {
-    const indexedDate = indexedAt ? new Date(indexedAt * 1000) : null;
+    // Epoch milliseconds, as every producer stamps it; a stamp outside the
+    // shared bound reads as unknown, like a missing one.
+    const indexedDate = isEpochMs(indexedAt) ? new Date(indexedAt) : null;
     const formattedDate = indexedDate
       ? formatDate(indexedDate, 'long')
       : t('rag.status.unknown');
@@ -173,6 +179,38 @@ export function RagStatusBadge({
           </div>
         </ViewDialog>
       </>
+    );
+  }
+
+  // Parked by a usage limit: not a failure — indexing resumes by itself once
+  // the limit allows it. Said in the reader's language; the stored English
+  // sentence stays in the record.
+  if (effectiveStatus === 'failed' && errorCode === RAG_ERROR_USAGE_LIMIT) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsFailedDialogOpen(true);
+          }}
+          className="cursor-pointer"
+          aria-label={t('rag.dialog.usageLimit.title')}
+        >
+          <Badge variant="orange" dot>
+            {t('rag.status.usageLimit')}
+          </Badge>
+        </button>
+        <ViewDialog
+          open={isFailedDialogOpen}
+          onOpenChange={setIsFailedDialogOpen}
+          title={t('rag.dialog.usageLimit.title')}
+          description={t('rag.dialog.usageLimit.description')}
+        >
+          {null}
+        </ViewDialog>
+        {retryButton}
+      </span>
     );
   }
 

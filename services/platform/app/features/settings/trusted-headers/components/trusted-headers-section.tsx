@@ -55,6 +55,7 @@ export function TrustedHeadersSection({
   organizationId: string;
 }) {
   const { t } = useT('settings');
+  const { t: tRoles } = useT('roles');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const ability = useAbility();
@@ -83,9 +84,9 @@ export function TrustedHeadersSection({
     () =>
       TRUSTED_HEADER_ASSERTABLE_ROLES.map((role) => ({
         value: role,
-        label: t(`roles.${role}`),
+        label: tRoles(role),
       })),
-    [t],
+    [tRoles],
   );
 
   const apply = (next: {

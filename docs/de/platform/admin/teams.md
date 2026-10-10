@@ -27,7 +27,7 @@ Ein Team behält mindestens ein Mitglied. Um das letzte zu entfernen, lösche st
 
 Eine Person kann mehreren Teams angehören. Ihr Zugriff kann über weitere Teams oder eine direkte Zuweisung bestehen bleiben. Das Entfernen aus einem Team entzieht daher nicht zwangsläufig jeden Zugriff auf eine Ressource. Prüfe die übrigen Zugangswege, wenn du Rechte entziehen möchtest.
 
-Benachrichtigungen folgen derselben Regel. Wer ein Projekt nicht mehr öffnen kann, erhält zu dessen Aufgaben keine neuen Benachrichtigungen oder E-Mails mehr, auch nicht zu Aufgaben, denen die Person folgt. Was sie bereits erfahren hat, bleibt in ihren Benachrichtigungen. Erhält sie wieder Zugriff, wird sie zu den Aufgaben, denen sie folgt, wieder benachrichtigt.
+Benachrichtigungen folgen derselben Regel. Wer ein Projekt nicht mehr öffnen kann, erhält zu dessen Aufgaben keine neuen Benachrichtigungen oder E-Mails mehr, auch nicht zu Aufgaben, die die Person verfolgt. Was sie bereits erfahren hat, bleibt in ihren Benachrichtigungen. Erhält sie wieder Zugriff, wird sie zu den Aufgaben, die sie verfolgt, wieder benachrichtigt.
 
 Ein Team, das dein Identity Provider bereitstellt, trägt in der Liste die Markierung **Synchronisiert**. Name und Mitglieder gehören dem Anbieter: Der Bearbeitungsdialog zeigt sie nur an, weil der nächste Abgleich eine lokale Änderung zurücksetzen würde. Löschen kannst du ein solches Team trotzdem; der Anbieter kann es erneut anlegen.
 
@@ -56,7 +56,7 @@ Bei eingehenden Konversationen können [Routing-Regeln](/de/platform/admin/gover
 
 ## Ein Team geordnet auflösen
 
-Wähle **Löschen** im Zeilenmenü. Die Bestätigung zählt die Mitglieder des Teams, die Projekte, Ordner und Dokumente, zu deren Reichweite es gehört, und die Konversationen in seiner Warteschlange. Sie nennt außerdem, wie viele dieser Elemente kein weiteres Team haben und für alle in der Organisation sichtbar werden. Weise Arbeit, deren Zugriff eingeschränkt bleiben muss, vor dem Bestätigen neu zu.
+Wähle **Löschen** im Zeilenmenü. Die Bestätigung zählt die Mitglieder des Teams, die Projekte, Ordner und Dokumente, zu deren Reichweite es gehört, und die Konversationen in seiner Warteschlange. Sie nennt außerdem, wie viele dieser Elemente kein weiteres Team haben und für alle in der Organisation sichtbar werden, und wie viele [API-Schlüssel](/de/platform/admin/api-keys#create-a-key-for-someone-else) dem Team gehören: Sie funktionieren danach nicht mehr. Weise Arbeit, deren Zugriff eingeschränkt bleiben muss, vor dem Bestätigen neu zu.
 
 <Warning>
 

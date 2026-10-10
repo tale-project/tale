@@ -78,7 +78,11 @@ const TASK = {
  * the project and task reads answer, the external-ref intake's create lane
  * lands (its project probe, its number, its insert), every other statement
  * answers nothing, and every statement is recorded with its values. */
-function stubSql(): { sql: Sql; statements: string[]; values: unknown[][] } {
+function stubSql(options: { reviewContextHeld?: boolean } = {}): {
+  sql: Sql;
+  statements: string[];
+  values: unknown[][];
+} {
   const statements: string[] = [];
   const values: unknown[][] = [];
   const tag = (strings: TemplateStringsArray, ...bound: unknown[]) => {
@@ -100,6 +104,19 @@ function stubSql(): { sql: Sql; statements: string[]; values: unknown[][] } {
     if (text.startsWith('INSERT INTO app.tasks')) {
       return Promise.resolve([{ id: 't-new' }]);
     }
+    if (options.reviewContextHeld) {
+      if (text.startsWith('WITH RECURSIVE tree AS')) {
+        return Promise.resolve([
+          { id: 't1', status: 'todo', archivedAt: null },
+        ]);
+      }
+      if (text.includes('FROM app.task_review_contexts')) {
+        return Promise.resolve([{ taskId: 't1', authorUserId: 'u1' }]);
+      }
+      if (text.includes('FROM app.legal_holds')) {
+        return Promise.resolve([{ targetType: 'org', targetId: 'o1' }]);
+      }
+    }
     return Promise.resolve([]);
   };
   const sql = Object.assign(tag, {
@@ -114,6 +131,29 @@ function stubSql(): { sql: Sql; statements: string[]; values: unknown[][] } {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the members the door's reads and transaction reach
   return { sql: sql as unknown as Sql, statements, values };
 }
+
+it('answers a held review context deletion with its native 409 refusal', async () => {
+  const { sql, statements } = stubSql({ reviewContextHeld: true });
+  const response = await createTaskRoutes({ sql, auth: {} as never }).request(
+    '/t1?orgId=o1',
+    { method: 'DELETE' },
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({
+    error: 'LEGAL_HOLD_ACTIVE',
+    message:
+      'This organization is under an active legal hold. Release the hold before deleting.',
+  });
+  expect(statements.some((text) => text.includes('FROM app.legal_holds'))).toBe(
+    true,
+  );
+  expect(statements.filter((text) => /^(DELETE|INSERT)\b/.test(text))).toEqual(
+    [],
+  );
+  expect(
+    statements.some((text) => text.startsWith('UPDATE app.project_agent_runs')),
+  ).toBe(false);
+});
 
 async function send(
   route: string,
@@ -157,7 +197,7 @@ const OVER_LONG = {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('POST /api/app/tasks names the refused title limit', () => {
+describe('POST /api/app/tasks names the refused title limit [TASK-R8]', () => {
   it.each(['', '   '])(
     'answers the empty title %j as empty, with the range',
     async (title) => {
@@ -193,7 +233,7 @@ describe('POST /api/app/tasks names the refused title limit', () => {
   });
 });
 
-describe('POST /api/app/tasks names the refused description and label limits', () => {
+describe('POST /api/app/tasks names the refused description and label limits [TASK-R8]', () => {
   it.each([TASK_DESCRIPTION_MAX + 1, 50_001])(
     'answers a description of %i code units with the cap',
     async (length) => {
@@ -257,7 +297,7 @@ describe('POST /api/app/tasks names the refused description and label limits', (
   });
 });
 
-describe('POST /api/app/tasks/:taskId names the refused title limit', () => {
+describe('POST /api/app/tasks/:taskId names the refused title limit [TASK-R8]', () => {
   it('answers a title cleared to empty as empty', async () => {
     const sent = await send('/t1', { title: '' });
     expect(sent.status).toBe(400);
@@ -345,7 +385,7 @@ describe.each([
   );
 });
 
-describe('POST /api/app/tasks/from-external-issue names what it refuses and cuts what it imports', () => {
+describe('POST /api/app/tasks/from-external-issue names what it refuses and cuts what it imports [TASK-R9]', () => {
   const intake = { projectId: 'p1', externalSystem: 'crm', externalId: 'c-1' };
   const inserted = (sent: Awaited<ReturnType<typeof send>>): unknown[] => {
     const index = sent.statements.findIndex((text) =>
@@ -413,4 +453,70 @@ describe('POST /api/app/tasks/from-external-issue names what it refuses and cuts
       ]);
     },
   );
+});
+
+describe('managed task instructions validate the complete target and preimage', () => {
+  const config = { projectId: 'p1', taskId: 't1', description: '' };
+  const hash = 'a'.repeat(64);
+  const request = async (
+    method: 'GET' | 'POST',
+    query: string,
+    body?: unknown,
+  ) => {
+    const { sql, statements } = stubSql();
+    const response = await createTaskRoutes({ sql, auth: {} as never }).request(
+      `/t1/configuration/instructions?orgId=o1${query}`,
+      {
+        method,
+        ...(body === undefined
+          ? {}
+          : {
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(body),
+            }),
+      },
+    );
+    return { response, statements };
+  };
+
+  it('requires the project on reads and exposes only scoped description', async () => {
+    expect((await request('GET', '')).response.status).toBe(400);
+    const read = await request('GET', '&projectId=p1');
+    expect(read.response.status).toBe(200);
+    expect(await read.response.json()).toEqual({
+      config,
+      hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+  });
+
+  it.each([
+    { config },
+    { config, expectedHash: null },
+    { config: { ...config, status: 'done' }, expectedHash: hash },
+    { config: { ...config, taskId: 'other' }, expectedHash: hash },
+    { config: { ...config, projectId: 'other' }, expectedHash: hash },
+    {
+      config: { ...config, description: 'x'.repeat(TASK_DESCRIPTION_MAX + 1) },
+      expectedHash: hash,
+    },
+  ])(
+    'refuses incomplete/stale-target or unowned instructions body',
+    async (body) => {
+      const read = await request('POST', '&projectId=p1', body);
+      expect(read.response.status).toBe(400);
+      expect(writes(read.statements)).toEqual([]);
+    },
+  );
+
+  it('returns a typed stale conflict without changing an active task', async () => {
+    const read = await request('POST', '&projectId=p1', {
+      config,
+      expectedHash: hash,
+    });
+    expect(read.response.status).toBe(409);
+    expect(await read.response.json()).toMatchObject({
+      error: 'CONFIG_VERSION_CONFLICT',
+    });
+    expect(writes(read.statements)).toEqual([]);
+  });
 });

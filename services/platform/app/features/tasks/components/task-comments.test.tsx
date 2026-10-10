@@ -1,14 +1,29 @@
-import { render, screen } from '@testing-library/react';
+import { TooltipProvider } from '@tale/ui/tooltip';
+import {
+  act,
+  fireEvent,
+  render as renderWithoutShell,
+  screen,
+  type RenderOptions,
+} from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { taskCommentDraftKey } from '../lib/draft-key';
-import { TaskCommentComposer, TaskComments } from './task-comments';
+import { TaskCommentComposer } from './task-comments';
+import { TaskConversation } from './task-conversation';
+
+/** The app shell provides tooltips; a comment's icon actions carry one. */
+const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
+  renderWithoutShell(ui, { wrapper: TooltipProvider, ...options });
 
 const localeState = { locale: 'en' };
 
 const mutationState = vi.hoisted(() => ({
   addPending: false,
   addMutateAsync: vi.fn(),
+  editRead: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -23,19 +38,9 @@ vi.mock('./mention-text', () => ({
   MentionText: ({ body }: { body: string }) => <p>{body}</p>,
 }));
 
-vi.mock('./mention-textarea', () => ({
-  MentionTextarea: (props: {
-    value: string;
-    placeholder?: string;
-    'aria-describedby'?: string;
-  }) => (
-    <textarea
-      placeholder={props.placeholder}
-      value={props.value}
-      aria-describedby={props['aria-describedby']}
-      readOnly
-    />
-  ),
+vi.mock('../lib/mention-actor-options', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/mention-actor-options')>()),
+  useMentionActorOptions: () => [],
 }));
 
 vi.mock('./mention-trigger-chips', () => ({
@@ -49,6 +54,7 @@ const discussionState = vi.hoisted(() => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
+  TASK_DISCUSSION_PAGE_SIZE: 30,
   // The hook answers NEWEST first (the page walk starts at the tail):
   // msg_2 (user, newer) then msg_1 (automated, older).
   useTaskDiscussion: () => ({
@@ -70,7 +76,7 @@ vi.mock('../hooks/queries', () => ({
           de: '[automated] Prüfung abgeschlossen',
           fr: '[automated] Vérification terminée',
         },
-        createdAt: Date.now(),
+        createdAt: Date.now() - 60_000,
       },
     ],
     isLoading: false,
@@ -78,18 +84,35 @@ vi.mock('../hooks/queries', () => ({
     isLoadingEarlier: discussionState.isLoadingEarlier,
     loadEarlier: discussionState.loadEarlier,
   }),
+  useTaskActivity: () => ({ activity: [] }),
+  useTaskAgentRuns: () => ({ runs: [] }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useAddTaskComment: () => ({
-    mutateAsync: mutationState.addMutateAsync,
-    isPending: mutationState.addPending,
-  }),
-  useEditTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAddTaskComment: () => {
+    const [isPending, setIsPending] = useState(false);
+    return {
+      mutateAsync: async (args: { taskId: string; body: string }) => {
+        setIsPending(true);
+        try {
+          return await mutationState.addMutateAsync(args);
+        } finally {
+          setIsPending(false);
+        }
+      },
+      isPending: mutationState.addPending || isPending,
+    };
+  },
+  useEditTaskComment: () => {
+    mutationState.editRead();
+    return { mutateAsync: vi.fn(), isPending: false };
+  },
   useDeleteTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     resolveActor: (type: string, id: string) => ({
       type,
@@ -103,6 +126,19 @@ vi.mock('../hooks/use-actor-directory', () => ({
             kind: 'agent',
             name: 'Assistant',
             description: 'General-purpose helper',
+            agent: {
+              name: 'Assistant',
+              organizationId: 'org_1',
+              projectId: 'project_1',
+              harness: 'codex',
+              model: 'gpt-6.1',
+              modelProvider: 'openai',
+              skills: [],
+              connectors: [],
+              tools: [],
+              instructions: 'General-purpose helper',
+              managed: false,
+            },
             viewTo: '/dashboard/$id',
             viewParams: { id: 'org_1' },
           }
@@ -114,6 +150,7 @@ vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({
     formatRelative: () => 'just now',
     formatDate: () => 'Jan 1, 2026',
+    formatDateHeader: () => 'Today',
   }),
 }));
 
@@ -123,11 +160,11 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
-describe('TaskComments author previews', () => {
+describe('TaskConversation author previews', () => {
   it('shows a preview trigger for agent comment authors', () => {
     localeState.locale = 'en';
     render(
-      <TaskComments
+      <TaskConversation
         taskId={'task_1' as never}
         organizationId="org_1"
         projectId={'project_1' as never}
@@ -143,14 +180,14 @@ describe('TaskComments author previews', () => {
   });
 });
 
-describe('TaskComments — who may change a comment', () => {
+describe('TaskConversation — who may change a comment', () => {
   const thread = (props: {
     currentUserId: string;
     canWork: boolean;
     isAdmin?: boolean;
   }) =>
     render(
-      <TaskComments
+      <TaskConversation
         taskId={'task_1' as never}
         organizationId="org_1"
         projectId={'project_1' as never}
@@ -158,6 +195,17 @@ describe('TaskComments — who may change a comment', () => {
         {...props}
       />,
     );
+
+  it('creates no edit mutation observers until an author opens an editor', () => {
+    mutationState.editRead.mockClear();
+    localeState.locale = 'en';
+    thread({ currentUserId: 'user_1', canWork: false });
+    expect(mutationState.editRead).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'actions.edit' }));
+    expect(mutationState.editRead).toHaveBeenCalledTimes(1);
+    expect(screen.getByDisplayValue('Thanks.')).toBeInTheDocument();
+  });
 
   it('lets an author edit and delete their own comment on a task they may not work', () => {
     localeState.locale = 'en';
@@ -187,11 +235,11 @@ describe('TaskComments — who may change a comment', () => {
   });
 });
 
-describe('TaskComments bodyByLocale', () => {
+describe('TaskConversation bodyByLocale', () => {
   it('renders the body for the active UI locale', () => {
     localeState.locale = 'de';
     render(
-      <TaskComments
+      <TaskConversation
         taskId={'task_1' as never}
         organizationId="org_1"
         projectId={'project_1' as never}
@@ -206,7 +254,7 @@ describe('TaskComments bodyByLocale', () => {
   });
 });
 
-describe('TaskComments order', () => {
+describe('TaskConversation order', () => {
   // The fixture arrives newest-first: msg_2 (user) then msg_1 (automated).
   const listedBodies = () =>
     screen
@@ -216,13 +264,10 @@ describe('TaskComments order', () => {
         (text) => text.includes('[automated]') || text.includes('Thanks.'),
       );
 
-  // Newest first by DEFAULT: a task's discussion is mostly automated reports,
-  // so the latest one carries the state — and the Activity list right below it
-  // has always read newest-first.
-  it('puts the newest comment first by default', () => {
+  it('reads oldest first, the newest at the foot where the composer answers', () => {
     localeState.locale = 'en';
     render(
-      <TaskComments
+      <TaskConversation
         taskId={'task_1' as never}
         organizationId="org_1"
         projectId={'project_1' as never}
@@ -230,37 +275,21 @@ describe('TaskComments order', () => {
       />,
     );
     const bodies = listedBodies();
-    expect(bodies[0]).toContain('Thanks.');
-    expect(bodies[1]).toContain('[automated] Verification complete');
-  });
-
-  it('reads as a conversation (oldest first) with order="asc"', () => {
-    localeState.locale = 'en';
-    render(
-      <TaskComments
-        taskId={'task_1' as never}
-        organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment={false}
-        order="asc"
-      />,
-    );
-    const bodies = listedBodies();
-    expect(bodies[0]).toContain('[automated] Verification complete');
-    expect(bodies[1]).toContain('Thanks.');
+    expect(bodies.at(-2)).toContain('[automated] Verification complete');
+    expect(bodies.at(-1)).toContain('Thanks.');
   });
 });
 
-describe('TaskComments earlier pages', () => {
+describe('TaskConversation earlier pages', () => {
   // Regression: the feed used to be a fixed oldest-200 read, so a busy
   // task's newest comments never rendered. The walk into older pages must be
   // offered whenever the backend says more exist, at the OLDEST end.
-  it('offers to load earlier comments below a newest-first log', async () => {
+  it('offers to load earlier comments above the oldest loaded one', async () => {
     localeState.locale = 'en';
     discussionState.hasEarlier = true;
     discussionState.loadEarlier.mockClear();
     const { container } = render(
-      <TaskComments
+      <TaskConversation
         taskId={'task_1' as never}
         organizationId="org_1"
         projectId={'project_1' as never}
@@ -270,11 +299,11 @@ describe('TaskComments earlier pages', () => {
     const button = screen.getByRole('button', {
       name: 'detail.showEarlierComments',
     });
-    const list = container.querySelector('ul');
+    const list = container.querySelector('ol');
     expect(list).not.toBeNull();
-    // The list comes BEFORE the control: older pages append at the bottom.
+    // The control comes BEFORE the list: older pages arrive at the top.
     expect(
-      list!.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+      button.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     button.click();
     expect(discussionState.loadEarlier).toHaveBeenCalledTimes(1);
@@ -285,7 +314,7 @@ describe('TaskComments earlier pages', () => {
     localeState.locale = 'en';
     discussionState.hasEarlier = false;
     render(
-      <TaskComments
+      <TaskConversation
         taskId={'task_1' as never}
         organizationId="org_1"
         projectId={'project_1' as never}
@@ -296,76 +325,17 @@ describe('TaskComments earlier pages', () => {
       screen.queryByRole('button', { name: 'detail.showEarlierComments' }),
     ).toBeNull();
   });
-
-  it('shows the task-wide count in the heading when it is known', () => {
-    localeState.locale = 'en';
-    render(
-      <TaskComments
-        taskId={'task_1' as never}
-        organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment={false}
-        commentCount={412}
-      />,
-    );
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toContain(
-      '(412)',
-    );
-  });
 });
 
-describe('TaskComments composer position', () => {
-  // The composer sits at the newest end: below an ascending conversation,
-  // above a newest-first log.
-  const composerVsList = (container: HTMLElement) => {
-    const composer = container.querySelector('textarea');
-    const firstItem = container.querySelector('ul li');
-    if (!composer || !firstItem) return 'missing';
-    const pos = composer.compareDocumentPosition(firstItem);
-    // DOCUMENT_POSITION_FOLLOWING (4): the list comes AFTER the composer.
-    return pos & Node.DOCUMENT_POSITION_FOLLOWING
-      ? 'composer-first'
-      : 'list-first';
-  };
-
-  it('renders above the thread by default (desc)', () => {
-    localeState.locale = 'en';
-    const { container } = render(
-      <TaskComments
-        taskId={'task_1' as never}
-        organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment
-      />,
-    );
-    expect(composerVsList(container)).toBe('composer-first');
-  });
-
-  it('renders below the thread with order="asc"', () => {
-    localeState.locale = 'en';
-    const { container } = render(
-      <TaskComments
-        taskId={'task_1' as never}
-        organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment
-        order="asc"
-      />,
-    );
-    expect(composerVsList(container)).toBe('list-first');
-  });
-});
-
-describe('TaskComments composer hint', () => {
+describe('TaskCommentComposer hint', () => {
   it('renders the hint and wires it as the textarea description', () => {
     localeState.locale = 'en';
     const { container } = render(
-      <TaskComments
-        taskId={'task_1' as never}
+      <TaskCommentComposer
+        taskId="task_1"
         organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment
-        composerHint="A run is in progress."
+        projectId="project_1"
+        hint="A run is in progress."
       />,
     );
     expect(screen.getByText('A run is in progress.')).toHaveAttribute(
@@ -381,11 +351,10 @@ describe('TaskComments composer hint', () => {
   it('omits the hint and the aria wiring when not provided', () => {
     localeState.locale = 'en';
     const { container } = render(
-      <TaskComments
-        taskId={'task_1' as never}
+      <TaskCommentComposer
+        taskId="task_1"
         organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment
+        projectId="project_1"
       />,
     );
     expect(container.querySelector('#new-comment-hint')).toBeNull();
@@ -395,22 +364,39 @@ describe('TaskComments composer hint', () => {
   });
 });
 
-describe('TaskComments submit loading', () => {
-  it('disables the comment button while a new comment is posting', () => {
+describe('TaskCommentComposer label', () => {
+  it('names the comment box itself, not through its placeholder', () => {
+    render(
+      <TaskCommentComposer
+        taskId="task_1"
+        organizationId="org_1"
+        projectId="project_1"
+      />,
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'actions.comment' }),
+    ).toHaveAttribute('placeholder', 'actions.commentPlaceholder');
+  });
+});
+
+describe('TaskCommentComposer submit loading', () => {
+  it('holds the send button busy while a new comment is posting', () => {
     mutationState.addPending = true;
     localeState.locale = 'en';
     render(
-      <TaskComments
-        taskId={'task_1' as never}
+      <TaskCommentComposer
+        taskId="task_1"
         organizationId="org_1"
-        projectId={'project_1' as never}
-        canComment
+        projectId="project_1"
       />,
     );
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Ready for review.' },
+    });
 
-    expect(
-      screen.getByRole('button', { name: 'actions.comment' }),
-    ).toBeDisabled();
+    const send = screen.getByRole('button', { name: 'actions.comment' });
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute('aria-busy', 'true');
     mutationState.addPending = false;
   });
 });
@@ -418,22 +404,116 @@ describe('TaskComments submit loading', () => {
 describe('TaskCommentComposer draft', () => {
   afterEach(() => {
     window.localStorage.clear();
+    mutationState.addMutateAsync.mockReset();
+    vi.restoreAllMocks();
   });
 
-  it('brings back the unsent comment of its own task', () => {
-    window.localStorage.setItem(
-      taskCommentDraftKey('u1', 'org-1', 'task-1'),
-      JSON.stringify('Half a thought'),
-    );
-    render(
+  describe('submission', () => {
+    const composer = () => (
       <TaskCommentComposer
         taskId="task-1"
         organizationId="org-1"
         projectId="project-1"
-      />,
+      />
     );
-    expect(screen.getByRole('textbox')).toHaveValue('Half a thought');
+    const key = taskCommentDraftKey('u1', 'org-1', 'task-1');
+
+    it.each([
+      ['Later unsent comment', true],
+      ['  First submitted comment  ', true],
+      ['First submitted comment', false],
+    ])('retains only a newer draft: %s', async (laterDraft, edited) => {
+      let finish!: (result: { unresolvedMentionTokens: string[] }) => void;
+      mutationState.addMutateAsync.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const view = render(composer());
+      const field = screen.getByRole('textbox');
+      fireEvent.change(field, { target: { value: 'First submitted comment' } });
+      fireEvent.click(screen.getByRole('button', { name: 'actions.comment' }));
+      expect(mutationState.addMutateAsync).toHaveBeenCalledExactlyOnceWith({
+        taskId: 'task-1',
+        body: 'First submitted comment',
+      });
+      expect(
+        screen.getByRole('button', { name: 'actions.comment' }),
+      ).toBeDisabled();
+      expect(field).not.toBeDisabled();
+      expect(field).not.toHaveAttribute('readonly');
+      if (edited) fireEvent.change(field, { target: { value: laterDraft } });
+      await act(async () => {
+        finish({ unresolvedMentionTokens: [] });
+      });
+      expect(field).toHaveValue(edited ? laterDraft : '');
+      expect(window.localStorage.getItem(key)).toBe(
+        edited ? JSON.stringify(laterDraft) : null,
+      );
+      view.unmount();
+      render(composer());
+      expect(screen.getByRole('textbox')).toHaveValue(edited ? laterDraft : '');
+    });
+
+    it.each([false, true])(
+      'retains a failed draft (edited: %s)',
+      async (edited) => {
+        let fail!: (error: Error) => void;
+        mutationState.addMutateAsync.mockReturnValue(
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+        );
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        render(composer());
+        const field = screen.getByRole('textbox');
+        fireEvent.change(field, {
+          target: { value: 'First submitted comment' },
+        });
+        fireEvent.click(
+          screen.getByRole('button', { name: 'actions.comment' }),
+        );
+        const retainedDraft = edited
+          ? 'Later unsent comment'
+          : 'First submitted comment';
+        if (edited)
+          fireEvent.change(field, { target: { value: retainedDraft } });
+        await act(async () => {
+          fail(new Error('Comment failed'));
+        });
+        expect(field).toHaveValue(retainedDraft);
+        expect(window.localStorage.getItem(key)).toBe(
+          JSON.stringify(retainedDraft),
+        );
+        expect(
+          screen.getByRole('button', { name: 'actions.comment' }),
+        ).toBeEnabled();
+      },
+    );
   });
+
+  it.each(['Half a thought', '<Button />', '<tag>'])(
+    'brings back the unsent comment %s of its own task',
+    (text) => {
+      window.localStorage.setItem(
+        taskCommentDraftKey('u1', 'org-1', 'task-1'),
+        JSON.stringify(text),
+      );
+      render(
+        <TaskCommentComposer
+          taskId="task-1"
+          organizationId="org-1"
+          projectId="project-1"
+        />,
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(text);
+      expect(
+        window.localStorage.getItem(
+          taskCommentDraftKey('u1', 'org-1', 'task-1'),
+        ),
+      ).toBe(JSON.stringify(text));
+    },
+  );
 
   it('starts empty on a task with nothing unsent', () => {
     window.localStorage.setItem(

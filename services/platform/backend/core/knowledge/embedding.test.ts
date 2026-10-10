@@ -51,6 +51,7 @@ const OpenAI = (await import('openai')).default;
 const {
   classifyEmbeddingFailure,
   Embedder,
+  EmbeddingBudgetExceeded,
   EMBED_QUERY_TIMEOUT_MAX_MS,
   EMBED_REQUEST_TIMEOUT_MAX_MS,
   EMBED_REQUEST_TIMEOUT_MIN_MS,
@@ -256,7 +257,7 @@ describe('the one retry policy', () => {
   });
 });
 
-describe('account refusals from the provider', () => {
+describe('account refusals from the provider [KNOW-R12]', () => {
   // Z.ai answers account problems as HTTP 429 — 1113 for a spent balance,
   // 1311 for a model the subscription plan excludes. The SDK classes both
   // as RateLimitError, but waiting fixes neither and every retry re-bills
@@ -326,7 +327,7 @@ describe('account refusals from the provider', () => {
   });
 });
 
-describe('a per-minute limit is waited out, not billed', () => {
+describe('a per-minute limit is waited out, not billed [KNOW-R12]', () => {
   // DashScope's compatible mode answers its token-per-minute limit
   // (Throttling.AllocationQuota) with OpenAI's billing code: a scan of 300
   // pages used to end on the first one as "balance or plan", unretried.
@@ -1552,5 +1553,88 @@ describe('provider refusals no wait can lift', () => {
       OpenAI.APIError,
     );
     expect(create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a metered embedder [GOV-R5]', () => {
+  /** A meter that admits (or refuses) every request, recording its calls. */
+  function fakeMeter(refusal?: { refused: string; retryAtMs?: number }) {
+    return {
+      open: vi.fn(async () => refusal ?? { lease: 'lease-1' }),
+      settle: vi.fn(async () => undefined),
+      release: vi.fn(async () => undefined),
+    };
+  }
+
+  it('holds each request before the provider hears it, and books the tokens it reported', async () => {
+    create.mockResolvedValueOnce({
+      ...vectorsFor(['a', 'b']),
+      usage: { prompt_tokens: 7, total_tokens: 7 },
+    } as never);
+    const meter = fakeMeter();
+    const embedder = new Embedder(MODEL, 'sk-test', { meter });
+
+    await embedder.embedAll(['a', 'b']);
+
+    expect(meter.open).toHaveBeenCalledWith({
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      tokens: estimateEmbeddingTokens(['a', 'b']),
+    });
+    expect(meter.settle).toHaveBeenCalledWith('lease-1', {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      tokens: 7,
+    });
+    expect(meter.release).not.toHaveBeenCalled();
+  });
+
+  it('books the estimate when the provider reports no usage', async () => {
+    create.mockResolvedValueOnce(vectorsFor(['a']));
+    const meter = fakeMeter();
+
+    await new Embedder(MODEL, 'sk-test', { meter }).embedAll(['a']);
+
+    expect(meter.settle).toHaveBeenCalledWith(
+      'lease-1',
+      expect.objectContaining({ tokens: estimateEmbeddingTokens(['a']) }),
+    );
+  });
+
+  it('refuses before the provider hears anything once a limit has no room [GOV-R4]', async () => {
+    const meter = fakeMeter({
+      refused: 'Usage limit reached. Your monthly cost limit is used up.',
+      retryAtMs: Date.UTC(2026, 10, 1),
+    });
+
+    const caught = await new Embedder(MODEL, 'sk-test', { meter })
+      .embedAll(['a'])
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(EmbeddingBudgetExceeded);
+    expect(caught).toMatchObject({
+      code: 'BUDGET_EXCEEDED',
+      retryAtMs: Date.UTC(2026, 10, 1),
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('releases the hold of a request the provider refused', async () => {
+    create.mockRejectedValueOnce(
+      new OpenAI.BadRequestError(
+        400,
+        { message: 'bad input' },
+        'bad input',
+        new Headers(),
+      ),
+    );
+    const meter = fakeMeter();
+
+    await expect(
+      new Embedder(MODEL, 'sk-test', { meter }).embedAll(['a']),
+    ).rejects.toThrow();
+
+    expect(meter.release).toHaveBeenCalledWith('lease-1');
+    expect(meter.settle).not.toHaveBeenCalled();
   });
 });

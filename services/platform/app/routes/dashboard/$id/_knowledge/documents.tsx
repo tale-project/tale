@@ -1,3 +1,4 @@
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
@@ -7,7 +8,6 @@ import {
   parseAudienceFilter,
   serializeAudienceFilter,
 } from '@/app/features/settings/teams/lib/audience-filter';
-import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import {
   approxDocumentCountQuery,
   hubDocumentsPageQuery,
@@ -45,7 +45,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
     const page = hubDocumentsPageQuery(params.id, {});
     void context.queryClient.prefetchInfiniteQuery({
       queryKey: page.queryKey,
-      queryFn: () => page.fetchPage(null, DEFAULT_TABLE_PAGE_SIZE),
+      queryFn: () => page.fetchPage(null, DEFAULT_LIST_PAGE_SIZE),
       initialPageParam: null,
     });
   },

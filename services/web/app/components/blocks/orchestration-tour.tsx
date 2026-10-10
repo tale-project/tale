@@ -1,10 +1,7 @@
 import { DemoTourSection } from '@tale/marketing-ui/demo-tour-section';
-import { Brain, MessagesSquare, Workflow } from 'lucide-react';
+import { Brain, MessagesSquare, ShieldCheck, Workflow } from 'lucide-react';
 
-import {
-  HomeGovernDemo,
-  HomeProjectsDemo,
-} from '@/app/components/blocks/demos/content';
+import { HomeProjectsDemo } from '@/app/components/blocks/demos/content';
 import { SandboxWorkspace } from '@/app/components/blocks/demos/sandbox-workspace';
 import { MarketingCard, PageSection } from '@/app/components/marketing';
 import { useT } from '@/lib/i18n/client';
@@ -22,21 +19,16 @@ const STAGES = [
     moduleTo: '/platform/agents',
     moduleNavKey: 'agents',
   },
-  {
-    key: 'govern',
-    Demo: HomeGovernDemo,
-    moduleTo: '/platform/governance',
-    moduleNavKey: 'governance',
-  },
 ] as const;
 
 const CAPABILITIES = [
+  { key: 'govern', to: '/platform/governance', Icon: ShieldCheck },
   { key: 'pool', to: '/platform/knowledge', Icon: Brain },
   { key: 'delegate', to: '/platform/automations', Icon: Workflow },
   { key: 'arena', to: '/platform/chat', Icon: MessagesSquare },
 ] as const;
 
-/** Three main chapters, followed by the capabilities that support the work. */
+/** Two product chapters, followed by concise destinations for the supporting work. */
 export function OrchestrationTour() {
   const { t } = useT('home');
   const { t: tNav } = useT('nav');
@@ -61,7 +53,7 @@ export function OrchestrationTour() {
         }))}
       />
       <PageSection surface="wash" pad="compact" border="none">
-        <div className="grid gap-x-10 gap-y-2 md:grid-cols-3">
+        <div className="grid gap-x-10 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
           {CAPABILITIES.map(({ key, to, Icon }) => (
             <MarketingCard
               key={key}

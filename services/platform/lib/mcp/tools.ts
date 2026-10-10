@@ -1,32 +1,36 @@
 /**
  * The platform MCP endpoint's tool inventory — one list, three readers.
  *
- * `convex/automations_builder/mcp_http.ts` answers `tools/list` from it and
+ * `backend/domains/mcp/tools.ts` answers `tools/list` from it and checks and
  * routes `tools/call` by it; the API → MCP settings section renders it. The
  * list lives here rather than in the endpoint because the settings page cannot
- * import a Convex HTTP module (that would pull the auth stack into the browser
+ * import the backend (that would pull the auth stack into the browser
  * bundle), and a hand-copied list on a screen is how a UI starts advertising
  * tools the server does not serve.
  *
- * One schema policy: every tool declares a REAL schema, and the endpoint
- * holds a call to it — a mismatch is -32602, never a silently "successful"
- * call that ran nothing — with `additionalProperties: false`, so a typo is
- * an error instead of a silently ignored field. The four methods that take
- * an AUTOMATION DOCUMENT (validate, run, test, save) declare their call
- * envelope (`{automation, …}`) and leave the document itself an open object:
- * its node grammar is a page of rules the engine teaches in band
- * (`get_docs`) and validates itself, and a JSON Schema copy here would be a
- * second source of truth that drifts.
+ * Each tool's arguments are one zod schema (`args.ts`): the endpoint checks a
+ * call against it and advertises the JSON Schema generated from it
+ * (`json-schema.ts`), so what a client reads and what its call meets are the
+ * same rule.
  */
 
-import { METHODS, type Method } from '../engine/api/dispatch';
-import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
+import type { z } from 'zod';
 
-/** The three groups the inventory is presented in — the settings page and the
- * docs table both read the list in this order. */
+import { METHODS, type Method } from '../engine/api/methods';
+import {
+  CAPABILITY_TOOL_ARGS,
+  ENGINE_TOOL_ARGS,
+  PLATFORM_TOOL_ARGS,
+} from './args';
+import { READ_TOOL_RESULTS } from './results';
+
+/** The groups the inventory is presented in — the settings page and the
+ * docs tables both read the list in this order. */
 export const MCP_TOOL_GROUPS = [
   'authoring',
   'management',
+  'discovery',
+  'settings',
   'capability',
 ] as const;
 
@@ -51,17 +55,146 @@ export interface McpToolAnnotations {
 }
 
 /** One tool exactly as `tools/list` advertises it, plus which surface answers
- * it — the endpoint routes on `kind`; the settings page groups on `group`. */
-interface McpToolSpec {
+ * it and who may call it — the endpoint routes on `kind` and gates on
+ * `role`; the settings page groups on `group`. */
+export interface McpToolSpec {
   readonly name: string;
   readonly description: string;
-  readonly inputSchema: Record<string, unknown>;
+  /** The arguments, checked on every call; `tools/list` advertises the JSON
+   * Schema generated from it. */
+  readonly args: z.ZodObject;
   readonly annotations: McpToolAnnotations;
-  /** `engine` goes to the automation engine's dispatch table; `capability` goes
-   * to the organization's capability surface. */
-  readonly kind: 'engine' | 'capability';
+  /** `engine` goes to the automation engine's dispatch table; `platform` to
+   * the platform's own reads (`backend/domains/mcp/platform-tools.ts`);
+   * `capability` to the organization's capability surface. */
+  readonly kind: 'engine' | 'platform' | 'capability';
   readonly group: McpToolGroup;
+  /** Who may call it, checked before it runs: `developer` takes the owner,
+   * admin or developer role (the in-app equivalent's bar); `member` leaves it
+   * to the surface's own rules (each settings kind's native writer decides
+   * for itself); `live-developer` takes the developer bar for a live call
+   * (`mode: "live"`, the default) and leaves a mock one to every member. A
+   * tool a role cannot use stays listed. */
+  readonly role: 'member' | 'developer' | 'live-developer';
+  /** The budget a call draws from once its role check passed: `api` only
+   * the request the door already charged; `execute` also one execution
+   * (`rest:execute`, the REST API's run-start budget); `settings` also one
+   * settings change (`rest:settings`). */
+  readonly lane: 'api' | 'execute' | 'settings';
+  /** What every answer that is not a refusal carries — read tools only:
+   * `tools/list` advertises it as the `outputSchema`, and the answer carries
+   * it as `structuredContent` beside the same JSON as text. */
+  readonly result: z.ZodObject | null;
+  /** Whether a client must ask the person before every call, even where it
+   * otherwise runs tools without asking (Claude Code honours
+   * `_meta["anthropic/requiresUserInteraction"]`): going live is the
+   * person's call. */
+  readonly requiresUserInteraction: boolean;
+  /** How large an answer a client should keep inline
+   * (`_meta["anthropic/maxResultSizeChars"]`) — the tools whose answers run
+   * past a client's default cap. */
+  readonly maxResultChars?: number;
 }
+
+/** Tools that put a version live, decide what starts one or where it runs,
+ * remove one, speak for a person or change the organization's settings: a
+ * client asks the person before each call, whatever its permission mode. */
+const ASK_FIRST_TOOLS: ReadonlySet<string> = new Set([
+  'deploy_automation',
+  'delete_automation',
+  'set_trigger',
+  'answer_run_ask',
+  'set_automation_projects',
+  'apply_settings',
+]);
+
+/** The tools whose answers run long — the reference, the catalog, an
+ * analysis with its inferred types, a run's trace — and the size a client
+ * keeps inline instead of cutting or saving it to a file. */
+const MAX_RESULT_CHARS: Readonly<Record<string, number>> = {
+  get_docs: 100_000,
+  get_catalog: 250_000,
+  validate_automation: 200_000,
+  run_automation: 200_000,
+  get_automation: 200_000,
+  run_deployed: 200_000,
+  get_run: 500_000,
+  get_run_node: 300_000,
+  compare_runs: 500_000,
+  get_settings: 250_000,
+};
+
+const RESULTS: ReadonlyMap<string, z.ZodObject> = new Map(
+  Object.entries(READ_TOOL_RESULTS),
+);
+
+type ContractFields =
+  | 'lane'
+  | 'result'
+  | 'requiresUserInteraction'
+  | 'maxResultChars';
+
+/** A tool with what the inventory says of it beyond its surface and
+ * arguments: its budget, its answer, and the client hints. */
+function withContract(spec: Omit<McpToolSpec, ContractFields>): McpToolSpec {
+  const maxResultChars = MAX_RESULT_CHARS[spec.name];
+  return Object.assign(spec, {
+    lane: EXECUTE_TOOLS.has(spec.name)
+      ? ('execute' as const)
+      : SETTINGS_WRITE_TOOLS.has(spec.name)
+        ? ('settings' as const)
+        : ('api' as const),
+    result: RESULTS.get(spec.name) ?? null,
+    requiresUserInteraction: ASK_FIRST_TOOLS.has(spec.name),
+    ...(maxResultChars === undefined ? {} : { maxResultChars }),
+  });
+}
+
+/** Tools whose in-app equivalents sit behind the developer capability —
+ * persisting or rebinding an automation, starting or stopping a live run —
+ * so a key meets the same bar here. Live execution is also checked by the
+ * store; the check here comes first, so a refused call spends nothing. */
+const DEVELOPER_TOOLS: ReadonlySet<string> = new Set([
+  'save_automation',
+  'deploy_automation',
+  'delete_automation',
+  'set_trigger',
+  'run_deployed',
+  'cancel_run',
+  'set_automation_projects',
+  'delete_trigger',
+]);
+
+/** Tools whose live call takes the developer bar and whose mock call is
+ * every member's: a mock start reaches nothing outside Tale, the app's own
+ * rule for its run button. */
+const LIVE_DEVELOPER_TOOLS: ReadonlySet<string> = new Set(['start_run']);
+
+function engineRole(name: Method): McpToolSpec['role'] {
+  if (DEVELOPER_TOOLS.has(name)) return 'developer';
+  return LIVE_DEVELOPER_TOOLS.has(name) ? 'live-developer' : 'member';
+}
+
+/** Tools that execute an automation — a run on the mocks, its tests, the
+ * deploy gate's tests, a live run, a capability, the answer a waiting run
+ * resumes on — and draw from the same execution budget the REST API's run
+ * starts and run answers do: a key whose budget is spent is refused on
+ * both doors alike. */
+const EXECUTE_TOOLS: ReadonlySet<string> = new Set([
+  'run_automation',
+  'test_automation',
+  'deploy_automation',
+  'run_deployed',
+  'start_run',
+  'replay_run',
+  'answer_run_ask',
+  'invoke_capability',
+]);
+
+/** Tools that change the organization's settings and draw from the settings
+ * budget (`rest:settings`): an agent loops, and every change runs a native
+ * writer that may snapshot a history file or reach a vendor. */
+const SETTINGS_WRITE_TOOLS: ReadonlySet<string> = new Set(['apply_settings']);
 
 /** A read: changes nothing, repeats freely, stays inside the platform. */
 const READ: McpToolAnnotations = {
@@ -98,6 +231,23 @@ const EXECUTE_LIVE: McpToolAnnotations = {
   openWorldHint: true,
 };
 
+/** A removal that cannot be undone: every version of an automation. */
+const DELETE: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+/** An answer in a person's name: the run resumes on it, and a second answer
+ * to the same question is refused. */
+const ANSWER: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+
 /** Execution against the deterministic mocks: a run, but one that reaches
  * nothing outside and leaves nothing behind. */
 const EXECUTE_MOCK: McpToolAnnotations = {
@@ -105,6 +255,17 @@ const EXECUTE_MOCK: McpToolAnnotations = {
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: false,
+};
+
+/** A settings change: it may replace or remove what exists, repeating one is
+ * no no-op (an action runs again; a change whose hash moved is refused), and
+ * some kinds reach outside the platform — an invitation e-mails a person, a
+ * connector check reaches its vendor. */
+const SETTINGS_WRITE: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
 };
 
 /** Every engine method's annotations — exhaustive over `Method`, so a new
@@ -120,41 +281,67 @@ const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
   get_automation: READ,
   list_automations: READ,
   deploy_automation: REPLACE,
+  delete_automation: DELETE,
   set_trigger: REPLACE,
   run_deployed: EXECUTE_LIVE,
   start_run: EXECUTE_LIVE,
   list_runs: READ,
   get_run: READ,
+  get_run_node: READ,
+  compare_runs: READ,
+  replay_run: EXECUTE_LIVE,
   cancel_run: REPLACE,
+  answer_run_ask: ANSWER,
   list_versions: READ,
+  set_automation_projects: REPLACE,
   list_triggers: READ,
   delete_trigger: REPLACE,
 };
 
 /** One-line tool descriptions; `get_docs` is the deep reference. */
 const METHOD_DESCRIPTIONS: Record<Method, string> = {
-  get_docs: 'The automation grammar and authoring guide, as text.',
+  get_docs:
+    'The automation grammar and authoring guide, as text — or, with topic, the triggers reference, the validation reference or the Tale skill.',
   get_catalog: 'Every node type this deployment can execute.',
   search_catalog: 'Search the node-type catalog by keyword.',
-  validate_automation: 'Validate an automation document without saving it.',
+  validate_automation:
+    'Validate an automation document without saving it: its errors and warnings, each with a code, a location and params, plus the flow analysis and the inferred types.',
   run_automation:
     'Run an automation document directly against the deterministic mocks.',
-  test_automation: "Run an automation's own acceptance tests.",
-  save_automation: 'Save an automation document as a new immutable version.',
-  get_automation: 'Read one saved version (the latest when unversioned).',
+  test_automation:
+    "Run an automation's own acceptance tests — of a draft (automation), or of a saved version (name, version), whose verdict is then recorded on it.",
+  save_automation:
+    'Save an automation document as a new immutable version; the answer lists its warnings. Pass baseVersion (the version you read) so a version saved meanwhile is never overwritten. Settings, task contract and presentation you leave out are kept from the latest version (carried names them).',
+  get_automation:
+    'Read one saved version (the latest when unversioned): the document, its settings, task contract and presentation, latestVersion, deployedVersion, who saved it and through which door, its installations and its trigger.',
   list_automations:
     "The organization's automations with their latest and deployed versions and the projects each is installed in (projectIds).",
-  deploy_automation: 'Promote one saved version to be the live version.',
+  deploy_automation:
+    'Promote one saved version to be the live version; an older one rolls back. Pass expectedDeployedVersion so another deploy meanwhile is never replaced; the answer names the previousVersion.',
+  delete_automation:
+    'Delete an automation: every version, its trigger and its installations; the run history stays. expectedLatestVersion must be the latest version you read.',
   set_trigger: 'Bind what starts the automation (schedule/webhook/event).',
   run_deployed:
     'Run the deployed version live and WAIT for the finished result — output, trace and effects in one answer; a run that outlives the wait answers with its runId to poll via get_run. For a project-bound automation, use a host pinned to that project or start_run with projectId.',
   start_run:
-    'Start the deployed version in the background and return a run handle immediately; poll get_run for the result.',
+    'Start a run in the background and return a run handle immediately; poll get_run for the result. mode "live" (default) runs the deployed version for real; mode "mock" runs any saved version against the mocks and is recorded — use it while testing.',
   list_runs:
-    'Recent runs the caller can read, newest first — of one automation or of the current scope.',
-  get_run: 'One run in full: status, output, trace and effects.',
+    'Recent runs the caller can read, newest first — of one automation or of the current scope; filter by mode and statuses, and page with nextCursor.',
+  get_run:
+    'One run in full: status, output, trace and effects (detail: [] answers the status alone — poll with it). include: ["record"] adds the run step by step — why each step ran, was skipped or failed, each condition explained with the values it read. A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
+  get_run_node:
+    "One step of a run read whole — or one of its items or passes: what it received and returned (secrets withheld), where its templates' text landed, what it read from earlier steps, how its output differs from its input, and its call to a connector or a model.",
+  compare_runs:
+    'Two runs of one automation side by side, step by step: what changed in the version, how input and output differ, and the first step where the runs went different ways — the decision that flipped and the values that flipped it.',
+  replay_run:
+    'Run a run again, in its own project: with its own input ("again"), with an edited input ("edited"), or from one step ("from"), reusing what it finished outside that step. dryRun: true answers the plan first — what runs again and which writes go out a second time. A live replay needs the developer role and the deployed version.',
   cancel_run: 'Stop a run at its next node boundary.',
-  list_versions: "One automation's immutable version history.",
+  answer_run_ask:
+    'Answer the question a waiting run asked a person (get_run answers it as run.ask: askId and question); the run resumes on the answer. The answer speaks for the person: ask them first.',
+  list_versions:
+    "One automation's immutable version history — who saved each version through which door — and when each version went live (deployments).",
+  set_automation_projects:
+    'Install an automation in projects (add) and remove it from others (remove), in one change.',
   list_triggers: 'What starts the automations (never the webhook secret).',
   delete_trigger:
     "Unbind an automation's trigger; its versions and run history stay.",
@@ -166,7 +353,10 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
  * writes one, so it belongs with the trigger management, not the authoring
  * loop). Exhaustive over `Method`, so a new engine method cannot ship
  * unclassified. */
-const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
+const METHOD_GROUPS: Record<
+  Method,
+  Exclude<McpToolGroup, 'settings' | 'capability'>
+> = {
   get_docs: 'authoring',
   get_catalog: 'authoring',
   search_catalog: 'authoring',
@@ -177,16 +367,109 @@ const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
   get_automation: 'authoring',
   list_automations: 'authoring',
   deploy_automation: 'authoring',
+  delete_automation: 'authoring',
   set_trigger: 'management',
   run_deployed: 'management',
   start_run: 'management',
   list_runs: 'management',
   get_run: 'management',
+  get_run_node: 'management',
+  compare_runs: 'management',
+  replay_run: 'management',
   cancel_run: 'management',
+  answer_run_ask: 'management',
   list_versions: 'management',
+  set_automation_projects: 'management',
   list_triggers: 'management',
   delete_trigger: 'management',
 };
+
+/** The platform tools — answered by the platform from its own records, not
+ * by the engine's method table. */
+const PLATFORM_TOOLS = [
+  {
+    name: 'get_automation_metrics',
+    description:
+      "The organization's run figures for a window: runs by outcome, success rate, average duration, a per-day series and the busiest automations, each against the window before.",
+    annotations: READ,
+    group: 'management',
+  },
+  {
+    name: 'list_models',
+    description:
+      'The models you may use in a step: each with its provider (an agent step saves both as model and modelProvider), whether a provider serves it directly or a subscription does, the step types it suits and the agent runtimes it is offered to.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_harnesses',
+    description:
+      'The agent runtimes an agent step can run on (its harness), which one runs when a step names none, and which a subscription can serve.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_skills',
+    description:
+      "The skills an agent step can equip: the organization's own, or with projectId also the team skills of that project.",
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_connectors',
+    description:
+      'The connectors this deployment offers and whether the organization connected each — an agent step equips them by slug, a step running one of their actions needs it connected.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_agent_secrets',
+    description:
+      "The names of the organization's agent secrets an agent step can ask for, with a masked preview — never a value. Only owners, admins and developers see them; anyone else gets an empty list.",
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_projects',
+    description:
+      'The projects you can read: whether you can edit each, whether it is archived, and the automations installed in it.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'list_events',
+    description:
+      'The events Tale raises, which an event trigger can wait for, each with when it fires.',
+    annotations: READ,
+    group: 'discovery',
+  },
+  {
+    name: 'get_settings',
+    description:
+      "The organization's settings your role may read. Without kinds: the catalog — each kind, what it is, its operations and actions, its risk, whether this deployment serves it and whether your role may read and change it. With kinds (and ids): each resource with its key, its config and its hash, the value apply_settings expects. A secret never comes back: it reads as {masked: true, preview}; send that back unchanged to keep it.",
+    annotations: READ,
+    group: 'settings',
+  },
+  {
+    name: 'plan_settings',
+    description:
+      'Plan settings changes without making any: for each, what it would do (create, update, delete, act or unchanged), the diff member by member, its effects and its risk — or why it is refused. Show the plan to the person, then call apply_settings with the same changes.',
+    annotations: READ,
+    group: 'settings',
+  },
+  {
+    name: 'apply_settings',
+    description:
+      "Make the settings changes you planned and showed the person. expected names each changed resource's key with the hash you read (null for one you create): if any resource changed since, or any change is refused, nothing is applied. Changes run in a fixed order across kinds; one that fails stops the rest, and the answer lists what was applied, what failed and what was skipped. Never send a secret: a person enters it in Tale.",
+    annotations: SETTINGS_WRITE,
+    group: 'settings',
+  },
+] as const satisfies ReadonlyArray<{
+  name: keyof typeof PLATFORM_TOOL_ARGS;
+  description: string;
+  annotations: McpToolAnnotations;
+  group: McpToolGroup;
+}>;
 
 /** The capability tools — NOT engine methods. They reach the organization's own
  * capability registry and knowledge base, which is a different surface with a
@@ -203,245 +486,9 @@ const CAPABILITY_TOOL_DESCRIPTIONS: Record<CapabilityToolName, string> = {
   search_capabilities:
     'Search everything this organization can do — its deployed automations, by name and description.',
   invoke_capability:
-    'Invoke one capability by id. An action the organization gates returns a pending-approval result instead of running.',
+    'Invoke one capability by id: a deployed automation, run live as run_deployed runs it. A step the organization gates for approval leaves the run waiting for a person to decide in Tale (get_run shows waitingFor: "approval"); no tool decides an approval, so tell the person instead of retrying.',
   get_knowledge:
     "Retrieve passages from the organization's knowledge — its documents and its crawled web pages.",
-};
-
-function object(
-  properties: Record<string, Record<string, unknown>>,
-  required: readonly string[] = [],
-): Record<string, unknown> {
-  return {
-    type: 'object',
-    properties,
-    ...(required.length > 0 && { required: [...required] }),
-    additionalProperties: false,
-  };
-}
-
-/**
- * A string argument that must carry something: `minLength: 1` refuses the
- * empty string and `pattern: '\S'` refuses whitespace alone, so a blank is
- * the same `-32602` a missing field gets. The transport holds a call to the
- * schema `tools/list` advertised, so no dispatch refusal code for a
- * malformed argument — and no confident empty result for an empty question
- * — ever reaches an MCP client: exactly what the MCP page promises. The
- * previous round guarded `search_catalog.query` only; a whitespace `name`
- * reached the engine as "AUTOMATION_NOT_FOUND" and a blank `get_knowledge`
- * query answered `passages: []` as success (2026-09-14 evaluation, g9-2).
- */
-const NON_BLANK = { type: 'string', minLength: 1, pattern: '\\S' } as const;
-
-const AUTOMATION_NAME: Record<string, unknown> = {
-  ...NON_BLANK,
-  description:
-    'The automation name — a "/"-separated path, e.g. "billing/dunning-reminder".',
-};
-
-const RUN_ID: Record<string, unknown> = {
-  ...NON_BLANK,
-  description: 'The run handle start_run and list_runs return.',
-};
-
-const SAVED_VERSION: Record<string, unknown> = {
-  type: 'integer',
-  minimum: 1,
-  description: 'A saved version number — list_versions shows them.',
-};
-
-/** The REST `Idempotency-Key` rule, as a tool argument: printable ASCII,
- * one to 255 characters. */
-const IDEMPOTENCY_KEY: Record<string, unknown> = {
-  type: 'string',
-  minLength: 1,
-  maxLength: 255,
-  pattern: '^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$',
-  description:
-    'Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters.',
-};
-
-/** One trigger kind, strictly: a key of another kind is refused by name. */
-const TRIGGER_KIND = (
-  kind: string,
-  properties: Record<string, unknown>,
-): Record<string, unknown> => ({
-  type: 'object',
-  additionalProperties: false,
-  required: ['kind'],
-  properties: {
-    kind: { const: kind },
-    enabled: { type: 'boolean' },
-    ...properties,
-  },
-});
-
-/** No `type`: an automation's own `inputs` schema may be an array or a
- * scalar, and the engine validates the value against it — the tool schema
- * only says where the input goes. */
-const RUN_INPUT: Record<string, unknown> = {
-  description:
-    "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it.",
-};
-
-/** The automation document itself. Its node grammar is the page of rules
- * `get_docs` teaches and the engine validates in band — a JSON Schema copy
- * here would be a second source of truth that drifts — so the document is
- * an open object; what IS declared is the call envelope around it. */
-const AUTOMATION_DOCUMENT: Record<string, unknown> = {
-  type: 'object',
-  description:
-    'The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems.',
-};
-
-/** Real schemas for every tool: the four automation-document methods
- * declare their call envelope (`{automation, …}`) around the open document,
- * so a call without the document is refused at the transport (-32602)
- * rather than answered with a hint in another dialect. */
-const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
-  get_docs: object({}),
-  get_catalog: object({
-    kind: {
-      type: 'string',
-      enum: ['transform', 'llm', 'agent', 'subautomation', 'connector'],
-      description: 'Only node types of this kind.',
-    },
-    compact: {
-      type: 'boolean',
-      description:
-        'Names and descriptions only — no input schemas. The full catalog is large (over 100 KB); prefer search_catalog or compact for discovery.',
-    },
-  }),
-  validate_automation: object({ automation: AUTOMATION_DOCUMENT }, [
-    'automation',
-  ]),
-  run_automation: object(
-    {
-      automation: AUTOMATION_DOCUMENT,
-      input: RUN_INPUT,
-      mode: {
-        type: 'string',
-        enum: ['mock', 'live'],
-        description: 'mock (default) runs against deterministic mocks.',
-      },
-    },
-    ['automation'],
-  ),
-  test_automation: object({ automation: AUTOMATION_DOCUMENT }, ['automation']),
-  save_automation: object(
-    {
-      automation: AUTOMATION_DOCUMENT,
-      message: {
-        ...NON_BLANK,
-        description: 'Why this version — shown in the version history.',
-      },
-    },
-    ['automation'],
-  ),
-  search_catalog: object(
-    {
-      query: {
-        ...NON_BLANK,
-        description:
-          'Capability keywords — verbs and objects, e.g. "send email".',
-      },
-    },
-    ['query'],
-  ),
-  get_automation: object(
-    {
-      name: AUTOMATION_NAME,
-      version: {
-        oneOf: [
-          { type: 'integer', minimum: 1 },
-          { type: 'string', enum: ['deployed'] },
-        ],
-        description:
-          'Read this saved version instead of the latest one; "deployed" reads the version that actually runs (list_automations shows deployedVersion).',
-      },
-    },
-    ['name'],
-  ),
-  list_automations: object({}),
-  deploy_automation: object(
-    {
-      name: AUTOMATION_NAME,
-      version: {
-        ...SAVED_VERSION,
-        description: 'The saved version to promote — list_versions shows them.',
-      },
-    },
-    ['name', 'version'],
-  ),
-  set_trigger: object(
-    {
-      name: AUTOMATION_NAME,
-      trigger: {
-        description:
-          'The trigger — {kind: "schedule" | "webhook" | "event", …}, one shape per kind (a key of another kind is refused by name); get_docs describes each kind. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one.',
-        discriminator: { propertyName: 'kind' },
-        oneOf: [
-          TRIGGER_KIND('schedule', {
-            cron: { type: 'string', maxLength: 200 },
-            timezone: { type: 'string', maxLength: 100 },
-          }),
-          TRIGGER_KIND('webhook', { rotateToken: { type: 'boolean' } }),
-          TRIGGER_KIND('event', { event: { type: 'string', maxLength: 200 } }),
-        ],
-      },
-    },
-    ['name', 'trigger'],
-  ),
-  run_deployed: object(
-    {
-      name: AUTOMATION_NAME,
-      input: RUN_INPUT,
-      idempotencyKey: IDEMPOTENCY_KEY,
-    },
-    ['name'],
-  ),
-  start_run: object(
-    {
-      name: AUTOMATION_NAME,
-      input: RUN_INPUT,
-      version: {
-        ...SAVED_VERSION,
-        description:
-          'Run this exact version instead of the deployed one. Rarely needed.',
-      },
-      projectId: {
-        ...NON_BLANK,
-        description:
-          'The project the run operates in — its task and document tools act there. The caller must have edit access to this active project. Omit only for an organization-wide automation or when the host already pins a project. A bound automation requires an explicit allowed project.',
-      },
-      idempotencyKey: IDEMPOTENCY_KEY,
-    },
-    ['name'],
-  ),
-  list_runs: object({
-    name: {
-      ...AUTOMATION_NAME,
-      description:
-        "Only this automation's runs. Omit for every run the caller can read in the current scope.",
-    },
-    limit: {
-      type: 'integer',
-      minimum: 1,
-      maximum: 200,
-      description: 'How many runs to return (default 50).',
-    },
-  }),
-  get_run: object({ runId: RUN_ID }, ['runId']),
-  cancel_run: object({ runId: RUN_ID }, ['runId']),
-  list_versions: object({ name: AUTOMATION_NAME }, ['name']),
-  list_triggers: object({
-    name: {
-      ...AUTOMATION_NAME,
-      description:
-        "Only this automation's trigger. Omit for every trigger in the organization.",
-    },
-  }),
-  delete_trigger: object({ name: AUTOMATION_NAME }, ['name']),
 };
 
 const CAPABILITY_TOOL_ANNOTATIONS: Record<
@@ -453,96 +500,49 @@ const CAPABILITY_TOOL_ANNOTATIONS: Record<
   get_knowledge: READ,
 };
 
-const CAPABILITY_TOOL_SCHEMAS: Record<
-  CapabilityToolName,
-  Record<string, unknown>
-> = {
-  search_capabilities: object(
-    {
-      query: {
-        ...NON_BLANK,
-        maxLength: KNOWLEDGE_QUERY_MAX,
-        description: 'What you want to do, in the words a person would use.',
-      },
-      limit: {
-        type: 'integer',
-        minimum: 1,
-        description: 'How many matches to return (default 8).',
-      },
-    },
-    ['query'],
-  ),
-  invoke_capability: object(
-    {
-      id: {
-        ...NON_BLANK,
-        description:
-          'The capability id from search_capabilities, e.g. "automation.billing/dunning-reminder".',
-      },
-      input: {
-        description:
-          "Arguments — any JSON value the capability's own input schema accepts; the surface validates them.",
-      },
-      credential: {
-        ...NON_BLANK,
-        description:
-          "Which stored credential to act as. Omit to use the organization's default.",
-      },
-      idempotencyKey: IDEMPOTENCY_KEY,
-    },
-    ['id'],
-  ),
-  get_knowledge: object(
-    {
-      query: {
-        ...NON_BLANK,
-        maxLength: KNOWLEDGE_QUERY_MAX,
-        description:
-          'What to look for, in the words a person would use (at most 2,000 characters — the REST search’s cap).',
-      },
-      limit: {
-        type: 'integer',
-        minimum: 1,
-        maximum: 50,
-        description: 'How many passages to return (default 10).',
-      },
-      corpus: {
-        type: 'string',
-        enum: ['private', 'public-web', 'all', 'documents', 'web'],
-        description:
-          "Which knowledge to search: the organization's own documents ('private' — the REST search spells it 'documents'), its crawled web pages ('public-web' — REST: 'web'), or both ('all', the default). Either spelling is taken.",
-      },
-    },
-    ['query'],
-  ),
-};
-
 /**
  * Every tool this endpoint serves, in the order it advertises them: the engine's
  * method table first (authoring, then management, exactly as the engine lists
- * them), then the platform capability tools.
+ * them), then the platform's own tools (its management read, discovery,
+ * then settings), then the capability tools.
  */
 export const MCP_TOOLS: readonly McpToolSpec[] = [
-  ...METHODS.map((name) => {
-    const inputSchema = METHOD_SCHEMAS[name];
-    if (inputSchema === undefined) {
-      throw new Error(`MCP tool "${name}" has no input schema`);
-    }
-    return {
+  ...METHODS.map((name) =>
+    withContract({
       name,
       description: METHOD_DESCRIPTIONS[name],
-      inputSchema,
+      args: ENGINE_TOOL_ARGS[name],
       annotations: METHOD_ANNOTATIONS[name],
-      kind: 'engine' as const,
+      kind: 'engine',
       group: METHOD_GROUPS[name],
-    };
-  }),
-  ...CAPABILITY_TOOL_NAMES.map((name) => ({
-    name,
-    description: CAPABILITY_TOOL_DESCRIPTIONS[name],
-    inputSchema: CAPABILITY_TOOL_SCHEMAS[name],
-    annotations: CAPABILITY_TOOL_ANNOTATIONS[name],
-    kind: 'capability' as const,
-    group: 'capability' as const,
-  })),
+      role: engineRole(name),
+    }),
+  ),
+  ...PLATFORM_TOOLS.map((tool) =>
+    withContract({
+      name: tool.name,
+      description: tool.description,
+      args: PLATFORM_TOOL_ARGS[tool.name],
+      annotations: tool.annotations,
+      kind: 'platform',
+      group: tool.group,
+      role: 'member',
+    }),
+  ),
+  ...CAPABILITY_TOOL_NAMES.map((name) =>
+    withContract({
+      name,
+      description: CAPABILITY_TOOL_DESCRIPTIONS[name],
+      args: CAPABILITY_TOOL_ARGS[name],
+      annotations: CAPABILITY_TOOL_ANNOTATIONS[name],
+      kind: 'capability',
+      group: 'capability',
+      role: 'member',
+    }),
+  ),
 ];
+
+/** The tool of that name, if the inventory holds one. */
+export function findMcpTool(name: string): McpToolSpec | undefined {
+  return MCP_TOOLS.find((tool) => tool.name === name);
+}

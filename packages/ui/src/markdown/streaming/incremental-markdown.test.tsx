@@ -1,7 +1,37 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
+vi.mock('./find-block-split', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./find-block-split')>();
+  return { ...actual, findBlockSplitPoint: vi.fn(actual.findBlockSplitPoint) };
+});
+
+import { findBlockSplitPoint } from './find-block-split';
 import { IncrementalMarkdown } from './incremental-markdown';
+
+describe('IncrementalMarkdown — settled rendering cost', () => {
+  it('skips streaming-boundary scans for completed content but scans when a reveal resumes', () => {
+    vi.mocked(findBlockSplitPoint).mockClear();
+    const content = 'First paragraph.\n\nSecond paragraph.\n\nFinal paragraph.';
+    const { container, rerender } = render(
+      <IncrementalMarkdown content={content} revealPosition={content.length} />,
+    );
+    expect(findBlockSplitPoint).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Final paragraph.');
+    rerender(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length - 5}
+        aria-busy
+      />,
+    );
+    expect(findBlockSplitPoint).toHaveBeenCalledTimes(1);
+    expect(findBlockSplitPoint).toHaveBeenCalledWith(
+      content,
+      content.length - 5,
+    );
+  });
+});
 
 // ============================================================================
 // HELPERS

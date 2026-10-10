@@ -314,6 +314,49 @@ describe('enforceTaskDatesForOrg — the alert skips whoever lost the project', 
     expect(vi.mocked(notifyUser).mock.calls[0]?.[1].userId).toBe('u-creator');
   });
 
+  it.each([
+    [['u-project'], 'u-project'],
+    [['u-project', 'u-creator'], 'u-creator'],
+    [[], null],
+  ])(
+    'the overdue rung picks the first readable creator from %j',
+    async (readers, recipient) => {
+      vi.mocked(taskReadersAmong).mockResolvedValue(readers);
+      const { sql } = fakeSql((text) => {
+        if (
+          text.startsWith('SELECT t2.id FROM app.tasks t2') &&
+          text.includes('> coalesce(t2.sla_level, 0)')
+        ) {
+          return [{ id: 't-late' }];
+        }
+        if (
+          text.startsWith('UPDATE app.tasks SET sla_level = ?, sla_level_at_ms')
+        ) {
+          return [sweepRow('t-late', { newLevel: 3 })];
+        }
+        return [];
+      });
+
+      await enforceTaskDatesForOrg(sql, 'org-1');
+
+      expect(taskReadersAmong).toHaveBeenCalledWith(sql, {
+        organizationId: 'org-1',
+        taskId: 't-late',
+        userIds: ['u-creator', 'u-project'],
+      });
+      if (recipient === null) {
+        expect(notifyUser).not.toHaveBeenCalled();
+      } else {
+        expect(notifyUser).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(notifyUser).mock.calls[0]?.[1]).toMatchObject({
+          userId: recipient,
+          taskId: 't-late',
+          titleKey: 'taskSlaEscalated',
+        });
+      }
+    },
+  );
+
   it('tells nobody, and counts nothing, when nobody in line can open it', async () => {
     vi.mocked(taskReadersAmong).mockResolvedValue([]);
     const { sql } = startSweep({});

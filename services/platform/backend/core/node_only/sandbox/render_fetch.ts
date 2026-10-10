@@ -68,12 +68,22 @@ const RENDER_IDLE_TIMEOUT_MS = 5_000;
 /** The worker stops STARTING pages this far before the exec hard kill, so
  * it always exits cleanly with its partial results on disk. */
 const WORKER_EXIT_MARGIN_MS = 20_000;
+/** How long a render session may sit with nothing running before the
+ * spawner reaps it. A batch keeps it busy throughout: its exec (at most
+ * four minutes, the crawl's own cap) holds the session whatever its length,
+ * and the create, staging, read-back and destroy around it are seconds
+ * apart. The window only matters for a session whose batch died before its
+ * destroy (the action was killed): such an orphan holds one of the
+ * organization's render slots until the spawner reaps it, which would
+ * otherwise take the deployment's whole idle window (30 minutes by
+ * default). */
+const RENDER_SESSION_IDLE_MS = 3 * 60_000;
 /** Rendered-DOM caps in BYTES: per page, and for the whole output file —
  * `sessionReadFile` serves at most 20MB, and an output the host cannot read
  * back fails the batch deterministically (the crawl would retry the same
  * batch forever), so the worker bounds the serialized file before it admits
  * each page. */
-const RENDER_MAX_HTML_BYTES = 6 * 1024 * 1024;
+export const RENDER_MAX_HTML_BYTES = 6 * 1024 * 1024;
 const RENDER_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 
 export type RenderPageOutcome =
@@ -255,6 +265,7 @@ export async function renderUrlsInSandbox(
         // Knowledge crawling is the deployment's own work: renders never
         // leave the server for an organization's device.
         placement: 'server',
+        idleTimeoutMs: RENDER_SESSION_IDLE_MS,
       });
       created = true;
     } catch (error) {

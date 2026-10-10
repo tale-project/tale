@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import type { TaskDoc } from '../lib/display';
+import type { TaskDoc, TaskStatus } from '../lib/display';
 import type { TaskRow } from './task-card';
 import { TasksWorkspace } from './tasks-workspace';
 
@@ -85,6 +85,8 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'u-member' } }),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
@@ -97,11 +99,20 @@ vi.mock('./kanban-board', () => ({
   KanbanBoard: ({
     tasks,
     canWorkTask,
+    collapsedLanes,
+    onLaneCollapsedChange,
   }: {
     tasks: TaskRow[];
     canWorkTask: (task: TaskRow) => boolean;
+    collapsedLanes?: ReadonlySet<TaskStatus>;
+    onLaneCollapsedChange?: (status: TaskStatus, collapsed: boolean) => void;
   }) => (
-    <ul>
+    <ul data-testid="board" data-folded={[...(collapsedLanes ?? [])].join(',')}>
+      <li>
+        <button onClick={() => onLaneCollapsedChange?.('done', true)}>
+          Fold test lane
+        </button>
+      </li>
       {tasks.map((row) => (
         <li key={row._id}>
           {row.title}: {canWorkTask(row) ? 'workable' : 'read-only'}
@@ -187,4 +198,39 @@ describe('TasksWorkspace — who creates and who works', () => {
     expect(screen.queryByRole('button', { name: 'Create task' })).toBeNull();
     expect(screen.getByText('Task own: read-only')).toBeInTheDocument();
   });
+});
+
+afterEach(() => {
+  for (const scope of ['project-1', 'all']) {
+    window.localStorage.removeItem(
+      `tale.platform.tasks.board.collapsedLanes.${scope}`,
+    );
+  }
+});
+
+describe('TasksWorkspace persisted lane handoff', () => {
+  it.each([false, true])(
+    'recovers invalid preferences with allProjects=%s',
+    async (allProjects) => {
+      const scope = allProjects ? 'all' : 'project-1';
+      const key = `tale.platform.tasks.board.collapsedLanes.${scope}`;
+      window.localStorage.setItem(key, '{}');
+      const { user } = render(
+        <TasksWorkspace
+          organizationId="org-1"
+          projectId="project-1"
+          view="board"
+          allProjects={allProjects}
+          onViewChange={vi.fn()}
+        />,
+      );
+      expect(screen.getByTestId('board')).toHaveAttribute('data-folded', '');
+      await user.click(screen.getByRole('button', { name: 'Fold test lane' }));
+      expect(screen.getByTestId('board')).toHaveAttribute(
+        'data-folded',
+        'done',
+      );
+      expect(window.localStorage.getItem(key)).toBe('["done"]');
+    },
+  );
 });

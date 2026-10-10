@@ -24,6 +24,7 @@ export function fixture(
   clientId = 'acme',
   skills = ['invoice'],
   external: string[] = [],
+  { native = false }: { native?: boolean } = {},
 ) {
   const root = temporary();
   // Made first, so a step's offset also counts the file writes before it.
@@ -53,33 +54,58 @@ export function fixture(
   writeFileSync(descriptorPath, JSON.stringify(descriptor));
   const pack = path.join(directory, automation.packPath);
   mkdirSync(pack, { recursive: true });
-  const document = {
-    name,
-    nodes: [
-      { id: 'start', type: 'start' },
-      ...skills.map((skill, index) => ({
-        id: `script-${index}`,
-        type: 'sandbox.run_script',
-        input: { skill, entry: 'scripts/run.py' },
-      })),
-      ...(external.length
-        ? [
-            {
-              id: 'author',
-              type: 'agent',
-              skills: [...skills, ...external],
-              prompt: `Use ${skills.map((skill) => `/skills/${skill}`).join(' and ')}. Do not rewrite ${skills[0]}-unrelated.`,
-            },
-          ]
-        : []),
-    ],
-  };
+  // Command fixtures start with their final native bytes; component fixtures
+  // keep the deliberately minimal documents used to isolate transport/compiler behavior.
+  const document = native
+    ? {
+        version: 1,
+        name,
+        nodes: [
+          skills.length
+            ? {
+                id: 'work',
+                type: 'sandbox.run_script',
+                input: { skill: skills[0], entry: 'scripts/run.py' },
+              }
+            : {
+                id: 'work',
+                type: 'transform',
+                code: 'return { received: true };',
+              },
+        ],
+        output: '{{ nodes.work.output }}',
+      }
+    : {
+        name,
+        nodes: [
+          { id: 'start', type: 'start' },
+          ...skills.map((skill, index) => ({
+            id: `script-${index}`,
+            type: 'sandbox.run_script',
+            input: { skill, entry: 'scripts/run.py' },
+          })),
+          ...(external.length
+            ? [
+                {
+                  id: 'author',
+                  type: 'agent',
+                  skills: [...skills, ...external],
+                  prompt: `Use ${skills.map((skill) => `/skills/${skill}`).join(' and ')}. Do not rewrite ${skills[0]}-unrelated.`,
+                },
+              ]
+            : []),
+        ],
+      };
   const metadata = {
     name: automation.displayName,
     scope: 'project',
     skills,
-    settings: { enabled: true },
-    subjects: { task: { workflow: name, externalSystem: clientId } },
+    ...(native
+      ? {}
+      : {
+          settings: { enabled: true },
+          subjects: { task: { workflow: name, externalSystem: clientId } },
+        }),
   };
   writeFileSync(path.join(pack, 'workflow.yml'), stringify(document));
   writeFileSync(path.join(pack, 'automation.yml'), stringify(metadata));
@@ -115,7 +141,7 @@ export function fixture(
     'commit',
     '--quiet',
     '-m',
-    'fixture',
+    native ? 'native client fixture' : 'fixture',
   );
   const options = {
     repoRoot: root,

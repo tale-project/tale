@@ -13,6 +13,8 @@ import { supportUrlFor, useSupportUrl } from '../core/support-url';
 import { useErrorLogger } from '../hooks/use-error-logger';
 
 interface ErrorDisplayCompactProps {
+  /** Localized description; defaults to the page loading message. */
+  description?: string;
   /** The error that occurred */
   error: Error;
   /** Organization ID for support links */
@@ -58,6 +60,7 @@ interface ErrorDisplayCompactProps {
  */
 export function ErrorDisplayCompact({
   error,
+  description,
   organizationId,
   reset,
   supportUrl,
@@ -96,7 +99,9 @@ export function ErrorDisplayCompact({
         </Heading>
 
         {/* Description */}
-        <Text variant="muted">{t('errors.errorLoadingPage')}</Text>
+        <Text variant="muted">
+          {description ?? t('errors.errorLoadingPage')}
+        </Text>
 
         {/* Action button */}
         <HStack gap={2} className="justify-center">

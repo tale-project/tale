@@ -64,7 +64,7 @@ afterEach(async () => {
 
 describe('approval policy authority', () => {
   it.each([false, true])(
-    'refuses a corrupt policy immediately after an allowed operation (policyOnly=%s)',
+    'refuses a corrupt policy immediately after an allowed operation (policyOnly=%s) [APV-R4]',
     async (policyOnly) => {
       const db = database();
       await writeFile(policyFile, 'rules: []\n');
@@ -85,7 +85,7 @@ describe('approval policy authority', () => {
     },
   );
 
-  it('refuses a schema-invalid YAML policy instead of reading its valid JSON predecessor', async () => {
+  it('refuses a schema-invalid YAML policy instead of reading its valid JSON predecessor [APV-R4]', async () => {
     const db = database();
     await writeFile(
       policyFile,
@@ -99,7 +99,7 @@ describe('approval policy authority', () => {
     expect(db.mutations).toEqual([]);
   });
 
-  it('uses defaults when the policy is absent in an available configuration tree', async () => {
+  it('uses defaults when the policy is absent in an available configuration tree [APV-R1]', async () => {
     const db = database();
     await expect(evaluateApprovalGate(db.sql, args)).resolves.toEqual({
       decision: 'allow',
@@ -107,7 +107,7 @@ describe('approval policy authority', () => {
     expect(db.mutations).toEqual([]);
   });
 
-  it('requires approval for an explicitly restricted internal write', async () => {
+  it('requires approval for an explicitly restricted internal write [APV-R2]', async () => {
     const db = database();
     await writeFile(
       policyFile,
@@ -121,7 +121,7 @@ describe('approval policy authority', () => {
     expect(db.mutations[0]).toMatch(/^INSERT INTO app\.approvals/);
   });
 
-  it('refuses an unavailable config root instead of silently allowing an internal write', async () => {
+  it('refuses an unavailable config root instead of silently allowing an internal write [APV-R4]', async () => {
     const db = database();
     vi.stubEnv('TALE_CONFIG_DIR', path.join(root, 'missing-mount'));
     await expect(evaluateApprovalGate(db.sql, args)).rejects.toThrow(
@@ -130,7 +130,7 @@ describe('approval policy authority', () => {
     expect(db.mutations).toEqual([]);
   });
 
-  it('keeps an existing pending decision while the policy is corrupt', async () => {
+  it('keeps an existing pending decision while the policy is corrupt [APV-R4]', async () => {
     const db = database({
       id: 'pending-proof',
       status: 'pending',

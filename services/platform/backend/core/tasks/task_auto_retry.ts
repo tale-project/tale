@@ -4,28 +4,71 @@
  * database; the orchestration (collect → decide → kick) lives in
  * `tasks/mutations.ts` (`kickAutoRetryRun`).
  *
- * Semantics (2026-08-20): a failed run auto-retries immediately — no
- * backoff, the harness already backed off per-request — unless the task is
- * in a rapid crash loop. The loop detector is a CONSECUTIVE-failure budget
+ * Semantics (2026-08-20): after per-request recovery, a failed run retries
+ * immediately unless the task is in a rapid crash loop or the provider
+ * explicitly ended on model capacity. The latter waits one minute without
+ * forgiving an attempt: pinned Codex does not retry that terminal error.
+ * Other harness errors retain their existing request recovery; an unconfined
+ * fresh task start bounds transient broker GET recovery within the admitted
+ * run. The loop detector is a CONSECUTIVE-failure budget
  * with a progress reset, not a sliding window: a sliding window plus any
  * retry spacing lets a deterministically-broken task drip retries forever,
  * while a streak terminates it and still refreshes the budget whenever an
  * attempt proves real progress by executing long enough.
  *
- * The one wait (2026-09-30, #3977): the retry of a run an automation or
- * another agent started starts only into a free workspace; while its agent
- * works another task there, it looks again later ({@link planAgentBusyWait})
- * — a bounded wait that spends no attempt.
+ * A retry is kicked at once whoever started the run: when every agent
+ * worker is busy, the run it starts waits for one like any other start
+ * (`domains/tasks/agent-workers.ts`), spending no attempt.
  */
 
 export const AUTO_RETRY_MAX_ATTEMPTS = 3;
+
+/** Application retry floor after a typed model-capacity failure. Not an
+ * account cooldown or a promise that provider capacity returns in a minute. */
+export const MODEL_CAPACITY_RETRY_DELAY_MS = 60_000;
+
+/** How long the retry of a run whose sandbox ran out of memory waits, by
+ * the attempt the failed run showed: 2, then 10, then 30 minutes. A re-run
+ * at once would meet the same memory limit; the pause lets the session's
+ * other work settle and gives an Admin time to raise the limit. */
+const RESOURCE_EXHAUSTED_RETRY_DELAYS_MS = [
+  2 * 60_000,
+  10 * 60_000,
+  30 * 60_000,
+] as const;
+
+/** The wait before retrying a run that ran out of memory, for the failed
+ * run's attempt (0 or absent for a first run). */
+export function resourceExhaustedRetryDelayMs(
+  attempt: number | null | undefined,
+): number {
+  const index = Math.min(
+    Math.max(attempt ?? 0, 0),
+    RESOURCE_EXHAUSTED_RETRY_DELAYS_MS.length - 1,
+  );
+  return RESOURCE_EXHAUSTED_RETRY_DELAYS_MS[index] ?? 30 * 60_000;
+}
 
 /** Producer-side failure classification, stamped where each failure is
  * PRODUCED (`settleTaskAgentTurn` callers, the park watchdog, the capacity
  * wake) — never regex-derived from the free-text reason. */
 export type TaskRunFailureCode =
   | 'harness_error'
+  /** The selected model is overloaded, not a failed credential. The retry
+   * waits briefly, still counts, and keeps the prior account eligible. */
+  | 'model_capacity'
   | 'turn_crashed'
+  /** The sandbox ended the harness because it stalled: it printed nothing
+   * and used almost no CPU for the sandbox's stall window (45 minutes by
+   * default). A hang, not a crash — a retry at once would most likely hang
+   * the same way and hold a worker for another window, so none follows; a
+   * person decides whether to start the agent again. */
+  | 'turn_stalled'
+  /** The sandbox ran out of memory: the kernel's OOM killer ended the
+   * harness, or the session's container with it. Retried, but only after
+   * {@link resourceExhaustedRetryDelayMs}: at once it would meet the same
+   * limit. */
+  | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
   | 'harvest_failed'
@@ -67,13 +110,15 @@ export type TaskRunFailureCode =
   | 'credential_cooldown';
 
 /** Failures where a retry is pure waste: the run burned its 12h window
- * (either executing or parked), or the agent configuration itself is gone.
+ * (either executing or parked), its harness hung until the sandbox ended it,
+ * or the agent configuration itself is gone.
  * Everything else — provider errors, crashes, vanished sessions, harvest
  * hiccups — retries by DEFAULT, including an absent code, so a future
  * failure producer inherits the retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
   'park_deadline',
+  'turn_stalled',
   'agent_deleted',
   'agent_model_missing',
   'equipment_missing',
@@ -266,52 +311,4 @@ export function resolveAutoRetryBudget(
 function freeRotationAttempt(cut: AutoRetryRunFacts | undefined): number {
   if (cut === undefined || executedMs(cut) >= AUTO_RETRY_PROGRESS_MS) return 0;
   return cut.autoRetryAttempt ?? 0;
-}
-
-/** How long an automated chain's retry that found its agent at work on
- * another task in the same workspace waits before it looks again — minutes,
- * never at once, so a busy agent is no hot loop. */
-export const AGENT_BUSY_RETRY_DELAY_MS = 5 * 60 * 1000;
-
-/** How long after its run failed such a retry still looks for the agent: a
- * run takes about an hour at the median (#3977), so most end within it. */
-export const AGENT_BUSY_RETRY_MAX_WAIT_MS = 2 * 60 * 60 * 1000;
-
-/** How many times such a retry looks again at most. */
-export const AGENT_BUSY_RETRY_MAX_WAITS =
-  AGENT_BUSY_RETRY_MAX_WAIT_MS / AGENT_BUSY_RETRY_DELAY_MS;
-
-export type AgentBusyWait =
-  | {
-      readonly wait: true;
-      /** The looks taken once this one is sent — what its job carries. */
-      readonly waits: number;
-      /** When the next look runs, epoch ms. */
-      readonly lookAt: number;
-    }
-  | { readonly wait: false };
-
-/**
- * Whether a retry that found its agent busy looks again, and when: after
- * {@link AGENT_BUSY_RETRY_DELAY_MS}, while both bounds hold — the looks it
- * already took (`waits`, carried by its job) and the age of the failure it
- * retries (`failedAt`, the failed run's own settle stamp): no look is sent
- * for past {@link AGENT_BUSY_RETRY_MAX_WAIT_MS} after it. Otherwise the
- * wait is over and the retry is refused.
- */
-export function planAgentBusyWait(args: {
-  waits: number;
-  failedAt: number | undefined;
-  now: number;
-}): AgentBusyWait {
-  const waits = args.waits + 1;
-  const lookAt = args.now + AGENT_BUSY_RETRY_DELAY_MS;
-  if (waits > AGENT_BUSY_RETRY_MAX_WAITS) return { wait: false };
-  if (
-    args.failedAt !== undefined &&
-    lookAt - args.failedAt > AGENT_BUSY_RETRY_MAX_WAIT_MS
-  ) {
-    return { wait: false };
-  }
-  return { wait: true, waits, lookAt };
 }

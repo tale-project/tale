@@ -1,7 +1,10 @@
 import { ActiveEditorProvider, EditorGroup } from '@tale/ui/editor';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SandboxCapacity } from '@/app/lib/backend/contract/sandbox';
 import { i18n } from '@/lib/i18n/i18n';
+import type { SandboxDeviceView } from '@/lib/shared/schemas/sandbox-devices';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import {
   SESSION_ENDED,
   SHIPPED_LOCALES,
@@ -23,24 +26,53 @@ const { state, query, mutate, refreshCapacity, refreshLimits, toast } =
     toast: vi.fn(),
   }));
 
-/** One project-agent op as the view lists it. */
-function taskOp(execId: string, taskId: string, startedAt: number) {
+/** One project-agent op as the view lists it: with its task's key and
+ * title, unless the task is gone since. */
+function taskOp(
+  execId: string,
+  taskId: string,
+  startedAt: number,
+  task?: { key?: string; title: string },
+) {
   return {
     kind: 'task-agent' as const,
     execId,
     taskId,
+    ...(task !== undefined
+      ? { task: { id: taskId, projectId: 'project-1', ...task } }
+      : {}),
     status: 'running',
     startedAt,
   };
 }
 
-/** Alice's workspace with three tasks executing in it at once — a project
- * agent runs its tasks concurrently in the one workspace it owns. */
+/** The list read's answer: the workspaces, and the agent runs waiting for
+ * room by reason. */
+function view(sessions: unknown[], waitingForWorkers = 0) {
+  return {
+    sessions,
+    waitingRuns: {
+      total: waitingForWorkers,
+      byReason: {
+        org_limit: waitingForWorkers,
+        host: 0,
+        destroy_pending: 0,
+        exec_limit: 0,
+        unknown: 0,
+      },
+    },
+  };
+}
+
+/** Alice's first worker, with three turns executing in it at once: its
+ * task's turn, a steered turn's predecessor still in its kill grace, and a
+ * turn whose task is gone since. */
 const aliceRow = {
   sessionId: 'session-alice',
   ownerType: 'project_agent',
   ownerId: 'agent-alice',
   ownerLabel: 'Alice',
+  worker: { number: 1, scope: 'agent' as const },
   createdBy: 'system:task-agent',
   ownerName: null,
   ownerEmail: null,
@@ -52,11 +84,20 @@ const aliceRow = {
   pinned: false,
   busy: true,
   totalSpentCents: 12.5,
-  currentOp: taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3),
+  currentOp: taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3, {
+    key: 'WEB-12',
+    title: 'Release notes',
+  }),
   runningOps: [
     taskOp('exec-1', 'd01a4b15-0000-4000-8000-000000000001', 1),
-    taskOp('exec-2', 'a91fb5c0-0000-4000-8000-000000000002', 2),
-    taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3),
+    taskOp('exec-2', '3be051fb-0000-4000-8000-000000000003', 2, {
+      key: 'WEB-12',
+      title: 'Release notes',
+    }),
+    taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3, {
+      key: 'WEB-12',
+      title: 'Release notes',
+    }),
   ],
 };
 
@@ -88,6 +129,30 @@ const hibernatedRow = {
   // Noon UTC, so the day reads the same in every runner's time zone.
   deletesAt: Date.UTC(2026, 9, 31, 12),
 };
+
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  Link: ({
+    children,
+    to,
+    params,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    to: string;
+    params: Record<string, string>;
+  }) => (
+    <a
+      href={Object.entries(params).reduce(
+        (href, [key, value]) => href.replace(`$${key}`, value),
+        to,
+      )}
+      {...rest}
+    >
+      {children}
+    </a>
+  ),
+}));
 
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({
@@ -127,7 +192,7 @@ beforeEach(() => {
     // Deliberately return cached private rows even for skipped requests. A
     // permission downgrade must remove already-fetched metadata from the UI.
     data: name.endsWith(':listSandboxesForOrg')
-      ? [
+      ? view([
           {
             sessionId: 'session-private',
             ownerId: 'agent-private',
@@ -145,7 +210,7 @@ beforeEach(() => {
           aliceRow,
           orphanRow,
           hibernatedRow,
-        ]
+        ])
       : name === 'governance/queries:getPolicy'
         ? null
         : name.endsWith(':getSandboxQuotaUsage')
@@ -179,6 +244,191 @@ function renderSettings() {
     </ActiveEditorProvider>,
   );
 }
+
+describe.each(SHIPPED_LOCALES)(
+  'SandboxesSettings placement observations (%s)',
+  (locale) => {
+    const device: SandboxDeviceView = {
+      id: 'device-other',
+      name: 'Other administrator laptop',
+      status: 'online',
+      createdAt: 1_790_000_000_000,
+      createdBy: 'admin-other',
+      lastSeenAt: 1_790_000_060_000,
+      connectedAt: 1_790_000_000_000,
+      version: '0.5.60',
+      maxSessions: 4,
+      platform: null,
+      sessions: { running: 1, starting: 0 },
+      resources: null,
+      update: null,
+    };
+    const available: Extract<SandboxCapacity, { status: 'available' }> = {
+      status: 'available',
+      observedAt: 1_790_000_060_000,
+      backend: 'docker',
+      scope: 'host',
+      sessions: {
+        running: 1,
+        starting: 0,
+        limit: 16,
+        organizationRunning: 1,
+        organizationStarting: 0,
+        organizationLimit: 16,
+      },
+      resources: {
+        cpu: { totalCores: 8, usedCores: 1 },
+        memory: { totalBytes: 32 * 1024 ** 3, usedBytes: 1024 ** 3 },
+      },
+      runtimeSessions: [{ sessionId: aliceRow.sessionId, state: 'running' }],
+      placements: [{ sessionId: aliceRow.sessionId, deviceId: device.id }],
+    };
+    let observation: {
+      data: SandboxCapacity | undefined;
+      isError?: boolean;
+      isLoading?: boolean;
+    };
+
+    beforeEach(() => {
+      state.canManage = true;
+      saveLocale(locale);
+      observation = { data: available };
+      const reads = query.getMockImplementation();
+      query.mockImplementation((name: string) => {
+        const answer = reads?.(name);
+        if (name.endsWith(':getSandboxCapacity'))
+          return { ...answer, ...observation };
+        if (name === 'sandbox_devices/queries:list') {
+          return {
+            ...answer,
+            data: {
+              devices: [device],
+              hub: 'available',
+              serverVersion: '0.5.60',
+            },
+          };
+        }
+        return name.endsWith(':listSandboxesForOrg')
+          ? { ...answer, data: view([aliceRow]) }
+          : answer;
+      });
+    });
+    afterEach(forgetSavedLocale);
+
+    function settingsView() {
+      return (
+        <ActiveEditorProvider>
+          <EditorGroup>
+            <SandboxesSettings organizationId="org-1" />
+          </EditorGroup>
+        </ActiveEditorProvider>
+      );
+    }
+
+    it.each([
+      {
+        data: {
+          status: 'unavailable',
+          reason: 'unreachable',
+        } satisfies SandboxCapacity,
+      },
+      {
+        data: {
+          status: 'unavailable',
+          reason: 'not_configured',
+        } satisfies SandboxCapacity,
+      },
+      { data: undefined, isLoading: true },
+      { data: available, isError: true },
+    ])(
+      'does not assert server placement after a failed observation: %j',
+      async (failed) => {
+        const { rerender } = render(settingsView());
+        await waitFor(() => expect(i18n.language).toBe(locale));
+        const translate = i18n.getFixedT(locale, 'sandboxes');
+        const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+        const deviceLabel = translate('runsOn.device', { name: device.name });
+        expect(within(row).getByText(deviceLabel)).toBeInTheDocument();
+
+        observation = failed;
+        rerender(settingsView());
+        expect(screen.getByText('Alice').closest('tr')).toBe(row);
+        expect(
+          within(row).getByText(translate('status.runtime.unknown')),
+        ).toBeInTheDocument();
+        expect(
+          within(row).queryByText(translate('runsOn.server')),
+        ).not.toBeInTheDocument();
+        expect(within(row).queryByText(deviceLabel)).not.toBeInTheDocument();
+
+        observation = { data: available };
+        rerender(settingsView());
+        expect(within(row).getByText(deviceLabel)).toBeInTheDocument();
+        expect(
+          within(row).getByText(translate('status.runtime.running')),
+        ).toBeInTheDocument();
+      },
+    );
+
+    it.each([
+      { placements: [] },
+      { placements: [{ sessionId: 'session-other', deviceId: device.id }] },
+    ])(
+      'keeps a known server workspace running when available placements are %j',
+      async ({ placements }) => {
+        observation = { data: { ...available, placements } };
+        render(settingsView());
+        await waitFor(() => expect(i18n.language).toBe(locale));
+        const translate = i18n.getFixedT(locale, 'sandboxes');
+        const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+        expect(
+          within(row).getByText(translate('runsOn.server')),
+        ).toBeInTheDocument();
+        expect(
+          within(row).getByText(translate('status.runtime.running')),
+        ).toBeInTheDocument();
+      },
+    );
+    it('does not assert a location when a successful capacity snapshot omits placements', async () => {
+      observation = { data: { ...available, placements: undefined } };
+      render(settingsView());
+      await waitFor(() => expect(i18n.language).toBe(locale));
+      const translate = i18n.getFixedT(locale, 'sandboxes');
+      const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+      expect(
+        within(row).getByText(translate('status.runtime.running')),
+      ).toBeInTheDocument();
+      expect(
+        within(row).queryByText(translate('runsOn.server')),
+      ).not.toBeInTheDocument();
+      expect(
+        within(row).queryByText(
+          translate('runsOn.device', { name: device.name }),
+        ),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps an initially unavailable workspace unknown and accessible', async () => {
+      observation = { data: { status: 'unavailable', reason: 'unreachable' } };
+      render(settingsView());
+      await waitFor(() => expect(i18n.language).toBe(locale));
+      const translate = i18n.getFixedT(locale, 'sandboxes');
+      const table = screen.getByRole('table', { name: translate('title') });
+      expect(
+        within(table).getByText(translate('status.runtime.unknown')),
+      ).toBeInTheDocument();
+      expect(
+        within(table).queryByText(translate('runsOn.server')),
+      ).not.toBeInTheDocument();
+      expect(
+        within(table).queryByText(
+          translate('runsOn.device', { name: device.name }),
+        ),
+      ).not.toBeInTheDocument();
+      await checkAccessibility(table);
+    });
+  },
+);
 
 describe('SandboxesSettings access', () => {
   it('refreshes deployment limits alongside runtime observations', async () => {
@@ -247,6 +497,58 @@ describe('SandboxesSettings access', () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
+  it('tells a manager how many agent runs wait for a free worker, under the agent workers limit', () => {
+    state.canManage = true;
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: view([aliceRow], 2) }
+        : answer;
+    });
+    renderSettings();
+    expect(
+      screen.getByRole('spinbutton', { name: 'Agent workers' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Each task an agent works on at the same time runs in a sandbox of its own.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('2 agent runs are waiting for a free worker.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the workspaces without a waiting count from an api of the previous release', () => {
+    state.canManage = true;
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: { sessions: [aliceRow] } }
+        : answer;
+    });
+    renderSettings();
+    expect(
+      screen.getByRole('spinbutton', { name: 'Agent workers' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Alice').closest('tr')).not.toBeNull();
+    expect(screen.queryByText(/waiting for a free worker/)).toBeNull();
+  });
+
+  it('keeps the waiting count from a developer, who reads no workspaces', () => {
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: view([aliceRow], 2) }
+        : answer;
+    });
+    renderSettings();
+    expect(screen.queryByText(/waiting for a free worker/)).toBeNull();
+  });
+
   it('lets organization settings managers query and view workspaces', () => {
     state.canManage = true;
     renderSettings();
@@ -285,21 +587,76 @@ describe('SandboxesSettings workspace rows', () => {
     state.canManage = true;
   });
 
-  it('lists every task running in a workspace, not just the latest one', () => {
+  it('lists every turn running in a worker by its task, not just the latest one', () => {
     renderSettings();
     const row = screen.getByText('Alice').closest('tr');
     expect(row).not.toBeNull();
     expect(
       within(row as HTMLElement).getByText('3 project tasks'),
     ).toBeInTheDocument();
-    for (const id of ['d01a4b15', 'a91fb5c0', '3be051fb']) {
-      expect(within(row as HTMLElement).getByText(id)).toBeInTheDocument();
-    }
+    // A task reads as its key and title and opens on its own page.
+    const links = within(row as HTMLElement).getAllByRole('link', {
+      name: 'WEB-12 Release notes',
+    });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/tasks/3be051fb-0000-4000-8000-000000000003',
+    );
+    // A task gone since keeps its id prefix; no raw id of a known task.
+    expect(
+      within(row as HTMLElement).getByText('d01a4b15'),
+    ).toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByText('3be051fb')).toBeNull();
     // Lifetime spend of the workspace, in dollars.
     expect(within(row as HTMLElement).getByText('$0.13')).toBeInTheDocument();
     expect(
       within(row as HTMLElement).getByText('claude-code'),
     ).toBeInTheDocument();
+  });
+
+  it('names the worker each of an agent’s workspaces is, its own or a member’s', () => {
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? {
+            ...answer,
+            data: view([
+              aliceRow,
+              {
+                ...aliceRow,
+                sessionId: 'session-alice-w2',
+                worker: { number: 2, scope: 'agent' },
+                currentOp: null,
+                runningOps: [
+                  taskOp('exec-4', 'task-changelog', 4, {
+                    key: 'WEB-13',
+                    title: 'Changelog',
+                  }),
+                ],
+              },
+              {
+                ...hibernatedRow,
+                worker: { number: 2, scope: 'member' },
+              },
+            ]),
+          }
+        : answer;
+    });
+    renderSettings();
+    const [first, second] = screen
+      .getAllByText('Alice')
+      .map((cell) => cell.closest('tr') as HTMLElement);
+    expect(within(first as HTMLElement).getByText('Worker 1')).toBeVisible();
+    expect(within(second as HTMLElement).getByText('Worker 2')).toBeVisible();
+    expect(
+      within(second as HTMLElement).getByRole('link', {
+        name: 'WEB-13 Changelog',
+      }),
+    ).toHaveAttribute('href', '/dashboard/org-1/tasks/task-changelog');
+    const bob = screen.getByText('Bob').closest('tr') as HTMLElement;
+    expect(within(bob).getByText('Member worker 2')).toBeVisible();
   });
 
   it('names a workspace whose agent was deleted, never its raw id', () => {
@@ -366,7 +723,7 @@ describe('SandboxesSettings Destroy', () => {
     query.mockImplementation((name: string) => {
       const answer = reads?.(name);
       return name.endsWith(':listSandboxesForOrg')
-        ? { ...answer, data: rows }
+        ? { ...answer, data: view(rows) }
         : answer;
     });
   }

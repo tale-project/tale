@@ -1,5 +1,6 @@
 import { FIELD_ROW_FRAME } from '@tale/ui/field-shell';
-import { describe, expect, it, vi } from 'vitest';
+import { toast } from '@tale/ui/use-toast';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -26,6 +27,7 @@ const { updateSharing, orgTeams } = vi.hoisted(() => {
     current: [
       { id: 't-one', name: 'Team One', memberCount: 2, createdAt: 0 },
       { id: 't-two', name: 'Team Two', memberCount: 3, createdAt: 0 },
+      { id: 't-three', name: 'Team Three', memberCount: 1, createdAt: 0 },
     ],
     loading: false,
   };
@@ -58,18 +60,143 @@ vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
 const NARROWS = /This change narrows access/;
 
-function renderSection(teamIds: string[], canAdminister = true) {
-  return render(
+function section(teamIds: string[], canAdminister = true, projectId = 'p-1') {
+  return (
     <ProjectSharingSection
-      projectId="p-1"
+      projectId={projectId}
       organizationId="org-1"
       teamIds={teamIds}
       canAdminister={canAdminister}
-    />,
+    />
   );
 }
 
+function renderSection(teamIds: string[], canAdminister = true) {
+  return render(section(teamIds, canAdminister));
+}
+
+beforeEach(() => {
+  updateSharing.mockReset();
+  vi.mocked(toast).mockClear();
+});
+
 describe('ProjectSharingSection', () => {
+  it('retains successive successful additions before the project readback arrives', async () => {
+    updateSharing.mockClear();
+    updateSharing.mockResolvedValue(undefined);
+    const { user } = renderSection(['t-one']);
+    await user.click(screen.getByRole('combobox', { name: 'Audience' }));
+    await user.click(await screen.findByRole('option', { name: 'Team Two' }));
+    await waitFor(() => expect(updateSharing).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('option', { name: 'Team Three' }));
+    await waitFor(() => expect(updateSharing).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(toast).toHaveBeenCalledTimes(2));
+
+    expect(updateSharing.mock.calls).toEqual([
+      [{ projectId: 'p-1', teamIds: ['t-one', 't-two'] }],
+      [{ projectId: 'p-1', teamIds: ['t-one', 't-two', 't-three'] }],
+    ]);
+    expect(screen.queryByText(NARROWS)).not.toBeInTheDocument();
+  });
+
+  it('confirms removal of a just-saved team even while props still omit it', async () => {
+    updateSharing.mockResolvedValue(undefined);
+    const { user } = renderSection(['t-one']);
+    await user.click(screen.getByRole('combobox', { name: 'Audience' }));
+    await user.click(await screen.findByRole('option', { name: 'Team Two' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledTimes(1));
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Remove Team Two' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent(NARROWS);
+    expect(updateSharing).toHaveBeenCalledTimes(1);
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    await waitFor(() =>
+      expect(updateSharing).toHaveBeenLastCalledWith({
+        projectId: 'p-1',
+        teamIds: ['t-one'],
+      }),
+    );
+  });
+
+  it('keeps the latest acknowledgement through an older successful readback', async () => {
+    updateSharing.mockResolvedValue(undefined);
+    const { user, rerender } = renderSection(['t-one']);
+    await user.click(screen.getByRole('combobox', { name: 'Audience' }));
+    await user.click(await screen.findByRole('option', { name: 'Team Two' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('option', { name: 'Team Three' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledTimes(2));
+    await user.keyboard('{Escape}');
+
+    rerender(section(['t-one', 't-two']));
+    expect(
+      screen.getByRole('button', { name: 'Remove Team Three' }),
+    ).toBeInTheDocument();
+    rerender(section(['t-three', 't-two', 't-one']));
+    rerender(section(['t-one', 't-three']));
+    expect(
+      screen.queryByRole('button', { name: 'Remove Team Two' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remove Team Three' }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not adopt a refused addition and preserves the last successful audience', async () => {
+    updateSharing
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Refused'));
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { user } = renderSection(['t-one']);
+      await user.click(screen.getByRole('combobox', { name: 'Audience' }));
+      await user.click(await screen.findByRole('option', { name: 'Team Two' }));
+      await waitFor(() => expect(toast).toHaveBeenCalledTimes(1));
+      await user.click(screen.getByRole('option', { name: 'Team Three' }));
+      await waitFor(() => expect(toast).toHaveBeenCalledTimes(2));
+      await user.keyboard('{Escape}');
+      expect(
+        screen.getByRole('button', { name: 'Remove Team Two' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Remove Team Three' }),
+      ).not.toBeInTheDocument();
+      expect(toast).toHaveBeenLastCalledWith(
+        expect.objectContaining({ variant: 'destructive' }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it('does not carry an acknowledged audience into a different project', async () => {
+    updateSharing.mockResolvedValue(undefined);
+    const { user, rerender } = renderSection(['t-one']);
+    await user.click(screen.getByRole('combobox', { name: 'Audience' }));
+    await user.click(await screen.findByRole('option', { name: 'Team Two' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledTimes(1));
+    await user.keyboard('{Escape}');
+    rerender(section(['t-three'], true, 'p-2'));
+    expect(
+      screen.queryByRole('button', { name: 'Remove Team Two' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remove Team Three' }),
+    ).toBeInTheDocument();
+  });
+
+  it('confirms narrowing after a successful org-wide save before readback', async () => {
+    updateSharing.mockResolvedValue(undefined);
+    const { user } = renderSection(['t-one']);
+    await user.click(screen.getByRole('button', { name: 'Remove Team One' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('combobox', { name: 'Audience' }));
+    await user.click(await screen.findByRole('option', { name: 'Team Two' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent(NARROWS);
+    expect(updateSharing).toHaveBeenCalledTimes(1);
+  });
+
   it('saves straight away when the last team is cleared — the whole organization gains access', async () => {
     updateSharing.mockResolvedValueOnce(undefined);
     const { user } = renderSection(['t-one']);
@@ -224,6 +351,24 @@ describe('ProjectSharingSection chrome', () => {
       expect(
         screen.queryByRole('link', { name: 'Create a team' }),
       ).not.toBeInTheDocument();
+    } finally {
+      orgTeams.current = previous;
+      orgTeams.loading = false;
+    }
+  });
+
+  // Low-priority known limitation: while the directory is still loading, the
+  // saved ID cannot resolve to a name yet, so the summary briefly says Unknown team.
+  it('documents the unknown-team summary while the directory is loading', () => {
+    const previous = orgTeams.current;
+    orgTeams.current = undefined;
+    orgTeams.loading = true;
+    try {
+      renderSection(['missing-team']);
+      expect(screen.getByText('Unknown team')).toBeInTheDocument();
+      expect(
+        screen.getByRole('status', { name: /Loading/ }),
+      ).toBeInTheDocument();
     } finally {
       orgTeams.current = previous;
       orgTeams.loading = false;

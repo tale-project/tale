@@ -80,6 +80,10 @@ const projectRun = {
   startedAt: 1_700_000_000_000,
   finishedAt: null,
   askPending: true,
+  resumeCount: 0,
+  lastResumeReason: null,
+  lastResumedAt: null,
+  stalled: false,
 };
 
 const ask = {
@@ -149,7 +153,7 @@ function fakeSql(
   return { sql: sql as unknown as Sql, queries };
 }
 
-function mount(sql: Sql, role = 'member') {
+function mount(sql: Sql, role = 'member', apiKeyId?: string) {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
@@ -159,6 +163,7 @@ function mount(sql: Sql, role = 'member') {
     c.set('role', role);
     c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
+    if (apiKeyId !== undefined) c.set('apiKeyId', apiKeyId);
     return next();
   });
   app.route('/api/v1', createAutomationRestRoutes({ sql }));
@@ -296,6 +301,21 @@ describe('POST …/runs/{runId}/asks/{askId}', () => {
     );
   });
 
+  it('mirrors a relayed answer as the person, on the key’s spend [SBX-R14]', async () => {
+    const { sql } = fakeSql();
+    const request = mount(sql, 'admin', 'key-1');
+    const res = await request('/projects/p-2/runs/run-1/asks/ask-1', 'POST', {
+      answer: 'The February rate.',
+      actor: { email: 'Reginald@Example.com' },
+    });
+    expect(res.status).toBe(200);
+    expect(collaborators.addTaskComment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: 'user-9', apiKeyId: 'key-1' }),
+      { taskId: 't-1', body: 'The February rate.' },
+    );
+  });
+
   it('refuses an actor who may not see the project, by name, before anything is recorded', async () => {
     // The key holder (an admin) reaches the team's project; the member they
     // relay for is on another team — the refusal speaks of that member.
@@ -428,7 +448,7 @@ describe('POST …/runs/{runId}/asks/{askId}', () => {
     );
     expect(res.status).toBe(200);
     expect(warn).toHaveBeenCalledWith(
-      '[rest] ask answer comment mirror failed',
+      '[automations] ask answer comment mirror failed',
       expect.objectContaining({ askId: 'ask-1' }),
     );
     warn.mockRestore();

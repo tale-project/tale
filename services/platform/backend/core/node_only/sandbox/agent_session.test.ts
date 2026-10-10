@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import { ensureAgentSession, type AgentSessionOwner } from './agent_session';
@@ -13,7 +13,7 @@ import {
 const runtime = vi.hoisted(() => ({
   sessionCreate: vi.fn(),
   sessionAcquire: vi.fn(),
-  sessionDestroyIfIdle: vi.fn(),
+  sessionStopIfIdle: vi.fn(),
 }));
 vi.mock('./helpers/session_client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./helpers/session_client')>()),
@@ -52,7 +52,7 @@ const scenarios: Scenario[] = [
 
 function fixture(
   scenario: Scenario,
-  existing: { status: string; createdAt: number } | null,
+  existing: { status: string; createdAt: number; profile?: unknown } | null,
   failMutation?: string,
 ) {
   const events: string[] = [];
@@ -71,9 +71,9 @@ function fixture(
   runtime.sessionCreate.mockImplementation(async () => {
     events.push('create');
   });
-  runtime.sessionDestroyIfIdle.mockImplementation(async () => {
-    events.push('destroy');
-    return { destroyed: true, busy: false };
+  runtime.sessionStopIfIdle.mockImplementation(async () => {
+    events.push('stop');
+    return { stopped: true, busy: false, workspaceKept: true };
   });
   return {
     ctx,
@@ -90,11 +90,39 @@ function fixture(
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv('SANDBOX_AGENT_PROFILE', undefined);
   runtime.sessionAcquire.mockResolvedValue(true);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
+  it('uses the light profile for fresh workspaces and preserves it on recreation', async () => {
+    vi.stubEnv('SANDBOX_AGENT_PROFILE', 'agent-light');
+    const fresh = fixture(scenario, null);
+    await fresh.ensure();
+    expect(runtime.sessionCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ profile: 'agent-light' }),
+    );
+    expect(fresh.ctx.runMutation).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({ profile: 'agent-light' }),
+    );
+    vi.stubEnv('SANDBOX_AGENT_PROFILE', 'agent');
+    const resumed = fixture(scenario, {
+      status: 'stopped',
+      createdAt: 123,
+      profile: 'agent-light',
+    });
+    runtime.sessionAcquire.mockResolvedValue(false);
+    await resumed.ensure();
+    expect(runtime.sessionCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ profile: 'agent-light' }),
+    );
+  });
+
   it('reuses a live session with its existing incarnation and no new slot', async () => {
     const f = fixture(scenario, { status: 'active', createdAt: 123 });
 
@@ -151,7 +179,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
   });
 
   it.each([true, false])(
-    'a full organization refuses before provisioning (warm=%s)',
+    'a full organization refuses before provisioning (warm=%s) [SBX-R8]',
     async (warm) => {
       const f = fixture(
         scenario,
@@ -209,7 +237,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
       );
       // The standing workspace is the incarnation's state: a failed resume
       // releases the slot and never destroys it.
-      expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
+      expect(runtime.sessionStopIfIdle).not.toHaveBeenCalled();
     },
   );
 
@@ -256,7 +284,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
         status: 'active',
       });
       expect(runtime.sessionAcquire).toHaveBeenCalledTimes(adopt ? 1 : 0);
-      expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
+      expect(runtime.sessionStopIfIdle).not.toHaveBeenCalled();
     },
   );
 
@@ -266,7 +294,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     await expect(f.ensure()).rejects.toBe(f.mutationError);
 
     expect(runtime.sessionCreate).not.toHaveBeenCalled();
-    expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
+    expect(runtime.sessionStopIfIdle).not.toHaveBeenCalled();
   });
 
   it('marks a failed fresh create as failed instead of leaving its quota occupied', async () => {
@@ -282,15 +310,14 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     });
     expect(f.events).toEqual([
       'reserveSessionSlotAndInsert',
-      'destroy',
+      'stop',
       'setSessionStatus',
     ]);
   });
 
   // A refused create (429: the host is full, or short of memory) made
-  // nothing — and a destroy of an id with no compute deletes the preserved
-  // workspace a stopped standing session keeps under it.
-  it('a create the sandbox host refused destroys nothing, and the row reads failed', async () => {
+  // nothing to stop.
+  it('a create the sandbox host refused stops nothing, and the row reads failed', async () => {
     const f = fixture(scenario, null);
     const error = new SpawnerBusyError(15_000);
     runtime.sessionCreate.mockImplementation(async () => {
@@ -300,14 +327,14 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
 
     await expect(f.ensure()).rejects.toBe(error);
 
-    expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
+    expect(runtime.sessionStopIfIdle).not.toHaveBeenCalled();
     expect(f.events).toEqual([
       'reserveSessionSlotAndInsert',
       'create',
       'setSessionStatus',
     ]);
     // Settled as collected: the COLLECT pass would otherwise run the very
-    // destroy this skipped once the row's grace had passed.
+    // stop this skipped once the row's grace had passed.
     expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
       rowId: 'row_1',
       status: 'failed',
@@ -315,9 +342,11 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     });
   });
 
-  // The regression (#3494): a create the spawner had started, then failed —
-  // its container stayed in Docker state `created` with no owner to remove it.
-  it('destroys what a created-then-failed session left spawner-side before its row reads failed', async () => {
+  // A create the spawner had started, then failed, left its container in
+  // Docker state `created` with no owner to remove it. The stop releases that
+  // compute and keeps the workspace: the id may name one preserved for the
+  // owner's next turn (its last container lost to a reboot or the OOM killer).
+  it('stops what a created-then-failed session left spawner-side, keeping its workspace, before its row reads failed [SBX-R17]', async () => {
     const f = fixture(scenario, null);
     const error = new Error('runnerd did not become ready');
     runtime.sessionCreate.mockImplementation(async () => {
@@ -327,14 +356,14 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
 
     await expect(f.ensure()).rejects.toBe(error);
 
-    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledTimes(1);
-    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledWith('session_1');
+    expect(runtime.sessionStopIfIdle).toHaveBeenCalledTimes(1);
+    expect(runtime.sessionStopIfIdle).toHaveBeenCalledWith('session_1');
     // While the row is still `creating` it holds the owner's slot, so no
-    // fresh create of the same id can start under the destroy.
+    // fresh create of the same id can start under the stop.
     expect(f.events).toEqual([
       'reserveSessionSlotAndInsert',
       'create',
-      'destroy',
+      'stop',
       'setSessionStatus',
     ]);
     expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
@@ -343,7 +372,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     });
   });
 
-  it('destroys an adopted orphan that turned out to be gone', async () => {
+  it('stops an adopted orphan that turned out to be gone', async () => {
     const f = fixture(scenario, null);
     runtime.sessionCreate.mockImplementation(async () => {
       f.events.push('create');
@@ -353,27 +382,27 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
 
     await expect(f.ensure()).rejects.toBeInstanceOf(SessionNotFoundError);
 
-    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledWith('session_1');
+    expect(runtime.sessionStopIfIdle).toHaveBeenCalledWith('session_1');
     expect(f.events).toEqual([
       'reserveSessionSlotAndInsert',
       'create',
-      'destroy',
+      'stop',
       'setSessionStatus',
     ]);
   });
 
-  it('a destroy that fails is logged, never thrown: the row still reads failed and the create error survives', async () => {
+  it('a stop that fails is logged, never thrown: the row still reads failed and the create error survives', async () => {
     const f = fixture(scenario, null);
     const error = new Error('container create failed');
     runtime.sessionCreate.mockRejectedValue(error);
-    const destroyError = new Error('sandbox session destroy failed (502)');
-    runtime.sessionDestroyIfIdle.mockRejectedValue(destroyError);
+    const stopError = new Error('sandbox session stop failed (502)');
+    runtime.sessionStopIfIdle.mockRejectedValue(stopError);
 
     await expect(f.ensure()).rejects.toBe(error);
 
     expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('destroy after failed create of session_1'),
-      destroyError,
+      expect.stringContaining('stop after failed create of session_1'),
+      stopError,
     );
     expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
       rowId: 'row_1',
@@ -388,14 +417,15 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     const f = fixture(scenario, null);
     const error = new Error('runnerd did not become ready');
     runtime.sessionCreate.mockRejectedValue(error);
-    runtime.sessionDestroyIfIdle.mockResolvedValue({
-      destroyed: false,
+    runtime.sessionStopIfIdle.mockResolvedValue({
+      stopped: false,
       busy: true,
+      workspaceKept: true,
     });
 
     await expect(f.ensure()).rejects.toBe(error);
 
-    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledWith('session_1');
+    expect(runtime.sessionStopIfIdle).toHaveBeenCalledWith('session_1');
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining("runs a sibling turn's exec"),
     );

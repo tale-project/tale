@@ -47,6 +47,7 @@ const { state, members, teams, providers, mailboxes, backendQuery } =
     backendQuery: { data: [], isLoading: false },
   }));
 vi.mock('../hooks/queries', () => ({
+  useDsarPolicyForUi: () => state.result,
   useGovernancePolicy: () => state.result,
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({

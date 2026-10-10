@@ -19,7 +19,10 @@ import { TasksList } from './tasks-list';
 
 import '@/app/globals.css';
 
-const read = vi.hoisted(() => ({ loading: false }));
+const read = vi.hoisted(() => ({
+  loading: false,
+  update: vi.fn(async () => undefined),
+}));
 const task = {
   _id: 'task-focus',
   _creationTime: 0,
@@ -79,7 +82,10 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   },
 }));
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
-  useBackendMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useBackendMutation: (name: string) => ({
+    mutateAsync: name === 'tasks/mutations:updateTask' ? read.update : vi.fn(),
+    isPending: false,
+  }),
 }));
 vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -95,18 +101,25 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Test owner' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [],
     agents: [],
+    members: [],
+    automations: [],
+    resolveActor: () => ({ name: 'Test owner' }),
   }),
 }));
 vi.mock('@/app/features/shared/files/use-file-upload', () => ({
@@ -114,14 +127,10 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
 }));
 vi.mock('./task-comments', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./task-comments')>()),
-  TaskComments: () => null,
   TaskCommentComposer: () => null,
   TaskCommentComposerSkeleton: () => null,
 }));
-vi.mock('./task-timeline', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./task-timeline')>()),
-  TaskTimeline: () => null,
-}));
+vi.mock('./task-conversation', () => ({ TaskConversation: () => null }));
 vi.mock('./task-attachments', () => ({ TaskAttachments: () => null }));
 
 function Harness({
@@ -180,6 +189,7 @@ async function expectTrapped(dialog: HTMLElement) {
 afterEach(cleanup);
 beforeEach(() => {
   read.loading = false;
+  read.update.mockClear();
 });
 
 describe.each([
@@ -189,6 +199,35 @@ describe.each([
   beforeEach(async () => {
     await page.viewport(width, height);
   });
+
+  it.each(['Enter', 'Tab'])(
+    'cancels a dirty title without saving, then %s commits a later edit once',
+    async (commitWith) => {
+      render(<Harness />);
+      const opener = screen.getByRole('button', { name: task.title });
+      await userEvent.click(opener);
+      const field = await screen.findByRole('textbox', { name: 'Title' });
+      await userEvent.clear(field);
+      await userEvent.type(field, 'Do not save this title');
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(opener).toHaveFocus();
+      });
+      expect(read.update).not.toHaveBeenCalled();
+
+      await userEvent.keyboard('{Enter}');
+      const reopened = await screen.findByRole('textbox', { name: 'Title' });
+      expect(reopened).toHaveValue(task.title);
+      await userEvent.clear(reopened);
+      await userEvent.type(reopened, 'A later edit');
+      await userEvent.keyboard(`{${commitWith}}`);
+      expect(read.update).toHaveBeenCalledExactlyOnceWith({
+        taskId: task._id,
+        title: 'A later edit',
+      });
+    },
+  );
 
   it('enters a loaded task from its board opener and restores it on Escape', async () => {
     render(<Harness />);
@@ -253,6 +292,26 @@ describe.each([
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => expect(dialog).toHaveFocus());
     await expectTrapped(dialog);
+  });
+
+  it('reaches Copy link and Open as page just before Close', async () => {
+    render(<Harness defaultOpen />);
+    const dialog = await screen.findByRole('dialog', { name: task.title });
+    const open = within(dialog).getByRole('link', { name: 'Open as page' });
+    const copy = within(dialog).getByRole('button', { name: 'Copy link' });
+    const closes = within(dialog).getAllByRole('button', { name: 'Close' });
+    const close = closes[closes.length - 1]!;
+    close.focus();
+    await userEvent.tab({ shift: true });
+    expect(open).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(copy).toHaveFocus();
+    // The house icon buttons: a 32px target each. Layout size, not the
+    // painted box, which the dialog's entrance zoom still scales.
+    for (const control of [copy, open, close]) {
+      expect(control.offsetWidth).toBeGreaterThanOrEqual(32);
+      expect(control.offsetHeight).toBeGreaterThanOrEqual(32);
+    }
   });
 
   it('preserves the new task title autofocus', async () => {
@@ -371,21 +430,18 @@ describe.each([
       way: 'Escape',
       close: () => userEvent.keyboard('{Escape}'),
     },
-    // The phone's drawer has no X: it closes by the backdrop, a swipe, Back.
-    ...(mobile
-      ? []
-      : [
-          {
-            way: 'the X',
-            close: async () => {
-              const dialog = screen.getByRole('dialog');
-              const buttons = within(dialog).getAllByRole('button', {
-                name: 'Close',
-              });
-              await userEvent.click(buttons[buttons.length - 1]!);
-            },
-          },
-        ]),
+    // The dialog and the phone's drawer both carry the X, last in the
+    // header cluster.
+    {
+      way: 'the X',
+      close: async () => {
+        const dialog = screen.getByRole('dialog');
+        const buttons = within(dialog).getAllByRole('button', {
+          name: 'Close',
+        });
+        await userEvent.click(buttons[buttons.length - 1]!);
+      },
+    },
     {
       way: 'the backdrop',
       close: async () => {

@@ -12,6 +12,8 @@ import { useT } from '@/lib/i18n/client';
 interface GoogleReauthButtonProps {
   error?: string;
   className?: string;
+  /** Holds the button until the host knows consent can start. */
+  disabled?: boolean;
 }
 
 /**
@@ -20,6 +22,7 @@ interface GoogleReauthButtonProps {
 export function GoogleReauthButton({
   error,
   className,
+  disabled = false,
 }: GoogleReauthButtonProps) {
   const { t } = useT('documents');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +54,7 @@ export function GoogleReauthButton({
   return (
     <Button
       onClick={handleReauth}
-      disabled={isLoading || !organizationId}
+      disabled={disabled || isLoading || !organizationId}
       className={className}
       variant={error ? 'destructive' : 'primary'}
     >

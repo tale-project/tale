@@ -7,7 +7,7 @@ Build an agent that summarizes a contact message and recommends a next action. T
 
 ## Before you begin
 
-You need a project you can edit, an available coding-agent harness with compatible model credentials, and a working sandbox allocation. An administrator manages [AI providers](/platform/admin/providers) and [Sandboxes](/platform/admin/sandboxes). A model that works in Chat is not enough by itself: the selected harness must be able to use its credential.
+You need a project you can edit, an available agent runtime with compatible model credentials, and a working sandbox allocation. An administrator manages [AI providers](/platform/admin/providers) and [Sandboxes](/platform/admin/sandboxes). A model that works in Chat is not enough by itself: the selected agent runtime must be able to use its credential.
 
 If the Agents page or model list is unavailable, resolve access or setup first. This tutorial does not require skills, connectors, platform tools, or injected secrets.
 
@@ -15,14 +15,14 @@ If the Agents page or model list is unavailable, resolve access or setup first. 
 
 Open the project's **Agents** tab and click **New agent**.
 
-<Frame caption="The Agents table identifies each agent by its harness, provider, and model.">
+<Frame caption="The Agents table identifies each agent by its agent runtime, provider, and model.">
 
 ![Website relaunch lists Content editor using Claude Code and Redirect auditor using Codex, with their provider and model beside the New agent button.](/images/platform/project-agents-models.webp)
 
 </Frame>
 
 1. Set **Name** to `Triage assistant`.
-2. Choose an **Agent type** that your administrator has configured.
+2. Choose an **Agent runtime** that your administrator has configured.
 3. Under **Model**, search by model name or API ID and select the entry for the intended provider. The same model can appear from more than one provider.
 4. Under **Skills, connectors & tools**, untick any document skills that are preselected, and leave **Secrets** empty for this exercise.
 5. Paste the instructions below into **Instructions**, then click **Create agent**.
@@ -70,6 +70,6 @@ Change the task comment for a one-time correction. Edit the agent's instructions
 
 ## If the run cannot start or finish
 
-A missing model calls for a provider and harness check. A sandbox error needs an administrator to check capacity and infrastructure. A failed task run stays visible for inspection; correct the cause before retrying. Avoid repeatedly starting the task while a run is already active.
+A missing model calls for a provider and agent runtime check. A sandbox error needs an administrator to check capacity and infrastructure. A failed task run stays visible for inspection; correct the cause before retrying. Avoid repeatedly starting the task while a run is already active.
 
 [Task automation](/platform/projects/task-automation) explains retries, cancellation, reviewer handoff, and rework. [Project agents](/platform/projects/project-agents) covers the equipment you can add after this first task works.

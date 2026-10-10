@@ -45,6 +45,7 @@ vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
   isStandardAgentRefusal: () => false,
   kickAgentRun: vi.fn(),
+  withdrawWaitingAgentRunInTx: vi.fn(async () => false),
 }));
 vi.mock('./run-start.ts', () => ({
   mentionAutomationEnabled: vi.fn(() => Promise.resolve(true)),
@@ -262,7 +263,7 @@ beforeEach(() => {
 });
 
 describe('a member creates a task', () => {
-  it('in a project they can read — the insert names them as its creator', async () => {
+  it('in a project they can read — the insert names them as its creator [TASK-R1]', async () => {
     const taskId = await createTask(fakeTx([]), member, {
       projectId: 'p-1',
       title: 'Summarize the supplier contracts',
@@ -292,7 +293,7 @@ describe('a member creates a task', () => {
     );
   });
 
-  it('not in an archived project, writing nothing', async () => {
+  it('not in an archived project, writing nothing [TASK-R7]', async () => {
     vi.mocked(loadProjectOrThrow).mockResolvedValue({
       ...project,
       archivedAt: 1_700_000_000_000,
@@ -435,7 +436,7 @@ describe('a member works their own task', () => {
     expect(wrote('INSERT INTO app.task_dependencies')).toBe(false);
   });
 
-  it('does not delete it — deleting stays with owners and admins', async () => {
+  it('does not delete it — deleting stays with owners and admins [TASK-R4]', async () => {
     await expect(
       deleteTask(fakeTx([OWN]), member, 't-own'),
     ).rejects.toMatchObject({ code: 'ROLE_FORBIDDEN', status: 403 });
@@ -547,7 +548,7 @@ describe('a member decides the review of their own task only', () => {
 });
 
 describe("a member on someone else's task", () => {
-  it('cannot edit, move, start or hand it on — and nothing is written', async () => {
+  it('cannot edit, move, start or hand it on — and nothing is written [TASK-R2]', async () => {
     const agentTask = taskRow({
       id: 't-others',
       createdBy: 'u-editor',
@@ -656,6 +657,88 @@ describe('editors, as before', () => {
     expect(kickAgentRun).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ startedBy: 'u-editor' }),
+    );
+  });
+});
+
+describe('the runs a caller with an API key starts are the key’s spend too [SBX-R14]', () => {
+  const keyed = { ...member, apiKeyId: 'key-1' };
+  const agentTask = taskRow({ assigneeType: 'agent', assigneeId: 'agent-1' });
+
+  it('a task created straight at In progress, and a Start', async () => {
+    await createTask(fakeTx([]), keyed, {
+      projectId: 'p-1',
+      title: 'Summarize the supplier contracts',
+      status: 'in_progress',
+      assigneeType: 'agent',
+      assigneeId: 'agent-1',
+    });
+    await startTaskAgentRunManual(fakeTx([agentTask]), keyed, 't-own');
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(kickAgentRun).mock.calls) {
+      expect(call[1]).toMatchObject({
+        startedBy: 'u-member',
+        apiKeyId: 'key-1',
+        trigger: 'manual',
+      });
+    }
+  });
+
+  it('an @mention that puts the agent to work', async () => {
+    await dispatchMentionedProjectAgent(fakeTx([OWN]), {
+      auth: keyed,
+      task: OWN,
+      project,
+      mentions: [{ type: 'agent', id: 'agent-1' }],
+      authorType: 'user',
+      authorId: 'u-member',
+      text: '@contract.reviewer please summarize the attached contracts',
+      source: 'comment',
+    });
+
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ apiKeyId: 'key-1', trigger: 'mention' }),
+    );
+  });
+
+  it('an @mention that steers the live run carries the key, and none without one', async () => {
+    const running = taskRow({
+      assigneeType: 'agent',
+      assigneeId: 'agent-1',
+      status: 'in_progress',
+    });
+    const liveRun: LiveRun = {
+      id: 'r-live',
+      agentId: 'agent-1',
+      status: 'running',
+      startedBy: 'u-member',
+    };
+    for (const auth of [keyed, member]) {
+      await dispatchMentionedProjectAgent(fakeTx([running], { liveRun }), {
+        auth,
+        task: running,
+        project,
+        mentions: [{ type: 'agent', id: 'agent-1' }],
+        authorType: 'user',
+        authorId: 'u-member',
+        text: '@contract.reviewer use the signed copies only',
+        source: 'comment',
+      });
+    }
+
+    expect(addJobInTx).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      'task.agent_steer',
+      expect.objectContaining({ runId: 'r-live', authorApiKeyId: 'key-1' }),
+    );
+    expect(addJobInTx).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'task.agent_steer',
+      expect.not.objectContaining({ authorApiKeyId: expect.anything() }),
     );
   });
 });

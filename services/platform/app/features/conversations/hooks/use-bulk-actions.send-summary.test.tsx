@@ -185,3 +185,48 @@ describe.each(SHIPPED_LOCALES)('the bulk send summary (%s)', (locale) => {
     ]);
   });
 });
+
+describe('bulk plaintext at the reply HTTP boundary', () => {
+  it.each([
+    ['Use <price> from A&B.', '<p>Use &lt;price&gt; from A&amp;B.</p>'],
+    [
+      '<script>alert("x")</script><b>bold</b>',
+      '<p>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&lt;b&gt;bold&lt;/b&gt;</p>',
+    ],
+    ['First line\n\nSecond line', '<p>First line<br><br>Second line</p>'],
+    [
+      'First line\r\nSecond line\rThird line',
+      '<p>First line<br>Second line<br>Third line</p>',
+    ],
+    ['&lt;b&gt; already encoded', '<p>&amp;lt;b&amp;gt; already encoded</p>'],
+    ['Hello customer.', '<p>Hello customer.</p>'],
+  ])(
+    'sends %s as escaped, line-preserving HTML to every selected conversation',
+    async (text, html) => {
+      const fetch = replyDoorRefuses(new Set());
+      const { result } = renderBulkActions([
+        conversation('conv-1'),
+        conversation('conv-2'),
+      ]);
+      await act(async () => {
+        await result.current.handleSendMessages(text);
+      });
+      expect(fetch).toHaveBeenCalledTimes(2);
+      for (const [, init] of fetch.mock.calls) {
+        const body = init?.body;
+        if (typeof body !== 'string')
+          throw new Error('Expected a JSON reply body');
+        expect(JSON.parse(body)).toMatchObject({ content: html });
+      }
+      const preview = document.createElement('div');
+      preview.innerHTML = html;
+      expect(preview.textContent).toBe(
+        text.replace(/\r\n|\r/g, '\n').replaceAll('\n', ''),
+      );
+      expect(preview.querySelectorAll('script, b, price')).toHaveLength(0);
+      expect(preview.querySelectorAll('br')).toHaveLength(
+        (text.match(/\r\n|\r|\n/g) ?? []).length,
+      );
+    },
+  );
+});

@@ -14,6 +14,7 @@ import { useCallback, useMemo } from 'react';
 
 import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
+import { budgetScopeOf } from '@/app/lib/backend/budget-refusal';
 import {
   regenerateChatTurn,
   branchChatThread,
@@ -50,6 +51,8 @@ export type BranchForkResult =
       readonly status: 'refused';
       readonly reason: string;
       readonly code?: string;
+      /** See `ChatTurnOutcome.budgetScope`. */
+      readonly budgetScope?: string;
     }
   | { readonly status: 'failed'; readonly reason?: string };
 
@@ -59,6 +62,8 @@ export interface RegenerateOutcome {
   readonly reason?: string;
   /** The refusal's stable code when the server names one. */
   readonly code?: string;
+  /** See `ChatTurnOutcome.budgetScope`. */
+  readonly budgetScope?: string;
   /** True when the refusal is already on the branch's record (a blocked
    * reply landed), false when the door wrote nothing; ABSENT when the
    * request itself failed and whether the turn landed is unknown. */
@@ -67,10 +72,12 @@ export interface RegenerateOutcome {
 
 function forkResultOf(error: unknown): BranchForkResult {
   if (error instanceof BackendApiError && error.status === 429) {
+    const budgetScope = budgetScopeOf(error.data);
     return {
       status: 'refused',
       reason: error.message,
       ...(error.code !== undefined ? { code: error.code } : {}),
+      ...(budgetScope !== undefined ? { budgetScope } : {}),
     };
   }
   // A legal hold, a message that is gone: the door said why.
@@ -231,6 +238,9 @@ export function useBranchActions(organizationId: string): BranchActions {
           refused: true,
           ...(outcome.reason ? { reason: outcome.reason } : {}),
           ...(outcome.code !== undefined ? { code: outcome.code } : {}),
+          ...(outcome.budgetScope !== undefined
+            ? { budgetScope: outcome.budgetScope }
+            : {}),
           persisted: outcome.persisted === true,
         };
       } catch (error) {

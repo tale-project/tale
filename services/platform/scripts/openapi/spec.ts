@@ -11,6 +11,13 @@
  * backend/rest/* adapters over the domain services), not an aspiration.
  */
 
+import {
+  STATIC_INPUT_MAX_BYTES,
+  TRIGGER_SKIP_REASONS,
+  triggerSkipDetailSchema,
+  triggerViewSchema,
+  triggerWriteJsonSchema,
+} from '@tale/shared/schemas/automation-trigger';
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import {
   PROJECT_AGENT_BINDINGS_MAX,
@@ -18,6 +25,7 @@ import {
   PROJECT_SHARED_TEAMS_MAX,
   projectAgentInputSchema,
 } from '@tale/shared/schemas/projects';
+import { scheduleRuleSchema } from '@tale/shared/schemas/schedule-rule';
 import {
   MAX_SKILL_BODY_BYTES,
   MAX_SKILL_DESCRIPTION_LENGTH,
@@ -32,6 +40,10 @@ import {
   SKILL_ORIGINS,
   SKILL_VISIBILITIES,
 } from '@tale/shared/schemas/skills';
+import {
+  externalStatusWorkflowSchema,
+  externalStatusDecisionSchema,
+} from '@tale/shared/schemas/task-external-status';
 // ── Small builders ───────────────────────────────────────────────────────────
 import { z } from 'zod';
 
@@ -75,6 +87,7 @@ import { AGENT_TOOL_GRANT_NAMES } from '../../backend/domains/projects/agent-equ
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import { EFFORT_LEVELS } from '../../lib/chat/effort.ts';
 import { TURN_FINISH_REASONS } from '../../lib/chat/types.ts';
+import { STEP_FAILURE_REASONS } from '../../lib/engine/core/record/failure.ts';
 import { CHAT_ERROR_CODES } from '../../lib/shared/chat-errors.ts';
 import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
@@ -405,10 +418,197 @@ const epochMsInput: Json = {
 };
 const int: Json = { type: 'integer' };
 
+/** What a parked run waits on, and the description `Run` and `RunSummary`
+ * share — one vocabulary, so the listing never drifts from the single read. */
+const RUN_WAITING_FOR = [
+  'approval',
+  'ask',
+  'in_doubt',
+  'agent',
+  'room',
+  'repeat',
+] as const;
+const runWaitingForDescription =
+  'Present only while `status` is `waiting`: what the run is ' +
+  'parked on. `approval` — a person’s decision on a gate; `ask` ' +
+  '— a question a person has to answer; `in_doubt` — a write the ' +
+  'run was making when its server stopped may or may not have ' +
+  'reached its service, and a person must decide how to continue ' +
+  '(in the app: run it again, skip it, or fail the run); `agent` — ' +
+  'an agent turn still running, no one to page; `room` — an agent ' +
+  'turn whose start waits for sandbox room, no one to page; ' +
+  '`repeat` — a node polling until its `repeatUntil` condition ' +
+  'holds, no one to page.';
+
+/** Whether and why a run moved between servers — the three keys `Run` and
+ * `RunSummary` share. */
+const runResumeProperties: Record<string, Json> = {
+  resumeCount: {
+    ...int,
+    minimum: 0,
+    description:
+      'How often the run moved to another server: a server that was ' +
+      'being updated or restarted handed it on, or another one took it ' +
+      'over after its own stopped responding. Steps it had finished never ' +
+      'run again. `Run` always carries it; `RunSummary` omits it while it ' +
+      'is 0.',
+  },
+  lastResume: {
+    type: 'object',
+    required: ['reason', 'at'],
+    additionalProperties: false,
+    description:
+      'Why and when the run last moved to another server; absent while it ' +
+      'never did. `shutdown` — its server was being updated or restarted ' +
+      'and handed it on; `lease_expired` — its server stopped responding ' +
+      'and another one took it over.',
+    properties: {
+      reason: { type: 'string', enum: ['shutdown', 'lease_expired'] },
+      at: epochMs,
+    },
+  },
+  stalled: {
+    type: 'boolean',
+    description:
+      'True while a `running` run waits for a server to take it over ' +
+      'after its own stopped (the app reads it as “Interrupted — ' +
+      'resuming”): nothing is working on it right now, and another server ' +
+      'picks it up within about a minute and a half. `Run` always carries ' +
+      'it; `RunSummary` carries it only while true.',
+  },
+};
+
 /** The keys of a run — the `Run` schema in full, and the `RunProjection` a
  * `?fields=` read answers, share them so the two can never drift. */
+/** [start, end) in a field's text, in UTF-16 code units. */
+const textRange: Json = {
+  type: 'array',
+  minItems: 2,
+  maxItems: 2,
+  items: { type: 'integer', minimum: 0 },
+};
+
+/** Why a step reads as different in two runs, in the order it is looked
+ * for. */
+const divergenceReason: Json = {
+  type: 'string',
+  enum: ['missing', 'status', 'decision', 'input', 'output'],
+};
+
+/** A step of a run's record, shared by the record, one unit and a page. */
+const runStepProperties: Record<string, Json> = {
+  path: {
+    type: 'string',
+    description:
+      'The step’s id; `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output',
+  },
+  nodeId: { type: 'string' },
+  type: { type: 'string' },
+  parentPath: { type: 'string' },
+  parentItem: { type: 'integer', minimum: -1 },
+  parentPass: { type: 'integer', minimum: -1 },
+  status: {
+    type: 'string',
+    enum: [
+      'pending',
+      'running',
+      'waiting',
+      'succeeded',
+      'failed',
+      'skipped',
+      'stopped',
+      'not_run',
+      'reused',
+    ],
+  },
+  startedAt: { type: 'integer', minimum: 0, description: 'Epoch milliseconds' },
+  endedAt: { type: 'integer', minimum: 0, description: 'Epoch milliseconds' },
+  activeMs: { type: 'integer', minimum: 0 },
+  waitedMs: { type: 'integer', minimum: 0 },
+  attempt: { type: 'integer', minimum: 0 },
+  attempts: {
+    type: 'array',
+    items: { $ref: '#/components/schemas/AttemptRecord' },
+  },
+  skip: {
+    type: 'object',
+    required: ['reason', 'chain'],
+    properties: {
+      reason: { type: 'string', enum: ['when', 'else', 'upstream', 'error'] },
+      via: { type: 'array', items: { type: 'string' } },
+      at: { type: 'integer', minimum: 0, description: 'Epoch milliseconds' },
+      chain: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/SkipCause' },
+      },
+    },
+  },
+  notRun: {
+    type: 'object',
+    required: ['runStatus'],
+    properties: {
+      stoppedAt: { type: 'string' },
+      runStatus: { type: 'string', enum: ['failed', 'cancelled'] },
+    },
+  },
+  failure: { $ref: '#/components/schemas/StepFailure' },
+  decisions: {
+    type: 'array',
+    items: { $ref: '#/components/schemas/Decision' },
+  },
+  waits: { type: 'array', items: { $ref: '#/components/schemas/WaitRecord' } },
+  counts: {
+    type: 'object',
+    required: ['items', 'ok', 'failed', 'skipped', 'kept'],
+    properties: {
+      items: { type: 'integer', minimum: 0 },
+      ok: { type: 'integer', minimum: 0 },
+      failed: { type: 'integer', minimum: 0 },
+      skipped: { type: 'integer', minimum: 0 },
+      passes: { type: 'integer', minimum: 0 },
+      kept: {
+        type: 'integer',
+        minimum: 0,
+        description:
+          'How many of its items and passes have a record of their own',
+      },
+    },
+  },
+  input: { $ref: '#/components/schemas/ValueGlimpse' },
+  output: { $ref: '#/components/schemas/ValueGlimpse' },
+  reused: {
+    type: 'object',
+    required: ['runId'],
+    properties: { runId: { type: 'string' } },
+  },
+  meta: {
+    type: 'object',
+    properties: {
+      model: { type: 'string' },
+      connector: { type: 'string' },
+      action: { type: 'string' },
+      effect: { type: 'string', enum: ['read', 'write'] },
+      execId: { type: 'string' },
+      docRef: { type: 'string' },
+      pins: { type: 'object', additionalProperties: { type: 'integer' } },
+      bench: { type: 'string' },
+    },
+  },
+};
+
 const runProperties: Record<string, Json> = {
   id: { ...str, description: 'The run id (`runId` at start)' },
+  replayOf: {
+    type: 'object',
+    description:
+      'Present on a run started by running another one again: that run (`runId`, null once it was deleted), how (`kind`), and from which step (`fromNode`)',
+    required: ['runId', 'kind'],
+    properties: {
+      runId: { type: 'string', nullable: true },
+      kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+      fromNode: { type: 'string' },
+    },
+  },
   organizationId: str,
   name: str,
   version: int,
@@ -418,7 +618,15 @@ const runProperties: Record<string, Json> = {
   },
   status: {
     type: 'string',
-    enum: ['queued', 'running', 'waiting', 'success', 'failed', 'cancelled'],
+    enum: [
+      'queued',
+      'running',
+      'waiting',
+      'quarantined',
+      'success',
+      'failed',
+      'cancelled',
+    ],
   },
   mode: { type: 'string', enum: ['mock', 'live'] },
   startedBy: {
@@ -451,8 +659,8 @@ const runProperties: Record<string, Json> = {
       'The failure or wait reason; null while the run has none — and null ' +
       'again once a cancel lands (the park it named is over). ' +
       'While `waiting` it names the park: `approval:<approvalId>`, ' +
-      '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
-      '`waitingFor` is the ' +
+      '`agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or ' +
+      '`in_doubt:<nodeId>` — `waitingFor` is the ' +
       'field to branch on; when `failed`, the failure sentence, and ' +
       '`failureCode` the stable cause to branch on — the sentence is not ' +
       'contractual.',
@@ -468,33 +676,34 @@ const runProperties: Record<string, Json> = {
       '`llm_output_invalid` — the model’s reply did not satisfy the node’s ' +
       '`outputSchema`; `approval_rejected`; `execution_limit` — the ' +
       '100-execution guard; `automation_deleted` — the automation vanished ' +
-      'mid-flight. The provider codes the chat surface documents ' +
+      'mid-flight; `engine_incompatible` — the run’s saved progress could ' +
+      'not be read by this version of Tale, so it was stopped instead of ' +
+      'starting over (no step ran twice); `effect_in_doubt` — a person ' +
+      'failed the run at a write that may already have reached its service ' +
+      'when the run was interrupted. The provider codes the chat surface documents ' +
       '(`credit_exhausted`, `auth_error`, `rate_limited`, ' +
       '`provider_unreachable`, `provider_error`, `model_not_found`, …) — an ' +
       '`llm` node’s provider: the account or the provider, not the ' +
       'request. The agent codes (`harness_error`, `turn_crashed`, ' +
       '`session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — ' +
-      'an `agent` node’s turn, after its in-node retries. Retry on ' +
+      'an `agent` node’s turn, after its in-node retries. ' +
+      '`budget_exceeded` — a budget limit refused an `agent` node’s turn ' +
+      'or an `llm` node’s call, or the turn used up its allowance. Retry on ' +
       '`provider_error`, `provider_unreachable`, `rate_limited`, ' +
       '`turn_crashed`, `session_gone`, `harvest_failed`; alert a person on ' +
       'the rest.',
   },
   waitingFor: {
     type: 'string',
-    enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
-    description:
-      'Present only while `status` is `waiting`: what the run is ' +
-      'parked on. `approval` — a person’s decision on a gate; `ask` ' +
-      '— a question a person has to answer; `agent` — an agent turn ' +
-      'still running, no one to page; `room` — an agent turn whose ' +
-      'start waits for sandbox room, no one to page; `repeat` — a ' +
-      'node polling until its `repeatUntil` condition holds, no one ' +
-      'to page.',
+    enum: [...RUN_WAITING_FOR],
+    description: runWaitingForDescription,
   },
+  legacyQuarantine: ref('LegacyRunQuarantine'),
+  ...runResumeProperties,
   claimEpoch: {
     ...int,
     description:
-      'The stepper’s claim fence: incremented each time a worker claims the run (the first claim, a liveness re-poke, a queue retry); a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was re-claimed at least once.',
+      'The stepper’s claim fence: incremented on every claim — each turn, a takeover after a server stopped, or a queue retry; a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was claimed more than once.',
   },
   chainSeq: {
     ...int,
@@ -534,21 +743,20 @@ const triggerHealthProperties: Json = {
       'schedule paused itself.',
   },
   lastSkipReason: {
-    ...nullable({
-      type: 'string',
-      enum: [
-        'not_deployed',
-        'unusable_cron',
-        'start_refused',
-        'paused_after_failures',
-      ],
-    }),
+    ...nullable({ type: 'string', enum: [...TRIGGER_SKIP_REASONS] }),
     description:
       '`not_deployed`: the automation had no deployed version to run — ' +
-      'deploy one. `unusable_cron`: the schedule’s expression or time zone ' +
-      'could not be read; the scheduler leaves the binding alone until it ' +
-      'is edited. `start_refused`: the deployed version’s `inputs` schema ' +
-      'refused the run’s input (`{trigger, firedAt}` for a schedule). ' +
+      'deploy one. `unusable_cron`: the schedule’s repeat rule, cron ' +
+      'expression or time zone could not be read; the scheduler leaves the ' +
+      'binding alone until it is edited. `start_refused`: the run could not ' +
+      'start — the deployed version’s `inputs` schema refused the run’s ' +
+      'input (`{…input, trigger, firedAt}` for a schedule; ' +
+      '`AUTOMATION_INPUT_INVALID`), or its project could not start runs ' +
+      '(`PROJECT_ARCHIVED` and the other project refusals); ' +
+      '`lastSkipDetail.code` names which. `missed_occurrences`: the schedule ' +
+      'came due while the platform was not running — ' +
+      '`lastSkipDetail.missed` counts the occurrences it did not start, and ' +
+      '`firedLatest` says whether it started the latest one late. ' +
       '`paused_after_failures`: the schedule turned itself off ' +
       `(\`enabled: false\`) after ${PERMANENT_FAILURES_BEFORE_PAUSE} runs ` +
       'in a row failed for a reason the next occurrence would repeat — fix the ' +
@@ -594,6 +802,266 @@ const triggerFailureProperties: Json = {
   },
 };
 
+function isJsonRecord(value: unknown): value is Json {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A zod rendering spelled the way the house spells nullability
+ * (`nullable` above): a typeless `oneOf` carries `nullable` on each branch,
+ * and a nullable enum lists null. */
+function houseNullability(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(houseNullability);
+  if (!isJsonRecord(node)) return node;
+  const { nullable: isNullable, ...rest } = Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [key, houseNullability(value)]),
+  );
+  return isNullable === true ? nullable(rest) : rest;
+}
+
+/** The trigger a `PUT …/triggers` binds: the shared write contract
+ * (`triggerWriteSchema`) the app's editor and MCP `set_trigger` send,
+ * rendered to JSON Schema — one strict branch per kind — with the events
+ * the platform raises as the event branch's closed set. */
+const triggerWriteSpec: Json = (() => {
+  const rendered = triggerWriteJsonSchema('openapi-3.0');
+  const branches: unknown[] = Array.isArray(rendered.oneOf)
+    ? rendered.oneOf
+    : [];
+  return {
+    ...rendered,
+    oneOf: branches.map(houseTriggerBranch),
+    description:
+      'One strict shape per `kind`; a key of another kind is refused like ' +
+      'an unknown key. A schedule runs on a repeat rule (`repeat`, read in ' +
+      '`timezone`, which it requires, from `startDate`) or on a five-field ' +
+      '`cron` (read in `timezone`, UTC when absent), never both. Any kind ' +
+      `takes a fixed \`input\` (a JSON object of at most ${STATIC_INPUT_MAX_BYTES / 1024} KiB). ` +
+      'The PUT replaces the trigger whole: an omitted `catchUp` reads as ' +
+      '`latest`, an omitted `input` clears it, and an omitted `startDate` ' +
+      'means today in `timezone` — send back the `startDate` and `input` ' +
+      '`GET …/triggers` reads to keep them.',
+  };
+})();
+
+/** One kind's branch of the trigger body as the document publishes it: a
+ * schedule's rule as the `ScheduleRule` component, an event's name from
+ * the events the platform raises. */
+function houseTriggerBranch(branch: unknown): unknown {
+  if (!isJsonRecord(branch) || !isJsonRecord(branch.properties)) {
+    return branch;
+  }
+  if (isJsonRecord(branch.properties.repeat)) {
+    return {
+      ...branch,
+      properties: { ...branch.properties, repeat: ref('ScheduleRule') },
+    };
+  }
+  const event = branch.properties.event;
+  if (!isJsonRecord(event)) return branch;
+  return {
+    ...branch,
+    properties: {
+      ...branch.properties,
+      event: {
+        ...event,
+        enum: [...EMITTED_EVENT_TYPES],
+        description:
+          'The platform event that starts the automation — one of the ' +
+          'events the platform raises. Any other name answers 400 ' +
+          '`AUTOMATION_TRIGGER_INVALID`, naming this list.',
+      },
+    },
+  };
+}
+
+/** A trigger as `GET …/triggers` reads it: the shared read contract
+ * (`triggerViewSchema`) rendered to JSON Schema, with the house's words for
+ * each field. Open at the top, as every read is. */
+const triggerViewSpec: Json = (() => {
+  const { additionalProperties: _closed, ...rendered } = z.toJSONSchema(
+    triggerViewSchema,
+    { target: 'openapi-3.0', io: 'output' },
+  );
+  const shaped = houseNullability(rendered);
+  const base = isJsonRecord(shaped) ? shaped : {};
+  const properties = isJsonRecord(base.properties) ? base.properties : {};
+  const field = (key: string, description: string): Json => ({
+    ...(isJsonRecord(properties[key]) ? properties[key] : {}),
+    description,
+  });
+  return {
+    ...base,
+    description:
+      'The binding, and its health: `lastFiredAt` and `lastRunId` name ' +
+      'the last run it started, `lastSkippedAt` and `lastSkipReason` ' +
+      '(with `lastSkipDetail`) the last time it came due and started ' +
+      'nothing. A schedule says what it runs on — `repeat` from ' +
+      '`startDate`, or `cron` — in which `timezone`, what it does with ' +
+      'missed occurrences (`catchUp`) and when it next runs (`nextRunAt`). ' +
+      'A binding is alive when `lastFiredAt` keeps pace with its cadence; ' +
+      'one whose `lastSkippedAt` is the newer stamp is coming due and not ' +
+      'running — the reason says what to fix. `consecutiveFailures` counts ' +
+      'the runs it started that failed in a row, and `lastFailedAt`, ' +
+      '`lastFailureCode` and `lastFailedRunId` name the last of them — a ' +
+      'schedule that reaches the threshold pauses itself.',
+    properties: {
+      ...properties,
+      id: field(
+        'id',
+        'The binding’s id — what a run’s `startedBy` (`trigger:<id>`) names',
+      ),
+      cron: field(
+        'cron',
+        'A schedule’s five-field cron expression; null when it runs on a ' +
+          'repeat rule, and for a webhook or an event.',
+      ),
+      repeat: {
+        ...nullable(ref('ScheduleRule')),
+        description:
+          'A schedule’s repeat rule — the shape the PUT takes; null when it ' +
+          'runs on a cron expression, and for a webhook or an event.',
+      },
+      startDate: field(
+        'startDate',
+        'The day the repeat rule starts on, `YYYY-MM-DD` in `timezone`: no ' +
+          'start comes before it, and "every 2 weeks" counts from it. Send ' +
+          'it back on a PUT to keep the rule in step; null without a ' +
+          'repeat rule.',
+      ),
+      timezone: field(
+        'timezone',
+        'The zone the schedule reads in, in its canonical spelling; null ' +
+          'for a cron expression without one (read in UTC) and for a ' +
+          'webhook or an event.',
+      ),
+      catchUp: field(
+        'catchUp',
+        'What a schedule does with occurrences it missed while the ' +
+          'platform was not running: `latest` starts the most recent one ' +
+          'once, however late; `skip` starts it only when it is at most 10 ' +
+          'minutes late. Null for a webhook or an event.',
+      ),
+      input: {
+        ...nullable(obj),
+        description:
+          'The fixed input every run it starts receives, under the ' +
+          'trigger’s own fields; null when it has none. Send it back on a ' +
+          'PUT to keep it.',
+      },
+      event: field(
+        'event',
+        'The platform event that starts an event trigger; null for the ' +
+          'other kinds.',
+      ),
+      hasToken: {
+        ...bool,
+        description: 'A webhook secret exists (never returned here)',
+      },
+      nextRunAt: field(
+        'nextRunAt',
+        'Epoch milliseconds of a schedule’s next start — the earliest ' +
+          'occurrence it has not handled yet; null while it is switched off, ' +
+          'for a webhook or an event, and for a schedule that never comes ' +
+          'due again.',
+      ),
+      lastRunId: {
+        ...nullable(str),
+        description:
+          'The run `lastFiredAt` started; null until one has, and again ' +
+          'once that run is deleted.',
+      },
+      lastSkipDetail: {
+        ...nullable(ref('TriggerSkipDetail')),
+        description:
+          'The facts behind `lastSkipReason`. Null with ' +
+          '`paused_after_failures` (its facts are the failure fields) and ' +
+          'for a skip recorded without them.',
+      },
+      ...triggerHealthProperties,
+      ...triggerFailureProperties,
+    },
+  };
+})();
+
+/** A schedule's repeat rule: the shared zod schema every door validates a
+ * rule with, rendered to JSON Schema — one branch per frequency. */
+const scheduleRuleSpec: Json = {
+  ...z.toJSONSchema(scheduleRuleSchema, {
+    target: 'openapi-3.0',
+    io: 'output',
+  }),
+  description:
+    'When a schedule starts, read in its time zone. `minutely` and ' +
+    '`hourly` step a grid from local midnight (`interval` divides the hour ' +
+    'or the day), optionally only on some `weekdays` and between some ' +
+    '`hours` (`to` before `from` runs overnight; "00:00" runs until ' +
+    'midnight). `daily`, `weekly`, `monthly` and `yearly` name the days ' +
+    'as a task’s repeat rule does (0 is Sunday … 6 is Saturday; weeks run ' +
+    'Monday to Sunday; a shorter month uses its last day) and add `times`, ' +
+    '1 to 12 times of day as "HH:MM"; `interval` repeats every N of them, ' +
+    'counted from `startDate`. Through a daylight-saving change, a time ' +
+    'that does not exist that day moves forward by the gap, a time that ' +
+    'occurs twice starts once at the first, and a grid keeps its pace in ' +
+    'real time.',
+};
+
+/** Why a trigger last started nothing, with its facts: the shared zod
+ * schema the store writes and reads them with, one branch per reason. */
+const triggerSkipDetailSpec: Json = {
+  ...(houseNullability(
+    z.toJSONSchema(triggerSkipDetailSchema, {
+      target: 'openapi-3.0',
+      io: 'output',
+    }),
+  ) as Json),
+  description:
+    'The facts behind a trigger’s `lastSkipReason`, by `reason` (which ' +
+    'equals it): the `occurrence` a `not_deployed` or `start_refused` ' +
+    'skip was for — the instant a schedule came due, or an event or ' +
+    'delivery arrived; a refusal’s `code`, the `version` that refused ' +
+    '(always set for `AUTOMATION_INPUT_INVALID`) and its `message` and ' +
+    '`issues`; under `missed`, the occurrences a schedule missed while the ' +
+    'platform was not running (`count`, `capped` when it stopped at 1,000, ' +
+    'the `firstAt` and `lastAt` of them, the `policy` it applied) and ' +
+    'whether it started the latest one late (`firedLatest`); an ' +
+    '`unusable_cron` skip’s `message`.',
+};
+
+/** One warning a trigger bind (or a deploy) answers: what the deployed
+ * version would make of what the trigger sends. */
+const triggerWarningSpec: Json = {
+  type: 'object',
+  required: ['level', 'code', 'message'],
+  // The codes are warnings, not REST error codes: named here in prose,
+  // without the backticks the error-code registry test reads as one.
+  description:
+    'A warning, never a refusal: the trigger is saved either way. ' +
+    'TRIGGER_INPUT_MISMATCH: the deployed version’s `inputs` schema ' +
+    'refuses the input the trigger hands a run (`params.kind`, ' +
+    '`params.missing` — the required fields it lacks — and ' +
+    '`params.problems`); a webhook’s body is not judged. ' +
+    'TRIGGER_INPUT_NOT_TEMPLATED: the fixed input holds a template ' +
+    '(`params.paths`), which arrives as text and is never evaluated.',
+  properties: {
+    level: { type: 'string', enum: ['warning'] },
+    code: {
+      type: 'string',
+      enum: ['TRIGGER_INPUT_MISMATCH', 'TRIGGER_INPUT_NOT_TEMPLATED'],
+    },
+    message: str,
+    hint: str,
+    at: {
+      type: 'object',
+      properties: { pointer: str },
+      description: 'Where in the automation document: `/inputs`',
+    },
+    params: {
+      ...obj,
+      description: 'The facts the sentence names, by name',
+    },
+  },
+};
+
 /** Where a file-backed document stands in the search corpus — the one
  * vocabulary `Document.indexing` and `ProjectFile.indexing` share. */
 const documentIndexing: Json = {
@@ -615,7 +1083,7 @@ const documentIndexing: Json = {
         'skipped',
       ],
       description:
-        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
+        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, `usage_limit` resumes by itself once the usage limit allows it, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
     },
     indexedAt: {
       ...epochMs,
@@ -630,7 +1098,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
+        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for a usage limit (`failed`): `usage_limit` — a limit that binds whoever the file is indexed for (its uploader, a synced drive’s owner, the organization for an emailed attachment) has too little room for its embeddings; indexing resumes by itself within the hour after the limit resets or is raised, after what it already embedded. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
     },
   },
 };
@@ -3905,7 +4373,10 @@ export function buildSpec(): Json {
         'Setup-folder binding a folder-driven automation reads off its task input — ' +
         'on the create and again on every repeat. It cannot be sent beside ' +
         '`externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project ' +
-        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.',
+        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created. ' +
+        'While who can be mentioned in the project cannot be read, a ' +
+        'description with a mention answers 503 ' +
+        '`MENTION_DIRECTORY_UNAVAILABLE`, nothing created; send it again.',
       operationId: 'createTask',
       security: sec,
       parameters: taskCollectionParameters,
@@ -3939,7 +4410,21 @@ export function buildSpec(): Json {
               'Trimmed; the board’s title cap — a longer title is refused ' +
               'with 400 `INVALID_BODY`, never clipped',
           },
-          description: { type: 'string', maxLength: 20000 },
+          description: {
+            type: 'string',
+            maxLength: 20000,
+            description:
+              'Markdown. A mention is stored as a markdown link naming whom it mentions, ' +
+              '`[@Ada Lovelace](mention:user/<userId>)` — the kind is `user`, ' +
+              '`agent` (a project agent id) or `automation` (its store name), the ' +
+              'text in brackets the name when it was saved. A plain `@handle` ' +
+              '(an agent handle, a member’s email name, an automation store name, an ' +
+              'id, or an older name form) that names someone who can be mentioned on ' +
+              'the task is stored that way (notifying nobody); a mention link naming nobody who can is ' +
+              'stored as plain text. Mentions in code, math or a link’s text are text.' +
+              ' A task from GitHub or GlitchTip (`externalSystem`) keeps its ' +
+              '`@names` as written: they are that tracker’s people.',
+          },
           labels: {
             type: 'array',
             items: {
@@ -3998,7 +4483,10 @@ export function buildSpec(): Json {
               'person or an agent made is theirs: `open` leaves it, and any ' +
               'move through the board ends the mirror’s claim on a park it ' +
               'made. Local triage owns every other status; a cancelled ' +
-              'task stays cancelled.',
+              'task stays cancelled. A task explicitly opted into accepted ' +
+              'source projection through `PUT …/external-status` keeps that ' +
+              'projected lifecycle on intake refresh; this legacy field no ' +
+              'longer changes its progress.',
           },
           runWorkflowSlug: {
             type: 'string',
@@ -4092,6 +4580,107 @@ export function buildSpec(): Json {
       },
     },
   };
+  paths['/api/v1/projects/{id}/tasks/{taskId}/status'] = {
+    get: {
+      tags: ['Tasks'],
+      summary: 'Read task lifecycle revision and actor provenance',
+      description:
+        'A coherent status, archival and source-transition snapshot. `revision` is an opaque decimal activity sequence covering status, archival, accepted source projections and native source-transition requests; ordinary metadata and comments do not advance it. `change` names the actual current status actor independently of later archive/restore or form-submission actors. Human emails are present only while actively verified organization members. `externalStatus` is the last accepted source projection. `workflow` carries the source-declared actions rendered in native task details. `request` is the newest immutable human form submission, including same-column actions, source version, captured statusChangeId, typed input, actual session actor and durable source decision. Validate the actual human identity and original source revision, persist a decision by request.id, and reconcile any later independent native status intent before projecting current accepted source state. Archived tasks and projects remain readable.',
+      operationId: 'getTaskStatus',
+      security: sec,
+      parameters: taskParameters,
+      responses: {
+        '200': jsonResponse(
+          'The lifecycle snapshot',
+          ref('TaskStatusSnapshot'),
+        ),
+        '404': taskNotFound,
+        ...standardErrors,
+      },
+    },
+  };
+  paths['/api/v1/projects/{id}/tasks/{taskId}/external-status'] = {
+    put: {
+      tags: ['Tasks'],
+      summary: 'Project an accepted custom-source business lifecycle',
+      description:
+        'Explicit opt-in for a custom mirror whose source validates every business transition before calling. Requires exact custom external binding, existing task work permission and an active project; issue importers cannot opt in. Atomically compares expectedRevision, orders source lifecycle by sourceStatusAt and records external evidence without a native human approval. A captured native agent review refuses TASK_AGENT_REVIEW_REQUIRED, including on replay; pending human review is withdrawn on leave. Creates no agent run, second review or repeat copy. Status and optional archival apply together even on an archived task; other fields are preserved. Ordinary intake then preserves this accepted lifecycle. An identical lost-reply replay is a no-op only while still the latest lifecycle revision. Optional workflow replaces the source-declared form, bounded to 256 KiB, 16 actions and 30 fields per action; omission preserves it. Optional requestId and decision must appear together and settle that exact immutable native request. A refusal requires a reason. An older request may be acknowledged as a source fact under a fresh CAS after reconciling newer intent, but cannot replace the newest visible request or change an already recorded decision. Source ordering still refuses older lifecycle data. Source services cannot choose a native human actor.',
+      operationId: 'projectExternalTaskStatus',
+      security: sec,
+      parameters: taskParameters,
+      requestBody: jsonBody({
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'externalSystem',
+          'externalId',
+          'expectedRevision',
+          'sourceRevision',
+          'sourceStatusAt',
+          'status',
+        ],
+        properties: {
+          externalSystem: { type: 'string', minLength: 1, maxLength: 100 },
+          externalId: { type: 'string', minLength: 1, maxLength: 500 },
+          expectedRevision: {
+            type: 'string',
+            pattern: '^(0|[1-9]\\d{0,18})$',
+            description:
+              'The `/status` snapshot revision that was read and validated at the source',
+          },
+          sourceRevision: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 512,
+            description: 'Opaque identity of the accepted source snapshot',
+          },
+          sourceStatusAt: {
+            ...epochMsInput,
+            description:
+              'Monotonically increasing source lifecycle epoch ms, including for status and archival changes',
+          },
+          status: {
+            type: 'string',
+            enum: [
+              'backlog',
+              'todo',
+              'in_progress',
+              'in_review',
+              'done',
+              'cancelled',
+            ],
+          },
+          archived: {
+            type: 'boolean',
+            description:
+              'Optional accepted source archival; absent preserves current archival',
+          },
+          workflow: ref('ExternalStatusWorkflow'),
+          requestId: {
+            type: 'string',
+            format: 'uuid',
+            description:
+              'Immutable native request being acknowledged; supply decision as well',
+          },
+          decision: ref('ExternalStatusDecision'),
+        },
+      }),
+      responses: {
+        '200': jsonResponse(
+          'The accepted lifecycle snapshot',
+          ref('TaskStatusSnapshot'),
+        ),
+        '403': errorResponse(
+          'The key holder may not change this task (`RBAC_FORBIDDEN`), or the project is archived (`PROJECT_ARCHIVED`)',
+        ),
+        '404': taskNotFound,
+        '409': errorResponse(
+          'A newer native lifecycle revision (`TASK_STATUS_CONFLICT`), an older or same-time conflicting source lifecycle (`TASK_EXTERNAL_STATUS_STALE`), a mismatched or reserved external reference (`TASK_EXTERNAL_REF_INVALID`), a captured native agent review (`TASK_AGENT_REVIEW_REQUIRED`), or open subtasks on a terminal move (`TASK_HAS_OPEN_SUBTASKS`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
   paths['/api/v1/projects/{id}/tasks/{taskId}/comments'] = {
     get: {
       tags: ['Tasks'],
@@ -4111,12 +4700,31 @@ export function buildSpec(): Json {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['id', 'authorType', 'authorId', 'body', 'createdAt'],
+                required: [
+                  'id',
+                  'authorType',
+                  'authorId',
+                  'body',
+                  'bodyText',
+                  'createdAt',
+                ],
                 properties: {
                   id: str,
                   authorType: { type: 'string', enum: ['user', 'agent'] },
                   authorId: str,
-                  body: str,
+                  body: {
+                    type: 'string',
+                    description:
+                      'The comment as stored: each mention a mention link, ' +
+                      '`[@Ada Lovelace](mention:user/<userId>)`',
+                  },
+                  bodyText: {
+                    type: 'string',
+                    description:
+                      'The same text with each mention read as `@` and the ' +
+                      'current name of whoever it names — for matching ' +
+                      'words or showing the comment as plain text',
+                  },
                   bodyByLocale: {
                     type: 'object',
                     additionalProperties: { type: 'string' },
@@ -4147,7 +4755,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Comment on a project task as the key holder',
       description:
-        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior. A later plain-text edit clears the old translations.',
+        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior: a plain `@handle` that names someone who can be mentioned on the task (an agent handle, a member’s email name, an automation store name, an id, or an older name form) notifies them and is stored as a mention link, `[@Ada Lovelace](mention:user/<userId>)`, which every later read returns; a mention link naming nobody who can be mentioned there is stored as plain text. Mentions in code, math or a link’s text are text. A later plain-text edit clears the old translations. While who can be mentioned on the task cannot be read, a body with a mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` and nothing is posted; send it again.',
       operationId: 'addTaskComment',
       security: sec,
       parameters: taskParameters,
@@ -4160,7 +4768,9 @@ export function buildSpec(): Json {
             type: 'string',
             minLength: 1,
             maxLength: 10000,
-            description: 'Trimmed; whitespace alone is refused',
+            description:
+              'Trimmed; whitespace alone is refused. The limit counts the ' +
+              'text as sent; resolving its mentions never takes it past it',
           },
           bodyByLocale: {
             type: 'object',
@@ -4422,7 +5032,7 @@ export function buildSpec(): Json {
     queryParam(
       'status',
       'Only runs in these statuses — one or more of `queued`, `running`, ' +
-        '`waiting`, `success`, `failed`, `cancelled`, comma-separated; any ' +
+        '`waiting`, `quarantined`, `success`, `failed`, `cancelled`, comma-separated; any ' +
         'other value answers 400 `INVALID_QUERY`',
     ),
     queryParam(
@@ -4494,6 +5104,11 @@ export function buildSpec(): Json {
     scope: 'automation and scope',
     answer: 'the run the first attempt started',
   });
+  const replayIdempotencyKeyParam = idempotencyKeyParam({
+    names: 'replay',
+    scope: 'run, kind and step',
+    answer: 'the replay the first attempt started',
+  });
   const sendIdempotencyKeyParam = idempotencyKeyParam({
     names: 'send',
     scope: 'thread and scope',
@@ -4506,11 +5121,15 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List automations',
       description:
-        'The organization’s automation definitions, by name, as a complete set ' +
-        '(not paginated). Each carries the ids of the projects it is installed ' +
-        'in that the key holder can see — the scope a project-bound automation ' +
-        'must be started in. Read `/api/v1/projects/{id}/automations` for the ' +
-        'automations installed in one visible project.',
+        'The organization’s automation definitions the key holder can see, by ' +
+        'name, as a complete set (not paginated): every automation installed ' +
+        'in no project, and every one installed in a project they can read — ' +
+        'one installed only in projects they cannot read is left out, and its ' +
+        'reads answer 404 as for one that does not exist. Each carries the ids ' +
+        'of the projects it is installed in that the key holder can see — the ' +
+        'scope a project-bound automation must be started in. Read ' +
+        '`/api/v1/projects/{id}/automations` for the automations installed in ' +
+        'one visible project.',
       operationId: 'listAutomations',
       security: sec,
       responses: {
@@ -4862,53 +5481,28 @@ export function buildSpec(): Json {
         'live webhook revokes its URL — the response says so (`revoked`). ' +
         'For a webhook trigger the plaintext token is returned ONCE in this ' +
         'response (and again only with `rotateToken: true`); the platform ' +
-        'stores a hash. Each kind takes its own keys — `cron` and `timezone` ' +
-        'only with `schedule`, `event` only with `event`, `rotateToken` only ' +
-        'with `webhook`, `enabled` with any — and a key of another kind is ' +
-        'refused like an unknown key (`INVALID_BODY`, named under ' +
-        '`data.issues`). The 200 says whether the automation has a version ' +
-        'to run (`deployed`): binding before deploying is accepted, and such ' +
-        'a trigger skips every occurrence as `not_deployed` — visible on ' +
-        '`GET /api/v1/automations` — until a version is deployed.',
+        'stores a hash. Each kind takes its own keys — `repeat`, `cron`, ' +
+        '`startDate`, `timezone` and `catchUp` only with `schedule`, `event` ' +
+        'only with `event`, `rotateToken` only with `webhook`, `enabled` and ' +
+        '`input` with any — and a key of another kind is refused like an ' +
+        'unknown key (`INVALID_BODY`, named under `data.issues`). A rule the ' +
+        'trigger breaks (a schedule with neither a repeat rule nor a cron, ' +
+        'or both; a time not written HH:MM; a blank or unknown zone; a fixed ' +
+        'input naming a field the trigger sets) answers 400 ' +
+        '`AUTOMATION_TRIGGER_INVALID` with each problem under ' +
+        '`data.issues` (`{path, code, message}`). The PUT is a full ' +
+        'replace: send back the `startDate` and `input` `GET …/triggers` ' +
+        'reads to keep them. The 200 says whether the automation has a ' +
+        'version to run (`deployed`): binding before deploying is accepted, ' +
+        'and such a trigger skips every occurrence as `not_deployed` — ' +
+        'visible on `GET /api/v1/automations` — until a version is ' +
+        'deployed. It names a schedule’s next start (`nextRunAt`) and, in ' +
+        '`warnings`, what the deployed version would make of what the ' +
+        'trigger sends.',
       operationId: 'setAutomationTrigger',
       security: sec,
       parameters: [automationNameParam],
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['kind'],
-        additionalProperties: false,
-        properties: {
-          kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
-          cron: {
-            type: 'string',
-            description:
-              'Only with `kind: schedule`: the five-field cron expression. ' +
-              'One that can never fire — a field out of range, a day no ' +
-              'named month has (`0 0 30 2 *`) — answers 400 ' +
-              '`AUTOMATION_TRIGGER_INVALID`.',
-          },
-          timezone: {
-            type: 'string',
-            description:
-              'Only with `kind: schedule`: the IANA zone the cron is read ' +
-              'in (UTC when absent)',
-          },
-          event: {
-            type: 'string',
-            enum: [...EMITTED_EVENT_TYPES],
-            description:
-              'Only with `kind: event`: the platform event that starts the ' +
-              'automation — one of the events the platform raises. Any other ' +
-              'name answers 400 `AUTOMATION_TRIGGER_INVALID`, naming this list.',
-          },
-          enabled: { type: 'boolean', default: true },
-          rotateToken: {
-            type: 'boolean',
-            description:
-              'Only with `kind: webhook`: mint (and return) a fresh token',
-          },
-        },
-      }),
+      requestBody: jsonBody(triggerWriteSpec),
       responses: {
         '200': jsonResponse('Trigger bound', {
           type: 'object',
@@ -4936,13 +5530,28 @@ export function buildSpec(): Json {
                 'back. Absent on a first bind and on a re-bind of the same ' +
                 'kind (which keeps the token).',
             },
+            nextRunAt: {
+              ...nullable(epochMs),
+              description:
+                'Epoch milliseconds of a schedule’s next start, as ' +
+                '`GET …/triggers` reads it; null while it is switched off ' +
+                'or never comes due again. Absent for a webhook or an event.',
+            },
+            warnings: {
+              type: 'array',
+              items: ref('TriggerWarning'),
+              description:
+                'What the deployed version would make of what the trigger ' +
+                'sends — the trigger is saved either way. Absent when ' +
+                'nothing is wrong, and when no version is deployed.',
+            },
           },
         }),
         '403': errorResponse('Needs the developer capability'),
         '404': errorResponse('Automation not found'),
         ...standardErrors,
         '400': errorResponse(
-          'Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that could never fire: a cron that matches nothing (including a day no named month has, `0 0 30 2 *`), a time zone that is not an IANA zone, an event the platform does not raise (`AUTOMATION_TRIGGER_INVALID`)',
+          'Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that breaks a rule or could never fire (`AUTOMATION_TRIGGER_INVALID`, each problem under `data.issues` as `{path, code, message}`): neither a repeat rule nor a cron, or both; a repeat rule without a time zone, with a time not written HH:MM, more than 12 times, an interval it does not offer, a day the month never has, a window whose start equals its end or in which it never runs, or a start date that is no calendar day; a cron that matches nothing (including a day no named month has, `0 0 30 2 *`); a blank time zone or one that is not an IANA zone; a fixed input that is not an object, names a field the trigger sets, or is larger than 16 KiB; an event the platform does not raise',
         ),
       },
     },
@@ -5027,6 +5636,208 @@ export function buildSpec(): Json {
             'The run is still queued, running or waiting (`RUN_ACTIVE`)',
           ),
           ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/record`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Read a run step by step',
+        description: `${visibility} The run’s record: every step in the order it runs — the run input as \`__start\`, the version’s steps, the document output as \`__end\`, then steps inside subautomations — each with its status, times, attempts, the decisions that ran or skipped it with an explanation of each condition, why it produced no output (followed back to the cause), why it failed, and glimpses of what it received and returned (never the values: read one step at \`…/record/node\`). Also the run’s events a reader may see, the path it took, and with \`include=travels\` the data that travelled between steps. Pass \`cursor\` back as \`since\` to read only what changed: steps whose record was written at or after it and events since, merged by step path and by event id. A run recorded before step records were kept reads \`source: "trace"\`. The answer stays under 512 KiB: past it, shapes keep one level, then explanations and travels are left out, then steps inside subautomations and from the end (\`truncated\` says which).`,
+        operationId: scope.project ? 'getProjectRunRecord' : 'getRunRecord',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'since',
+              'A `cursor` an earlier read answered: only what changed at or after it',
+            ),
+            schema: { type: 'integer', minimum: 0 },
+          },
+          queryParam(
+            'include',
+            'What else to answer: `travels`, the data that travelled between steps',
+          ),
+        ],
+        responses: {
+          '200': jsonResponse('The run’s record', ref('RunRecord')),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/record/node`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Read one step of a run whole',
+        description: `${visibility} One unit of the run — a step, or one of its items or passes — with what the step summary has and its stored input and output (secrets withheld, cut to their bounds, every cut and withheld place listed), where each templated field’s text landed in the input, what it read from other steps and the run input and when, how its output differs from its input, and its call to a connector or a model as the run’s ledger keeps it. The answer stays under 256 KiB.`,
+        operationId: scope.project ? 'getProjectRunNode' : 'getRunNode',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'node',
+              'The step’s path: its id, or `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output',
+            ),
+            required: true,
+          },
+          {
+            ...queryParam(
+              'item',
+              'The item of a step that runs per item; -1 (the default) for the step itself',
+            ),
+            schema: { type: 'integer', minimum: -1, default: -1 },
+          },
+          {
+            ...queryParam(
+              'pass',
+              'The pass of a step that repeats; -1 (the default) for the step itself',
+            ),
+            schema: { type: 'integer', minimum: -1, default: -1 },
+          },
+        ],
+        responses: {
+          '200': jsonResponse('The unit, read whole', ref('RunNode')),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); the record holds no such unit (`NODE_RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/record/items`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'List the items and passes of a run’s step',
+        description: `${visibility} A step’s items and passes in item, then pass order, each read like a step: its status, times, attempts, decisions, failure and value glimpses. \`status=failed\` keeps the units that failed. A run recorded before step records were kept has none.`,
+        operationId: scope.project
+          ? 'listProjectRunNodeUnits'
+          : 'listRunNodeUnits',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'node',
+              'The step’s path, as `…/record/node` takes it',
+            ),
+            required: true,
+          },
+          {
+            ...queryParam(
+              'status',
+              'Which units: `all` (the default) or `failed`',
+            ),
+            schema: { type: 'string', enum: ['all', 'failed'] },
+          },
+          ...paginationParams(200, 50),
+        ],
+        responses: {
+          '200': jsonResponse(
+            'One page of the step’s units',
+            ref('RunUnitPage'),
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/compare/{otherRunId}`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Compare two runs of one automation',
+        description: `${visibility} The same holds for \`otherRunId\`. The two runs side by side, step by step in the order the second run’s version runs them: what changed in the version, how their input and output differ, each step’s status, decisions and the values that flipped them, its values and items, the first step where the runs went different ways, and the side effects only one had or both had with different input. Values are told apart by their hashes, exact past what was stored; a place either run cut or withheld reads \`unknown\`, never \`changed\`. The answer stays under 512 KiB: value changes go first, then steps from the end, never the first divergence (\`truncated\` says which).`,
+        operationId: scope.project ? 'compareProjectRuns' : 'compareRuns',
+        security: sec,
+        parameters: [
+          ...parameters,
+          pathParam('otherRunId', 'The run to compare with'),
+        ],
+        responses: {
+          '200': jsonResponse('How the two runs differ', ref('RunDiff')),
+          '404': errorResponse(
+            'Either run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+          '400': withDoorRefusal(
+            standardErrors['400'],
+            'two runs of different automations (`RUN_COMPARE_MISMATCH`)',
+          ),
+        },
+      },
+    };
+    paths[`${scope.path}/replay`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Plan running a run again',
+        description: `${visibility} What running the run again would do, without doing it: the version it runs, which steps it reuses and which it runs again, what each does outside Tale, how many writes go out a second time when it runs live, how many model and agent calls it repeats — or the \`refusal\` it would meet. The query is the request \`POST …/replay\` takes.`,
+        operationId: scope.project ? 'planProjectRunReplay' : 'planRunReplay',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'kind',
+              '`again` (its own input), `edited` (an input you send to POST), or `from` (from one step)',
+            ),
+            required: true,
+            schema: { type: 'string', enum: ['again', 'edited', 'from'] },
+          },
+          queryParam('from', 'kind `from`: the step to run again from'),
+          queryParam(
+            'version',
+            '`same` (the default: the version the run ran), `deployed`, `latest`, or a version number',
+          ),
+          {
+            ...queryParam('mode', 'The run’s own mode by default'),
+            schema: { type: 'string', enum: ['mock', 'live'] },
+          },
+        ],
+        responses: {
+          '200': jsonResponse('What the replay would do', ref('ReplayPlan')),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+          ),
+          '409': errorResponse(
+            '`version: "deployed"` while nothing is deployed (`AUTOMATION_NOT_DEPLOYED`)',
+          ),
+          ...standardErrors,
+        },
+      },
+      post: {
+        tags: ['Runs'],
+        summary: 'Run a run again',
+        description: `${visibility}${scope.project ? ' Requires write access to the active URL project.' : ''} Starts a new run of the same automation in the same scope: with the run's own input (\`again\`), with an \`input\` you send (\`edited\`), or from one step (\`from\`) — a fork born with the steps the run finished outside that step and what it feeds, which it reuses (their results, their record, never their effects), and runs the rest. Plan it first with \`GET …/replay\`: a step that writes runs again and writes again, under a new request key. Answers 202 like a start; the new run's \`replayOf\` names this run. A live replay requires the developer capability and the deployed version; a fork of a mock run stays mock. Send \`Idempotency-Key\` to make it safe to retry. Charges the execute bucket on top of the general REST bucket.`,
+        operationId: scope.project ? 'replayProjectRun' : 'replayRun',
+        security: sec,
+        parameters: [...parameters, replayIdempotencyKeyParam],
+        requestBody: jsonBody(ref('ReplayRequest')),
+        responses: {
+          '202': jsonResponse(
+            'The replay started, or the one an earlier attempt under the same `Idempotency-Key` started',
+            ref('ReplayStarted'),
+          ),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires write access to an active project; a live replay also requires developer capability (`ROLE_FORBIDDEN`)'
+              : 'A live replay requires developer capability (`ROLE_FORBIDDEN`)',
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), no step `from` in both versions (`REPLAY_NODE_UNKNOWN`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+          ),
+          '409': errorResponse(
+            'The run has not finished (`REPLAY_RUN_NOT_FINISHED`); the version to run changed what a reused step would compute (`REPLAY_GRAPH_CHANGED`, the steps under `data.nodes`); a fork of a mock run asked to run live (`REPLAY_MODE_MISMATCH`); the run’s progress cannot be read (`REPLAY_PROGRESS_UNREADABLE`); the run kept no input (`REPLAY_INPUT_UNAVAILABLE`); a live replay of a version that is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`) or of nothing deployed (`AUTOMATION_NOT_DEPLOYED`); the automation is now installed in projects while the run had none (`AUTOMATION_PROJECT_SCOPE_REQUIRED`); or the `Idempotency-Key` was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)',
+          ),
+          ...standardErrors,
+          '400': errorResponse(
+            'Invalid body (`INVALID_BODY` — a fork without `from`, an `edited` replay without `input`, …), or input that does not match the automation inputs schema (`AUTOMATION_INPUT_INVALID`)',
+          ),
         },
       },
     };
@@ -5120,6 +5931,46 @@ export function buildSpec(): Json {
         },
       },
     };
+    paths[`${scope.path}/legacy-quarantine`] = {
+      post: {
+        tags: ['Runs'],
+        summary: 'Request a stop for a quarantined legacy run',
+        description: `${visibility} Requires the developer capability.${scope.project ? ' The project must be active and writable.' : ''} Read the current legacyQuarantine first and acknowledge unknown external effects. Records the authenticated caller’s stop request and requests cancellation of owned sessions; it does not prove termination, undo external effects, clear quarantine, or make the task runnable. An identical retry returns the recorded decision without replacing its actor.`,
+        operationId: scope.project
+          ? 'requestProjectLegacyRunStop'
+          : 'requestLegacyRunStop',
+        security: sec,
+        parameters,
+        requestBody: jsonBody(ref('LegacyRunStopRequest')),
+        responses: {
+          ...standardErrors,
+          '200': jsonResponse(
+            'Stop request recorded; the run remains quarantined',
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['requested', 'status', 'legacyQuarantine'],
+              properties: {
+                requested: { type: 'boolean', enum: [true] },
+                status: { type: 'string', enum: ['quarantined'] },
+                legacyQuarantine: ref('LegacyRunQuarantine'),
+              },
+            },
+          ),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires developer capability and write access to an active project'
+              : 'Requires developer capability',
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          '409': errorResponse(
+            'Run no longer quarantined or expected claim epoch or observation changed (`RUN_QUARANTINE_CHANGED`); read the run again',
+          ),
+        },
+      },
+    };
     paths[`${scope.path}/cancel`] = {
       post: {
         tags: ['Runs'],
@@ -5157,6 +6008,9 @@ export function buildSpec(): Json {
           ),
           '404': errorResponse('Run missing or outside the visible URL scope'),
           ...standardErrors,
+          '409': errorResponse(
+            'A quarantined legacy run requires an explicit legacy-quarantine stop request (`RUN_QUARANTINED`)',
+          ),
         },
       },
     };
@@ -5374,7 +6228,7 @@ export function buildSpec(): Json {
       post: {
         tags: ['Threads'],
         summary: 'Send a message and start a turn',
-        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
+        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the conversation’s project’s, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
         operationId: scope.project ? 'postProjectThreadMessage' : 'postMessage',
         security: sec,
         parameters: [...itemParameters, sendIdempotencyKeyParam],
@@ -6289,6 +7143,12 @@ export function buildSpec(): Json {
               '`Retry-After` names the wait, retry with backoff',
           ),
           ...standardErrors,
+          '429': withDoorRefusal(
+            standardErrors['429'],
+            'embedding the query is a model request the key holder pays for, and a budget cap that binds it — the key holder’s own, one of their teams’, ' +
+              (scope.project ? 'the project’s, ' : '') +
+              'the organization’s or this API key’s — is reached (`BUDGET_EXCEEDED`): nothing is searched, `data` names the cap — `scope`, `period`, `limitCode`, `used`, `limit`, `resetsAt` — and `Retry-After` the wait in whole seconds until its period resets',
+          ),
         },
       },
     };
@@ -6343,7 +7203,7 @@ export function buildSpec(): Json {
           code: {
             type: 'integer',
             description:
-              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, or arguments that do not match the advertised input schema), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait)',
+              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name, a malformed resource address, an unknown prompt or its arguments; on 2026-07-28 also a missing or malformed `params._meta` envelope, `data.missing` / `data.malformed`, and a resource address that reads nothing), -32002 a resource address that reads nothing on the 2025 revisions (`data.code` names the refusal), -32603 a resource read that failed unexpectedly (`data.requestId`), -32020 a 2026-07-28 request whose `MCP-Protocol-Version`, `Mcp-Method` or `Mcp-Name` header is missing or does not say what its body says, -32022 unsupported protocol revision (`data.supported`), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` whose text names the tool-error code INVALID_ARGUMENTS (a tool code, not a REST one), never an error envelope',
           },
           message: str,
         },
@@ -6357,14 +7217,27 @@ export function buildSpec(): Json {
       tags: ['MCP'],
       summary: 'The platform MCP endpoint',
       description:
-        'JSON-RPC over HTTP (MCP protocol 2025-06-18, or 2025-03-26 when the ' +
-        'client proposes it; JSON responses only, no SSE). One message per ' +
-        'request, or a JSON-RPC batch answered as an array. Authenticate with ' +
+        'JSON-RPC over HTTP, both MCP protocol eras on one endpoint ' +
+        '(JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or ' +
+        '2025-03-26 when the client proposes it, the client opens with ' +
+        '`initialize`, which answers `instructions` and reports the API ' +
+        'contract version as `serverInfo.version`; a request carries one ' +
+        'message, or a JSON-RPC batch answered as an array. On 2026-07-28 ' +
+        'there is no `initialize`: every request carries its revision and ' +
+        'the client’s capabilities in `params._meta`, mirrored into the ' +
+        '`MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; ' +
+        '`server/discover` answers the revisions, capabilities and ' +
+        'instructions; a request carries one message; and every result adds ' +
+        '`resultType` and the server under `_meta`, with `ttlMs` and ' +
+        '`cacheScope` where a client may cache it. Authenticate with ' +
         'the same Bearer org API key as the REST API. Call `tools/list` for ' +
         'the tool inventory — automation authoring, run and trigger management, ' +
         'and the organization’s capability surface — and the `get_docs` tool ' +
-        'for the in-band authoring reference. Tool arguments are checked ' +
-        'against the advertised input schema. GET answers 405. See the MCP ' +
+        'for the in-band authoring reference; `resources/list` and ' +
+        '`prompts/list` name what a client reads by address (the references, ' +
+        'automations, runs) and the ready-made prompts. Tool arguments are checked ' +
+        'against the advertised input schema, and every problem comes back ' +
+        'at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP ' +
         'endpoint page in the developer docs for the full tour.',
       operationId: 'mcp',
       security: sec,
@@ -6377,7 +7250,7 @@ export function buildSpec(): Json {
             maxItems: 20,
             items: jsonRpcMessage,
             description:
-              'A JSON-RPC batch — at most 20 messages; every tool call beyond the first draws from the request budget like a request of its own',
+              'A JSON-RPC batch, on the 2025 revisions only — at most 20 messages; every tool call, resource read or listing, or prompt beyond the first draws from the request budget like a request of its own',
           },
         ],
       }),
@@ -6393,10 +7266,20 @@ export function buildSpec(): Json {
             'A notification (a message without an id), or a batch of notifications alone — acknowledged, no body',
         },
         '400': jsonResponse(
-          'The body could not be acted on: not JSON (-32700), not a JSON-RPC 2.0 message, an id that is not a string or an integer, an empty batch, or an unsupported `MCP-Protocol-Version` header (-32600)',
+          'The body could not be acted on: not JSON (-32700); not a JSON-RPC 2.0 message, an id that is not a string or an integer, an empty batch, or a batch naming 2026-07-28 (-32600); an `MCP-Protocol-Version` header or a `_meta` revision the endpoint does not speak (-32022, with `data.supported` listing the ones it does and `data.requested`); or, on 2026-07-28, a missing or malformed `params._meta` envelope (-32602) or a header that is missing or does not say what the body says (-32020). Nothing runs',
           jsonRpcError,
         ),
+        // Two shapes: the endpoint's own JSON-RPC error, and the door's
+        // REST envelope for an `X-Organization-Slug` that names no
+        // organization (appended below with the other door refusals).
+        '404': jsonResponse(
+          'On 2026-07-28 only: a method that revision does not have — `initialize`, `ping` or one the endpoint does not serve (-32601), as a JSON-RPC error. The 2025 revisions answer an unknown method with 200',
+          { oneOf: [jsonRpcError, ref('Error')] },
+        ),
         '401': standardErrors['401'],
+        '403': errorResponse(
+          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none',
+        ),
         '429': standardErrors['429'],
       },
     },
@@ -7016,6 +7899,17 @@ send under \`data.organizations\`; \`GET /api/v1/me\` lists them too, as its
 top-level \`organizations\`. The slug is matched without regard to case; a
 blank or whitespace-only header reads as absent.
 
+A key an Owner or Admin made for a member, a team, a project or the
+organization itself works in that one organization only, so it needs no
+\`X-Organization-Slug\` (one naming another organization answers 403
+\`ORG_FORBIDDEN\`). A team's, a project's or the organization's key is not a
+person: it acts with the role it was made with, a team's key sees what that
+team sees, and a project's key reaches its own project alone — the model
+endpoints, \`GET /me\`, \`GET /projects\` and the routes under
+\`/projects/{projectId}\` — while any other route answers 403
+\`API_KEY_SCOPE_FORBIDDEN\`. \`GET /api/v1/me\` names whose key it is, as
+\`key.owner\`.
+
 ## Requests
 
 Bodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole
@@ -7106,7 +8000,8 @@ UTF-16 code units\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
 \`cursor\` (\`INVALID_LIMIT\`, \`INVALID_CURSOR\`) names its parameter there
 too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
-\`ORG_FORBIDDEN\`, \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
+\`ORG_FORBIDDEN\`, \`API_KEY_SCOPE_FORBIDDEN\` (a project's key outside its
+project), \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
 \`INVALID_QUERY\`, \`INVALID_LIMIT\`, \`INVALID_CURSOR\`, \`INVALID_BODY\`,
 \`BODY_TOO_LARGE\`, \`METHOD_NOT_ALLOWED\`, \`NOT_FOUND\`, \`RATE_LIMITED\`,
 \`REQUEST_TIMEOUT\` (408 — the request did not finish arriving within 15
@@ -7134,7 +8029,8 @@ loop from the document rather than from this prose:
   (contacts, products, documents, knowledge entries, threads, messages,
   websites) and under the resource's own key elsewhere: \`{runs, …}\`,
   \`{deliveries, …}\`, \`{conversations, …}\`, \`{comments, …}\`,
-  \`{projects, …}\`, \`{files, …}\`.
+  \`{projects, …}\`, \`{files, …}\`, and a run step's items and passes
+  under \`{units, …}\`.
   The last two also answer \`cursor\` — the same token under its pre-1.5.0
   name, present only while more pages remain, deprecated and served for at
   least two more minor versions; a project lookup by \`externalItemId\` is
@@ -7485,9 +8381,9 @@ curl -H "Authorization: Bearer <api-key>" \\
                 },
                 scope: {
                   type: 'string',
-                  enum: ['user', 'team', 'org', 'apiKey'],
+                  enum: ['user', 'team', 'project', 'org', 'apiKey'],
                   description:
-                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), the organization’s (`org`) or this API key’s (`apiKey`)',
+                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), that of the project the work belongs to (`project`), the organization’s (`org`) or this API key’s (`apiKey`)',
                 },
                 period: {
                   type: 'string',
@@ -8225,7 +9121,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               nullable: true,
               description:
                 'The API key this request authenticated with — keys are minted, rotated and revoked in the app (Settings > API > REST), never through this surface, so this is where an unattended caller sees its own expiry coming. `null` only when the key was revoked while the request was in flight.',
-              required: ['id', 'name', 'expiresAt'],
+              required: ['id', 'name', 'expiresAt', 'owner'],
               additionalProperties: false,
               properties: {
                 id: str,
@@ -8238,10 +9134,47 @@ curl -H "Authorization: Bearer <api-key>" \\
                   description:
                     'When the key stops authenticating; `null` for a key minted to never expire',
                 },
+                owner: {
+                  type: 'object',
+                  description:
+                    'Whose key it is. `user`: a person’s own key, working in every organization they belong to. `member`: a key an Owner or Admin made for that member, working in this organization only. `team`, `project`, `organization`: a key that is not a person — it acts as its own identity with the role it was made with (`organization.role`), in this organization only; a team’s key sees what that team sees, and a project’s key reaches its project alone (any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`). A key bound to one organization needs no `X-Organization-Slug`; one naming another organization answers 403 `ORG_FORBIDDEN`',
+                  required: ['kind', 'team', 'project'],
+                  additionalProperties: false,
+                  properties: {
+                    kind: {
+                      type: 'string',
+                      enum: [
+                        'user',
+                        'member',
+                        'team',
+                        'project',
+                        'organization',
+                      ],
+                    },
+                    team: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The team a team’s key belongs to',
+                    },
+                    project: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The project a project’s key belongs to',
+                    },
+                  },
+                },
               },
             },
             user: {
               type: 'object',
+              description:
+                'Who the key acts as: its holder, or — for a team’s, a project’s or the organization’s key — the key’s own identity, whose `email` is empty',
               required: ['id', 'email'],
               properties: { id: str, email: str },
             },
@@ -8261,7 +9194,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizations: {
               type: 'array',
               description:
-                'Every organization the key holder belongs to (disabled memberships excluded)',
+                'Every organization the key holder belongs to (disabled memberships excluded); for a key bound to one organization, that organization alone',
               items: {
                 type: 'object',
                 required: ['id', 'slug', 'name', 'role'],
@@ -8631,7 +9564,19 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'and trimmed at intake',
             },
             externalUrl: { type: 'string' },
-            description: { type: 'string' },
+            description: {
+              type: 'string',
+              description:
+                'Markdown, as stored: each mention a mention link, ' +
+                '`[@Ada Lovelace](mention:user/<userId>)`',
+            },
+            descriptionText: {
+              type: 'string',
+              description:
+                'Present with `description`: the same text with each ' +
+                'mention read as `@` and the current name of whoever it ' +
+                'names — for matching words or showing it as plain text',
+            },
             labels: {
               type: 'array',
               items: { type: 'string' },
@@ -8804,6 +9749,181 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
           },
         },
+        ExternalStatusWorkflow: z.toJSONSchema(externalStatusWorkflowSchema, {
+          target: 'openapi-3.0',
+          io: 'input',
+        }),
+        ExternalStatusDecision: z.toJSONSchema(externalStatusDecisionSchema, {
+          target: 'openapi-3.0',
+          io: 'input',
+        }),
+        TaskStatusSnapshot: {
+          type: 'object',
+          required: [
+            'task',
+            'revision',
+            'statusChangedAt',
+            'change',
+            'externalStatus',
+            'workflow',
+            'request',
+          ],
+          properties: {
+            task: {
+              type: 'object',
+              required: ['id', 'status'],
+              properties: {
+                id: str,
+                status: {
+                  type: 'string',
+                  enum: [
+                    'backlog',
+                    'todo',
+                    'in_progress',
+                    'in_review',
+                    'done',
+                    'cancelled',
+                  ],
+                },
+                archivedAt: epochMs,
+                externalSystem: str,
+                externalId: str,
+              },
+            },
+            revision: {
+              type: 'string',
+              pattern: '^(0|[1-9]\\d{0,18})$',
+              description:
+                'Opaque lifecycle activity sequence; compare it as a string',
+            },
+            statusChangedAt: nullable(epochMs),
+            change: nullable({
+              type: 'object',
+              description:
+                'Latest status activity, including creation or accepted source projection; a later archival activity advances revision without replacing this actor',
+              required: ['id', 'action', 'createdAt', 'origin', 'actor'],
+              properties: {
+                id: str,
+                action: str,
+                createdAt: epochMs,
+                origin: { type: 'string', enum: ['native', 'external'] },
+                actor: {
+                  type: 'object',
+                  required: ['type', 'userId', 'emailVerified', 'activeMember'],
+                  properties: {
+                    type: { type: 'string', enum: ['user', 'agent'] },
+                    userId: {
+                      type: 'string',
+                      description:
+                        'Immutable activity actor id; a person only when type is user',
+                    },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      description:
+                        'Present only for an active verified human member of this organization',
+                    },
+                    emailVerified: { type: 'boolean' },
+                    activeMember: { type: 'boolean' },
+                  },
+                },
+              },
+            }),
+            externalStatus: nullable({
+              type: 'object',
+              required: [
+                'sourceRevision',
+                'sourceStatusAt',
+                'status',
+                'archived',
+              ],
+              properties: {
+                sourceRevision: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 512,
+                },
+                sourceStatusAt: epochMs,
+                status: {
+                  type: 'string',
+                  enum: [
+                    'backlog',
+                    'todo',
+                    'in_progress',
+                    'in_review',
+                    'done',
+                    'cancelled',
+                  ],
+                },
+                archived: { type: 'boolean' },
+              },
+            }),
+            workflow: nullable(ref('ExternalStatusWorkflow')),
+            request: nullable({
+              type: 'object',
+              required: [
+                'id',
+                'revision',
+                'statusChangeId',
+                'actionId',
+                'status',
+                'input',
+                'sourceRevision',
+                'sourceStatusAt',
+                'createdAt',
+                'actor',
+                'decision',
+              ],
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                revision: str,
+                statusChangeId: {
+                  ...str,
+                  description:
+                    'Actual status activity observed when submitting the form; a later archive does not replace it',
+                },
+                actionId: str,
+                status: {
+                  type: 'string',
+                  enum: [
+                    'backlog',
+                    'todo',
+                    'in_progress',
+                    'in_review',
+                    'done',
+                    'cancelled',
+                  ],
+                },
+                input: {
+                  type: 'object',
+                  additionalProperties: {
+                    oneOf: [
+                      { type: 'string', maxLength: 4000 },
+                      { type: 'number' },
+                      { type: 'boolean' },
+                    ],
+                  },
+                  description: 'Validated declared values plus move: actionId',
+                },
+                sourceRevision: str,
+                sourceStatusAt: epochMs,
+                createdAt: epochMs,
+                actor: {
+                  type: 'object',
+                  required: ['type', 'userId', 'emailVerified', 'activeMember'],
+                  properties: {
+                    type: { type: 'string', enum: ['user'] },
+                    userId: str,
+                    email: { type: 'string', format: 'email' },
+                    emailVerified: { type: 'boolean' },
+                    activeMember: { type: 'boolean' },
+                  },
+                },
+                decision: nullable(ref('ExternalStatusDecision')),
+              },
+            }),
+          },
+        },
         TaskReview: {
           type: 'object',
           required: [
@@ -8974,6 +10094,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               required: [
                 'kind',
                 'enabled',
+                'nextRunAt',
                 'lastFiredAt',
                 'lastSkippedAt',
                 'lastSkipReason',
@@ -8984,18 +10105,26 @@ curl -H "Authorization: Bearer <api-key>" \\
                   enum: ['schedule', 'webhook', 'event'],
                 },
                 enabled: bool,
+                nextRunAt: {
+                  ...nullable(epochMs),
+                  description:
+                    'Epoch milliseconds of a schedule’s next start, as ' +
+                    '`GET …/triggers` reads it; null while it is switched ' +
+                    'off, and for a webhook or an event.',
+                },
                 ...triggerHealthProperties,
               },
               description:
                 'What starts the automation, if a trigger is bound: its kind, ' +
-                'whether it is switched on, and its health — the same ' +
-                '`lastFiredAt`, `lastSkippedAt` and `lastSkipReason` that ' +
+                'whether it is switched on, when a schedule next runs, and ' +
+                'its health — the same `nextRunAt`, `lastFiredAt`, ' +
+                '`lastSkippedAt` and `lastSkipReason` that ' +
                 '`GET …/triggers` reads, so one listing call finds every ' +
                 'binding that is enabled and not firing (a `lastSkipReason` ' +
                 'of `not_deployed` beside a null `deployedVersion` is a ' +
                 'trigger waiting for a deploy); null when none is bound. ' +
-                '`GET …/triggers` has the rest — the cron, the event, ' +
-                '`lastRunId`.',
+                '`GET …/triggers` has the rest — the repeat rule or cron, ' +
+                'the event, `lastRunId`, `lastSkipDetail`.',
             }),
             projectIds: {
               type: 'array',
@@ -9133,57 +10262,71 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
           },
         },
-        Trigger: {
+        Trigger: triggerViewSpec,
+        TriggerWarning: triggerWarningSpec,
+        TriggerSkipDetail: triggerSkipDetailSpec,
+        ScheduleRule: scheduleRuleSpec,
+        LegacyRunQuarantine: {
           type: 'object',
+          additionalProperties: false,
           description:
-            'The binding, and its health: `lastFiredAt` and `lastRunId` name ' +
-            'the last run it started, `lastSkippedAt` and `lastSkipReason` ' +
-            'the last time it came due and started nothing. A binding is ' +
-            'alive when `lastFiredAt` keeps pace with its cadence; one whose ' +
-            '`lastSkippedAt` is the newer stamp is coming due and not running ' +
-            '— the reason says what to fix. `consecutiveFailures` counts the ' +
-            'runs it started that failed in a row, and `lastFailedAt`, ' +
-            '`lastFailureCode` and `lastFailedRunId` name the last of them — ' +
-            'a schedule that reaches the threshold pauses itself.',
+            'A legacy execution whose external effects or termination cannot be proven. Present on held runs. A recorded stop request does not resolve the hold or establish that work stopped.',
           required: [
-            'id',
-            'name',
-            'kind',
-            'hasToken',
-            'enabled',
-            'lastFiredAt',
-            'lastRunId',
-            'lastSkippedAt',
-            'lastSkipReason',
-            'consecutiveFailures',
-            'lastFailedAt',
-            'lastFailureCode',
-            'lastFailedRunId',
+            'reason',
+            'observedAt',
+            'claimEpoch',
+            'priorStatus',
+            'resolution',
           ],
           properties: {
-            id: {
-              ...str,
-              description:
-                'The binding’s id — what a run’s `startedBy` (`trigger:<id>`) names',
+            reason: { type: 'string', enum: ['legacy_execution_unproven'] },
+            observedAt: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
             },
-            name: str,
-            kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
-            cron: nullable(str),
-            timezone: nullable(str),
-            event: nullable(str),
-            hasToken: {
-              ...bool,
-              description: 'A webhook secret exists (never returned here)',
+            claimEpoch: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
             },
-            enabled: bool,
-            lastRunId: {
-              ...nullable(str),
-              description:
-                'The run `lastFiredAt` started; null until one has, and again ' +
-                'once that run is deleted.',
+            priorStatus: {
+              type: 'string',
+              enum: ['queued', 'running', 'waiting'],
             },
-            ...triggerHealthProperties,
-            ...triggerFailureProperties,
+            resolution: nullable({
+              type: 'object',
+              additionalProperties: false,
+              required: ['action', 'actor', 'at'],
+              properties: {
+                action: { type: 'string', enum: ['stop'] },
+                actor: { ...str, minLength: 1, maxLength: 200 },
+                at: { ...int, minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+              },
+            }),
+          },
+        },
+        LegacyRunStopRequest: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'action',
+            'expectedClaimEpoch',
+            'expectedObservedAt',
+            'acknowledgeUnknownExternalEffects',
+          ],
+          properties: {
+            action: { type: 'string', enum: ['stop'] },
+            expectedClaimEpoch: {
+              ...int,
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+            },
+            expectedObservedAt: epochMsInput,
+            acknowledgeUnknownExternalEffects: {
+              type: 'boolean',
+              enum: [true],
+            },
           },
         },
         RunSummary: {
@@ -9237,6 +10380,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'queued',
                 'running',
                 'waiting',
+                'quarantined',
                 'success',
                 'failed',
                 'cancelled',
@@ -9268,8 +10412,8 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'The failure or wait reason, when the run has one. While ' +
                 '`waiting` it names the park: `approval:<approvalId>`, ' +
-                '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
-                '`waitingFor` is the ' +
+                '`agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or ' +
+                '`in_doubt:<nodeId>` — `waitingFor` is the ' +
                 'field to branch on; when `failed`, the failure sentence, ' +
                 'and `failureCode` the stable cause — the sentence is not ' +
                 'contractual.',
@@ -9285,18 +10429,14 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
             waitingFor: {
               type: 'string',
-              enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
+              enum: [...RUN_WAITING_FOR],
               description:
-                'Present only while `status` is `waiting`: what the run is ' +
-                'parked on. `approval` — a person’s decision on a gate; `ask` ' +
-                '— a question a person has to answer; `agent` — an agent turn ' +
-                'still running, no one to page; `room` — an agent turn whose ' +
-                'start waits for sandbox room, no one to page; `repeat` — a ' +
-                'node polling until its `repeatUntil` condition holds, no one ' +
-                'to page. ' +
+                `${runWaitingForDescription} ` +
                 '"Runs that need a human" is `waitingFor` in (`approval`, ' +
-                '`ask`), never `status=waiting` alone.',
+                '`ask`, `in_doubt`), never `status=waiting` alone.',
             },
+            legacyQuarantine: ref('LegacyRunQuarantine'),
+            ...runResumeProperties,
             startedAt: epochMs,
             finishedAt: {
               ...epochMs,
@@ -9335,6 +10475,1222 @@ curl -H "Authorization: Bearer <api-key>" \\
             'chose them.',
           properties: runProperties,
           additionalProperties: false,
+        },
+
+        // ── A run step by step ──
+        ValueSummary: {
+          type: 'object',
+          description:
+            'A value told without the value itself: its kind, a short text, ' +
+            'its length or key count, its first names or items. A secret ' +
+            'reads `redacted`; a value the record cut away reads `elided`.',
+          required: ['kind'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: [
+                'string',
+                'number',
+                'boolean',
+                'null',
+                'undefined',
+                'array',
+                'object',
+                'redacted',
+                'elided',
+              ],
+            },
+            text: {
+              ...str,
+              maxLength: 80,
+              description:
+                'At most 80 characters: a string (cut), a number (`NaN` and `Infinity` as text) or a boolean',
+            },
+            length: {
+              ...int,
+              minimum: 0,
+              description: 'A string’s full length, or a list’s',
+            },
+            keys: { ...int, minimum: 0, description: 'An object’s key count' },
+            names: {
+              type: 'array',
+              maxItems: 8,
+              items: str,
+              description: 'An object’s first key names',
+            },
+            items: {
+              type: 'array',
+              maxItems: 3,
+              items: ref('ValueSummary'),
+              description: 'A list’s first items, one level deep',
+            },
+            cut: {
+              type: 'boolean',
+              enum: [true],
+              description: 'The text was cut',
+            },
+            bytes: {
+              ...int,
+              minimum: 0,
+              description: 'The value’s size as JSON text, in UTF-8 bytes',
+            },
+          },
+        },
+        ValueShape: {
+          type: 'object',
+          description:
+            'The shape a value was read to have, as a JSON Schema subset. ' +
+            '`x-count` says in how many of several objects a field was ' +
+            'present, `x-omitted` how many fields were left out; a shape ' +
+            'with neither `type` nor `anyOf` is any value — its depth or ' +
+            'size ran out.',
+          properties: {
+            type: {
+              anyOf: [
+                {
+                  type: 'string',
+                  enum: [
+                    'string',
+                    'number',
+                    'integer',
+                    'boolean',
+                    'object',
+                    'array',
+                    'null',
+                  ],
+                },
+                { type: 'array', items: str },
+              ],
+            },
+            properties: {
+              type: 'object',
+              additionalProperties: ref('ValueShape'),
+            },
+            required: { type: 'array', items: str },
+            items: ref('ValueShape'),
+            enum: { type: 'array', items: {} },
+            anyOf: { type: 'array', items: ref('ValueShape') },
+            description: str,
+            'x-count': {
+              type: 'object',
+              required: ['present', 'of'],
+              properties: { present: int, of: int },
+            },
+            'x-omitted': { ...int, minimum: 1 },
+          },
+        },
+        ValueGlimpse: {
+          type: 'object',
+          description:
+            'A recorded value as a step summary shows it: never the value itself.',
+          required: ['summary', 'shape', 'bytes', 'elided', 'redactions'],
+          properties: {
+            summary: ref('ValueSummary'),
+            shape: {
+              allOf: [ref('ValueShape')],
+              description: 'Read from the whole value, three levels deep',
+            },
+            bytes: {
+              ...int,
+              minimum: 0,
+              description: 'The whole value’s size as JSON, in UTF-8 bytes',
+            },
+            elided: {
+              ...bool,
+              description: 'The stored copy was cut somewhere',
+            },
+            redactions: {
+              ...int,
+              minimum: 0,
+              description: 'Places a secret was withheld from',
+            },
+          },
+        },
+        ValueRecord: {
+          type: 'object',
+          description:
+            'A recorded value: secrets withheld first (a withheld place ' +
+            'reads `null`), then summarized, shaped and hashed from the ' +
+            'whole withheld value, then cut to its bounds — every cut and ' +
+            'withheld place listed beside it.',
+          required: ['summary', 'shape', 'bytes', 'hash'],
+          properties: {
+            value: {
+              description:
+                'The stored value; absent when the run’s budget for stored values was spent, or there was no value',
+            },
+            summary: ref('ValueSummary'),
+            shape: ref('ValueShape'),
+            bytes: {
+              ...int,
+              minimum: 0,
+              description: 'The whole value’s size as JSON, in UTF-8 bytes',
+            },
+            hash: {
+              ...nullable(str),
+              description:
+                'A hash of the whole value, to tell two values apart past what was stored; null above 4 MiB',
+            },
+            elided: {
+              type: 'array',
+              description: 'Each place the stored value was cut',
+              items: {
+                type: 'object',
+                required: ['pointer', 'kind', 'dropped'],
+                properties: {
+                  pointer: {
+                    ...str,
+                    description: 'RFC 6901 pointer into the value',
+                  },
+                  kind: {
+                    type: 'string',
+                    enum: ['string', 'items', 'depth', 'whole'],
+                    description:
+                      '`string`: characters dropped from its end; `items`: list entries dropped; `depth`: a value past the depth bound, now null; `whole`: nothing of the value was kept',
+                  },
+                  dropped: { ...int, minimum: 0 },
+                },
+              },
+            },
+            redacted: {
+              type: 'array',
+              description: 'Each place a secret was withheld',
+              items: {
+                type: 'object',
+                required: ['pointer', 'why'],
+                properties: {
+                  pointer: str,
+                  why: {
+                    type: 'string',
+                    enum: ['key', 'pattern', 'name'],
+                    description:
+                      '`key`: its name marks a secret; `pattern`: the text looked like a credential; `name`: a member was left out because its own name looked like one',
+                  },
+                },
+              },
+            },
+            elidedTotal: {
+              ...int,
+              description:
+                'How many places were cut, when more than `elided` lists',
+            },
+            redactedTotal: {
+              ...int,
+              description:
+                'How many places were withheld, when more than `redacted` lists',
+            },
+          },
+        },
+        EvalTrace: {
+          type: 'object',
+          description:
+            'One evaluation of a condition or a template field: per `{{ }}` ' +
+            'unit (or the bare expression), the value of each sub-expression ' +
+            'it evaluated, by its range in the field’s text.',
+          required: ['pointer', 'units'],
+          properties: {
+            pointer: {
+              ...str,
+              description:
+                'RFC 6901 pointer to the field in the version’s document',
+            },
+            units: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['range', 'probes', 'probed'],
+                properties: {
+                  range: textRange,
+                  probes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['range', 'v'],
+                      properties: { range: textRange, v: ref('ValueSummary') },
+                    },
+                  },
+                  error: {
+                    type: 'object',
+                    required: ['message'],
+                    properties: { message: str, name: str },
+                  },
+                  probed: {
+                    type: 'string',
+                    enum: ['full', 'partial', 'none'],
+                    description:
+                      '`full`: every sub-expression worth a value was read; `partial`: some were not; `none`: only the result is known',
+                  },
+                },
+              },
+            },
+          },
+        },
+        ExplainNode: {
+          type: 'object',
+          description:
+            'One part of a condition and what it came to: the tree a step’s ' +
+            'decision is explained with, operands in source order.',
+          required: ['range', 'source', 'kind', 'evaluated', 'children'],
+          properties: {
+            range: textRange,
+            source: {
+              ...str,
+              maxLength: 200,
+              description: 'The part’s text; a longer one ends in `…`',
+            },
+            kind: {
+              type: 'string',
+              enum: [
+                'logical',
+                'compare',
+                'not',
+                'arith',
+                'conditional',
+                'call',
+                'ref',
+                'literal',
+                'other',
+              ],
+            },
+            op: {
+              ...str,
+              description:
+                'The operator (`&&`, `>=`), `!`, `?:`, the function a call names, or `typeof`/`void`/`delete`/`[]`',
+            },
+            ref: {
+              type: 'object',
+              description: 'What a reference reads',
+              required: ['root', 'path'],
+              properties: {
+                root: {
+                  type: 'string',
+                  enum: ['input', 'nodes', 'item', 'index', 'output'],
+                },
+                nodeId: {
+                  ...str,
+                  description: 'The step whose output it reads',
+                },
+                path: { type: 'array', items: { anyOf: [str, int] } },
+              },
+            },
+            value: ref('ValueSummary'),
+            evaluated: bool,
+            unknown: {
+              type: 'boolean',
+              enum: [true],
+              description: 'Whether it was evaluated cannot be told',
+            },
+            children: { type: 'array', items: ref('ExplainNode') },
+          },
+        },
+        Decision: {
+          type: 'object',
+          description:
+            'Why a step ran, was skipped, or ran as often as it did — the ' +
+            'latest of each kind. `when`, `forEach` and `repeatUntil` carry ' +
+            'the condition’s value, its trace, its text (`source`) and its ' +
+            'explanation; `else` its partner; `upstream` the skipped steps ' +
+            'it reads; `onError` the policy that let the run go on.',
+          required: ['kind', 'at'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: [
+                'when',
+                'else',
+                'upstream',
+                'forEach',
+                'repeatUntil',
+                'onError',
+              ],
+            },
+            at: epochMs,
+            result: { ...bool, description: '`when`, `else`, `repeatUntil`' },
+            value: ref('ValueSummary'),
+            trace: ref('EvalTrace'),
+            count: { ...int, description: '`forEach`: how many items' },
+            pass: { ...int, description: '`repeatUntil`: the pass it ended' },
+            capped: {
+              ...bool,
+              description: '`repeatUntil`: the pass limit stopped it',
+            },
+            partner: {
+              ...str,
+              description: '`else`: the step it is the alternative of',
+            },
+            partnerSkippedByWhen: bool,
+            skipped: {
+              type: 'array',
+              items: str,
+              description: '`upstream`: the skipped steps it reads',
+            },
+            policy: { type: 'string', enum: ['continue'] },
+            source: {
+              ...str,
+              description: 'The condition’s text in the version’s document',
+            },
+            explanation: {
+              type: 'array',
+              items: ref('ExplainNode'),
+              description: 'One tree per evaluated unit of the condition',
+            },
+          },
+        },
+        StepFailure: {
+          type: 'object',
+          description:
+            'Why a step failed: the run’s failure family, a reason from a ' +
+            'fixed list (a newer server may answer one this list lacks — read ' +
+            'it as a reason not known), and the parameters it is worded with.',
+          required: ['code', 'reason', 'params', 'message'],
+          properties: {
+            code: {
+              ...str,
+              description:
+                'The run-level family, as `Run.failureCode` names it',
+            },
+            reason: { type: 'string', enum: [...STEP_FAILURE_REASONS] },
+            params: {
+              type: 'object',
+              description:
+                'What the reason is worded with — secrets withheld, each at most 200 characters',
+              additionalProperties: {
+                anyOf: [
+                  nullable(str),
+                  num,
+                  bool,
+                  { type: 'array', items: str },
+                ],
+                description:
+                  'A text, a number, a yes/no, a list of texts, or null',
+              },
+            },
+            message: {
+              ...str,
+              description: 'The engine’s English, for technical detail only',
+            },
+            hint: str,
+            at: {
+              type: 'object',
+              required: ['pointer'],
+              properties: { pointer: str, range: textRange },
+            },
+            trace: ref('EvalTrace'),
+            explanation: { type: 'array', items: ref('ExplainNode') },
+          },
+        },
+        WaitRecord: {
+          type: 'object',
+          required: ['kind', 'since'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: ['approval', 'ask', 'room', 'repeat', 'in_doubt'],
+            },
+            since: epochMs,
+            until: {
+              ...epochMs,
+              description: 'Epoch milliseconds; absent while it waits',
+            },
+            ref: {
+              ...str,
+              description: 'The approval or attempt it waited for',
+            },
+            outcome: {
+              type: 'string',
+              enum: [
+                'approved',
+                'rejected',
+                'answered',
+                'expired',
+                'retry',
+                'skip',
+                'fail',
+              ],
+            },
+            by: { ...str, description: 'The member who decided' },
+          },
+        },
+        AttemptRecord: {
+          type: 'object',
+          required: ['n', 'startedAt', 'outcome'],
+          properties: {
+            n: { ...int, minimum: 1 },
+            startedAt: epochMs,
+            endedAt: epochMs,
+            outcome: {
+              type: 'string',
+              enum: ['interrupted', 'retried', 'failed', 'ok'],
+            },
+            failureCode: str,
+            reason: str,
+          },
+        },
+        SkipCause: {
+          type: 'object',
+          description:
+            'One link of a skip chain: why the step at `path` produced no ' +
+            'output. `upstream` and `else` go on with the step they name.',
+          required: ['kind', 'nodeId', 'path'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: ['when', 'else', 'error', 'upstream', 'not_run'],
+            },
+            nodeId: str,
+            path: str,
+            decision: ref('Decision'),
+            partner: str,
+            failure: ref('StepFailure'),
+            via: str,
+            stoppedAt: str,
+            runStatus: { type: 'string', enum: ['failed', 'cancelled'] },
+          },
+        },
+        RunStep: {
+          type: 'object',
+          description:
+            'One step of a run as its record reads: the shared status words, ' +
+            'times, attempts, decisions, skip chain, failure and value ' +
+            'glimpses — never the values themselves.',
+          required: [
+            'path',
+            'nodeId',
+            'type',
+            'status',
+            'activeMs',
+            'waitedMs',
+            'attempt',
+            'attempts',
+            'decisions',
+            'waits',
+            'meta',
+          ],
+          properties: runStepProperties,
+        },
+        RunEvent: {
+          type: 'object',
+          description:
+            'What happened to a run between its steps — a hand-off, a lease ' +
+            'that ran out, a write in doubt and its decision — as a reader ' +
+            'may see it: never the server that saw it.',
+          required: ['id', 'at', 'kind'],
+          properties: {
+            id: { ...str, description: 'Stable across reads' },
+            at: epochMs,
+            kind: {
+              type: 'string',
+              enum: [
+                'taken_over',
+                'handed_off',
+                'lease_expired',
+                'node_interrupted',
+                'in_doubt',
+                'in_doubt_resolved',
+                'engine_deferred',
+                'legacy_stop_requested',
+              ],
+            },
+            nodeId: str,
+            itemIndex: int,
+            pass: int,
+            reason: str,
+            resolution: { type: 'string', enum: ['retry', 'skip', 'fail'] },
+            by: str,
+          },
+        },
+        Travel: {
+          type: 'object',
+          description:
+            'A value that travelled into a step: where it came from, the ' +
+            'field that read it, when, and what it was.',
+          required: ['from', 'to', 'refPath', 'at', 'edge'],
+          properties: {
+            from: {
+              type: 'object',
+              required: ['kind'],
+              properties: {
+                kind: { type: 'string', enum: ['input', 'node'] },
+                nodeId: str,
+              },
+            },
+            to: {
+              type: 'object',
+              required: ['path', 'field', 'pointer', 'range'],
+              properties: {
+                path: str,
+                field: {
+                  type: 'string',
+                  enum: [
+                    'input',
+                    'prompt',
+                    'system',
+                    'files',
+                    'code',
+                    'forEach',
+                    'when',
+                    'repeatUntil',
+                    'output',
+                  ],
+                },
+                pointer: str,
+                range: textRange,
+              },
+            },
+            refPath: { type: 'array', items: { anyOf: [str, int] } },
+            at: epochMs,
+            item: int,
+            pass: int,
+            value: ref('ValueSummary'),
+            edge: {
+              type: 'object',
+              required: ['source', 'target', 'kind'],
+              properties: {
+                source: str,
+                target: str,
+                kind: { type: 'string', enum: ['data', 'order', 'entry'] },
+              },
+            },
+          },
+        },
+        RunRecord: {
+          type: 'object',
+          description:
+            'A run step by step. `format` names the shape; a reader that does ' +
+            'not know a format shows the run as it showed runs before.',
+          required: [
+            'format',
+            'runId',
+            'status',
+            'version',
+            'mode',
+            'startedAt',
+            'source',
+            'nodes',
+            'events',
+            'eventsTotal',
+            'cursor',
+          ],
+          properties: {
+            format: { type: 'integer', enum: [1] },
+            runId: str,
+            status: runProperties.status ?? str,
+            version: int,
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            startedAt: epochMs,
+            finishedAt: epochMs,
+            source: {
+              type: 'string',
+              enum: ['record', 'trace'],
+              description:
+                '`trace`: recorded before step records were kept, read from the run’s trace',
+            },
+            nodes: { type: 'array', items: ref('RunStep') },
+            events: {
+              type: 'array',
+              maxItems: 200,
+              items: ref('RunEvent'),
+              description: 'Oldest first, at most 200',
+            },
+            eventsTotal: { ...int, minimum: 0 },
+            travels: {
+              type: 'array',
+              maxItems: 1000,
+              items: ref('Travel'),
+              description: 'With `include=travels`',
+            },
+            travelsTotal: { ...int, minimum: 0 },
+            path: {
+              type: 'object',
+              description:
+                'The path the run took through its conditions and tolerated failures, when the document’s paths can be told apart',
+              required: ['id', 'assignment'],
+              properties: {
+                id: str,
+                assignment: {
+                  type: 'object',
+                  additionalProperties: bool,
+                },
+                stoppedAt: str,
+              },
+            },
+            cursor: {
+              ...int,
+              minimum: 0,
+              description:
+                'The latest write the answer reflects; pass it back as `since`',
+            },
+            truncated: {
+              type: 'object',
+              description: 'What was left out to hold the answer to 512 KiB',
+              properties: {
+                shapes: { type: 'boolean', enum: [true] },
+                explanations: { type: 'boolean', enum: [true] },
+                travels: { type: 'boolean', enum: [true] },
+                nodes: { type: 'boolean', enum: [true] },
+              },
+            },
+          },
+        },
+        RunCall: {
+          type: 'object',
+          description:
+            'A step’s call to a connector or a model, as the run’s ledger ' +
+            'keeps it: never the server that made it.',
+          required: ['kind', 'type', 'attempt', 'status', 'startedAt'],
+          properties: {
+            kind: { type: 'string', enum: ['connector', 'llm'] },
+            type: str,
+            attempt: { ...int, minimum: 1 },
+            status: { type: 'string', enum: ['started', 'done', 'failed'] },
+            startedAt: epochMs,
+            finishedAt: epochMs,
+            failureCode: str,
+            resolution: {
+              type: 'string',
+              enum: ['retry', 'skip', 'fail'],
+              description:
+                'A person’s decision about a call whose outcome was not known',
+            },
+            resolvedBy: str,
+            resolvedAt: epochMs,
+            input: ref('ValueRecord'),
+            output: ref('ValueRecord'),
+          },
+        },
+        RunNode: {
+          type: 'object',
+          description:
+            'One unit of a run read whole: a step (`item` and `pass` -1), or ' +
+            'one of its items or passes.',
+          required: [
+            'path',
+            'item',
+            'pass',
+            'nodeId',
+            'type',
+            'status',
+            'activeMs',
+            'waitedMs',
+            'attempt',
+            'attempts',
+            'decisions',
+            'waits',
+            'meta',
+            'reads',
+            'readsTotal',
+          ],
+          properties: {
+            ...runStepProperties,
+            item: { ...int, minimum: -1 },
+            pass: { ...int, minimum: -1 },
+            input: ref('ValueRecord'),
+            output: ref('ValueRecord'),
+            rendered: {
+              type: 'object',
+              description:
+                'Each templated text field, by its pointer in the document: where its text sits in `input`, and where each `{{ }}` unit’s text landed in it',
+              additionalProperties: {
+                type: 'object',
+                required: ['at', 'spans'],
+                properties: {
+                  at: {
+                    ...nullable(str),
+                    description:
+                      'Pointer into `input`; null when the text is not there',
+                  },
+                  spans: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['unit', 'out'],
+                      properties: { unit: textRange, out: textRange },
+                    },
+                  },
+                  cut: {
+                    type: 'boolean',
+                    enum: [true],
+                    description:
+                      'The stored text was cut; spans past the cut are left out',
+                  },
+                },
+              },
+            },
+            reads: {
+              type: 'array',
+              items: ref('Travel'),
+              description: 'What it read from other steps and the run input',
+            },
+            readsTotal: { ...int, minimum: 0 },
+            change: {
+              allOf: [ref('ValueComparison')],
+              description:
+                'How its output differs from its input, when both are objects or both lists',
+            },
+            call: ref('RunCall'),
+            truncated: {
+              type: 'object',
+              description: 'What was left out to hold the answer to 256 KiB',
+              properties: {
+                reads: { type: 'boolean', enum: [true] },
+                call: { type: 'boolean', enum: [true] },
+              },
+            },
+          },
+        },
+        RunUnitPage: {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: ['path', 'units', 'isDone', 'continueCursor'],
+          properties: {
+            path: str,
+            units: {
+              type: 'array',
+              maxItems: 200,
+              items: {
+                type: 'object',
+                required: [
+                  'path',
+                  'item',
+                  'pass',
+                  'nodeId',
+                  'type',
+                  'status',
+                  'activeMs',
+                  'waitedMs',
+                  'attempt',
+                  'attempts',
+                  'decisions',
+                  'waits',
+                  'meta',
+                ],
+                properties: {
+                  ...runStepProperties,
+                  item: { ...int, minimum: -1 },
+                  pass: { ...int, minimum: -1 },
+                },
+              },
+            },
+            isDone: bool,
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        },
+        ValueChange: {
+          type: 'object',
+          description: 'One place two values differ, each side as a summary.',
+          required: ['pointer', 'path', 'kind'],
+          properties: {
+            pointer: str,
+            path: { type: 'array', items: { anyOf: [str, int] } },
+            kind: {
+              type: 'string',
+              enum: [
+                'added',
+                'removed',
+                'changed',
+                'type-changed',
+                'reordered',
+                'unknown',
+              ],
+              description:
+                '`unknown`: the place was cut or withheld on a side, so how it differs cannot be told',
+            },
+            before: ref('ValueSummary'),
+            after: ref('ValueSummary'),
+            shape: {
+              type: 'object',
+              description:
+                'Set when the change was read from the two shapes: each side’s type, or `required`/`optional`',
+              properties: { before: str, after: str },
+            },
+          },
+        },
+        ValueComparison: {
+          type: 'object',
+          required: [
+            'equal',
+            'changes',
+            'counts',
+            'total',
+            'truncated',
+            'basis',
+          ],
+          properties: {
+            equal: {
+              ...nullable(bool),
+              description:
+                'Whether the values are the same, exact past what was stored; null when it cannot be told',
+            },
+            changes: { type: 'array', items: ref('ValueChange') },
+            counts: {
+              type: 'object',
+              description: 'Exact counts, also past the changes listed',
+              additionalProperties: int,
+            },
+            total: { ...int, minimum: 0 },
+            truncated: bool,
+            basis: {
+              type: 'string',
+              enum: ['value', 'shape', 'none'],
+              description:
+                'What the changes were read from: the stored values, their shapes (a value was not stored), or nothing',
+            },
+          },
+        },
+        RunDiff: {
+          type: 'object',
+          description: 'Two runs of one automation side by side.',
+          required: [
+            'a',
+            'b',
+            'version',
+            'input',
+            'output',
+            'nodes',
+            'effects',
+          ],
+          properties: {
+            a: ref('RunDiffRef'),
+            b: ref('RunDiffRef'),
+            version: {
+              type: 'object',
+              required: ['same', 'changed', 'added', 'removed'],
+              properties: {
+                same: bool,
+                changed: { type: 'array', items: str },
+                added: { type: 'array', items: str },
+                removed: { type: 'array', items: str },
+              },
+            },
+            input: ref('ValueComparison'),
+            output: ref('ValueComparison'),
+            nodes: {
+              type: 'array',
+              maxItems: 500,
+              items: ref('RunStepDiff'),
+            },
+            firstDivergence: {
+              type: 'object',
+              required: ['path', 'why'],
+              properties: { path: str, why: divergenceReason },
+            },
+            effects: {
+              type: 'object',
+              required: ['count', 'onlyA', 'onlyB', 'changed'],
+              properties: {
+                count: {
+                  type: 'object',
+                  required: ['a', 'b'],
+                  properties: { a: int, b: int },
+                },
+                onlyA: {
+                  type: 'array',
+                  maxItems: 200,
+                  items: ref('RunEffectDiff'),
+                },
+                onlyB: {
+                  type: 'array',
+                  maxItems: 200,
+                  items: ref('RunEffectDiff'),
+                },
+                changed: {
+                  type: 'array',
+                  maxItems: 200,
+                  items: ref('RunEffectDiff'),
+                },
+              },
+            },
+            truncated: {
+              type: 'object',
+              description:
+                '`nodes`: steps past the cap or the size were left out, never the first divergence; `effects`: effects past the cap; `values`: value changes and operands were left out for size',
+              properties: {
+                nodes: { type: 'boolean', enum: [true] },
+                effects: { type: 'boolean', enum: [true] },
+                values: { type: 'boolean', enum: [true] },
+              },
+            },
+          },
+        },
+        ReplayRequest: {
+          type: 'object',
+          description:
+            'How to run a run again. `from` is taken only by kind `from`, ' +
+            '`input` only by kind `edited`.',
+          additionalProperties: false,
+          required: ['kind'],
+          properties: {
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            from: {
+              ...str,
+              minLength: 1,
+              maxLength: 200,
+              description: 'kind `from`: the step to run again from',
+            },
+            version: {
+              description:
+                '`same` (the default: the version the run ran), `deployed`, `latest`, or a version number',
+              anyOf: [
+                { type: 'string', enum: ['same', 'deployed', 'latest'] },
+                { type: 'integer', minimum: 1 },
+              ],
+            },
+            mode: {
+              type: 'string',
+              enum: ['mock', 'live'],
+              description: 'The run’s own mode by default',
+            },
+            input: {
+              description:
+                'kind `edited`: the input to run with; must match the automation inputs schema when declared',
+            },
+          },
+        },
+        ReplayStarted: {
+          type: 'object',
+          required: ['runId', 'version', 'mode', 'kind', 'reused'],
+          properties: {
+            runId: str,
+            version: int,
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            reused: {
+              ...int,
+              minimum: 0,
+              description: 'Steps taken from the run it replays',
+            },
+            duplicate: {
+              type: 'boolean',
+              enum: [true],
+              description:
+                'Present when the `Idempotency-Key` had already started this replay: nothing new ran',
+            },
+          },
+        },
+        ReplayPlan: {
+          type: 'object',
+          description: 'What a replay would do, before it starts.',
+          required: [
+            'kind',
+            'sourceRunId',
+            'version',
+            'mode',
+            'deployed',
+            'liveAllowed',
+            'reuse',
+            'rerun',
+            'writesAgain',
+            'spendAgain',
+          ],
+          properties: {
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            sourceRunId: str,
+            version: {
+              type: 'object',
+              required: ['source', 'target', 'resolved'],
+              properties: {
+                source: int,
+                target: int,
+                resolved: {
+                  type: 'string',
+                  enum: ['same', 'deployed', 'latest', 'number'],
+                },
+              },
+            },
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            deployed: {
+              ...bool,
+              description: 'The version it runs is the deployed one',
+            },
+            liveAllowed: {
+              ...bool,
+              description:
+                'It may run live: the version is deployed and the key holder may start live runs',
+            },
+            reuse: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['nodeId', 'status'],
+                properties: {
+                  nodeId: str,
+                  status: { type: 'string', enum: ['ok', 'skipped'] },
+                  reason: str,
+                },
+              },
+            },
+            rerun: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['nodeId', 'type', 'effect'],
+                properties: {
+                  nodeId: str,
+                  type: str,
+                  effect: {
+                    type: 'string',
+                    enum: ['write', 'read', 'llm', 'agent', 'none'],
+                  },
+                  connector: str,
+                  items: {
+                    ...int,
+                    minimum: 1,
+                    description:
+                      'How many items it ran for in the run, for a step that runs per item',
+                  },
+                },
+              },
+            },
+            writesAgain: {
+              ...int,
+              minimum: 0,
+              description:
+                'Writes that go out a second time when it runs live: one per writing step, one per item for a step that ran per item',
+            },
+            spendAgain: {
+              type: 'object',
+              required: ['llm', 'agent'],
+              properties: { llm: int, agent: int },
+            },
+            refusal: {
+              type: 'object',
+              required: ['code', 'message'],
+              properties: {
+                code: {
+                  type: 'string',
+                  enum: [
+                    'REPLAY_NODE_UNKNOWN',
+                    'REPLAY_GRAPH_CHANGED',
+                    'REPLAY_RUN_NOT_FINISHED',
+                    'REPLAY_MODE_MISMATCH',
+                    'REPLAY_PROGRESS_UNREADABLE',
+                    'REPLAY_INPUT_UNAVAILABLE',
+                  ],
+                },
+                message: str,
+                nodes: { type: 'array', items: str },
+              },
+            },
+          },
+        },
+        RunDiffRef: {
+          type: 'object',
+          required: ['id', 'version', 'mode', 'status', 'startedAt'],
+          properties: {
+            id: str,
+            version: int,
+            mode: str,
+            status: str,
+            startedAt: epochMs,
+            finishedAt: epochMs,
+            durationMs: { ...int, minimum: 0 },
+          },
+        },
+        RunStepDiff: {
+          type: 'object',
+          required: ['path', 'nodeId', 'decisions', 'input', 'output'],
+          properties: {
+            path: str,
+            nodeId: str,
+            a: ref('RunStepFacts'),
+            b: ref('RunStepFacts'),
+            differs: divergenceReason,
+            decisions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['kind', 'operands'],
+                properties: {
+                  kind: {
+                    type: 'string',
+                    enum: [
+                      'when',
+                      'else',
+                      'upstream',
+                      'forEach',
+                      'repeatUntil',
+                      'onError',
+                    ],
+                  },
+                  pass: int,
+                  a: ref('RunDecisionFacts'),
+                  b: ref('RunDecisionFacts'),
+                  sameSource: bool,
+                  operands: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['range'],
+                      properties: {
+                        range: textRange,
+                        a: ref('ValueSummary'),
+                        b: ref('ValueSummary'),
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            input: ref('ValueComparison'),
+            output: ref('ValueComparison'),
+            items: {
+              type: 'object',
+              required: ['a', 'b', 'differing'],
+              properties: { a: int, b: int, differing: int },
+            },
+          },
+        },
+        RunStepFacts: {
+          type: 'object',
+          required: ['status', 'activeMs', 'attempt'],
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['running', 'waiting', 'ok', 'skipped', 'failed'],
+            },
+            skip: {
+              type: 'string',
+              enum: ['when', 'else', 'upstream', 'error'],
+            },
+            durationMs: { ...int, minimum: 0 },
+            activeMs: { ...int, minimum: 0 },
+            attempt: int,
+            failureReason: str,
+            reused: { type: 'boolean', enum: [true] },
+          },
+        },
+        RunDecisionFacts: {
+          type: 'object',
+          properties: {
+            result: bool,
+            count: int,
+            capped: bool,
+            skipped: { type: 'array', items: str },
+            value: ref('ValueSummary'),
+          },
+        },
+        RunEffectDiff: {
+          type: 'object',
+          required: ['node', 'connector', 'n'],
+          properties: {
+            node: str,
+            connector: str,
+            item: int,
+            pass: int,
+            n: {
+              ...int,
+              minimum: 0,
+              description:
+                'Which of the effects at the same place it is, in the order the run made them',
+            },
+            a: ref('ValueSummary'),
+            b: ref('ValueSummary'),
+            input: ref('ValueComparison'),
+          },
         },
 
         // ── Knowledge search ──
@@ -9819,6 +12175,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'organizationId',
             'projectId',
             'name',
+            'handle',
             'harness',
             'model',
             'modelProvider',
@@ -9837,6 +12194,22 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizationId: str,
             projectId: str,
             name: str,
+            handle: {
+              type: 'string',
+              pattern: '^[a-z0-9]+(-[a-z0-9]+)*$',
+              maxLength: 52,
+              description:
+                'The agent’s mention handle: lowercase letters, digits and ' +
+                'single hyphens, made from its current name ("My Opus Agent ' +
+                '#3" → `my-opus-agent-3`) and unique in the project (a second ' +
+                'agent whose name gives the same handle gets `-02`, then ' +
+                '`-03` …). It changes when the agent is renamed, and when a ' +
+                'member or an automation of the organization comes to answer ' +
+                'to it (an email name or a store name is the stronger claim). ' +
+                'Address an ' +
+                'agent by `id`; type `@handle` in a comment or a task ' +
+                'description to mention it.',
+            },
             harness: str,
             model: str,
             modelProvider: nullable(str),
@@ -9936,9 +12309,9 @@ curl -H "Authorization: Bearer <api-key>" \\
             status: { type: 'string', enum: ['active', 'superseded'] },
             source: {
               type: 'string',
-              enum: ['chat', 'manual', 'api'],
+              enum: ['chat', 'manual', 'api', 'agent'],
               description:
-                'The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form) or `api` (this door — a create or supersede over REST)',
+                'The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form), `api` (this door — a create or supersede over REST) or `agent` (a project agent or an automation’s agent step granted `knowledge_entry_write`; `createdBy` then names the agent — a project agent’s id or `automation:<name>` — not a user)',
             },
             documentId: {
               ...str,

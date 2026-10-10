@@ -1,14 +1,15 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 import { parse } from 'yaml';
 
 import { isRecord } from '../../../lib/utils/type-utils';
 
 /**
- * The platform's message catalogs (`services/platform/messages/*.yml`), read
- * once per locale — the same files the app renders, for the few places the
- * server must use the interface's own words: the notification mirror, and the
- * chat's hand-over note, which quotes the controls a person sees.
+ * The platform's message catalogs (`services/platform/messages/<locale>/`, one
+ * file per topic), read once per locale — the same files the app renders, for
+ * the few places the server must use the interface's own words: the
+ * notification mirror, and the chat's hand-over note, which quotes the
+ * controls a person sees.
  */
 
 const CATALOG_LOCALES = ['en', 'de', 'fr', 'de-CH'] as const;
@@ -25,16 +26,23 @@ export function messageCatalog(locale: string): Record<string, unknown> {
   const supported: CatalogLocale = isCatalogLocale(locale) ? locale : 'en';
   let loaded = catalogs.get(supported);
   if (loaded === undefined) {
-    const parsed: unknown = parse(
-      readFileSync(
-        new URL(`../../../messages/${supported}.yml`, import.meta.url),
-        'utf8',
-      ),
-    );
-    loaded = isRecord(parsed) ? parsed : {};
+    loaded = readCatalog(supported);
     catalogs.set(supported, loaded);
   }
   return loaded;
+}
+
+/** A locale's topic files (`<topic>.yml`), each under its topic's name; a
+ * regional overlay has only the topics it overrides. */
+function readCatalog(locale: CatalogLocale): Record<string, unknown> {
+  const dir = new URL(`../../../messages/${locale}/`, import.meta.url);
+  const catalog: Record<string, unknown> = {};
+  for (const file of readdirSync(dir)) {
+    if (!file.endsWith('.yml')) continue;
+    const parsed: unknown = parse(readFileSync(new URL(file, dir), 'utf8'));
+    catalog[file.slice(0, -'.yml'.length)] = isRecord(parsed) ? parsed : {};
+  }
+  return catalog;
 }
 
 /** The catalogs a locale reads, most specific first: a region falls back to

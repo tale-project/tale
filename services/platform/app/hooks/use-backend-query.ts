@@ -81,7 +81,7 @@ export function useBackendQuery<Name extends QueryName>(
   // Only the no-row branch below reads the probe, so only it listens. One
   // probe observer per adapted read put an observer per mounted read on the
   // probe's shared query, and each removal scans all of them (#4062).
-  const isAuthenticated = useSessionProbeSignedIn(
+  const gateOpen = useSessionProbeSignedIn(
     adapter === undefined && !skipped && requireAuth,
   );
   const organizationId =
@@ -127,11 +127,9 @@ export function useBackendQuery<Name extends QueryName>(
       ...queryOpts,
     };
     // The auth gate still applies: a read that would refuse pre-auth should
-    // not fire its refusal before the session probe resolves.
+    // not fire its refusal before the session probe holds a user.
     enabled =
-      !skipped &&
-      (requireAuth ? isAuthenticated : true) &&
-      (base.enabled ?? true);
+      !skipped && (requireAuth ? gateOpen : true) && (base.enabled ?? true);
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter row and this name's contract entry are keyed alike, so the row's projection IS this return shape
   return useQuery({ ...base, enabled }) as UseQueryResult<ReturnsOf<Name>>;

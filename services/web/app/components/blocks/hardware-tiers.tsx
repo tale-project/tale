@@ -16,6 +16,7 @@ import {
   type LeasingTerm,
   type TierMetrics,
 } from '@/app/components/blocks/hardware-specs';
+import { PageIllustration } from '@/app/components/blocks/page-illustrations';
 import { MarketingButton, MarketingLink } from '@/app/components/marketing';
 import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import type {
@@ -115,6 +116,7 @@ export function HardwareTiers({
     <MarketingSection
       title={t('title')}
       description={t('description')}
+      visual={<PageIllustration kind="hardware" />}
       controls={
         <div className="flex w-full flex-col items-center gap-3 md:gap-4">
           <SegmentedRadio

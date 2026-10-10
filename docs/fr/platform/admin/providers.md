@@ -40,6 +40,12 @@ Tale exécute donc un abonnement dans les tâches et les automatisations, où so
 
 Pour discuter avec un modèle auquel tu accèdes par un abonnement, ajoute des identifiants par clé API ou variable d’environnement pour le même fournisseur, ou connecte un fournisseur comme OpenRouter qui sert ce modèle.
 
+## Coller un jeton OAuth Claude
+
+Pour utiliser un abonnement Anthropic sans courtier, choisis **Clé d'abonnement** et colle un jeton OAuth Claude, par exemple un jeton obtenu avec `claude setup-token`. Tale transmet ce jeton à Claude Code sous le nom `CLAUDE_CODE_OAUTH_TOKEN`, dans les tâches et les automatisations.
+
+Tale ne renouvelle pas un jeton collé. Quand il expire, ou quand tu passes à un autre compte Claude, utilise l’action de remplacement de la ligne pour en coller un nouveau, puis relance la tâche. [Renouveler ou retirer des identifiants](#renouveler-ou-retirer-des-identifiants) décrit cette action.
+
 ## Connecter un courtier d’abonnement
 
 Les courtiers d’abonnement prennent en charge les abonnements Anthropic via Claude Code et les abonnements OpenAI ChatGPT via Codex. Ces identifiants servent aux agents de tâche et d’automatisation ; les chats nécessitent des identifiants d’accès direct à l’API, pour les [raisons expliquées plus haut](#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat).
@@ -55,7 +61,7 @@ Renseigne `$.tokens` dans **Chemin du tableau de jetons**, `access_token` dans *
 
 Pour OpenAI, limite **Modèles autorisés** aux identifiants de modèles pris en charge par ton abonnement ChatGPT. Le catalogue de l’API OpenAI peut inclure des modèles auxquels cet abonnement ne donne pas accès.
 
-Pour utiliser un modèle GPT-6 avec l’abonnement ChatGPT, enregistre les identifiants du courtier OpenAI, puis configure un [agent de projet](/fr/platform/projects/project-agents) en choisissant **Codex** sous **Harness**. Sous **Modèle**, recherche l’identifiant du modèle, par exemple `gpt-6.1-sol`, et sélectionne l’entrée **OpenAI · Abonnement**. [Utiliser les modèles GPT-6](#utiliser-les-modeles-gpt-6) indique où chaque modèle fonctionne par ailleurs.
+Pour utiliser un modèle GPT-6 avec l’abonnement ChatGPT, enregistre les identifiants du courtier OpenAI, puis configure un [agent de projet](/fr/platform/projects/project-agents) en choisissant **Codex** sous **Environnement d'agent**. Sous **Modèle**, recherche l’identifiant du modèle, par exemple `gpt-6.1-sol`, et sélectionne l’entrée **OpenAI · Abonnement**. [Utiliser les modèles GPT-6](#utiliser-les-modeles-gpt-6) indique où chaque modèle fonctionne par ailleurs.
 
 Choisis **Sélection du jeton** selon la répartition souhaitée pour les nouveaux tours d’agent :
 
@@ -99,7 +105,7 @@ Sélectionne **Définir par défaut** dans le menu d’une ligne. Chaque fournis
 
 La liste **Modèles autorisés** limite seulement les identifiants concernés. [Modèles](/fr/platform/admin/governance/content-models) définit les modèles par défaut et les règles d’accès des personnes, équipes et rôles pour tous les fournisseurs. Les deux restrictions s’appliquent : élargir une liste ne contourne pas l’autre.
 
-La section **Harnesses**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’exécution. Modifie les identifiants au-dessus pour changer cette configuration.
+La section **Environnements d'agent**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’agent. Modifie les identifiants au-dessus pour changer cette configuration. Un environnement d’agent est signalé **En échec récemment** quand au moins la moitié de ses exécutions des 30 dernières minutes ont échoué, à partir de trois exécutions. Si Tale ne peut pas le vérifier, un avis au-dessus de la liste l’indique, avec **Réessayer**.
 
 ## Résoudre un modèle absent ou en échec
 

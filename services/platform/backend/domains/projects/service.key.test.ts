@@ -83,7 +83,7 @@ describe('createProject — the key', () => {
     expect(insertedKey(statements)).toBe('AL');
   });
 
-  it('creates a project keyless when the name yields no key', async () => {
+  it('creates a project keyless when the name yields no key [PROJ-R5]', async () => {
     const { tx, statements } = fakeTx();
     const id = await createProject(tx, auth, { name: '日本語だけ' });
     expect(id).toBe('p-new');
@@ -102,7 +102,7 @@ describe('createProject — the key', () => {
     ).rejects.toMatchObject({ code: 'PROJECT_KEY_INVALID', status: 400 });
   });
 
-  it('answers a taken explicit key with 409', async () => {
+  it('answers a taken explicit key with 409 [PROJ-R5]', async () => {
     const { tx } = fakeTx({ takenKeys: ['APP'] });
     let caught: unknown;
     try {
@@ -169,7 +169,7 @@ describe('createProject — the external item id', () => {
     expect(statements.length).toBe(before);
   });
 
-  it('answers a duplicate with 409 and creates nothing', async () => {
+  it('answers a duplicate with 409 and creates nothing [PROJ-R5]', async () => {
     const { tx, statements } = fakeTx({ externalIds: ['crm-4711'] });
     await expect(
       createProject(tx, auth, { name: 'ACME Ltd', externalItemId: 'crm-4711' }),

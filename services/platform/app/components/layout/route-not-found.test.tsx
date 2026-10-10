@@ -9,9 +9,9 @@ import {
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { enMessages } from '@/tests/utils/messages';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
-import enMessages from '../../../messages/en.yml';
 import { RouteNotFound } from './route-not-found';
 
 const notFoundMeta = enMessages.metadata.notFound;

@@ -14,14 +14,28 @@
 // `step_finish` with reason "stop" is the result record, and the turn's
 // accounting is the sum of every `step_finish` (one per model call).
 
+import { z } from 'zod';
+
 import {
   asNumber,
   asRecord,
   asString,
+  BoundedIdLedger,
   LineReassembler,
   parseJsonLine,
 } from '../jsonl';
 import type { HarnessEvent, HarnessEventParser, HarnessSlug } from '../types';
+
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+  lastText: z.string().optional(),
+  toolStarted: z.array(z.string()),
+  turnInput: z.number(),
+  turnOutput: z.number(),
+  turnCostUsd: z.number().optional(),
+});
 
 class OpenCodeJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
@@ -33,7 +47,7 @@ class OpenCodeJsonlParser implements HarnessEventParser {
   private lastText: string | undefined;
   /** The CLI usually emits only a completed tool part; a running phase is
    * optional. Every result still needs one named call in the transcript. */
-  private readonly toolStarted = new Set<string>();
+  private readonly toolStarted = new BoundedIdLedger();
   /** The turn's totals so far. Every step (one model call) finishes with
    * its own counts, so the turn's are their sum — the terminal step alone
    * is only the last call. */
@@ -42,6 +56,32 @@ class OpenCodeJsonlParser implements HarnessEventParser {
   private turnCostUsd: number | undefined;
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+      lastText: this.lastText,
+      toolStarted: [...this.toolStarted],
+      turnInput: this.turnInput,
+      turnOutput: this.turnOutput,
+      turnCostUsd: this.turnCostUsd,
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+    this.lastText = state.lastText;
+    this.toolStarted.clear();
+    for (const item of state.toolStarted) this.toolStarted.add(item);
+    this.turnInput = state.turnInput;
+    this.turnOutput = state.turnOutput;
+    this.turnCostUsd = state.turnCostUsd;
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));

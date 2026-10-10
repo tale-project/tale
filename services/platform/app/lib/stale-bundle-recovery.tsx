@@ -4,10 +4,10 @@
  * Every lazily loaded chunk in the build goes through Vite's preload helper,
  * which reports a failed load as a cancelable `vite:preloadError` on
  * `window`, with the import's error in `event.payload`. A tab opened before a
- * deploy still names the previous build's content-hashed chunks, and the
- * deploy removed them: the server answers the SPA shell instead
- * (`server.ts`), and the browser refuses that as a module. Nothing else
- * rescues such a tab — the service worker precaches no JS
+ * deploy still names the previous build's content-hashed chunks. Both colours
+ * retain those artifacts in the shared static-assets volume. A tab can still
+ * miss a chunk after retention expires, on the first upgrade to that volume,
+ * or during an outage. The service worker precaches no application JS
  * (`packages/ui/src/pwa/vite-plugin.ts`), and the previews, tabs and editors
  * load through `lazyComponent` / plain `import()`, not through the router's
  * `lazyRouteComponent` with its own reload.
@@ -30,7 +30,11 @@ import { Button } from '@tale/ui/button';
 import { toastActionGroupClassName } from '@tale/ui/toast';
 import { toast } from '@tale/ui/use-toast';
 
-import { probeBackend } from '@/app/lib/backend/connection-state';
+import {
+  isBackendReachable,
+  probeBackend,
+  subscribeBackendReachability,
+} from '@/app/lib/backend/connection-state';
 import { getEnv } from '@/lib/env';
 import { i18n } from '@/lib/i18n/i18n';
 
@@ -162,9 +166,50 @@ export function installStaleBundleRecovery({
     window.location.reload();
   },
 }: StaleBundleRecoveryOptions = {}): () => void {
-  let phase: 'idle' | 'reloading' | 'stayed' = 'idle';
+  let phase: 'idle' | 'waiting' | 'reloading' | 'stayed' = 'idle';
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopWaiting: (() => void) | undefined;
   let installed = true;
+
+  const performReload = (): void => {
+    stopWaiting?.();
+    stopWaiting = undefined;
+    phase = 'reloading';
+    falloutUntil = Date.now() + RECOVERY_FALLOUT_MS;
+    pendingTimer = setTimeout(() => {
+      phase = 'stayed';
+      showNewVersionToast(reload);
+    }, RELOAD_PENDING_MS);
+    reload();
+  };
+
+  const waitForRecovery = (key: string): void => {
+    phase = 'waiting';
+    let checking = false;
+    const recovered = (): void => {
+      if (
+        !installed ||
+        phase !== 'waiting' ||
+        checking ||
+        !isBackendReachable()
+      )
+        return;
+      checking = true;
+      void probeBackend().then((answered) => {
+        checking = false;
+        if (!installed || phase !== 'waiting' || !answered) return;
+        if (claimReload(key)) performReload();
+        else {
+          stopWaiting?.();
+          stopWaiting = undefined;
+          phase = 'stayed';
+          showNewVersionToast(reload);
+        }
+      });
+    };
+    stopWaiting = subscribeBackendReachability(recovered);
+    recovered();
+  };
 
   /** Keeps Vite from rethrowing; what the caller does next is fallout. */
   const swallow = (event: VitePreloadErrorEvent) => {
@@ -175,12 +220,9 @@ export function installStaleBundleRecovery({
   const onPreloadError = (event: VitePreloadErrorEvent) => {
     const error: unknown = event.payload;
     if (!isChunkLoadFailure(error)) return;
-    // Offline, every fetch fails: that says nothing about a new build, and a
-    // reload would only land on the offline shell. OnlineGate owns this.
-    if (!navigator.onLine) return;
     // The page is already on its way to the new build; its other chunks
     // failing on the way out need no answer.
-    if (phase === 'reloading') {
+    if (phase === 'reloading' || phase === 'waiting') {
       swallow(event);
       return;
     }
@@ -207,14 +249,13 @@ export function installStaleBundleRecovery({
       if (!installed) return;
       if (!answered) {
         releaseReload(key);
-        phase = 'idle';
+        // A failed import is memoized by React/browser module loading. A
+        // healthy API alone cannot retry it: recover the page once the shared
+        // watch proves readiness, even when no second import is attempted.
+        waitForRecovery(key);
         return;
       }
-      pendingTimer = setTimeout(() => {
-        phase = 'stayed';
-        showNewVersionToast(reload);
-      }, RELOAD_PENDING_MS);
-      reload();
+      performReload();
     });
   };
 
@@ -224,5 +265,6 @@ export function installStaleBundleRecovery({
     falloutUntil = 0;
     window.removeEventListener('vite:preloadError', onPreloadError);
     clearTimeout(pendingTimer);
+    stopWaiting?.();
   };
 }

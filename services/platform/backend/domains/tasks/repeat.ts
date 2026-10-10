@@ -730,8 +730,8 @@ async function recordCopyCreated(
   if (laneAnnounces(lane)) {
     const actor =
       lane.kind === 'close'
-        ? { actorType: 'user', actorId: lane.actorId }
-        : { actorType: 'system', actorId: SYSTEM_ACTOR.actorId };
+        ? { actorType: 'user' as const, actorId: lane.actorId }
+        : { actorType: 'system' as const, actorId: SYSTEM_ACTOR.actorId };
     await emitEvent(tx, {
       organizationId: source.organizationId,
       eventType: 'task.created',
@@ -1212,7 +1212,7 @@ async function chainUntouched(
     SELECT id FROM app.automation_runs
     WHERE org_id = ${task.organizationId}
       AND (project_id = ${task.projectId} OR project_id IS NULL)
-      AND status IN ('queued', 'running', 'waiting')
+      AND status IN ('queued', 'running', 'waiting', 'quarantined')
       AND input -> 'task' ->> 'id' = ANY(${ids})
     LIMIT 1
   `;

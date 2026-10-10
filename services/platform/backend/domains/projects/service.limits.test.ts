@@ -59,7 +59,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('updateProjectInstructions — the shared cap is the cap', () => {
+describe('updateProjectInstructions — the shared cap is the cap [PROJ-R6]', () => {
   it('accepts exactly the shared maximum', async () => {
     const { tx, writes } = fakeTx();
     await updateProjectInstructions(

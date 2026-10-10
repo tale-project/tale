@@ -2,6 +2,8 @@ import type { Db, PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  physicalTaskQueue,
+  TASK_JOB_GROUP,
   TASK_QUEUE_OPTIONS,
   type TaskIdentifier,
   type TaskPayloads,
@@ -21,6 +23,12 @@ export interface EnqueueOptions {
    * oldest-first. Omitted = 0.
    */
   priority?: number;
+  /**
+   * The group the job counts against where its queue limits jobs per group
+   * (pg-boss `group`). Omitted, the queue's own {@link TASK_JOB_GROUP} rule
+   * derives it from the payload.
+   */
+  group?: string;
 }
 
 let bossInstance: PgBoss | null = null;
@@ -107,7 +115,10 @@ export async function addJobInTx<TName extends TaskIdentifier>(
   // Per job, not only on the queue: a queue created before its heartbeat
   // was declared keeps none (`createQueue` inserts, it never updates).
   const heartbeatSeconds = TASK_QUEUE_OPTIONS[identifier].heartbeatSeconds;
-  return requireBoss().send(identifier, payload, {
+  // Derived here, not at each call site, so no enqueue of a grouped queue
+  // can leave it out and slip past its group's limit.
+  const group = options.group ?? TASK_JOB_GROUP[identifier]?.(payload);
+  return requireBoss().send(physicalTaskQueue(identifier), payload, {
     db: bossDbInTx(tx),
     ...(options.startAfter !== undefined
       ? { startAfter: options.startAfter }
@@ -117,5 +128,6 @@ export async function addJobInTx<TName extends TaskIdentifier>(
       : {}),
     ...(options.priority !== undefined ? { priority: options.priority } : {}),
     ...(heartbeatSeconds !== undefined ? { heartbeatSeconds } : {}),
+    ...(group !== undefined && group !== '' ? { group: { id: group } } : {}),
   });
 }

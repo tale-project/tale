@@ -27,6 +27,7 @@ import {
   useSsoSelectableOrgs,
   useTrustedHeadersHandoff,
 } from '@/app/features/auth/hooks/queries';
+import { useLockoutMessage } from '@/app/features/auth/hooks/use-lockout-message';
 import {
   markProxyHandoffAttempt,
   proxyHandoffHeld,
@@ -215,23 +216,7 @@ export function LogInPage() {
 
   const { isSubmitting, isValid } = form.formState;
 
-  const formatLockoutMessage = useCallback(
-    (retryAfterSec: number | undefined): string => {
-      if (!retryAfterSec || retryAfterSec <= 0) {
-        return t('login.accountLockedGeneric');
-      }
-      if (retryAfterSec < 60) {
-        return t('login.accountLockedSeconds', { seconds: retryAfterSec });
-      }
-      const minutes = Math.ceil(retryAfterSec / 60);
-      if (minutes < 60) {
-        return t('login.accountLockedMinutes', { minutes });
-      }
-      const hours = Math.ceil(retryAfterSec / 3600);
-      return t('login.accountLockedHours', { hours });
-    },
-    [t],
-  );
+  const formatLockoutMessage = useLockoutMessage();
 
   const handleAuthError = useCallback(
     (ctx?: {

@@ -12,6 +12,12 @@ auth:
   - method: bearer
 actions:
   - name: list_import_issues
+    title: List issues to import
+    i18n:
+      de:
+        title: Issues für den Import auflisten
+      fr:
+        title: Lister les issues à importer
     description: Read matching issues for task intake. Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
     effects: read
     input:
@@ -24,7 +30,7 @@ actions:
         query: { type: string, maxLength: 2000 }
         limit: { type: integer, minimum: 1, maximum: 500 }
         cursor: { type: string, maxLength: 12000 }
-    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string }'
+    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string, legacyPrefixes?: Array<string> }'
     mock: |
       const externalId = 'https://app.glitchtip.com/' + input.organization + '/' + input.project + '#1';
       const url = 'https://app.glitchtip.com/' + input.organization + '/issues/1';
@@ -35,6 +41,12 @@ actions:
       impl: glitchtip.list_import_issues
     exampleInput: { organization: example, project: web, limit: 100 }
   - name: get_import_issue
+    title: Refresh imported issue
+    i18n:
+      de:
+        title: Importiertes Issue aktualisieren
+      fr:
+        title: Actualiser une issue importée
     description: Refresh a previously imported issue by immutable source identity, including closed or resolved issues outside the discovery filter. Marks a missing source unavailable without changing its Tale task.
     effects: read
     input:
@@ -59,6 +71,12 @@ actions:
         externalId: example/web#1
         externalIssue: { id: '1', title: Example, description: Details, url: 'https://example.com/issues/1', state: open, syncedAt: 0 }
   - name: refresh_import_issues
+    title: Refresh imported issues
+    i18n:
+      de:
+        title: Importierte Issues aktualisieren
+      fr:
+        title: Actualiser les issues importées
     description: Refresh up to 500 linked source snapshots with bounded request concurrency. Closed and unavailable issues remain linked to their existing Tale tasks.
     effects: read
     input:

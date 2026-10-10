@@ -6,17 +6,20 @@ import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import Ajv from 'ajv';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../backend/auth/auth.ts';
-import { handleMcpRequest } from '../../backend/core/automations_builder/mcp_http.ts';
 import type {
   SkillDocumentView,
   SkillSummaryView,
 } from '../../backend/core/skills/views.ts';
+import { legacyRunStopSchema } from '../../backend/domains/automations/legacy-quarantine.ts';
+import { nodeRunRowOf } from '../../backend/domains/automations/node-runs.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
 import { PLATFORM_CAPABILITIES } from '../../backend/domains/governance/competence.ts';
+import type { McpCaller } from '../../backend/domains/mcp/caller.ts';
+import { handleMcpRequest } from '../../backend/domains/mcp/protocol.ts';
 import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
 import { describeByteCap } from '../../backend/lib/byte-cap.ts';
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
@@ -29,6 +32,12 @@ import { createTaskRestRoutes } from '../../backend/rest/v1-tasks.ts';
 import { createThreadRestRoutes } from '../../backend/rest/v1-threads.ts';
 import { createRestWebsiteRoutes } from '../../backend/rest/v1-websites.ts';
 import { createRestV1Routes } from '../../backend/rest/v1.ts';
+import { execute } from '../../lib/engine/core/execute/index.ts';
+import { createRecorder } from '../../lib/engine/core/record/recorder.ts';
+import { setCodeRunner } from '../../lib/engine/core/runner.ts';
+import type { Automation } from '../../lib/engine/core/types.ts';
+import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
+import { memoryStore } from '../../lib/engine/selftest/memory-store.ts';
 import { contractFingerprint } from './fingerprint.ts';
 import { buildSpec, type Json } from './spec.ts';
 
@@ -369,6 +378,71 @@ const run = {
   finishedAt: 1_700_000_000_500,
 };
 
+/** Trigger rows as the store selects them: a schedule on a repeat rule
+ * that missed occurrences, and a webhook with a fixed input. */
+const triggerRow = {
+  id: 't-1',
+  name: 'billing/dunning',
+  kind: 'schedule',
+  cron: null,
+  timezone: 'Europe/Zurich',
+  event: null,
+  scheduleRule: {
+    repeat: {
+      frequency: 'weekly',
+      interval: 1,
+      weekdays: [1, 2, 3, 4, 5],
+      times: ['09:00', '17:30'],
+    },
+    startDate: '2026-10-08',
+  },
+  catchUp: 'skip',
+  nextDueAt: 1_791_536_400_000,
+  input: { owner: 'tale' },
+  hasToken: false,
+  enabled: true,
+  lastFiredAt: 1_791_450_000_000,
+  lastRunId: 'run-2',
+  lastSkippedAt: 1_791_460_000_000,
+  lastSkipReason: 'missed_occurrences',
+  lastSkipDetail: {
+    reason: 'missed_occurrences',
+    missed: {
+      count: 3,
+      capped: false,
+      firstAt: 1_791_400_000_000,
+      lastAt: 1_791_450_000_000,
+      policy: 'skip',
+    },
+    firedLatest: false,
+  },
+  consecutiveFailures: 0,
+  lastFailedAt: null,
+  lastFailureCode: null,
+  lastFailedRunId: null,
+};
+
+const webhookTriggerRow = {
+  ...triggerRow,
+  id: 't-2',
+  kind: 'webhook',
+  timezone: null,
+  scheduleRule: null,
+  catchUp: null,
+  nextDueAt: null,
+  hasToken: true,
+  lastSkippedAt: 1_791_460_000_000,
+  lastSkipReason: 'start_refused',
+  lastSkipDetail: {
+    reason: 'start_refused',
+    occurrence: 1_791_460_000_000,
+    code: 'AUTOMATION_INPUT_INVALID',
+    version: 2,
+    message: 'input.owner is required',
+    issues: [{ path: 'owner', message: 'is required' }],
+  },
+};
+
 /** A run a schedule started — its input names the kind, its starter the
  * binding, and the read answers `startedVia: "schedule"`. */
 const triggerRun = {
@@ -377,6 +451,153 @@ const triggerRun = {
   startedBy: 'trigger:t-1',
   input: JSON.stringify({ trigger: 'schedule', firedAt: 1_700_000_000_000 }),
 };
+
+/**
+ * A run read step by step, through the REST doors and the read model, from
+ * the record a real run wrote: the published schemas hold what the doors
+ * answer — conditions with their explanations, a skip chain, a failure a
+ * step let the run go past, a step's items, a ledger call, two runs side by
+ * side.
+ */
+describe('a run read step by step validates against its schemas', () => {
+  const doc: Automation = {
+    version: 1,
+    name: 'billing/dunning',
+    nodes: [
+      {
+        id: 'fetch',
+        type: 'transform',
+        input: { n: '{{ input.n }}' },
+        code: 'return { amount: input.n * 600, note: "due" };',
+      },
+      {
+        id: 'gate',
+        type: 'transform',
+        when: '{{ nodes.fetch.output.amount > 1000 && input.n > 0 }}',
+        input: {},
+        code: 'return "urgent";',
+      },
+      {
+        id: 'each',
+        type: 'transform',
+        forEach: '{{ [1, 2, 3] }}',
+        onError: 'continue',
+        input: { label: 'item {{ item }} of {{ nodes.fetch.output.note }}' },
+        code: 'if (item === 2) throw new Error("two"); return item * 2;',
+      },
+    ],
+    output: '{{ nodes.fetch.output }}',
+  };
+  let rows: Array<ReturnType<typeof nodeRunRowOf> & { updated_at_ms: number }> =
+    [];
+
+  beforeAll(async () => {
+    setCodeRunner(nodeVmRunner());
+    const result = await execute(doc, {
+      input: { n: 1 },
+      mode: 'mock',
+      store: memoryStore(),
+      recorder: createRecorder({ now: () => Date.now() }),
+    });
+    rows = (result.record ?? []).map((record, index) =>
+      Object.assign(nodeRunRowOf(record), {
+        updated_at_ms: 1_700_000_000_100 + index,
+      }),
+    );
+  });
+
+  const respond = (text: string): object[] | undefined => {
+    // A page of one step's units: the step's own item rows, in order.
+    if (text.includes('item_index >= 0 OR pass >= 0')) {
+      return rows.filter((row) => row.path === 'each' && row.item_index >= 0);
+    }
+    if (text.includes('FROM app.automation_node_runs')) return rows;
+    if (text.includes('FROM app.automations WHERE')) {
+      return [{ name: doc.name, version: 2, document: doc }];
+    }
+    if (text.includes('FROM app.automation_run_events')) {
+      return [
+        {
+          id: 'ev-1',
+          at: 1_700_000_000_050,
+          kind: 'node_interrupted',
+          detail: { path: 'fetch', reason: 'lease_expired', instance: 'h:1' },
+          total: 1,
+        },
+      ];
+    }
+    if (text.includes('FROM app.automation_node_attempts')) {
+      return [
+        {
+          kind: 'connector',
+          type: 'transform',
+          attempt: 1,
+          status: 'done',
+          input: { n: 1 },
+          output: { amount: 600 },
+          failureCode: null,
+          resolution: null,
+          resolvedBy: null,
+          resolvedAt: null,
+          startedAt: 1_700_000_000_010,
+          finishedAt: 1_700_000_000_020,
+        },
+      ];
+    }
+    return undefined;
+  };
+
+  it.each([
+    ['/runs/run-1/record?include=travels', '/api/v1/runs/{runId}/record'],
+    ['/runs/run-1/record/node?node=gate', '/api/v1/runs/{runId}/record/node'],
+    [
+      '/runs/run-1/record/node?node=each&item=1',
+      '/api/v1/runs/{runId}/record/node',
+    ],
+    [
+      '/runs/run-1/record/items?node=each&limit=2',
+      '/api/v1/runs/{runId}/record/items',
+    ],
+    ['/runs/run-1/compare/run-1', '/api/v1/runs/{runId}/compare/{otherRunId}'],
+  ])('%s', async (request, path) => {
+    const routes = createAutomationRestRoutes({ sql: fakeSql([run], respond) });
+    const res = await mount(routes).request(`http://localhost${request}`);
+    const body: unknown = await res.json();
+    expect(res.status, JSON.stringify(body)).toBe(200);
+    const validate = responseValidator(path, 'get', '200');
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }, null, 2).slice(0, 4000),
+    ).toBe(true);
+  });
+
+  it('answers what the record holds', async () => {
+    const routes = createAutomationRestRoutes({ sql: fakeSql([run], respond) });
+    const record = (await (
+      await mount(routes).request('http://localhost/runs/run-1/record')
+    ).json()) as { nodes: Array<{ path: string; status: string }> };
+    expect(record.nodes.map((n) => `${n.path}:${n.status}`)).toEqual([
+      '__start:succeeded',
+      'fetch:succeeded',
+      'gate:skipped',
+      // An item failed and `onError: continue` let the run go on.
+      'each:failed',
+      '__end:succeeded',
+    ]);
+    const page = (await (
+      await mount(routes).request(
+        'http://localhost/runs/run-1/record/items?node=each&limit=1',
+      )
+    ).json()) as {
+      units: Array<{ item: number }>;
+      isDone: boolean;
+      continueCursor: string;
+    };
+    expect(page.units.map((u) => u.item)).toEqual([0]);
+    expect(page.isDone).toBe(false);
+    expect(page.continueCursor).not.toBe('');
+  });
+});
 
 describe('handler responses validate against the spec', () => {
   const cases: {
@@ -483,6 +704,49 @@ describe('handler responses validate against the spec', () => {
                   text.includes('FROM app.automation_triggers')
                 ? []
                 : undefined,
+          ),
+        }),
+      rows: [automation],
+      request: '/automations',
+      spec: ['/api/v1/automations', 'get', '200'],
+    },
+    {
+      // A schedule on a repeat rule, its next start and the occurrences it
+      // missed; a webhook whose start was refused — the shared read shape.
+      name: 'GET /automations/{name}/triggers',
+      routes: () =>
+        createAutomationRestRoutes({
+          sql: fakeSql([automation], (text) =>
+            text.includes('FROM app.automation_triggers')
+              ? [triggerRow, webhookTriggerRow]
+              : undefined,
+          ),
+        }),
+      rows: [triggerRow],
+      request: '/automations/billing__dunning/triggers',
+      spec: ['/api/v1/automations/{name}/triggers', 'get', '200'],
+    },
+    {
+      // The listing's trigger carries the schedule's next start.
+      name: 'GET /automations (with a trigger)',
+      routes: () =>
+        createAutomationRestRoutes({
+          sql: fakeSql([automation], (text) =>
+            text.includes('FROM app.projects')
+              ? [
+                  {
+                    id: 'p-1',
+                    organizationId: 'org-1',
+                    teamId: null,
+                    sharedWithTeamIds: [],
+                    archivedAt: null,
+                  },
+                ]
+              : text.includes('FROM app.automation_triggers')
+                ? [triggerRow]
+                : text.includes('FROM app.automation_project_bindings')
+                  ? []
+                  : undefined,
           ),
         }),
       rows: [automation],
@@ -843,6 +1107,7 @@ describe('handler statuses and bodies match the documented operation', () => {
         organizationId: 'org-1',
         projectId: 'p-1',
         name: 'Reviewer',
+        handle: 'reviewer',
         harness: 'claude-code',
         model: 'test-model',
         modelProvider: null,
@@ -1139,10 +1404,15 @@ describe('new project routes answer the published wire schemas', () => {
       JSON.stringify({ errors: validate.errors, body }),
     ).toBe(true);
     if (route.endsWith('/automations'))
+      // The fixture's own fields, named: other doors in this file stamp
+      // what they read onto the shared row.
       expect(body).toEqual({
         automations: [
           {
-            ...automation,
+            name: automation.name,
+            latestVersion: automation.latestVersion,
+            deployedVersion: automation.deployedVersion,
+            presentation: automation.presentation,
             description: null,
             inputs: null,
             projectIds: ['p-1'],
@@ -1274,12 +1544,16 @@ describe('a task answers its schedule and how it repeats', () => {
  * until these replies were held against their schemas.
  */
 describe('MCP JSON-RPC envelopes validate against their documented schemas', () => {
-  const rc = {
-    ctx: { runAction: vi.fn(), runQuery: vi.fn() },
-    user: { userId: 'user-1', email: 'user@example.com', name: 'User' },
-    org: { organizationId: 'org-1', orgSlug: 'acme' },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the handler touches exactly this surface
-  } as never;
+  const caller: McpCaller = {
+    organizationId: 'org-1',
+    orgSlug: 'acme',
+    userId: 'user-1',
+    role: 'developer',
+    credential: { kind: 'api-key', apiKeyId: 'key-1' },
+  };
+  const options = {
+    host: { engine: vi.fn(), platform: vi.fn(), capability: vi.fn() },
+  };
   const post = (body: unknown) =>
     new Request('http://localhost/api/v1/mcp', {
       method: 'POST',
@@ -1291,26 +1565,51 @@ describe('MCP JSON-RPC envelopes validate against their documented schemas', () 
     const validate = responseValidator('/api/v1/mcp', 'post', '200');
     const single: unknown = await (
       await handleMcpRequest(
-        rc,
+        caller,
         post({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+        options,
       )
     ).json();
     expect(validate(single), JSON.stringify(validate.errors)).toBe(true);
     const batch: unknown = await (
       await handleMcpRequest(
-        rc,
+        caller,
         post([
           { jsonrpc: '2.0', id: 1, method: 'ping' },
           { jsonrpc: '2.0', id: 'b', method: 'resources/list' },
         ]),
+        options,
       )
     ).json();
     expect(validate(batch), JSON.stringify(validate.errors)).toBe(true);
   });
 
+  it("a 404 validates in either shape: the 2026-07-28 method error and the door's unknown-organization envelope", async () => {
+    const validate = responseValidator('/api/v1/mcp', 'post', '404');
+    const missingMethod = {
+      jsonrpc: '2.0',
+      id: 3,
+      error: { code: -32601, message: 'Method not found: initialize' },
+    };
+    expect(validate(missingMethod), JSON.stringify(validate.errors)).toBe(true);
+    const unknownOrganization = {
+      error: 'X-Organization-Slug names no organization',
+      code: 'ORG_SLUG_INVALID',
+      requestId: 'req-1',
+      data: { organizations: [{ slug: 'acme', name: 'Acme' }] },
+    };
+    expect(validate(unknownOrganization), JSON.stringify(validate.errors)).toBe(
+      true,
+    );
+  });
+
   it('a parse error, whose id is null, validates against the 400 schema', async () => {
     const validate = responseValidator('/api/v1/mcp', 'post', '400');
-    const response = await handleMcpRequest(rc, post('not json at all'));
+    const response = await handleMcpRequest(
+      caller,
+      post('not json at all'),
+      options,
+    );
     expect(response.status).toBe(400);
     const body: unknown = await response.json();
     expect(body).toMatchObject({ id: null, error: { code: -32700 } });
@@ -2605,5 +2904,76 @@ describe('the document is OpenAPI 3.0', () => {
     };
     walk(spec, '$');
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('legacy quarantine public contract', () => {
+  const request = {
+    action: 'stop',
+    expectedClaimEpoch: 4,
+    expectedObservedAt: 1700000000000,
+    acknowledgeUnknownExternalEffects: true,
+  };
+  const hold = {
+    reason: 'legacy_execution_unproven',
+    observedAt: 1700000000000,
+    claimEpoch: 4,
+    priorStatus: 'running',
+    resolution: null,
+  };
+  it.each(['/api/v1/runs/{runId}', '/api/v1/projects/{id}/runs/{runId}'])(
+    '%s has an exact stop-request schema matching the native boundary',
+    (path) => {
+      const operation = paths[`${path}/legacy-quarantine`]?.post;
+      const requestBody = operation?.requestBody as Json;
+      const content = requestBody.content as Record<string, Json>;
+      const schema = content['application/json']?.schema as Json;
+      const validate = ajv.compile({ ...schema, components: spec.components });
+      for (const body of [
+        request,
+        {},
+        { ...request, action: 'resume' },
+        { ...request, acknowledgeUnknownExternalEffects: false },
+        { ...request, expectedClaimEpoch: -1 },
+        { ...request, expectedObservedAt: Number.MAX_SAFE_INTEGER + 1 },
+        { ...request, expectedObservedAt: 9e15 },
+        { ...request, expectedObservedAt: 1.5 },
+        { ...request, actor: 'someone-else' },
+        { ...request, projectId: 'other' },
+      ]) {
+        expect(validate(body)).toBe(
+          legacyRunStopSchema.safeParse(body).success,
+        );
+      }
+      expect(validate(request)).toBe(true);
+      const responses = operation?.responses as Record<string, Json>;
+      expect(responses['409']?.description).toContain('RUN_QUARANTINE_CHANGED');
+    },
+  );
+
+  it('shares the bounded public hold across full, summary and projected reads', () => {
+    const schemas = (spec.components as Json).schemas as Record<string, Json>;
+    for (const name of ['Run', 'RunSummary', 'RunProjection']) {
+      const properties = schemas[name]?.properties as Record<string, Json>;
+      expect(properties.status?.enum).toContain('quarantined');
+      expect(properties.legacyQuarantine).toEqual({
+        $ref: '#/components/schemas/LegacyRunQuarantine',
+      });
+    }
+    const validate = ajv.compile(schemas.LegacyRunQuarantine as Json);
+    expect(validate(hold)).toBe(true);
+    expect(
+      validate({
+        ...hold,
+        resolution: { action: 'stop', actor: 'user-1', at: 1700000000001 },
+      }),
+    ).toBe(true);
+    expect(validate({ ...hold, prior: { leaseOwner: 'private' } })).toBe(false);
+    expect(
+      validate({
+        ...hold,
+        resolution: { action: 'resume', actor: 'user-1', at: 1700000000001 },
+      }),
+    ).toBe(false);
   });
 });

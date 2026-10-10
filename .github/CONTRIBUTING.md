@@ -61,10 +61,17 @@ when required by the repository or CI:
 bun run verify
 ```
 
+For workflow changes, follow the [CI scheduling and cache guide](CI.md). Keep stable
+required checks and release-candidate receipts complete when splitting jobs. Run the
+workflow contract tests and inspect actual job logs; a Turbo cache hit replays a previous
+result.
+
 For performance or memory work, run `bun run test:performance` and read the
 [measurement and coverage guide](../scripts/performance/README.md). It reports
 representative hot paths and explicit gaps; it does not replace integration or
-browser tests, and timing results are never cached or used as CI thresholds.
+browser tests, and timing results are never cached or used as CI thresholds. For
+how a deployment holds a crowd, run the [load harness](../tools/load/README.md)
+against a throwaway stack (locally, or with the dispatch-only **Load** workflow).
 
 Browser changes also need the relevant Playwright or manual flow. Database
 changes need the real-Postgres integration check described by the

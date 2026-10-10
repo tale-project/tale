@@ -1,3 +1,4 @@
+import { markRetryQueueKey } from '@tale/shared/db/serializable';
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import {
@@ -7,18 +8,26 @@ import {
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
+import { z } from 'zod';
 
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
+import { compareRank } from '../../../lib/shared/task-rank-order.ts';
 import {
   parseTaskRepeat,
   sameTaskRepeat,
   type TaskRepeat,
 } from '../../../lib/shared/task-repeat.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
+import { assertExpectedHash } from '../../core/lib/config_store/precondition.ts';
+import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import {
   checkProjectAccess,
   EDITOR_ROLES,
@@ -36,14 +45,20 @@ import {
 } from '../../core/tasks/audit_actions.ts';
 import {
   TASK_ATTACHMENTS_MAX,
+  TASK_DESCRIPTION_MAX,
   taskDescriptionRefusal,
   taskLabelCountRefusal,
   taskLabelNameRefusal,
   taskTitleRefusal,
 } from '../../core/tasks/helpers.ts';
 import {
+  cutTaskText,
+  descriptionMentionMode,
+  editIntroducesMentions,
+  MENTION_URL_SQL_PATTERN,
   type MentionSource,
-  parseMentionTokens,
+  type ResolvedMention,
+  taskMentionPlainText,
 } from '../../core/tasks/mentions.ts';
 import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
@@ -51,8 +66,15 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
-import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
+import {
+  auditChainQueueKey,
+  createAuditLog,
+  lockAuditChain,
+} from '../audit_logs/service.ts';
+import {
+  currentMentionNames,
+  prepareSurfaceText,
+} from '../collab/mention-directory.ts';
 import {
   autoSubscribe,
   dismissReviewerAssignedNotifications,
@@ -72,9 +94,13 @@ import {
 } from '../projects/service.ts';
 import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
 import {
+  agentRunWorkerNumber,
   cancelAgentRunInTx,
   isStandardAgentRefusal,
   kickAgentRun,
+  parkedRunSql,
+  parkedWaitingReasonSql,
+  withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
@@ -235,6 +261,34 @@ export const TASK_COLUMNS = `
   created_by_type AS "createdByType", created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt", archived_at_ms::float8 AS "archivedAt"
 `;
+
+/** The long columns a board row leaves out: no card or row shows them, and
+ * a task's own read still carries them. */
+const BOARD_OMITTED_COLUMNS = new Set([
+  'description',
+  'attachments',
+  'outputs',
+  'external_issue AS "externalIssue"',
+]);
+
+/**
+ * The columns a board row carries: {@link TASK_COLUMNS} without the long
+ * ones no card or list row shows — the description (up to 20,000
+ * characters), the attachment and output lists and the external issue
+ * snapshot. A 2,000-task board read all of them, 3.35 MB that every task
+ * change made each open board fetch again. The board's search
+ * still matches the description in its WHERE clause.
+ */
+export const BOARD_TASK_COLUMNS = TASK_COLUMNS.split(',')
+  .map((column) => column.trim())
+  .filter((column) => !BOARD_OMITTED_COLUMNS.has(column))
+  .join(', ');
+
+/** A task row as a board reads it ({@link BOARD_TASK_COLUMNS}). */
+export type BoardTaskRow = Omit<
+  TaskRow,
+  'description' | 'attachments' | 'outputs' | 'externalIssue'
+>;
 
 // ---------------------------------------------------------------------------
 // Guards
@@ -439,6 +493,9 @@ export function boardTaskAccess(
   };
 }
 
+/** The archived-task gate: a person's change to an archived task (its fields,
+ * status, assignee, starts, comments, dependencies) is refused until someone
+ * restores it. Restoring, deleting and stopping a live run stay open. */
 export function assertTaskNotArchived(task: Pick<TaskRow, 'archivedAt'>): void {
   if (task.archivedAt !== null) {
     throw new TaskError('TASK_ARCHIVED', 'Task is archived');
@@ -783,12 +840,56 @@ export async function applyTaskCountTransition(
   }
   const openDelta = (after === 'open' ? 1 : 0) - (before === 'open' ? 1 : 0);
   const doneDelta = (after === 'done' ? 1 : 0) - (before === 'done' ? 1 : 0);
-  await tx`
-    UPDATE app.projects SET
-      open_task_count = greatest(open_task_count + ${openDelta}, 0),
-      done_task_count = greatest(done_task_count + ${doneDelta}, 0)
-    WHERE id = ${projectId}
+  const organizationId = await lockChainBeforeProjectRow(tx, projectId);
+  try {
+    await tx`
+      UPDATE app.projects SET
+        open_task_count = greatest(open_task_count + ${openDelta}, 0),
+        done_task_count = greatest(done_task_count + ${doneDelta}, 0)
+      WHERE id = ${projectId}
+    `;
+  } catch (error) {
+    throw queueOnChain(error, organizationId);
+  }
+}
+
+/**
+ * Take the project's organization audit chain BEFORE its project row.
+ *
+ * Every task write updates the project row (its number counter, its open
+ * and done counts) and appends to the organization's audit chain, and both
+ * locks are held until commit. A write that took the row first and the
+ * chain second deadlocked with a retry already queued on the chain (which
+ * holds the chain from before its transaction began and then needs the
+ * row): under a burst of task writes in one project, a cycle a second,
+ * each costing the deadlock timeout while every party held a pooled
+ * connection. One order — chain, then row — makes the cycle impossible.
+ * The chain lock is re-entrant inside the transaction, so the audit append
+ * that follows takes it again for free. Returns the organization, or null
+ * for a project that does not exist (the UPDATE then touches nothing).
+ */
+async function lockChainBeforeProjectRow(
+  tx: TransactionSql,
+  projectId: string,
+): Promise<string | null> {
+  const rows = await tx<{ organizationId: string }[]>`
+    SELECT org_id AS "organizationId" FROM app.projects WHERE id = ${projectId}
   `;
+  const organizationId = rows[0]?.organizationId ?? null;
+  if (organizationId !== null) await lockAuditChain(tx, organizationId);
+  return organizationId;
+}
+
+/**
+ * A conflict on the project row, met while holding the organization's
+ * chain, queues the retry on that chain: the queued attempt then takes the
+ * chain before its snapshot, after the writer it lost to has committed,
+ * instead of colliding on the row again.
+ */
+function queueOnChain(error: unknown, organizationId: string | null): unknown {
+  return organizationId === null
+    ? error
+    : markRetryQueueKey(error, auditChainQueueKey(organizationId));
 }
 
 /** Claim the next per-project task number in the same transaction. */
@@ -796,11 +897,17 @@ export async function nextTaskNumber(
   tx: TransactionSql,
   projectId: string,
 ): Promise<number> {
-  const rows = await tx<{ taskCounter: number }[]>`
-    UPDATE app.projects SET task_counter = task_counter + 1
-    WHERE id = ${projectId}
-    RETURNING task_counter AS "taskCounter"
-  `;
+  const organizationId = await lockChainBeforeProjectRow(tx, projectId);
+  let rows: { taskCounter: number }[];
+  try {
+    rows = await tx<{ taskCounter: number }[]>`
+      UPDATE app.projects SET task_counter = task_counter + 1
+      WHERE id = ${projectId}
+      RETURNING task_counter AS "taskCounter"
+    `;
+  } catch (error) {
+    throw queueOnChain(error, organizationId);
+  }
   const number = rows[0]?.taskCounter;
   if (number === undefined) {
     throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
@@ -832,16 +939,18 @@ export async function recordActivity(
     action: string;
     fromValue?: string;
     toValue?: string;
+    context?: Record<string, unknown>;
   },
 ): Promise<void> {
   await tx`
     INSERT INTO app.task_activity (
       org_id, task_id, project_id, actor_type, actor_id, action,
-      from_value, to_value, created_at_ms
+      from_value, to_value, context, created_at_ms
     ) VALUES (
       ${args.task.organizationId}, ${args.task.id}, ${args.task.projectId},
       ${args.actorType}, ${args.actorId}, ${args.action},
-      ${args.fromValue ?? null}, ${args.toValue ?? null}, ${Date.now()}
+      ${args.fromValue ?? null}, ${args.toValue ?? null},
+      ${args.context === undefined ? null : tx.json(toJson(args.context))}, ${Date.now()}
     )
   `;
   // Every task change writes its activity line, so this is the ONE spot that
@@ -1020,6 +1129,11 @@ async function settleTaskStatusChange(
      * in its own words (the review decision's resolved bell) — a second
      * "status changed" row would be noise. */
     bell?: boolean;
+    /** Source-owned lifecycle can archive and move atomically, and the source
+     * owns recurrence. Other status writers keep their existing choreography. */
+    toArchivedAt?: number | null;
+    repeat?: boolean;
+    context?: Record<string, unknown>;
   },
 ): Promise<TaskRepeatCopy | null> {
   const { task, toStatus } = args;
@@ -1035,7 +1149,11 @@ async function settleTaskStatusChange(
     tx,
     task.projectId,
     taskCountBucket(task),
-    taskCountBucket({ status: toStatus, archivedAt: task.archivedAt }),
+    taskCountBucket({
+      status: toStatus,
+      archivedAt:
+        args.toArchivedAt === undefined ? task.archivedAt : args.toArchivedAt,
+    }),
   );
   await recordActivity(tx, {
     task,
@@ -1044,6 +1162,7 @@ async function settleTaskStatusChange(
     action: 'status.changed',
     fromValue: task.status,
     toValue: toStatus,
+    ...(args.context !== undefined ? { context: args.context } : {}),
   });
   if (args.audit !== undefined) {
     await createAuditLog(
@@ -1056,11 +1175,12 @@ async function settleTaskStatusChange(
   }
   // The platform event is the HUMAN doors' — every gesture a person makes
   // on the board or in the sheet fires the org's `task.status_changed`
-  // triggers alike. The agent lane stays event-less on purpose: dispatch
-  // cannot yet tell a run's own flips apart from a person's (nothing
-  // passes `dispatchAutomationEvent` its 'automation' origin), so an
-  // automation reacting to the event by moving the card would re-trigger
-  // itself. That plumbing is the precondition for turning it on.
+  // triggers alike. The agent lane stays event-less on purpose, and the
+  // event's description in the trigger editor says so ("an agent's own
+  // moves don't count"). A run's own flips could now be told apart (the
+  // run's doors pass the event its origin, `events/origin.ts`), but a
+  // project agent's moves are not a run's, so turning the lane on is a
+  // product decision of its own, not a missing seam.
   if (args.actorType === 'user') {
     await emitEvent(tx, {
       organizationId: task.organizationId,
@@ -1084,6 +1204,7 @@ async function settleTaskStatusChange(
       actorId: args.actorId,
     });
   }
+  if (args.repeat === false) return null;
   return await createNextRepeatCopy(tx, {
     task,
     toStatus,
@@ -1229,6 +1350,20 @@ function normalizeAttachments(
 }
 
 /**
+ * The start-date bell's stamp for a start being written now. A start that
+ * has already arrived — today, picked as the new task's default, or a day
+ * in the past — was set by someone looking at the task, so it is written as
+ * already announced and the hourly sweep sends no "starts today" bell for
+ * it; a start still ahead stays unstamped and rings when its day comes.
+ */
+function startArrivedStamp(
+  startDate: number | null,
+  now: number,
+): number | null {
+  return startDate !== null && startDate <= now ? now : null;
+}
+
+/**
  * Attachments are client-named blob refs. Each ref NEW to the task must be
  * the caller's own upload (their upload intent inside its TTL, or the file
  * row they registered) — a document's ref, which every reader of that
@@ -1280,12 +1415,16 @@ export async function createTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: CreateTaskArgs,
+  /** Internal managed provisioning only; no generic task input exposes IDs. */
+  identity?: { taskId: string },
 ): Promise<string> {
+  const explicitId =
+    identity === undefined ? undefined : z.uuid().parse(identity.taskId);
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertTaskCreatable(project, auth);
 
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const labelIds = await resolveProjectLabels(tx, {
     organizationId: auth.organizationId,
     projectId: args.projectId,
@@ -1349,6 +1488,21 @@ export async function createTask(
     }
   }
 
+  // The description is stored with its mentions as whom they name, before
+  // the row is written.
+  const prepared =
+    sentDescription === undefined ||
+    !editIntroducesMentions(sentDescription, '')
+      ? undefined
+      : await prepareSurfaceText(tx, {
+          organizationId: auth.organizationId,
+          projectId: args.projectId,
+          body: sentDescription,
+          cap: TASK_DESCRIPTION_MAX,
+          mode: 'full',
+        });
+  const description = prepared?.text ?? sentDescription;
+
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
   const number = await nextTaskNumber(tx, args.projectId);
@@ -1357,8 +1511,9 @@ export async function createTask(
     INSERT INTO app.tasks (
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
-      due_date_ms, repeat_rule, rank, number, created_by, created_by_type,
-      created_at_ms, updated_at_ms, status_changed_at_ms, source_thread_id
+      start_notified_at_ms, due_date_ms, repeat_rule, rank, number, created_by,
+      created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms,
+      completed_at_ms, source_thread_id, id
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1366,10 +1521,13 @@ export async function createTask(
       ${status}, ${args.priority ?? null},
       ${labelIds ?? []}, ${assignee?.assigneeType ?? null},
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
-      ${args.startDate ?? null}, ${args.dueDate ?? null},
+      ${args.startDate ?? null},
+      ${startArrivedStamp(args.startDate ?? null, now)},
+      ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
       ${auth.userId}, 'user', ${now}, ${now}, ${now},
-      ${args.sourceThreadId ?? null}
+      ${TERMINAL_STATUSES.has(status) ? now : null},
+      ${args.sourceThreadId ?? null}, ${explicitId ?? tx`DEFAULT`}
     )
     RETURNING id
   `;
@@ -1438,11 +1596,12 @@ export async function createTask(
   }
   // After the In progress kick, so an agent the card was born working for
   // keeps its run: one engine per task, and the dispatcher yields to it.
-  if (description !== undefined) {
+  if (prepared !== undefined && description !== undefined) {
     await fanOutDescriptionMentions(tx, auth, {
       taskId,
       project,
       description,
+      added: prepared.added,
     });
   }
   // Before the review gate: a named agent put to work moves the card to In
@@ -1548,6 +1707,73 @@ function stringifyEditValue(action: string, value: unknown): string {
   return stringifyEditScalar(value);
 }
 
+export async function readTaskInstructionsConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  taskId: string,
+) {
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
+  if (task.projectId !== projectId)
+    throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertTaskReadable(project, auth);
+  const config = { projectId, taskId, description: task.description ?? '' };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** The managed lane changes only description, through the ordinary task edit
+ * effects. Compare and edit share the route's serializable transaction. */
+export async function updateTaskInstructionsConfiguration(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  config: { projectId: string; taskId: string; description: string },
+  expectedHash: string,
+): Promise<void> {
+  const task = await loadTaskOrThrow(tx, config.taskId, auth.organizationId);
+  if (task.projectId !== config.projectId)
+    throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
+  const project = await loadProjectOrThrow(tx, config.projectId);
+  await assertTaskWorkable(tx, project, task, auth);
+  assertTaskNotArchived(task);
+  const description = validateDescription(config.description) ?? '';
+  assertExpectedHash(
+    managedConfigurationHash({
+      projectId: config.projectId,
+      taskId: config.taskId,
+      description: task.description ?? '',
+    }),
+    expectedHash,
+  );
+  if ((task.description ?? '') === description) return;
+  // Stored exactly as sent, so the hash the caller reads back is the one it
+  // wrote; a mention token it adds must still name someone who can be
+  // mentioned on the task.
+  const check = await prepareSurfaceText(tx, {
+    organizationId: auth.organizationId,
+    projectId: config.projectId,
+    body: description,
+    cap: TASK_DESCRIPTION_MAX,
+    mode: 'verbatim',
+    previousBody: task.description ?? '',
+  });
+  if (check.invalidTokens.length > 0) {
+    throw new TaskError(
+      'TASK_MENTION_INVALID',
+      'The description mentions someone who cannot be mentioned on this task.',
+      400,
+      { mentions: check.invalidTokens },
+    );
+  }
+  await updateTaskFields(
+    tx,
+    auth,
+    { taskId: config.taskId, description },
+    undefined,
+    { notifyDescriptionMentions: false, storeVerbatim: true },
+  );
+}
+
 export async function updateTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -1563,6 +1789,12 @@ async function updateTaskFields(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
   agentId?: string,
+  options: {
+    notifyDescriptionMentions?: boolean;
+    /** Store the description exactly as sent (the managed lane, which has
+     * checked its mentions itself). */
+    storeVerbatim?: boolean;
+  } = {},
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
@@ -1590,11 +1822,32 @@ async function updateTaskFields(
     }
   }
   let description = task.description;
+  let addedMentions: ResolvedMention[] = [];
   if (args.description !== undefined) {
     description =
       args.description === null
         ? null
         : (validateDescription(args.description) ?? null);
+    // An edit is a new write: what it adds is stored as whom it names, while
+    // the mentions already there stay as written. Most edits add none, and
+    // then no directory is built.
+    if (
+      description !== null &&
+      description !== task.description &&
+      options.storeVerbatim !== true &&
+      editIntroducesMentions(description, task.description ?? '')
+    ) {
+      const prepared = await prepareSurfaceText(tx, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        body: description,
+        cap: TASK_DESCRIPTION_MAX,
+        mode: descriptionMentionMode(task.externalSystem),
+        previousBody: task.description ?? '',
+      });
+      description = prepared.text;
+      addedMentions = prepared.added;
+    }
     if (description !== task.description) {
       previousState.description = task.description;
       newState.description = description;
@@ -1770,8 +2023,9 @@ async function updateTaskFields(
   // A rescheduled task re-enters the date ladder: a changed due date clears
   // the SLA rung (so "due soon", the nudge and the escalations fire again
   // for the new date) and a changed start date clears the one-shot start
-  // stamp. Without this the ladder stayed off for good once it had fired —
-  // the common "overdue → pushed out" flow silenced every later alert.
+  // stamp — or sets it, when the new start has already arrived. Without this
+  // the ladder stayed off for good once it had fired — the common "overdue →
+  // pushed out" flow silenced every later alert.
   const dueChanged = args.dueDate !== undefined && dueDate !== task.dueDate;
   const startChanged =
     args.startDate !== undefined && startDate !== task.startDate;
@@ -1783,7 +2037,8 @@ async function updateTaskFields(
       sla_level = CASE WHEN ${dueChanged}::boolean THEN NULL ELSE sla_level END,
       sla_level_at_ms = CASE WHEN ${dueChanged}::boolean THEN NULL
                              ELSE sla_level_at_ms END,
-      start_notified_at_ms = CASE WHEN ${startChanged}::boolean THEN NULL
+      start_notified_at_ms = CASE WHEN ${startChanged}::boolean
+                                  THEN ${startArrivedStamp(startDate, Date.now())}::bigint
                                   ELSE start_notified_at_ms END,
       attachments = CASE WHEN ${nextAttachments !== undefined}::boolean
                          THEN ${nextAttachments !== undefined && nextAttachments.length > 0 ? tx.json(toJson(nextAttachments)) : null}::jsonb
@@ -1875,12 +2130,16 @@ async function updateTaskFields(
   });
   // An edit fans out only the mentions it ADDS: prose reworded around an
   // existing `@handle` must not ring the bell or start the agent again.
-  if (newState.description !== undefined && description !== null) {
+  if (
+    options.notifyDescriptionMentions !== false &&
+    newState.description !== undefined &&
+    description !== null
+  ) {
     await fanOutDescriptionMentions(tx, auth, {
       taskId: task.id,
       project,
       description,
-      previousDescription: task.description ?? '',
+      added: addedMentions,
     });
   }
 }
@@ -2185,6 +2444,90 @@ export async function updateTaskStatus(
   return nextTask;
 }
 
+/** An accepted custom-source business result is evidence, never a native Tale
+ * approval. The external-status door owns authorization, binding and CAS; this
+ * seam keeps board counts, rank, run cancellation, history and bells coherent.
+ * It never starts an agent, requests a second review or continues a local series. */
+export async function applyExternalTaskStatusProjection(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    actorId: string;
+    status: TaskStatus;
+    archived: boolean;
+    context: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { task, status } = args;
+  const statusChanges = task.status !== status;
+  const archiveChanges = (task.archivedAt !== null) !== args.archived;
+  if (
+    statusChanges &&
+    TERMINAL_STATUSES.has(status) &&
+    (await hasOpenChildren(tx, task.id))
+  ) {
+    throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
+  }
+  if (statusChanges) {
+    await closePendingTaskReviewOnStatusLeave(tx, {
+      task,
+      toStatus: status,
+      actor: { kind: 'system', actorId: args.actorId },
+    });
+    await cancelLiveAgentRunOnLeave(tx, task, status);
+  }
+  const now = Date.now();
+  const archivedAt = args.archived ? (task.archivedAt ?? now) : null;
+  if (statusChanges || archiveChanges) {
+    const rank = statusChanges
+      ? await computeEndRank(tx, task.projectId, status)
+      : task.rank;
+    await tx`
+      UPDATE app.tasks SET status = ${status}, rank = ${rank},
+        completed_at_ms = ${TERMINAL_STATUSES.has(status) ? (task.completedAt ?? now) : null},
+        archived_at_ms = ${archivedAt}, updated_at_ms = ${now},
+        status_changed_at_ms = ${statusChanges ? now : task.statusChangedAt}
+      WHERE id = ${task.id} AND org_id = ${task.organizationId}
+    `;
+    if (statusChanges) {
+      await settleTaskStatusChange(tx, {
+        task,
+        toStatus: status,
+        actorType: 'agent',
+        actorId: args.actorId,
+        toArchivedAt: archivedAt,
+        repeat: false,
+        context: args.context,
+        bell: !args.archived,
+      });
+    } else {
+      await applyTaskCountTransition(
+        tx,
+        task.projectId,
+        taskCountBucket(task),
+        taskCountBucket({ status, archivedAt }),
+      );
+    }
+    if (archiveChanges) {
+      await recordActivity(tx, {
+        task,
+        actorType: 'agent',
+        actorId: args.actorId,
+        action: args.archived ? 'archived' : 'restored',
+        context: args.context,
+      });
+    }
+  }
+  await recordActivity(tx, {
+    task,
+    actorType: 'agent',
+    actorId: args.actorId,
+    action: 'external_status.projected',
+    toValue: status,
+    context: args.context,
+  });
+}
+
 /**
  * The agent kick every human door that lands a card at `in_progress` shares
  * (the status picker, the drag, and a card CREATED straight into the column):
@@ -2224,6 +2567,7 @@ async function kickAssignedAgentRun(
       ? { modelProvider: agent.modelProvider }
       : {}),
     startedBy: auth.userId,
+    ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
     trigger: 'manual',
   });
 }
@@ -2294,7 +2638,7 @@ export async function agentCreateTaskTrusted(
     throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
   }
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const status = args.status ?? 'backlog';
 
   if (args.parentTaskId !== undefined) {
@@ -2323,6 +2667,20 @@ export async function agentCreateTaskTrusted(
       createdBy: args.actorId,
       createIfMissing: args.mintLabels ?? true,
     })) ?? [];
+  // An agent's description stores its mentions as whom they name, as a
+  // person's does; it notifies nobody, as before.
+  const description =
+    sentDescription === undefined
+      ? undefined
+      : (
+          await prepareSurfaceText(tx, {
+            organizationId: args.organizationId,
+            projectId: args.projectId,
+            body: sentDescription,
+            cap: TASK_DESCRIPTION_MAX,
+            mode: 'full',
+          })
+        ).text;
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
   const number = await nextTaskNumber(tx, args.projectId);
@@ -2657,7 +3015,9 @@ export async function agentUpdateTaskPriorityTrusted(
  * `workflow` sentinel) as the actor: the assignee, the activity line, the
  * audit row (`viaAgent`, as the agent's other writes) and the assignment
  * bells. A live run holds the task for its current worker, so a transfer
- * under one is refused exactly as the picker refuses it.
+ * under one is refused exactly as the picker refuses it — unless that run
+ * still waits for a worker and never launched: then the transfer withdraws
+ * it, as the picker's does.
  */
 export async function agentAssignTaskToAgentTrusted(
   tx: TransactionSql,
@@ -2672,6 +3032,7 @@ export async function agentAssignTaskToAgentTrusted(
           assigneeId: args.agentId,
         };
   if (!assigneeChanges(task, assignee)) return;
+  await withdrawWaitingAgentRunInTx(tx, task);
   if (await taskHasLiveRun(tx, task)) {
     throw new TaskError(
       'TASK_HAS_LIVE_RUN',
@@ -2776,7 +3137,8 @@ export interface TaskOutputEntry {
 
 /**
  * TRUSTED deliverables merge into the task's Output zone (same fileName ⇒
- * replace) — the settle's attach step.
+ * replace and move to the end) — the settle's attach step. Stored order tracks
+ * the last write so the staging window includes re-delivered older names.
  */
 export async function agentRecordTaskOutputsTrusted(
   tx: TransactionSql,
@@ -2808,8 +3170,8 @@ export async function agentRecordTaskOutputsTrusted(
       ...(args.runId !== undefined ? { runId: args.runId } : {}),
     };
     const at = next.findIndex((output) => output.fileName === fileName);
-    if (at === -1) next.push(entry);
-    else next[at] = entry;
+    if (at !== -1) next.splice(at, 1);
+    next.push(entry);
   }
   await tx`
     UPDATE app.tasks SET
@@ -2847,13 +3209,17 @@ export async function assignTask(
   // in_review park) a card that now shows someone else's name, and "Run
   // agent" answering already_running for the wrong agent. The refusal
   // names itself — the picker cancels the run first, then reassigns (its
-  // confirmed-handoff flow).
-  if (assigneeChanges(task, assignee) && (await taskHasLiveRun(tx, task))) {
-    throw new TaskError(
-      'TASK_HAS_LIVE_RUN',
-      'A live run holds this task; cancel it before reassigning',
-      409,
-    );
+  // confirmed-handoff flow). A run that still waits for a worker and never
+  // launched has done nothing yet: the reassignment withdraws it instead.
+  if (assigneeChanges(task, assignee)) {
+    await withdrawWaitingAgentRunInTx(tx, task);
+    if (await taskHasLiveRun(tx, task)) {
+      throw new TaskError(
+        'TASK_HAS_LIVE_RUN',
+        'A live run holds this task; cancel it before reassigning',
+        409,
+      );
+    }
   }
 
   await tx`
@@ -3065,12 +3431,13 @@ export async function deleteTask(
     { id: string; status: TaskStatus; archivedAt: number | null }[]
   >`
     WITH RECURSIVE tree AS (
-      SELECT id, status, archived_at_ms, 0 AS depth
+      SELECT id, status, archived_at_ms
       FROM app.tasks WHERE id = ${taskId}
-      UNION ALL
-      SELECT t.id, t.status, t.archived_at_ms, tree.depth + 1
+      UNION
+      SELECT t.id, t.status, t.archived_at_ms
       FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
-      WHERE tree.depth < 32
+      WHERE t.org_id = ${auth.organizationId}
+        AND t.project_id = ${task.projectId}
     )
     SELECT id, status, archived_at_ms::float8 AS "archivedAt"
     FROM tree
@@ -3181,6 +3548,10 @@ export async function addTaskDependency(
   // "Blocked by" is the blocked task's own record — its activity line and
   // its Blocked chip — so the edge is a change to that task.
   await assertTaskWorkable(tx, project, blocked, auth);
+  // An archived task takes no new edge on either end, as on the board: an
+  // archived blocker's status no longer moves, so it would block for good.
+  assertTaskNotArchived(blocked);
+  assertTaskNotArchived(blocker);
 
   // Adding blocker→blocked creates a cycle iff blocker is reachable FROM
   // blocked already.
@@ -3233,8 +3604,11 @@ export async function removeTaskDependency(
     auth.organizationId,
   );
   const project = await loadProjectOrThrow(tx, blocked.projectId);
-  // The edge is the blocked task's record, as when it was added.
+  // The edge is the blocked task's record, as when it was added: an archived
+  // one keeps its edges, while an archived BLOCKER can still be dropped from
+  // an active task, the one way to free it.
   await assertTaskWorkable(tx, project, blocked, auth);
+  assertTaskNotArchived(blocked);
   const deleted = await tx`
     DELETE FROM app.task_dependencies
     WHERE blocker_task_id = ${args.blockerTaskId}
@@ -3283,6 +3657,10 @@ export interface DecoratedTaskRow extends TaskRow {
   projectKey?: string;
 }
 
+/** A board row decorated for the wire, as {@link DecoratedTaskRow}. */
+export type DecoratedBoardTaskRow = BoardTaskRow &
+  Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles' | 'projectKey'>;
+
 export interface TaskListFilters {
   includeArchived?: boolean;
   status?: string;
@@ -3297,11 +3675,27 @@ export interface TaskListFilters {
   query?: string;
 }
 
+export interface TaskBoardReadOptions extends TaskListFilters {
+  /** Boards omit long bodies by default; false keeps the full compatibility
+   * read. Task details always use the full projection. */
+  summary?: boolean;
+}
+
+interface TaskFolderFacts {
+  existingFolders: Set<string>;
+  foldersWithFiles: Set<string>;
+}
+
+const NO_FOLDER_FACTS: TaskFolderFacts = {
+  existingFolders: new Set(),
+  foldersWithFiles: new Set(),
+};
+
 /** Batch-resolve the page's label ids to catalog DTOs (color derived, the
  * 0.4 rule — the catalog stores names, the palette is deterministic). */
 async function resolveLabelMap(
   sql: Sql,
-  tasks: readonly TaskRow[],
+  tasks: readonly Pick<TaskRow, 'labelIds'>[],
 ): Promise<Map<string, ResolvedTaskLabel>> {
   const ids = [...new Set(tasks.flatMap((task) => task.labelIds))];
   if (ids.length === 0) return new Map();
@@ -3326,33 +3720,44 @@ async function resolveLabelMap(
 async function collectFolderFacts(
   sql: Sql,
   organizationId: string,
-  projectId: string,
-  tasks: readonly TaskRow[],
-): Promise<{ existingFolders: Set<string>; foldersWithFiles: Set<string> }> {
-  const folderIds = [
-    ...new Set(
-      tasks
-        .map((task) => task.externalId)
-        .filter((id): id is string => id !== null),
-    ),
-  ];
-  if (folderIds.length === 0) {
-    return { existingFolders: new Set(), foldersWithFiles: new Set() };
+  tasksByProject: ReadonlyMap<
+    string,
+    readonly Pick<BoardTaskRow, 'externalId'>[]
+  >,
+): Promise<Map<string, TaskFolderFacts>> {
+  const folderIds: string[] = [];
+  const projectIds: string[] = [];
+  for (const [projectId, tasks] of tasksByProject) {
+    const roots = new Set(tasks.map((task) => task.externalId));
+    for (const root of roots) {
+      if (root === null) continue;
+      folderIds.push(root);
+      projectIds.push(projectId);
+    }
   }
-  const rows = await sql<{ rootId: string; hasFiles: boolean }[]>`
+  if (folderIds.length === 0) {
+    return new Map();
+  }
+  const rows = await sql<
+    { rootId: string; projectId: string; hasFiles: boolean }[]
+  >`
     WITH RECURSIVE tree AS (
-      SELECT f.id AS root_id, f.id, 0 AS depth
+      SELECT f.id AS root_id, f.project_id, f.id, 0 AS depth
       FROM app.folders f
-      WHERE f.id = ANY(${folderIds})
-        AND f.org_id = ${organizationId}
-        AND f.project_id = ${projectId}
+      JOIN unnest(${folderIds}::text[], ${projectIds}::text[])
+        AS roots(id, project_id)
+        ON f.id = roots.id AND f.project_id = roots.project_id
+      WHERE f.org_id = ${organizationId}
       UNION ALL
-      SELECT t.root_id, f.id, t.depth + 1
+      SELECT t.root_id, t.project_id, f.id, t.depth + 1
       FROM app.folders f
       JOIN tree t ON f.parent_id = t.id
       WHERE t.depth < 16
+        AND f.org_id = ${organizationId}
+        AND f.project_id = t.project_id
     )
     SELECT root_id AS "rootId",
+           project_id AS "projectId",
            bool_or(EXISTS (
              SELECT 1 FROM app.documents d
              WHERE d.folder_id = tree.id
@@ -3361,21 +3766,26 @@ async function collectFolderFacts(
                AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
            )) AS "hasFiles"
     FROM tree
-    GROUP BY root_id
+    GROUP BY root_id, project_id
   `;
-  return {
-    existingFolders: new Set(rows.map((row) => row.rootId)),
-    foldersWithFiles: new Set(
-      rows.filter((row) => row.hasFiles).map((row) => row.rootId),
-    ),
-  };
+  const facts = new Map<string, TaskFolderFacts>();
+  for (const row of rows) {
+    let project = facts.get(row.projectId);
+    if (project === undefined) {
+      project = { existingFolders: new Set(), foldersWithFiles: new Set() };
+      facts.set(row.projectId, project);
+    }
+    project.existingFolders.add(row.rootId);
+    if (row.hasFiles) project.foldersWithFiles.add(row.rootId);
+  }
+  return facts;
 }
 
-function decorateTaskRow(
-  task: TaskRow,
+function decorateTaskRow<Row extends BoardTaskRow>(
+  task: Row,
   labelMap: ReadonlyMap<string, ResolvedTaskLabel>,
   facts: { existingFolders: Set<string>; foldersWithFiles: Set<string> },
-): DecoratedTaskRow {
+): Row & Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles'> {
   return Object.assign(task, {
     labels: task.labelIds
       .map((id) => labelMap.get(id))
@@ -3387,15 +3797,23 @@ function decorateTaskRow(
   });
 }
 
-async function decorateProjectPage(
+async function decorateProjectPage<Row extends BoardTaskRow>(
   sql: Sql,
   organizationId: string,
   projectId: string,
-  tasks: TaskRow[],
-): Promise<DecoratedTaskRow[]> {
+  tasks: Row[],
+): Promise<
+  (Row & Pick<DecoratedTaskRow, 'labels' | 'folderExists' | 'hasFiles'>)[]
+> {
   const labelMap = await resolveLabelMap(sql, tasks);
-  const facts = await collectFolderFacts(sql, organizationId, projectId, tasks);
-  return tasks.map((task) => decorateTaskRow(task, labelMap, facts));
+  const facts = await collectFolderFacts(
+    sql,
+    organizationId,
+    new Map([[projectId, tasks]]),
+  );
+  return tasks.map((task) =>
+    decorateTaskRow(task, labelMap, facts.get(projectId) ?? NO_FOLDER_FACTS),
+  );
 }
 
 /**
@@ -3443,18 +3861,18 @@ export async function listTasksByProject(
   sql: Sql,
   auth: ProjectAuthContext,
   projectId: string,
-  filters: TaskListFilters = {},
+  filters: TaskBoardReadOptions = {},
 ): Promise<
   {
-    tasks: DecoratedTaskRow[];
+    tasks: DecoratedBoardTaskRow[];
     truncated: boolean;
   } & TaskAccess
 > {
   const project = await loadProjectOrThrow(sql, projectId);
   assertTaskReadable(project, auth);
   const access = boardTaskAccess(project, auth);
-  const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
+  const rows = await sql<BoardTaskRow[]>`
+    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE project_id = ${projectId}
       AND ${boardFilterClause(sql, filters)}
     ORDER BY status ASC, rank ASC
@@ -3583,14 +4001,14 @@ export async function listTasksForAgent(
 export async function listTasksForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-  filters: TaskListFilters = {},
+  filters: TaskBoardReadOptions = {},
 ): Promise<
   {
-    tasks: DecoratedTaskRow[];
+    tasks: DecoratedBoardTaskRow[];
     truncated: boolean;
   } & TaskAccess
 > {
-  const projects = await listProjects(sql, auth);
+  const projects = await listProjects(sql, auth, { summary: true });
   const access: TaskAccess = {
     canEdit: EDITOR_ROLES.has(auth.role),
     canCreate: auth.role !== 'disabled',
@@ -3601,8 +4019,8 @@ export async function listTasksForAccessibleProjects(
   const projectKeys = new Map(
     projects.map((project) => [project.id, project.key]),
   );
-  const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
+  const rows = await sql<BoardTaskRow[]>`
+    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${auth.organizationId}
       AND project_id = ANY(${[...projectKeys.keys()]})
       AND ${boardFilterClause(sql, filters)}
@@ -3613,36 +4031,27 @@ export async function listTasksForAccessibleProjects(
   const page = truncated ? rows.slice(0, TASK_BOARD_CAP) : rows;
   page.sort((a, b) =>
     a.status === b.status
-      ? a.rank.localeCompare(b.rank)
+      ? compareRank(a.rank, b.rank)
       : a.status.localeCompare(b.status),
   );
 
   // Folder facts are per-project — group the page, stamp, then merge.
   const labelMap = await resolveLabelMap(sql, page);
-  const byProject = new Map<string, TaskRow[]>();
+  const byProject = new Map<string, BoardTaskRow[]>();
   for (const task of page) {
     const group = byProject.get(task.projectId);
     if (group) group.push(task);
     else byProject.set(task.projectId, [task]);
   }
-  const merged = {
-    existingFolders: new Set<string>(),
-    foldersWithFiles: new Set<string>(),
-  };
-  for (const [projectId, projectRows] of byProject) {
-    const facts = await collectFolderFacts(
-      sql,
-      auth.organizationId,
-      projectId,
-      projectRows,
-    );
-    for (const id of facts.existingFolders) merged.existingFolders.add(id);
-    for (const id of facts.foldersWithFiles) merged.foldersWithFiles.add(id);
-  }
+  const facts = await collectFolderFacts(sql, auth.organizationId, byProject);
   return {
     tasks: page.map((task) => {
       const key = projectKeys.get(task.projectId) ?? null;
-      const decorated = decorateTaskRow(task, labelMap, merged);
+      const decorated = decorateTaskRow(
+        task,
+        labelMap,
+        facts.get(task.projectId) ?? NO_FOLDER_FACTS,
+      );
       return key !== null
         ? Object.assign(decorated, { projectKey: key })
         : decorated;
@@ -3686,8 +4095,10 @@ export async function getTask(
     task: decorated,
     ...access,
     // Reaching here means the caller passed the project read gate — exactly
-    // the requirement to comment (a READ-level action, the 0.4 posture).
-    canComment: true,
+    // the requirement to comment (a READ-level action, the 0.4 posture) — on
+    // an active task in an active project, which every comment door
+    // requires; the composer and the comment actions follow this flag.
+    canComment: project.archivedAt === null && task.archivedAt === null,
     ancestors,
   };
 }
@@ -3721,6 +4132,14 @@ export interface TaskActivityRow {
   createdAt: number;
 }
 
+/**
+ * How much of a changed description the activity read carries. The row keeps
+ * both whole descriptions (up to 20,000 characters each) and the timeline
+ * quotes a line's length of them, so a task edited a few dozen times answered
+ * megabytes of text nobody reads, on every open and every refresh.
+ */
+const ACTIVITY_DESCRIPTION_QUOTE_MAX = 1000;
+
 export async function listTaskActivity(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -3730,7 +4149,7 @@ export async function listTaskActivity(
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
-  return sql<TaskActivityRow[]>`
+  const rows = await sql<TaskActivityRow[]>`
     SELECT id::text AS id, org_id AS "organizationId",
            task_id AS "taskId", project_id AS "projectId",
            actor_type AS "actorType", actor_id AS "actorId",
@@ -3741,6 +4160,26 @@ export async function listTaskActivity(
     ORDER BY created_at_ms DESC, id DESC
     LIMIT ${Math.min(limit, 500)}
   `;
+  // The rows are this read's own, fresh from the query: quoted in place.
+  for (const row of rows) {
+    if (row.action === 'description.changed') {
+      row.fromValue = quoteDescription(row.fromValue);
+      row.toValue = quoteDescription(row.toValue);
+    }
+  }
+  return rows;
+}
+
+/** The head of a description, never cut inside a character or inside a
+ * mention, whose reader would otherwise show half its address. */
+function quoteDescription(value: string | null): string | null {
+  if (value === null || value.length <= ACTIVITY_DESCRIPTION_QUOTE_MAX) {
+    return value;
+  }
+  const end = ACTIVITY_DESCRIPTION_QUOTE_MAX;
+  // A high surrogate at the cut opens a pair the cut would split.
+  const code = value.charCodeAt(end - 1);
+  return cutTaskText(value, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
 }
 
 // ---------------------------------------------------------------------------
@@ -3749,6 +4188,22 @@ export async function listTaskActivity(
 
 const SEARCH_MAX_RESULTS = 25;
 const SEARCH_SNIPPET_MAX = 600;
+/** How much of a text a snippet is read from: room for its 600 characters
+ * once markdown and mentions are read, without parsing a whole description
+ * of up to 20,000 characters for every hit of every palette query. */
+const SEARCH_SNIPPET_SOURCE_MAX = SEARCH_SNIPPET_MAX * 4;
+
+/** The head of a text a snippet is read from. A cut through a mention link
+ * drops that mention instead of leaving its address to be read as text. */
+function searchSnippetSource(text: string): string {
+  if (text.length <= SEARCH_SNIPPET_SOURCE_MAX) return text;
+  const head = text.slice(0, SEARCH_SNIPPET_SOURCE_MAX);
+  const open = head.lastIndexOf('[@');
+  if (open === -1 || /\]\(mention:[^)\s]*\)/.test(head.slice(open))) {
+    return head;
+  }
+  return head.slice(0, open);
+}
 
 /**
  * A search query's `LIKE ALL` patterns: its whitespace-separated tokens,
@@ -3766,11 +4221,16 @@ export function taskSearchPatterns(query: string): string[] {
 
 /**
  * A task's own fields hold every token: title, description, external id and
- * `KEY-number`, read together. `t` is the `app.tasks` row.
+ * `KEY-number`, read together. `t` is the `app.tasks` row. A mention in the
+ * description counts by the name it was saved with, never by its address
+ * (`mention:agent/<id>`), so "agent" does not find every task that mentions
+ * one; a mention of someone renamed since is found by the older name only.
  */
 function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   return sql`lower(
-    t.title || ' ' || coalesce(t.description, '') || ' ' ||
+    t.title || ' ' ||
+    regexp_replace(coalesce(t.description, ''), ${MENTION_URL_SQL_PATTERN},
+                   ']', 'g') || ' ' ||
     coalesce(t.external_id, '') || ' ' ||
     coalesce(
       (SELECT p.key FROM app.projects p WHERE p.id = t.project_id) || '-' ||
@@ -3780,9 +4240,10 @@ function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   ) LIKE ALL(${patterns})`;
 }
 
-/** One discussion comment holds every token; `m` is its `app.messages` row. */
+/** One discussion comment holds every token; `m` is its `app.messages` row.
+ * Its mentions count by name, as in {@link taskFieldsSearchMatch}. */
 function commentSearchMatch(sql: Sql, patterns: string[]) {
-  return sql`lower(coalesce(m.text, '')) LIKE ALL(${patterns})`;
+  return sql`lower(regexp_replace(coalesce(m.text, ''), ${MENTION_URL_SQL_PATTERN}, ']', 'g')) LIKE ALL(${patterns})`;
 }
 
 /**
@@ -3879,6 +4340,9 @@ export async function searchTasks(
   `;
   const seen = new Set(fieldHits.map((hit) => hit.taskId));
 
+  // A snippet reads each mention as the CURRENT name of whoever it names,
+  // and is cut after that, so it never ends in half a mention.
+  let names: Map<string, string> = new Map();
   const toHit = (hit: FieldHit, snippetSource: string): TaskSearchHit => {
     const key = projectKeys.get(hit.projectId) ?? null;
     const row: TaskSearchHit = {
@@ -3886,7 +4350,9 @@ export async function searchTasks(
       projectId: hit.projectId,
       title: hit.title,
       status: hit.status,
-      snippet: snippetSource.trim().slice(0, SEARCH_SNIPPET_MAX),
+      snippet: taskMentionPlainText(searchSnippetSource(snippetSource), names)
+        .trim()
+        .slice(0, SEARCH_SNIPPET_MAX),
       updatedAt: hit.updatedAt,
     };
     if (hit.number !== null) row.number = hit.number;
@@ -3895,40 +4361,49 @@ export async function searchTasks(
     if (archivedProjectIds.has(hit.projectId)) row.projectArchived = true;
     return row;
   };
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    fieldHits.flatMap((hit) =>
+      hit.description === null ? [] : [searchSnippetSource(hit.description)],
+    ),
+  );
   const results: TaskSearchHit[] = fieldHits.map((hit) =>
     toHit(hit, hit.description ?? hit.title),
   );
 
-  if (results.length < SEARCH_MAX_RESULTS) {
-    const commentHits = await sql<(FieldHit & { body: string })[]>`
-      SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
-             t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
-             t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
-             t.archived_at_ms::float8 AS "archivedAt",
-             m.text AS body
-      FROM app.task_discussion_message_meta meta
-      JOIN app.messages m ON m.id = meta.message_id
-      JOIN app.tasks t ON t.id = meta.task_id
-      WHERE meta.org_id = ${auth.organizationId}
-        AND t.project_id = ANY(${projectIds})
-        AND ${commentSearchMatch(sql, patterns)}
-      ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
-               m.created_at_ms DESC
-      LIMIT ${SEARCH_MAX_RESULTS}
-    `;
-    for (const hit of commentHits) {
-      if (results.length >= SEARCH_MAX_RESULTS) break;
-      if (seen.has(hit.taskId)) continue;
-      seen.add(hit.taskId);
-      results.push(toHit(hit, hit.body));
-    }
-    results.sort(
-      (a, b) =>
-        Number(a.archived ?? false) - Number(b.archived ?? false) ||
-        b.updatedAt - a.updatedAt,
-    );
+  const commentHits = await sql<(FieldHit & { body: string })[]>`
+    SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
+           t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
+           t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
+           t.archived_at_ms::float8 AS "archivedAt",
+           m.text AS body
+    FROM app.task_discussion_message_meta meta
+    JOIN app.messages m ON m.id = meta.message_id
+    JOIN app.tasks t ON t.id = meta.task_id
+    WHERE meta.org_id = ${auth.organizationId}
+      AND t.project_id = ANY(${projectIds})
+      AND ${commentSearchMatch(sql, patterns)}
+    ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
+             m.created_at_ms DESC
+    LIMIT ${SEARCH_MAX_RESULTS}
+  `;
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    commentHits.map((hit) => searchSnippetSource(hit.body)),
+  );
+  for (const hit of commentHits) {
+    if (seen.has(hit.taskId)) continue;
+    seen.add(hit.taskId);
+    results.push(toHit(hit, hit.body));
   }
-  return results;
+  results.sort(
+    (a, b) =>
+      Number(a.archived ?? false) - Number(b.archived ?? false) ||
+      b.updatedAt - a.updatedAt,
+  );
+  return results.slice(0, SEARCH_MAX_RESULTS);
 }
 
 // ---------------------------------------------------------------------------
@@ -4056,7 +4531,7 @@ export async function liveAgentRunOfTask(
 }
 
 /** Whether any run family holds this task live (agent turn or automation). */
-async function taskHasLiveRun(
+export async function taskHasLiveRun(
   tx: TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
 ): Promise<boolean> {
@@ -4083,7 +4558,7 @@ async function taskHasLiveAutomationRun(
     SELECT id FROM app.automation_runs
     WHERE org_id = ${task.organizationId}
       AND (project_id = ${task.projectId} OR project_id IS NULL)
-      AND status IN ('queued', 'running', 'waiting')
+      AND status IN ('queued', 'running', 'waiting', 'quarantined')
       AND input -> 'task' ->> 'id' = ${task.id}
     LIMIT 1
   `;
@@ -4110,30 +4585,14 @@ async function fanOutDescriptionMentions(
   args: {
     taskId: string;
     project: ProjectRow;
+    /** The description as stored. */
     description: string;
-    /** The text an edit replaces; absent on create. */
-    previousDescription?: string;
+    /** Who the text names that it did not before (`prepareSurfaceText`): on
+     * create, everyone it names. */
+    added: ResolvedMention[];
   },
 ): Promise<void> {
-  // Most descriptions name nobody, and most edits add no `@token`: the token
-  // pre-check keeps the directory build (an org-wide member scan, and more
-  // reads for a SERIALIZABLE save to conflict on) off both. Resolution maps
-  // each token on its own, so a text whose tokens the replaced text already
-  // had resolves to nobody new — the answer a build would give.
-  const tokens = parseMentionTokens(args.description);
-  if (tokens.length === 0) return;
-  if (args.previousDescription !== undefined) {
-    const before = new Set(parseMentionTokens(args.previousDescription));
-    if (tokens.every((token) => before.has(token))) return;
-  }
-  const { added } = await resolveSurfaceMentions(tx, {
-    organizationId: auth.organizationId,
-    projectId: args.project.id,
-    body: args.description,
-    ...(args.previousDescription !== undefined
-      ? { previousBody: args.previousDescription }
-      : {}),
-  });
+  const added = args.added;
   if (added.length === 0) return;
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   await dispatchMentionedProjectAgent(tx, {
@@ -4297,6 +4756,9 @@ export async function dispatchMentionedProjectAgent(
       mentionSource: args.source,
       author,
       authorId: args.authorId,
+      ...(args.auth.apiKeyId !== undefined
+        ? { authorApiKeyId: args.auth.apiKeyId }
+        : {}),
       attempt: 0,
     });
     return;
@@ -4379,6 +4841,9 @@ export async function dispatchMentionedProjectAgent(
           ? { modelProvider: agent.modelProvider }
           : {}),
         startedBy: args.auth.userId,
+        ...(args.auth.apiKeyId !== undefined
+          ? { apiKeyId: args.auth.apiKeyId }
+          : {}),
         trigger: 'mention',
         mentionSource: args.source,
         ...(args.source === 'comment' ? { feedback: args.text } : {}),
@@ -4469,6 +4934,7 @@ export async function startTaskAgentRunManual(
       ? { modelProvider: agent.modelProvider }
       : {}),
     startedBy: auth.userId,
+    ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
     trigger: 'manual',
   });
   if (kicked.reused) {
@@ -4529,7 +4995,7 @@ export async function deferredAgentKickRefusal(
       : 'not_permitted';
   }
   if (starter.kind === 'unknown') return 'not_permitted';
-  const member = await findOrganizationMember(
+  const member = await findActingMember(
     tx,
     args.organizationId,
     starter.userId,
@@ -4552,6 +5018,25 @@ export async function deferredAgentKickRefusal(
 const TASK_OPS_INDICATOR_CAP = 50;
 const TASK_OPS_RUN_SCAN_CAP = 100;
 
+/** One live agent run, as the board shows it beside its card. */
+export interface TaskOpsRun {
+  taskId: string;
+  runId: string;
+  agentId: string;
+  status: 'queued' | 'running';
+  /** It waits for room: a worker, the host, a Destroy, or its sandbox. */
+  waiting: boolean;
+  /** Why it waits, while it waits and a reason was kept. */
+  waitingReason?: AgentRunWaitingReason;
+  /** When it was asked for. */
+  startedAt: number;
+  /** When it began work in its sandbox. */
+  launchedAt?: number;
+  /** The worker it works in, once it took one: its number among the
+   * agent's workers (or the member's, for a run a member started). */
+  worker?: number;
+}
+
 export interface TaskOpsIndicators {
   runningTaskIds: string[];
   askingTaskIds: string[];
@@ -4561,6 +5046,69 @@ export interface TaskOpsIndicators {
     requestedFor?: string;
     reviewer: TaskReviewRecipient | null;
   }[];
+  /** Live agent runs, running first, then waiting and queued ones oldest
+   * first; at most {@link TASK_OPS_INDICATOR_CAP}. */
+  runs: TaskOpsRun[];
+  /** More live runs exist than `runs` lists. A card whose task is missing
+   * from a truncated list may still have a run, waiting or working: read it
+   * as unknown, never as idle, and count the list as "50+". */
+  runsTruncated: boolean;
+}
+
+/** The live agent runs of the given projects (`TaskOpsIndicators.runs`):
+ * one bounded read, the cap plus one row to tell a truncated list. */
+async function readLiveAgentRuns(
+  sql: Sql,
+  organizationId: string,
+  projectIds: readonly string[],
+): Promise<Pick<TaskOpsIndicators, 'runs' | 'runsTruncated'>> {
+  const rows = await sql<
+    {
+      runId: string;
+      taskId: string;
+      agentId: string;
+      status: 'queued' | 'running';
+      sessionId: string;
+      sessionClaimedAt: number | null;
+      waitingForCapacityAt: number | null;
+      waiting: boolean;
+      waitingReason: string | null;
+      startedAt: number;
+      launchedAt: number | null;
+    }[]
+  >`
+    SELECT id AS "runId", task_id AS "taskId", agent_id AS "agentId", status,
+           session_id AS "sessionId",
+           session_claimed_at_ms::float8 AS "sessionClaimedAt",
+           waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+           ${sql.unsafe(parkedRunSql())} AS waiting,
+           ${sql.unsafe(parkedWaitingReasonSql())} AS "waitingReason",
+           started_at_ms::float8 AS "startedAt",
+           launched_at_ms::float8 AS "launchedAt"
+    FROM app.project_agent_runs
+    WHERE org_id = ${organizationId} AND project_id = ANY(${projectIds})
+      AND status IN ('queued', 'running')
+    ORDER BY (status = 'running') DESC, started_at_ms, seq
+    LIMIT ${TASK_OPS_INDICATOR_CAP + 1}
+  `;
+  const runs = rows.slice(0, TASK_OPS_INDICATOR_CAP).map((row): TaskOpsRun => {
+    const worker = agentRunWorkerNumber(row);
+    const run: TaskOpsRun = {
+      taskId: row.taskId,
+      runId: row.runId,
+      agentId: row.agentId,
+      status: row.status,
+      waiting: row.waiting,
+      startedAt: row.startedAt,
+    };
+    if (row.waiting && isAgentRunWaitingReason(row.waitingReason)) {
+      run.waitingReason = row.waitingReason;
+    }
+    if (row.launchedAt !== null) run.launchedAt = row.launchedAt;
+    if (worker !== undefined) run.worker = worker;
+    return run;
+  });
+  return { runs, runsTruncated: rows.length > TASK_OPS_INDICATOR_CAP };
 }
 
 function projectPendingReviews(
@@ -4638,6 +5186,7 @@ export async function getTaskOpsIndicators(
     runningTaskIds,
     askingTaskIds,
     pendingReviews: projectPendingReviews(pending),
+    ...(await readLiveAgentRuns(sql, auth.organizationId, [projectId])),
   };
 }
 
@@ -4650,9 +5199,15 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
 ): Promise<TaskOpsIndicators> {
-  const projects = await listProjects(sql, auth);
+  const projects = await listProjects(sql, auth, { summary: true });
   if (projects.length === 0) {
-    return { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
+    return {
+      runningTaskIds: [],
+      askingTaskIds: [],
+      pendingReviews: [],
+      runs: [],
+      runsTruncated: false,
+    };
   }
   const projectIds = projects.map((project) => project.id);
   const running = await sql<{ taskId: string }[]>`
@@ -4670,6 +5225,7 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
     runningTaskIds: running.map((row) => row.taskId),
     askingTaskIds: [],
     pendingReviews: projectPendingReviews(pending),
+    ...(await readLiveAgentRuns(sql, auth.organizationId, projectIds)),
   };
 }
 

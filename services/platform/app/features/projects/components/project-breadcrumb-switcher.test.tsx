@@ -17,9 +17,17 @@ type ProjectRow = {
 };
 
 let projectsFixture: ProjectRow[] = [];
+let projectsError = false;
+const retryProjects = vi.fn();
 
 vi.mock('../hooks/queries', () => ({
-  useProjects: () => ({ projects: projectsFixture, isLoading: false }),
+  useProjects: () => ({
+    projects: projectsFixture,
+    isLoading: false,
+    error: projectsError,
+    isRetrying: false,
+    retry: retryProjects,
+  }),
 }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -37,6 +45,8 @@ describe('ProjectBreadcrumbSwitcher', () => {
     mockLocation.pathname =
       '/dashboard/org-1/projects/proj-getting-started/files';
     mockLocation.search = {};
+    projectsError = false;
+    retryProjects.mockReset();
     projectsFixture = [
       { _id: CURRENT_ID, name: 'Getting started' },
       { _id: OTHER_ID, name: 'Acme AG' },
@@ -91,6 +101,31 @@ describe('ProjectBreadcrumbSwitcher', () => {
     expect(call.search({ projects: 'all' })).toEqual({});
   });
 
+  it("leaves the current project's upload folder behind (#3918)", async () => {
+    mockLocation.search = { folderId: 'folder-a' };
+    const { user } = render(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: /switch project, current: getting started/i,
+      }),
+    );
+    await user.click(screen.getByRole('option', { name: 'Acme AG' }));
+
+    const call = mockNavigate.mock.calls[0]?.[0] as {
+      to: string;
+      search: (prev: Record<string, unknown>) => Record<string, unknown>;
+    };
+    expect(call.to).toBe('/dashboard/org-1/projects/proj-acme/files');
+    expect(call.search({ folderId: 'folder-a' })).toEqual({});
+  });
+
   it('does not navigate when the current project is chosen again', async () => {
     const { user } = render(
       <ProjectBreadcrumbSwitcher
@@ -110,7 +145,48 @@ describe('ProjectBreadcrumbSwitcher', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it('keeps the current name and offers a retry when the project list fails', () => {
+    projectsError = true;
+    render(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+    expect(screen.getByText('Getting started')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Project list unavailable',
+    );
+    screen.getByRole('button', { name: 'Retry' }).click();
+    expect(retryProjects).toHaveBeenCalledOnce();
+  });
+
+  it('recovers the switcher after a successful retry', () => {
+    projectsError = true;
+    const view = render(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+    projectsError = false;
+    view.rerender(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: /switch project/i }),
+    ).toBeInTheDocument();
+  });
+
   it('renders a plain name when the project list is empty', () => {
+    projectsError = false;
+    retryProjects.mockReset();
     projectsFixture = [];
     render(
       <ProjectBreadcrumbSwitcher

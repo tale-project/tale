@@ -8,6 +8,10 @@ import { cleanup, render, screen } from '@/tests/utils/render';
 import { KanbanBoard } from './kanban-board';
 import type { TaskRow } from './task-card';
 import { TasksList } from './tasks-list';
+import {
+  UNWINDOWED_LANE_MAX_CARDS,
+  WINDOWED_LANE_MIN_CARDS,
+} from './windowed-task-rows';
 
 import '@/app/globals.css';
 
@@ -21,6 +25,7 @@ vi.mock('../hooks/mutations', () => ({
   useAssignTask: () => ({ mutate: mutations.assign, isPending: false }),
   useUpdateTask: () => ({ mutate: mutations.update, isPending: false }),
   useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
+  useCreateTask: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@tanstack/react-router', async (original) => ({
   ...(await original<typeof import('@tanstack/react-router')>()),
@@ -33,6 +38,8 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
@@ -61,6 +68,7 @@ vi.mock('../hooks/use-task-status-choreography', () => ({
 vi.mock('../hooks/use-task-subject-contract', () => ({
   resolveTaskOwnership: () => ({ kind: 'human' }),
   taskSubjectEntries: () => [],
+  resolveTaskSubjectContract: () => null,
   useTaskSubjectContract: () => null,
   useTaskContractAutomations: () => [],
 }));
@@ -148,20 +156,14 @@ describe.each([400, 1280])('TasksList at %ipx (real Chromium)', (width) => {
         .click({ position: { x: 4, y: row.clientHeight / 2 } });
       expect(onOpenTask).toHaveBeenCalledTimes(2);
 
-      await page
-        .getByRole('button', { name: 'Priority', exact: true })
-        .first()
-        .click();
+      await page.getByRole('button', { name: 'Priority' }).first().click();
       await expect.element(page.getByRole('listbox')).toBeVisible();
       await page.getByRole('option', { name: /Urgent/ }).click();
       expect(mutations.update).toHaveBeenCalledWith({
         taskId: first._id,
         priority: 'p0',
       });
-      await page
-        .getByRole('button', { name: 'Assign', exact: true })
-        .first()
-        .click();
+      await page.getByRole('button', { name: 'Assign' }).first().click();
       await expect.element(page.getByRole('listbox')).toBeVisible();
       await page.getByRole('option', { name: /Alice Reviewer/ }).click();
       expect(mutations.assign).toHaveBeenCalledWith({
@@ -169,7 +171,7 @@ describe.each([400, 1280])('TasksList at %ipx (real Chromium)', (width) => {
         assigneeType: 'user',
         assigneeId: 'user-2',
       });
-      await page.getByRole('button', { name: 'Subtasks', exact: true }).click();
+      await page.getByRole('button', { name: 'Subtasks' }).click();
       expect(onOpenTask).toHaveBeenCalledTimes(2);
 
       screen.getByRole('button', { name: child.title }).focus();
@@ -223,7 +225,7 @@ it('opens read-only parent and nested tasks with Space without a drag affordance
   expect(onOpenTask).toHaveBeenCalledExactlyOnceWith(first);
   expect(parentTitle).not.toHaveAttribute('aria-disabled');
   expect(parentTitle).not.toHaveAttribute('aria-roledescription');
-  await page.getByRole('button', { name: 'Subtasks', exact: true }).click();
+  await page.getByRole('button', { name: 'Subtasks' }).click();
   screen.getByRole('button', { name: child.title }).focus();
   await userEvent.keyboard(' ');
   expect(onOpenTask).toHaveBeenCalledTimes(2);
@@ -248,11 +250,273 @@ it.each([400, 1280])(
     await userEvent.keyboard('{Enter}');
     expect(onOpenTask).toHaveBeenCalledExactlyOnceWith(first);
     expect(getComputedStyle(title, '::after').boxShadow).not.toBe('none');
-    await page.getByRole('button', { name: 'Priority', exact: true }).click();
+    await page.getByRole('button', { name: 'Priority' }).click();
     await expect.element(page.getByRole('listbox')).toBeVisible();
     expect(onOpenTask).toHaveBeenCalledTimes(1);
   },
 );
+
+describe.each(['Board', 'List'])('%s with thousands of tasks', (layout) => {
+  it('retains an open picker draft, focus and scroll position at the actual windowed-to-native fallback', async () => {
+    await page.viewport(1280, 900);
+    const nativeCount = UNWINDOWED_LANE_MAX_CARDS - 1;
+    const windowedCount = WINDOWED_LANE_MIN_CARDS + 1;
+    const tasks = Array.from({ length: windowedCount }, (_, index) =>
+      makeTask(
+        `fallback-${index}`,
+        `Fallback task ${index}`,
+        `a${String(index).padStart(6, '0')}`,
+      ),
+    );
+    const board = (count: number) => (
+      <div className="h-150 w-full">
+        {layout === 'Board' ? (
+          <KanbanBoard tasks={tasks.slice(0, count)} canWorkTask={() => true} />
+        ) : (
+          <TasksList tasks={tasks.slice(0, count)} canWorkTask={() => true} />
+        )}
+      </div>
+    );
+    const view = render(board(nativeCount));
+    const title = screen.getByRole('button', {
+      name: `Fallback task ${nativeCount - 1}`,
+    });
+    const trigger = title
+      .closest('[data-task-id]')
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Priority"]');
+    if (trigger === undefined || trigger === null)
+      throw new Error('The retained row has no priority picker');
+    await page.elementLocator(trigger).click();
+    await expect.element(page.getByRole('listbox')).toBeVisible();
+    const picker = screen.getByRole('listbox');
+    const input = screen.getByRole('combobox', { name: 'Priority' });
+    await page.elementLocator(input).fill('Urgent');
+    const scroller = title.closest('.overflow-y-auto, .overflow-auto');
+    if (!(scroller instanceof HTMLElement))
+      throw new Error('The fallback fixture has no task scrollport');
+    const scrollTop = scroller.scrollTop;
+    const titleTop = title.getBoundingClientRect().top;
+    expect(scrollTop).toBeGreaterThan(0);
+
+    view.rerender(board(windowedCount));
+    expect(
+      screen.queryAllByRole('button', { name: /^Fallback task \d+$/ }).length,
+    ).toBeLessThan(windowedCount);
+    expect(title.isConnected).toBe(true);
+    expect(screen.getByRole('listbox')).toBe(picker);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('Urgent');
+    await expect.poll(() => scroller.scrollTop).toBeCloseTo(scrollTop, 0);
+    expect(title.getBoundingClientRect().top).toBeCloseTo(titleTop, 0);
+
+    view.rerender(board(nativeCount));
+    expect(
+      screen.queryAllByRole('button', { name: /^Fallback task \d+$/ }),
+    ).toHaveLength(nativeCount);
+    expect(title.isConnected).toBe(true);
+    expect(screen.getByRole('listbox')).toBe(picker);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('Urgent');
+    await expect.poll(() => scroller.scrollTop).toBeCloseTo(scrollTop, 0);
+    expect(title.getBoundingClientRect().top).toBeCloseTo(titleTop, 0);
+  });
+
+  it('keeps an open picker and its focused search when live rows cross the virtual threshold', async () => {
+    await page.viewport(1280, 900);
+    const tasks = Array.from(
+      { length: WINDOWED_LANE_MIN_CARDS + 1 },
+      (_, index) =>
+        makeTask(
+          `threshold-${index}`,
+          `Threshold task ${index}`,
+          `a${String(index).padStart(6, '0')}`,
+        ),
+    );
+    const board = (count: number) => (
+      <div className="h-150 w-full">
+        {layout === 'Board' ? (
+          <KanbanBoard tasks={tasks.slice(0, count)} canWorkTask={() => true} />
+        ) : (
+          <TasksList tasks={tasks.slice(0, count)} canWorkTask={() => true} />
+        )}
+      </div>
+    );
+    const view = render(board(WINDOWED_LANE_MIN_CARDS));
+    const title = screen.getByRole('button', {
+      name: `Threshold task ${WINDOWED_LANE_MIN_CARDS - 1}`,
+    });
+    const trigger = title
+      .closest('[data-task-id]')
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Priority"]');
+    if (trigger === undefined || trigger === null)
+      throw new Error('The last row has no priority picker');
+    await page.elementLocator(trigger).click();
+    await expect.element(page.getByRole('listbox')).toBeVisible();
+    const picker = screen.getByRole('listbox');
+    const input = screen.getByRole('combobox', { name: 'Priority' });
+    await page.elementLocator(input).fill('Urgent');
+    const scroller = title.closest('.overflow-y-auto, .overflow-auto');
+    if (!(scroller instanceof HTMLElement))
+      throw new Error('The threshold fixture has no task scrollport');
+    const scrollTop = scroller.scrollTop;
+    const titleTop = title.getBoundingClientRect().top;
+    expect(scrollTop).toBeGreaterThan(0);
+    view.rerender(board(WINDOWED_LANE_MIN_CARDS + 1));
+    expect(picker.isConnected).toBe(true);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('Urgent');
+    expect(screen.getByRole('listbox')).toBe(picker);
+    await expect.poll(() => scroller.scrollTop).toBeCloseTo(scrollTop, 0);
+    expect(title.getBoundingClientRect().top).toBeCloseTo(titleTop, 0);
+    view.rerender(board(WINDOWED_LANE_MIN_CARDS));
+    expect(screen.getByRole('listbox')).toBe(picker);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('Urgent');
+    await expect.poll(() => scroller.scrollTop).toBeCloseTo(scrollTop, 0);
+    expect(title.getBoundingClientRect().top).toBeCloseTo(titleTop, 0);
+  });
+
+  it('bounds mounted controls, reaches the final task and preserves a focused row across scrolling', async () => {
+    await page.viewport(1280, 900);
+    const tasks = Array.from({ length: 2_000 }, (_, index) =>
+      makeTask(
+        `large-${index}`,
+        `Large task ${index}`,
+        `a${String(index).padStart(6, '0')}`,
+      ),
+    );
+    const onOpenTask = vi.fn();
+    const { container } = render(
+      <div className="h-150 w-full">
+        {layout === 'Board' ? (
+          <KanbanBoard
+            tasks={tasks}
+            canWorkTask={() => true}
+            onOpenTask={onOpenTask}
+          />
+        ) : (
+          <TasksList
+            tasks={tasks}
+            canWorkTask={() => true}
+            onOpenTask={onOpenTask}
+          />
+        )}
+      </div>,
+    );
+    await expect
+      .poll(() => screen.getAllByRole('button', { name: /^Large task/ }).length)
+      .toBeLessThan(80);
+    const firstTitle = screen.getByRole('button', {
+      name: 'Large task 0',
+    });
+    const scroller =
+      layout === 'Board'
+        ? firstTitle
+            .closest('section')
+            ?.querySelector<HTMLDivElement>('.overflow-y-auto')
+        : container.querySelector<HTMLDivElement>('.overflow-auto');
+    if (!scroller)
+      throw new Error('The large task collection has no scrollport');
+    scroller.scrollTop = scroller.scrollHeight;
+    const last = page.getByRole('button', {
+      name: 'Large task 1999',
+    });
+    await expect.element(last).toBeVisible();
+    screen.getByRole('button', { name: 'Large task 1999' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(onOpenTask).toHaveBeenCalledExactlyOnceWith(tasks.at(-1));
+
+    // Virtual rows leave the DOM as they scroll out. Focused controls stay,
+    // including their neighbours so native Tab never skips a task.
+    scroller.scrollTop = 0;
+    await expect
+      .element(page.getByRole('button', { name: 'Large task 0' }))
+      .toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Large task 1999' }),
+    ).toHaveFocus();
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(
+      screen.getByRole('button', { name: 'Large task 1998' }),
+    ).toHaveFocus();
+    expect(
+      screen.getAllByRole('button', { name: /^Large task/ }).length,
+    ).toBeLessThan(80);
+  });
+
+  it('keeps keyboard rank placement correct at the end of a virtual lane', async () => {
+    await page.viewport(1280, 900);
+    const tasks = Array.from({ length: 150 }, (_, index) =>
+      makeTask(
+        `drag-large-${index}`,
+        `Draggable large task ${index}`,
+        `a${String(index).padStart(6, '0')}`,
+      ),
+    );
+    const onOpenTask = vi.fn();
+    const { container } = render(
+      <div className="h-100 w-full">
+        {layout === 'Board' ? (
+          <KanbanBoard
+            tasks={tasks}
+            canWorkTask={() => true}
+            onOpenTask={onOpenTask}
+          />
+        ) : (
+          <TasksList
+            tasks={tasks}
+            canWorkTask={() => true}
+            onOpenTask={onOpenTask}
+          />
+        )}
+      </div>,
+    );
+    const firstTitle = screen.getByRole('button', {
+      name: 'Draggable large task 0',
+    });
+    const scroller =
+      layout === 'Board'
+        ? firstTitle
+            .closest('section')
+            ?.querySelector<HTMLDivElement>('.overflow-y-auto')
+        : container.querySelector<HTMLDivElement>('.overflow-auto');
+    if (!scroller)
+      throw new Error('The large task collection has no scrollport');
+    scroller.scrollTop = scroller.scrollHeight;
+    await expect
+      .element(
+        page.getByRole('button', {
+          name: 'Draggable large task 149',
+        }),
+      )
+      .toBeVisible();
+    screen.getByRole('button', { name: 'Draggable large task 149' }).focus();
+    await userEvent.keyboard(' ');
+    await expect
+      .poll(
+        () =>
+          screen.getAllByRole('button', {
+            name: 'Draggable large task 149',
+          }).length,
+      )
+      .toBe(2);
+    await userEvent.keyboard('{ArrowUp}');
+    await expect
+      .poll(() => document.querySelector('[id^="DndLiveRegion"]')?.textContent)
+      .toContain('position 149 of 150');
+    await userEvent.keyboard(' ');
+    await expect.poll(() => mutations.move.mock.calls.length).toBe(1);
+    expect(mutations.move).toHaveBeenCalledWith({
+      taskId: 'drag-large-149',
+      status: 'todo',
+      beforeTaskId: 'drag-large-147',
+      afterTaskId: 'drag-large-148',
+    });
+    expect(onOpenTask).not.toHaveBeenCalled();
+  });
+});
 
 it.each([400, 1280])(
   'keeps the sticky status header above scrolled row controls at %ipx',

@@ -16,6 +16,7 @@ import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import { OnlineGate } from '@/app/components/connectivity/online-gate';
 import { BackupCodesDialogProvider } from '@/app/features/settings/account/components/backup-codes-dialog-provider';
 import { useSessionUser } from '@/app/hooks/use-session-user';
+import { useAvailabilityRecovery } from '@/app/lib/backend/use-availability-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { installStaleBundleRecovery } from '@/app/lib/stale-bundle-recovery';
 import { getEnv } from '@/lib/env';
@@ -41,9 +42,12 @@ startBrowserAnalytics(
   },
 );
 
-/** Dev-only probe: marks the end of the session handshake (the one request
- * every auth-gated read waits on). */
+/** Root probe observer in every build: keeps the session answer alive and
+ * eligible for reconnect refetches; also marks its resolution when cold-load
+ * tracing is enabled.
+ * Adapted reads authenticate independently through their session cookie. */
 function ColdLoadProbe() {
+  useAvailabilityRecovery();
   const { isLoading } = useSessionUser();
   useEffect(() => {
     if (!isLoading) markColdLoad('session-resolved');

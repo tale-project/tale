@@ -3,6 +3,20 @@
 // tale-*-run wrapper); chunks off the wire can split mid-line, so the
 // reassembler buffers the trailing partial and only surfaces complete lines.
 
+/** A protocol record can contain large tool output, but an absent newline
+ * must not grow a worker forever. This is independent of the display cap. */
+export const MAX_HARNESS_JSONL_RECORD_BYTES = 8 * 1024 * 1024;
+const encoder = new TextEncoder();
+
+export class HarnessJsonlRecordTooLargeError extends Error {
+  constructor() {
+    super(
+      'Harness JSONL record exceeded 8 MiB; refusing incomplete agent output.',
+    );
+    this.name = 'HarnessJsonlRecordTooLargeError';
+  }
+}
+
 export const HARNESS_RECORD_MAX_CHARS = 8 * 1024 * 1024;
 
 /** Authoritative answers are never truncated to the display budget. A CLI
@@ -17,46 +31,121 @@ export function appendHarnessAnswer(current: string, next: string): string {
   return current + next;
 }
 
+export const HARNESS_ID_LEDGER_MAX_ENTRIES = 16_384;
+const HARNESS_ID_LEDGER_MAX_CHARS = 1024 * 1024;
+const HARNESS_ID_MAX_CHARS = 4096;
+
+/** Usage/tool deduplication facts cannot be evicted without changing the
+ * result. Refuse excess explicitly; bookkeeping is constant time per ID. A
+ * checkpoint restores every retained fact before replay resumes. */
+export class BoundedIdLedger {
+  private readonly ids = new Set<string>();
+  private chars = 0;
+
+  [Symbol.iterator](): IterableIterator<string> {
+    return this.ids.values();
+  }
+
+  clear(): void {
+    this.ids.clear();
+    this.chars = 0;
+  }
+
+  has(id: string): boolean {
+    return this.ids.has(id);
+  }
+
+  add(id: string): void {
+    if (this.ids.has(id)) return;
+    if (id.length > HARNESS_ID_MAX_CHARS)
+      throw new Error(
+        `Harness deduplication identifier exceeds ${HARNESS_ID_MAX_CHARS} characters.`,
+      );
+    if (
+      this.ids.size >= HARNESS_ID_LEDGER_MAX_ENTRIES ||
+      this.chars + id.length > HARNESS_ID_LEDGER_MAX_CHARS
+    )
+      throw new Error(
+        'Harness deduplication ledger exceeds its memory budget.',
+      );
+    this.ids.add(id);
+    this.chars += id.length;
+  }
+}
+
 export class LineReassembler {
+  constructor(private readonly maxBytes = MAX_HARNESS_JSONL_RECORD_BYTES) {}
   private buf = '';
+  private bytes = 0;
+  private lastCodeUnit = 0;
+  private failure: HarnessJsonlRecordTooLargeError | undefined;
 
-  /** A malformed/no-newline harness cannot retain an unbounded protocol
-   * record. Refuse explicitly instead of truncating JSON or losing a result. */
-  constructor(private readonly maxChars = HARNESS_RECORD_MAX_CHARS) {}
+  private checkSize(bytes: number): void {
+    if (this.failure !== undefined) throw this.failure;
+    if (bytes <= this.maxBytes) return;
+    this.buf = '';
+    this.bytes = 0;
+    this.failure = new HarnessJsonlRecordTooLargeError();
+    throw this.failure;
+  }
 
-  /** Append a chunk; return the complete lines it completed (trimmed, empties
-   * dropped). The trailing partial stays buffered. */
+  snapshot(): string {
+    if (this.failure !== undefined) throw this.failure;
+    return this.buf;
+  }
+
+  restore(buffer: string): void {
+    const bytes = encoder.encode(buffer).byteLength;
+    this.checkSize(bytes);
+    this.buf = buffer;
+    this.bytes = bytes;
+    this.lastCodeUnit = buffer.charCodeAt(buffer.length - 1);
+  }
+
+  /** Append a chunk; return complete lines (trimmed, empties dropped). Check
+   * every record before retaining it, including complete oversized records.
+   * Count each new fragment once so a long partial is not rescanned per chunk. */
   push(chunk: string): string[] {
+    if (this.failure !== undefined) throw this.failure;
     const lines: string[] = [];
-    let offset = 0;
-    let nl = chunk.indexOf('\n');
-    while (nl !== -1) {
-      this.append(chunk.slice(offset, nl));
+    let start = 0;
+    while (start < chunk.length) {
+      const nl = chunk.indexOf('\n', start);
+      const fragment = chunk.slice(start, nl === -1 ? undefined : nl);
+      let bytes = this.bytes + encoder.encode(fragment).byteLength;
+      // A UTF-16 surrogate pair can straddle callbacks. Separately encoded
+      // halves cost 3 + 3 bytes; together they represent 4 UTF-8 bytes.
+      const first = fragment.charCodeAt(0);
+      if (
+        this.lastCodeUnit >= 0xd800 &&
+        this.lastCodeUnit <= 0xdbff &&
+        first >= 0xdc00 &&
+        first <= 0xdfff
+      )
+        bytes -= 2;
+      this.checkSize(bytes);
+      this.buf += fragment;
+      this.bytes = bytes;
+      if (fragment !== '')
+        this.lastCodeUnit = fragment.charCodeAt(fragment.length - 1);
+      if (nl === -1) break;
       const line = this.buf.trim();
-      this.buf = '';
       if (line) lines.push(line);
-      offset = nl + 1;
-      nl = chunk.indexOf('\n', offset);
+      this.buf = '';
+      this.bytes = 0;
+      this.lastCodeUnit = 0;
+      start = nl + 1;
     }
-    this.append(chunk.slice(offset));
     return lines;
   }
 
-  private append(part: string): void {
-    if (this.buf.length + part.length > this.maxChars) {
-      this.buf = '';
-      throw new Error(
-        `Harness protocol record exceeds ${this.maxChars} characters`,
-      );
-    }
-    this.buf += part;
-  }
-
-  /** Flush any final unterminated line (some CLIs don't newline the last
-   * record). Returns it as a single-element array, or empty. */
+  /** Flush a final unterminated record; an overflow never exposes a suffix. */
   flush(): string[] {
+    if (this.failure !== undefined) throw this.failure;
     const tail = this.buf.trim();
     this.buf = '';
+    this.bytes = 0;
+    this.lastCodeUnit = 0;
     return tail ? [tail] : [];
   }
 }

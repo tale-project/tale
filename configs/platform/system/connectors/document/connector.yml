@@ -3,6 +3,11 @@
 # text) into a folder as a visible document. Native-backed; `platform` auth.
 name: document
 displayName: Documents
+i18n:
+  de:
+    displayName: Dokumente
+  fr:
+    displayName: Documents
 description: >-
   List a folder's stored files and file produced artifacts into folders —
   the platform's own document tree as automation steps.
@@ -12,6 +17,12 @@ auth:
   - method: platform
 actions:
   - name: list
+    title: List files in folder
+    i18n:
+      de:
+        title: Dateien im Ordner auflisten
+      fr:
+        title: Lister les fichiers d’un dossier
     description: >-
       The files stored inside one folder — direct children by default;
       recursive walks the subfolder tree and prefixes each file name with its
@@ -49,6 +60,12 @@ actions:
       impl: document.list
     exampleInput: { folderId: 'fld_1' }
   - name: create
+    title: Save document to folder
+    i18n:
+      de:
+        title: Dokument im Ordner ablegen
+      fr:
+        title: Enregistrer un document dans un dossier
     description: >-
       File a document into a folder: claim a harvested blob by storageId, or
       store inline text. Idempotent per (folder, name) — re-running refreshes

@@ -40,6 +40,12 @@ Tale therefore runs a subscription in tasks and automations, where its runtime w
 
 To chat with a model you reach through a subscription, add an API key or environment-variable credential for the same provider, or connect a provider such as OpenRouter that serves the model.
 
+## Paste a Claude OAuth token
+
+To use one Anthropic subscription without a broker, choose **Subscription key** and paste a Claude OAuth token, such as one from `claude setup-token`. Tale hands the token to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN` in tasks and automations.
+
+Tale does not refresh a pasted token. When it expires, or you move to another Claude account, use the row's replacement action to paste a new one, then run the task again. [Rotate or retire credentials](#rotate-or-retire-credentials) describes that action.
+
 ## Connect a subscription broker
 
 Subscription brokers support Anthropic subscriptions through Claude Code and OpenAI ChatGPT subscriptions through Codex. These credentials serve task and automation agents; chats require direct API credentials, for the [reasons above](#use-subscriptions-in-tasks-not-in-chat).
@@ -55,7 +61,7 @@ Set **Token array path** to `$.tokens`, **Token field** to `access_token`, and *
 
 For OpenAI, restrict **Model allowlist** to model IDs your ChatGPT plan supports. The OpenAI API catalog can include models that the subscription cannot use.
 
-To run a GPT-6 model on the ChatGPT subscription, save the OpenAI broker credential, then configure a [project agent](/platform/projects/project-agents) with **Agent type** set to **Codex**. Under **Model**, search for the model ID, such as `gpt-6.1-sol`, and select the entry marked **OpenAI · Subscription**. [Run the GPT-6 models](#run-the-gpt-6-models) explains where else each model runs.
+To run a GPT-6 model on the ChatGPT subscription, save the OpenAI broker credential, then configure a [project agent](/platform/projects/project-agents) with **Agent runtime** set to **Codex**. Under **Model**, search for the model ID, such as `gpt-6.1-sol`, and select the entry marked **OpenAI · Subscription**. [Run the GPT-6 models](#run-the-gpt-6-models) explains where else each model runs.
 
 Choose **Token selection** according to how you want to distribute new agent turns:
 
@@ -99,7 +105,7 @@ Choose **Make default** from a credential's row menu. There is one default per p
 
 A credential's **Model allowlist** limits only that credential. [Models](/platform/admin/governance/content-models) sets default models and access rules for people, teams, and roles across providers. Both restrictions apply; widening one list cannot bypass the other.
 
-The **Agent runtimes** section below the credentials is read-only. It shows available models and subscriptions for each runtime; change the credentials above to change that configuration.
+The **Agent runtimes** section below the credentials is read-only. It shows available models and subscriptions for each agent runtime; change the credentials above to change that configuration. An agent runtime is marked **Recently failing** when at least half of its runs in the last 30 minutes failed, counting from three runs. When that check can't be read, a notice above the list says so, with **Try again**.
 
 ## Recover a missing or failing model
 

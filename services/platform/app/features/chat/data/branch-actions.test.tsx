@@ -63,6 +63,7 @@ describe('useBranchActions forks', () => {
       status: 'refused',
       reason: 'Usage limit reached. Your monthly cost limit is used up.',
       code: 'BUDGET_EXCEEDED',
+      budgetScope: 'user',
     });
     expect(invalidateBudgetStanding).toHaveBeenCalledWith({}, 'org_1');
     expect(invalidateChatThreads).not.toHaveBeenCalled();

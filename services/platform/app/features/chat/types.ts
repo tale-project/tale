@@ -9,7 +9,7 @@
  */
 
 import type { ReasoningEffort } from '@/lib/chat/effort';
-import type { MessagePart } from '@/lib/chat/types';
+import type { MessagePart, TurnServing } from '@/lib/chat/types';
 import type { CredentialAuth } from '@/lib/shared/providers/resolve_execution';
 
 export type { MessagePart };
@@ -109,6 +109,10 @@ export interface ChatMessageUsage {
   /** The counts are the platform's own estimate — the provider's frame was
    * lost (a cancelled turn) or never sent. */
   readonly estimated?: boolean;
+  /** Where the turn was served, as the providers' responses said: the
+   * upstream a gateway routed to, the region that answered, and model ids
+   * that differ from the one requested. */
+  readonly serving?: TurnServing;
 }
 
 /** One rendered message. `parts` is authored order and is rendered in it. */

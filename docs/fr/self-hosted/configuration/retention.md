@@ -45,7 +45,7 @@ Vérifie les catégories actives, les anciennes et nouvelles durées et les éve
 
 <Tip>
 
-Teste d’abord une durée réduite sur des données synthétiques. Vérifie qu’une donnée encore dans la période reste présente, qu’une donnée expirée suit le comportement de sa catégorie et qu’une donnée sous gel reste protégée.
+Teste d’abord une durée réduite sur des données synthétiques. Vérifie qu’une donnée encore dans la période reste présente, qu’une donnée expirée suit le comportement de sa catégorie et qu’une donnée sous conservation légale reste protégée.
 
 </Tip>
 
@@ -55,14 +55,14 @@ Le worker backend effectue le nettoyage planifié par organisation. Les threads,
 
 Chaque cycle supprime un nombre limité d’éléments par catégorie et par organisation : jusqu’à 50 000 événements chat-filter, et des lots de 1 000 éléments au plus pour toutes les autres catégories. Un arriéré plus important, comme un long historique lors de la première activation d’une catégorie, se résorbe sur plusieurs cycles quotidiens.
 
-La conservation des journaux d’audit est aussi propre à chaque organisation. Elle supprime le début éligible de sa chaîne d’audit, du plus ancien au plus récent, et s’arrête lorsqu’une ligne sous gel doit rester. La durée plus courte d’un tenant ne réduit pas l’historique d’un autre.
+La rétention des journaux d’audit est aussi propre à chaque organisation. Elle supprime le début éligible de sa chaîne d’audit, du plus ancien au plus récent, et s’arrête lorsqu’une ligne sous conservation légale doit rester. La durée plus courte d’un tenant ne réduit pas l’historique d’un autre.
 
 Chaque nettoyage est consigné dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) de l’organisation sous forme d’événements système de la catégorie Données. Il commence par **Cycle de rétention démarré**, ajoute un seul événement par catégorie où il a supprimé des éléments, avec leur nombre plutôt qu’un événement par élément, et se termine par **Cycle de rétention terminé**. Un cycle qui s’arrête sur une erreur, ou qui conserve des éléments arrivés à échéance parce que leur suppression a échoué, se termine plutôt par **Cycle de rétention en échec** ; le prochain nettoyage planifié tente à nouveau de les supprimer. Tous les événements d’un même cycle désignent le même cycle de rétention comme cible, et un cycle qui ne trouve rien à supprimer consigne tout de même son début et sa fin.
 
 `TALE_RETENTION_DISABLED=true` suspend le nettoyage planifié pendant une maintenance contrôlée par l’opérateur. Cette variable ne restaure pas les données et ne désactive pas les autres voies de suppression. Consigne son activation et retire-la à la fin de la maintenance.
 
-## Préserver les données sous gel
+## Préserver les données sous conservation légale
 
-Les gels juridiques priment sur la conservation dans leur périmètre. Un gel de l’organisation la protège dans son ensemble ; un gel plus ciblé protège les entités ou personnes concernées. Consulte le [parcours du gel juridique](/fr/platform/admin/governance/legal-hold) avant de modifier une politique qui les touche.
+Les conservations légales priment sur la rétention dans leur périmètre. Une conservation de l’organisation la protège dans son ensemble ; une conservation plus ciblée protège les entités ou personnes concernées. Consulte le [parcours de la conservation légale](/fr/platform/admin/governance/legal-hold) avant de modifier une politique qui les touche.
 
-Un gel ne remplace pas une sauvegarde. Une fois la suppression achevée hors gel, augmenter la durée ne récupère pas les données. La restauration dépend d’une sauvegarde conservée et de l’état de déploiement correspondant.
+Une conservation légale ne remplace pas une sauvegarde. Une fois la suppression achevée hors conservation légale, augmenter la durée de rétention ne récupère pas les données. La restauration dépend d’une sauvegarde conservée et de l’état de déploiement correspondant.

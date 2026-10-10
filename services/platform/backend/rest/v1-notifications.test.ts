@@ -99,7 +99,7 @@ function grant(overrides: Partial<Grant> = {}): Grant {
 }
 
 describe('read-only native notification export', () => {
-  it('refuses a caller without the role or the capability before reading any member data', async () => {
+  it('refuses a caller without the role or the capability before reading any member data [NOTIF-R4]', async () => {
     for (const role of ['member', 'editor', 'developer']) {
       const { sql, get } = fixture(role);
       const response = await get();
@@ -118,12 +118,12 @@ describe('read-only native notification export', () => {
     expect(listMyNotifications).not.toHaveBeenCalled();
     expect(listNotifications).not.toHaveBeenCalled();
   });
-  it('never exports for a disabled seat, whatever it holds, and reads nothing', async () => {
+  it('never exports for a disabled seat, whatever it holds, and reads nothing [NOTIF-R4]', async () => {
     const { sql, get } = fixture('disabled', undefined, [grant()]);
     expect((await get()).status).toBe(403);
     expect(sql).not.toHaveBeenCalled();
   });
-  it('exports for a member an admin granted the capability, with or without an expiry', async () => {
+  it('exports for a member an admin granted the capability, with or without an expiry [NOTIF-R4]', async () => {
     vi.mocked(listMyNotifications).mockResolvedValue({
       rows: [personal],
       nextCursor: null,
@@ -146,7 +146,7 @@ describe('read-only native notification export', () => {
     }
     expect(listMyNotifications).toHaveBeenCalledTimes(2);
   });
-  it('refuses an expired grant, a revoked one, and grants held elsewhere', async () => {
+  it('refuses an expired grant, a revoked one, and grants held elsewhere [NOTIF-R4]', async () => {
     for (const held of [
       grant({ expiresAt: Date.now() - 1 }),
       grant({ revokedAt: Date.now() - 60_000 }),
@@ -198,7 +198,7 @@ describe('read-only native notification export', () => {
       expect.objectContaining({ cursor: 42 }),
     );
   });
-  it('uses the recipient role for organization/security visibility and links to the right audit row', async () => {
+  it('uses the recipient role for organization/security visibility and links to the right audit row [NOTIF-R5]', async () => {
     vi.mocked(listNotifications).mockResolvedValue({
       items: [
         {
@@ -236,7 +236,7 @@ describe('read-only native notification export', () => {
       ],
     });
   });
-  it('exports nothing for absent or ambiguous verified memberships', async () => {
+  it('exports nothing for absent or ambiguous verified memberships [NOTIF-R5]', async () => {
     for (const recipients of [
       [],
       [

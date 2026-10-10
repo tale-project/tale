@@ -31,12 +31,15 @@ import { escapeForXmlTag } from '../../../lib/chat/untrusted-content';
 import { textTail } from '../../../lib/harnesses/projection';
 import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
+import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import type { SkillViewer } from '../../../lib/skills/visibility';
+import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
@@ -47,8 +50,12 @@ import {
   harnessMountsMcp,
   harnessResumesConversations,
   isManagedHarness,
+  nextWindowDelayMs,
+  removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
+  SPAWNER_OUTAGE_BUDGET_MS,
+  spawnerOutageOutlasted,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
 import type { ActionCtx } from '../lib/ctx';
@@ -76,6 +83,7 @@ import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisi
 import {
   sessionCancelExec,
   sessionDeleteFiles,
+  SessionMemoryBusyError,
   sessionStageFiles,
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
@@ -86,6 +94,7 @@ import {
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
+import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
   isTurnBudgetExceededError,
@@ -168,6 +177,9 @@ export interface WorkflowAgentRequest {
   /** Mount name → staging source: a folder id string, or
    * `{folderId|folderPath|content}`. */
   files?: Record<string, unknown>;
+  /** The node's resolved `input`, staged for the turn as `input.json` in
+   * its workspace; absent when the node declares none. */
+  input?: unknown;
 }
 
 /** What the stepper parks in the cursor after a kick. */
@@ -212,8 +224,6 @@ export interface AutomationAgentHost {
   /** Cut a turn (deadline, cancellation): reap the exec and revoke its key. */
   cancel(args: { sessionId: string; execId: string }): Promise<void>;
 }
-
-export const DEFAULT_HARNESS = 'claude-code';
 
 /** An `automationHumanAsks` row as the host consumes it — the internal reads
  * return it untyped (`v.any()`), so every consumer narrows through here. */
@@ -407,6 +417,11 @@ export function automationAgentHost(
           `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
         );
       }
+      // An input the start could not stage fails the step here, in the words
+      // its staging would use: before the op row, the scheduled start and the
+      // sandbox session a start spends, and before the retries a refused
+      // start would earn.
+      withStagedInput(request.files, request.input);
       const serving = await resolveWorkflowAgentServing(ctx, {
         organizationId,
         model: request.model,
@@ -535,6 +550,7 @@ export function automationAgentHost(
               ? { secrets: request.secrets }
               : {}),
             ...(request.files !== undefined ? { files: request.files } : {}),
+            ...(request.input !== undefined ? { input: request.input } : {}),
           },
         },
       );
@@ -685,6 +701,21 @@ export async function releaseTurnKey(
     );
     spentCents = outcome.spentCents;
     pending = settlementPending(outcome);
+  } else if (op?.budgetCents === 0 && op.spendSettled !== true) {
+    // A subscription turn: no key to read a spend from. It cost the
+    // organization nothing per call, and is booked as the request it was,
+    // with the tokens its harness reported — before the terminal stamp
+    // below closes a keyless op without a booking.
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.recordSessionOpSpend,
+      {
+        sessionId,
+        execId,
+        spentCents: 0,
+        ...(args.usageTotals !== undefined ? { usage: args.usageTotals } : {}),
+      },
+    );
+    spentCents = 0;
   }
   await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
     organizationId: args.organizationId,
@@ -946,10 +977,16 @@ function parseStagingSource(value: unknown): StagingSource | null {
   return null;
 }
 
+/** A mount name as a path under the workspace: a legacy `workspace/` prefix
+ * and trailing slashes dropped. */
+function mountPathOf(raw: string): string {
+  return raw.replace(/^workspace\//, '').replace(/\/+$/, '');
+}
+
 /** Path-safe mount name under the workspace: strip a legacy `workspace/`
  * prefix, refuse separators-out and dot-tricks. */
 function mountNameOf(raw: string): string {
-  const name = raw.replace(/^workspace\//, '').replace(/\/+$/, '');
+  const name = mountPathOf(raw);
   if (
     name === '' ||
     name.startsWith('/') ||
@@ -960,6 +997,49 @@ function mountNameOf(raw: string): string {
     );
   }
   return name;
+}
+
+/** Where an agent turn's `files` mounts and staged input land, under the
+ * session's `/agent` root. */
+const WORKFLOW_FILES_PREFIX = 'workspace/';
+
+/** The file an agent node's resolved `input` is staged as. */
+const WORKFLOW_INPUT_FILE = 'input.json';
+
+/** The most bytes the staged input may hold. The sandbox takes an inline
+ * file up to 1 MiB and refuses a larger one as `too_large`, so a larger
+ * input is refused before anything is spent, in the same words. */
+export const WORKFLOW_INPUT_MAX_BYTES = 1024 * 1024;
+
+/** The instructions line that tells the agent where its input is. */
+const STAGED_INPUT_GUIDANCE = `This step's input is staged as JSON at /agent/${WORKFLOW_FILES_PREFIX}${WORKFLOW_INPUT_FILE} — read it before you start.`;
+
+/**
+ * The node's `files` map with its resolved `input` added as the inline
+ * `input.json` mount, so the input is staged the way every inline file is;
+ * the map as it is for a node without an input. Refuses an input larger than
+ * {@link WORKFLOW_INPUT_MAX_BYTES} as JSON, and a `files` mount of that name,
+ * which the input would otherwise silently replace.
+ */
+export function withStagedInput(
+  files: Record<string, unknown> | undefined,
+  input: unknown,
+): Record<string, unknown> | undefined {
+  if (input === undefined) return files;
+  const content = `${JSON.stringify(input, null, 2)}\n`;
+  if (Buffer.byteLength(content, 'utf8') > WORKFLOW_INPUT_MAX_BYTES) {
+    throw new Error(
+      `staging input files failed: ${WORKFLOW_FILES_PREFIX}${WORKFLOW_INPUT_FILE} (too_large)`,
+    );
+  }
+  for (const name of Object.keys(files ?? {})) {
+    if (mountPathOf(name) === WORKFLOW_INPUT_FILE) {
+      throw new Error(
+        `the files mount name ${JSON.stringify(name)} is where this step's input is staged — rename the mount`,
+      );
+    }
+  }
+  return { ...files, [WORKFLOW_INPUT_FILE]: { content } };
 }
 
 /**
@@ -983,6 +1063,7 @@ export async function stageWorkflowFiles(
   if (files === undefined) return { mounts: [], stagedPaths: [] };
   const toStage: SessionStageFile[] = [];
   const mounts: string[] = [];
+  const replaceRoots: string[] = [];
   for (const [rawName, rawSource] of Object.entries(files)) {
     const name = mountNameOf(rawName);
     const source = parseStagingSource(rawSource);
@@ -991,17 +1072,14 @@ export async function stageWorkflowFiles(
         `the files entry ${JSON.stringify(rawName)} names no usable source — use a folder id string, {folderPath}, or {content}`,
       );
     }
-    // The run's session is shared across its nodes — clear the mount first so
-    // a file from an earlier staging of the same mount cannot linger into
-    // this node's view of its inputs. Best-effort: a fresh session has
-    // nothing to clear.
-    await sessionDeleteFiles(sessionId, [`${pathPrefix}${name}`]).catch((err) =>
-      console.debug(
-        `[agent-host] mount pre-clear skipped for ${pathPrefix}${name}:`,
-        err instanceof Error ? err.message : err,
-      ),
-    );
     if ('content' in source) {
+      const cleared = await sessionDeleteFiles(sessionId, [
+        `${pathPrefix}${name}`,
+      ]);
+      if (cleared.skipped.length > 0)
+        throw new Error(
+          `staging input files failed: ${cleared.skipped.map((file) => file.path).join(', ')}`,
+        );
       toStage.push({
         path: `${pathPrefix}${name}`,
         contentBase64: Buffer.from(source.content, 'utf8').toString('base64'),
@@ -1009,6 +1087,7 @@ export async function stageWorkflowFiles(
       mounts.push(name);
       continue;
     }
+    replaceRoots.push(`${pathPrefix}${name}`);
     const listing = await ctx.runQuery(
       internal.documents.internal_queries.listFilesByFolderInternal,
       {
@@ -1041,12 +1120,19 @@ export async function stageWorkflowFiles(
       // via the token-gated stream route instead of a `_storage` URL.
       const url = await stageUrlForBlobRef(String(file.fileId), organizationId);
       if (url === null) continue; // blob purged under a live row — skip, don't fail
-      toStage.push({ path: `${pathPrefix}${name}/${file.name}`, url });
+      toStage.push({
+        path: `${pathPrefix}${name}/${file.name}`,
+        url,
+        sourceId: stageBlobCacheKey(organizationId, String(file.fileId)),
+      });
     }
     mounts.push(name);
   }
-  if (toStage.length > 0) {
-    const staged = await sessionStageFiles(sessionId, toStage);
+  if (toStage.length > 0 || replaceRoots.length > 0) {
+    const staged = await sessionStageFiles(sessionId, toStage, {
+      replaceRoots,
+      reuse: true,
+    });
     if (staged.skipped.length > 0) {
       throw new Error(
         `staging input files failed: ${staged.skipped
@@ -1163,6 +1249,28 @@ async function mintWorkflowTurnAuth(
       `provider "${args.providerSlug}" resolved to the subscription lane without an API base URL — rerun the automation`,
     );
   }
+  // A subscription turn costs the organization nothing per call, but it is a
+  // request: it holds one while it runs, and is refused before any
+  // credential is vended once a request or token cap that binds its run is
+  // reached. Cost caps cannot bind it — it adds no cost.
+  const reservation = readReserveTurnBudgetResult(
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveTurnBudget,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'workflow-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+        modelRef: `${args.providerSlug}/${args.modelId}`,
+        harness: args.harness,
+      },
+    ),
+  );
+  if (!reservation.allowed) {
+    throw new TurnBudgetExceededError(reservation.reason);
+  }
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
     providerSlug: args.providerSlug,
@@ -1195,13 +1303,12 @@ async function mintWorkflowTurnAuth(
           ? credential.endpointUrl
           : undefined) ?? args.apiBaseUrl,
       bridgeToken,
-      ...(credential.authMethod === 'subscription-broker'
-        ? {
-            targetEnvVar: credential.targetEnvVar,
-            ...(credential.accountId !== undefined
-              ? { accountId: credential.accountId }
-              : {}),
-          }
+      ...(credential.targetEnvVar !== undefined
+        ? { targetEnvVar: credential.targetEnvVar }
+        : {}),
+      ...(credential.authMethod === 'subscription-broker' &&
+      credential.accountId !== undefined
+        ? { accountId: credential.accountId }
         : {}),
     },
     tokenHash: hashVirtualKey(bridgeToken),
@@ -1254,6 +1361,8 @@ export interface StartWorkflowAgentTurnArgs {
     tools?: string[];
     secrets?: string[];
     files?: unknown;
+    /** The node's resolved input, staged as `input.json`. */
+    input?: unknown;
   };
 }
 
@@ -1297,7 +1406,7 @@ export function classifyWorkflowStartFailure(
   const noRoom = sandboxCapacityRefusal(err);
   if (noRoom !== null) {
     return {
-      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : "the organization's workflow sessions are all in use"}`,
+      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : err instanceof SessionMemoryBusyError ? "the run's sandbox is short of memory" : "the organization's workflow sessions are all in use"}`,
       failureCode: 'sandbox_capacity',
       retryAtMs: now + noRoom.retryAfterMs,
       retryAfterMs: noRoom.retryAfterMs,
@@ -1359,10 +1468,19 @@ export async function startWorkflowAgentTurnImpl(
         ctx,
         args.organizationId,
         args.sessionId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated loosely above; parseStagingSource re-guards every entry
-        args.request.files as Record<string, unknown> | undefined,
-        'workspace/',
+        withStagedInput(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated loosely above; parseStagingSource re-guards every entry
+          args.request.files as Record<string, unknown> | undefined,
+          args.request.input,
+        ),
+        WORKFLOW_FILES_PREFIX,
       );
+      // The staged input has its own line in the instructions, so it is not
+      // listed again among the mounts.
+      const fileMounts =
+        args.request.input === undefined
+          ? mounts
+          : mounts.filter((name) => name !== WORKFLOW_INPUT_FILE);
       // A serving that cannot see images must not run blind over image
       // inputs: refuse with the reason (it lands on the run as why the turn
       // could not start), else brief the agent so it reports an unread image
@@ -1513,11 +1631,12 @@ export async function startWorkflowAgentTurnImpl(
           ),
         ),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        ...(mounts.length > 0
+        ...(args.request.input !== undefined ? [STAGED_INPUT_GUIDANCE] : []),
+        ...(fileMounts.length > 0
           ? [
               [
                 'Input files staged for this task:',
-                ...mounts.map((name) => `- /agent/workspace/${name}/`),
+                ...fileMounts.map((name) => `- /agent/workspace/${name}/`),
               ].join('\n'),
             ]
           : []),
@@ -1714,6 +1833,23 @@ export function isWorkflowTurnLive(
   );
 }
 
+/** Whether a newer agent exec of a live run holds its session now (a retry
+ * of the node, or the next agent node): that exec stages its own
+ * subscription credential, so an older turn must leave the file alone. */
+function heldByNewerExec(
+  state: AgentCursorState | null,
+  execId: string,
+): boolean {
+  const agent = state?.cursor?.agent;
+  return (
+    state !== null &&
+    LIVE_RUN_STATUSES.has(state.status) &&
+    agent !== undefined &&
+    agent.execId !== execId &&
+    agent.result === undefined
+  );
+}
+
 /**
  * Why a scheduled start must not run, or null when it may. Deliberately
  * LENIENT where `isWorkflowTurnLive` is strict: the kick enqueues the start
@@ -1812,6 +1948,11 @@ async function readCursorState(
 export async function driveWorkflowAgentTurnImpl(
   ctx: ActionCtx,
   args: TurnKeys,
+  options: {
+    /** Ends this window early with the turn still running — its server is
+     * stopping — so the next window, on another process, drains on. */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<null> {
   // Orphan check: the run may have been cancelled, failed by the stepper's
   // deadline, or moved past this node. An orphan turn is cut, its key
@@ -1829,6 +1970,9 @@ export async function driveWorkflowAgentTurnImpl(
       execId: args.execId,
       status: 'cancelled',
     });
+    if (!heldByNewerExec(state, args.execId)) {
+      await removeStagedSubscription(args.sessionId, args.harness);
+    }
     // The run went terminal while this turn was live, so the terminal
     // hooks' hibernate skipped past it — the op is terminal now.
     await ctx
@@ -1865,6 +2009,10 @@ export async function driveWorkflowAgentTurnImpl(
       harness: args.harness,
       onText: progress.onText,
       onTimeline: progress.onTimeline,
+      ...(options.signal !== undefined && { signal: options.signal }),
+      ...(args.spawnerOutageSince !== undefined && {
+        spawnerOutageSince: args.spawnerOutageSince,
+      }),
     });
   } catch (err) {
     console.error('[agent-host] drive window threw:', err);
@@ -2147,6 +2295,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
             },
           ),
         ),
+        ...(request.input !== undefined ? [STAGED_INPUT_GUIDANCE] : []),
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
@@ -2327,6 +2476,9 @@ function readWorkflowAgentRequest(input: Record<string, unknown>): {
   connectors?: string[];
   tools?: string[];
   secrets?: string[];
+  /** The node's resolved input: the start staged it, and the session's
+   * workspace keeps it for the resumed turn. */
+  input?: unknown;
 } {
   const connectors = readStringArray(input.connectors);
   const tools = readStringArray(input.tools);
@@ -2343,6 +2495,7 @@ function readWorkflowAgentRequest(input: Record<string, unknown>): {
     ...(connectors !== undefined ? { connectors } : {}),
     ...(tools !== undefined ? { tools } : {}),
     ...(secrets !== undefined ? { secrets } : {}),
+    ...(input.input !== undefined ? { input: input.input } : {}),
   };
 }
 
@@ -2356,6 +2509,9 @@ interface TurnKeys {
   providerSlug: string;
   gatewayModel: string;
   deadlineAt: number;
+  /** Since when the turn's spawner has been out of reach, carried from one
+   * drive window to the next while it stays away. */
+  spawnerOutageSince?: number;
 }
 
 /**
@@ -2367,6 +2523,14 @@ interface TurnKeys {
  * `getAgentNodeSandboxOp` reads back. Best-effort: a failed progress write
  * never disturbs the turn.
  */
+/** The least time between two live transcript writes of one turn. Its
+ * readers poll every 2 s (the run's details and the automation agent-node
+ * log), so a write more often shows a viewer nothing more, while each
+ * rewrites the turn's whole merged transcript (up to 240 KB of jsonb, under a
+ * row lock): at the 500 ms the drain notifies, four times the writes. The
+ * settle's flush never waits for it. */
+export const LIVE_TRANSCRIPT_WRITE_FLOOR_MS = 2_000;
+
 /** Shared by the workflow AND task agent lanes (`kind` picks the op lane) —
  * the ONE writer of an agent turn's live transcript. */
 export function liveProgressSink(
@@ -2395,28 +2559,50 @@ export function liveProgressSink(
   type Patch = {
     progressText?: string;
     liveTimeline?: HarnessTimelinePart[];
+    lastEventAt: number;
   };
   let pending: Patch | undefined;
   let writing: Promise<void> | undefined;
+  // When the last write started, and what ends the wait for the next one
+  // early: a flush, which the settle path awaits.
+  let lastWriteAt = Number.NEGATIVE_INFINITY;
+  let flushing = false;
+  let endWait: (() => void) | undefined;
+  const waitForFloor = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      timer.unref?.();
+      endWait = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    }).finally(() => {
+      endWait = undefined;
+    });
   const drain = async () => {
     // Gather the synchronous text/timeline callback pair into one mutation.
     await Promise.resolve();
     while (pending !== undefined) {
+      // Writes follow the readers' cadence, not every notification: what
+      // arrives meanwhile merges into the one pending snapshot.
+      const wait = lastWriteAt + LIVE_TRANSCRIPT_WRITE_FLOOR_MS - Date.now();
+      if (wait > 0 && !flushing) await waitForFloor(wait);
       const patch = pending;
       pending = undefined;
+      lastWriteAt = Date.now();
       try {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.upsertSessionOp,
-          {
+        await traceSandboxPhase('persist', () =>
+          ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
             organizationId: args.organizationId,
             sessionId: args.sessionId,
             execId: args.execId,
             kind,
             status: 'running',
-            lastEventAt: Date.now(),
+            // Queueing a delayed write is not a fresh sign of agent life.
+            heartbeatAt: patch.lastEventAt,
             ...(visionModelRef !== undefined && { visionModelRef }),
             ...patch,
-          },
+          }),
         );
       } catch (err) {
         console.warn('[agent-host] live progress write failed:', err);
@@ -2424,10 +2610,11 @@ export function liveProgressSink(
     }
     writing = undefined;
   };
-  const write = (patch: Patch) => {
+  const write = (patch: Omit<Patch, 'lastEventAt'>) => {
     pending = {
       ...pending,
       ...patch,
+      lastEventAt: Date.now(),
       ...(patch.liveTimeline !== undefined
         ? {
             liveTimeline: mergeTimelineParts(
@@ -2443,8 +2630,14 @@ export function liveProgressSink(
     onText: (text) => write({ progressText: textTail(text) }),
     onTimeline: (liveTimeline) => write({ liveTimeline }),
     flush: async () => {
-      for (let current = writing; current !== undefined; current = writing) {
-        await current;
+      flushing = true;
+      endWait?.();
+      try {
+        for (let current = writing; current !== undefined; current = writing) {
+          await current;
+        }
+      } finally {
+        flushing = false;
       }
     },
   };
@@ -2455,6 +2648,30 @@ async function continueOrSettle(
   args: TurnKeys,
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
 ): Promise<void> {
+  if (spawnerOutageOutlasted(window)) {
+    // The spawner stayed out of reach past the outage budget: stop waiting
+    // and settle as a drain failure does — reap the exec first (best-effort:
+    // the spawner may answer again by now), so the CLI does not keep
+    // working unobserved.
+    console.error(
+      `[agent-host] the sandbox spawner stayed out of reach for ${args.execId} past the outage budget — settling the turn`,
+    );
+    await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+      console.warn(
+        '[agent-host] exec cancel after the spawner outage failed:',
+        cancelErr,
+      ),
+    );
+    await settleWorkflowAgentTurn(ctx, args, {
+      errored: true,
+      reason: `the agent turn stopped unexpectedly: the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes`,
+      // Past the deadline it is the deadline, as for a drain that died there.
+      failureCode: Date.now() > args.deadlineAt ? 'deadline' : 'turn_crashed',
+      text: '',
+      files: [],
+    });
+    return;
+  }
   if (window.kind === 'running') {
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
@@ -2465,7 +2682,7 @@ async function continueOrSettle(
       heartbeatAt: Date.now(),
     });
     await ctx.scheduler.runAfter(
-      0,
+      nextWindowDelayMs(window),
       internal.automations.agent_host.driveWorkflowAgentTurn,
       {
         organizationId: args.organizationId,
@@ -2478,6 +2695,9 @@ async function continueOrSettle(
         providerSlug: args.providerSlug,
         gatewayModel: args.gatewayModel,
         deadlineAt: args.deadlineAt,
+        ...(window.spawnerOutageSince !== undefined
+          ? { spawnerOutageSince: window.spawnerOutageSince }
+          : {}),
       },
     );
     return;
@@ -2509,7 +2729,10 @@ async function continueOrSettle(
     .catch((err) =>
       console.warn('[agent-host] final progress write failed:', err),
     );
-  const { errored, reason } = classifyHarnessEnd(window);
+  const { errored, reason: classifiedReason } = classifyHarnessEnd(window);
+  // An exec the sandbox ended (a hang) is named as such, not as a crash.
+  const sandboxEnd = sandboxEndOf(window);
+  const reason = sandboxEnd?.reason ?? classifiedReason;
   const ended = window.ended;
 
   // A clean turn end with a question on the table is not a settle — it is the
@@ -2557,6 +2780,8 @@ async function continueOrSettle(
         ? { exitCode: window.execResult.exitCode }
         : {}),
     });
+    // The turn that answers the question stages its credential again.
+    await removeStagedSubscription(args.sessionId, args.harness);
     return;
   }
   if (pendingAsk !== null) {
@@ -2571,7 +2796,7 @@ async function continueOrSettle(
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
-      : window.text;
+      : (window.answerText ?? window.text);
   // The conversation the failed turn leaves behind: the retry resumes it
   // when the harness announced a handle (init line or end stamp).
   const agentSessionId = ended?.sessionId ?? window.agentSessionId;
@@ -2593,20 +2818,28 @@ async function continueOrSettle(
       // `harness_error`, so the stepper re-kicks them in place, except a
       // death at the deadline — retrying a burned 12h window is waste — and
       // a spend refusal (402), which a re-kick would only meet again on a
-      // key sized from the same exhausted balance. The API status rides
-      // along for display.
+      // key sized from the same exhausted balance, and a harness the sandbox
+      // ended as stalled, which would most likely hang again. The API
+      // status rides along for display.
       ...(errored
         ? {
             failureCode:
               Date.now() > args.deadlineAt
                 ? 'deadline'
-                : spendRefused
-                  ? 'budget_exceeded'
-                  : 'harness_error',
+                : sandboxEnd?.failure === 'stalled'
+                  ? 'turn_stalled'
+                  : sandboxEnd?.failure === 'out_of_memory'
+                    ? 'resource_exhausted'
+                    : spendRefused
+                      ? 'budget_exceeded'
+                      : 'harness_error',
           }
         : {}),
       ...(errored && ended?.apiErrorStatus !== undefined
         ? { apiErrorStatus: ended.apiErrorStatus }
+        : {}),
+      ...(errored && ended?.providerErrorKind === 'subscription_access_disabled'
+        ? { providerErrorKind: ended.providerErrorKind }
         : {}),
       text,
       files: [],
@@ -2621,6 +2854,7 @@ async function continueOrSettle(
         ? { agentResultStatus: ended.status }
         : {}),
       harvest: true,
+      execExited: window.exited,
     },
   );
 }
@@ -2639,6 +2873,9 @@ async function settleWorkflowAgentTurn(
     exitCode?: number;
     agentResultStatus?: string;
     harvest?: boolean;
+    /** The turn's exec exited on its own before the settle, so the harvest
+     * reads a box nothing is still writing to. */
+    execExited?: boolean;
   } = {},
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
@@ -2659,33 +2896,40 @@ async function settleWorkflowAgentTurn(
     // write. The record has its own first-wins gate, so finishing the dead
     // winner's job is safe: when the result is already there this returns
     // without touching anything.
-    const state = await ctx.runQuery(
-      internal.automations.queries.readAgentCursor,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      { organizationId: args.organizationId, runId: args.runId as never },
-    );
+    const state = await readCursorState(ctx, args);
     const agent = state?.cursor?.agent;
     if (
       agent === undefined ||
       agent.execId !== args.execId ||
       agent.result !== undefined
     ) {
+      // Settled by someone else (a cancel, the watchdog), but this turn's
+      // exec is over all the same.
+      if (!heldByNewerExec(state, args.execId)) {
+        await removeStagedSubscription(args.sessionId, args.harness);
+      }
       return;
     }
     console.warn(
       `[agent-host] finalize claim for ${args.execId} was burned with no recorded result — completing the dead settle's record`,
     );
   }
+  // The turn is over: its staged subscription credential leaves the session
+  // with it.
+  await removeStagedSubscription(args.sessionId, args.harness);
 
-  // The broker account that served this exec, when one did: a 429 cools it
-  // down, and a 401 on it is the broker refreshing the account under the
+  // The broker account that served this exec, when one did: a 429 or typed
+  // subscription-access 403 cools it down. A 401 is the broker refreshing the
   // turn — the token the exec started with is revoked, the account holds a
   // fresh one. Named `credential_rotated`, the stepper re-kicks on a new vend
   // and resumes without spending the budget or burning the account.
   let failureCode = result.failureCode;
   if (
     result.errored &&
-    (result.apiErrorStatus === 429 || result.apiErrorStatus === 401)
+    (result.apiErrorStatus === 429 ||
+      result.apiErrorStatus === 401 ||
+      (result.apiErrorStatus === 403 &&
+        result.providerErrorKind === 'subscription_access_disabled'))
   ) {
     const state = await ctx.runQuery(
       internal.automations.queries.readAgentCursor,
@@ -2695,13 +2939,21 @@ async function settleWorkflowAgentTurn(
     const agent = state?.cursor?.agent;
     const brokerTokenHash =
       agent?.execId === args.execId ? agent.brokerTokenHash : undefined;
-    if (result.apiErrorStatus === 429 && brokerTokenHash) {
+    if (
+      brokerTokenHash &&
+      (result.apiErrorStatus === 429 ||
+        (result.apiErrorStatus === 403 &&
+          result.providerErrorKind === 'subscription_access_disabled'))
+    ) {
       await ctx.runMutation(
         internal.provider_credentials.mutations.recordBrokerFailureInternal,
         {
           organizationId: args.organizationId,
           brokerTokenHash,
           apiErrorStatus: result.apiErrorStatus,
+          ...(result.providerErrorKind !== undefined
+            ? { providerErrorKind: result.providerErrorKind }
+            : {}),
         },
       );
     }
@@ -2725,6 +2977,7 @@ async function settleWorkflowAgentTurn(
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         execId: args.execId,
+        ...(opts.execExited === true ? { execExited: true } : {}),
       });
       files = harvested.files.map((file) => ({
         name: file.path.split('/').at(-1) ?? file.path,

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -9,12 +9,37 @@ import { RunStepTimeline } from './run-step-timeline';
 // Drives the mocked `useBackendQuery` return: the run's sandbox op, read by
 // the agent activity line and the transcript pane inside an unfolded row.
 const { state } = vi.hoisted(() => ({
-  state: { data: undefined as unknown },
+  state: {
+    data: undefined as unknown,
+    byNode: undefined as Record<string, unknown> | undefined,
+    queries: [] as Array<{
+      organizationId: string;
+      runId: string;
+      nodeId?: string;
+    }>,
+  },
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: state.data }),
+  useBackendQuery: (
+    _name: string,
+    args: { organizationId: string; runId: string; nodeId?: string },
+  ) => {
+    state.queries.push(args);
+    return {
+      data:
+        state.byNode === undefined
+          ? state.data
+          : (state.byNode[args.nodeId ?? 'latest'] ?? null),
+    };
+  },
 }));
+
+beforeEach(() => {
+  state.data = undefined;
+  state.byNode = undefined;
+  state.queries = [];
+});
 
 const runId = 'run-1' as string;
 
@@ -108,6 +133,112 @@ function renderTimeline(run: unknown, currentNodeId: string | null) {
 }
 
 describe('RunStepTimeline', () => {
+  it('shows each sequential agent step s own transcript beside its recorded output', async () => {
+    const transcript = (execId: string, text: string) => ({
+      execId,
+      status: 'completed',
+      startedAt: 1,
+      liveTimeline: [{ type: 'text', text }],
+    });
+    state.byNode = {
+      draft_report: transcript('draft-exec', 'FIRST_NODE_TRANSCRIPT'),
+      review_report: transcript('review-exec', 'SECOND_NODE_TRANSCRIPT'),
+      latest: transcript('review-exec', 'SECOND_NODE_TRANSCRIPT'),
+    };
+    const { user } = render(
+      <RunStepTimeline
+        graph={buildGraph({
+          name: 'reports',
+          nodes: [
+            { id: 'draft_report', type: 'agent', prompt: 'Draft' },
+            {
+              id: 'review_report',
+              type: 'agent',
+              prompt: 'Review {{ nodes.draft_report.output }}',
+            },
+          ],
+        })}
+        projection={projectRun({
+          status: 'success',
+          trace: [
+            {
+              node: 'draft_report',
+              type: 'agent',
+              status: 'ok',
+              output: 'FIRST_NODE_RECORDED_OUTPUT',
+            },
+            {
+              node: 'review_report',
+              type: 'agent',
+              status: 'ok',
+              output: 'SECOND_NODE_RECORDED_OUTPUT',
+            },
+          ],
+        })}
+        currentNodeId={null}
+        organizationId="org-1"
+        runId={runId}
+      />,
+    );
+    expect(state.queries).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: /draft report/ }));
+    expect(
+      screen.getByRole('button', { name: /draft report/ }).closest('li'),
+    ).toHaveTextContent('FIRST_NODE_RECORDED_OUTPUT');
+    expect(screen.getByText('FIRST_NODE_TRANSCRIPT')).toBeInTheDocument();
+    expect(
+      screen.queryByText('SECOND_NODE_TRANSCRIPT'),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /review report/ }));
+    expect(
+      screen.getByRole('button', { name: /review report/ }).closest('li'),
+    ).toHaveTextContent('SECOND_NODE_RECORDED_OUTPUT');
+    expect(screen.getAllByText('SECOND_NODE_TRANSCRIPT')).toHaveLength(1);
+    expect(screen.getAllByText('FIRST_NODE_TRANSCRIPT')).toHaveLength(1);
+    expect(state.queries).toContainEqual({
+      organizationId: 'org-1',
+      runId,
+      nodeId: 'draft_report',
+    });
+    expect(state.queries).toContainEqual({
+      organizationId: 'org-1',
+      runId,
+      nodeId: 'review_report',
+    });
+  });
+
+  it('keeps a single agent transcript and leaves a missing transcript empty', async () => {
+    state.byNode = {
+      read_invoices: {
+        execId: 'only-exec',
+        status: 'completed',
+        startedAt: 1,
+        liveTimeline: [{ type: 'text', text: 'ONLY_TRANSCRIPT' }],
+      },
+    };
+    const { user, rerender } = renderTimeline(finishedRun, null);
+    await user.click(screen.getByRole('button', { name: /read invoices/ }));
+    expect(screen.getByText('ONLY_TRANSCRIPT')).toBeInTheDocument();
+    state.byNode = {};
+    rerender(
+      <RunStepTimeline
+        graph={graph}
+        projection={projectRun(finishedRun)}
+        currentNodeId={null}
+        organizationId="org-1"
+        runId={runId}
+      />,
+    );
+    expect(screen.queryByText('ONLY_TRANSCRIPT')).not.toBeInTheDocument();
+    expect(screen.queryByText('Agent log')).not.toBeInTheDocument();
+  });
+
+  it('never queries an agent transcript for an expanded non-agent step', async () => {
+    const { user } = renderTimeline(finishedRun, null);
+    await user.click(screen.getByRole('button', { name: /mark started/ }));
+    expect(state.queries).toHaveLength(0);
+    expect(screen.queryByText('Agent log')).not.toBeInTheDocument();
+  });
   it('lists every step in execution order, compact by default', () => {
     state.data = undefined;
     renderTimeline(finishedRun, null);

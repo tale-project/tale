@@ -1,11 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import {
@@ -21,6 +22,52 @@ import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useUpdateProjectSharing } from '../hooks/mutations';
+
+function TeamsReadError({
+  audience,
+  message,
+  retrying,
+  retryLabel,
+  onRetry,
+  onFocusLost,
+}: {
+  audience: string;
+  message: string;
+  retrying: boolean;
+  retryLabel: string;
+  onRetry: () => void;
+  onFocusLost: () => void;
+}) {
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (root === null) return undefined;
+    return () => {
+      if (root.contains(document.activeElement)) {
+        requestAnimationFrame(onFocusLost);
+      }
+    };
+  }, [root, onFocusLost]);
+
+  return (
+    <div ref={setRoot}>
+      <Text variant="muted">{audience}</Text>
+      <Text role="alert">{message}</Text>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        aria-busy={retrying || undefined}
+        aria-disabled={retrying || undefined}
+        onClick={() => {
+          if (!retrying) onRetry();
+        }}
+      >
+        {retryLabel}
+      </Button>
+    </div>
+  );
+}
 
 interface ProjectSharingSectionProps {
   projectId: string;
@@ -45,11 +92,36 @@ export function ProjectSharingSection({
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
   // What the viewer may ASSIGN (an admin: every team) — the picker's options.
-  const { teams: assignableTeams, isLoading: teamsLoading } = useOrgTeams();
+  const {
+    teams: assignableTeams,
+    isLoading: teamsLoading,
+    isError: teamsError,
+    isFetching: teamsFetching,
+    refetch: refetchTeams,
+  } = useOrgTeams();
   // Every team by name — the read-only summary must name a team the viewer
   // is not in, too.
   const { nameOf } = useTeamNames();
   const { mutateAsync: updateSharing, isPending } = useUpdateProjectSharing();
+  const [teamsRetrying, setTeamsRetrying] = useState(false);
+
+  const [acknowledgedAudience, setAcknowledgedAudience] = useState<{
+    projectId: string;
+    teamIds: string[];
+  } | null>(null);
+  const audienceTeamIds =
+    acknowledgedAudience?.projectId === projectId
+      ? acknowledgedAudience.teamIds
+      : teamIds;
+
+  if (
+    acknowledgedAudience !== null &&
+    (acknowledgedAudience.projectId !== projectId ||
+      (teamIds.length === acknowledgedAudience.teamIds.length &&
+        teamIds.every((id) => acknowledgedAudience.teamIds.includes(id))))
+  ) {
+    setAcknowledgedAudience(null);
+  }
 
   const [pendingNarrowChange, setPendingNarrowChange] = useState<
     string[] | null
@@ -59,6 +131,7 @@ export function ProjectSharingSection({
     async (next: string[]) => {
       try {
         await updateSharing({ projectId, teamIds: next });
+        setAcknowledgedAudience({ projectId, teamIds: next });
         toast({ title: t('settings.saveSuccess'), variant: 'success' });
         setPendingNarrowChange(null);
       } catch (error) {
@@ -96,31 +169,79 @@ export function ProjectSharingSection({
   // first; widening (adding a team, going organization-wide) just saves.
   const handleChange = useCallback(
     (next: string[]) => {
-      const wasOrgWide = teamIds.length === 0;
+      const wasOrgWide = audienceTeamIds.length === 0;
       const willBeOrgWide = next.length === 0;
       const upcoming = new Set(next);
       const narrows =
         (wasOrgWide && !willBeOrgWide) ||
-        (!willBeOrgWide && teamIds.some((id) => !upcoming.has(id)));
+        (!willBeOrgWide && audienceTeamIds.some((id) => !upcoming.has(id)));
       if (narrows) {
         setPendingNarrowChange(next);
         return;
       }
       void applySave(next);
     },
-    [applySave, teamIds],
+    [applySave, audienceTeamIds],
   );
 
+  const audience =
+    audienceTeamIds.length === 0
+      ? t('list.sharingOrgWide')
+      : audienceTeamIds
+          .map((id) => nameOf(id) ?? t('list.unknownTeam'))
+          .join(', ');
+
+  const focusAudience = useCallback(() => {
+    document
+      .querySelector<HTMLElement>(
+        `[data-project-audience="${projectId}"] [role="combobox"]`,
+      )
+      ?.focus();
+  }, [projectId]);
+
+  useLayoutEffect(() => {
+    if (!teamsRetrying || teamsFetching || teamsError || !assignableTeams) {
+      return;
+    }
+    requestAnimationFrame(focusAudience);
+  }, [
+    assignableTeams,
+    focusAudience,
+    teamsError,
+    teamsFetching,
+    teamsRetrying,
+  ]);
+
   if (!canAdminister) {
-    // Read-only audience summary for non-admin viewers.
-    const audience =
-      teamIds.length === 0
-        ? t('list.sharingOrgWide')
-        : teamIds.map((id) => nameOf(id) ?? t('list.unknownTeam')).join(', ');
     return (
-      <SettingsFieldList>
+      <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow label={t('sharing.effectiveAudience')}>
           <Text variant="muted">{audience}</Text>
+        </SettingsFieldRow>
+      </SettingsFieldList>
+    );
+  }
+
+  if (teamsError || (teamsRetrying && teamsFetching)) {
+    return (
+      <SettingsFieldList data-project-audience={projectId}>
+        <SettingsFieldRow
+          label={t('settings.audience')}
+          description={t('settings.audienceHelp')}
+        >
+          <TeamsReadError
+            audience={audience}
+            message={t('sharing.teamsLoadError')}
+            retryLabel={tCommon('actions.tryAgain')}
+            retrying={teamsRetrying}
+            onRetry={() => {
+              setTeamsRetrying(true);
+              void refetchTeams().then(() => {
+                setTeamsRetrying(false);
+              });
+            }}
+            onFocusLost={focusAudience}
+          />
         </SettingsFieldRow>
       </SettingsFieldList>
     );
@@ -131,7 +252,7 @@ export function ProjectSharingSection({
   // right, so this page reads as one aligned list of rows.
   if (!assignableTeams || assignableTeams.length === 0) {
     return (
-      <SettingsFieldList>
+      <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
@@ -139,7 +260,10 @@ export function ProjectSharingSection({
           {/* No teams until the org's teams have loaded: "No teams yet" would
               be false for an org that has them, so hold the row meanwhile. */}
           {teamsLoading ? (
-            <Spinner size="sm" label={tCommon('actions.loading')} />
+            <div className="space-y-2">
+              <Text variant="muted">{audience}</Text>
+              <Spinner size="sm" label={tCommon('actions.loading')} />
+            </div>
           ) : (
             <Text variant="muted">
               {t('sharing.noTeamsHint')}{' '}
@@ -159,7 +283,7 @@ export function ProjectSharingSection({
 
   return (
     <>
-      <SettingsFieldList>
+      <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
@@ -172,7 +296,7 @@ export function ProjectSharingSection({
               aria-labelledby={labelId}
               aria-describedby={descriptionId}
               teams={assignableTeams}
-              selectedTeamIds={teamIds}
+              selectedTeamIds={audienceTeamIds}
               onSelectionChange={handleChange}
               orgWideLabel={t('list.sharingOrgWide')}
               disabled={isPending}

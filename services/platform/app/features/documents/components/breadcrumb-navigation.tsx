@@ -1,9 +1,10 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Row } from '@tale/ui/layout';
 import { toast } from '@tale/ui/use-toast';
 import { ChevronLeft } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -11,7 +12,10 @@ import { useT } from '@/lib/i18n/client';
 
 interface BreadcrumbNavigationProps {
   folderId: string;
-  onNavigate: (folderId: string | undefined) => void;
+  onNavigate: (
+    folderId: string | undefined,
+    options?: { replace?: boolean },
+  ) => void;
 }
 
 export function BreadcrumbNavigation({
@@ -21,28 +25,52 @@ export function BreadcrumbNavigation({
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
   const onNavigateRef = useRef(onNavigate);
+  const navigationRef = useRef<HTMLElement>(null);
+  const focusNavigation = useCallback(() => navigationRef.current?.focus(), []);
   onNavigateRef.current = onNavigate;
 
   const organizationId = useOrganizationId();
-  const { data: breadcrumb, isLoading } = useBackendQuery(
+  const {
+    data: breadcrumb,
+    failureCount,
+    isError,
+    isFetching,
+    isLoading,
+    refetch,
+  } = useBackendQuery(
     'folders/queries:getFolderBreadcrumb',
     organizationId ? { folderId: folderId, organizationId } : 'skip',
   );
 
+  // A folder with no trail is gone (deleted, here or in another tab) or out
+  // of reach: leave its address for the root, in place of it, so Back does
+  // not walk into it again.
   useEffect(() => {
     if (!isLoading && breadcrumb !== undefined && breadcrumb.length === 0) {
       toast({ title: t('folderNotFound') });
-      onNavigateRef.current(undefined);
+      onNavigateRef.current(undefined, { replace: true });
     }
   }, [breadcrumb, isLoading, t]);
 
   const segments = breadcrumb ?? [];
+  const readFailed = isError && breadcrumb === undefined;
 
   return (
     <nav
+      ref={navigationRef}
+      tabIndex={-1}
       className="bg-background sticky top-14 z-10 mb-4"
       aria-label={t('breadcrumb.navigation')}
     >
+      {readFailed && (
+        <CatalogLoadError
+          failureKey={failureCount}
+          onFocusLost={focusNavigation}
+          onRetry={() => void refetch()}
+          isRetrying={isFetching}
+          message={t('breadcrumb.loadFailed')}
+        />
+      )}
       <Row as="ol" gap={1}>
         <li className="flex items-center gap-1">
           <button

@@ -6,7 +6,7 @@ import {
 import { act, fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { DataNoticePolicyEditor } from './data-notice-policy-editor';
 
@@ -165,23 +165,31 @@ describe('DataNoticePolicyEditor', () => {
       expect(languageTab('Français')).toHaveTextContent('untranslated');
     });
 
-    it("previews each language's default notice while its field is empty", () => {
+    it("previews each language's default notice while its field is empty, once its messages have loaded", async () => {
       render(<DataNoticePolicyEditor organizationId="org-1" />);
 
+      // German and French load on first use: the placeholders wait for them.
+      await waitFor(() =>
+        expect(noticeText('Deutsch')).toHaveAttribute(
+          'placeholder',
+          DEFAULT_DE,
+        ),
+      );
       expect(noticeText('English')).toHaveAttribute('placeholder', DEFAULT_EN);
-      expect(noticeText('Deutsch')).toHaveAttribute('placeholder', DEFAULT_DE);
     });
 
-    it('previews the English text in the empty languages once there is one', () => {
+    it('previews the English text in the empty languages once there is one', async () => {
       render(<DataNoticePolicyEditor organizationId="org-1" />);
 
       fireEvent.change(noticeText('English'), {
         target: { value: 'Mind the client data.' },
       });
 
-      expect(noticeText('Deutsch')).toHaveAttribute(
-        'placeholder',
-        'Mind the client data.',
+      await waitFor(() =>
+        expect(noticeText('Deutsch')).toHaveAttribute(
+          'placeholder',
+          'Mind the client data.',
+        ),
       );
     });
 

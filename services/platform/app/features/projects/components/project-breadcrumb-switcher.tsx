@@ -45,7 +45,7 @@ export function ProjectBreadcrumbSwitcher({
   const { t } = useT('projects');
   const navigate = useNavigate();
   const location = useLocation();
-  const { projects } = useProjects(organizationId);
+  const { projects, error, isRetrying, retry } = useProjects(organizationId);
 
   const onTasksPath = isProjectTasksPath(location.pathname, projectId);
   const allProjectsActive =
@@ -73,6 +73,24 @@ export function ProjectBreadcrumbSwitcher({
   const selectedValue = allProjectsActive
     ? ALL_PROJECTS_SWITCHER_VALUE
     : projectId;
+
+  if (error) {
+    return (
+      <div role="alert" className="inline-flex items-center gap-2">
+        <span>{displayName}</span>
+        <span>{t('switcher.readError')}</span>
+        <button
+          type="button"
+          className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
+          disabled={isRetrying}
+          aria-busy={isRetrying}
+          onClick={retry}
+        >
+          {isRetrying ? t('switcher.retrying') : t('switcher.retry')}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <HeaderBreadcrumbSwitcher
@@ -107,6 +125,10 @@ export function ProjectBreadcrumbSwitcher({
           search: (prev) => {
             const next = { ...prev };
             delete next.projects;
+            // A folder belongs to one project: the next project's Files tab
+            // opens at its root, never on the previous project's folder
+            // (#3918).
+            delete next.folderId;
             return next;
           },
         });

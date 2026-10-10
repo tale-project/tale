@@ -62,7 +62,11 @@ import {
 import { sanitizeExtractedText } from '../../../lib/knowledge/sanitize-text';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types';
-import { assertVectorWidth } from './dimensions';
+import {
+  assertVectorWidth,
+  chunkVectorsTable,
+  legacyColumnWidth,
+} from './dimensions';
 import type { Embedder } from './embedding';
 import { assertCorpusWritable } from './index_health';
 import { applyPiiPolicyForIndexing } from './pii_gate';
@@ -73,8 +77,8 @@ const CHUNKS_PER_SLICE = 64;
 
 export interface IndexDocumentArgs {
   readonly sql: Sql;
-  /** The corpus database's connection string — the key its write guard and
-   * dimension pin are kept under (`resolveOrgUrl`). Never logged. */
+  /** The corpus database's connection string — the key its write guard is
+   * kept under (`resolveOrgUrl`). Never logged. */
   readonly dbUrl: string;
   readonly orgSlug: string;
   /** The organization's own identifier for the document. */
@@ -423,7 +427,20 @@ export async function indexDocument(
   }
 
   const { contentHash, chunks, repeats } = prepared;
-  const stored = await readStoredState(args.sql, args.orgSlug, args.fileId);
+  // The table of the width this organization's model states. A width with
+  // no table is refused here, before the row is claimed or anything is
+  // embedded.
+  const vectorsTable = chunkVectorsTable(
+    SCHEMA,
+    args.embedder.dimensions,
+    `organization "${args.orgSlug}"`,
+  );
+  const stored = await readStoredState(
+    args.sql,
+    args.orgSlug,
+    args.fileId,
+    vectorsTable,
+  );
   if (
     args.resumeDocumentId !== undefined &&
     stored?.id !== args.resumeDocumentId
@@ -442,7 +459,13 @@ export async function indexDocument(
   const duplicate =
     isMessageRef(args.fileId) || (args.conversationId ?? null) !== null
       ? null
-      : await findDuplicate(args.sql, args.orgSlug, contentHash, args.fileId);
+      : await findDuplicate(
+          args.sql,
+          args.orgSlug,
+          contentHash,
+          args.fileId,
+          vectorsTable,
+        );
   const plan = planIngest({
     contentHash,
     totalChunks: chunks.length,
@@ -527,6 +550,7 @@ export async function indexDocument(
       args.orgSlug,
       plan.sourceDocumentId,
       documentId,
+      vectorsTable,
     );
     if (copied === null) {
       logger.info(
@@ -576,12 +600,19 @@ export async function indexDocument(
     for (const isRepeat of repeated) {
       vectors.push(isRepeat ? null : (embedded[next++] ?? null));
     }
+    // The previous release's column holds this width too, when that is the
+    // width it is declared at: what the image serving beside this one reads
+    // during a roll, and after a rollback (see `legacyColumnWidth`).
+    const legacyColumn =
+      (await legacyColumnWidth(args.sql, SCHEMA)) === args.embedder.dimensions;
     const outcome = await writeChunks({
       sql: args.sql,
       orgSlug: args.orgSlug,
       documentId,
       chunks: window,
       vectors,
+      vectorsTable,
+      legacyColumn,
     });
     if (outcome === 'released') {
       logger.info(
@@ -667,12 +698,22 @@ export async function indexWholeDocument(
   return result;
 }
 
-/** What the corpus already holds for this document reference, and under
- * which row. */
+/**
+ * What the corpus already holds for this document reference, and under
+ * which row.
+ *
+ * `storedChunks` is the resume checkpoint, so it counts the leading chunks
+ * that are DONE at this width: stored, and — unless a repeated passage,
+ * which has no vector — with their vector in `vectorsTable`. A document
+ * indexed under a model of another width therefore counts none, and is
+ * embedded again from its first chunk when it is next indexed; one that
+ * stopped mid-way resumes after its last vector, as before.
+ */
 async function readStoredState(
   sql: Sql,
   orgSlug: string,
   fileId: string,
+  vectorsTable: string,
 ): Promise<{
   readonly id: string;
   readonly state: import('../../../lib/knowledge/ingest-plan').StoredDocumentState;
@@ -686,9 +727,16 @@ async function readStoredState(
     }[]
   >(
     `SELECT d.id, d.content_hash, d.status,
-            COALESCE((SELECT MAX(c.chunk_index) + 1
+            COALESCE((SELECT MIN(c.chunk_index)
                       FROM ${SCHEMA}.chunks c
-                      WHERE c.document_id = d.id AND c.org_slug = d.org_slug), 0)::int AS stored
+                      WHERE c.document_id = d.id AND c.org_slug = d.org_slug
+                        AND NOT c.passage_repeat
+                        AND NOT EXISTS (SELECT 1 FROM ${vectorsTable} v
+                                         WHERE v.chunk_id = c.id)),
+                     (SELECT MAX(c.chunk_index) + 1
+                      FROM ${SCHEMA}.chunks c
+                      WHERE c.document_id = d.id AND c.org_slug = d.org_slug),
+                     0)::int AS stored
      FROM ${SCHEMA}.documents d
      WHERE d.org_slug = $1 AND d.file_id = $2`,
     [orgSlug, fileId],
@@ -719,18 +767,29 @@ async function readStoredState(
  * own name, often) — a conversation the reader of the copy may have no right
  * to see. Nor does mail clone from anything (the caller's check): two
  * identical attachments in two conversations each carry their own mail.
+ *
+ * And only a document embedded at this width: one indexed under a model of
+ * another width has no vector in `vectorsTable` to copy, and its copy would
+ * be complete on paper and missing from every search by meaning.
  */
 async function findDuplicate(
   sql: Sql,
   orgSlug: string,
   contentHash: string,
   exceptFileId: string,
+  vectorsTable: string,
 ): Promise<string | null> {
   const rows = await sql.unsafe<{ id: string }[]>(
-    `SELECT id FROM ${SCHEMA}.documents
-     WHERE org_slug = $1 AND content_hash = $2 AND status = 'completed'
-       AND file_id <> $3 AND file_id NOT LIKE $4
-       AND conversation_id IS NULL
+    `SELECT d.id FROM ${SCHEMA}.documents d
+     WHERE d.org_slug = $1 AND d.content_hash = $2 AND d.status = 'completed'
+       AND d.file_id <> $3 AND d.file_id NOT LIKE $4
+       AND d.conversation_id IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM ${SCHEMA}.chunks c
+          WHERE c.document_id = d.id AND c.org_slug = d.org_slug
+            AND NOT c.passage_repeat
+            AND NOT EXISTS (SELECT 1 FROM ${vectorsTable} v
+                             WHERE v.chunk_id = c.id))
      LIMIT 1`,
     [orgSlug, contentHash, exceptFileId, MESSAGE_REF_LIKE_PATTERN],
   );
@@ -861,16 +920,34 @@ async function dropClaim(
   });
 }
 
-/** Commit one slice of chunks. A `null` vector marks a repeated passage:
- * stored for reassembly, embedded and searched once through its first
- * occurrence. `released` when the document row is no longer there to hold
- * them — nothing is written. */
+/** Commit one slice of chunks, each with its vector in `vectorsTable` — in
+ * one transaction, so a chunk is never stored without the vector it was
+ * embedded for. A `null` vector marks a repeated passage: stored for
+ * reassembly, embedded and searched once through its first occurrence.
+ * `released` when the document row is no longer there to hold them —
+ * nothing is written.
+ *
+ * Two statements per chunk, not one with the chunk's INSERT in a CTE: the
+ * BM25 index (pg_search) refuses an insert the executor runs after the main
+ * statement, which is when a CTE nothing reads from is run — the case of a
+ * repeated passage (`push_insert_state: ExecutorRunEntry should have already
+ * been pushed onto the stack`).
+ *
+ * With `legacyColumn`, the chunk row carries the vector in the previous
+ * release's column as well (`legacyColumnWidth`); without it, that column
+ * is set to NULL, so a vector of another width never outlives the text it
+ * was embedded for. The migrations' trigger mirrors the column into the
+ * width's table, which is why the second statement updates nothing when the
+ * vector is already there — a changed vector it replaces. */
 async function writeChunks(args: {
   sql: Sql;
   orgSlug: string;
   documentId: string;
   chunks: readonly ContextualChunk[];
   vectors: readonly (readonly number[] | null)[];
+  vectorsTable: string;
+  /** Whether the previous release's column is declared at this width. */
+  legacyColumn: boolean;
 }): Promise<'written' | 'released'> {
   return args.sql.begin(async (tx) => {
     if (!(await lockClaimedRow(tx, args.orgSlug, args.documentId))) {
@@ -878,21 +955,22 @@ async function writeChunks(args: {
     }
     for (const [position, chunk] of args.chunks.entries()) {
       const vector = args.vectors[position] ?? null;
-      await tx.unsafe(
+      const stored = await tx.unsafe<{ id: string }[]>(
         `INSERT INTO ${SCHEMA}.chunks
             (document_id, org_slug, chunk_index, chunk_content, content_hash,
-             embedding, context_header, core_content, prefix_overlap, suffix_overlap,
-             passage_repeat)
-         VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9, $10, $11)
+             context_header, core_content, prefix_overlap, suffix_overlap,
+             passage_repeat, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
          ON CONFLICT (document_id, chunk_index) DO UPDATE SET
              chunk_content = EXCLUDED.chunk_content,
              content_hash = EXCLUDED.content_hash,
-             embedding = EXCLUDED.embedding,
              context_header = EXCLUDED.context_header,
              core_content = EXCLUDED.core_content,
              prefix_overlap = EXCLUDED.prefix_overlap,
              suffix_overlap = EXCLUDED.suffix_overlap,
-             passage_repeat = EXCLUDED.passage_repeat`,
+             passage_repeat = EXCLUDED.passage_repeat,
+             embedding = EXCLUDED.embedding
+         RETURNING id::text AS id`,
         [
           args.documentId,
           args.orgSlug,
@@ -902,13 +980,22 @@ async function writeChunks(args: {
           // keyword index matches on it too.
           chunk.embedText,
           computeContentHash(chunk.text),
-          vector === null ? null : JSON.stringify(vector),
           chunk.header,
           chunk.core,
           chunk.prefixOverlap,
           chunk.suffixOverlap,
           vector === null,
+          args.legacyColumn && vector !== null ? JSON.stringify(vector) : null,
         ],
+      );
+      const chunkId = stored[0]?.id;
+      if (vector === null || chunkId === undefined) continue;
+      await tx.unsafe(
+        `INSERT INTO ${args.vectorsTable} AS v (chunk_id, embedding)
+         VALUES ($1::bigint, $2::vector)
+         ON CONFLICT (chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding
+           WHERE v.embedding <> EXCLUDED.embedding`,
+        [chunkId, JSON.stringify(vector)],
       );
     }
     // Touching the row is what tells a watchdog this run is alive rather than
@@ -922,13 +1009,17 @@ async function writeChunks(args: {
   });
 }
 
-/** Copy an identical document's chunks and embeddings. `null` when the
- * target row is no longer there to receive them. */
+/** Copy an identical document's chunks, and their vectors of this width —
+ * what indexing the document itself would have stored. The previous
+ * release's column travels with its chunk: it holds either nothing or the
+ * vector of the text beside it. `null` when the target row is no longer
+ * there to receive them. */
 async function cloneChunks(
   sql: Sql,
   orgSlug: string,
   sourceDocumentId: string,
   targetDocumentId: string,
+  vectorsTable: string,
 ): Promise<number | null> {
   return sql.begin(async (tx) => {
     if (!(await lockClaimedRow(tx, orgSlug, targetDocumentId))) return null;
@@ -936,17 +1027,29 @@ async function cloneChunks(
       `WITH copied AS (
          INSERT INTO ${SCHEMA}.chunks
              (document_id, org_slug, chunk_index, chunk_content, content_hash,
-              embedding, context_header, core_content, prefix_overlap, suffix_overlap,
-              passage_repeat)
-         SELECT $1, $2, chunk_index, chunk_content, content_hash, embedding,
+              context_header, core_content, prefix_overlap, suffix_overlap,
+              passage_repeat, embedding)
+         SELECT $1, $2, chunk_index, chunk_content, content_hash,
                 context_header, core_content, prefix_overlap, suffix_overlap,
-                passage_repeat
+                passage_repeat, embedding
          FROM ${SCHEMA}.chunks
          WHERE document_id = $3 AND org_slug = $2
          ON CONFLICT (document_id, chunk_index) DO NOTHING
          RETURNING 1
        )
        SELECT count(*)::int AS count FROM copied`,
+      [targetDocumentId, orgSlug, sourceDocumentId],
+    );
+    await tx.unsafe(
+      `INSERT INTO ${vectorsTable} (chunk_id, embedding)
+       SELECT target.id, v.embedding
+         FROM ${SCHEMA}.chunks source
+         JOIN ${vectorsTable} v ON v.chunk_id = source.id
+         JOIN ${SCHEMA}.chunks target
+           ON target.document_id = $1 AND target.org_slug = $2
+          AND target.chunk_index = source.chunk_index
+        WHERE source.document_id = $3 AND source.org_slug = $2
+       ON CONFLICT (chunk_id) DO NOTHING`,
       [targetDocumentId, orgSlug, sourceDocumentId],
     );
     return rows[0]?.count ?? 0;

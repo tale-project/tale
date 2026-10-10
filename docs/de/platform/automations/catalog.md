@@ -21,7 +21,7 @@ Das Menü **Automatisierung erstellen** bietet zwei Wege:
 
 | Auswahl | Geeignet, wenn … | Danach |
 | --- | --- | --- |
-| **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Lege Name, Modell, Anweisungen und Ausstattung fest und wähle dann, wann der Agent läuft. Nach dem Erstellen öffnet sich der Editor für weitere Änderungen. |
+| **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Lege Name, Modell, Anweisungen und Ausstattung fest und wähle dann, wann der Agent läuft. **v1 jetzt live schalten** (standardmäßig an) schaltet die erste Version sofort live; sonst bleibt sie ein Entwurf, den du im Editor live schaltest. Was der Trigger sendet, erhält der Agent als seine Eingabe. Nach dem Erstellen öffnet sich der Editor für weitere Änderungen. |
 | **Paket hochladen** | eine Workflow-Datei oder ein wiederverwendbares Pack vorliegt. | Tale prüft die Dateien und speichert eine Entwurfsversion. |
 
 Mitgelieferte Automatisierungen werden beim Erstellen der Organisation eingerichtet. Für den automatischen Einsatz brauchen sie dennoch ihre Konfiguration und eine Live-Version. Der [Workflow-Editor](/de/platform/automations/editor) führt durch Eingaben, Test, Ergebnisprüfung und Live-Schaltung.
@@ -114,7 +114,7 @@ settings:
               label: Strict checklist
 ```
 
-Ist das Projekt noch nicht eingerichtet, erscheinen Pflichtformulare vor den Aufgabenfeldern. **Speichern und weiter** schreibt die Formulare und setzt die Aufgabenerstellung fort. Später öffnet **Einstellungen** sie als Tabs. Ein Punkt markiert ungespeicherte Änderungen; **Speichern** schreibt alle geänderten Formulare. Beim Schließen mit offenen Änderungen fragt Tale nach.
+Ist das Projekt noch nicht eingerichtet, erscheinen Pflichtformulare vor den Aufgabenfeldern. **Speichern und weiter** schreibt die Formulare und setzt die Aufgabenerstellung fort. Später öffnet **Einstellungen** sie als Tabs. Ein Punkt markiert ungespeicherte Änderungen; **Speichern** schreibt alle geänderten Formulare. Beim Schließen mit offenen Änderungen fragt Tale nach. Die `description` eines Formulars steht über seinen Feldern; ist sie länger als drei Zeilen, siehst du ihren Anfang, und **Weiterlesen** öffnet den Rest.
 
 Speichern ersetzt die flache YAML-Datei des Formulars, etwa `Setup/validation-policy.yaml`. Vorhandene Werte werden übernommen, auch aus einer manuell hochgeladenen Datei. Feldtypen sind `text`, `number`, `boolean` und `select`; gespeichert werden Zeichenketten. Textfelder können ein `pattern` vorgeben. Eintragsbezogene `i18n`-Blöcke übersetzen Titel, Beschriftungen, Hilfe und Optionen. Verschachtelte Daten und Listen gehören in separate Dateien, die der Workflow zusätzlich liest.
 

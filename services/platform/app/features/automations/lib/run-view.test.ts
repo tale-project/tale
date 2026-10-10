@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cursorNodeStatus,
   isRunFinished,
   nodeStatusMap,
   projectRun,
   readEffects,
   readRunAgentRetry,
   readRunCursorNode,
+  readRunParkNode,
   readRunStatus,
   runReasonKey,
 } from './run-view';
@@ -31,6 +33,36 @@ const finishedRun = {
     { node: 'notify', connector: 'slack.post', input: { text: 'again' } },
   ],
 };
+
+describe('a legacy run with an unknown outcome', () => {
+  it('keeps the hold distinct from queued work and from a finished run', () => {
+    const status = readRunStatus('quarantined');
+    expect(status).toBe('quarantined');
+    expect(isRunFinished(status)).toBe(false);
+  });
+
+  it('preserves the cursor without implying that it is running or resuming', () => {
+    const run = {
+      status: 'quarantined',
+      checkpoints: { executions: 0, nodes: {}, cursor: { node: 'send' } },
+    };
+    expect(readRunCursorNode(run)).toBe('send');
+    expect(cursorNodeStatus(run)).toBe('interrupted');
+    expect(
+      nodeStatusMap(
+        projectRun(run),
+        ['send'],
+        'send',
+        cursorNodeStatus(run),
+      ).get('send'),
+    ).toBe('interrupted');
+    expect(runReasonKey(run)).toEqual({
+      kind: 'waiting',
+      key: 'runs.quarantine.reason',
+      values: {},
+    });
+  });
+});
 
 describe('projectRun', () => {
   it('reads a finished run from its trace and effects', () => {
@@ -193,6 +225,12 @@ describe('readRunAgentRetry', () => {
     expect(readRunAgentRetry(null)).toBeNull();
   });
 
+  it('does not describe a held run as retrying even when its retained cursor records an attempt', () => {
+    expect(
+      readRunAgentRetry({ ...retrying, status: 'quarantined' }),
+    ).toBeNull();
+  });
+
   it('reads null on a finished run — the cursor is history there', () => {
     expect(readRunAgentRetry({ ...retrying, status: 'failed' })).toBeNull();
   });
@@ -250,5 +288,75 @@ describe('runReasonKey', () => {
       key: 'runs.waiting.agent',
       values: { node: 'draft' },
     });
+  });
+
+  it('says which step may already have run when a write waits for a person', () => {
+    expect(
+      runReasonKey({
+        status: 'waiting',
+        detail: 'in_doubt:send_invoice',
+        waitingFor: 'in_doubt',
+      }),
+    ).toEqual({
+      kind: 'waiting',
+      key: 'runs.waiting.in_doubt',
+      values: { node: 'send_invoice' },
+    });
+  });
+});
+
+describe('readRunParkNode', () => {
+  it.each([
+    ['repeat:tick', 'tick'],
+    ['agent:draft', 'draft'],
+    ['room:draft', 'draft'],
+    ['in_doubt:send_invoice', 'send_invoice'],
+  ])('reads the node off %s', (detail, node) => {
+    expect(readRunParkNode(detail)).toBe(node);
+  });
+
+  it('reads nothing off an approval park or no detail', () => {
+    expect(readRunParkNode('approval:appr-1')).toBeUndefined();
+    expect(readRunParkNode(null)).toBeUndefined();
+    expect(readRunParkNode(undefined)).toBeUndefined();
+  });
+});
+
+/**
+ * The node a live run is on spins only while something works on it: a
+ * person's wait reads as waiting there, and a run whose server stopped as
+ * interrupted there — the header badge and the canvas tell one story.
+ */
+describe('the node a live run is on', () => {
+  const live = {
+    checkpoints: {
+      nodes: {},
+      cursor: { node: 'send', index: 0, passes: 0, outs: [] },
+    },
+  };
+
+  it.each([
+    ['a step under way', { status: 'running' }, 'running'],
+    ['a stalled run', { status: 'running', stalled: true }, 'interrupted'],
+    [
+      'a write that may already have happened',
+      { status: 'waiting', waitingFor: 'in_doubt' },
+      'waiting',
+    ],
+    ['an approval', { status: 'waiting', waitingFor: 'approval' }, 'waiting'],
+    ['a question', { status: 'waiting', waitingFor: 'ask' }, 'waiting'],
+    ['an agent turn', { status: 'waiting', waitingFor: 'agent' }, 'running'],
+    ['a poll', { status: 'waiting', waitingFor: 'repeat' }, 'running'],
+  ] as const)('reads %s on its node', (_case, fields, expected) => {
+    const run = { ...live, ...fields };
+    expect(cursorNodeStatus(run)).toBe(expected);
+    const statuses = nodeStatusMap(
+      projectRun(run),
+      ['send', 'archive'],
+      readRunCursorNode(run),
+      cursorNodeStatus(run),
+    );
+    expect(statuses.get('send')).toBe(expected);
+    expect(statuses.get('archive')).toBe('pending');
   });
 });

@@ -16,7 +16,7 @@ guide ([search.md](search.md)).
 
 | Surface        | Route                                                                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Landing        | `{base}/` — discovery page; see [home](home.md)                                                                                                                                 |
+| Landing        | `{base}/` — first guide in the shared frame; see [home](home.md)                                                                                                                                 |
 | Content page   | any slug, e.g. `{base}/self-hosted/install/quickstart`                                                                                    |
 | Nested group   | `{base}/platform/chat/…` (sub-groups inside **Platform**)                                                                                 |
 | Unknown URL    | `{base}/nope-not-a-page` → styled 404                                                                                                     |
@@ -63,10 +63,10 @@ this guide focuses on **behaviour**, not link rot.
   **only** row that does — and is scrolled into view within the rail.
 - [ ] `NAV-F4` · **Breadcrumbs** — On a nested page, read the `<nav
   aria-label>` = **Breadcrumbs** (`docs.breadcrumbs`) in the header strip →
-  Trail = **Home** (`docs.home`, links to `{base}/`) → group labels → current
+  Trail = **Home** (`docs.home`, links to the locale's first guide) → group labels → current
   page (marked `aria-current="page"`, not a link, and **not** a heading — the
   page's only `<h1>` is the article title below); clicking a crumb navigates there.
-  The locale-root discovery page has its own marketing header, without an article trail.
+  The locale-root first guide has the same frame and article trail as its deep URL.
   Below 1024 px only the immediate parent precedes the current page; at any
   width a long trail truncates its crumbs with an ellipsis (Home keeps its
   width) and never runs past the strip or pushes the page actions away.
@@ -110,14 +110,14 @@ this guide focuses on **behaviour**, not link rot.
 - [ ] `NAV-F11` · **Offline shell** — Built server: load a page once (service
   worker installs), then set the browser offline (devtools → Network) and
   navigate to an unvisited docs URL → The offline shell
-  (`public/offline.html`) renders — title **You are offline** — instead of a
+  (`public/offline.html`) renders — title **You're offline** — instead of a
   browser error page; going back online and reloading restores the real page.
 - [ ] `NAV-F12` · **SW update banner** — With a tab open on an older build,
   serve a new build and trigger the waiting worker (devtools → Application →
   Service workers → Update) → The fixed bottom-right banner renders **Update
   available** (`pwa.updateAvailableTitle`) + `pwa.updateAvailableDescription`;
   **Reload** (`pwa.updateNow`) activates the new worker and reloads;
-  **Dismiss** (`pwa.dismiss`) hides it; the offline-ready toast
+  **Dismiss** (`pwa.dismiss`) hides it; the offline-screen-ready toast
   (`pwa.offlineReady`) is one-shot and removes itself after ~4 s
   (`sw-update-banner.tsx`)
 - [ ] `NAV-F13` · **Header strip pinned** — ≥ 768 px, scroll a long page down →

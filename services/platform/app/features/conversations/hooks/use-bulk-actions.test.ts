@@ -212,13 +212,13 @@ describe('useBulkActions handleSendMessages', () => {
       expect.objectContaining({
         conversationId: 'conv-1',
         organizationId: 'org-1',
-        content: 'Hello there',
+        content: '<p>Hello there</p>',
       }),
     );
     expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: 'conv-2',
-        content: 'Hello there',
+        content: '<p>Hello there</p>',
       }),
     );
     expect(onComplete).toHaveBeenCalledTimes(1);
@@ -243,6 +243,7 @@ describe('useBulkActions handleSendMessages', () => {
       'content',
       'conversationId',
       'organizationId',
+      'sourceMarkdown',
     ]);
   });
 
@@ -537,9 +538,11 @@ describe('useBulkActions status verbs', () => {
     await waitFor(() => expect(verbs.close).toHaveBeenCalledTimes(2));
 
     expect(result.current.isBulkProcessing).toBe(true);
-    expect(result.current.bulkProgress).toEqual({
-      settled: BULK_CONVERSATION_LIMIT,
-      total: BULK_CONVERSATION_LIMIT + 1,
+    await waitFor(() => {
+      expect(result.current.bulkProgress).toEqual({
+        settled: BULK_CONVERSATION_LIMIT,
+        total: BULK_CONVERSATION_LIMIT + 1,
+      });
     });
     // A second press while the batches go out starts nothing.
     await act(async () => {

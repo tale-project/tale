@@ -25,6 +25,8 @@ import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggl
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
+import { TaskThreadColumn } from './task-thread-column';
+
 /** Tailwind's `xl`: where the details panel docks instead of opening as a
  *  sheet. Kept in step with the aside's `xl:block`. */
 const DOCKED_DETAILS_QUERY = '(min-width: 1280px)';
@@ -123,34 +125,12 @@ export function TaskPageLayout({
         }
       />
       <div className="flex min-h-0 flex-1">
-        <div className="mobile-nav-clearance mobile-nav-inset flex min-w-0 flex-1 flex-col">
-          {/* column-reverse keeps the view anchored at the newest end: the
-              page opens on the latest message, and a new one arriving at the
-              foot stays in sight — the way a chat reads. */}
-          <div className="scrollbar-thin flex min-h-0 flex-1 flex-col-reverse overflow-y-auto">
-            {/* mb-auto: a short thread starts at the top instead of sinking
-                to the foot of an otherwise empty column. */}
-            <div className="mx-auto mb-auto flex w-full max-w-3xl flex-col gap-8 px-6 pt-6 pb-4">
-              {/* The brief is the thread's opening: what the task is, what it
-                  needs, what it splits into. */}
-              <div className="border-border bg-card flex flex-col gap-5 rounded-2xl border p-5 shadow-xs">
-                <h2 className="sr-only">{t('detail.overview')}</h2>
-                {brief}
-              </div>
-              <section>
-                <h2 className="sr-only">{t('detail.conversation')}</h2>
-                {conversation}
-              </section>
-            </div>
-          </div>
-          {composer !== undefined &&
-            composer !== null &&
-            composer !== false && (
-              <div className="mx-auto w-full max-w-3xl shrink-0 px-6 pb-4">
-                {composer}
-              </div>
-            )}
-        </div>
+        <TaskThreadColumn
+          className="mobile-nav-clearance mobile-nav-inset"
+          brief={brief}
+          conversation={conversation}
+          composer={composer}
+        />
         <aside
           id="task-details"
           aria-label={t('detail.details')}
@@ -160,10 +140,12 @@ export function TaskPageLayout({
             detailsOpen ? 'w-80' : 'w-0 border-l-0',
           )}
         >
-          <div className="scrollbar-thin flex h-full w-80 flex-col gap-4 overflow-y-auto px-5 py-5">
-            <h2 className="sr-only">{t('detail.details')}</h2>
-            {panel}
-          </div>
+          {canDock && (
+            <div className="scrollbar-thin flex h-full w-80 flex-col gap-4 overflow-y-auto px-5 py-5">
+              <h2 className="sr-only">{t('detail.details')}</h2>
+              {panel}
+            </div>
+          )}
         </aside>
       </div>
       <Sheet

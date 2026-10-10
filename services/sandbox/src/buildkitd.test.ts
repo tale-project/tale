@@ -1,6 +1,10 @@
 // Organization isolation and resource naming for persistent build caches.
 
 import { describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   BUILDKITD_LIVE_TOML,
@@ -12,12 +16,18 @@ import {
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
   buildkitHelperLimits,
+  buildkitMirrorEnvironment,
   EGRESS_READY_MARKER,
   egressProxyHostname,
   firstIpv4,
   helperStamp,
   MIRROR_REGISTRIES,
   parseDnsNameserver,
+  parseFenceProbe,
+  buildkitCacheBudget,
+  builderConfiguration,
+  builderLaunchDrifted,
+  builderLaunchRecord,
 } from './buildkitd.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
 
@@ -46,6 +56,19 @@ describe('buildkitd naming seam', () => {
     expect(buildkitdCacheVolumeName('org-a')).not.toBe('tale-buildkitd-cache');
     expect(buildkitdContainerName('a'.repeat(128))).toMatch(
       /^[a-z0-9-]{1,63}$/,
+    );
+  });
+
+  test('unchanged helpers retain their deployed configuration stamp', () => {
+    const image = 'mirror:1';
+    const limits = ['--cpus', '1', '--memory', '128m'];
+    const deployed = createHash('sha256')
+      .update([image, ...limits].join('\n'))
+      .digest('hex')
+      .slice(0, 16);
+    expect(helperStamp(image, limits)).toBe(deployed);
+    expect(helperStamp(image, limits, ['solver-parallelism=1'])).not.toBe(
+      deployed,
     );
   });
 
@@ -143,6 +166,27 @@ describe('buildkitd helper bounds', () => {
     );
   });
 
+  test('helpers run at an agent session’s CPU weight, which a busy helper takes in place', () => {
+    for (const role of ['builder', 'mirror'] as const) {
+      expect(
+        buildkitHelperLimits(LIMITS_CFG, role).filter((flag) =>
+          flag.startsWith('--cpu-shares='),
+        ),
+      ).toEqual(['--cpu-shares=256']);
+    }
+    const tuned = {
+      session: {
+        ...TEST_SESSION_CONFIG,
+        agentProfile: { ...TEST_SESSION_CONFIG.agentProfile, cpuShares: 64 },
+      },
+    };
+    const limits = buildkitHelperLimits(tuned, 'builder');
+    expect(limits).toContain('--cpu-shares=64');
+    expect(helperStamp('buildkit:1', limits)).not.toBe(
+      helperStamp('buildkit:1', buildkitHelperLimits(LIMITS_CFG, 'builder')),
+    );
+  });
+
   test('a stamp changes with the image and with the bounds', () => {
     const limits = buildkitHelperLimits(LIMITS_CFG, 'builder');
     const stamp = helperStamp('buildkit:1', limits);
@@ -158,6 +202,60 @@ describe('buildkitd helper bounds', () => {
   });
 });
 
+describe('buildkitd builder launch record', () => {
+  const proxy = 'http://tale-buildkit-egress:3128/';
+  const mapping = (...registries: string[]) =>
+    registries
+      .map((registry) => `${registry}=${buildkitdMirrorRef('org-a', registry)}`)
+      .join(';');
+  const full = mapping(...MIRROR_REGISTRIES);
+
+  test('records the mapped registries and a hash of the proxy, never the proxy itself', () => {
+    const secret = 'http://user:secret@tale-buildkit-egress:3128/';
+    const record = builderLaunchRecord(full, secret);
+    expect(record).toMatch(/^[a-f0-9]{16};docker\.io,ghcr\.io,quay\.io$/);
+    expect(record).not.toContain('secret');
+    // A label value Docker and simple `key=value` readers both keep whole.
+    expect(record).not.toContain('=');
+  });
+
+  test('a builder launched as it would be now is current', () => {
+    expect(
+      builderLaunchDrifted(builderLaunchRecord(full, proxy), full, proxy),
+    ).toBe(false);
+  });
+
+  test('a builder launched without a registry a mirror serves now is drifted', () => {
+    const partial = builderLaunchRecord(mapping('docker.io', 'quay.io'), proxy);
+    expect(builderLaunchDrifted(partial, full, proxy)).toBe(true);
+    // Still without it while its mirror stays down: a recreate gains nothing.
+    expect(
+      builderLaunchDrifted(partial, mapping('docker.io', 'quay.io'), proxy),
+    ).toBe(false);
+  });
+
+  test('a mirror down now does not drift a builder launched with it', () => {
+    expect(
+      builderLaunchDrifted(
+        builderLaunchRecord(full, proxy),
+        mapping('docker.io', 'quay.io'),
+        proxy,
+      ),
+    ).toBe(false);
+  });
+
+  test('another proxy, or no record at all, is drift', () => {
+    expect(
+      builderLaunchDrifted(
+        builderLaunchRecord(full, 'http://tale-buildkit-egress:3129/'),
+        full,
+        proxy,
+      ),
+    ).toBe(true);
+    expect(builderLaunchDrifted(undefined, full, proxy)).toBe(true);
+  });
+});
+
 describe('buildkitd cache garbage collection', () => {
   // A rule's keepDuration shields everything used more recently from that
   // rule's space limits: the old keepBytes + keepDuration rule pruned nothing
@@ -168,7 +266,7 @@ describe('buildkitd cache garbage collection', () => {
     const toml = await Bun.file(
       new URL('../../sandbox-buildkitd/buildkitd.toml', import.meta.url),
     ).text();
-    expect(toml).toMatch(/^max-parallelism = 4$/m);
+    expect(toml).toMatch(/^max-parallelism = 2$/m);
     const rules = toml
       .split('[[worker.oci.gcpolicy]]')
       .slice(1)
@@ -183,7 +281,78 @@ describe('buildkitd cache garbage collection', () => {
   });
 });
 
+describe('buildkitd cache bounds', () => {
+  const GIB = 1024 ** 3;
+  const MIB = 1024 ** 2;
+  test('a tenth of the session disk, from 1 GiB to the shipped 20 GiB', () => {
+    expect(buildkitCacheBudget(null)).toEqual({
+      maxUsedBytes: 20 * GIB,
+      reservedBytes: 2 * GIB,
+    });
+    expect(buildkitCacheBudget(4096 * GIB)).toEqual({
+      maxUsedBytes: 20 * GIB,
+      reservedBytes: 2 * GIB,
+    });
+    expect(buildkitCacheBudget(100 * GIB)).toEqual({
+      maxUsedBytes: 10 * GIB,
+      reservedBytes: GIB,
+    });
+    // Whole GiB: a 75 GB disk's tenth (6.98 GiB) rounds down.
+    expect(buildkitCacheBudget(75e9).maxUsedBytes).toBe(6 * GIB);
+    // A total that moves by a few MiB with a pool's use keeps the same cap,
+    // so the builder's stamp holds still between disk re-reads.
+    const pool = 87.3 * GIB;
+    expect(buildkitCacheBudget(pool + 7 * MIB)).toEqual(
+      buildkitCacheBudget(pool - 5 * MIB),
+    );
+    expect(buildkitCacheBudget(5 * GIB)).toEqual({
+      maxUsedBytes: GIB,
+      reservedBytes: 102 * MIB,
+    });
+  });
+
+  test('the operator’s cap wins over the disk', () => {
+    expect(buildkitCacheBudget(100 * GIB, 40 * GIB)).toEqual({
+      maxUsedBytes: 40 * GIB,
+      reservedBytes: 2 * GIB,
+    });
+    expect(buildkitCacheBudget(null, 8 * GIB).maxUsedBytes).toBe(8 * GIB);
+  });
+
+  test('a builder’s stamp records its cache bounds', () => {
+    const limits = buildkitHelperLimits(LIMITS_CFG, 'builder');
+    const stamp = (diskBytes: number | null) =>
+      helperStamp(
+        'buildkit:1',
+        limits,
+        builderConfiguration(2, buildkitCacheBudget(diskBytes)),
+      );
+    expect(stamp(100 * GIB)).not.toBe(stamp(null));
+    expect(stamp(4096 * GIB)).toBe(stamp(null));
+  });
+});
+
 describe('buildkitd egress drift detection', () => {
+  test('parseFenceProbe reads the marker, the live config and the resolution from one exec', () => {
+    expect(
+      parseFenceProbe(
+        '#tale-fence marker 0\n#tale-fence toml\n[dns]\n  nameservers = ["172.18.0.6"]\n#tale-fence resolved\n172.18.0.6 tale-buildkit-egress\n',
+      ),
+    ).toEqual({
+      marker: true,
+      toml: '[dns]\n  nameservers = ["172.18.0.6"]',
+      resolved: '172.18.0.6 tale-buildkit-egress\n',
+    });
+    // No marker, no config, nothing resolved: each part is still told apart.
+    expect(
+      parseFenceProbe(
+        '#tale-fence marker 1\n#tale-fence toml\n#tale-fence resolved\n',
+      ),
+    ).toEqual({ marker: false, toml: '', resolved: '' });
+    expect(parseFenceProbe('OCI runtime exec failed')).toBeNull();
+    expect(parseFenceProbe('')).toBeNull();
+  });
+
   test('egressProxyHostname extracts the host from the proxy URL', () => {
     expect(egressProxyHostname('http://sandbox-egress:3128')).toBe(
       'sandbox-egress',
@@ -218,5 +387,114 @@ describe('buildkitd egress drift detection', () => {
     expect(
       parseDnsNameserver('[registry."docker.io"]\n  mirrors = ["x:5000"]\n'),
     ).toBeNull();
+  });
+});
+
+test('builder boot bounds solver parallelism and regenerates config on restart', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tale-buildkit-config-'));
+  try {
+    const script = await Bun.file(
+      new URL('../../sandbox-buildkitd/docker-entrypoint.sh', import.meta.url),
+    ).text();
+    const init = script.match(/init_base_config\(\) \{[\s\S]*?\n\}/)?.[0];
+    if (!init) throw new Error('missing config bootstrap');
+    const base = new URL(
+      '../../sandbox-buildkitd/buildkitd.toml',
+      import.meta.url,
+    ).pathname;
+    const live = join(root, 'live.toml');
+    for (const parallelism of ['3', '1']) {
+      const child = Bun.spawn(['/bin/sh', '-c', `${init}\ninit_base_config`], {
+        env: {
+          ...process.env,
+          BASE_TOML: base,
+          LIVE_TOML: live,
+          TALE_BUILDKITD_MAX_PARALLELISM: parallelism,
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(await child.exited).toBe(0);
+      expect(Bun.TOML.parse(await readFile(live, 'utf8'))).toMatchObject({
+        worker: {
+          oci: { 'max-parallelism': Number(parallelism), networkMode: 'host' },
+        },
+      });
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('builder boot takes the cache cap and floor the spawner sized, in bytes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tale-buildkit-cache-'));
+  try {
+    const script = await Bun.file(
+      new URL('../../sandbox-buildkitd/docker-entrypoint.sh', import.meta.url),
+    ).text();
+    const init = script.match(/init_base_config\(\) \{[\s\S]*?\n\}/)?.[0];
+    if (!init) throw new Error('missing config bootstrap');
+    const base = new URL(
+      '../../sandbox-buildkitd/buildkitd.toml',
+      import.meta.url,
+    ).pathname;
+    const live = join(root, 'live.toml');
+    const boot = async (env: Record<string, string>) => {
+      const child = Bun.spawn(
+        ['/bin/sh', '-c', `log() { :; }\n${init}\ninit_base_config`],
+        {
+          env: { ...process.env, BASE_TOML: base, LIVE_TOML: live, ...env },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      );
+      return child.exited;
+    };
+    const capRule = async () => {
+      const toml: unknown = Bun.TOML.parse(await readFile(live, 'utf8'));
+      const worker = Object(Object(toml).worker);
+      const rules: unknown = Object(worker.oci).gcpolicy;
+      return Array.isArray(rules)
+        ? rules.find((rule) => Object(rule).all === true)
+        : undefined;
+    };
+    expect(
+      await boot({
+        TALE_BUILDKITD_MAX_USED: '5368709120',
+        TALE_BUILDKITD_RESERVED: '536870912',
+      }),
+    ).toBe(0);
+    expect(await capRule()).toMatchObject({
+      maxUsedSpace: '5368709120',
+      reservedSpace: '536870912',
+      minFreeSpace: '5%',
+    });
+    // Unset: the shipped bounds.
+    expect(await boot({})).toBe(0);
+    expect(await capRule()).toMatchObject({
+      maxUsedSpace: '20GB',
+      reservedSpace: '2GB',
+    });
+    for (const invalid of ['0', '5g', '-1']) {
+      expect(await boot({ TALE_BUILDKITD_MAX_USED: invalid })).not.toBe(0);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+describe('buildkitd registry mirrors', () => {
+  test('expire what a mirror cached two days after it was last pulled, and can delete it', () => {
+    const environment = buildkitMirrorEnvironment(
+      { egressProxy: 'http://tale-buildkit-egress:3128/' },
+      'docker.io',
+    );
+    expect(environment).toContain(
+      'REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io',
+    );
+    // Distribution v3 reads this as the proxy's blob lifetime (a week unset).
+    expect(environment).toContain('REGISTRY_PROXY_TTL=48h');
+    // Without deletion the expiry scheduler forgets a failed delete.
+    expect(environment).toContain('REGISTRY_STORAGE_DELETE_ENABLED=true');
   });
 });

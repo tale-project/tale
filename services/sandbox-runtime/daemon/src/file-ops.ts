@@ -4,7 +4,7 @@
 // boundary the exec cwd check enforces.
 
 import { createHash, randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, type BigIntStats } from 'node:fs';
 import {
   lstat,
   open,
@@ -21,6 +21,13 @@ import { basename, join, normalize } from 'node:path';
 import { Readable } from 'node:stream';
 
 import { WORKSPACE_ROOT } from './protocol.ts';
+import {
+  decodeStagedManifest,
+  encodeStagedManifest,
+  STAGED_MANIFEST_MAX_BYTES,
+  type StagedSource,
+  type StagedStat,
+} from './staged-manifest.ts';
 
 function workspaceRoot(): string {
   return process.env.TALE_WORKSPACE_ROOT ?? WORKSPACE_ROOT;
@@ -60,6 +67,10 @@ export interface StageItem {
   contentBase64?: string;
   /** Trusted immutable source identity; reuse still verifies the actual file. */
   sourceId?: string;
+  /** Compatibility alias for callers using the earlier immutable-source field. */
+  cacheKey?: string;
+  /** Optional content attestation, checked before replacing any destination. */
+  sha256?: string;
 }
 
 interface StageResult {
@@ -70,15 +81,239 @@ interface StageResult {
 
 const FETCH_MAX_BYTES = 100 * 1024 * 1024;
 const INLINE_MAX_BYTES = 1 * 1024 * 1024;
-const STAGE_FETCH_TIMEOUT_MS = 25_000;
+// One deadline for the whole batch, below the spawner's 30 s RPC timeout.
+const STAGE_TIMEOUT_MS = 25_000;
 const STAGE_MAX_ACTIVE = 2;
 const STAGE_MANIFEST_LIMIT = 4096;
 let activeStages = 0;
 let reconcilingStage = false;
-const stagedSources = new Map<string, { sourceId: string; digest: string }>();
+/** By absolute workspace path; persisted (staged-manifest.ts). */
+const stagedSources = new Map<string, StagedSource>();
+/** The manifest changed since it was last written. */
+let stagedSourcesDirty = false;
+
+/** Where the manifest of staged sources lives: in the workspace, so it
+ * survives the container, and outside the exec temp a stop retires. */
+const STAGED_MANIFEST_PATH = '.runtime/staged-sources.json';
+/** A stat tuple is recorded only for a file whose ctime is at least this old
+ * when its hash is verified (staged-manifest.ts). */
+const STAGED_STAT_SETTLE_MS = 2_000;
+
+function stagedManifestKey(): string {
+  return process.env.TALE_RUNNERD_TOKEN ?? '';
+}
+
+function sameStat(a: StagedStat | undefined, b: StagedStat | undefined) {
+  return (
+    a === b ||
+    (a !== undefined &&
+      b !== undefined &&
+      a.dev === b.dev &&
+      a.ino === b.ino &&
+      a.size === b.size &&
+      a.mtimeNs === b.mtimeNs &&
+      a.ctimeNs === b.ctimeNs)
+  );
+}
+
+function rememberStagedSource(
+  path: string,
+  sourceId: string | undefined,
+  digest: string,
+  verified?: StagedStat,
+): void {
+  const previous = stagedSources.get(path);
+  stagedSources.delete(path);
+  if (!sourceId) {
+    if (previous !== undefined) stagedSourcesDirty = true;
+    return;
+  }
+  stagedSources.set(path, {
+    sourceId,
+    digest,
+    ...(verified ? { stat: verified } : {}),
+  });
+  if (
+    previous?.sourceId !== sourceId ||
+    previous.digest !== digest ||
+    !sameStat(previous.stat, verified)
+  )
+    stagedSourcesDirty = true;
+  while (stagedSources.size > STAGE_MANIFEST_LIMIT) {
+    const oldest = stagedSources.keys().next().value;
+    if (oldest !== undefined) stagedSources.delete(oldest);
+  }
+}
+
+function forgetStagedSource(path: string): void {
+  if (stagedSources.delete(path)) stagedSourcesDirty = true;
+}
+
+/** The stat tuple a staged file is trusted by, from `info`, or undefined
+ * while its ctime is too recent to tell a later write in the same tick. */
+function settledStat(info: BigIntStats): StagedStat | undefined {
+  if (Date.now() - Number(info.ctimeNs / 1_000_000n) < STAGED_STAT_SETTLE_MS)
+    return undefined;
+  // A time before 1970 (`touch -d 1960-01-01`) is negative: the manifest keeps
+  // decimal stats only, so such a file is hashed instead. The millisecond
+  // fields are read too: Bun reports such a time as 0 in nanoseconds.
+  if (
+    info.mtimeNs < 0n ||
+    info.ctimeNs < 0n ||
+    info.mtimeMs < 0n ||
+    info.ctimeMs < 0n
+  )
+    return undefined;
+  return {
+    dev: String(info.dev),
+    ino: String(info.ino),
+    size: String(info.size),
+    mtimeNs: String(info.mtimeNs),
+    ctimeNs: String(info.ctimeNs),
+  };
+}
+
+function statMatches(info: BigIntStats, recorded: StagedStat): boolean {
+  return (
+    info.isFile() &&
+    String(info.dev) === recorded.dev &&
+    String(info.ino) === recorded.ino &&
+    String(info.size) === recorded.size &&
+    String(info.mtimeNs) === recorded.mtimeNs &&
+    String(info.ctimeNs) === recorded.ctimeNs
+  );
+}
+
+/** Whether the file at `abs` is still the one a verified hash described:
+ * opened twice through the current path, without following links, and both
+ * times the same device, inode, size and nanosecond mtime and ctime. */
+async function unchangedSince(
+  abs: string,
+  recorded: StagedStat,
+): Promise<boolean> {
+  let first: FileHandle | null = null;
+  let second: FileHandle | null = null;
+  try {
+    first = await openWorkspaceFile(abs);
+    if (
+      first === null ||
+      !statMatches(await first.stat({ bigint: true }), recorded)
+    )
+      return false;
+    second = await openWorkspaceFile(abs);
+    return (
+      second !== null &&
+      statMatches(await second.stat({ bigint: true }), recorded)
+    );
+  } catch (error) {
+    console.warn(`[runnerd] checking the staged file ${abs} failed:`, error);
+    return false;
+  } finally {
+    await first?.close();
+    await second?.close();
+  }
+}
+
+let stagedManifestLoad: Promise<void> | null = null;
+
+/** Read the manifest a previous runnerd of this session left, once per
+ * process. A missing one is the first start; any other that does not verify
+ * is ignored, and staging fetches and hashes as before. */
+function loadStagedManifest(): Promise<void> {
+  stagedManifestLoad ??= (async () => {
+    const key = stagedManifestKey();
+    if (key === '') return;
+    const file = await openWorkspaceFile(STAGED_MANIFEST_PATH);
+    if (file === null) return;
+    let text: string;
+    try {
+      if ((await file.stat()).size > STAGED_MANIFEST_MAX_BYTES) {
+        console.warn(
+          '[runnerd] the staged-files manifest is too large; staging starts afresh',
+        );
+        return;
+      }
+      text = await file.readFile('utf8');
+    } finally {
+      await file.close();
+    }
+    const root = workspaceRoot();
+    const loaded = decodeStagedManifest(text, key, (path) => {
+      const abs = resolveUnderWorkspace(path);
+      return abs !== null && abs === join(root, path);
+    });
+    if (loaded === null) {
+      console.warn(
+        '[runnerd] the staged-files manifest does not verify; staging starts afresh',
+      );
+      return;
+    }
+    for (const [path, source] of loaded) {
+      const abs = join(root, path);
+      if (!stagedSources.has(abs)) stagedSources.set(abs, source);
+    }
+  })().catch((error: unknown) => {
+    console.warn('[runnerd] reading the staged-files manifest failed:', error);
+  });
+  return stagedManifestLoad;
+}
+
+let stagedManifestWrite: Promise<void> = Promise.resolve();
+
+/** Write the manifest when it changed: atomically (a sibling temporary,
+ * then a rename), through the workspace's link-free path, one write at a
+ * time. A failure costs only the next process's warm start. */
+function persistStagedManifest(): Promise<void> {
+  stagedManifestWrite = stagedManifestWrite.then(writeStagedManifest);
+  return stagedManifestWrite;
+}
+
+async function writeStagedManifest(): Promise<void> {
+  const key = stagedManifestKey();
+  if (!stagedSourcesDirty || key === '') return;
+  stagedSourcesDirty = false;
+  const root = workspaceRoot();
+  const text = encodeStagedManifest(
+    [...stagedSources].map(([abs, source]) => [
+      abs.slice(root.length + 1),
+      source,
+    ]),
+    key,
+  );
+  const abs = join(root, STAGED_MANIFEST_PATH);
+  let parent: { handle: FileHandle; path: string } | undefined;
+  let temporary: string | undefined;
+  try {
+    parent = await stageParent(abs);
+    const anchor = anchoredDirectory(parent.handle, parent.path);
+    temporary = join(anchor, `.staged-sources-${randomUUID()}`);
+    const file = await open(temporary, 'wx', 0o600);
+    try {
+      await file.writeFile(text, 'utf8');
+    } finally {
+      await file.close();
+    }
+    await rename(temporary, join(anchor, basename(abs)));
+    temporary = undefined;
+  } catch (error) {
+    stagedSourcesDirty = true;
+    console.warn('[runnerd] writing the staged-files manifest failed:', error);
+  } finally {
+    if (temporary !== undefined)
+      await rm(temporary, { force: true }).catch((error: unknown) => {
+        console.warn(
+          '[runnerd] removing a partial staged-files manifest failed:',
+          error,
+        );
+      });
+    await parent?.handle.close();
+  }
+}
 
 export interface StageOptions {
+  /** Total batch budget, including cached-source verification/reconciliation. */
   fetchTimeoutMs?: number;
+  batchTimeoutMs?: number;
   signal?: AbortSignal;
   /** An explicit final reconciliation, sent only after every batch succeeded. */
   replaceRoots?: string[];
@@ -142,14 +377,16 @@ async function stageParent(
 }
 
 async function fileDigest(
-  path: string,
+  rel: string,
   signal?: AbortSignal,
-): Promise<{ digest: string; bytes: number } | null> {
+): Promise<{ digest: string; bytes: number; stat?: StagedStat } | null> {
   let file: FileHandle | undefined;
+  let current: FileHandle | undefined;
   try {
-    file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const info = await file.stat();
-    if (!info.isFile() || info.size > FETCH_MAX_BYTES) return null;
+    file = (await openWorkspaceFile(rel)) ?? undefined;
+    if (file === undefined) return null;
+    const info = await file.stat({ bigint: true });
+    if (!info.isFile() || info.size > BigInt(FETCH_MAX_BYTES)) return null;
     const hash = createHash('sha256');
     let bytes = 0;
     for await (const chunk of file.createReadStream({
@@ -160,30 +397,78 @@ async function fileDigest(
       if (bytes > FETCH_MAX_BYTES) return null;
       hash.update(chunk);
     }
-    return { digest: hash.digest('hex'), bytes };
+    signal?.throwIfAborted();
+    // Hashing an old descriptor proves nothing about a replaced destination
+    // (or parent directory). Reopen through the current workspace path and
+    // require both snapshots to name the same unchanged regular file.
+    current = (await openWorkspaceFile(rel)) ?? undefined;
+    if (current === undefined) return null;
+    const final = await file.stat({ bigint: true });
+    const actual = await current.stat({ bigint: true });
+    if (
+      [final, actual].some(
+        (value) =>
+          value.dev !== info.dev ||
+          value.ino !== info.ino ||
+          value.size !== info.size ||
+          value.mtimeNs !== info.mtimeNs ||
+          value.ctimeNs !== info.ctimeNs,
+      ) ||
+      BigInt(bytes) !== info.size
+    )
+      return null;
+    const settled = settledStat(info);
+    return {
+      digest: hash.digest('hex'),
+      bytes,
+      ...(settled ? { stat: settled } : {}),
+    };
   } catch {
     return null;
   } finally {
     await file?.close();
+    await current?.close();
   }
 }
 
-/** Bounded two-transfer admission; the caller can retry a busy batch. Each
- * transfer awaits disk writes before reading more network bytes. Failed or
- * cancelled transfers never replace the previous destination. */
+/** Open through pinned ancestors without following symlinks or waiting on a
+ * named pipe. Only regular files may supply bytes to reads or cache probes. */
+async function openWorkspaceFile(rel: string): Promise<FileHandle | null> {
+  const abs = resolveUnderWorkspace(rel);
+  if (abs === null || abs === workspaceRoot()) return null;
+  let file: FileHandle | undefined;
+  let parentHandle: FileHandle | undefined;
+  try {
+    const parent = await stageParent(abs, false);
+    parentHandle = parent.handle;
+    file = await open(
+      join(anchoredDirectory(parentHandle, parent.path), basename(abs)),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    if ((await file.stat()).isFile()) return file;
+  } catch {
+    // Unsafe, missing and unreadable paths cannot supply a verified file.
+  } finally {
+    await parentHandle?.close().catch(() => {});
+  }
+  await file?.close().catch(() => {});
+  return null;
+}
+
+/** Two admitted batches share two transfer slots. One deadline covers queued
+ * work, transfer and final reconciliation; individual files publish atomically.
+ * Reconciliation is exclusive and runs only after every item succeeded. */
 export async function stageFiles(
   items: StageItem[],
   opts: StageOptions = {},
 ): Promise<StageResult> {
-  const staged: StageResult['staged'] = [];
-  const skipped: StageResult['skipped'] = [];
   if (
     activeStages >= STAGE_MAX_ACTIVE ||
     reconcilingStage ||
     (opts.replaceRoots?.length && activeStages > 0)
   ) {
     return {
-      staged,
+      staged: [],
       skipped: (items.length
         ? items.map((item) => item.path)
         : (opts.replaceRoots ?? [])
@@ -192,138 +477,55 @@ export async function stageFiles(
   }
   activeStages += 1;
   if (opts.replaceRoots?.length) reconcilingStage = true;
-  try {
-    for (const item of items) {
-      const abs = resolveUnderWorkspace(item.path);
-      if (abs === null || abs === workspaceRoot()) {
-        skipped.push({ path: item.path, reason: 'unsafe_path' });
+  await loadStagedManifest();
+  const batch = new AbortController();
+  const deadline = setTimeout(
+    () => batch.abort(),
+    opts.batchTimeoutMs ?? opts.fetchTimeoutMs ?? STAGE_TIMEOUT_MS,
+  );
+  const signal = opts.signal
+    ? AbortSignal.any([batch.signal, opts.signal])
+    : batch.signal;
+  const outcomes: StageResult[] = new Array(items.length);
+  const destinations = new Set<string>();
+  const duplicates = new Set<number>();
+  for (const [index, item] of items.entries()) {
+    const path = resolveUnderWorkspace(item.path);
+    if (path && destinations.has(path)) duplicates.add(index);
+    if (path) destinations.add(path);
+  }
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const index = next++;
+      const item = items[index];
+      if (!item) return;
+      if (duplicates.has(index)) {
+        outcomes[index] = {
+          staged: [],
+          skipped: [{ path: item.path, reason: 'duplicate_path' }],
+        };
         continue;
       }
-      let temporary: string | undefined;
-      let parentHandle: FileHandle | undefined;
-      const controller = new AbortController();
-      const abort = () => controller.abort();
-      opts.signal?.addEventListener('abort', abort, { once: true });
-      if (opts.signal?.aborted) abort();
-      const deadline = setTimeout(
-        abort,
-        opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
-      );
-      const signal = controller.signal;
+      const release = await takeStageSlot(signal);
       try {
-        signal.throwIfAborted();
-        const parent = await stageParent(abs);
-        parentHandle = parent.handle;
-        const anchoredParent = anchoredDirectory(parentHandle, parent.path);
-        const destination = join(anchoredParent, basename(abs));
-        const key = abs;
-        const previous = stagedSources.get(key);
-        if (item.sourceId && previous?.sourceId === item.sourceId) {
-          const actual = await fileDigest(destination, signal);
-          if (actual?.digest === previous.digest) {
-            staged.push({ path: item.path, bytes: actual.bytes });
-            continue;
-          }
-        }
-        let source: Uint8Array | ReadableStream<Uint8Array>;
-        if (item.contentBase64 !== undefined) {
-          if (item.contentBase64.length > Math.ceil(INLINE_MAX_BYTES / 3) * 4)
-            throw new Error('too_large');
-          source = Buffer.from(item.contentBase64, 'base64');
-          if (source.byteLength > INLINE_MAX_BYTES)
-            throw new Error('too_large');
-        } else if (item.url !== undefined) {
-          const response = await fetch(item.url, { signal });
-          if (!response.ok) throw new Error(`http_${response.status}`);
-          const declared = Number(response.headers.get('content-length') ?? '');
-          if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES)
-            throw new Error('too_large');
-          if (response.body === null) throw new Error('no_body');
-          source = response.body;
-        } else {
-          throw new Error('no_source');
-        }
-        temporary = join(anchoredParent, `.tale-stage-${randomUUID()}`);
-        const file = await open(temporary, 'wx', 0o600);
-        const hash = createHash('sha256');
-        let bytes = 0;
-        try {
-          const write = async (chunk: Uint8Array) => {
-            signal.throwIfAborted();
-            bytes += chunk.byteLength;
-            if (bytes > FETCH_MAX_BYTES) throw new Error('too_large');
-            hash.update(chunk);
-            let offset = 0;
-            while (offset < chunk.byteLength) {
-              const result = await file.write(
-                chunk,
-                offset,
-                chunk.byteLength - offset,
-              );
-              offset += result.bytesWritten;
-            }
-          };
-          if (source instanceof Uint8Array) await write(source);
-          else {
-            const reader = source.getReader();
-            try {
-              for (;;) {
-                const next = await reader.read();
-                if (next.done) break;
-                await write(next.value);
-              }
-            } finally {
-              await reader.cancel().catch(() => {});
-              reader.releaseLock();
-            }
-          }
-        } finally {
-          await file.close();
-        }
-        signal.throwIfAborted();
-        if ((await realpathUnderRoot(anchoredParent)) === null)
-          throw new Error('unsafe_path');
-        await rename(temporary, destination);
-        temporary = undefined;
-        if (item.sourceId) {
-          stagedSources.delete(key);
-          stagedSources.set(key, {
-            sourceId: item.sourceId,
-            digest: hash.digest('hex'),
-          });
-          while (stagedSources.size > STAGE_MANIFEST_LIMIT) {
-            const oldest = stagedSources.keys().next().value;
-            if (oldest !== undefined) stagedSources.delete(oldest);
-          }
-        } else stagedSources.delete(key);
-        staged.push({ path: item.path, bytes });
-      } catch (error) {
-        skipped.push({
-          path: item.path,
-          reason: signal.aborted
-            ? opts.signal?.aborted
-              ? 'cancelled'
-              : 'timeout'
-            : error instanceof Error
-              ? error.message
-              : 'fetch_failed',
-        });
+        outcomes[index] = await stageItem(item, signal, opts);
       } finally {
-        clearTimeout(deadline);
-        opts.signal?.removeEventListener('abort', abort);
-        // Also stops an unread non-2xx/oversized body and releases its socket.
-        controller.abort();
-        if (temporary !== undefined)
-          await rm(temporary, { force: true }).catch(() => {});
-        await parentHandle?.close();
+        release?.();
       }
     }
+  };
+  try {
+    await Promise.all([worker(), worker()]);
+    const staged = outcomes.flatMap((result) => result.staged);
+    const skipped = outcomes.flatMap((result) => result.skipped);
     if (skipped.length === 0 && opts.replaceRoots?.length) {
       await reconcileStageRoots(
         opts.replaceRoots,
         opts.keepPaths ?? [],
-        opts.signal,
+        signal,
         skipped,
+        () => (opts.signal?.aborted ? 'cancelled' : 'timeout'),
       );
     }
     return {
@@ -334,9 +536,224 @@ export async function stageFiles(
         : {}),
     };
   } finally {
+    clearTimeout(deadline);
+    batch.abort();
     activeStages -= 1;
     if (opts.replaceRoots?.length) reconcilingStage = false;
+    await persistStagedManifest();
   }
+}
+
+let activeStageTransfers = 0;
+const stageWaiters: Array<() => void> = [];
+function takeStageSlot(signal: AbortSignal): Promise<(() => void) | null> {
+  if (signal.aborted) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const start = () => {
+      signal.removeEventListener('abort', aborted);
+      activeStageTransfers += 1;
+      resolve(() => {
+        activeStageTransfers -= 1;
+        stageWaiters.shift()?.();
+      });
+    };
+    const aborted = () => {
+      const index = stageWaiters.indexOf(start);
+      if (index !== -1) stageWaiters.splice(index, 1);
+      resolve(null);
+    };
+    if (activeStageTransfers < STAGE_MAX_ACTIVE) start();
+    else {
+      stageWaiters.push(start);
+      signal.addEventListener('abort', aborted, { once: true });
+    }
+  });
+}
+
+async function stageItem(
+  item: StageItem,
+  batchSignal: AbortSignal,
+  opts: StageOptions,
+): Promise<StageResult> {
+  const staged: StageResult['staged'] = [];
+  const skipped: StageResult['skipped'] = [];
+  const abs = resolveUnderWorkspace(item.path);
+  if (abs === null || abs === workspaceRoot()) {
+    return { staged, skipped: [{ path: item.path, reason: 'unsafe_path' }] };
+  }
+  let temporary: string | undefined;
+  let parentHandle: FileHandle | undefined;
+  let responseBody: ReadableStream<Uint8Array> | undefined;
+  const signal = batchSignal;
+  try {
+    signal.throwIfAborted();
+    const parent = await stageParent(abs);
+    parentHandle = parent.handle;
+    const anchoredParent = anchoredDirectory(parentHandle, parent.path);
+    const destination = join(anchoredParent, basename(abs));
+    const sourceId = item.sourceId ?? item.cacheKey;
+    const previous = stagedSources.get(abs);
+    const expectedDigest =
+      item.sha256 ??
+      (sourceId && previous?.sourceId === sourceId
+        ? previous.digest
+        : undefined);
+    if (expectedDigest) {
+      // A file still the one a verified hash described holds those bytes:
+      // no second read of every byte to hash them again.
+      if (
+        previous?.stat !== undefined &&
+        previous.digest === expectedDigest &&
+        (await unchangedSince(abs, previous.stat))
+      ) {
+        signal.throwIfAborted();
+        if (sourceId)
+          rememberStagedSource(abs, sourceId, previous.digest, previous.stat);
+        return {
+          staged: [{ path: item.path, bytes: Number(previous.stat.size) }],
+          skipped,
+        };
+      }
+      const actual = await fileDigest(abs, signal);
+      if (actual?.digest === expectedDigest) {
+        signal.throwIfAborted();
+        if (sourceId)
+          rememberStagedSource(abs, sourceId, actual.digest, actual.stat);
+        return { staged: [{ path: item.path, bytes: actual.bytes }], skipped };
+      }
+    }
+    let source: Uint8Array | ReadableStream<Uint8Array>;
+    if (item.contentBase64 !== undefined) {
+      if (item.contentBase64.length > Math.ceil(INLINE_MAX_BYTES / 3) * 4)
+        throw new Error('too_large');
+      source = Buffer.from(item.contentBase64, 'base64');
+      if (source.byteLength > INLINE_MAX_BYTES) throw new Error('too_large');
+      const digest = createHash('sha256').update(source).digest('hex');
+      if (item.sha256 && item.sha256 !== digest)
+        throw new Error('digest_mismatch');
+      const actual = await fileDigest(abs, signal);
+      if (actual?.digest === digest) {
+        signal.throwIfAborted();
+        rememberStagedSource(abs, sourceId, digest, actual.stat);
+        return { staged: [{ path: item.path, bytes: actual.bytes }], skipped };
+      }
+    } else if (item.url !== undefined) {
+      const response = await fetch(item.url, { signal });
+      responseBody = response.body ?? undefined;
+      if (!response.ok) throw new Error(`http_${response.status}`);
+      const declared = Number(response.headers.get('content-length') ?? '');
+      if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES)
+        throw new Error('too_large');
+      if (response.body === null) throw new Error('no_body');
+      source = response.body;
+    } else throw new Error('no_source');
+    temporary = join(anchoredParent, `.tale-stage-${randomUUID()}`);
+    let mode = 0o600;
+    try {
+      const existing = await lstat(destination);
+      if (!existing.isFile()) throw new Error('unsafe_path');
+      mode = existing.mode & 0o777;
+    } catch (error) {
+      if (
+        !(error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      )
+        throw error;
+    }
+    const file = await open(temporary, 'wx', 0o600);
+    const hash = createHash('sha256');
+    let bytes = 0;
+    try {
+      const write = async (chunk: Uint8Array) => {
+        signal.throwIfAborted();
+        bytes += chunk.byteLength;
+        if (bytes > FETCH_MAX_BYTES) throw new Error('too_large');
+        hash.update(chunk);
+        let offset = 0;
+        while (offset < chunk.byteLength) {
+          signal.throwIfAborted();
+          const result = await file.write(
+            chunk,
+            offset,
+            chunk.byteLength - offset,
+          );
+          if (result.bytesWritten === 0) throw new Error('file_write_stalled');
+          offset += result.bytesWritten;
+        }
+      };
+      if (source instanceof Uint8Array) await write(source);
+      else {
+        const reader = source.getReader();
+        const pending: Uint8Array[] = [];
+        let pendingBytes = 0;
+        const flush = async () => {
+          if (pendingBytes === 0) return;
+          const first = pending[0];
+          await write(
+            pending.length === 1 && first !== undefined
+              ? first
+              : Buffer.concat(pending, pendingBytes),
+          );
+          pending.length = 0;
+          pendingBytes = 0;
+        };
+        try {
+          for (;;) {
+            signal.throwIfAborted();
+            const next = await reader.read();
+            if (next.done) break;
+            if (bytes + pendingBytes + next.value.byteLength > FETCH_MAX_BYTES)
+              throw new Error('too_large');
+            let offset = 0;
+            while (offset < next.value.byteLength) {
+              const take = Math.min(
+                256 * 1024 - pendingBytes,
+                next.value.byteLength - offset,
+              );
+              pending.push(next.value.subarray(offset, offset + take));
+              pendingBytes += take;
+              offset += take;
+              if (pendingBytes === 256 * 1024) await flush();
+            }
+          }
+          await flush();
+        } finally {
+          void reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+      }
+      await file.chmod(mode);
+    } finally {
+      await file.close();
+    }
+    const digest = hash.digest('hex');
+    if (item.sha256 && item.sha256 !== digest)
+      throw new Error('digest_mismatch');
+    signal.throwIfAborted();
+    if ((await realpathUnderRoot(anchoredParent)) === null)
+      throw new Error('unsafe_path');
+    await rename(temporary, destination);
+    temporary = undefined;
+    rememberStagedSource(abs, sourceId, digest);
+    staged.push({ path: item.path, bytes });
+  } catch (error) {
+    skipped.push({
+      path: item.path,
+      reason: signal.aborted
+        ? opts.signal?.aborted
+          ? 'cancelled'
+          : 'timeout'
+        : error instanceof Error
+          ? error.message
+          : 'fetch_failed',
+    });
+  } finally {
+    // Cancel unread/error bodies without waiting for upstream acknowledgement.
+    void responseBody?.cancel().catch(() => {});
+    if (temporary !== undefined)
+      await rm(temporary, { force: true }).catch(() => {});
+    await parentHandle?.close();
+  }
+  return { staged, skipped };
 }
 
 async function reconcileStageRoots(
@@ -344,6 +761,7 @@ async function reconcileStageRoots(
   paths: string[],
   signal: AbortSignal | undefined,
   skipped: StageResult['skipped'],
+  abortReason: () => string,
 ): Promise<void> {
   const invalid = paths.find((path) => resolveUnderWorkspace(path) === null);
   if (invalid !== undefined) {
@@ -398,7 +816,7 @@ async function reconcileStageRoots(
             if ((await realpathUnderRoot(anchor)) === null)
               throw new Error('unsafe_path');
             await rm(path, { force: true });
-            stagedSources.delete(key);
+            forgetStagedSource(key);
           }
         }
       };
@@ -411,7 +829,7 @@ async function reconcileStageRoots(
       skipped.push({
         path: root,
         reason: signal?.aborted
-          ? 'cancelled'
+          ? abortReason()
           : error instanceof Error
             ? error.message
             : 'reconcile_failed',
@@ -440,8 +858,29 @@ export async function deletePaths(paths: string[]): Promise<DeleteResult> {
       continue;
     }
     try {
-      await rm(abs, { recursive: true, force: true });
-      deleted.push(rel);
+      let parent: Awaited<ReturnType<typeof stageParent>>;
+      try {
+        parent = await stageParent(abs, false);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        ) {
+          deleted.push(rel);
+          continue;
+        }
+        throw error;
+      }
+      try {
+        await rm(
+          join(anchoredDirectory(parent.handle, parent.path), basename(abs)),
+          { recursive: true, force: true },
+        );
+        deleted.push(rel);
+      } finally {
+        await parent.handle.close();
+      }
     } catch (err) {
       skipped.push({
         path: rel,
@@ -462,9 +901,14 @@ interface FsEntry {
 export async function listDir(rel: string): Promise<FsEntry[] | null> {
   const abs = resolveUnderWorkspace(rel);
   if (abs === null) return null;
-  if ((await realpathUnderRoot(abs)) === null) return null;
   const out: FsEntry[] = [];
   try {
+    // Never traverse a staged root symlink, even to another workspace directory:
+    // reconciliation must replace the link, not prune the link target.
+    if (!(await lstat(abs)).isDirectory()) return null;
+    const canonical = await realpath(abs);
+    const root = await realpath(workspaceRoot());
+    if (canonical !== root && !canonical.startsWith(`${root}/`)) return null;
     const entries = await readdir(abs, { withFileTypes: true });
     for (const e of entries) {
       let size = 0;
@@ -483,8 +927,14 @@ export async function listDir(rel: string): Promise<FsEntry[] | null> {
         mtimeMs,
       });
     }
-  } catch {
-    return null;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+    )
+      return null;
+    throw error;
   }
   return out;
 }
@@ -514,17 +964,10 @@ export async function streamWorkspaceFile(
   rel: string,
   maxBytes: number,
 ): Promise<Readable | null> {
-  const abs = resolveUnderWorkspace(rel);
-  if (abs === null || abs === workspaceRoot()) return null;
   let file: FileHandle | undefined;
-  let parentHandle: FileHandle | undefined;
   try {
-    const parent = await stageParent(abs, false);
-    parentHandle = parent.handle;
-    file = await open(
-      join(anchoredDirectory(parentHandle, parent.path), basename(abs)),
-      constants.O_RDONLY | constants.O_NOFOLLOW,
-    );
+    file = (await openWorkspaceFile(rel)) ?? undefined;
+    if (file === undefined) return null;
     const info = await file.stat();
     if (!info.isFile() || info.size > maxBytes) {
       await file.close();
@@ -542,7 +985,5 @@ export async function streamWorkspaceFile(
   } catch {
     await file?.close().catch(() => {});
     return null;
-  } finally {
-    await parentHandle?.close().catch(() => {});
   }
 }

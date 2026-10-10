@@ -10,6 +10,8 @@
  * and every API equally accepts the equivalent JSON object.
  */
 
+import type { NodeRunRecord } from './record/types';
+
 export type Json =
   | null
   | boolean
@@ -91,8 +93,9 @@ export interface NodeDef {
   /** agent: connector slugs the turn may reach through the broker. */
   connectors?: string[];
   /** agent: platform workspace-tool grants beyond the baseline — the task
-   * family and document_create (`AGENT_TOOL_CATALOG`). A write grant is the
-   * standing authorization for that write. */
+   * family, the document and knowledge-entry reads and writes, and the
+   * contact, product and website reads (`AGENT_TOOL_CATALOG`). A write grant
+   * is the standing authorization for that write. */
   tools?: string[];
   /** agent: names of org `agentSecrets` injected as environment variables for
    * the turn (BYO API keys for services with no shipped connector). */
@@ -131,8 +134,43 @@ export interface Automation {
   /** The automation's return value; templates allowed anywhere inside. */
   output?: unknown;
   tests?: AutomationTest[];
-  /** Canvas metadata (e.g. `{positions}`); ignored by the engine. */
+  /** Free metadata; ignored — the canvas lays out every automation from its
+   * references. */
   ui?: Record<string, unknown>;
+}
+
+/** Where in the document an issue is. */
+export interface IssueLocation {
+  /** RFC 6901 JSON Pointer into the document; `''` is the whole document. */
+  pointer: string;
+  /** UTF-16 [start, end) inside the STRING at `pointer` (templates,
+   * conditions, code). */
+  range?: [number, number];
+  /**
+   * What at `pointer` is meant: its value (the default), its member name
+   * (an unknown field), or a member that should exist and does not (a
+   * required field, a missing output) — then only the parent resolves.
+   */
+  subject?: 'value' | 'key' | 'missing';
+}
+
+export type IssueParamValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly string[];
+
+/** The facts an issue's sentence is built from, by name — what a localized
+ * rendering interpolates instead of parsing the English message. */
+export type IssueParams = Readonly<Record<string, IssueParamValue>>;
+
+/** Another place an issue involves: the node it reads, the node it pairs
+ * with, a member of a cycle. */
+export interface RelatedLocation {
+  role: 'source' | 'cause' | 'partner' | 'reader' | 'cycle';
+  nodeId?: string;
+  at: IssueLocation;
 }
 
 /**
@@ -140,14 +178,23 @@ export interface Automation {
  * it behaviorally, so every issue carries a machine-readable code and,
  * wherever possible, an actionable hint — errors are the author's primary
  * feedback signal, and hints double as catalog discovery.
+ *
+ * `at` and `params` are the structured twin of `message`: the engine sets
+ * both on every issue it emits, so an editor can point at the exact field
+ * and range and a localized surface never reads the English text.
  */
 export interface Issue {
   level: 'error' | 'warning';
   code: string;
   nodeId?: string;
+  /** Legacy location, in three dialects (`nodes[0].id`, `/units`, `model`) —
+   * kept for compatibility; new readers use `at`. */
   path?: string;
   message: string;
   hint?: string;
+  at?: IssueLocation;
+  params?: IssueParams;
+  related?: readonly RelatedLocation[];
 }
 
 export type NodeStatus = 'ok' | 'skipped' | 'error' | 'not_run';
@@ -157,6 +204,7 @@ export interface NodeTrace {
   node: string;
   type: string;
   status: NodeStatus;
+  execId?: string;
   /** Resolved input after template evaluation. */
   input?: unknown;
   output?: unknown;
@@ -171,6 +219,31 @@ export interface Effect {
   node: string;
   connector: string;
   input: unknown;
+  /** The item of a `forEach` step, and the pass of a `repeatUntil` step,
+   * the call was made for; absent for a step that does not iterate. */
+  item?: number;
+  pass?: number;
+}
+
+/** Where in a step an effect happened: its item and pass, when it iterates. */
+export function effectPlace(unit: {
+  item: number;
+  pass: number;
+}): Pick<Effect, 'item' | 'pass'> {
+  return {
+    ...(unit.item >= 0 && { item: unit.item }),
+    ...(unit.pass >= 0 && { pass: unit.pass }),
+  };
+}
+
+/** A nested effect's own place, kept as its calling step folds it in. */
+export function nestedEffectPlace(
+  effect: Pick<Effect, 'item' | 'pass'>,
+): Pick<Effect, 'item' | 'pass'> {
+  return {
+    ...(effect.item !== undefined && { item: effect.item }),
+    ...(effect.pass !== undefined && { pass: effect.pass }),
+  };
 }
 
 export interface RunError {
@@ -186,4 +259,7 @@ export interface RunResult {
   trace: NodeTrace[];
   effects: Effect[];
   validation?: { errors: Issue[]; warnings: Issue[] };
+  /** What the run did at each unit of work, when the caller passed a
+   * recorder that keeps one (`ExecuteOptions.recorder`). */
+  record?: NodeRunRecord[];
 }

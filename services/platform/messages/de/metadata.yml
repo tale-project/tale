@@ -1,0 +1,186 @@
+suffix: Tale
+default:
+  title: Die Orchestrierungsebene für KI-Agents
+  description: Lokale KI-Modelle, Agents, Skills und Automatisierungen - auf
+    deiner eigenen Infrastruktur, verbunden mit deinen Daten
+keywords: souveräne KI, lokale KI, selbstgehostete KI-Plattform, KI-Agents,
+  KI-Automatisierungen, On-Premise-KI, Datensouveränität, private
+  Infrastruktur, KI-Skills, lokale Sprachmodelle, Unternehmens-KI,
+  Datenschutz, agentische KI, Workflow-Automatisierung
+chat:
+  title: Chat
+  description: Chatte mit der KI, um Hilfe bei deinen Aufgaben zu erhalten.
+notFound:
+  title: Seite nicht gefunden
+  description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
+conversations:
+  title: Konversationen
+  description: Kontaktkonversationen anzeigen und verwalten.
+automations:
+  title: Automatisierungen
+  description: Alle Automatisierungen der Organisation — ihre Versionen, ihre
+    Läufe und die Version, die live ist.
+automation:
+  title: Automatisierung
+  description: Das Dokument der Automatisierung anzeigen und bearbeiten.
+automationConfiguration:
+  title: Automatisierungskonfiguration
+  description: Automatisierungseinstellungen konfigurieren.
+automationRuns:
+  title: Automatisierungsausführungen
+  description: Automatisierungsausführungsverlauf anzeigen.
+documents:
+  title: Dokumente
+  description: deine Wissensdatenbank-Dokumente verwalten.
+products:
+  title: Produkte
+  description: deinen Produktkatalog verwalten.
+contacts:
+  title: Kontakte
+  description: deine Kontaktdatenbank verwalten.
+projects:
+  title: Projekte
+  description: Geteilte Arbeitsbereiche für Dateien, Anweisungen und Chats.
+project:
+  title: Projekt
+  description: Ein geteilter Arbeitsbereich für Dateien, Anweisungen und Chats.
+task:
+  title: Aufgabe
+  description: Eine Arbeit mit verantwortlicher Person, Status und der Diskussion dazu.
+home:
+  title: Start
+  description: Deine Chats, Aufgaben und Inbox-Konversationen an einem Ort.
+websites:
+  title: Websites
+  description: Websites für die Wissensextraktion verwalten.
+knowledgeEntries:
+  title: Wissenseinträge
+  description: Von Nutzern beigetragene Wissenseinträge verwalten.
+settings:
+  title: Einstellungen
+  description: Konto- und Organisationseinstellungen verwalten.
+account:
+  title: Konto
+  description: deine Kontoeinstellungen verwalten.
+personalization:
+  title: Personalisierung
+  description: Feste Anweisungen, die der Chat-Assistent für dich befolgt.
+notificationPreferences:
+  title: Benachrichtigungen
+  description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
+usage:
+  title: Nutzung
+  description: Wie viel du von den Limits verbraucht hast, die für dich gelten.
+organization:
+  title: Organisation
+  description: deine Organisationseinstellungen verwalten.
+teams:
+  title: Teams
+  description: Teams innerhalb deiner Organisation verwalten.
+members:
+  title: Mitglieder
+  description: Die Mitglieder deiner Organisation verwalten.
+people:
+  title: Personen
+  description: Mitglieder und Teams in deiner Organisation verwalten.
+agents:
+  title: Agenten
+  description: KI-Agents für den Kontaktsupport erstellen und verwalten.
+connectors:
+  title: Connectors
+  description: Drittanbieter-Dienste verbinden.
+providers:
+  title: KI-Anbieter
+  description: Anbieter-Connectors, Zugangsdaten und Modellkataloge.
+skills:
+  title: Skills
+  description: Wiederverwendbare Anweisungspakete für Agenten.
+logs:
+  title: Protokolle
+  description: Systemprotokolle und Aktivitäten anzeigen.
+branding:
+  title: Branding
+  description: Organisationsbranding anpassen.
+createOrganization:
+  title: Organisation erstellen
+  description: Eine neue Organisation erstellen.
+changelog:
+  title: Was ist neu
+  description: Release Notes für aktuelle Tale-Updates.
+login:
+  title: Anmelden
+  description: Bei deinem Tale-Konto anmelden.
+signup:
+  title: Registrieren
+  description: Ein neues Tale-Konto erstellen.
+apiDocs:
+  title: API-Dokumentation
+  description: Die Tale-API mit interaktiver Dokumentation erkunden.
+convexDashboard:
+  title: Convex Dashboard
+  description: Das Convex-Backend verwalten.
+knowledge:
+  title: Wissen
+  description: deine Wissensdatenbank für KI-Agents verwalten.
+agent:
+  title: Agent
+  description: deinen KI-Agent konfigurieren und testen.
+agentSettings:
+  title: Agent-Einstellungen
+  description: Allgemeine Agent-Einstellungen konfigurieren.
+agentInstructions:
+  title: Anweisungen
+  description: Agent-Anweisungen und Modelleinstellungen konfigurieren.
+agentKnowledge:
+  title: Agent-Wissen
+  description: Wissensdatenbankzugriff für deinen Agent verwalten.
+agentTools:
+  title: Agent-Tools
+  description: Tools für deinen Agent auswählen und konfigurieren.
+agentWebhook:
+  title: Agent-Webhooks
+  description: Webhook-URLs für deinen Agent verwalten.
+agentDelegation:
+  title: Agent-Delegation
+  description: Agent-Delegation an andere Agents konfigurieren.
+automationTriggers:
+  title: Trigger
+  description: Automatisierungstrigger, Zeitpläne und Webhooks verwalten.
+apiKeys:
+  title: API-Schlüssel
+  description: API-Schlüssel für Connectors erstellen und verwalten.
+dataResidency:
+  title: Datenresidenz
+  description: Wo deine Daten gespeichert und verarbeitet werden.
+governance:
+  title: Richtlinien
+  description: Organisationsweite Richtlinien und System-Prompts verwalten.
+metrics:
+  title: Metriken
+  description:
+    Organisationsweite KPIs für Nutzung, Feedback, Automatisierungen
+    und Projekte.
+shared-chat:
+  title: Geteilter Chat
+  description: Eine geteilte Chat-Konversation anzeigen.
+webdav:
+  title: WebDAV
+  description: Tale-Dokumente als Netzlaufwerk einhängen.
+mcp:
+  title: MCP
+  description: Verbinde MCP-Clients über MCP mit diesem Arbeitsbereich.
+modelEndpoints:
+  title: Modell-Endpunkte
+  description: Rufe die Modelle der Organisation über OpenAI- und Anthropic-kompatible Endpunkte aus deinen eigenen Werkzeugen auf.
+sandboxes:
+  title: Sandboxes
+  description: Verwalte die Remote-Sandboxes deiner Organisation.
+enterpriseSso:
+  title: Enterprise-SSO
+  description: Single Sign-On und SCIM-Bereitstellung konfigurieren.
+workflow:
+  title: Automatisierung
+  description: Automatisierung anzeigen und bearbeiten.
+workflowConfiguration:
+  title: Automatisierungskonfiguration
+  description: Automatisierungseinstellungen konfigurieren.

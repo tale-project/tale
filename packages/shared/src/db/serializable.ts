@@ -180,6 +180,51 @@ function transactionOver(reserved: ReservedSql): TransactionSql {
 }
 
 /**
+ * The queued attempts of THIS process, per key: a promise chain each queued
+ * attempt joins before it reserves a connection.
+ *
+ * The database lock alone orders queued attempts across processes, but each
+ * one waits for it on a connection it has already reserved. A burst of
+ * writes to one hot key (an organization's audit chain) used to park one
+ * pooled connection per waiting retry on `pg_advisory_lock`, until the pool
+ * was empty and every other request of the process — reads included —
+ * queued behind them for its whole deadline. Waiting here first costs no
+ * connection: per process, one attempt per key holds a connection at a
+ * time, and the rest wait in memory.
+ */
+const localQueues = new Map<string, { tail: Promise<void>; waiting: number }>();
+
+/** Join the process-local queue of `key`; resolves with its release. */
+async function acquireLocal(key: string): Promise<() => void> {
+  let entry = localQueues.get(key);
+  if (entry === undefined) {
+    entry = { tail: Promise.resolve(), waiting: 0 };
+    localQueues.set(key, entry);
+  }
+  const queue = entry;
+  queue.waiting += 1;
+  let release: () => void = () => undefined;
+  const done = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const previous = queue.tail;
+  queue.tail = previous.then(() => done);
+  await previous;
+  return () => {
+    release();
+    queue.waiting -= 1;
+    if (queue.waiting === 0 && localQueues.get(key) === queue) {
+      localQueues.delete(key);
+    }
+  };
+}
+
+/** Queued attempts of this process waiting on, or holding, `key` (tests). */
+export function localQueueDepth(key: string): number {
+  return localQueues.get(key)?.waiting ?? 0;
+}
+
+/**
  * One serializable attempt queued on `keys`: session advisory locks in that
  * order → BEGIN → callback → COMMIT → unlocks in reverse, all on one
  * reserved connection. A key that cannot be locked releases the ones
@@ -188,6 +233,26 @@ function transactionOver(reserved: ReservedSql): TransactionSql {
  * would block that key for everyone until the connection dies.
  */
 async function beginQueued<T>(
+  reserve: () => Promise<ReservedSql>,
+  keys: readonly string[],
+  callback: (tx: TransactionSql) => Promise<T>,
+): Promise<T> {
+  // In one fixed order, whatever order the keys were marked in: two queued
+  // attempts of this process that took the same keys in opposite orders
+  // would wait on each other for good — nothing detects a cycle of promise
+  // chains the way the database detects one of locks. Every key is held
+  // locally before any database lock is taken, so this order cannot meet a
+  // database wait in a cycle either.
+  const releases: (() => void)[] = [];
+  try {
+    for (const key of [...keys].sort()) releases.push(await acquireLocal(key));
+    return await beginQueuedOnConnection(reserve, keys, callback);
+  } finally {
+    for (const release of releases.reverse()) release();
+  }
+}
+
+async function beginQueuedOnConnection<T>(
   reserve: () => Promise<ReservedSql>,
   keys: readonly string[],
   callback: (tx: TransactionSql) => Promise<T>,

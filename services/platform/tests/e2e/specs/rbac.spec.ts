@@ -48,7 +48,7 @@ test('admin adds a member who cannot see the add-member control', async ({
   // Set the role explicitly via the Radix combobox (named by its "Role" label).
   await dialog.getByRole('combobox', { name: t('settings.form.role') }).click();
   await page
-    .getByRole('option', { name: t('settings.roles.member'), exact: true })
+    .getByRole('option', { name: t('roles.member'), exact: true })
     .click();
 
   // type=password inputs don't expose role=textbox, and the field renders a

@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 101 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 109 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -30,8 +30,9 @@ message / enabling sharing — there is no static URL for them.)
 Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock, wired per SETUP.md §1.A). In **mode A** any prompt returns the canned reply and the
 keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
-`e2e:length` / `e2e:stream-error`) drive CHAT-F16, CHAT-F17, CHAT-F19,
-CHAT-F57 and CHAT-F58. Rows marked **mode B** need a live provider; CHAT-F25
+`e2e:length` / `e2e:stream-error` / `e2e:gateway-route` /
+`e2e:cloud-region`) drive CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58
+and CHAT-F62. Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
@@ -101,6 +102,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.editSend`) → A new branch is created; the branch navigator appears
   with **Previous branch** / **Next branch** (`chat.branchNavigator.previous`,
   `chat.branchNavigator.next`) and a position indicator.
+  With a document and an image on the original message, change only the text
+  → Both attachment cards remain in the edited version, including after a
+  reload; their names, types and sizes match the original. Navigate back to
+  the original and use **Try again** (`chat.tryAgain`) → Both attachments
+  remain there too. An unrelated file staged in the composer before editing
+  stays staged and does not join the edited message.
 - [ ] `CHAT-F9` · **Regenerate** — On an assistant message click **Try again**
   (`chat.tryAgain`) → A new response branch is added to the same turn; the
   branch navigator shows >1 branch.
@@ -112,6 +119,32 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   then reload → the reply on screen before the reload is the same text and
   length as after it (the settled reply may be longer than the text shown at
   the click, and it appears at once, without typing on).
+- [ ] `CHAT-F63` · **A long message of yours reads short first** — Paste 40
+  short lines into the composer and send, then send a message of ten lines →
+  The long message's bubble shows its first lines fading out, with **Read
+  more** (`common.actions.readMore`) under its right edge; pressing it opens
+  the whole message in place and turns into **Show less**
+  (`common.actions.showLess`), which folds it back and keeps the button in
+  view. Browser find-in-page finds a word from the folded part. The
+  ten-line message shows whole, with no button; both look the same after a
+  reload.
+- [ ] `CHAT-F64` · **Time and Edit wait; the branch navigator stays** — Point
+  at a message you sent, then move the pointer away; repeat on a message you
+  edited (`CHAT-F8`) → Under the bubble's right edge, the send time (such as
+  **Today, 14:32**; pointing at it shows the full date) and **Edit message**
+  (`chat.editMessage`) appear while the pointer is on the message and fade
+  when it leaves. The edited message's navigator — **Previous branch** and
+  **Next branch** (`chat.branchNavigator.previous`,
+  `chat.branchNavigator.next`) around **2/2** — stays visible at the end of
+  that row the whole time and does not move when the time appears. At 390 px
+  with touch emulation, the time and the pencil are always shown.
+- [ ] `CHAT-F65` · **Your chat message looks like your task comment** — Send
+  the same two-sentence paragraph as a chat message and as your comment on a
+  task page, then compare them at 1440 px and at 390 px, in light and dark →
+  Both bubbles sit at their column's right edge with the same muted surface,
+  rounded corners, padding, text size and line spacing, and wrap at the same
+  share of their column: about three quarters on a wide column, a little
+  more on a phone.
 - [ ] `CHAT-F11` · **Copy reply** — Assistant toolbar → **Copy**
   (`common.actions.copy`) → The tooltip flips to **Copied**
   (`common.actions.copied`); the clipboard holds the reply as normalized plain
@@ -123,10 +156,28 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`aria-pressed`); the choice survives a reload of the thread.
 - [ ] `CHAT-F13` · **Message info dialog** — Assistant toolbar → **Show info**
   (`common.actions.showInfo`) → The **Message information** dialog
-  (`chat.messageInfo.title`) opens showing **Model**
-  (`chat.messageInfo.model`), **Token usage** (`chat.messageInfo.tokenUsage`),
-  and **Start → first token** (`chat.messageInfo.timeToFirstToken`); the model
+  (`chat.messageInfo.title`) opens on **Model** (`chat.messageInfo.model`)
+  — the model's name over its id, then **Provider**
+  (`chat.messageInfo.provider`) and **Region** (`chat.messageInfo.region`) —
+  then **Performance** (`chat.messageInfo.performance`) with **Time to first
+  token** (`chat.messageInfo.timeToFirstToken`), **Output speed**
+  (`chat.messageInfo.throughput`) and **Total time**
+  (`chat.messageInfo.duration`) over a bar whose legend's phases add up to the
+  total time, then **Token usage** (`chat.messageInfo.tokenUsage`) with its
+  total beside the heading, and the timestamp and message ID last; the model
   line matches the CHAT-F6 pick.
+- [ ] `CHAT-F62` · **Where a reply ran** — Mode A: send a message containing
+  `e2e:gateway-route` → **Show info** → **Served by**
+  (`chat.messageInfo.servedBy`) reads **Anthropic**, **Region** reads **Not
+  reported** (`chat.messageInfo.regionNotReported`) with its hint
+  (`chat.messageInfo.regionNotReportedHint`), and **Model version**
+  (`chat.messageInfo.modelVersion`) shows the requested id with a date
+  suffix. Then add an **Azure OpenAI** credential whose **Endpoint URL** is
+  the mock gateway (`http://127.0.0.1:4141/v1`) and whose **Model allowlist**
+  names one deployment, pick that deployment and send `e2e:cloud-region` →
+  **Show info** → **Region** reads **Switzerland North**, with no **Served
+  by** row. A reply to a prompt without a trigger shows no **Served by** row
+  and **Region** reads **Not reported**.
 - [ ] `CHAT-F14` · **Fork chat** — Assistant toolbar → **Fork chat**
   (`chat.forkChat`) → A toast **Chat forked successfully**
   (`chat.forkSuccess`); a new thread opens titled **Fork of {title}**
@@ -240,9 +291,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Done** → the first session's row reads **Done** without a reload. A chat
   that handed nothing over shows no such region.
 - [ ] `CHAT-F54` · **Every state of a handed-over task** — From one chat,
-  hand over tasks that end each way → a run queued while the organization's
-  sandbox slots are full reads **Waiting for a sandbox slot**
-  (`chat.taskTray.waitingForSlot`); a failed run the platform retries by
+  hand over tasks that end each way → a run waiting while every agent
+  worker of the organization is busy reads **Waiting for a worker**
+  (`tasks.agentRun.waiting.org_limit`); a failed run the platform retries by
   itself reads **Trying again…** (`chat.taskTray.retrying`), and one that
   stopped for good reads **The agent couldn't finish**
   (`chat.taskTray.failed`) on an amber-edged row; a task made with **Create
@@ -321,7 +372,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.picker.ariaLabel`) now reads **Model B**'s name, so
   the next message goes to the model just judged better; reload → the
   picker shows the model saved before the round again (the switch is not
-  saved as the sticky pick)
+  saved as the sticky pick). Started in a new chat, the pair is named once:
+  **Usage analytics** counts one request under `thread-title` for it, and
+  after **B is better** the chat keeps that name
 - [ ] `CHAT-F25` · **Voice output (TTS)** — Toggle the composer's **Voice
   mode** (`chat.voice.voiceModeLabel`, `aria-pressed`; tooltips
   `chat.voice.voiceModeEnable` / `chat.voice.voiceModeDisable`); send (**mode
@@ -372,6 +425,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   period (`chat.deletePermanentMessage`); after confirming the chat leaves the
   Home panel; opening its old URL shows **This chat is not available.**
   (`chat.notFound`)
+- [ ] `CHAT-F61` · **Deleting the open chat starts a fresh one** — Open a
+  chat, then its header ⋯ → **Delete** (`common.actions.delete`) → **Delete
+  chat** (`chat.deleteChat`) → The URL settles on
+  `/dashboard/{org}/chat?new=true` with an empty composer — never **This chat
+  is not available.** (`chat.notFound`) and never another chat — and Back does
+  not reopen the deleted chat. The same from the open chat's own row in the
+  Home panel. Deleting a different chat from its row keeps the open one on
+  screen.
 - [ ] `CHAT-F30` · **Search chats** — Open the palette from the rail's
   **Search** tile (`navigation.sidebar.search`) or with ⌘K and switch its scope
   to **Chats** (`dialogs.search.scopeChats`) → it retitles to **Search chats**
@@ -790,6 +851,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   over the task, and once it is created and assigned the footer reads
   **Create and start agent** (`tasks.actions.createAndStart`).
 
+- [ ] `CHAT-B21` · **Rename refusal preserves the draft** — In Home, open
+  **More actions** → **Rename** (`chat.history.renameChat`). Paste a
+  501-character title and press Enter → the draft remains, the field announces
+  **Use 500 characters or fewer.** (`chat.history.renameTooLong`), and no rename
+  request is sent. Shorten it to 500 characters and press Enter → one rename
+  succeeds and the editor closes. Repeat with the rename request refused →
+  the attempted title stays available with **Couldn't rename chat. Try again.**
+  (`chat.history.toast.renameFailed`); retry succeeds, or Escape cancels without
+  changing the old title. Repeat in the Archived drawer. While a request is
+  pending, Enter followed by blur submits once and the draft is read-only.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `CHAT-A1` · **Keyboard send** → Enter sends; Shift+Enter inserts a
@@ -838,6 +910,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   task {title}** (`chat.taskTray.openAria`) and reachable by keyboard; the
   amber edge of a stopped task is not its only signal — the row's text says
   **The agent couldn't finish**.
+- [ ] `CHAT-A9` · **Your message by keyboard** → Tab into a long message of
+  yours that you edited (`CHAT-F63`, `CHAT-F64`): the time and **Edit
+  message** (`chat.editMessage`) appear as soon as focus is anywhere in the
+  message; the stops are **Read more** (`common.actions.readMore`), **Edit
+  message**, then whichever of **Previous branch** / **Next branch**
+  (`chat.branchNavigator.previous`, `chat.branchNavigator.next`) can move,
+  each with a visible focus ring; a screen reader reads **Read more** as
+  collapsed and, once pressed, **Show less** (`common.actions.showLess`) as
+  expanded; Enter on **Edit message** opens the edit form. With reduced
+  motion on, the time and the pencil appear without a fade.
 
 ## Performance
 
@@ -854,3 +936,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   notice on, open chat once, then reload at desktop width → The loading
   composer skeleton already carries the notice's row, and neither the
   composer nor the notice moves when the live ones replace the skeleton.
+- [ ] `CHAT-P6` · **Your messages land where their placeholders sat** — With
+  the network throttled to Slow 4G in DevTools, open a chat with several of
+  your messages from the Home panel, at 1440 px and at 390 px → The loading
+  placeholder (named `chat.loadingConversation`) draws your messages as
+  bubbles at the column's right edge, and the real messages replace them
+  without anything sliding sideways or the column's padding changing. In a
+  thread of 100+ messages (`CHAT-P4`), find a word of one of your early
+  messages with find-in-page → the find lands in a right-aligned bubble as
+  wide as the ones around it, and the message stays where it was found while
+  it finishes rendering.

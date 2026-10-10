@@ -14,6 +14,8 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import { slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
+import { automationWriterProtocolSchema } from './automation-model';
+import { migrationInventorySchema } from './migration-model';
 
 export const RUNTIME_SERVICES = [
   'db',
@@ -49,6 +51,7 @@ export const runtimeImageSchema = z
       .max(256)
       .regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/),
     revision: revisionSchema.nullable(),
+    automationWriterProtocol: automationWriterProtocolSchema.optional(),
     os: z.literal('linux'),
     architecture: z.enum(['amd64', 'arm64']),
     services: z.array(z.enum(RUNTIME_SERVICES)),
@@ -70,6 +73,11 @@ export const runtimeBundleSchema = z
      * policy then hands organization creation to the backend instead of
      * refusing it, and the reader checks the file against this word. */
     organizationCreatorsDeclared: z.literal(true).optional(),
+    // Legacy bundles remain deployable; read-only acceptance requires the
+    // inventory prepared from the exact runtime source, including TS data migrations.
+    migrations: migrationInventorySchema.optional(),
+    /** Absent only in retained legacy bundles. */
+    automationWriterProtocol: automationWriterProtocolSchema.optional(),
     source: z.object({ composeSha256: sha256, caddySha256: sha256 }).strict(),
     files: z
       .object({ 'compose.yml': sha256, 'Caddyfile.production': sha256 })
@@ -85,6 +93,13 @@ export interface RuntimeDependencies {
   sleep?: (milliseconds: number) => Promise<void>;
   /** Isolated tests must not create the production host workspace. */
   ensureSandboxWorkspace?: () => void;
+  /** Persistent, private psql transport; substituted only by isolated tests. */
+  automationSession?: (containerId: string) => Promise<RuntimeSqlSession>;
+}
+export interface RuntimeSqlSession {
+  query: (sql: string) => Promise<string>;
+  healthy: () => boolean;
+  close: () => Promise<void>;
 }
 export interface PrepareRuntimeOptions {
   repoRoot: string;

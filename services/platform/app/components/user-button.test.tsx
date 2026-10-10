@@ -106,10 +106,6 @@ let mockAuthState = {
 };
 vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => mockAuthState,
-  useSessionUser: () => ({
-    isLoading: mockAuthState.isLoading,
-    isAuthenticated: mockAuthState.isAuthenticated,
-  }),
 }));
 
 vi.mock('@/app/features/organization/hooks/queries', () => ({

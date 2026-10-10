@@ -2,17 +2,32 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
-import type { MentionSource } from '../../core/tasks/mentions.ts';
+import {
+  projectAgentWorker,
+  workerFamilyBase,
+} from '../../core/sandbox/session_naming.ts';
+import {
+  dropPartialTaskMention,
+  type MentionSource,
+  relabelTaskMentions,
+} from '../../core/tasks/mentions.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
+  MODEL_CAPACITY_RETRY_DELAY_MS,
+  resourceExhaustedRetryDelayMs,
   isAutoRetryableFailure,
   resolveAutoRetryBudget,
 } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import { ProjectError } from '../projects/service.ts';
 import {
   STANDARD_AGENT_REFUSAL_CODES,
@@ -21,13 +36,18 @@ import {
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
 import { loadTaskRetryHistory } from './kick-plan.ts';
+import { readReviewBatch, reviewBatchFeedback } from './review-batch-store.ts';
 import { sessionIdForAgentRun } from './run-authority.ts';
 import {
   announceAgentRunFailed,
   withdrawAgentRunFailedNotices,
 } from './run-failure-notice.ts';
-import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
-import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
+import {
+  assertTaskAutomationEnabled,
+  lockTaskRunStart,
+  readInPlaceRetryState,
+} from './run-start.ts';
+import { recordRunTerminalInTx } from './slot-wakes.ts';
 
 /**
  * The project-agent run ledger over PG — the 0.5 twin of
@@ -52,7 +72,9 @@ import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
  * indicators all key under the task entity.
  */
 
-const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
+/** How long a run may wait from its kick, and how long it works once it
+ * has launched (`agentRunWorkDeadline` in `agent-workers.ts`). */
+export const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Tell every open view of the task that its run changed. The run card used
@@ -92,6 +114,12 @@ export interface AgentRunRow {
   trigger: string | null;
   feedback: string | null;
   waitingForCapacityAt: number | null;
+  /** Why the run waits (migration 0168) — only while it is parked; null
+   * otherwise, and on a park that kept no reason. */
+  waitingReason: AgentRunWaitingReason | null;
+  /** When the run took its worker (migration 0168); null while it holds
+   * none — before its start claimed one, and after a park gave it back. */
+  sessionClaimedAt: number | null;
   agentSessionId: string | null;
   startedBy: string;
   startedAt: number;
@@ -107,6 +135,27 @@ export interface AgentRunRow {
   startedViaAgentId: string | null;
 }
 
+/** The read's name for `app.project_agent_runs`: none, or its alias `r`. A
+ * closed list, so no identifier ever reaches the SQL text from a caller. */
+type RunTableAlias = '' | 'r';
+
+/** Whether a run is parked — queued, and stamped as waiting for room — as
+ * SQL over `app.project_agent_runs`: the predicate every read of a waiting
+ * run shares, nested through `sql.unsafe`. */
+export function parkedRunSql(alias: RunTableAlias = ''): string {
+  const column = alias === '' ? '' : `${alias}.`;
+  return `(${column}status = 'queued'
+    AND ${column}waiting_for_capacity_at_ms IS NOT NULL)`;
+}
+
+/** A run's waiting reason as every read shows it: only while the run is
+ * parked ({@link parkedRunSql}). The reason a woken run keeps until its
+ * claim (its place in line) is never shown. */
+export function parkedWaitingReasonSql(alias: RunTableAlias = ''): string {
+  const column = alias === '' ? '' : `${alias}.`;
+  return `CASE WHEN ${parkedRunSql(alias)} THEN ${column}waiting_reason END`;
+}
+
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId",
   task_id AS "taskId", agent_id AS "agentId", exec_id AS "execId",
@@ -115,6 +164,8 @@ const RUN_COLUMNS = `
   result_text AS "resultText",
   result_message_id AS "resultMessageId", trigger, feedback,
   waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+  ${parkedWaitingReasonSql()} AS "waitingReason",
+  session_claimed_at_ms::float8 AS "sessionClaimedAt",
   agent_session_id AS "agentSessionId", started_by AS "startedBy",
   started_at_ms::float8 AS "startedAt", launched_at_ms::float8 AS "launchedAt",
   deadline_at_ms::float8 AS "deadlineAt", settled_at_ms::float8 AS "settledAt",
@@ -123,6 +174,29 @@ const RUN_COLUMNS = `
   started_via_automation AS "startedViaAutomation",
   started_via_agent_id AS "startedViaAgentId"
 `;
+
+/**
+ * The worker a run works in, as its number among its agent's workers (or
+ * the member's, for a run a member started): only while it holds one —
+ * running, or queued with a claim and not parked. Undefined otherwise: a
+ * run that has not started yet, waits, or has ended names no worker.
+ */
+export function agentRunWorkerNumber(run: {
+  agentId: string;
+  sessionId: string;
+  status: string;
+  sessionClaimedAt: number | null;
+  waitingForCapacityAt: number | null;
+}): number | undefined {
+  const holds =
+    run.status === 'running' ||
+    (run.status === 'queued' &&
+      run.sessionClaimedAt !== null &&
+      run.waitingForCapacityAt === null);
+  return holds
+    ? projectAgentWorker(run.agentId, run.sessionId)?.worker
+    : undefined;
+}
 
 /** How a run was kicked — the `trigger` column (migrations 0021, 0139). */
 export type TaskAgentRunTrigger =
@@ -165,6 +239,9 @@ export interface KickAgentRunArgs {
   model: string;
   modelProvider?: string;
   startedBy: string;
+  /** The API key the run was started with: its turns are the key's spend
+   * too. An auto-retry and a delegated start carry their predecessor's. */
+  apiKeyId?: string;
   trigger?: TaskAgentRunTrigger;
   /** Who put the agent to work when no person pressed Start: an automation
    * step or another agent's run (`delegated-start.ts`). An `automation` or
@@ -175,6 +252,8 @@ export interface KickAgentRunArgs {
    * review. Only with `startedVia`; an auto-retry carries its
    * predecessor's. */
   inPlace?: boolean;
+  /** Server-owned fixed review envelope, inherited by native retries only. */
+  reviewBatchId?: string;
   feedback?: string;
   /** Which text named the agent on a `mention` kick. A comment's body rides
    * as `feedback`; a description kick carries none, because the turn reads
@@ -192,6 +271,11 @@ export interface KickAgentRunArgs {
    * there, so the run lands where it looked. Absent, the kick chooses it
    * from the starter. */
   sessionId?: string;
+  /** The wake generation an admitted start of the project's wake target
+   * covers (`wakeGenerationForStart`, migration 0168): read from the
+   * admission's own snapshot. Only the occurrence's slot-receipt run carries
+   * it; an auto-retry never copies it. */
+  wakeAdmittedSeq?: number;
 }
 
 /**
@@ -253,7 +337,7 @@ export async function kickAgentRun(
     SELECT id FROM app.automation_runs
     WHERE org_id = ${args.organizationId}
       AND (project_id = ${args.projectId} OR project_id IS NULL)
-      AND status IN ('queued', 'running', 'waiting')
+      AND status IN ('queued', 'running', 'waiting', 'quarantined')
       AND input -> 'task' ->> 'id' = ${args.taskId}
     LIMIT 1
   `;
@@ -300,19 +384,48 @@ export async function kickAgentRun(
   // 40001 instead, which `transactSerializable` retries — that throw path is
   // by design, not a gap.
   const via = args.startedVia;
+  const inPlace = via !== undefined && args.inPlace === true;
+  const retryState = inPlace
+    ? await readInPlaceRetryState(tx, args.organizationId, args.taskId)
+    : undefined;
+  const batch =
+    args.reviewBatchId === undefined
+      ? undefined
+      : await readReviewBatch(
+          tx,
+          args.organizationId,
+          args.projectId,
+          args.reviewBatchId,
+        );
+  if (
+    batch !== undefined &&
+    (!inPlace ||
+      batch.contextTaskId !== args.taskId ||
+      batch.reviewerAgentId !== args.agentId ||
+      via?.kind !== 'agent' ||
+      via.agentId !== batch.managerAgentId ||
+      via.runId !== batch.issuerRunId)
+  )
+    throw new TaskError(
+      'TASK_REVIEW_FORBIDDEN',
+      'The run does not match its native review envelope',
+      403,
+    );
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, model_provider, trigger, feedback, mention_source,
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
-      started_via_automation, started_via_agent_id, in_place
+      started_via_automation, started_via_agent_id, in_place,
+      in_place_retry_status, in_place_retry_activity_id, api_key_id,
+      wake_admitted_seq, review_batch_id
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
       'queued', ${serving.harness}, ${serving.model},
       ${serving.modelProvider ?? null}, ${args.trigger ?? 'manual'},
-      ${args.feedback ?? null}, ${args.mentionSource ?? null},
+      ${batch === undefined ? (args.feedback ?? null) : reviewBatchFeedback(batch)}, ${args.mentionSource ?? null},
       ${args.autoRetryAttempt ?? null},
       ${args.startedBy}, ${now},
       ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now},
@@ -320,7 +433,9 @@ export async function kickAgentRun(
       ${via?.kind === 'automation' ? via.nodeId : null},
       ${via?.kind === 'automation' ? via.automation : null},
       ${via?.kind === 'agent' ? via.agentId : null},
-      ${via !== undefined && args.inPlace === true}
+      ${inPlace}, ${retryState?.status ?? null},
+      ${retryState?.activityId ?? null}, ${args.apiKeyId ?? null},
+      ${args.wakeAdmittedSeq ?? null}::bigint, ${batch?.id ?? null}
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id
@@ -349,19 +464,6 @@ export async function kickAgentRun(
   });
   await emitTaskRunHint(tx, args);
   return { runId, execId, reused: false };
-}
-
-/** Whether a run was started in place (`moveToInProgress: false`) — what
- * an auto-retry copies, so the retried run completes the same way. */
-export async function inPlaceOfRun(
-  sql: Sql | TransactionSql,
-  runId: string,
-): Promise<boolean> {
-  const rows = await sql<{ inPlace: boolean }[]>`
-    SELECT in_place AS "inPlace" FROM app.project_agent_runs
-    WHERE id = ${runId} LIMIT 1
-  `;
-  return rows[0]?.inPlace ?? false;
 }
 
 /** The provenance a run carries when an automation step or another agent
@@ -442,11 +544,14 @@ export async function listAgentRunsForTask(
  * re-kick it, or a cancel may land. A start whose exec no longer owns the
  * run must NOT launch — a second spawn double-drives the run, and a spawn
  * under a superseded exec is reaped as an orphan by the next drive window.
+ * The flip also stores the deadline the start works to
+ * (`agentRunWorkDeadline`): a run that waited for a worker gets its full
+ * working time from its launch, and the deadline never moves earlier.
  * Returns whether THIS exec's start won the launch.
  */
 export async function launchAgentRun(
   sql: Sql,
-  args: { runId: string; execId: string },
+  args: { runId: string; execId: string; deadlineAt?: number },
 ): Promise<boolean> {
   const now = Date.now();
   return sql.begin(async (tx) => {
@@ -454,6 +559,7 @@ export async function launchAgentRun(
       UPDATE app.project_agent_runs SET
         status = 'running',
         launched_at_ms = coalesce(launched_at_ms, ${now}),
+        deadline_at_ms = greatest(deadline_at_ms, ${args.deadlineAt ?? null}::bigint),
         updated_at_ms = ${now}
       WHERE id = ${args.runId} AND exec_id = ${args.execId}
         AND status = 'queued'
@@ -511,7 +617,7 @@ export async function settleAgentRunInTx(
     `;
   const run = rows[0];
   if (run === undefined) return false;
-  await recordTaskAgentRunLedgerEntry(tx, {
+  await recordRunTerminalInTx(tx, {
     runId: args.runId,
     organizationId: run.organizationId,
     finalStatus: 'settled',
@@ -560,7 +666,12 @@ export async function failAgentRunFromTurn(
   const armRetry = isAutoRetryableFailure(args.failureCode);
   return sql.begin(async (tx) => {
     const flipped = await tx<
-      { organizationId: string; taskId: string; agentId: string }[]
+      {
+        organizationId: string;
+        taskId: string;
+        agentId: string;
+        autoRetryAttempt: number | null;
+      }[]
     >`
       UPDATE app.project_agent_runs SET
         status = 'failed', error = ${error},
@@ -575,11 +686,11 @@ export async function failAgentRunFromTurn(
         AND (${args.execId ?? null}::text IS NULL
              OR exec_id = ${args.execId ?? null})
       RETURNING org_id AS "organizationId", task_id AS "taskId",
-                agent_id AS "agentId"
+                agent_id AS "agentId", auto_retry_attempt AS "autoRetryAttempt"
     `;
     const run = flipped[0];
     if (run === undefined) return false;
-    await recordTaskAgentRunLedgerEntry(tx, {
+    await recordRunTerminalInTx(tx, {
       runId: args.runId,
       organizationId: run.organizationId,
       finalStatus: 'failed',
@@ -587,19 +698,38 @@ export async function failAgentRunFromTurn(
       error,
     });
     if (armRetry) {
-      // A cooldown ends a minute after its 429 at the latest, so a wait
-      // stays far inside the stranded-queued-run sweep's window.
+      // Both finite waits stay inside the stranded-queued-run sweep. Sample
+      // model capacity AFTER winning the terminal write and recording the
+      // ledger, so a lock wait cannot consume its floor. Commit/enqueue
+      // latency is not a promise of 60s after commit. This still counts;
+      // it is not a broker 429/free cooldown.
       const startAfterMs =
-        args.retryAtMs !== undefined && args.retryAtMs > now
-          ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+        args.failureCode === 'model_capacity'
+          ? Date.now() + MODEL_CAPACITY_RETRY_DELAY_MS
+          : args.retryAtMs !== undefined && args.retryAtMs > now
+            ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+            : undefined;
+      // A run its sandbox's memory limit ended waits 2, 10, then 30
+      // minutes — longer than the stranded-queued-run sweep lets a queued
+      // run wait, so the retry DECISION is held instead: no queued run
+      // exists meanwhile, the failed run shows its retry pending, and every
+      // guard is re-derived when the wait ends.
+      const decideAfter =
+        args.failureCode === 'resource_exhausted'
+          ? new Date(
+              Date.now() + resourceExhaustedRetryDelayMs(run.autoRetryAttempt),
+            )
           : undefined;
-      await addJobInTx(tx, 'task.agent_retry', {
+      const retry = {
         organizationId: run.organizationId,
         taskId: run.taskId,
         agentId: run.agentId,
         expectedRunId: args.runId,
         ...(startAfterMs !== undefined && { startAfterMs }),
-      });
+      };
+      await (decideAfter !== undefined
+        ? addJobInTx(tx, 'task.agent_retry', retry, { startAfter: decideAfter })
+        : addJobInTx(tx, 'task.agent_retry', retry));
     } else {
       await announceAgentRunFailed(tx, {
         organizationId: run.organizationId,
@@ -616,8 +746,8 @@ export async function failAgentRunFromTurn(
  * failures go through {@link failAgentRunFromTurn}). The turn died
  * without reaching `releaseTurnKey`, so its gateway key is reclaimed here:
  * the winning flip IS the election, so the revoke fires once even when two
- * sweeps race. Scoped to THIS exec — a sibling turn on the same standing
- * `pa-<agentId>` session keeps its own key. Nothing retries a run failed
+ * sweeps race. Scoped to THIS exec — another turn in the same worker (a
+ * steered turn's successor) keeps its own key. Nothing retries a run failed
  * here, so it is announced in the same transaction.
  */
 export async function failAgentRun(
@@ -650,7 +780,7 @@ export async function failAgentRun(
     // Inside the election's transaction: the provenance entry still reads
     // the turn's token row by key id, which the revoke below leaves in
     // place (it marks `revoked_at_ms`, it does not drop the id).
-    await recordTaskAgentRunLedgerEntry(tx, {
+    await recordRunTerminalInTx(tx, {
       runId: args.runId,
       organizationId: args.organizationId,
       finalStatus: 'failed',
@@ -724,15 +854,15 @@ export async function cancelAgentRunInTx(
   `;
   const run = rows[0];
   if (run === undefined) return false;
-  await recordTaskAgentRunLedgerEntry(tx, {
+  await recordRunTerminalInTx(tx, {
     runId: args.runId,
     organizationId: args.organizationId,
     finalStatus: 'cancelled',
     settledAt: now,
   });
   // The active drive may be draining a long window. Enqueue its existing
-  // orphan cleanup immediately; it kills only this exec, preserving sibling
-  // turns in the agent's standing session. This survives process restarts.
+  // orphan cleanup immediately; it kills only this exec, preserving any
+  // other turn in the run's worker. This survives process restarts.
   await addJobInTx(tx, 'task.agent_drive', {
     ...args,
     execId: run.execId,
@@ -764,8 +894,42 @@ export async function cancelAgentRun(
 }
 
 /**
- * Claim ONE parked run — the oldest park of one organization, or the oldest
- * of every organization but one — and re-enqueue its turn. A spurious wake
+ * Withdraw the task's agent run when it is waiting for a worker and has
+ * never launched: cancelled like a Stop, so the task can pass to someone
+ * else. A run that waits has not begun any work, so nothing of it is lost,
+ * and a reassignment withdraws it without a Stop. The run row is locked
+ * before it is judged: a wake that restarted it a moment ago leaves it
+ * unparked, and a run that is working (or about to) is never withdrawn —
+ * the caller still refuses then. True when a run was withdrawn.
+ */
+export async function withdrawWaitingAgentRunInTx(
+  tx: TransactionSql,
+  task: { id: string; organizationId: string },
+): Promise<boolean> {
+  const waiting = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
+      AND status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL
+      AND launched_at_ms IS NULL
+    FOR UPDATE
+  `;
+  const run = waiting[0];
+  if (run === undefined) return false;
+  return cancelAgentRunInTx(tx, {
+    organizationId: task.organizationId,
+    runId: run.id,
+    taskId: task.id,
+  });
+}
+
+/**
+ * Claim ONE parked run — the next of one organization, or the next of every
+ * organization but one — and re-enqueue its turn. Next is fair between
+ * agents before it is first-come: the parked run of the agent with the
+ * fewest runs working (running, or queued and not parked) goes first, the
+ * oldest park among those. One agent handed thirty tasks at once would
+ * otherwise park twenty-eight runs ahead of every other agent's later start
+ * and take every worker that frees, one after another. A spurious wake
  * (nobody parked) is a cheap no-op; a failed restart re-parks, re-arming
  * the claim. A parked run already past its deadline is NOT a candidate: it
  * belongs to the task-agent watchdog's deadline lane (failed as "waited for
@@ -784,17 +948,25 @@ async function wakeOldestParkedAgentRun(
     : scope.outsideOrganizationId;
   return sql.begin(async (tx) => {
     const parked = await tx<ParkedRun[]>`
-      SELECT id, org_id AS "organizationId", exec_id AS "execId",
-             task_id AS "taskId"
-      FROM app.project_agent_runs
-      WHERE CASE WHEN ${inside} THEN org_id = ${organizationId}
-              ELSE org_id <> ${organizationId} END
-        AND status = 'queued'
-        AND waiting_for_capacity_at_ms IS NOT NULL
-        AND deadline_at_ms > ${Date.now()}
-      ORDER BY waiting_for_capacity_at_ms
+      SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId",
+             r.task_id AS "taskId", r.agent_id AS "agentId",
+             r.session_id AS "sessionId"
+      FROM app.project_agent_runs r
+      WHERE CASE WHEN ${inside} THEN r.org_id = ${organizationId}
+              ELSE r.org_id <> ${organizationId} END
+        AND r.status = 'queued'
+        AND r.waiting_for_capacity_at_ms IS NOT NULL
+        AND r.deadline_at_ms > ${Date.now()}
+      ORDER BY (
+          SELECT count(*) FROM app.project_agent_runs working
+          WHERE working.org_id = r.org_id AND working.agent_id = r.agent_id
+            AND (working.status = 'running'
+              OR (working.status = 'queued'
+                AND working.waiting_for_capacity_at_ms IS NULL))
+        ),
+        r.waiting_for_capacity_at_ms
       LIMIT 1
-      FOR UPDATE SKIP LOCKED
+      FOR UPDATE OF r SKIP LOCKED
     `;
     const run = parked[0];
     if (!run) return 0;
@@ -808,17 +980,31 @@ interface ParkedRun {
   organizationId: string;
   execId: string;
   taskId: string;
+  agentId: string;
+  sessionId: string;
 }
 
-/** Un-park a claimed run and re-enqueue its turn, in the claim's
- * transaction. */
+/** Un-park the run a wake chose and re-enqueue its turn, in the wake's
+ * transaction. The run holds no worker until its claim: it names its
+ * family's first worker and carries no claim stamp, as a park leaves it.
+ * A run an image that never clears the stamp parked may still carry one,
+ * on a worker another run has claimed since; restarted with it, the row
+ * would collide with that run's claim (`project_agent_runs_one_per_worker`)
+ * and fail the wake. The run keeps the reason it waited for until its
+ * claim clears it: that keeps its place in line, so a start that has not
+ * waited leaves it the room the wake chose it for (`agent-workers.ts`,
+ * `workerRoom`). No read shows the kept reason
+ * ({@link parkedWaitingReasonSql}). */
 async function restartParkedRun(
   tx: TransactionSql,
   run: ParkedRun,
 ): Promise<void> {
   await tx`
     UPDATE app.project_agent_runs SET
-      waiting_for_capacity_at_ms = NULL, updated_at_ms = ${Date.now()}
+      waiting_for_capacity_at_ms = NULL,
+      session_id = ${workerFamilyBase(run.agentId, run.sessionId)},
+      session_claimed_at_ms = NULL,
+      updated_at_ms = ${Date.now()}
     WHERE id = ${run.id}
   `;
   await addJobInTx(tx, 'task.agent_turn', {
@@ -844,7 +1030,8 @@ export async function wakeParkedAgentRun(
   return sql.begin(async (tx) => {
     const parked = await tx<ParkedRun[]>`
       SELECT id, org_id AS "organizationId", exec_id AS "execId",
-             task_id AS "taskId"
+             task_id AS "taskId", agent_id AS "agentId",
+             session_id AS "sessionId"
       FROM app.project_agent_runs
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND exec_id = ${args.execId}
@@ -860,7 +1047,64 @@ export async function wakeParkedAgentRun(
   });
 }
 
-/** Claim one organization's OLDEST parked run and re-enqueue its turn — the
+/** Wake the agent's OLDEST parked run of the ended turn's workspace family,
+ * when that turn ended and its worker stayed up (pinned, or still held):
+ * that worker is free for the family's next run without a slot of its own,
+ * and the ended exec gave back one of its runtime's live-exec places — the
+ * room a run whose exec was refused for want of one (`EXEC_LIMIT`) waits
+ * for. A park gives its worker back and names its family's first worker
+ * again, so a parked run is found by its agent and family, not by the
+ * worker it last held; a run of another family (a member's, or the
+ * agent's own for a member's worker) could not work in the freed worker
+ * and is left parked. The family is told by the session naming's own
+ * inverse ({@link workerFamilyBase}), never by a copy of it in SQL: the
+ * agent's parked runs are read oldest first, and the first of the family
+ * still parked when its row is locked is restarted. One claim,
+ * single-winner like every wake: a run that still finds no room parks
+ * again, and the watchdog's sweep stays the backstop. */
+export async function wakeAgentParkedAgentRun(
+  sql: Sql,
+  args: { organizationId: string; agentId: string; sessionId: string },
+): Promise<number> {
+  const family = workerFamilyBase(args.agentId, args.sessionId);
+  const now = Date.now();
+  const candidates = await sql<{ id: string; sessionId: string }[]>`
+    SELECT id, session_id AS "sessionId"
+    FROM app.project_agent_runs
+    WHERE org_id = ${args.organizationId}
+      AND agent_id = ${args.agentId}
+      AND status = 'queued'
+      AND waiting_for_capacity_at_ms IS NOT NULL
+      AND deadline_at_ms > ${now}
+    ORDER BY waiting_for_capacity_at_ms
+  `;
+  for (const candidate of candidates) {
+    if (workerFamilyBase(args.agentId, candidate.sessionId) !== family) {
+      continue;
+    }
+    const woken = await sql.begin(async (tx) => {
+      const parked = await tx<ParkedRun[]>`
+        SELECT id, org_id AS "organizationId", exec_id AS "execId",
+               task_id AS "taskId", agent_id AS "agentId",
+               session_id AS "sessionId"
+        FROM app.project_agent_runs
+        WHERE id = ${candidate.id} AND org_id = ${args.organizationId}
+          AND status = 'queued'
+          AND waiting_for_capacity_at_ms IS NOT NULL
+          AND deadline_at_ms > ${Date.now()}
+        FOR UPDATE SKIP LOCKED
+      `;
+      const run = parked[0];
+      if (!run) return 0;
+      await restartParkedRun(tx, run);
+      return 1;
+    });
+    if (woken === 1) return 1;
+  }
+  return 0;
+}
+
+/** Claim one organization's next parked run and re-enqueue its turn — the
  * watchdog's per-organization wake (see {@link wakeOldestParkedAgentRun}). */
 export async function wakeOrganizationParkedAgentRun(
   sql: Sql,
@@ -871,8 +1115,8 @@ export async function wakeOrganizationParkedAgentRun(
 
 /**
  * The release-edge wake: room freed by one organization's session goes to
- * that organization's OLDEST parked run, and to the oldest parked run of
- * every other organization. The organization's own budget is what its
+ * that organization's next parked run, and to the next parked run of every
+ * other organization ({@link wakeOldestParkedAgentRun} says which is next). The organization's own budget is what its
  * release freed; the sandbox host is shared, so the same release can free
  * host room a run of another organization waits for — and an organization
  * that runs nothing of its own has no release edge that would ever wake
@@ -966,6 +1210,10 @@ export interface TaskAgentRunCard {
   retryPending?: boolean;
   resultText?: string;
   waitingForCapacity?: boolean;
+  /** Why the run waits, while it is parked and a reason was kept. */
+  waitingReason?: AgentRunWaitingReason;
+  /** The worker it works in, while it holds one ({@link agentRunWorkerNumber}). */
+  worker?: number;
   trigger?: string;
   autoRetryAttempt?: number;
   autoRetryMax: number;
@@ -992,6 +1240,9 @@ export async function getLatestAgentRunCardForTask(
       failureCode: string | null;
       resultText: string | null;
       waitingForCapacityAt: number | null;
+      waitingReason: string | null;
+      sessionId: string;
+      sessionClaimedAt: number | null;
       trigger: string | null;
       autoRetryAttempt: number | null;
       startedBy: string;
@@ -1003,6 +1254,9 @@ export async function getLatestAgentRunCardForTask(
            r.harness, r.model, r.error, r.failure_code AS "failureCode",
            r.result_text AS "resultText",
            r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+           ${sql.unsafe(parkedWaitingReasonSql('r'))} AS "waitingReason",
+           r.session_id AS "sessionId",
+           r.session_claimed_at_ms::float8 AS "sessionClaimedAt",
            r.trigger, r.auto_retry_attempt AS "autoRetryAttempt",
            r.started_by AS "startedBy",
            r.started_at_ms::float8 AS "startedAt",
@@ -1019,6 +1273,7 @@ export async function getLatestAgentRunCardForTask(
     run.status === 'failed' && run.agentName !== null
       ? await failedRunRetryPending(sql, taskId, run.id)
       : false;
+  const worker = agentRunWorkerNumber(run);
   return {
     _id: run.id,
     status: run.status,
@@ -1031,6 +1286,10 @@ export async function getLatestAgentRunCardForTask(
     ...(retryPending ? { retryPending: true } : {}),
     ...(run.resultText !== null ? { resultText: run.resultText } : {}),
     ...(run.waitingForCapacityAt !== null ? { waitingForCapacity: true } : {}),
+    ...(isAgentRunWaitingReason(run.waitingReason)
+      ? { waitingReason: run.waitingReason }
+      : {}),
+    ...(worker !== undefined ? { worker } : {}),
     ...(run.trigger !== null ? { trigger: run.trigger } : {}),
     ...(run.autoRetryAttempt !== null
       ? { autoRetryAttempt: run.autoRetryAttempt }
@@ -1049,13 +1308,12 @@ export async function getLatestAgentRunCardForTask(
  * start again: its retry was armed when it failed, it is still the newest
  * run, the job has not retired it, and the budget has room — the job's own
  * walk (`resolveAutoRetryBudget` over `loadTaskRetryHistory`). Every final
- * refusal the job makes retires the run, so the card and the job cannot
- * disagree about whether a failure is final; the job's other stand-downs
- * (the card moved, the agent reassigned, a newer run) change what the task
- * shows by themselves.
+ * refusal the job makes retires the run. Legacy in-place kicks have no
+ * captured decision: old writers may still fail them during a rolling
+ * deployment, but the new worker cannot safely retry them.
  */
-async function failedRunRetryPending(
-  sql: Sql,
+export async function failedRunRetryPending(
+  sql: Sql | TransactionSql,
   taskId: string,
   runId: string,
 ): Promise<boolean> {
@@ -1064,6 +1322,13 @@ async function failedRunRetryPending(
   if (newest === undefined || newest.id !== runId) return false;
   if (newest.autoRetryArmedAt === undefined) return false;
   if (newest.autoRetryRefusedAt !== undefined) return false;
+  if (
+    newest.inPlace &&
+    (newest.inPlaceRetryStatus === undefined ||
+      newest.inPlaceRetryActivityId === undefined)
+  ) {
+    return false;
+  }
   return resolveAutoRetryBudget(history).retry;
 }
 
@@ -1088,6 +1353,9 @@ export interface TaskAgentRunSummary {
   launchedAt: number | null;
   settledAt: number | null;
   waitingForCapacity: boolean;
+  /** Why the run waits, while it is parked; null otherwise, and on a park
+   * that kept no reason. */
+  waitingReason: AgentRunWaitingReason | null;
   failureCode: string | null;
   /** The same pending native retry the task card reads. A finished run is
    * not idle work while its automatic retry is still armed. False is an
@@ -1111,6 +1379,8 @@ export async function listTaskAgentRunSummaries(
     taskId: string;
     limit: number;
     beforeSeq?: number;
+    /** Exact requested run, still bound to this organization and task. */
+    runId?: string;
   },
 ): Promise<TaskAgentRunSummary[]> {
   const rows = await sql<
@@ -1120,8 +1390,8 @@ export async function listTaskAgentRunSummaries(
            started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt",
            settled_at_ms::float8 AS "settledAt",
-           (status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)
-             AS "waitingForCapacity",
+           ${sql.unsafe(parkedRunSql())} AS "waitingForCapacity",
+           ${sql.unsafe(parkedWaitingReasonSql())} AS "waitingReason",
            failure_code AS "failureCode",
            EXISTS (
              SELECT 1 FROM app.project_agents a
@@ -1133,6 +1403,7 @@ export async function listTaskAgentRunSummaries(
                     false) AS "feedbackTruncated"
     FROM app.project_agent_runs
     WHERE org_id = ${args.organizationId} AND task_id = ${args.taskId}
+      AND (${args.runId ?? null}::text IS NULL OR id = ${args.runId ?? null})
       AND (${args.beforeSeq ?? null}::bigint IS NULL
            OR seq < ${args.beforeSeq ?? null}::bigint)
     ORDER BY seq DESC
@@ -1146,9 +1417,22 @@ export async function listTaskAgentRunSummaries(
     newest?.status === 'failed' && newest.agentExists
       ? await failedRunRetryPending(sql, args.taskId, newest.id)
       : false;
-  return rows.map(({ agentExists: _agentExists, ...run }, index) =>
-    Object.assign(run, { retryPending: index === 0 && retryPending }),
+  // A start's message reads each mention with the CURRENT name of whoever it
+  // names, and an excerpt never ends in half of one.
+  const names = await currentMentionNames(
+    sql,
+    args.organizationId,
+    rows.flatMap((run) => (run.feedback === null ? [] : [run.feedback])),
   );
+  return rows.map(({ agentExists: _agentExists, ...run }, index) => {
+    if (run.feedback !== null) {
+      const excerpt = run.feedbackTruncated
+        ? dropPartialTaskMention(run.feedback)
+        : run.feedback;
+      run.feedback = relabelTaskMentions(excerpt, names);
+    }
+    return Object.assign(run, { retryPending: index === 0 && retryPending });
+  });
 }
 
 /** The 0.4 sandbox-op wire for one run's live transcript. */
@@ -1166,8 +1450,8 @@ export interface TaskAgentRunSandboxOp {
 
 /**
  * What a task's agent run is DOING inside the sandbox: the run's own op row
- * (its exec, plus `-`-suffixed derived incarnations) on the agent's STANDING
- * session — never a sibling run's op. Fail-closed null.
+ * (its exec, plus `-`-suffixed derived incarnations) in the run's worker —
+ * never another run's op. Fail-closed null.
  */
 export async function getAgentRunSandboxOp(
   sql: Sql,

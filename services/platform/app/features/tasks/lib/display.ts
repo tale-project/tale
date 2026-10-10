@@ -81,6 +81,8 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   restored: 'activity.restored',
   reordered: 'activity.reordered',
   'status.changed': 'activity.statusChanged',
+  'external_status.projected': 'activity.externalStatusProjected',
+  'external_status.requested': 'activity.externalStatusRequested',
   'assignee.changed': 'activity.assigneeChanged',
   'title.changed': 'activity.titleChanged',
   'description.changed': 'activity.descriptionChanged',
@@ -93,6 +95,7 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   'repeat.next': 'activity.repeatNext',
   'reviewer.changed': 'activity.reviewerChanged',
   'review.responded': 'activity.reviewResponded',
+  'review.delegated': 'activity.reviewDelegated',
   'comment.added': 'activity.commentAdded',
   'dependency.added': 'activity.dependencyAdded',
   'dependency.removed': 'activity.dependencyRemoved',
@@ -151,6 +154,8 @@ export interface TaskActivityField {
 export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
   created: { kind: 'status' },
   'status.changed': { kind: 'status' },
+  'external_status.projected': { kind: 'status' },
+  'external_status.requested': { kind: 'status' },
   // The retired claim door (until 2026-09) stored the claimer's user id.
   claimed: { kind: 'person' },
   'priority.changed': { kind: 'priority', emptyKey: 'priority.none' },
@@ -161,6 +166,7 @@ export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
   },
   'reviewer.changed': { kind: 'reviewer', emptyKey: 'reviewer.none' },
   'review.responded': { kind: 'reviewDecision' },
+  'review.delegated': { kind: 'reviewer' },
   'startDate.changed': { kind: 'date', emptyKey: 'activity.empty.startDate' },
   'dueDate.changed': { kind: 'date', emptyKey: 'activity.empty.dueDate' },
   'repeat.changed': { kind: 'repeat', absentIsEmpty: true },

@@ -2,12 +2,32 @@
  * Central registry mapping task identifiers to payload shapes and queue
  * options. Every enqueue site and every worker handler must go through this
  * map so the identifier/payload contract stays typechecked end to end; each
- * identifier is one pg-boss queue, created at boot with the options below.
+ * logical identifier selects the options below; `physicalTaskQueue` owns
+ * the execution protocol's pg-boss queue name.
  *
  * Delivery is at-least-once: every handler must be idempotent, deriving its
  * idempotency key from durable ids (run id, node id, item index) — never
  * minting one per attempt.
  */
+import { ENGINE_PROTOCOL } from '../../lib/engine/core/protocol.ts';
+
+/** Keep legacy workers off work whose writer protocol they do not obey.
+ * Only these effect-capable queues change physical identity. Callers,
+ * handlers, budgets and policies continue to use their typed logical names.
+ * Already physical names and unrelated queues pass through unchanged. */
+export function physicalTaskQueue(name: string): string {
+  switch (name) {
+    case 'automation.step':
+    case 'automation.poll':
+    case 'automation.agent_turn':
+    case 'automation.agent_drive':
+    case 'automation.ask_resume':
+      return `automation.v${ENGINE_PROTOCOL}.${name.slice('automation.'.length)}`;
+    default:
+      return name;
+  }
+}
+
 export interface TaskPayloads {
   /** Health/latency probe; also used by the integration check. */
   noop: { seq?: number; sentAtMs?: number };
@@ -20,6 +40,8 @@ export interface TaskPayloads {
   'watchdog.transcriptions': Record<string, never>;
   /** Reconcile stalled RAG rows against the knowledge corpus. */
   'watchdog.rag_indexing': Record<string, never>;
+  /** Resume the knowledge work a usage limit parked, once it may run. */
+  'knowledge.resume_usage_limited': Record<string, never>;
   /** Fail erasure runs whose processor never finished. */
   'watchdog.erasures': Record<string, never>;
   /** Revoke sessions idle past their org's policy window. */
@@ -38,6 +60,9 @@ export interface TaskPayloads {
     taskId: string;
     workflowSlug: string;
     startedByUserId: string;
+    /** The API key the comment was written with: the run is the key's
+     * spend too, started through the key's door. */
+    apiKeyId?: string;
   };
   /** Re-attach the drive chain of an abandoned (but still live) turn. */
   'task.agent_drive': {
@@ -50,6 +75,8 @@ export interface TaskPayloads {
     harness: string;
     deadlineAt: number;
     sessionCreatedAt?: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Steer a LIVE task-agent turn with a comment (stdin or exec restart). */
   'task.agent_steer': {
@@ -73,12 +100,18 @@ export interface TaskPayloads {
     mentionSource?: 'comment' | 'description';
     author: string;
     authorId: string;
+    /** The API key the text was written with: the turn it restarts, or the
+     * run it kicks once the turn has ended, is the key's spend too. Absent
+     * from a steer queued before it was carried. */
+    authorApiKeyId?: string;
     attempt: number;
   };
   /** Daily sweep of idle rate-limit rows (cron). */
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
   'maintenance.login_attempts_ttl': Record<string, never>;
+  /** Daily delete of MCP call counters past their 90 days (cron). */
+  'maintenance.mcp_activity_ttl': Record<string, never>;
   /** Daily delete of auth sessions a day past their expiry (cron). */
   'maintenance.expired_sessions': Record<string, never>;
   /** Sweep delivered realtime hints past the retention horizon (cron) — the
@@ -140,6 +173,8 @@ export interface TaskPayloads {
     providerSlug: string;
     gatewayModel: string;
     deadlineAt: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Fire-and-forget AI naming of a thread from its first user message —
    * best-effort with a hard budget; the fallback title wins on any miss. */
@@ -148,6 +183,11 @@ export interface TaskPayloads {
     threadId: string;
     userId: string;
     firstMessage: string;
+    /** The API key that sent the message, when one did. */
+    apiKeyId?: string;
+    /** A guardrail refused the message: name the thread from its words,
+     * never by a model call. */
+    nameWithoutModel?: boolean;
   };
   /** One readiness-poll step of a parked send — self-chaining until the
    * media settle and the thread idles, then claims and runs the turn. */
@@ -197,6 +237,9 @@ export interface TaskPayloads {
       contentType: string;
       size: number;
     }>;
+    /** The member who sent it — or retried it — whose connector call the
+     * delivery is. Absent on a job queued before it was recorded. */
+    sentBy?: { userId: string };
   };
   /** Crash-recovery sweep: fail outbound sends stranded 'queued' by a lost or
    * expired send job so the retry/discard surface appears. */
@@ -215,15 +258,13 @@ export interface TaskPayloads {
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks —
    * the retry's start held until `startAfterMs` when the failed start met a
-   * subscription broker whose every account was cooling down. The retry of
-   * a run an automation or another agent started waits while its agent
-   * works another task in the same workspace, through a later check of
-   * itself (`task.agent_retry_recheck`). */
+   * subscription broker whose every account was cooling down. */
   'task.agent_retry': AgentRetryPayload;
-  /** A later check of an automatic retry that met its agent busy: the same
-   * handler and the same guards, re-derived, counting its checks
-   * (`agentBusyWaits`, bounded by `planAgentBusyWait`). At most one is
-   * queued per failed run (`agentRetryRecheckKey`, `short` policy). */
+  /** A later check of an automatic retry that met its agent busy, as an
+   * earlier image queued them: the same handler and the same guards,
+   * re-derived — it now simply kicks the retry. Nothing queues one any
+   * more; the queue stays so a check queued before the upgrade is
+   * delivered. */
   'task.agent_retry_recheck': AgentRetryPayload;
   /** Finish a settled turn's gateway-key settlement (book its spend, revoke
    * the key) that the host's own settle could not complete — scheduled by
@@ -274,6 +315,12 @@ export interface TaskPayloads {
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
   'sandbox.recreate_pinned': { organizationId: string; sessionId: string };
+  /** Deliver the latest desired pin of this incarnation, including Unpin. */
+  'sandbox.sync_pin': {
+    organizationId: string;
+    sessionId: string;
+    rowId: string;
+  };
   /** An administrator's Destroy from the Sandboxes page: delete the session's
    * sandbox and workspace and settle its rows. `rowId` is the incarnation it
    * was asked for; a newer one under the reused id is left alone. The page
@@ -333,6 +380,9 @@ export interface TaskPayloads {
     continuation?: number;
     scanStartedAt?: string;
     takeover?: string;
+    /** Who asked for the scan: its embeddings are their spend. A scan the
+     * scheduler started names nobody. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Register a website (or URL list) in the corpus + kick its first scan
    * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */
@@ -342,6 +392,8 @@ export interface TaskPayloads {
     scanInterval: string;
     organizationId: string;
     urls?: string[];
+    /** Who added the site: its first scan is their spend. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Push the corpus-side truth onto one (orgSlug, domain) websites row. */
   'websites.row_sync': { orgSlug: string; domain: string };
@@ -378,7 +430,8 @@ export interface AgentRetryPayload {
   agentId: string;
   expectedRunId: string;
   startAfterMs?: number;
-  /** The checks this retry already took while its agent was busy. */
+  /** The checks a retry took while its agent was busy, on a check an
+   * earlier image queued; read by nothing. */
   agentBusyWaits?: number;
 }
 
@@ -437,6 +490,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // next schedule — piling up retries of a sweep just delays the sweep.
   'watchdog.transcriptions': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.rag_indexing': { retryLimit: 1, expireInSeconds: 600 },
+  'knowledge.resume_usage_limited': { retryLimit: 1, expireInSeconds: 600 },
   'watchdog.erasures': { retryLimit: 1, expireInSeconds: 300 },
   'governance.revoke_idle_sessions': { retryLimit: 1, expireInSeconds: 300 },
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },
@@ -453,14 +507,22 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.agent_steer': { retryLimit: 0, expireInSeconds: 300 },
   // The drive window is long (a turn can run for hours) and the recovery
   // sweep re-enqueues on its own cadence, so no pg-boss retry on top: a
-  // second drive of the same exec would replay the ring buffer twice.
-  'task.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
+  // second drive of the same exec would replay the ring buffer twice. The
+  // heartbeat fails the job of a worker that was killed within a minute, so
+  // the sweep stops reading it as a drive on its way and re-attaches the
+  // turn (`driveJobPending`).
+  'task.agent_drive': {
+    retryLimit: 0,
+    expireInSeconds: 43_200,
+    heartbeatSeconds: 60,
+  },
   // The start is idempotent per task — its own live-run guard refuses a
   // second run on a task that holds one — so a transient failure is safe
   // to retry.
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  'maintenance.mcp_activity_ttl': { retryLimit: 2, expireInSeconds: 300 },
   // Bounded batches that stop on the job's signal; a backlog past the batch
   // budget waits for the next night rather than for a retry.
   'maintenance.expired_sessions': { retryLimit: 2, expireInSeconds: 600 },
@@ -507,15 +569,20 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 900,
   },
-  // At-most-once walking: pg-boss expires an ACTIVE job whose handler is
-  // still running and a retry would then claim the run again — claimRun
-  // re-claims a 'running' row unconditionally — so a node body outlasting
-  // the expiry (a subautomation's inline walk under repeatUntil) ran under
-  // TWO walkers until the first one's next commit read 'stale'. A lost or
-  // crashed walker is the per-minute liveness sweep's to re-poke (its
-  // promise lapses in 3 min), never pg-boss's; the expiry only has to
-  // outlast the longest node body a single turn can hold.
-  'automation.step': { retryLimit: 0, expireInSeconds: 21_600 },
+  // At-most-once walking: a lost or crashed walker is the per-minute
+  // liveness sweep's to re-poke once its lease lapses, never pg-boss's —
+  // a retry beside a walker still running would only meet its live lease.
+  // The expiry only has to outlast the longest node body a single turn can
+  // hold (a subautomation's inline walk under repeatUntil). The heartbeat
+  // tells a killed worker's step apart within a minute and a half (30 s,
+  // plus the supervisor's one-minute pass): an organization's walking steps
+  // are counted from the active jobs of its group (`TASK_JOB_GROUP`), and a
+  // dead worker's would otherwise hold its share until the expiry.
+  'automation.step': {
+    retryLimit: 0,
+    expireInSeconds: 21_600,
+    heartbeatSeconds: 30,
+  },
   'automation.poll': { retryLimit: 3, retryDelay: 2, expireInSeconds: 120 },
   'automation.trigger_scan': { retryLimit: 1, expireInSeconds: 120 },
   'automation.liveness': { retryLimit: 1, expireInSeconds: 120 },
@@ -527,8 +594,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   // Same posture as task.agent_drive: the window is long and a second drive
-  // of the same exec would replay the ring buffer twice, so no pg-boss retry.
-  'automation.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
+  // of the same exec would replay the ring buffer twice, so no pg-boss retry;
+  // the heartbeat lets a killed worker's drive be re-attached within a minute.
+  'automation.agent_drive': {
+    retryLimit: 0,
+    expireInSeconds: 43_200,
+    heartbeatSeconds: 60,
+  },
   'chat.generate_title': { retryLimit: 0, expireInSeconds: 60 },
   // 'short' + the per-send singletonKey (see deferred-sends.ts) collapses the
   // poll self-chain to at most one queued hop, so the recovery sweep can
@@ -552,13 +624,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'tts.watchdog_chunk': { retryLimit: 1, expireInSeconds: 120 },
   'tts.cleanup': { retryLimit: 0, expireInSeconds: 300 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
-  // A retry that waits for its busy agent checks again through this queue,
-  // every check keyed by its failed run (`agentRetryRecheckKey`): `short`
-  // keeps at most ONE queued per failed run, so the arm delivered twice, a
-  // check replayed after its commit or two deliveries at once never fork a
-  // second chain of checks — the second send finds the first queued and is
-  // dropped. A queue of its own: the arm's queue keeps its standard policy,
-  // so a keyless arm from the previous image is never shut out mid-roll.
+  // A check an earlier image queued for a retry that waited for its busy
+  // agent, keyed by its failed run (`short`: at most ONE queued per failed
+  // run). No current code path queues one; the queue stays registered with
+  // its policy so such a check is still delivered, and it kicks the retry.
   'task.agent_retry_recheck': {
     policy: 'short',
     retryLimit: 1,
@@ -587,6 +656,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'watchdog.automation_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },
   // A spawner blip is retried with backoff, not three times in one second.
+  'sandbox.sync_pin': {
+    policy: 'short',
+    retryLimit: 3,
+    retryDelay: 5,
+    retryBackoff: true,
+    expireInSeconds: 300,
+  },
   'sandbox.release_idle': {
     retryLimit: 3,
     retryDelay: 5,
@@ -698,6 +774,8 @@ export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
 export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
   new Set<TaskIdentifier>([
     'websites.scan',
+    // One slow answer must not hold the next chat after its batch-mates finish.
+    'chat.api_turn',
     // An agent turn's start (a session create can take minutes) and each of
     // its 90 s drive windows: batched, one slow start held every start
     // behind it, and live turns past a batch were drained only in turns.
@@ -705,13 +783,48 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
     'task.agent_drive',
     'automation.agent_turn',
     'automation.agent_drive',
+    // A step walks for up to its minute-long budget, or longer inside one
+    // slow node: batched, one long step held the steps of every other run
+    // fetched with it until it handed its run on.
+    'automation.step',
   ]);
+
+/**
+ * The organization a job counts against, for the queues whose jobs are
+ * limited per organization across every worker ({@link queueGroupConcurrency}).
+ * `addJobInTx` stamps it on every job of the queue, so no enqueue site can
+ * leave one out; a job without one (sent by an image before this one) is
+ * not limited.
+ */
+export const TASK_JOB_GROUP: {
+  readonly [K in TaskIdentifier]?: (
+    payload: TaskPayloads[K],
+  ) => string | undefined;
+} = {
+  'automation.step': (payload) => payload.organizationId,
+};
+
+/**
+ * How many jobs of one group a queue runs at once across all workers, or
+ * `undefined` for no limit. Automation steps take the operator's
+ * AUTOMATION_ORG_CONCURRENCY, so one organization's burst of runs cannot
+ * take every worker's step slots while another organization's runs wait
+ * behind it; 0 turns the limit off.
+ */
+export function queueGroupConcurrency(
+  name: string,
+  options: { automationOrgConcurrency?: number | undefined },
+): number | undefined {
+  if (name !== 'automation.step') return undefined;
+  const limit = options.automationOrgConcurrency;
+  return limit !== undefined && limit > 0 ? limit : undefined;
+}
 
 /**
  * The fewest slots a slot queue runs, whatever `WORKER_CONCURRENCY` says. A
  * drive window spends its 90 s waiting on the sandbox's output stream, and a
  * live turn whose window waits for a free slot is not drained meanwhile: its
- * output piles up in the daemon's replay ring (256 KB) and its heartbeat
+ * output waits in the daemon's bounded replay journal and its heartbeat
  * goes stale, so the default of five slots throttled a worker to five live
  * agent turns at once.
  */

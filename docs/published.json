@@ -45,6 +45,7 @@
     "develop/contributor-setup",
     "develop/integrations",
     "develop/mcp-endpoint",
+    "develop/mcp-settings",
     "develop/overview",
     "develop/rate-limits",
     "develop/status-page",

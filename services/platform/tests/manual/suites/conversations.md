@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 62 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 63 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -70,7 +70,7 @@ customer's live account as a manual test.
 > claims otherwise.
 
 > **i18n note**: all in-app copy lives in the platform `conversations.*`
-> namespace (`services/platform/messages/<locale>.yml`); the surface NAME is
+> namespace (`services/platform/messages/<locale>/conversations.yml`); the surface NAME is
 > "Inbox" (`conversations.title` — de "Inbox", fr "Boîte de réception") while
 > the noun in body copy stays "conversations". The former per-automation
 > automations-inbox i18n namespace was deleted with the old backend.
@@ -247,7 +247,10 @@ subject.
   direct model) — check Usage books it under the `inbox-improve` agent. With
   no AI provider connected, the toast reads
   `conversations.editor.improveFailed` with
-  `conversations.editor.improveUnavailable`; any other failure toasts
+  `conversations.editor.improveUnavailable`; with providers connected but a
+  **Model access** rule that blocks every model they serve for you, it
+  reads `conversations.editor.improveNoModelAccess` instead — never the
+  advice to connect a provider; any other failure toasts
   `conversations.editor.improveFailed` with the door's reason.
 - [ ] `CONV-F9` · **Status transition (single)** — Open a conversation →
   **More actions** (`conversations.header.moreActions`) → **Close
@@ -626,6 +629,26 @@ subject.
   **Try again** (`common.actions.tryAgain`), never **No conversations**; the
   search box and **Filter** stay usable. Unblock and press **Try again** → The
   rows load in place.
+- [ ] `CONV-B8` · **Compose freezes the draft while it sends** — As an admin,
+  with two inboxes, one of them IMAP/SMTP on your own domain (not a public one
+  such as gmail.com), add a network throttling profile with 10 s of latency in
+  the browser's developer tools and select it. Fill a Compose draft on the
+  IMAP/SMTP inbox (**To**, **Inbox**, **Subject** `Quote 7`, a body, a file)
+  and press **Send** → Until the send settles, **To**, **Assign to**,
+  **Subject**, **Inbox**, **From** and **Discard** are disabled, the file's
+  remove button is disabled, the body cannot be reached with Tab, and the
+  footer reads **Sending… The draft is locked until the send finishes.**
+  (`conversations.compose.sending`), announced once by a screen reader; typing
+  into **Subject** changes nothing. Let it succeed → The new thread opens, and
+  Compose reopens with no recipient, subject or body. Block the request
+  instead (**Network request blocking**, pattern `*/conversations/compose`)
+  and send again → The send-failure toast appears and every field is editable
+  again, still holding `Quote 7` and the body. Unblock the request, send once
+  more and, before it settles, open another conversation, then reopen
+  **Compose** → It shows the same fields and body, still frozen, with
+  **Send** disabled and the **Sending…** line; the file is not shown again
+  (files are never stored with the draft). When the send succeeds, Compose
+  empties where it is (no thread opens) and keeps whatever you type next.
 
 ## Accessibility (WCAG 2.1 AA)
 

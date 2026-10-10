@@ -43,7 +43,8 @@ describe('navSections', () => {
       }
     };
     for (const section of sections) walk(section.items);
-    expect(hrefs).toContain('/fr');
+    expect(hrefs).toContain('/fr/get-started/quickstart');
+    expect(hrefs).not.toContain('/fr');
     expect(hrefs).toContain('/fr/platform');
     expect(hrefs).toContain('/fr/self-hosted/install/quickstart');
     expect(hrefs.some((href) => href.endsWith('/index'))).toBe(false);

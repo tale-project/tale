@@ -11,12 +11,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  outsideOperationBudget,
+  waitWithinOperation,
+  withOperationBudget,
+} from './operation-budget.ts';
+import {
   DOCKER_CLI_CONCURRENCY,
   DOCKER_CLI_PRIORITY_CONCURRENCY,
   IMAGE_PULL_TIMEOUT_MS,
   RUN_DOCKER_DEFAULT_TIMEOUT_MS,
   dockerCliLoad,
   ensureImage,
+  isDockerMissingImage,
   resolveDockerTimeoutMs,
   runDocker,
 } from './spawn-util.ts';
@@ -25,6 +31,14 @@ import {
 // reads DOCKER_BIN lazily on each invocation so this override works after
 // module load.
 const ORIGINAL_DOCKER_BIN = process.env.DOCKER_BIN;
+async function rejection(promise: Promise<unknown>): Promise<string | null> {
+  try {
+    await promise;
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
 beforeAll(() => {
   process.env.DOCKER_BIN = '/bin/bash';
 });
@@ -37,6 +51,52 @@ afterAll(() => {
 });
 
 describe('runDocker — byte caps', () => {
+  test('one lifecycle deadline cancels a slow CLI and forbids a later launch', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-budget-'));
+    const marker = join(dir, 'late-start');
+    try {
+      expect(
+        await rejection(
+          withOperationBudget(50, async () => {
+            await runDocker(['-c', 'sleep 0.3'], { timeoutMs: 5_000 });
+            const late = await runDocker([
+              '-c',
+              'echo late > "$1"',
+              'late',
+              marker,
+            ]);
+            expect(late.exitCode).toBe(-1);
+          }),
+        ),
+      ).toContain('deadline');
+      expect(await Bun.file(marker).exists()).toBe(false);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+      // Cleanup remains possible after a cancelled create.
+      const cleaned = await outsideOperationBudget(() =>
+        runDocker(['-c', 'true']),
+      );
+      expect(cleaned.exitCode).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('an optional helper stops waiting for another operation at its own deadline', async () => {
+    const other = Promise.withResolvers<void>();
+    const keepAlive = setTimeout(() => other.resolve(), 1_000);
+    try {
+      expect(
+        await rejection(
+          withOperationBudget(20, () => waitWithinOperation(other.promise)),
+        ),
+      ).toContain('deadline');
+      // Cancelling the waiter never cancels its shared producer.
+      other.resolve();
+      await other.promise;
+    } finally {
+      clearTimeout(keepAlive);
+    }
+  });
   test('caps stdout at stdoutMaxBytes and marks truncated', async () => {
     // ~256 KiB of stdout — exceeds the 64 KiB cap by 4× (so truncation
     // definitely fires) but is small enough to finish well inside bun's
@@ -165,6 +225,49 @@ describe('runDocker — default timeout', () => {
       { args: ['image', 'inspect', 'tale/runtime:test'], timeoutMs: undefined },
       { args: ['pull', 'tale/runtime:test'], timeoutMs: IMAGE_PULL_TIMEOUT_MS },
     ]);
+  });
+
+  test('ensureImage: a pull that keeps failing says why', async () => {
+    const run: typeof runDocker = async (args) => ({
+      exitCode: 1,
+      stdout: '',
+      stderr: args[0] === 'pull' ? 'Error response from daemon: denied\n' : '',
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+    const heard: string[] = [];
+    const error = console.error;
+    console.error = () => {};
+    try {
+      expect(
+        await ensureImage('tale/runtime:test', {
+          run,
+          attempts: 1,
+          onFailure: (detail) => heard.push(detail),
+        }),
+      ).toBe(false);
+    } finally {
+      console.error = error;
+    }
+    expect(heard).toEqual(['Error response from daemon: denied']);
+  });
+
+  test('a missing image is told apart from other run failures', () => {
+    for (const stderr of [
+      'docker: Error response from daemon: No such image: tale-sandbox-runtime:latest.',
+      "Unable to find image 'tale-sandbox-runtime:latest' locally",
+      'docker: Error response from daemon: pull access denied for tale-sandbox-runtime, repository does not exist',
+    ]) {
+      expect(isDockerMissingImage(stderr)).toBe(true);
+    }
+    for (const stderr of [
+      'Error: No such container: tale-sbx-ses-a',
+      'Conflict. The container name "/tale-sbx-ses-a" is already in use',
+      'failed to initialize logging driver',
+      '',
+    ]) {
+      expect(isDockerMissingImage(stderr)).toBe(false);
+    }
   });
 });
 
@@ -422,4 +525,64 @@ describe('runDocker — cancellation before spawn', () => {
       }
     },
   );
+});
+
+describe('Docker operation deadlines', () => {
+  async function expectDeadline(operation: Promise<unknown>): Promise<void> {
+    const error: unknown = await operation.then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error instanceof Error ? error.message : '').toContain('deadline');
+  }
+
+  test('the deadline kills a CLI that ignores SIGTERM and drains its slot', async () => {
+    const started = Date.now();
+    let exitCode: number | undefined;
+    await expectDeadline(
+      withOperationBudget(80, async () => {
+        exitCode = (
+          await runDocker(['-c', 'trap "" TERM; exec sleep 2'], {
+            timeoutMs: 3_000,
+          })
+        ).exitCode;
+      }),
+    );
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(exitCode).not.toBe(0);
+    expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+  });
+
+  test('a shared deadline aborts a running CLI and prevents subsequent commands', async () => {
+    const started = Date.now();
+    let first: Awaited<ReturnType<typeof runDocker>> | undefined;
+    let second: Awaited<ReturnType<typeof runDocker>> | undefined;
+    await expectDeadline(
+      withOperationBudget(80, async () => {
+        first = await runDocker(['-c', 'exec sleep 2']);
+        second = await runDocker(['-c', 'printf should-not-run']);
+      }),
+    );
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(first?.exitCode).not.toBe(0);
+    expect(second?.exitCode).toBe(-1);
+    expect(second?.stdout).toBe('');
+  });
+
+  test('nested deadlines inherit cancellation while independent cleanup can run', async () => {
+    await expectDeadline(
+      withOperationBudget(20, async () => {
+        await Bun.sleep(40);
+        await expectDeadline(
+          withOperationBudget(500, () => runDocker(['-c', 'printf no'])),
+        );
+        const cleanup = await outsideOperationBudget(() =>
+          withOperationBudget(500, () => runDocker(['-c', 'printf cleaned'])),
+        );
+        expect(cleanup.stdout).toBe('cleaned');
+      }),
+    );
+    expect((await runDocker(['-c', 'printf outside'])).stdout).toBe('outside');
+  });
 });

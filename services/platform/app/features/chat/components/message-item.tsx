@@ -3,9 +3,9 @@
 /**
  * One message of the transcript.
  *
- * The user's turns read as compact right-aligned bubbles (long ones clamp
- * with a Show more toggle; a hover pencil swaps the bubble for the edit
- * form); the assistant's read as the page itself — full width, markdown, the
+ * The user's turns read as the thread's own bubbles, as a task shows the
+ * viewer's comments (long ones clamp behind Read more; a hover pencil swaps
+ * the bubble for the edit form); the assistant's read as the page itself — full width, markdown, the
  * actions toolbar underneath. A forked message carries the ‹ n/m › sibling
  * navigator. Tool and system rows keep their chip presentation. History items
  * rasterize lazily (`content-visibility`) so a long thread costs what the
@@ -15,13 +15,18 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
+import {
+  THREAD_OWN_BUBBLE_SURFACE_CLASS,
+  THREAD_OWN_BUBBLE_WIDTH_CLASS,
+} from '@tale/ui/thread/layout';
+import { ThinkingDots } from '@tale/ui/thread/thinking-dots';
+import { ThreadMessage } from '@tale/ui/thread/thread-message';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { CircleStop, Pencil } from 'lucide-react';
 import {
   memo,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -36,13 +41,13 @@ import { isStoppedReason } from '@/lib/shared/chat-errors';
 
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
 import { useReportPerceivedWait } from '../hooks/use-report-perceived-wait';
+import { useRowWake } from '../hooks/use-row-wake';
 import {
   messageThinkingAnchor,
   toSeconds,
   useThinkingTimer,
 } from '../hooks/use-thinking-timer';
 import { useVoiceOutputChunker } from '../hooks/use-voice-output';
-import { CHAT_USER_BUBBLE_CLASS, CHAT_USER_MESSAGE_CLASS } from '../lib/layout';
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageItem, ChatMessageView } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
@@ -59,7 +64,6 @@ import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
 import { SourceCards } from './source-cards';
 import { StepLimitNotice, stepLimitHit } from './step-limit-notice';
-import { ThinkingDots } from './thinking-dots';
 import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
@@ -128,13 +132,78 @@ interface MessageItemProps {
   voicePillForced?: boolean;
   /** The message arrived live during this mount (not with the history). */
   isFreshSinceMount?: boolean;
+  /** An older row of a long transcript: it mounts dormant — its words only —
+   * and renders in full once it nears the viewport (see use-row-wake). */
+  deferred?: boolean;
 }
 
-function MessageItemComponent({
+function MessageItemComponent({ deferred, ...props }: MessageItemProps) {
+  const { message, region, rootRef } = props;
+  const isUser = message.role === 'user';
+  const { awake, mountedDormant, ref: wakeRef } = useRowWake(deferred === true);
+
+  return (
+    <li
+      ref={awake ? rootRef : wakeRef}
+      data-testid="chat-message"
+      data-message-role={message.role}
+      data-message-key={message.key}
+      {...(awake ? {} : { 'data-dormant': '' })}
+      // The row wakes inside the live log: swapping its words for the full
+      // rendering is no new entry to announce.
+      aria-live={mountedDormant ? 'off' : undefined}
+      className={cn(
+        'group/message flex min-w-0 flex-col',
+        isUser ? 'items-end' : 'items-start',
+        ROW_INTRINSIC_SIZE,
+        region === 'history' && HISTORY_CONTENT_VISIBILITY,
+        region === 'response' && RESPONSE_NO_ANCHOR,
+        rootRef !== undefined && 'scroll-mt-6',
+      )}
+    >
+      {awake ? (
+        <MessageBody {...props} />
+      ) : (
+        <DormantMessage message={message} />
+      )}
+    </li>
+  );
+}
+
+/** A dormant row's stand-in: the message's words as plain text, in the
+ * shape of its bubble — what find-in-page and a screen reader need, at a
+ * fraction of the full row's cost. A user's bubble keeps the room of the
+ * footer row (time, edit) the awake bubble carries under it, so waking moves
+ * nothing below. */
+function DormantMessage({ message }: { message: ChatMessageItem }) {
+  if (message.role === 'user') {
+    return (
+      <div className="flex w-full min-w-0 flex-col items-end gap-1">
+        <div
+          className={cn(
+            THREAD_OWN_BUBBLE_WIDTH_CLASS,
+            THREAD_OWN_BUBBLE_SURFACE_CLASS,
+            'max-h-96 overflow-hidden whitespace-pre-line',
+          )}
+        >
+          {message.text}
+        </div>
+        <div className="h-7" />
+      </div>
+    );
+  }
+  return (
+    <div className="w-full min-w-0 text-sm break-words whitespace-pre-line">
+      {message.text}
+    </div>
+  );
+}
+
+/** A row's full rendering: the bubble or the answer with its chrome, and
+ * the turn's terminal notices. */
+function MessageBody({
   message,
   isLast,
-  region,
-  rootRef,
   organizationId,
   threadId,
   feedbackRating,
@@ -146,7 +215,7 @@ function MessageItemComponent({
   speakAvailable,
   voicePillForced,
   isFreshSinceMount,
-}: MessageItemProps) {
+}: Omit<MessageItemProps, 'deferred' | 'region' | 'rootRef'>) {
   const { t } = useT('chat');
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
@@ -180,20 +249,7 @@ function MessageItemComponent({
   const errorInBody = isAssistant && !blockedSubstitutes;
 
   return (
-    <li
-      ref={rootRef}
-      data-testid="chat-message"
-      data-message-role={message.role}
-      data-message-key={message.key}
-      className={cn(
-        'group/message flex min-w-0 flex-col',
-        isUser ? 'items-end' : 'items-start',
-        ROW_INTRINSIC_SIZE,
-        region === 'history' && HISTORY_CONTENT_VISIBILITY,
-        region === 'response' && RESPONSE_NO_ANCHOR,
-        rootRef !== undefined && 'scroll-mt-6',
-      )}
-    >
+    <>
       {isUser ? (
         <UserBubble
           message={message}
@@ -231,7 +287,7 @@ function MessageItemComponent({
         !stopped &&
         !blockedSubstitutes && <BlockedNotice />}
       {!errorInBody && errorNode}
-    </li>
+    </>
   );
 }
 
@@ -241,10 +297,15 @@ function MessageItemComponent({
  * row on a streamed tick. The remaining props are scalars or
  * identity-stabilized by the surface; `forkGroup` compares by identity
  * because its map rebuilds only on branch changes, never mid-stream.
+ * `deferred` only matters when it clears (a dormant row the tail reaches
+ * again wakes): a row leaving the tail on a send is already awake and stays
+ * so, and must not re-render for it.
  */
 export const MessageItem = memo(
   MessageItemComponent,
   (prevProps, nextProps) =>
+    (prevProps.deferred === nextProps.deferred ||
+      nextProps.deferred === true) &&
     prevProps.message === nextProps.message &&
     prevProps.isLast === nextProps.isLast &&
     prevProps.region === nextProps.region &&
@@ -275,30 +336,27 @@ function UserBubble({
 }) {
   const { t } = useT('chat');
   const { formatDateHeader, formatDate } = useFormatDate();
-  const [expanded, setExpanded] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
   const [editing, setEditing] = useState(false);
-  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef(false);
+
+  // Closing the editor (Escape, Cancel, a started edit) hands focus back to
+  // the pencil that opened it, so a keyboard reader keeps their place in the
+  // transcript instead of starting over from the top of the page.
+  const closeEditor = () => {
+    restoreFocusRef.current = true;
+    setEditing(false);
+  };
+  useEffect(() => {
+    if (editing || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    editButtonRef.current?.focus();
+  }, [editing]);
 
   // "Today, 14:32" / "Yesterday, 09:15" / a localized date + time — revealed
-  // on hover alongside the edit affordance.
+  // on hover alongside the edit affordance (a chat has no day dividers).
   const sentAt = new Date(message.createdAt);
   const sentLabel = `${formatDateHeader(sentAt)}, ${formatDate(sentAt, 'time')}`;
-
-  // Measure the clamp only while clamped — once expanded, scrollHeight equals
-  // clientHeight and would read as "fits", hiding the Show less toggle. The
-  // ResizeObserver re-measures on container reflow (panel fold, window
-  // resize): a bubble that fit at one width can overflow at another.
-  useLayoutEffect(() => {
-    if (expanded || editing) return undefined;
-    const el = bodyRef.current;
-    if (!el) return undefined;
-    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [expanded, editing, message.parts]);
 
   if (editing) {
     return (
@@ -308,63 +366,61 @@ function UserBubble({
           // The form closes only once the edit STARTED; a refusal that wrote
           // nothing (a reached usage cap) hands the draft back instead.
           const accepted = (await onEditSubmit?.(message, text)) ?? false;
-          if (accepted) setEditing(false);
+          if (accepted) closeEditor();
           return accepted;
         }}
-        onCancel={() => setEditing(false)}
+        onCancel={closeEditor}
       />
     );
   }
 
   return (
-    <div className={CHAT_USER_MESSAGE_CLASS}>
-      <div
-        ref={bodyRef}
-        className={cn(
-          CHAT_USER_BUBBLE_CLASS,
-          // ~16 lines of text-sm (the 0.3 clamp); longer collapses behind
-          // Show more.
-          !expanded && 'max-h-96 overflow-hidden',
-        )}
-      >
-        <MessageParts parts={message.parts} />
-      </div>
-      <div className="flex items-center gap-0.5">
-        <span className="text-muted-foreground/70 mt-1 text-xs opacity-0 transition-opacity group-hover/message:opacity-100 pointer-coarse:opacity-100">
+    // The thread's own bubble, as a task shows the viewer's comments: a long
+    // message reads its first lines behind Read more.
+    <ThreadMessage
+      variant="own"
+      clampHeight={384}
+      className="w-full"
+      time={
+        <time
+          dateTime={sentAt.toISOString()}
+          title={formatDate(sentAt, 'long')}
+        >
           {sentLabel}
-        </span>
-        {(overflowing || expanded) && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setExpanded((value) => !value)}
-            className="text-muted-foreground mt-1 h-6 px-2 text-xs"
-          >
-            {expanded ? t('showLess') : t('showMore')}
-          </Button>
-        )}
-        {onEditSubmit !== undefined && (
-          <Button
-            size="icon"
-            variant="ghost"
-            title={t('editMessage')}
-            tooltipSide="bottom"
-            data-testid="message-edit-button"
-            onClick={() => setEditing(true)}
-            className="text-muted-foreground mt-1 size-6 opacity-0 transition-opacity group-hover/message:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
-          >
-            <Pencil aria-hidden className="size-3" />
-          </Button>
-        )}
-        {forkGroup !== undefined && (
-          <BranchNavigator
-            index={forkGroup.index}
-            total={forkGroup.total}
-            onSelect={forkGroup.onSelect}
-          />
-        )}
-      </div>
-    </div>
+        </time>
+      }
+      {...(onEditSubmit !== undefined
+        ? {
+            actions: (
+              <Button
+                ref={editButtonRef}
+                size="icon"
+                variant="ghost"
+                title={t('editMessage')}
+                tooltipSide="bottom"
+                data-testid="message-edit-button"
+                onClick={() => setEditing(true)}
+                className="text-muted-foreground hover:text-foreground size-7"
+              >
+                <Pencil aria-hidden className="size-3.5" />
+              </Button>
+            ),
+          }
+        : {})}
+      {...(forkGroup !== undefined
+        ? {
+            trailing: (
+              <BranchNavigator
+                index={forkGroup.index}
+                total={forkGroup.total}
+                onSelect={forkGroup.onSelect}
+              />
+            ),
+          }
+        : {})}
+    >
+      <MessageParts parts={message.parts} />
+    </ThreadMessage>
   );
 }
 
@@ -405,8 +461,14 @@ function AssistantBody({
   // in the clause-hold until drain; dropping the shell on text.length
   // left a blank aria-busy div. Keep the shell until that paint (or an
   // incomplete empty settle). History rows never watched the reveal, so
-  // they skip the shell even before the latch.
-  const [firstPainted, setFirstPainted] = useState(false);
+  // they skip the shell even before the latch — and a row that mounts
+  // settled with an answer starts latched: it paints that answer whole in
+  // its first frame, and latching from the reveal's report instead cost
+  // every history row a second render, toolbar and all (#4121).
+  const [firstPainted, setFirstPainted] = useState(
+    () =>
+      !message.isStreaming && !message.isFinalReveal && message.text.length > 0,
+  );
   const handleFirstReveal = useCallback(() => {
     setFirstPainted(true);
   }, []);

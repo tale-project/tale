@@ -1,0 +1,46 @@
+description:
+  Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder
+  einem beliebigen WebDAV-Client ein.
+connectionDetails:
+  title: Verbindungsdaten
+  usernameLabel: Benutzername
+  usernameHelp: Deine Tale-Konto-E-Mail (oder dein Benutzername)
+  copyUsername: Benutzername kopieren
+  passwordLabel: Passwort
+  passwordHelp: Ein App-Passwort, das du unten erzeugst — nicht dein Konto-Passwort.
+create:
+  title: Neues App-Passwort erzeugen
+  description:
+    Nutze eines pro Gerät. Das vollständige Passwort wird nur einmal
+    angezeigt — kopiere es, bevor du diesen Dialog schliesst.
+  labelLabel: Bezeichnung
+  labelPlaceholder: z. B. MacBook Finder
+  submit: Erzeugen
+  error: App-Passwort konnte nicht erstellt werden
+  errorLimit:
+    Du hast die maximale Anzahl an App-Passwörtern erreicht. Widerrufe
+    zuerst ein nicht genutztes.
+  errorRateLimited: Zu viele App-Passwörter in kurzer Zeit erstellt. Versuch es später nochmal.
+  savedTitle: Speichere dieses Passwort — es wird nicht erneut angezeigt.
+  copy: Kopieren
+  dismiss: Ich habe es gespeichert
+list:
+  title: App-Passwörter
+  empty: Noch keine App-Passwörter.
+  emptyDescription: Erzeuge unten ein App-Passwort, um Tale-Dokumente als Netzlaufwerk einzubinden.
+  label: Label
+  prefix: Präfix
+  lastUsed: Zuletzt genutzt
+  created: Erstellt
+  neverUsed: nie
+  revoked: widerrufen
+  revoke: Widerrufen
+  revokedToast: Widerrufen
+  revokeError: Widerruf nicht möglich
+  revokeErrorNotFound: Dieses App-Passwort existiert nicht mehr.
+revokeDialog:
+  title: Dieses App-Passwort widerrufen?
+  body: Jedes Gerät, das mit diesem Passwort eingehängt ist, wird getrennt und
+    aktive Lock-Tokens werden freigegeben.
+  confirm: Widerrufen
+  cancel: Abbrechen

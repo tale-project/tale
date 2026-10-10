@@ -6,6 +6,7 @@ import { Dialog } from '@tale/ui/dialog/dialog';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { toast } from '@tale/ui/use-toast';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -51,6 +52,8 @@ export function LabelManageDialog({
   const updateLabel = useUpdateTaskLabel();
   const deleteLabel = useDeleteTaskLabel();
   const ensureDefaults = useEnsureDefaultTaskLabels();
+  const renameComposition = useImeComposition(open);
+  const createComposition = useImeComposition(open);
 
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -166,11 +169,14 @@ export function LabelManageDialog({
                         <>
                           <input
                             autoFocus
+                            {...renameComposition.compositionProps}
                             value={editName}
                             maxLength={TASK_LABEL_CHARS_MAX}
                             disabled={busy}
                             onChange={(e) => setEditName(e.target.value)}
                             onKeyDown={(e) => {
+                              if (renameComposition.isComposing(e.nativeEvent))
+                                return;
                               if (e.key === 'Enter') {
                                 e.preventDefault();
                                 void onSaveRename(label._id);
@@ -253,6 +259,7 @@ export function LabelManageDialog({
               <Row gap={2} align="center">
                 <input
                   type="text"
+                  {...createComposition.compositionProps}
                   value={newName}
                   maxLength={TASK_LABEL_CHARS_MAX}
                   disabled={busy}
@@ -260,6 +267,7 @@ export function LabelManageDialog({
                   aria-label={t('labels.namePlaceholder')}
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => {
+                    if (createComposition.isComposing(e.nativeEvent)) return;
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       void onCreate();

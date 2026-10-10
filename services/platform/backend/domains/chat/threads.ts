@@ -7,10 +7,7 @@ import {
   parseBranchSelections,
   resolveViewPath,
 } from '../../../lib/shared/branch-selection.ts';
-import {
-  getUserTeamIds,
-  findOrganizationMember,
-} from '../../auth/membership.ts';
+import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
@@ -193,11 +190,7 @@ export async function projectChatAccess(
   `;
   const project = projects[0];
   if (!project || project.orgId !== args.organizationId) return 'not_found';
-  const member = await findOrganizationMember(
-    sql,
-    args.organizationId,
-    args.userId,
-  );
+  const member = await findActingMember(sql, args.organizationId, args.userId);
   if (member === null || member.role === 'disabled') return 'forbidden';
   const teamIds = await getUserTeamIds(sql, args.organizationId, args.userId);
   const access = checkProjectAccess(
@@ -208,6 +201,20 @@ export async function projectChatAccess(
   return access.canRead ? 'ok' : 'forbidden';
 }
 
+/** The project a thread belongs to, if any — whose budget its spend
+ * counts toward, whoever spends it. */
+export async function readThreadProjectId(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  threadId: string,
+): Promise<string | undefined> {
+  const rows = await sql<{ projectId: string | null }[]>`
+    SELECT project_id AS "projectId" FROM app.thread_metadata
+    WHERE thread_id = ${threadId} AND org_id = ${organizationId}
+  `;
+  return rows[0]?.projectId ?? undefined;
+}
+
 /** Load a thread the caller OWNS — null when it does not exist, is someone
  * else's, or sits in the trash (indistinguishable by design). */
 export async function loadOwnedThread(
@@ -215,6 +222,8 @@ export async function loadOwnedThread(
   organizationId: string,
   userId: string,
   threadId: string,
+  /** Only inside a caller-owned transaction when changing project sharing. */
+  lockMetadata = false,
 ): Promise<ThreadRow | null> {
   const rows = await sql<ThreadRow[]>`
     SELECT ${sql.unsafe(THREAD_COLUMNS)}
@@ -222,7 +231,7 @@ export async function loadOwnedThread(
     JOIN app.thread_metadata tm ON tm.thread_id = t.id
     WHERE t.id = ${threadId} AND t.org_id = ${organizationId}
       AND t.user_id = ${userId} AND tm.status = 'active'
-    LIMIT 1
+    LIMIT 1 ${sql.unsafe(lockMetadata ? 'FOR UPDATE OF tm' : '')}
   `;
   return rows[0] ?? null;
 }
@@ -499,13 +508,13 @@ export async function moveThreadToProject(
   threadId: string,
   projectId: string | null,
 ): Promise<boolean> {
-  const thread = await loadOwnedThread(
+  const selected = await loadOwnedThread(
     sql,
     auth.organizationId,
     auth.userId,
     threadId,
   );
-  if (!thread) return false;
+  if (!selected) return false;
   if (projectId !== null) {
     const access = await projectChatAccess(sql, {
       projectId,
@@ -520,18 +529,41 @@ export async function moveThreadToProject(
       );
     }
   }
-  const previousProjectId = thread.projectId;
-  const moved = projectId !== previousProjectId;
-  const endsShare =
-    moved && thread.sharedWithProject === true && previousProjectId !== null;
-  await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
+    // The opt-in and audit belong to the canonical root, even when an API
+    // caller names its hidden sibling. Re-read after locking so another
+    // move cannot leave us interpreting an old audience or share flag.
+    const thread = await loadOwnedThread(
+      tx,
+      auth.organizationId,
+      auth.userId,
+      selected.branchRootId ?? selected.id,
+      true,
+    );
+    if (!thread || thread.branchRootId !== null) return false;
+    const previousProjectId = thread.projectId;
+    const moved = projectId !== previousProjectId;
+    const endsShare =
+      moved && thread.sharedWithProject === true && previousProjectId !== null;
     await tx`
       UPDATE app.thread_metadata SET
         project_id = ${projectId},
         shared_with_project = ${moved ? false : thread.sharedWithProject}
       WHERE thread_id = ${thread.id}
     `;
-    if (!moved) return;
+    // The conversation's hidden rows — its edit and regenerate branches and
+    // an arena column — carry its later turns: they move with it, or a turn
+    // on one would keep spending in, and being capped by, the project the
+    // conversation left.
+    await tx`
+      UPDATE app.thread_metadata SET
+        shared_with_project = CASE WHEN project_id IS DISTINCT FROM ${projectId}
+          THEN false ELSE shared_with_project END,
+        project_id = ${projectId}
+      WHERE org_id = ${auth.organizationId} AND user_id = ${auth.userId}
+        AND (thread_id = ${thread.id} OR branch_root_id = ${thread.id})
+    `;
+    if (!moved) return true;
     const projectName = async (id: string): Promise<string | undefined> => {
       const rows = await tx<{ name: string }[]>`
         SELECT name FROM app.projects WHERE id = ${id} LIMIT 1
@@ -566,7 +598,7 @@ export async function moveThreadToProject(
     // off the project the chat lands in (or the one it leaves, when it is
     // taken out of projects altogether).
     const anchorProjectId = projectId ?? previousProjectId;
-    if (anchorProjectId === null) return;
+    if (anchorProjectId === null) return true;
     const anchorName = await projectName(anchorProjectId);
     await createAuditLog(tx, {
       ...actor,
@@ -576,8 +608,8 @@ export async function moveThreadToProject(
       previousState: { threadId: thread.id, projectId: previousProjectId },
       newState: { threadId: thread.id, projectId },
     });
+    return true;
   });
-  return true;
 }
 
 /** The header cap on a chat name — mirrors the AI title generator's own. */
@@ -602,7 +634,9 @@ export async function renameThread(
 }
 
 /** Fill an ABSENT title only — the AI-title write; a rename or an explicit
- * birth title is never clobbered (the 0.4 `setThreadTitleInternal` guard). */
+ * birth title is never clobbered (the 0.4 `setThreadTitleInternal` guard).
+ * The hidden column of a comparison is not named here: it takes the visible
+ * column's title when it wins (`settleArenaPair`). */
 export async function setThreadTitleIfAbsent(
   sql: Sql,
   organizationId: string,
@@ -848,20 +882,21 @@ export async function setThreadSharedWithProject(
   threadId: string,
   shared: boolean,
 ): Promise<boolean> {
-  const thread = await loadOwnedThread(
-    sql,
-    auth.organizationId,
-    auth.userId,
-    threadId,
-  );
-  if (!thread) return false;
-  if (thread.projectId === null) {
-    throw new ChatThreadError(
-      'THREAD_NOT_IN_PROJECT',
-      'File the conversation in a project first',
+  return sql.begin(async (tx) => {
+    const thread = await loadOwnedThread(
+      tx,
+      auth.organizationId,
+      auth.userId,
+      threadId,
+      true,
     );
-  }
-  await sql.begin(async (tx) => {
+    if (!thread) return false;
+    if (thread.projectId === null) {
+      throw new ChatThreadError(
+        'THREAD_NOT_IN_PROJECT',
+        'File the conversation in a project first',
+      );
+    }
     await tx`
       UPDATE app.thread_metadata SET shared_with_project = ${shared}
       WHERE thread_id = ${thread.id}
@@ -886,8 +921,8 @@ export async function setThreadSharedWithProject(
         newState: { threadId: thread.id, shared },
       });
     }
+    return true;
   });
-  return true;
 }
 
 /**

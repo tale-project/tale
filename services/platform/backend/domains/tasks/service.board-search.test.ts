@@ -26,10 +26,13 @@ vi.mock('../projects/service.ts', async (importOriginal) => ({
   listProjects,
 }));
 
+import { MENTION_URL_SQL_PATTERN } from '../../core/tasks/mentions.ts';
 import {
+  BOARD_TASK_COLUMNS,
   listTasksByProject,
   listTasksForAccessibleProjects,
   searchTasks,
+  TASK_COLUMNS,
   taskSearchPatterns,
 } from './service.ts';
 
@@ -49,8 +52,9 @@ function isFragment(value: unknown): value is Fragment {
 }
 
 /** A `sql` stand-in that inlines nested fragments the way postgres.js does,
- *  so a recorded statement is the one Postgres would see. */
-function recordingSql() {
+ *  so a recorded statement is the one Postgres would see; `answer` gives a
+ *  statement's rows (none by default). */
+function recordingSql(answer: (text: string) => unknown[] = () => []) {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     let text = '';
@@ -70,7 +74,7 @@ function recordingSql() {
     text = text.replace(/\s+/g, ' ').trim();
     statements.push({ text, values: flat });
     const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
-    return Object.assign(Promise.resolve([]), fragment);
+    return Object.assign(Promise.resolve(answer(text)), fragment);
   };
   const sql = Object.assign(tag, { unsafe: (text: string) => text });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
@@ -125,7 +129,8 @@ function fieldsLeg(text: string): string {
   return match[0];
 }
 
-const COMMENT_LEG = "lower(coalesce(m.text, '')) LIKE ALL(?)";
+const COMMENT_LEG =
+  "lower(regexp_replace(coalesce(m.text, ''), ?, ']', 'g')) LIKE ALL(?)";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -197,7 +202,104 @@ describe('the board search narrows the board read itself', () => {
   });
 });
 
+/** The columns a board statement selects (its `sql.unsafe` list). */
+function selectedColumns(statement: { values: unknown[] }): string[] {
+  const list = statement.values.find(
+    (value): value is string =>
+      typeof value === 'string' && value.includes('"organizationId"'),
+  );
+  if (list === undefined) throw new Error('no column list in the statement');
+  return list.split(',').map((column) => column.trim());
+}
+
+const LONG_COLUMNS = [
+  'description',
+  'attachments',
+  'outputs',
+  'external_issue AS "externalIssue"',
+];
+
+describe('a board row carries only what a card shows', () => {
+  it('leaves the long columns out of BOARD_TASK_COLUMNS, and keeps every other task column', () => {
+    const all = TASK_COLUMNS.split(',').map((column) => column.trim());
+    const board = BOARD_TASK_COLUMNS.split(',').map((column) => column.trim());
+    expect(board).toEqual(
+      all.filter((column) => !LONG_COLUMNS.includes(column)),
+    );
+    expect(all.length - board.length).toBe(LONG_COLUMNS.length);
+  });
+
+  it('reads a project board and the all-projects board without them', async () => {
+    const board = recordingSql();
+    await listTasksByProject(board.sql, auth, 'proj-1', { query: 'needle' });
+    const across = recordingSql();
+    await listTasksForAccessibleProjects(across.sql, auth, {});
+    for (const statements of [board.statements, across.statements]) {
+      const columns = selectedColumns(boardStatement(statements));
+      for (const long of LONG_COLUMNS) expect(columns).not.toContain(long);
+      expect(columns).toContain('title');
+      expect(columns).toContain('comment_count AS "commentCount"');
+    }
+    // The search still matches the description, in the WHERE clause.
+    expect(boardStatement(board.statements).text).toContain(
+      "coalesce(t.description, '')",
+    );
+  });
+});
+
 describe('the palette and the board search alike', () => {
+  it('ranks both bounded pages after deduplication even when fields fill the page', async () => {
+    const fieldHits = Array.from({ length: 25 }, (_, index) => ({
+      taskId: `archived-${index}`,
+      projectId: 'proj-1',
+      title: 'needle',
+      status: 'todo',
+      description: null,
+      updatedAt: 100 - index,
+      number: null,
+      archivedAt: 1,
+    }));
+    const commentHits = [
+      { ...fieldHits[0], body: 'needle duplicate' },
+      {
+        ...fieldHits[0],
+        taskId: 'active-comment',
+        archivedAt: null,
+        updatedAt: 0,
+        body: 'needle discussion',
+      },
+    ];
+    const { sql, statements } = recordingSql((text) =>
+      text.startsWith('SELECT t.id AS "taskId"')
+        ? fieldHits
+        : text.startsWith('SELECT DISTINCT ON')
+          ? commentHits
+          : [],
+    );
+    const hits = await searchTasks(sql, auth, {
+      query: 'needle',
+      projectId: 'proj-1',
+    });
+    expect(hits).toHaveLength(25);
+    expect(hits[0]).toMatchObject({
+      taskId: 'active-comment',
+      snippet: 'needle discussion',
+    });
+    expect(new Set(hits.map((hit) => hit.taskId)).size).toBe(25);
+    expect(hits.some((hit) => hit.taskId === 'archived-24')).toBe(false);
+    const pages = statements.filter(
+      (statement) =>
+        statement.text.startsWith('SELECT t.id AS "taskId"') ||
+        statement.text.startsWith('SELECT DISTINCT ON'),
+    );
+    expect(pages).toHaveLength(2);
+    expect(
+      pages.every(
+        (page) => page.text.endsWith('LIMIT ?') && page.values.at(-1) === 25,
+      ),
+    ).toBe(true);
+  });
+
   it('share the fields leg and the comment leg', async () => {
     const board = recordingSql();
     await listTasksByProject(board.sql, auth, 'proj-1', { query: 'needle' });
@@ -220,5 +322,97 @@ describe('the palette and the board search alike', () => {
     );
     expect(paletteComments?.text).toContain(COMMENT_LEG);
     expect(paletteFields?.values).toContainEqual(['%needle%']);
+  });
+});
+
+describe('a search reads a mention by its name', () => {
+  it('matches neither leg on a mention address', async () => {
+    const palette = recordingSql();
+    await searchTasks(palette.sql, auth, {
+      query: 'agent',
+      projectId: 'proj-1',
+    });
+    const legs = palette.statements.filter(
+      (statement) =>
+        statement.text.startsWith('SELECT') &&
+        statement.text.includes('LIKE ALL'),
+    );
+    expect(legs).toHaveLength(2);
+    for (const leg of legs) {
+      expect(leg.text).toContain('regexp_replace(');
+      expect(leg.values).toContain(MENTION_URL_SQL_PATTERN);
+    }
+  });
+
+  it('shows the current name of whoever a snippet mentions, and never half a mention', async () => {
+    // Cut as stored, the 600 characters would end inside the mention.
+    const description = `${'x '.repeat(280)}[@Ada Byron](mention:user/u-ada) please check`;
+    const { sql } = recordingSql((text) => {
+      if (text.startsWith('SELECT t.id AS "taskId"')) {
+        return [
+          {
+            taskId: 'task-1',
+            projectId: 'proj-1',
+            title: 'Close the books',
+            status: 'todo',
+            description,
+            updatedAt: 1,
+            number: 1,
+            archivedAt: null,
+          },
+        ];
+      }
+      if (text.includes('FROM "user" u')) {
+        return [{ id: 'u-ada', name: 'Ada Lovelace', email: null }];
+      }
+      return [];
+    });
+    const [hit] = await searchTasks(sql, auth, {
+      query: 'books',
+      projectId: 'proj-1',
+    });
+    expect(hit?.snippet.endsWith('x @Ada Lovelace please check')).toBe(true);
+    expect(hit?.snippet).not.toContain('mention:');
+  });
+
+  it('reads a long text only as far as its snippet, never through half a mention', async () => {
+    // Mentions early on shrink to their names, so the snippet reads past
+    // 600 stored characters; the head it is read from ends inside the last
+    // mention, which is dropped rather than shown as its address.
+    const early = '[@Ada](mention:user/u-ada-with-a-long-id-to-shrink) '.repeat(
+      40,
+    );
+    const description = `${early}${'y'.repeat(2_400 - early.length - 20)}[@Grace Hopper](mention:user/u-grace) ${'z '.repeat(9_000)}`;
+    const { sql, statements } = recordingSql((text) => {
+      if (text.startsWith('SELECT t.id AS "taskId"')) {
+        return [
+          {
+            taskId: 'task-1',
+            projectId: 'proj-1',
+            title: 'Close the books',
+            status: 'todo',
+            description,
+            updatedAt: 1,
+            number: 1,
+            archivedAt: null,
+          },
+        ];
+      }
+      if (text.includes('FROM "user" u')) {
+        return [{ id: 'u-ada', name: 'Ada Lovelace', email: null }];
+      }
+      return [];
+    });
+    const [hit] = await searchTasks(sql, auth, {
+      query: 'books',
+      projectId: 'proj-1',
+    });
+    expect(hit?.snippet).not.toContain('mention:');
+    expect(hit?.snippet).not.toContain('Grace');
+    expect(hit?.snippet).not.toContain('z');
+    // Only the mentions in the head are looked up.
+    const lookup = statements.find((s) => s.text.includes('FROM "user" u'));
+    expect(lookup?.values).toContainEqual(['u-ada-with-a-long-id-to-shrink']);
+    expect(JSON.stringify(lookup?.values)).not.toContain('u-grace');
   });
 });

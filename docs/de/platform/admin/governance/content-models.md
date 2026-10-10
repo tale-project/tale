@@ -24,8 +24,8 @@ Regeln für Personen, Teams und Rollen benötigen in beiden Modi ein Ziel, bevor
 
 | Modus | Wirkung einer passenden Regel |
 | --- | --- |
-| Allowlist | Nur aufgeführte erlaubte Modelle dürfen verwendet werden; ein gesperrtes Modell bleibt abgelehnt. |
-| Blocklist | Modelle sind erlaubt, solange sie nicht als gesperrt aufgeführt sind. |
+| Erlaubte Liste | Nur aufgeführte erlaubte Modelle dürfen verwendet werden; ein gesperrtes Modell bleibt abgelehnt. |
+| Blockierte Liste | Modelle sind erlaubt, solange sie nicht als gesperrt aufgeführt sind. |
 
 Zuerst gelten Personenregeln, danach Teamregeln, Rollenregeln und der Standard. Mehrere passende Teamregeln kombinieren ihre Listen. Eine ausdrückliche Sperre hat für das Modell weiterhin Vorrang. Passt keine Regel, schränkt die Richtlinie diese Person nicht ein. Lege eine Standardregel an, wenn du alle abdecken willst.
 

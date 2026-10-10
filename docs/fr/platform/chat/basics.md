@@ -13,7 +13,7 @@ Utilise le chat pour poser une question, comprendre un document ou rechercher un
 
 ## Envoyer un premier message
 
-Ouvre **Accueil**. Sur ordinateur, le chat que tu as lu en dernier se rouvre, s’il y en a un. Pour aborder un nouveau sujet, choisis **Nouveau chat** en haut de la liste d’**Accueil** ou, sur ordinateur, sélectionne à nouveau **Accueil** alors que cette section est active. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
+Ouvre **Accueil**. Sur ordinateur, un nouveau chat s’ouvre, et le panneau latéral d’**Accueil**, à côté, liste tes chats précédents ; sur téléphone, choisis **Chats**, puis **Nouveau chat**. Pour aborder un autre sujet plus tard, choisis **Nouveau chat** ou, sur ordinateur, à nouveau **Accueil**. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
 
 Par exemple : « Retrouve les retours d’onboarding et résume les trois problèmes les plus fréquents. Cite les documents et sépare les problèmes signalés de tes suggestions. »
 
@@ -23,7 +23,7 @@ Pendant la génération, la commande d’envoi devient une commande d’arrêt. 
 
 ## Choisir un modèle lorsque c’est utile
 
-Le sélecteur démarre sur **Auto** lorsque plusieurs modèles utilisables sont disponibles. Auto choisit un modèle pour chaque message parmi ceux de ton organisation. Les règles de l’organisation peuvent définir un choix par défaut ou restreindre les modèles autorisés. Les détails sous la réponse indiquent celui qui a effectivement répondu.
+Le sélecteur démarre sur **Auto** lorsque plusieurs modèles utilisables sont disponibles. Auto choisit un modèle pour chaque message parmi ceux de ton organisation. Les règles de l’organisation peuvent définir un choix par défaut ou restreindre les modèles autorisés. Les [détails sous la réponse](#reply-details) indiquent celui qui a effectivement répondu.
 
 Choisis un modèle précis pour comparer des réponses dans les mêmes conditions ou lorsque tu sais lequel convient au travail. Il reste sélectionné jusqu’à ce que tu changes ce choix, y compris le fournisseur qui sert le modèle lorsque deux fournisseurs proposent le même. S’il permet de régler l’effort de raisonnement, le sélecteur propose aussi ce réglage. Un effort plus élevé peut prendre plus de temps ; il ne remplace pas la vérification du résultat.
 
@@ -59,6 +59,15 @@ La zone **Sources** sous la réponse liste les documents et pages chargés. Ouvr
 
 L’assistant peut rechercher des documents, entrées de connaissances, sites, contacts, produits, tâches accessibles et conversations de la boîte de réception que tu peux voir, y compris le texte des e-mails qu’elles ont reçus et de leurs pièces jointes. Une tâche peut être désignée par sa clé, par exemple `DOCS-12`, telle que le tableau l’affiche. Il peut lire le détail d’un résultat et une page web publique. Le chat n’exécute pas de code, ne modifie pas de systèmes connectés, ne crée pas d’images, ne produit pas de fichiers livrables et n’utilise pas de [skills](/fr/platform/workspace/skills). Confie ce travail à une [tâche de projet](/fr/platform/projects/tasks). Toute personne qui peut ouvrir le projet peut en créer une et la confier à l’un des agents du projet ; [Transformer un chat en tâche](#create-task-from-chat) montre comment la créer depuis la conversation. Un agent de projet qui traite la tâche peut créer des images si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images).
 
+## Voir comment une réponse a été produite {#reply-details}
+
+Choisis **Afficher les informations** sous une réponse pour ouvrir **Informations sur le message**. Tu y trouves le modèle qui a répondu et son **Fournisseur IA**, la durée de la réponse et le nombre de tokens utilisés, ainsi que l’endroit où elle a été traitée lorsqu’il est connu.
+
+- **Délai avant le premier token** indique le temps que le modèle a mis à commencer sa réponse, **Vitesse de sortie** la vitesse à laquelle il a écrit, en tokens par seconde, et **Durée totale** le temps de toute la réponse. La barre en dessous répartit ce temps entre la préparation, l’attente du modèle, la réflexion et la rédaction. Le serveur mesure à partir du moment où il a commencé la réponse ; le délai avant l’apparition des premiers mots sur ton écran, affiché sous la barre, peut donc être plus long.
+- **Traité par** nomme l’entreprise qui a exécuté le modèle lorsque ton fournisseur transmet les requêtes à un autre. OpenRouter peut par exemple servir un même modèle Claude via Anthropic, Amazon Bedrock ou Google Vertex.
+- **Région** indique où la réponse a été traitée, mais seulement si le fournisseur l’a indiqué, comme le fait Azure OpenAI (par exemple Switzerland North), ou si la requête est passée par un endpoint régional dont le fournisseur s’engage à traiter les requêtes dans une seule région, comme `eu.openrouter.ai` ou `eu.api.openai.com`. Sinon, elle affiche **Non indiquée** : Tale ne déduit pas un emplacement du nom ou du siège d’un fournisseur. Sur Azure, un déploiement de type Global peut traiter une requête dans n’importe quelle région, quelle que soit la région indiquée dans la réponse ; un déploiement Data Zone la traite dans sa zone de données, par exemple l’UE, et un déploiement régional dans sa zone géographique.
+- **Version du modèle** apparaît lorsque le fournisseur indique un modèle plus précis que celui demandé, par exemple une version datée derrière un alias ou le modèle derrière un nom de déploiement Azure.
+
 ## Transformer un chat en tâche {#create-task-from-chat}
 
 Quand une conversation aboutit à un travail qui demande un fichier, par exemple une présentation, un rapport ou un tableur, confie-le à un agent de projet. Sélectionne **Créer une tâche** dans l’en-tête de la conversation ; sur un écran étroit, choisis **Créer une tâche depuis le chat** dans le menu **⋯**. Si le chat est classé dans un projet, la tâche y est créée. Sinon, choisis d’abord le projet : **Avec un agent** liste les projets que tu peux ouvrir qui ont des agents, avec leur nombre. Un projet sans agents propres y figure avec **Agent standard** : sa tâche va à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation. Quand l’agent standard ne peut pas fonctionner pour toi, par exemple parce qu’un Admin l’a désactivé, ces projets figurent plutôt sous **Sans agent pour l’instant**, chacun indiquant qui peut en ajouter un.
@@ -71,7 +80,7 @@ La boîte de dialogue de la tâche s’ouvre avec ta dernière demande comme des
 
 </Frame>
 
-La tâche apparaît ensuite au-dessus du champ de message du chat, avec ce qu’elle fait en ce moment : **L’agent travaille**, **En attente d’une place de sandbox**, **Nouvelle tentative…**, **Prête pour la revue** avec le nombre de fichiers livrés, ou **L’agent n’a pas pu la terminer**. **Ouvrir** te mène à la tâche. Tu reçois aussi une notification quand elle est prête pour la revue et quand l’agent ne peut pas terminer ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) explique la suite.
+La tâche apparaît ensuite au-dessus du champ de message du chat, avec ce qu’elle fait en ce moment : **L’agent travaille**, **En attente d’un worker** (ou un autre état qui dit ce que l’exécution attend), **Nouvelle tentative…**, **Prête pour la revue** avec le nombre de fichiers livrés, ou **L’agent n’a pas pu la terminer**. **Ouvrir** te mène à la tâche. Tu reçois aussi une notification quand elle est prête pour la revue et quand l’agent ne peut pas terminer ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) explique la suite.
 
 <Frame caption="La tâche qu’un chat a confiée affiche sa progression au-dessus du champ de message.">
 
@@ -88,6 +97,8 @@ Seuls les fichiers de ta propre conversation suivent. Une tâche n’accepte que
 ## Continuer ou conserver la conversation
 
 La barre sous la réponse permet de copier le texte, donner un avis, consulter les détails ou créer une branche à cet endroit. Une branche permet d’explorer une autre direction tout en conservant l’échange précédent.
+
+Tes propres messages sont à droite. D’un long message, tu vois le début ; **Lire la suite** ouvre le reste sur place et **Afficher moins** le replie. Survole un de tes messages ou place le focus clavier dedans pour voir quand tu l’as envoyé et utiliser **Modifier le message**, qui change le texte dans une nouvelle version de la conversation ; sur un écran tactile, l’heure et ce bouton restent toujours affichés. Sous un message que tu as modifié, ou dont tu as redemandé la réponse avec **Réessayer**, **Branche précédente** et **Branche suivante** passent d’une version à l’autre, et le nombre entre les deux, par exemple 2/3, indique celle qui est affichée.
 
 Retrouve les anciens chats dans [Accueil](/fr/platform#home) ; la vue **Chats**, au-dessus de la liste, n’affiche que les chats. Épingle ceux qui servent souvent, donne-leur un titre reconnaissable ou déplace-les dans un projet lorsque le sujet devient récurrent : fais-les glisser sur le projet ou choisis **Déplacer vers un projet…** dans leur menu. [Chats partagés](/fr/platform/chat/shared-threads) explique comment publier un instantané en lecture seule pour des collègues.
 

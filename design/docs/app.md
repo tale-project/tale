@@ -29,6 +29,10 @@ what is there, and the page shows the one thing you opened.
   active section sits on one pill that glides from tile to tile (never two fills blinking); inactive
   tiles are muted; each shows a no-arrow tooltip to its right. Built from `@tale/ui` primitives, not a
   bespoke layout. A phone shows the same sections, from the same list, inside a floating, fully rounded bottom capsule. Its lightly translucent surface contains both icons and labels; one selected background glides between destinations. Scroll content continues behind it, with end clearance for the last item. Composers and page-action docks sit above it. The capsule is 60px tall with 20px icons and 11px labels. Downward scrolling reduces it to a 52px icon-only capsule, at most 280px wide and 4px lower; upward scrolling restores it. Both states keep 44px touch targets, accessible names and stable content clearance. The capsule hides while the software keyboard is open and returns when it closes.
+  A tile always opens its section's overview — Home a new chat (on a phone, the Home list),
+  Knowledge its first tab, Automations the list, Settings its first row (Account) — never the place you
+  left, also when you are already in that section. The page's section decides the lit tile and its
+  `aria-current="page"`: an automation opened inside a project belongs to Automations.
 - **Section panels** — a section with navigation of its own opens it in a panel beside the page,
   one frame for all of them: `SubPanel width="list"` (280px by default, full height, right border), a
   `SubPanelHeader` naming the section in the same `h-13` row as a page header (border included, so
@@ -59,11 +63,41 @@ what is there, and the page shows the one thing you opened.
 - **Conversation pages** — a chat, a task and a customer conversation open in one frame:
   `ThreadHeader` (the Home panel toggle, a 32px identity mark, the title, one quiet line of context,
   then the actions), a centred reading column, and the composer pinned at the foot in the same frame
-  for all three (`CHAT_COMPOSER_FRAME_CLASS`). A task is a structured chat: its brief (description,
+  for all three (`THREAD_COMPOSER_FRAME_CLASS`, `@tale/ui/thread/layout`). A task is a structured chat: its brief (description,
   files, subtasks) opens the thread as a card, comments and history follow oldest first under day
-  pills, and its structure (status, owner, dates…) lives in a details panel that folds away. The
+  pills (one `ThreadDayDivider`, pinned while its day scrolls by, shared by chats, tasks and the
+  inbox), and its structure (status, owner, dates…) lives in a details panel that folds away. The
   actions a teammate needs lead: **Copy link** on a task and a conversation, and a task's key copies
   itself from the header. On a phone the page keeps its own header row only — no shell bar above it.
+  The board's task dialog carries the same identity in its own header — the status glyph tile, the
+  title and one quiet line of project · key · status — and its chrome actions sit in one cluster at
+  the top-right before Close (`ResponsiveDialogContent headerActions`): **Copy link** and **Open as
+  page**, a real link to the task's page. The drawer on a phone shows the same cluster in its own band.
+  Creating a task reads like the open task: the status tile and a borderless title in the header, the
+  property panel beside the description (Medium priority and today's start preselected), and a footer
+  with **Create another** at the left and the `⌘ Enter` hint beside Cancel and Create.
+  On the board, **Done** and **Cancelled** fold to a 44px rail (glyph, count, the name standing on
+  end) that opens on a click and still takes a drop; each board remembers its folded lanes.
+- **Avatars** — one `@tale/ui/avatar` everywhere: a person's initials in the tint their name hashes to (the
+  same colour on a board card, in a task's conversation and in a contact list; filled primary for "you"), an
+  agent's bot on the soft primary tint, an automation's workflow glyph, a dashed outline for nobody.
+  `AssigneeAvatar` and `ContactInitials` are thin wrappers over it.
+- **A task reads the same everywhere** — the board's dialog and the task's page render one reading
+  column (`TaskThreadColumn`): the brief as a card, the conversation (comments and history merged, oldest
+  first, opening on the discussion's newest page and anchored at the newest end) and the chat composer
+  pinned under it; the dialog adds only its header and the details panel beside it. There is no separate
+  comment list or Activity list.
+- **Conversation entries** — one anatomy for chats and task discussions, built from `@tale/ui/thread/*`:
+  the viewer's own words as a right-aligned muted bubble (`ThreadMessage variant="own"` — a chat's turns
+  and a task's comments alike, with the time and actions revealed under it and a chat's ‹ 2/3 › branch
+  navigator always in view beside them as its `trailing` control); every other
+  voice — a teammate, an agent, the assistant — as flat prose under an identity row (24px avatar, name,
+  an **Agent** badge for an agent, clock time; the chat's assistant hides the row), with a message by the
+  same author minutes later joining the one before it; actions as icon buttons that show on hover,
+  keyboard focus, an open menu and always on a touch screen. Events are one quiet `text-xs` line in the
+  avatar gutter with a glyph per kind of change, the change in its own words and casing; three or more
+  in a row fold into one line ("5 updates") that opens in place. A long body is clamped behind
+  **Read more** (`ReadMore`), never truncated in the DOM.
 - **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
   leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
   `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and
@@ -71,7 +105,9 @@ what is there, and the page shows the one thing you opened.
   verbs — Save/Discard and any entity actions — sit in the strip's trailing slot
   (`AdaptiveHeaderTabActionsSlot`), never in the title row's right half; the title row keeps only
   the name and its identity badges (archived, live). Run/sub-pages keep a plain leaf, keep the strip
-  with the parent tab lit, and link the entity name back up the trail.
+  with the parent tab lit, and link the entity name back up the trail. An automation opened inside a
+  project starts its trail with the project: `<project> / Automations / <name>`, the crumbs leading
+  to the project and to its Automations tab.
 - **Right/secondary panels** (the Home panel, a task's details) slide in and **resize the main
   column** rather than overlay it; main content re-flows to the remaining width.
 - **Main column is centred and width-capped** — e.g. chat is 558px (new) / 768px (conversation). Don't
@@ -91,6 +127,16 @@ what is there, and the page shows the one thing you opened.
   "improve with AI" rewrite. Specs: `design-system.md` → _Conversations_.
 - **Knowledge** — its pages (Documents/Knowledge entries/Websites/Products/Contacts) as a tab strip
   under the header, each a `DataTable`. Specs: `design-system.md` → _Knowledge_.
+- **Automation canvas** — the layout engine places every box, nobody does: **Start** on top (what
+  starts a run, what it receives), **End** at the bottom (what it returns, how a run ends), each node
+  below the nodes it reads. A condition is a pill in words above its node, splitting into **Yes**
+  (left) and **No** (right) when the node has an alternative; a frame means for-each or repeat; a
+  solid line reads output, a dashed one only orders, a dotted one ends the run; a dashed box may not
+  run. One Tab stop with arrow keys, a List view as the text alternative, the Paths list to light up
+  a path. Build it from data with `@tale/ui/flow/workflow-canvas`; never draw a node by hand. Guides:
+  [`workflow-canvas.md`](../../services/ui-docs/content/components/workflow-canvas.md),
+  [`workflow-paths.md`](../../services/ui-docs/content/components/workflow-paths.md),
+  [`workflow-playback.md`](../../services/ui-docs/content/components/workflow-playback.md).
 - **Auth, settings, automations, agents, onboarding** — each has a `.pen` under `design/sources/platform/`.
 
 ## Interaction conventions (hold these everywhere)

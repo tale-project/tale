@@ -28,6 +28,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { ApiKeyPanel } from './moderation-api-key-panel';
 import { EndpointEditDialog } from './moderation-endpoint-edit-dialog';
@@ -48,6 +49,7 @@ import {
   type ModerationPreset,
 } from './moderation-presets';
 import { TestConnectionPanel } from './moderation-test-connection-panel';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface ModerationProviderConfigProps {
   organizationId: string;
@@ -108,9 +110,10 @@ function deriveDraft(policy: ModerationPolicy): ModerationDraft {
 // NOTE: exported as `ModerationProviderConfigView` because the guardrails route
 // already imports that name as the entry point — keep it stable.
 // =============================================================================
-export function ModerationProviderConfigView({
+function ModerationProviderConfigViewContent({
   organizationId,
 }: ModerationProviderConfigProps) {
+  const policyReadAvailable = usePolicyReadAvailable();
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -680,7 +683,7 @@ export function ModerationProviderConfigView({
 
             {endpointDialogOpen && (
               <EndpointEditDialog
-                open={endpointDialogOpen}
+                open={policyReadAvailable && endpointDialogOpen}
                 initial={endpointDraft}
                 responseShape={responseShape}
                 onCancel={() => setEndpointDialogOpen(false)}
@@ -688,7 +691,7 @@ export function ModerationProviderConfigView({
               />
             )}
 
-            {mappingEditorIndex !== null && (
+            {policyReadAvailable && mappingEditorIndex !== null && (
               <MappingEditDialog
                 index={mappingEditorIndex}
                 initial={
@@ -711,7 +714,7 @@ export function ModerationProviderConfigView({
             )}
 
             <ConfirmDialog
-              open={deletingMappingIndex !== null}
+              open={policyReadAvailable && deletingMappingIndex !== null}
               onOpenChange={(open) => {
                 if (!open) setDeletingMappingIndex(null);
               }}
@@ -734,3 +737,8 @@ export function ModerationProviderConfigView({
     </Skeletonize>
   );
 }
+
+export const ModerationProviderConfigView = withGovernancePolicyReadBoundary(
+  ModerationProviderConfigViewContent,
+  'moderation_provider',
+);

@@ -15,6 +15,11 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
 import {
+  PropertyDivider,
+  PropertyList,
+  PropertyRow,
+} from '@tale/ui/property-list';
+import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogDescription,
@@ -22,11 +27,12 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
-import { ThreadHeaderSeparator } from '@tale/ui/thread-header';
-import { Tooltip } from '@tale/ui/tooltip';
 import { useCopy } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
+import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import {
@@ -57,11 +63,14 @@ import {
   useFileUpload,
 } from '@/app/features/shared/files/use-file-upload';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
+import { descriptionMentionMode } from '@/backend/core/tasks/mentions';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
@@ -73,7 +82,8 @@ import {
   useUpdateTask,
   useUpdateTaskStatus,
 } from '../hooks/mutations';
-import { useSubtasks, useTask } from '../hooks/queries';
+import { usePrefetchTaskReads, useSubtasks, useTask } from '../hooks/queries';
+import { ActorDirectoryProvider } from '../hooks/task-actor-directory';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { useDescriptionCap } from '../hooks/use-description-cap';
 import { useTaskAccess } from '../hooks/use-task-access';
@@ -87,6 +97,10 @@ import {
   type ResolvedTaskSubjectContract,
 } from '../hooks/use-task-subject-contract';
 import {
+  DEFAULT_NEW_TASK_PRIORITY,
+  defaultNewTaskStartDate,
+} from '../lib/create-defaults';
+import {
   TASK_TERMINAL_STATUSES,
   type TaskActorType,
   type TaskPriority,
@@ -96,6 +110,7 @@ import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
 import { subtaskProgress } from '../lib/subtasks';
+import { toastTaskCreated } from '../lib/task-created-toast';
 import { taskLimitRefusalMessage } from '../lib/task-limit-refusal';
 import {
   canTaskRepeat,
@@ -117,22 +132,23 @@ import { StatusPicker } from './status-picker';
 import { TaskAgentRunEntry } from './task-agent-run-entry';
 import { TaskAgentRunFailureNotice } from './task-agent-run-failure-notice';
 import { TaskArchiveDialog } from './task-archive-dialog';
-import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { TaskAutomationRunEntry } from './task-automation-run-entry';
 import {
   TaskCommentComposer,
   TaskCommentComposerSkeleton,
-  TaskComments,
 } from './task-comments';
 import { TaskConversation } from './task-conversation';
 import { TaskDeleteDialog } from './task-delete-dialog';
 import { TaskDependencies } from './task-dependencies';
 import { TaskDetailFallback } from './task-detail-fallback';
 import { TaskExternalIssueCard } from './task-external-issue-card';
+import { TaskExternalStatusCard } from './task-external-status-card';
+import { TaskDialogHeaderActions } from './task-header-actions';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
+import { TaskMetaLine } from './task-meta-line';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
 import { TaskPageLayout } from './task-page-layout';
 import { TaskParentLink } from './task-parent-link';
@@ -147,7 +163,8 @@ import {
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
 import { TaskSubjectPanel } from './task-subject-panel';
-import { TaskTimeline } from './task-timeline';
+import { TaskThreadColumn } from './task-thread-column';
+import { formatCents, useTaskTimeline } from './task-timeline';
 import { TaskWatchControl } from './task-watch-control';
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
@@ -243,11 +260,21 @@ export function TaskModal({
       <ResponsiveDialogContent
         ref={contentRef}
         className={cn(
-          'max-w-3xl',
-          // Edit mode: pin the dialog height so it never jumps as comments /
-          // activity / agent runs load; the columns scroll internally instead.
-          bodyTaskId && 'flex h-[85dvh] flex-col overflow-hidden',
+          // Edit mode: wider, for a reading column beside the property panel,
+          // and of a pinned height so it never jumps as comments / activity /
+          // agent runs load; the columns scroll internally instead.
+          bodyTaskId
+            ? 'flex h-[85dvh] max-w-5xl flex-col overflow-hidden'
+            : 'max-w-3xl',
         )}
+        headerActions={
+          bodyTaskId ? (
+            <TaskDialogHeaderActions
+              organizationId={organizationId}
+              taskId={bodyTaskId}
+            />
+          ) : undefined
+        }
         // Edit mode: Radix would focus (and text-select) the first tabbable —
         // the inline-editable title. Focus the dialog explicitly: cancelling
         // alone also skips Radix's container fallback and leaves the opener
@@ -266,7 +293,12 @@ export function TaskModal({
         </ResponsiveDialogDescription>
         {bodyTaskId ? (
           <EditTaskBody
+            // One body per task, as on the task page: a switch through a
+            // subtask, parent, dependency or next-task link opens the next
+            // task fresh, on its newest message, with nothing sliding in.
+            key={bodyTaskId}
             taskId={bodyTaskId}
+            active={open}
             onOpenTask={onOpenTask}
             onClose={() => onOpenChange(false)}
             showProjectLink={showProjectLink}
@@ -288,18 +320,31 @@ export function TaskModal({
   );
 }
 
-/** Two-column shell shared by both modes: main content + right property panel. */
+/** Two-column shell shared by both modes: main content + right property
+ *  panel. An open task's main column is its reading thread — the same column
+ *  as its page; the create form's is a plain scrolling column. */
 function ModalLayout({
   header,
   main,
+  thread,
   panel,
   footer,
 }: {
   header: ReactNode;
-  main: ReactNode;
   panel: ReactNode;
   footer?: ReactNode;
-}) {
+} & (
+  | { main: ReactNode; thread?: undefined }
+  | {
+      main?: undefined;
+      thread: {
+        brief: ReactNode;
+        conversation: ReactNode;
+        composer: ReactNode;
+      };
+    }
+)) {
+  const { t } = useT('tasks');
   return (
     <Stack className="min-h-0 flex-1">
       <div className="shrink-0">{header}</div>
@@ -312,104 +357,55 @@ function ModalLayout({
           the scrollport slightly so focus rings on full-width fields aren't
           clipped at the column edge. */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-0">
-        <Stack
-          gap={5}
-          className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
-        >
-          {main}
-        </Stack>
-        <Stack
+        {thread !== undefined ? (
+          // On a phone the drawer scrolls the whole dialog as one column, so
+          // the thread hands its scrolling up and its composer follows it.
+          <TaskThreadColumn
+            brief={thread.brief}
+            conversation={thread.conversation}
+            composer={thread.composer}
+            className="md:min-h-0"
+            scrollerClassName="max-md:flex-none max-md:overflow-visible md:-ml-2 md:pl-2 md:pr-6"
+            contentClassName="max-w-none px-0 pt-0.5 pb-4"
+            composerClassName="max-w-none px-0 pb-0 md:pr-6"
+          />
+        ) : (
+          <Stack
+            gap={5}
+            className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
+          >
+            {main}
+          </Stack>
+        )}
+        <PropertyList
           as="aside"
+          aria-label={t('detail.details')}
           className="shrink-0 md:-mr-2 md:min-h-0 md:w-[17rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
         >
+          {/* The panel's own headings sit under it, not under the thread's. */}
+          <h2 className="sr-only">{t('detail.details')}</h2>
           {panel}
-        </Stack>
+        </PropertyList>
       </div>
       {footer && <div className="shrink-0">{footer}</div>}
     </Stack>
   );
 }
 
-/** One property in the side panel: a fixed-width muted label beside its control
- *  (or above it, for controls that wrap, like Labels).
- *
- *  The label WRAPS inside its column instead of overflowing it: the column is a
- *  fixed width so every control lines up, and a label longer than it — which
- *  English never produces but a German compound does on the first try — used to
- *  paint over its own control and give the whole panel a horizontal scrollbar.
- *  Wrapping keeps the field name fully readable, which truncation would not.
- *  This is the SAFETY NET, not the plan: a label that needs two lines here is a
- *  label to shorten per locale (`hyphens-auto` softens the break to a syllable
- *  only where the browser ships a dictionary for the document's `lang`). */
-function PropertyField({
-  label,
-  children,
-  stacked,
-  trailing,
-}: {
-  label: string;
-  children: ReactNode;
-  /** `true` → label above the control at every width, for a control that wraps
-   *  (Labels, Dependencies). `'md'` → stacked only where the panel is narrow
-   *  (md+); below that the control moves up beside its label, into the same
-   *  label column as the row variant. */
-  stacked?: boolean | 'md';
-  /** Optional control beside the field name (e.g. manage-labels settings). */
-  trailing?: ReactNode;
-}) {
-  if (stacked) {
-    // `'md'`: below the md breakpoint the dialog is a bottom drawer and the
-    // property panel spans its FULL width, so a fixed-width control (a date)
-    // fits beside its label with room to spare — stacking there spends a whole
-    // row of a sheet that already scrolls. From md up the panel narrows to
-    // 17rem, where the label column plus that control no longer fit on one
-    // line, so it goes back to stacked.
-    const inlineWhenWide = stacked === 'md';
-    return (
-      <div
-        className={cn(
-          'flex flex-col gap-1.5',
-          inlineWhenWide &&
-            'flex-row items-center gap-2 md:flex-col md:items-stretch md:gap-1.5',
-        )}
-      >
-        <Row
-          gap={1}
-          align="center"
-          className={cn(
-            'min-h-4',
-            // The SAME label column as the row variant below, so the control
-            // starts in one vertical line with Status / Priority / Assignee
-            // rather than floating at the panel's edge.
-            inlineWhenWide && 'w-20 shrink-0 md:w-auto',
-          )}
-        >
-          <span
-            className={cn(
-              'text-muted-foreground text-xs font-medium',
-              // Same safety net as the row variant: wrap a long label inside
-              // its own column instead of shoving the control off the sheet.
-              inlineWhenWide && 'break-words hyphens-auto',
-            )}
-          >
-            {label}
-          </span>
-          {trailing}
-        </Row>
-        <div className="w-full min-w-0">{children}</div>
-      </div>
-    );
-  }
-  // The label centres on the row's first `h-7` line — the height every value
-  // control here shares — rather than hanging from its top edge, where it sat
-  // above the middle of a taller control. A label that wraps grows the row.
+/** What the task's agent runs cost together. Each run's own cost stays on its
+ *  line in the conversation; the total is a fact about the task, so it sits
+ *  with its details — also once the task moved on to a person. Absent until a
+ *  run cost anything. */
+function TaskAgentCostField({ taskId }: { taskId: string }) {
+  const { t } = useT('tasks');
+  const { totalCostCents } = useTaskTimeline(taskId);
+  if (totalCostCents <= 0) return null;
   return (
-    <Row gap={2} align="start" className="min-h-7 shrink-0">
-      <span className="text-muted-foreground flex min-h-7 w-20 shrink-0 items-center text-xs font-medium break-words hyphens-auto">
-        {label}
-      </span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </Row>
+    <PropertyRow label={t('agentRuns.costLabel')}>
+      <Text as="span" className="text-sm tabular-nums">
+        {t('agentRuns.totalCost', { amount: formatCents(totalCostCents) })}
+      </Text>
+    </PropertyRow>
   );
 }
 
@@ -432,19 +428,14 @@ function TaskDetailsSkeleton({ showProject }: { showProject: boolean }) {
   return (
     <>
       {labels.map((label, index) => (
-        <PropertyField key={label} label={label}>
+        <PropertyRow key={label} label={label}>
           <span className="block w-28 max-w-full text-sm leading-7">
             <SkeletonText seed={index + 3} />
           </span>
-        </PropertyField>
+        </PropertyRow>
       ))}
     </>
   );
-}
-
-/** A thin divider between property-panel groups. */
-function PanelDivider() {
-  return <div className="border-border/60 border-t" aria-hidden="true" />;
 }
 
 // ───────────────────────────────── Create ─────────────────────────────────
@@ -877,28 +868,61 @@ function CreateTaskBody({
   const [templateSlug, setTemplateSlug] = useState<string | null>(null);
   const activeTemplate =
     templates.find((entry) => entry.automationSlug === templateSlug) ?? null;
-  const { attachments, uploadingFiles, uploadFiles, removeAttachment } =
-    useFileUpload({
-      organizationId,
-      allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
-      ...(draft !== undefined && { initialAttachments: draft.attachments }),
-    });
+  const {
+    attachments,
+    uploadingFiles,
+    uploadFiles,
+    removeAttachment,
+    clearAttachments,
+  } = useFileUpload({
+    organizationId,
+    allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
+    ...(draft !== undefined && { initialAttachments: draft.attachments }),
+  });
 
   const [title, setTitle] = useState(draft?.title ?? '');
   const [description, setDescription] = useState(draft?.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
   const pasteCounterRef = useRef(1);
-  const [priority, setPriority] = useState<TaskPriority | null>(null);
+  const [priority, setPriority] = useState<TaskPriority | null>(
+    DEFAULT_NEW_TASK_PRIORITY,
+  );
   const [assignee, setAssignee] = useState<{
     type: TaskActorType;
     id: string;
   } | null>(draft?.assignee ?? null);
   const [dueDate, setDueDate] = useState<number | undefined>(undefined);
-  const [startDate, setStartDate] = useState<number | undefined>(undefined);
+  const [startDate, setStartDate] = useState<number | undefined>(() =>
+    defaultNewTaskStartDate(),
+  );
   const [repeat, setRepeat] = useState<TaskRepeat | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  // After a create with "Create another", the caret goes back to Title once
+  // the field is enabled again (it is disabled while the create runs).
+  const refocusTitleRef = useRef(false);
+  useEffect(() => {
+    if (submitting || !refocusTitleRef.current) return;
+    refocusTitleRef.current = false;
+    titleRef.current?.focus();
+  }, [submitting]);
+  const isMac = useIsMac();
+  // "Create another" belongs to the board's own create: the chat hand-over
+  // links a source thread and announces itself, and a template opens what it
+  // made, so neither loops.
+  const canCreateAnother = draft === undefined && onTaskCreated === undefined;
+  const [createAnother, setCreateAnother] = usePersistedState(
+    'tale.platform.tasks.createAnother',
+    false,
+  );
+  const createsAnother = canCreateAnother && createAnother;
+  // A start after the due date is refused by the server; say so where the
+  // dates are, before Create, rather than in a toast after it.
+  const scheduleInvalid =
+    startDate !== undefined && dueDate !== undefined && startDate > dueDate;
+  const uploading = uploadingFiles.length > 0;
   // A rule belongs on open work a person or agent carries: a task created
   // straight into Done or Cancelled would never come back, and one handed to
   // an automation follows the automation's lifecycle. Choosing either drops
@@ -918,6 +942,13 @@ function CreateTaskBody({
     counterMax: descriptionCounterMax,
     counterValue: descriptionCounterValue,
   } = useDescriptionCap(description);
+  // Create waits for a title, a description within its cap, a schedule the
+  // server takes and every file that is still uploading.
+  const canSubmit =
+    title.trim().length > 0 &&
+    !descriptionOverCap &&
+    !scheduleInvalid &&
+    !uploading;
   const { resolveActor } = useActorDirectory(organizationId, projectId);
   // Named beside the avatar, as on the task's own details panel — the bare
   // avatar button left "who takes this" to a hover.
@@ -936,7 +967,7 @@ function CreateTaskBody({
 
   const submit = async (options: { start?: boolean } = {}) => {
     const trimmed = title.trim();
-    if (!trimmed || submitting || descriptionOverCap) return;
+    if (!trimmed || submitting || !canSubmit) return;
     setSubmitting(true);
     try {
       const taskId = await createTask.mutateAsync({
@@ -963,7 +994,27 @@ function CreateTaskBody({
           : {}),
       });
       if (onTaskCreated === undefined) {
-        toast({ title: t('actions.created'), variant: 'success' });
+        toastTaskCreated({
+          title: t('actions.created'),
+          openLabel: t('actions.openCreated'),
+          openAltText: t('actions.openCreatedAltText'),
+          onOpen: () => {
+            onClose();
+            onCreated?.(taskId);
+          },
+        });
+      }
+      if (createsAnother) {
+        // Ready for the next one: the words and files go, everything a run of
+        // similar tasks shares — status, priority, assignee, dates, repeat,
+        // labels — stays.
+        setTitle('');
+        setDescription('');
+        clearAttachments();
+        pasteCounterRef.current = 1;
+        refocusTitleRef.current = true;
+        setSubmitting(false);
+        return;
       }
       onClose();
       onTaskCreated?.(taskId);
@@ -1041,34 +1092,50 @@ function CreateTaskBody({
     <div className="contents" onPaste={onPasteImages}>
       <ModalLayout
         header={
-          <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
-            {t('actions.create')}
-          </ResponsiveDialogTitle>
+          // The task as it will read: its status as the glyph tile and its
+          // title in the same place and weight as the open task's own header,
+          // so creating and reading a task look alike. The dialog's name
+          // stays the verb.
+          <Stack gap={2} className="md:pr-10">
+            <ResponsiveDialogTitle className="text-muted-foreground text-xs font-medium">
+              {t('actions.create')}
+            </ResponsiveDialogTitle>
+            <Row gap={3} align="center">
+              <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg">
+                <TaskStatusGlyph status={status} />
+              </span>
+              <input
+                ref={titleRef}
+                id="task-title"
+                aria-label={t('fields.title')}
+                placeholder={t('fields.titlePlaceholder')}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={submitting}
+                autoFocus
+                required
+                // Hard-cap at the server limit (validateTitle rejects >
+                // TASK_TITLE_MAX) so an over-long title can't reach the
+                // mutation and strand the dialog behind a generic error toast.
+                maxLength={TASK_TITLE_MAX}
+                autoComplete="off"
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                  e.preventDefault();
+                  // Cmd/Ctrl+Enter creates; a plain Enter moves on to the
+                  // description, as a title is one line.
+                  if (e.metaKey || e.ctrlKey)
+                    void submit({ start: startFirst });
+                  else document.getElementById('task-description')?.focus();
+                }}
+                className="text-foreground placeholder:text-muted-foreground hover:bg-muted/50 focus:bg-muted/50 -mx-1 min-w-0 flex-1 rounded-md bg-transparent px-1 text-lg leading-snug font-semibold outline-none disabled:opacity-60"
+              />
+            </Row>
+          </Stack>
         }
         main={
           <>
             {chips}
-            <Input
-              id="task-title"
-              label={t('fields.title')}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={submitting}
-              autoFocus
-              required
-              // Hard-cap at the server limit (validateTitle rejects > TASK_TITLE_MAX)
-              // so an over-long title can't reach the mutation and strand the dialog
-              // behind a generic error toast.
-              maxLength={TASK_TITLE_MAX}
-              onKeyDown={(e) => {
-                // Cmd/Ctrl+Enter submits from the title (fast path) — the
-                // footer's main verb.
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                  e.preventDefault();
-                  void submit({ start: startFirst });
-                }
-              }}
-            />
             <MentionTextarea
               id="task-description"
               organizationId={organizationId}
@@ -1077,6 +1144,18 @@ function CreateTaskBody({
               rows={8}
               value={description}
               onValueChange={setDescription}
+              onKeyDown={(e) => {
+                // Cmd/Ctrl+Enter creates from the description too; a plain
+                // Enter stays a new line.
+                if (
+                  (e.metaKey || e.ctrlKey) &&
+                  e.key === 'Enter' &&
+                  !e.nativeEvent.isComposing
+                ) {
+                  e.preventDefault();
+                  void submit({ start: startFirst });
+                }
+              }}
               errorMessage={descriptionHint}
               counterMax={descriptionCounterMax}
               counterValue={descriptionCounterValue}
@@ -1102,7 +1181,7 @@ function CreateTaskBody({
         }
         panel={
           <>
-            <PropertyField label={t('fields.status')}>
+            <PropertyRow label={t('fields.status')}>
               <StatusPicker
                 status={status}
                 onChange={(next) => {
@@ -1111,16 +1190,16 @@ function CreateTaskBody({
                 }}
                 align="end"
               />
-            </PropertyField>
-            <PropertyField label={t('fields.priority')}>
+            </PropertyRow>
+            <PropertyRow label={t('fields.priority')}>
               <PriorityPicker
                 priority={priority}
                 onChange={setPriority}
                 align="end"
                 showLabel
               />
-            </PropertyField>
-            <PropertyField label={t('fields.assignee')}>
+            </PropertyRow>
+            <PropertyRow label={t('fields.assignee')}>
               <AssigneePicker
                 organizationId={organizationId}
                 projectId={projectId}
@@ -1143,24 +1222,30 @@ function CreateTaskBody({
                 }}
                 onUnassign={() => setAssignee(null)}
               />
-            </PropertyField>
-            <PropertyField label={t('startDate.label')}>
+            </PropertyRow>
+            <PropertyRow label={t('startDate.label')}>
               <DatePicker
                 variant="ghost"
                 className="w-full"
                 value={startDate}
                 onChange={(ms) => setStartDate(ms ?? undefined)}
               />
-            </PropertyField>
-            <PropertyField label={t('dueDate.label')}>
+            </PropertyRow>
+            <PropertyRow label={t('dueDate.label')}>
               <DatePicker
                 variant="ghost"
                 className="w-full"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
               />
-            </PropertyField>
-            <PropertyField label={t('repeat.label')}>
+            </PropertyRow>
+            {scheduleInvalid && (
+              // Named where the dates are, and Create waits until it is fixed.
+              <p role="alert" className="text-destructive text-xs">
+                {t('startDate.afterDue')}
+              </p>
+            )}
+            <PropertyRow label={t('repeat.label')}>
               <TaskRepeatField
                 value={repeat}
                 dueDate={dueDate}
@@ -1171,9 +1256,9 @@ function CreateTaskBody({
                   if (patch.dueDate !== undefined) setDueDate(patch.dueDate);
                 }}
               />
-            </PropertyField>
-            <PanelDivider />
-            <PropertyField
+            </PropertyRow>
+            <PropertyDivider />
+            <PropertyRow
               label={t('fields.labels')}
               stacked
               trailing={
@@ -1195,7 +1280,7 @@ function CreateTaskBody({
                 projectId={projectId}
                 canManage={canEditProject}
               />
-            </PropertyField>
+            </PropertyRow>
             <LabelManageDialog
               open={labelsManageOpen}
               onOpenChange={setLabelsManageOpen}
@@ -1205,17 +1290,38 @@ function CreateTaskBody({
           </>
         }
         footer={
-          <Row gap={2} justify="end" className="flex-wrap">
-            <Button variant="secondary" onClick={onClose} disabled={submitting}>
+          <Row gap={2} align="center" className="flex-wrap">
+            {canCreateAnother && (
+              <Switch
+                checked={createAnother}
+                onCheckedChange={setCreateAnother}
+                label={t('actions.createAnother')}
+                disabled={submitting}
+              />
+            )}
+            {/* The shortcut, for a keyboard; a touch screen has none. */}
+            <Text
+              as="span"
+              variant="muted"
+              className="ml-auto text-xs max-md:hidden pointer-coarse:hidden"
+            >
+              {t('actions.createShortcut', {
+                shortcut: isMac ? '⌘ Enter' : 'Ctrl + Enter',
+              })}
+            </Text>
+            <Button
+              variant="secondary"
+              onClick={onClose}
+              disabled={submitting}
+              className="max-md:ml-auto"
+            >
               {tCommon('actions.cancel')}
             </Button>
             {offerStart && startFirst && (
               <Button
                 variant="secondary"
                 onClick={() => void submit()}
-                disabled={
-                  title.trim().length === 0 || descriptionOverCap || submitting
-                }
+                disabled={!canSubmit || submitting}
               >
                 {t('actions.createOnly')}
               </Button>
@@ -1225,9 +1331,7 @@ function CreateTaskBody({
                 variant="secondary"
                 icon={Play}
                 onClick={() => void submit({ start: true })}
-                disabled={
-                  title.trim().length === 0 || descriptionOverCap || submitting
-                }
+                disabled={!canSubmit || submitting}
               >
                 {t('actions.createAndStart')}
               </Button>
@@ -1235,7 +1339,7 @@ function CreateTaskBody({
             <Button
               {...(startFirst || startsOnCreate ? { icon: Play } : {})}
               onClick={() => void submit({ start: startFirst })}
-              disabled={title.trim().length === 0 || descriptionOverCap}
+              disabled={!canSubmit}
               isLoading={submitting}
             >
               {startFirst || startsOnCreate
@@ -1253,6 +1357,7 @@ function CreateTaskBody({
 
 export function EditTaskBody({
   taskId,
+  active = true,
   organizationId,
   onOpenTask,
   onClose,
@@ -1261,6 +1366,7 @@ export function EditTaskBody({
   pageActions,
 }: {
   taskId: string;
+  active?: boolean;
   /** Page surface: the page's organization, which frames the page while the
    *  task is still on its way. */
   organizationId?: string;
@@ -1287,6 +1393,7 @@ export function EditTaskBody({
     notFound,
     error: readError,
   } = useTask(taskId);
+  usePrefetchTaskReads(taskId);
   // Editors work every task; any other reader of the project works the
   // tasks they created or are assigned to, and the subtasks under them —
   // the server's own rule.
@@ -1317,11 +1424,11 @@ export function EditTaskBody({
   // beside it goes through and leaves.
   const repeatControlId = useId();
   const { data: me } = useCurrentMemberContext(task?.organizationId);
-  const {
-    resolveActor,
-    agents: projectAgents,
-    agentsLoading,
-  } = useActorDirectory(task?.organizationId ?? '', task?.projectId);
+  const actorDirectory = useActorDirectory(
+    task?.organizationId ?? '',
+    task?.projectId,
+  );
+  const { resolveActor, agents: projectAgents, agentsLoading } = actorDirectory;
   // The assigned agent still exists in the project — Start/Retry are for a
   // run that can happen. While the list loads, assume it does (no flicker).
   const assigneeLive =
@@ -1332,6 +1439,8 @@ export function EditTaskBody({
   const { formatNumber } = useFormatNumber();
 
   const updateTask = useUpdateTask({ errorToast: false });
+  const backendClient = useBackendClient();
+  const attachmentQueueRef = useRef(Promise.resolve());
   const updateStatus = useUpdateTaskStatus();
   // Status verbs on an automation-owned task route through the owning
   // workflow's choreography; a plain task keeps the bare write. Cancelling a
@@ -1379,13 +1488,11 @@ export function EditTaskBody({
       ? null
       : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
-  const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useFileUpload({
     organizationId: task?.organizationId ?? '',
     allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
   });
 
-  const [subtaskTitle, setSubtaskTitle] = useState('');
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const pasteCounterRef = useRef(1);
@@ -1457,8 +1564,8 @@ export function EditTaskBody({
         );
       }
       // The dialog's own shape while the task is on its way — its key, its
-      // title, the brief and the details, masked where each will land —
-      // instead of an empty panel.
+      // title, the brief, the composer and the details, masked where each
+      // will land — instead of an empty panel.
       return (
         <Skeletonize loading className="flex min-h-0 flex-1 flex-col">
           <ModalLayout
@@ -1479,11 +1586,15 @@ export function EditTaskBody({
                 </div>
               </Stack>
             }
-            main={
-              <div className="text-sm leading-6">
-                <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
-              </div>
-            }
+            thread={{
+              brief: (
+                <div className="text-sm leading-6">
+                  <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
+                </div>
+              ),
+              conversation: null,
+              composer: <TaskCommentComposerSkeleton />,
+            }}
             panel={<TaskDetailsSkeleton showProject={showProjectLink} />}
           />
         </Skeletonize>
@@ -1588,47 +1699,43 @@ export function EditTaskBody({
   const { done: subtasksDone, total: subtasksTotal } =
     subtaskProgress(subtasks);
 
-  const addSubtask = async () => {
-    const subTitle = subtaskTitle.trim();
-    if (!subTitle || createTask.isPending) return;
-    try {
-      await createTask.mutateAsync({
-        organizationId: task.organizationId,
-        projectId: task.projectId,
-        title: subTitle,
-        status: 'todo',
-        parentTaskId: task._id,
-      });
-      setSubtaskTitle('');
-    } catch (error) {
-      onMutationError(error);
-    }
+  const enqueueAttachmentChange = (change: () => Promise<void>) => {
+    const pending = attachmentQueueRef.current.then(change);
+    attachmentQueueRef.current = pending.catch(onMutationError);
+    return attachmentQueueRef.current;
   };
-
-  // Upload then persist atomically: uploadFiles awaits every upload, then
-  // clearAttachments() returns + resets them, so we fold the new files into the
-  // task's existing set in a single updateTask (full-replace, like labels).
-  const onUploadAttachments = async (files: File[]) => {
-    await uploadFiles(files);
-    const added = clearAttachments();
-    if (added.length === 0) return;
-    await updateTask
-      .mutateAsync({
-        taskId: task._id,
-        attachments: stripPreviews([...(task.attachments ?? []), ...added]),
-      })
-      .catch(onMutationError);
+  const savedAttachments = async () => {
+    const latest = await backendClient.query('tasks/queries:getTask', {
+      organizationId: task.organizationId,
+      taskId: task._id,
+    });
+    if (latest === null) throw new Error(tCommon('errors.generic'));
+    return latest.task.attachments ?? [];
   };
-  const onRemoveAttachment = (fileId: string) => {
-    void updateTask
-      .mutateAsync({
+  const onUploadAttachments = (files: File[]) =>
+    uploadFiles(files)
+      .catch(onMutationError)
+      .then(() =>
+        enqueueAttachmentChange(async () => {
+          const added = clearAttachments();
+          if (added.length === 0) return;
+          const current = await savedAttachments();
+          await updateTask.mutateAsync({
+            taskId: task._id,
+            attachments: stripPreviews([...current, ...added]),
+          });
+        }),
+      );
+  const onRemoveAttachment = (fileId: string) =>
+    enqueueAttachmentChange(async () => {
+      const current = await savedAttachments();
+      await updateTask.mutateAsync({
         taskId: task._id,
         attachments: stripPreviews(
-          (task.attachments ?? []).filter((a) => a.fileId !== fileId),
+          current.filter((entry) => entry.fileId !== fileId),
         ),
-      })
-      .catch(onMutationError);
-  };
+      });
+    });
   // A paste anywhere in the dialog carrying image bytes attaches it — same
   // rule as the chat composer (images win over the text/alt fallback). Kept
   // off folder-bound automation tasks, whose input door is the folder zone.
@@ -1647,7 +1754,7 @@ export function EditTaskBody({
 
   const labelsField = (
     <>
-      <PropertyField
+      <PropertyRow
         label={t('fields.labels')}
         stacked
         trailing={
@@ -1674,7 +1781,7 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
+      </PropertyRow>
       <LabelManageDialog
         open={labelsManageOpen}
         onOpenChange={setLabelsManageOpen}
@@ -1686,7 +1793,7 @@ export function EditTaskBody({
 
   const repeatField =
     repeatState.kind === 'hidden' ? null : (
-      <PropertyField label={t('repeat.label')}>
+      <PropertyRow label={t('repeat.label')}>
         <TaskRepeatField
           id={repeatControlId}
           value={task.repeat ?? null}
@@ -1715,7 +1822,7 @@ export function EditTaskBody({
             )}
           </div>
         )}
-      </PropertyField>
+      </PropertyRow>
     );
 
   const dependenciesField = (
@@ -1727,6 +1834,10 @@ export function EditTaskBody({
     />
   );
 
+  // A description mirrored from an issue tracker keeps that tracker's
+  // `@names`, which are not Tale's people.
+  const descriptionPlainMentions =
+    descriptionMentionMode(task.externalSystem) === 'full';
   const descriptionSection = (
     <section className="flex flex-col gap-1.5">
       {/* Empty + editable collapses to its own trigger: the heading and a
@@ -1742,6 +1853,7 @@ export function EditTaskBody({
           value={task.description ?? ''}
           label={t('fields.description')}
           placeholder={t('detail.addDescription')}
+          plainMentions={descriptionPlainMentions}
           onSave={(description) =>
             updateTask
               .mutateAsync({
@@ -1766,6 +1878,7 @@ export function EditTaskBody({
               body={task.description}
               organizationId={task.organizationId}
               projectId={task.projectId}
+              plainMentions={descriptionPlainMentions}
             />
           ) : (
             <Text as="p" variant="muted">
@@ -1777,8 +1890,14 @@ export function EditTaskBody({
     </section>
   );
 
+  // The page's identity in the dialog's own header: the status as a glyph
+  // tile, the title, and one quiet line of context — project, key, status —
+  // so the dialog and the page read as the same task. The dialog's action
+  // cluster (Copy link, Open as page, Close) floats at the top-right; the
+  // header leaves it room from `md` up (the phone's drawer gives the cluster
+  // a band of its own).
   const headerNode = (
-    <Stack gap={2}>
+    <Stack gap={2} className="md:pr-28">
       {task.parentTaskId && (
         <TaskParentLink
           parentTaskId={task.parentTaskId}
@@ -1786,39 +1905,48 @@ export function EditTaskBody({
           onOpenTask={onOpenTask}
         />
       )}
-      {identifier && (
-        <Text
-          as="span"
-          variant="muted"
-          className="font-mono text-xs tracking-wide"
-        >
-          {identifier}
-        </Text>
-      )}
-      {isArchived && <TaskArchivedBadge />}
-      {surface === 'dialog' ? (
-        <ResponsiveDialogTitle className="sr-only">
-          {task.title}
-        </ResponsiveDialogTitle>
-      ) : (
-        <h1 className="sr-only">{task.title}</h1>
-      )}
-      {canMutate ? (
-        <EditableTitle
-          key={task._id}
-          value={task.title}
-          ariaLabel={t('fields.title')}
-          onSave={(title) =>
-            void updateTask
-              .mutateAsync({ taskId: task._id, title })
-              .catch(onMutationError)
-          }
-        />
-      ) : (
-        <h2 className="text-foreground text-lg leading-snug font-semibold">
-          {task.title}
-        </h2>
-      )}
+      <Row gap={3} align="start">
+        <span className="bg-muted mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg">
+          <TaskStatusGlyph status={task.status} />
+        </span>
+        <Stack gap={1} className="min-w-0 flex-1">
+          {surface === 'dialog' ? (
+            <ResponsiveDialogTitle className="sr-only">
+              {task.title}
+            </ResponsiveDialogTitle>
+          ) : (
+            <h1 className="sr-only">{task.title}</h1>
+          )}
+          {canMutate ? (
+            <EditableTitle
+              key={task._id}
+              active={active}
+              value={task.title}
+              ariaLabel={t('fields.title')}
+              onSave={(title) =>
+                void updateTask
+                  .mutateAsync({ taskId: task._id, title })
+                  .catch(onMutationError)
+              }
+            />
+          ) : (
+            <h2 className="text-foreground text-lg leading-snug font-semibold">
+              {task.title}
+            </h2>
+          )}
+          <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+            <TaskMetaLine
+              {...(project !== null && project !== undefined
+                ? { projectName: project.name }
+                : {})}
+              {...(identifier ? { identifier } : {})}
+              onCopyKey={copyIdentifier}
+              status={task.status}
+              isArchived={isArchived}
+            />
+          </div>
+        </Stack>
+      </Row>
     </Stack>
   );
 
@@ -1853,6 +1981,12 @@ export function EditTaskBody({
         externalId={task.externalId}
         externalUrl={task.externalUrl}
         externalIssue={task.externalIssue}
+      />
+      <TaskExternalStatusCard
+        organizationId={task.organizationId}
+        taskId={task._id}
+        externalSystem={task.externalSystem}
+        canWork={canWork && project?.archivedAt == null}
       />
       {ownedBy === null && descriptionSection}
 
@@ -1991,61 +2125,41 @@ export function EditTaskBody({
           </ul>
         )}
         {canMutate && (
-          <Row gap={2}>
-            {/* A one-line field, like the button beside it: a subtask is a
-                title, and the one-row textarea it used to be stood a few
-                pixels taller than the button and showed a resize grip. */}
-            <Input
-              id="new-subtask"
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  if (!createTask.isPending) void addSubtask();
-                }
-              }}
-              placeholder={t('detail.addSubtask')}
-              aria-label={t('detail.addSubtask')}
-              wrapperClassName="min-w-0 flex-1"
-            />
-            <Button
-              icon={Plus}
-              variant="secondary"
-              disabled={
-                subtaskTitle.trim().length === 0 || createTask.isPending
-              }
-              isLoading={createTask.isPending}
-              onClick={() => void addSubtask()}
-            >
-              {t('actions.add')}
-            </Button>
-          </Row>
+          <SubtaskComposer
+            organizationId={task.organizationId}
+            projectId={task.projectId}
+            parentTaskId={task._id}
+            onError={onMutationError}
+          />
         )}
       </Stack>
     </>
   );
 
-  const discussionNode = (
-    <>
-      <TaskComments
-        taskId={task._id}
-        organizationId={task.organizationId}
-        projectId={task.projectId}
-        canComment={canComment}
-        canWork={canWork}
-        currentUserId={me?.userId}
-        isAdmin={me?.isAdmin}
-        commentCount={task.commentCount}
-      />
-
-      <TaskTimeline
-        taskId={task._id}
-        organizationId={task.organizationId}
-        projectId={task.projectId}
-      />
-    </>
+  // The discussion as the task page reads it: one conversation, oldest first,
+  // with the composer at its foot.
+  const conversationNode = (
+    <TaskConversation
+      taskId={task._id}
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+      canComment={canComment}
+      canWork={canWork}
+      {...(me?.userId !== undefined ? { currentUserId: me.userId } : {})}
+      {...(me?.isAdmin !== undefined ? { isAdmin: me.isAdmin } : {})}
+    />
   );
+
+  const composerNode = canComment ? (
+    <TaskCommentComposer
+      taskId={task._id}
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+      {...(task.assigneeType === 'agent' && task.assigneeId
+        ? { hint: t('actions.commentAgentHint') }
+        : {})}
+    />
+  ) : null;
 
   const panelNode = (
     <>
@@ -2077,7 +2191,7 @@ export function EditTaskBody({
         </Row>
       )}
       {showProjectLink && project !== null && (
-        <PropertyField label={t('fields.project')}>
+        <PropertyRow label={t('fields.project')}>
           <Link
             to="/dashboard/$id/projects/$projectId/tasks/board"
             params={{
@@ -2094,9 +2208,9 @@ export function EditTaskBody({
           >
             {project.name}
           </Link>
-        </PropertyField>
+        </PropertyRow>
       )}
-      <PropertyField label={t('fields.status')}>
+      <PropertyRow label={t('fields.status')}>
         <StatusPicker
           status={task.status}
           disabled={!canMutate}
@@ -2128,8 +2242,8 @@ export function EditTaskBody({
             })()
           }
         />
-      </PropertyField>
-      <PropertyField label={t('fields.priority')}>
+      </PropertyRow>
+      <PropertyRow label={t('fields.priority')}>
         <PriorityPicker
           priority={task.priority ?? null}
           disabled={!canMutate}
@@ -2141,8 +2255,8 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
-      <PropertyField label={t('fields.assignee')}>
+      </PropertyRow>
+      <PropertyRow label={t('fields.assignee')}>
         <AssigneePicker
           organizationId={task.organizationId}
           projectId={task.projectId}
@@ -2175,11 +2289,11 @@ export function EditTaskBody({
           }
           onUnassign={() => assignTask.mutate({ taskId: task._id })}
         />
-      </PropertyField>
+      </PropertyRow>
       {/* The agent lane's status + verbs live WITH the assignee — the
                 run is Alice's state, not a second card in the task body. */}
       {task.assigneeType === 'agent' && task.assigneeId && (
-        <PropertyField label={t('agentRun.label')}>
+        <PropertyRow label={t('agentRun.label')}>
           <TaskAgentRunEntry
             organizationId={task.organizationId}
             taskId={task._id}
@@ -2190,26 +2304,27 @@ export function EditTaskBody({
             }
             assigneeLive={assigneeLive}
           />
-        </PropertyField>
+        </PropertyRow>
       )}
+      <TaskAgentCostField taskId={task._id} />
       {/* The automation lane's twin: the latest subject-linked run's
                 state and its step timeline, kept after the run finished so
                 the result can still be audited from the task. Absent until a
                 run exists — the subject panel's Start is the way in. */}
       {ownedBy !== null && latestRun !== null && (
-        <PropertyField label={t('run.label')}>
+        <PropertyRow label={t('run.label')}>
           <TaskAutomationRunEntry
             organizationId={task.organizationId}
             projectId={task.projectId}
             run={latestRun}
             name={ownedBy.displayName}
           />
-        </PropertyField>
+        </PropertyRow>
       )}
-      <PropertyField label={t('fields.reviewer')}>
+      <PropertyRow label={t('fields.reviewer')}>
         <TaskReviewerField task={task} canEdit={canEditProject} />
-      </PropertyField>
-      <PropertyField label={t('startDate.label')}>
+      </PropertyRow>
+      <PropertyRow label={t('startDate.label')}>
         <DatePicker
           variant="ghost"
           className="w-full"
@@ -2221,8 +2336,8 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
-      <PropertyField label={t('dueDate.label')}>
+      </PropertyRow>
+      <PropertyRow label={t('dueDate.label')}>
         <DatePicker
           variant="ghost"
           className="w-full"
@@ -2234,12 +2349,12 @@ export function EditTaskBody({
               .catch(onMutationError)
           }
         />
-      </PropertyField>
+      </PropertyRow>
       {/* An automation's task keeps its Repeat row in the fold below: it
           only says why the task does not repeat. */}
       {ownedBy === null && repeatField}
 
-      <PanelDivider />
+      <PropertyDivider />
       {/* Labels and dependencies are the BOARD's vocabulary. On an
                 automation-owned task they are noise around the two properties
                 that matter there (who owns it, where it stands), so they fold
@@ -2260,13 +2375,13 @@ export function EditTaskBody({
       ) : (
         <>
           {labelsField}
-          <PanelDivider />
+          <PropertyDivider />
           {dependenciesField}
         </>
       )}
 
-      <PanelDivider />
-      <PropertyField label={t('fields.author')}>
+      <PropertyDivider />
+      <PropertyRow label={t('fields.author')}>
         <div className="flex min-h-7 min-w-0 items-center gap-1.5">
           <AssigneeAvatar
             assigneeType={task.createdByType}
@@ -2277,20 +2392,20 @@ export function EditTaskBody({
             {author.name}
           </span>
         </div>
-      </PropertyField>
-      <PropertyField label={t('fields.created')}>
+      </PropertyRow>
+      <PropertyRow label={t('fields.created')}>
         <span className="text-foreground block text-sm leading-7">
           {formatDate(new Date(task.createdAt), 'medium')}
         </span>
-      </PropertyField>
+      </PropertyRow>
       {/* Closes this section: who made the task, when — and whether the
                 viewer hears about it. Watching needs read access only, so it
                 sits outside the work gate that follows. */}
       <TaskWatchControl taskId={task._id} />
       {canWork && (
         <>
-          <PanelDivider />
-          {/* shrink-0, like every PropertyField row: the panel is a
+          <PropertyDivider />
+          {/* shrink-0, like every PropertyRow: the panel is a
                     height-constrained flex column, and a flex item's automatic
                     minimum size only protects text — a fixed-height control
                     compresses to its one-line min-content, which rendered this
@@ -2326,18 +2441,21 @@ export function EditTaskBody({
   );
 
   return (
-    <>
+    <ActorDirectoryProvider
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+      directory={actorDirectory}
+    >
       {/* display:contents — a paste-event catcher, never a layout box. */}
       <div className="contents" onPaste={onPasteImages}>
         {surface === 'dialog' ? (
           <ModalLayout
             header={headerNode}
-            main={
-              <>
-                {briefNode}
-                {discussionNode}
-              </>
-            }
+            thread={{
+              brief: briefNode,
+              conversation: conversationNode,
+              composer: composerNode,
+            }}
             panel={panelNode}
           />
         ) : (
@@ -2354,6 +2472,7 @@ export function EditTaskBody({
                 {canMutate ? (
                   <EditableTitle
                     key={task._id}
+                    active={active}
                     value={task.title}
                     ariaLabel={t('fields.title')}
                     size="compact"
@@ -2369,74 +2488,21 @@ export function EditTaskBody({
               </>
             }
             meta={
-              <>
-                {/* In a narrow header — a phone, or a tablet's column beside
-                    the rail and the panel — the key and the status are what
-                    fit beside the actions; the project name steps aside. */}
-                {project !== null && project !== undefined && (
-                  <span className="hidden min-w-0 truncate @xl/thread-header:inline">
-                    {project.name}
-                  </span>
-                )}
-                {identifier && (
-                  <>
-                    {project !== null && project !== undefined && (
-                      <span className="hidden @xl/thread-header:contents">
-                        <ThreadHeaderSeparator />
-                      </span>
-                    )}
-                    {/* The key is what people quote in a message or a
-                        commit — one click copies it. */}
-                    <Tooltip
-                      content={t('detail.copyKey', { key: identifier })}
-                      side="bottom"
-                    >
-                      <button
-                        type="button"
-                        onClick={copyIdentifier}
-                        aria-label={t('detail.copyKey', { key: identifier })}
-                        className="hover:text-foreground focus-visible:ring-ring -mx-0.5 shrink-0 cursor-copy rounded px-0.5 font-mono text-[11px] tracking-tight transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                      >
-                        {identifier}
-                      </button>
-                    </Tooltip>
-                  </>
-                )}
-                <ThreadHeaderSeparator />
-                <span className="shrink-0">{t(`status.${task.status}`)}</span>
-                {isArchived && (
-                  <>
-                    <ThreadHeaderSeparator />
-                    <TaskArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
-                  </>
-                )}
-              </>
+              <TaskMetaLine
+                projectVisibility="wide"
+                {...(project !== null && project !== undefined
+                  ? { projectName: project.name }
+                  : {})}
+                {...(identifier ? { identifier } : {})}
+                onCopyKey={copyIdentifier}
+                status={task.status}
+                isArchived={isArchived}
+              />
             }
             actions={pageActions}
             brief={briefNode}
-            conversation={
-              <TaskConversation
-                taskId={task._id}
-                organizationId={task.organizationId}
-                projectId={task.projectId}
-                canComment={canComment}
-                canWork={canWork}
-                {...(me?.userId !== undefined
-                  ? { currentUserId: me.userId }
-                  : {})}
-                {...(me?.isAdmin !== undefined ? { isAdmin: me.isAdmin } : {})}
-              />
-            }
-            composer={
-              canComment ? (
-                <TaskCommentComposer
-                  taskId={task._id}
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  variant="chat"
-                />
-              ) : null
-            }
+            conversation={conversationNode}
+            composer={composerNode}
             panel={panelNode}
           />
         )}
@@ -2468,7 +2534,77 @@ export function EditTaskBody({
         />
       )}
       {cancelConfirmDialog}
-    </>
+    </ActorDirectoryProvider>
+  );
+}
+
+/**
+ * The subtask field under a task's subtasks: its own draft, so typing a title
+ * re-renders this row and not the task around it (the comments, the
+ * timeline, the description).
+ */
+function SubtaskComposer({
+  organizationId,
+  projectId,
+  parentTaskId,
+  onError,
+}: {
+  organizationId: string;
+  projectId: string;
+  parentTaskId: string;
+  onError: (error: unknown) => void;
+}) {
+  const { t } = useT('tasks');
+  const createTask = useCreateTask();
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+
+  const addSubtask = async () => {
+    const subTitle = subtaskTitle.trim();
+    if (!subTitle || createTask.isPending) return;
+    try {
+      await createTask.mutateAsync({
+        organizationId,
+        projectId,
+        title: subTitle,
+        status: 'todo',
+        priority: DEFAULT_NEW_TASK_PRIORITY,
+        parentTaskId,
+      });
+      setSubtaskTitle('');
+    } catch (error) {
+      onError(error);
+    }
+  };
+
+  return (
+    <Row gap={2}>
+      {/* A one-line field, like the button beside it: a subtask is a
+          title, and the one-row textarea it used to be stood a few
+          pixels taller than the button and showed a resize grip. */}
+      <Input
+        id="new-subtask"
+        value={subtaskTitle}
+        onChange={(e) => setSubtaskTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            if (!createTask.isPending) void addSubtask();
+          }
+        }}
+        placeholder={t('detail.addSubtask')}
+        aria-label={t('detail.addSubtask')}
+        wrapperClassName="min-w-0 flex-1"
+      />
+      <Button
+        icon={Plus}
+        variant="secondary"
+        disabled={subtaskTitle.trim().length === 0 || createTask.isPending}
+        isLoading={createTask.isPending}
+        onClick={() => void addSubtask()}
+      >
+        {t('actions.add')}
+      </Button>
+    </Row>
   );
 }
 
@@ -2477,17 +2613,21 @@ export function EditTaskBody({
 /** Inline-editable single-line title; commits on blur / Enter, reverts on Escape. */
 function EditableTitle({
   value,
+  active,
   ariaLabel,
   onSave,
   size = 'default',
 }: {
   value: string;
+  active: boolean;
   ariaLabel: string;
   onSave: (value: string) => void;
   /** `compact` fits the thread header's title line. */
   size?: 'default' | 'compact';
 }) {
   const [draft, setDraft] = useState(value);
+  const settledRef = useRef(false);
+  const { isComposing, compositionProps } = useImeComposition(active);
   useEffect(() => setDraft(value), [value]);
 
   const commit = () => {
@@ -2499,16 +2639,28 @@ function EditableTitle({
   return (
     <input
       value={draft}
+      {...compositionProps}
       aria-label={ariaLabel}
       // The create form's cap: a longer title is refused by the server.
       maxLength={TASK_TITLE_MAX}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+      onFocus={() => {
+        settledRef.current = false;
+      }}
+      onBlur={() => {
+        compositionProps.onBlur();
+        if (settledRef.current) return;
+        settledRef.current = true;
+        commit();
+      }}
       onKeyDown={(e) => {
+        if (isComposing(e.nativeEvent)) return;
         if (e.key === 'Enter') {
           e.preventDefault();
           e.currentTarget.blur();
         } else if (e.key === 'Escape') {
+          // Blur fires synchronously, before the draft reset reaches onBlur.
+          settledRef.current = true;
           setDraft(value);
           e.currentTarget.blur();
         }

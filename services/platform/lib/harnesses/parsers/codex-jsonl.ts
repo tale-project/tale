@@ -16,10 +16,13 @@
 //   { type: "turn.failed", error: { message } }
 //   { type: "error", message }   // includes TRANSIENT stream reconnects
 
+import { z } from 'zod';
+
 import {
   asNumber,
   asString,
   isRecord,
+  BoundedIdLedger,
   LineReassembler,
   parseJsonLine,
 } from '../jsonl';
@@ -76,15 +79,43 @@ function toolOutput(item: Record<string, unknown>): unknown {
   return undefined;
 }
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  started: z.boolean(),
+  sessionId: z.string().optional(),
+  finalText: z.string().optional(),
+  toolStarted: z.array(z.string()),
+});
+
 class CodexJsonlParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
   private started = false;
   private sessionId: string | undefined;
   private finalText: string | undefined;
   /** Item ids whose `tool-use` has been emitted (item.started dedup). */
-  private readonly toolStarted = new Set<string>();
+  private readonly toolStarted = new BoundedIdLedger();
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      started: this.started,
+      sessionId: this.sessionId,
+      finalText: this.finalText,
+      toolStarted: [...this.toolStarted],
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.started = state.started;
+    this.sessionId = state.sessionId;
+    this.finalText = state.finalText;
+    this.toolStarted.clear();
+    for (const item of state.toolStarted) this.toolStarted.add(item);
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));
@@ -232,6 +263,9 @@ class CodexJsonlParser implements HarnessEventParser {
       if (failure.apiErrorStatus !== undefined) {
         result.apiErrorStatus = failure.apiErrorStatus;
       }
+      if (failure.providerErrorKind !== undefined) {
+        result.providerErrorKind = failure.providerErrorKind;
+      }
       events.push(result);
       return events;
     }
@@ -261,9 +295,18 @@ class CodexJsonlParser implements HarnessEventParser {
 export function describeTurnFailure(message: string | undefined): {
   message: string;
   apiErrorStatus?: number;
+  providerErrorKind?: 'model_capacity';
 } {
   const text = message?.trim() ?? '';
   if (text === '') return { message: 'Codex turn failed' };
+  // Pinned Codex 0.160.0: protocol/src/error.rs renders ServerOverloaded
+  // with this exact sentence. exec's ThreadErrorEvent exports only message,
+  // dropping codex_error_info; ServerOverloaded has no internal retry delay.
+  // Match its terminal channel only, not assistant/tool text or an invented
+  // HTTP 429. Unknown variants remain ordinary errors.
+  if (text === 'Selected model is at capacity. Please try a different model.') {
+    return { message: text, providerErrorKind: 'model_capacity' };
+  }
   // Vendor errors do not carry the gateway's status_code envelope. Pinned
   // Codex 0.142.5 prints ordinary HTTP failures as `unexpected status NNN`;
   // a ChatGPT usage_limit_reached 429 instead becomes this exact prose prefix.

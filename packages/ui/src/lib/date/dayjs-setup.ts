@@ -66,6 +66,18 @@ const loadedLocales = new Set<string>(['en']);
 const pendingLoads = new Map<string, Promise<void>>();
 
 /**
+ * Whether formatting in `locale` needs nothing more: its dayjs data is
+ * registered, or there is none to load (it formats with the default). The
+ * synchronous twin of {@link loadDayjsLocale}'s early answers.
+ */
+export function isDayjsLocaleReady(locale: string): boolean {
+  const key = locale.toLowerCase().replace(/_/g, '-');
+  if (loadedLocales.has(key)) return true;
+  const base = key.split('-')[0];
+  return (LOCALE_IMPORTS[key] ?? LOCALE_IMPORTS[base]) === undefined;
+}
+
+/**
  * Dynamically load a dayjs locale. Returns a promise that resolves once the
  * locale is registered with dayjs. Repeated calls for the same locale are
  * de-duplicated.

@@ -286,7 +286,7 @@ describe('fetchDocumentByFileId — access scope', () => {
     });
   });
 
-  it('never loads an emailed attachment for a door that did not ask for mail', async () => {
+  it('never loads an emailed attachment for a door that did not ask for mail [KNOW-R5]', async () => {
     // The MCP door and a user-keyed sandbox session carry the member's
     // conversation scope; neither wraps mail, so the attachment is the same
     // miss as nothing there — its text never read, no re-check paid for.
@@ -313,7 +313,7 @@ describe('fetchDocumentByFileId — access scope', () => {
     expect(validateLiveFile).not.toHaveBeenCalled();
   });
 
-  it('never loads an email body for a door that did not ask for one', async () => {
+  it('never loads an email body for a door that did not ask for one [KNOW-R5]', async () => {
     // The sandbox bridge, the MCP door and the org-wide callers read the
     // same corpus but never wrap mail as untrusted, so a `msg:` ref is the
     // same miss as nothing there — without a corpus read or a re-check.
@@ -379,7 +379,7 @@ describe('fetchDocumentByFileId — access scope', () => {
     expect(doc?.text).toBe('SCOPED BODY');
   });
 
-  it('denies a multi-team row to a member of NONE of its teams', async () => {
+  it('denies a multi-team row to a member of NONE of its teams [KNOW-R3]', async () => {
     corpusWith({
       team_ids: ['team-OTHER', 'team-THIRD'],
       team_id: 'team-OTHER',
@@ -411,7 +411,7 @@ describe('fetchDocumentByFileId — access scope', () => {
     expect(doc?.text).toBe('SCOPED BODY');
   });
 
-  it('denies an out-of-scope row BEFORE the chunk read — the same null as a missing document', async () => {
+  it('denies an out-of-scope row BEFORE the chunk read — the same null as a missing document [KNOW-R3]', async () => {
     corpusWith({ team_id: 'team-OTHER', project_id: null });
     const denied = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
     // Only the document statement ran: denied content is never even loaded.
@@ -425,7 +425,7 @@ describe('fetchDocumentByFileId — access scope', () => {
     expect(denied).toEqual(missing);
   });
 
-  it('denies an out-of-scope project row the same way', async () => {
+  it('denies an out-of-scope project row the same way [KNOW-R3]', async () => {
     corpusWith({ team_id: null, project_id: 'proj-OTHER' });
     expect(await fetchDocumentByFileId('acme', 'file_9', SCOPED)).toBeNull();
     expect(unsafe).toHaveBeenCalledTimes(1);
@@ -447,7 +447,7 @@ describe('fetchDocumentByFileId — access scope', () => {
 });
 
 describe('fetchWebPageByUrl', () => {
-  it('loads a crawled page through the membership join', async () => {
+  it('loads a crawled page through the membership join [KNOW-R1]', async () => {
     const crawled = new Date('2026-03-04T05:06:07Z');
     unsafe.mockResolvedValue([
       {

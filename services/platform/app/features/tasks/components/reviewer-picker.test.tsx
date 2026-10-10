@@ -53,21 +53,31 @@ const agents: AssignableActor[] = [
 ];
 let scopeReady = true;
 let agentsLoading = false;
+/** Renders that read the candidate lists (project access, roster). */
+let candidateReads = 0;
+const resolveActor = (type: string, id: string) => ({
+  type,
+  id,
+  name: [...members, ...agents].find((actor) => actor.id === id)?.name ?? id,
+  isAgent: type === 'agent',
+});
 vi.mock('../hooks/use-actor-directory', () => ({
-  useAssignableActors: () => ({
-    assignableMembers: members,
-    assignableAgents: agents,
-    scopeReady,
-    agentsLoading,
-    currentUserId: 'user-2',
-    resolveActor: (type: string, id: string) => ({
-      type,
-      id,
-      name:
-        [...members, ...agents].find((actor) => actor.id === id)?.name ?? id,
-      isAgent: type === 'agent',
-    }),
-  }),
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
+  // The closed picker names its reviewer from the directory alone.
+  useActorDirectory: () => ({ resolveActor, currentUserId: 'user-2' }),
+  useAssignableActors: () => {
+    candidateReads += 1;
+    return {
+      subjectEntries: [],
+      assignableMembers: members,
+      assignableAgents: agents,
+      scopeReady,
+      agentsLoading,
+      currentUserId: 'user-2',
+      resolveActor,
+    };
+  },
 }));
 const inherited: TaskReviewer = { kind: 'inherit' };
 const humanDefault: ProjectTaskReviewer = { kind: 'human_default' };
@@ -83,6 +93,30 @@ describe('ReviewerPicker', () => {
     vi.clearAllMocks();
     scopeReady = true;
     agentsLoading = false;
+    candidateReads = 0;
+  });
+
+  // A task's dialog carries a reviewer picker that is usually never opened:
+  // its candidate reads and its list wait for its first use.
+  it('reads no candidates until its first use, then opens with them', async () => {
+    const onOpenChange = vi.fn();
+    const { user } = render(
+      <ReviewerPicker
+        {...base}
+        onChange={vi.fn()}
+        onOpenChange={onOpenChange}
+      />,
+    );
+    expect(candidateReads).toBe(0);
+    expect(screen.queryByRole('option')).toBeNull();
+
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+    );
+    expect(candidateReads).toBeGreaterThan(0);
+    expect(screen.getByRole('option', { name: /Alex/ })).toBeInTheDocument();
+    // The list mounts open; the caller still hears that it opened.
+    expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 
   it('offers scoped editors and agents, with a separate inherited choice', async () => {

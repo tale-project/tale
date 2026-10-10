@@ -88,7 +88,7 @@ La politique de l’organisation se trouve dans `TALE_CONFIG_DIR/<org>/governanc
 enabled: true
 ```
 
-Fixe le harness, le modèle ou les deux, et remplace les instructions intégrées :
+Fixe l’environnement d’agent, le modèle ou les deux, et remplace les instructions intégrées :
 
 ```yaml
 enabled: true
@@ -113,17 +113,17 @@ Les agents de programmation s’appuient aussi sur la fenêtre de contexte que l
 
 Sur un modèle autre que Claude, une session Claude Code gérée omet aussi la ligne d’attribution que Claude Code place sinon au début de chaque prompt système. Cette ligne change à chaque requête : un serveur qui met en cache le début des prompts devrait sinon recalculer toute la conversation à chaque tour.
 
-## Où vivent les connecteurs
+## Où vivent les connectors {#ou-vivent-les-connecteurs}
 
 Les définitions fournies se trouvent dans `configs/platform/system/providers/<slug>/provider.yml` et leurs catalogues statiques dans `configs/platform/system/models/<slug>/models.yml`. Anthropic utilise par exemple `providers/anthropic/provider.yml` et `models/anthropic/models.yml`. Ces fichiers appartiennent à l’image et évoluent avec sa version.
 
 <Warning>
 
-Les fichiers fournis sont des entrées d’image en lecture seule, remplacées lors des mises à niveau. Pour un fournisseur externe, utilise la déclaration vérifiée `configuration` décrite dans [Installation CLI](/fr/self-hosted/install/cli-install#configurer-la-plateforme). Elle crée un connecteur propre à l’organisation sous `TALE_CONFIG_DIR/<org>/providers/` avec le schéma natif ; les modifications d’identifiants et de politiques passent par les API natives. L’entrée **Fournisseur personnalisé** d’**Ajouter des identifiants** dans l’app écrit le même fichier propre à l’organisation et conserve chaque version enregistrée sous `.history/`.
+Les fichiers fournis sont des entrées d’image en lecture seule, remplacées lors des mises à niveau. Pour un fournisseur externe, utilise la déclaration vérifiée `configuration` décrite dans [Installation CLI](/fr/self-hosted/install/cli-install#configurer-la-plateforme). Elle crée un connector propre à l’organisation sous `TALE_CONFIG_DIR/<org>/providers/` avec le schéma natif ; les modifications d’identifiants et de politiques passent par les API natives. L’entrée **Fournisseur personnalisé** d’**Ajouter des identifiants** dans l’app écrit le même fichier propre à l’organisation et conserve chaque version enregistrée sous `.history/`.
 
 </Warning>
 
-## Ce qu’un connecteur déclare
+## Ce qu’un connector déclare {#ce-quun-connecteur-declare}
 
 Une définition décrit le protocole, l’endpoint, le catalogue et les méthodes d’authentification admises. Elle ne contient aucun identifiant d’organisation. Ces deux extraits en montrent le format :
 
@@ -167,7 +167,7 @@ auth:
 | `endpointMode: per-credential` | Utilise un endpoint propre à chaque accès à la place de `baseUrl`, comme Azure OpenAI. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint` ou `none`. Les entrées statiques viennent du catalogue de modèles décrit plus haut. |
 | `embedding` | Indique si le fournisseur sert des embeddings : `supported` quand son catalogue fournit une largeur de vecteurs vérifiée, `unsupported` quand il ne propose aucun modèle d’embedding, si bien que **Paramètres > Résidence des données > Modèle d’embedding** le refuse, ou `unknown`, la valeur par défaut, quand un admin saisit le modèle et sa largeur de vecteurs. Ne déclare `unsupported` que si la documentation du fournisseur lui-même l’indique. |
-| `auth` et `constraints` | Méthodes d’accès admises et conditions d’exécution, par exemple un harness sandbox précis. |
+| `auth` et `constraints` | Méthodes d’accès admises et conditions d’exécution, par exemple un environnement d’agent sandbox précis. |
 
 ## Source de clé par variable d’environnement
 

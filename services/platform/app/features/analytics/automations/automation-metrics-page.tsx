@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Grid } from '@tale/ui/layout';
 import { MetricsLayout } from '@tale/ui/metrics/metrics-layout';
 import {
@@ -10,10 +11,12 @@ import {
 import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { AlertTriangle } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { AutomationSummaryCards } from './automation-summary-cards';
@@ -38,6 +41,8 @@ interface AutomationMetricsPageViewProps {
    *  enclosing `<Skeletonize>` — cards/charts/table stand in at full height). */
   data: AutomationMetricsData;
   isLoading: boolean;
+  readFailure?: ReactNode;
+  unavailable: boolean;
   periodDays: MetricsPeriodDays;
   onPeriod: (value: string) => void;
   onSelectAutomation: (name: string) => void;
@@ -51,6 +56,8 @@ interface AutomationMetricsPageViewProps {
 function AutomationMetricsPageView({
   data,
   isLoading,
+  readFailure,
+  unavailable,
   periodDays,
   onPeriod,
   onSelectAutomation,
@@ -73,49 +80,58 @@ function AutomationMetricsPageView({
         />
       }
       notice={
-        summary?.capped ? (
-          <Alert
-            variant="warning"
-            icon={AlertTriangle}
-            title={t('automations.cappedNotice')}
-          />
+        readFailure || summary?.capped ? (
+          <>
+            {readFailure}
+            {summary?.capped ? (
+              <Alert
+                variant="warning"
+                icon={AlertTriangle}
+                title={t('automations.cappedNotice')}
+              />
+            ) : null}
+          </>
         ) : undefined
       }
     >
-      <AutomationSummaryCards
-        total={summary?.total ?? 0}
-        successRate={summary?.successRate ?? 0}
-        avgDurationSeconds={summary?.avgDurationSeconds ?? 0}
-        failed={summary?.failed ?? 0}
-        previous={data?.previousSummary}
-      />
+      {unavailable ? null : (
+        <>
+          <AutomationSummaryCards
+            total={summary?.total ?? 0}
+            successRate={summary?.successRate ?? 0}
+            avgDurationSeconds={summary?.avgDurationSeconds ?? 0}
+            failed={summary?.failed ?? 0}
+            previous={data?.previousSummary}
+          />
 
-      {/* Trend two-thirds, breakdown one-third once the metrics column is
+          {/* Trend two-thirds, breakdown one-third once the metrics column is
           36rem wide — measured on the column, not the viewport, which also
           holds the rail and the settings panel. */}
-      <div className="@container">
-        <Grid className="@xl:grid-cols-3">
-          <div className="@xl:col-span-2">
-            <RunTrendChart series={series} />
+          <div className="@container">
+            <Grid className="@xl:grid-cols-3">
+              <div className="@xl:col-span-2">
+                <RunTrendChart series={series} />
+              </div>
+              <div>
+                <StatusBreakdown
+                  success={summary?.success ?? 0}
+                  failed={summary?.failed ?? 0}
+                  running={summary?.running ?? 0}
+                  waiting={summary?.waiting ?? 0}
+                  queued={summary?.queued ?? 0}
+                  cancelled={summary?.cancelled ?? 0}
+                />
+              </div>
+            </Grid>
           </div>
-          <div>
-            <StatusBreakdown
-              success={summary?.success ?? 0}
-              failed={summary?.failed ?? 0}
-              running={summary?.running ?? 0}
-              waiting={summary?.waiting ?? 0}
-              queued={summary?.queued ?? 0}
-              cancelled={summary?.cancelled ?? 0}
-            />
-          </div>
-        </Grid>
-      </div>
 
-      <TopAutomationsTable
-        rows={topAutomations}
-        isLoading={isLoading}
-        onSelectAutomation={onSelectAutomation}
-      />
+          <TopAutomationsTable
+            rows={topAutomations}
+            isLoading={isLoading}
+            onSelectAutomation={onSelectAutomation}
+          />
+        </>
+      )}
     </MetricsLayout>
   );
 }
@@ -133,11 +149,26 @@ export function AutomationMetricsPage({
 }: AutomationMetricsPageProps) {
   const { t } = useT('analytics');
 
-  const { data, isLoading } = useBackendQuery(
+  const metrics = useBackendQuery(
     'automations/queries:getOrgAutomationMetrics',
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );
+  const { data, isLoading, refetch } = metrics;
+  const read = readStateOf(metrics);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const focusRegion = useCallback(() => regionRef.current?.focus(), []);
+  const retry = useCallback(() => void refetch(), [refetch]);
+  const failureMessage = [
+    t(
+      read.stale
+        ? 'automations.errors.refreshFailed'
+        : 'automations.errors.loadFailed',
+    ),
+    failureDetail(metrics.error),
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const handlePeriod = useCallback(
     (value: string) => onChangePeriod(parseMetricsPeriodDays(value)),
@@ -145,14 +176,37 @@ export function AutomationMetricsPage({
   );
 
   return (
-    <Skeletonize loading={isLoading} label={t('automations.title')}>
-      <AutomationMetricsPageView
-        data={data}
-        isLoading={isLoading}
-        periodDays={periodDays}
-        onPeriod={handlePeriod}
-        onSelectAutomation={onSelectAutomation}
-      />
-    </Skeletonize>
+    <div
+      ref={regionRef}
+      role="region"
+      aria-label={t('automations.title')}
+      tabIndex={-1}
+      className="outline-none"
+    >
+      <Skeletonize
+        loading={isLoading && !read.unavailable}
+        label={t('automations.title')}
+      >
+        <AutomationMetricsPageView
+          data={data}
+          isLoading={isLoading}
+          readFailure={
+            read.unavailable || read.stale ? (
+              <CatalogLoadError
+                failureKey={read.failureCount}
+                message={failureMessage}
+                onRetry={retry}
+                isRetrying={read.retrying}
+                onFocusLost={focusRegion}
+              />
+            ) : undefined
+          }
+          unavailable={read.unavailable}
+          periodDays={periodDays}
+          onPeriod={handlePeriod}
+          onSelectAutomation={onSelectAutomation}
+        />
+      </Skeletonize>
+    </div>
   );
 }

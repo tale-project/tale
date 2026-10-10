@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { enMessages } from '@/tests/utils/messages';
 import { render, screen } from '@/tests/utils/render';
 
-import enMessages from '../../../../messages/en.yml';
 import { SidebarProvider } from './sidebar-context';
 import { SidebarSearchTrigger } from './sidebar-search-trigger';
 

@@ -1,14 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-import { persistAutomationMemory } from '@/app/features/automations/lib/detail-memory';
-import { persistProjectMemory } from '@/app/features/home/lib/project-memory';
-import { persistKnowledgeTabMemory } from '@/app/features/knowledge/lib/knowledge-tab-memory';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { renderHook } from '@/tests/utils/render';
 
 // The two reads the Home entry's chip depends on: whether the organization
 // has an inbox at all, and the unread count the chip carries.
-const inbox = { hasInbox: true };
+const inbox = {
+  get showInbox() {
+    return this.hasInbox;
+  },
+  hasInbox: true,
+};
 const unread: { data: number | undefined } = { data: undefined };
 const unreadCalls: (string | undefined)[] = [];
 
@@ -52,15 +54,8 @@ vi.mock('@/lib/i18n/client', () => ({
 
 vi.mock('@tale/ui/use-is-mac', () => ({ useIsMac: () => false }));
 
-// The rail resolves a remembered target off the CURRENT location — mutate
-// this between assertions to move "where the user is" without a real router.
-const mockLocation = { pathname: '/dashboard/org-1/chat' };
-
-vi.mock('@tanstack/react-router', () => ({
-  useLocation: () => mockLocation,
-}));
-
-const { useNavigationItems } = await import('./use-navigation-items');
+const { isItemActive, useNavigationItems } =
+  await import('./use-navigation-items');
 
 function items() {
   const { result } = renderHook(() => useNavigationItems('org-1'));
@@ -84,7 +79,6 @@ beforeEach(() => {
   inbox.hasInbox = true;
   unread.data = undefined;
   unreadCalls.length = 0;
-  mockLocation.pathname = '/dashboard/org-1/chat';
   window.localStorage.clear();
 });
 
@@ -97,6 +91,63 @@ describe('the rail', () => {
       'automations',
     ]);
     expect(pinned.map((item) => item.label)).toEqual(['userSettings']);
+  });
+
+  // A tile is a request for the section, never a replay of a place in it —
+  // the same page every time, whatever was open there before. The places an
+  // earlier build remembered are planted in storage, where browsers still
+  // keep them: no tile may read them.
+  it("opens every section's first page", () => {
+    window.localStorage.setItem(
+      'tale.platform.automations.org-1.lastPath',
+      '/dashboard/org-1/automations/billing__dunning/runs',
+    );
+    window.localStorage.setItem(
+      'tale.platform.home.org-1.lastProjectPath',
+      '/dashboard/org-1/projects/proj-1/files',
+    );
+    window.localStorage.setItem(
+      'tale.platform.knowledge.org-1.lastTab',
+      'websites',
+    );
+
+    const { primary, pinned } = items();
+    expect(
+      [...primary, ...pinned].map(({ label, to, params, search }) => ({
+        label,
+        to,
+        params,
+        search,
+      })),
+    ).toEqual([
+      {
+        label: 'home',
+        to: '/dashboard/$id/chat',
+        params: { id: 'org-1' },
+        search: { new: true },
+      },
+      {
+        label: 'knowledge',
+        to: '/dashboard/$id/documents',
+        params: { id: 'org-1' },
+        search: undefined,
+      },
+      {
+        label: 'automations',
+        to: '/dashboard/$id/automations',
+        params: { id: 'org-1' },
+        search: undefined,
+      },
+      {
+        label: 'userSettings',
+        to: '/dashboard/$id/settings',
+        params: { id: 'org-1' },
+        search: undefined,
+      },
+    ]);
+    for (const item of [...primary, ...pinned]) {
+      expect(item, item.label).not.toHaveProperty('state');
+    }
   });
 });
 
@@ -123,6 +174,8 @@ describe('the Home nav entry', () => {
       '/dashboard/org-1/chat/thread-1',
       '/dashboard/org-1/projects',
       '/dashboard/org-1/projects/p-1/tasks/board',
+      // The project's Automations tab is the project's own page.
+      '/dashboard/org-1/projects/p-1/automations',
       '/dashboard/org-1/tasks/t-1',
       '/dashboard/org-1/conversations/open',
     ]) {
@@ -134,13 +187,19 @@ describe('the Home nav entry', () => {
       '/dashboard/org-1/settings/account',
       // A shared-chat snapshot is a standalone reading page.
       '/dashboard/org-1/chat/shared/token-1',
+      // An automation opened inside a project is Automations' page.
+      '/dashboard/org-1/projects/p-1/automations/intake',
+      '/dashboard/org-1/projects/p-1/automations/intake/editor',
+      '/dashboard/org-1/projects/p-1/automations/intake/runs/r-1',
     ]) {
       expect(item?.isActivePath?.(path), path).toBe(false);
     }
   });
 
-  it('starts a fresh chat when clicked while already in Home', () => {
-    expect(homeItem()?.reentrySearch).toEqual({ new: true });
+  it('always opens a fresh chat, never the last one', () => {
+    const item = homeItem();
+    expect(item?.to).toBe('/dashboard/$id/chat');
+    expect(item?.search).toEqual({ new: true });
   });
 
   it('carries the unread inbox count as its badge', () => {
@@ -174,108 +233,48 @@ describe('the Home nav entry', () => {
   });
 });
 
-describe('the Home nav entry — reopening a project', () => {
-  it('resolves to the last project visited, arriving from outside Home', () => {
-    mockLocation.pathname = '/dashboard/org-1/documents';
-    persistProjectMemory('org-1', '/dashboard/org-1/projects/proj-1/files');
-
-    const item = homeItem();
-    expect(item?.to).toBe('/dashboard/org-1/projects/proj-1/files');
-    expect(item?.state).toEqual({ navRestore: true });
-  });
-
-  it('leaves chat as the target while already inside Home', () => {
-    mockLocation.pathname = '/dashboard/org-1/chat';
-    persistProjectMemory('org-1', '/dashboard/org-1/projects/proj-1/files');
-
-    const item = homeItem();
-    expect(item?.to).toBe('/dashboard/$id/chat');
-    expect(item?.state).toBeUndefined();
-  });
-
-  it('falls back to chat when no project was ever visited', () => {
-    mockLocation.pathname = '/dashboard/org-1/documents';
-
-    const item = homeItem();
-    expect(item?.to).toBe('/dashboard/$id/chat');
-    expect(item?.state).toBeUndefined();
-  });
-
-  it('reopens a project automation page for a developer', () => {
-    mockLocation.pathname = '/dashboard/org-1/documents';
-    persistProjectMemory(
-      'org-1',
-      '/dashboard/org-1/projects/proj-1/automations/mail-sync',
-    );
-
-    expect(homeItem()?.to).toBe(
-      '/dashboard/org-1/projects/proj-1/automations/mail-sync',
-    );
-  });
-
-  // Remembered while the viewer was still a Developer: after the role
-  // changed, Home would otherwise keep reopening the access denial.
-  it.each(['editor', 'member'])(
-    'does not reopen a project automation page for the %s role',
-    (role) => {
-      viewer.role = role;
-      mockLocation.pathname = '/dashboard/org-1/documents';
-      persistProjectMemory(
-        'org-1',
-        '/dashboard/org-1/projects/proj-1/automations/mail-sync',
-      );
-
-      const item = homeItem();
-      expect(item?.to).toBe('/dashboard/$id/chat');
-      expect(item?.state).toBeUndefined();
-    },
-  );
-});
-
 describe('the Knowledge nav entry', () => {
-  it('opens Documents by default', () => {
-    expect(knowledgeItem()?.to).toBe('/dashboard/$id/documents');
-  });
-
-  it('reopens the last tab visited, arriving from outside Knowledge', () => {
-    persistKnowledgeTabMemory('org-1', 'websites');
-    expect(knowledgeItem()?.to).toBe('/dashboard/$id/websites');
-  });
-
-  it('stays on Documents while already inside Knowledge', () => {
-    mockLocation.pathname = '/dashboard/org-1/websites';
-    persistKnowledgeTabMemory('org-1', 'products');
-
-    expect(knowledgeItem()?.to).toBe('/dashboard/$id/documents');
+  it('opens Documents and lights up on every Knowledge tab', () => {
+    const item = knowledgeItem();
+    expect(item?.to).toBe('/dashboard/$id/documents');
+    for (const path of [
+      '/dashboard/org-1/documents',
+      '/dashboard/org-1/knowledge-entries',
+      '/dashboard/org-1/websites',
+      '/dashboard/org-1/products',
+      '/dashboard/org-1/contacts',
+    ]) {
+      expect(item && isItemActive(item, path), path).toBe(true);
+    }
+    expect(item && isItemActive(item, '/dashboard/org-1/chat')).toBe(false);
   });
 });
 
 describe('the Automations nav entry', () => {
-  it('opens the list by default', () => {
+  it('opens the list', () => {
     expect(automationsItem()?.to).toBe('/dashboard/$id/automations');
   });
 
-  it('reopens the last automation page visited, arriving from outside Automations', () => {
-    persistAutomationMemory(
-      'org-1',
-      '/dashboard/org-1/automations/billing__dunning/runs',
-    );
-
+  it('lights up on an automation opened inside a project', () => {
     const item = automationsItem();
-    expect(item?.to).toBe('/dashboard/org-1/automations/billing__dunning/runs');
-    expect(item?.state).toEqual({ navRestore: true });
-  });
-
-  it('stays on the list while already inside Automations', () => {
-    mockLocation.pathname =
-      '/dashboard/org-1/automations/billing__dunning/runs';
-    persistAutomationMemory(
-      'org-1',
-      '/dashboard/org-1/automations/billing__dunning/runs',
-    );
-
-    const item = automationsItem();
-    expect(item?.to).toBe('/dashboard/$id/automations');
-    expect(item?.state).toBeUndefined();
+    for (const path of [
+      '/dashboard/org-1/automations',
+      '/dashboard/org-1/automations/intake/runs',
+      '/dashboard/org-1/projects/p-1/automations/intake',
+      '/dashboard/org-1/projects/p-1/automations/intake/editor',
+      '/dashboard/org-1/projects/p-1/automations/intake/runs/r-1',
+    ]) {
+      expect(item && isItemActive(item, path), path).toBe(true);
+    }
+    for (const path of [
+      // The project's own Automations tab stays Home's.
+      '/dashboard/org-1/projects/p-1/automations',
+      '/dashboard/org-1/projects/p-1/tasks/board',
+      '/dashboard/org-1/documents',
+      '/dashboard/org-1/automationsx',
+      '/dashboard/org-2/projects/p-1/automations/intake',
+    ]) {
+      expect(item && isItemActive(item, path), path).toBe(false);
+    }
   });
 });

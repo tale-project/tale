@@ -1,0 +1,84 @@
+email: E-Mail
+phone: Telefon
+creditCard: Kreditkarte
+cvc: Karten-CVC
+iban: IBAN
+ipAddress: IP-Adresse
+macAddress: MAC-Adresse
+jwt: JWT
+ssn: SSN
+dateOfBirth: Geburtsdatum
+address: Adresse
+nationalId: Nationale ID
+de-personalausweis: Personalausweis
+at-passport: Reisepass AT
+fr-nir: Sozialversicherungs-Nr.
+fr-passport: Reisepass FR
+it-codice-fiscale: Steuernummer
+it-passport: Reisepass IT
+nl-bsn: BSN
+nl-passport: Reisepass NL
+es-dni: DNI
+es-nie: NIE
+es-passport: Reisepass ES
+pt-nif: NIF
+br-cpf: CPF
+pt-passport: Reisepass PT
+se-personnummer: Personnummer
+se-passport: Reisepass SE
+pl-pesel: PESEL
+pl-passport: Reisepass PL
+uk-nino: NI-Nummer
+ca-sin: SIN
+ie-pps: PPS-Nummer
+ca-passport: Reisepass CA
+ru-snils: SNILS
+ru-inn-individual: INN
+ru-passport: Reisepass RU
+ua-inn: Steuer-ID
+jp-my-number: My Number
+jp-passport: Reisepass JP
+cn-resident-id: CN-Ausweis
+cn-passport: Reisepass CN
+tw-id: TW-Ausweis
+kr-rrn: KR-RRN
+kr-passport: Reisepass KR
+sa-national-id: SA-Ausweis
+eg-national-id: EG-Ausweis
+il-teudat-zehut: IL-Ausweis
+tr-tckn: TC-Kimlik
+gr-amka: AMKA
+in-aadhaar: Aadhaar
+in-pan: PAN
+in-passport: Reisepass IN
+id-nik: NIK
+th-national-id: TH-Ausweis
+cz-birth-number: Geburtsnummer
+fi-hetu: HETU
+dk-cpr: CPR
+no-fodselsnummer: Geburtsnummer
+ro-cnp: CNP
+ir-national-id: IR-Ausweis
+pk-cnic: CNIC
+lt-personal-code: Personencode
+ch-ahv: AHV-Nummer
+ch-uid: UID
+de-steuer-id: Steuer-ID
+us-passport: Reisepass US
+uk-nhs: NHS-Nummer
+au-tfn: TFN
+au-medicare: Medicare-Nummer
+nz-ird: IRD-Nummer
+za-id: ZA-Ausweis
+hk-hkid: HKID
+sg-nric: NRIC
+fr-siret: SIRET
+be-nrn: BE-NRN
+it-piva: Partita IVA
+se-orgnr: Org.-Nr. SE
+ar-cuil: CUIL/CUIT
+mx-curp: CURP
+mx-rfc: RFC
+cl-rut: RUT
+co-cc: Cédula
+_unknown: Vertraulich

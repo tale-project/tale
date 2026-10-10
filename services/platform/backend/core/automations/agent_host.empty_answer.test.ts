@@ -10,6 +10,10 @@
  * workflow went on as if the agent had deliberately changed nothing. A turn
  * that only called a tool — the question tool included, which parks the run
  * instead — still ends as before.
+ *
+ * The same drive also takes a Gemini turn's staged subscription credential
+ * out of the run's session when the turn settles, and leaves it to a newer
+ * exec the run moved on to.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +27,10 @@ const io = vi.hoisted(() => ({
   /** What the exec printed, replayed into every drain window. */
   stdout: '',
   cancelled: [] as string[],
+  /** What each settle asked the output harvest for. */
+  harvests: [] as Array<Record<string, unknown>>,
+  /** Every path set the session was asked to delete, in order. */
+  deletes: [] as string[][],
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
@@ -32,6 +40,10 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     >();
   return {
     ...actual,
+    // The window closes a Claude turn's held stdin; no spawner answers here.
+    sessionWriteExecStdin: async () => ({ ok: true }),
+    sessionGetExecCheckpoint: async () => null,
+    sessionPutExecCheckpoint: async () => undefined,
     drainSessionExecResilient: async (
       _sessionId: string,
       _body: unknown,
@@ -52,10 +64,20 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
       io.cancelled.push(execId);
       return true;
     },
+    sessionDeleteFiles: async (_sessionId: string, paths: string[]) => {
+      io.deletes.push(paths);
+      return { deleted: paths, skipped: [] };
+    },
   };
 });
 vi.mock('../node_only/sandbox/session_exec', () => ({
-  harvestSessionOutput: async () => ({ files: [], harvestSkipped: [] }),
+  harvestSessionOutput: async (
+    _ctx: unknown,
+    args: Record<string, unknown>,
+  ) => {
+    io.harvests.push(args);
+    return { files: [], harvestSkipped: [] };
+  },
 }));
 
 const { driveWorkflowAgentTurnImpl } = await import('./agent_host');
@@ -87,7 +109,9 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-function makeCtx(opts: { pendingAsk?: typeof ASK } = {}) {
+function makeCtx(
+  opts: { pendingAsk?: typeof ASK; cursorExecId?: string } = {},
+) {
   const mutations: Call[] = [];
   const ctx = {
     runQuery: async (ref: unknown) => {
@@ -98,7 +122,7 @@ function makeCtx(opts: { pendingAsk?: typeof ASK } = {}) {
           cursor: {
             node: KEYS.nodeId,
             agent: {
-              execId: KEYS.execId,
+              execId: opts.cursorExecId ?? KEYS.execId,
               sessionId: KEYS.sessionId,
               deadlineAt: KEYS.deadlineAt,
               providerSlug: KEYS.providerSlug,
@@ -158,11 +182,44 @@ const SILENT_RESULT = {
 beforeEach(() => {
   io.stdout = '';
   io.cancelled = [];
+  io.harvests = [];
+  io.deletes = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 describe('an automation agent turn', () => {
+  it('settles the full assistant report when the terminal result omits its text', async () => {
+    const report = `BEGIN ${'report '.repeat(20_000)} END`;
+    io.stdout = ndjson([
+      { type: 'system', subtype: 'init', session_id: 'conv-1' },
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+      SILENT_RESULT,
+    ]);
+    const { ctx, mutations } = makeCtx();
+
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+
+    expect(
+      called(mutations, 'recordAgentTurnSettled')[0]?.args.result,
+    ).toMatchObject({
+      errored: false,
+      text: report,
+    });
+    const progress = called(mutations, 'upsertSessionOp')
+      .map((mutation) => mutation.args.progressText)
+      .filter((text): text is string => typeof text === 'string');
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress.every((text) => text.length <= 64 * 1024)).toBe(true);
+    // The exec exited before the settle: the harvest takes its first listing.
+    expect(io.harvests).toEqual([
+      expect.objectContaining({ execId: KEYS.execId, execExited: true }),
+    ]);
+  });
+
   it('fails, retryably, when the model answered nothing', async () => {
     io.stdout = `${readFixture('claude-code', 'empty-answer-turn')}\n`;
     const { ctx, mutations } = makeCtx();
@@ -284,5 +341,28 @@ describe('an automation agent turn', () => {
       status: 'completed',
       agentResultStatus: 'awaiting_human',
     });
+  });
+});
+
+describe('a Gemini automation turn’s staged subscription credential', () => {
+  const GEMINI = { ...KEYS, harness: 'gemini' };
+  const CREDENTIAL = ['.runtime/home/.gemini/oauth_creds.json'];
+
+  it('leaves the session when the turn settles', async () => {
+    const { ctx, mutations } = makeCtx();
+
+    await driveWorkflowAgentTurnImpl(ctx, GEMINI);
+
+    expect(called(mutations, 'recordAgentTurnSettled')).toHaveLength(1);
+    expect(io.deletes).toEqual([CREDENTIAL]);
+  });
+
+  it('stays for the newer exec the run moved on to', async () => {
+    const { ctx } = makeCtx({ cursorExecId: 'exec-2' });
+
+    await driveWorkflowAgentTurnImpl(ctx, GEMINI);
+
+    expect(io.cancelled).toEqual([KEYS.execId]);
+    expect(io.deletes).toEqual([]);
   });
 });

@@ -21,6 +21,7 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   indexedMessageRefsOf,
   queueMessageRefRelease,
@@ -627,9 +628,26 @@ async function sweepUsageLedger(
       )
       RETURNING id
     `;
+    // A project's own buckets — the same spend, summed per project — age
+    // out with the ledger. They name no person, so no member's hold keeps
+    // them; an organization's hold skips the whole run.
+    const projects = await tx<{ id: string }[]>`
+      DELETE FROM app.project_usage
+      WHERE ctid IN (
+        SELECT ctid FROM app.project_usage
+        WHERE org_id = ${org.organizationId}
+          AND updated_at_ms < ${cutoff}
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING org_id AS id
+    `;
     return {
-      deleted: ledger.length + events.length,
-      counts: { usageLedger: ledger.length, usageEvents: events.length },
+      deleted: ledger.length + events.length + projects.length,
+      counts: {
+        usageLedger: ledger.length,
+        usageEvents: events.length,
+        projectUsage: projects.length,
+      },
     };
   });
 }
@@ -1452,6 +1470,7 @@ async function sweepAutomationRuns(
   const cutoff =
     Date.now() - (days + (org.config.deletionGraceDays ?? 0)) * DAY_MS;
   await destroyInTx(sql, trail, async (tx) => {
+    await markAutomationWriterInTx(tx);
     // The delete clears a purged run from the trigger that names it
     // (`last_run_id`, `last_failed_run_id`: `ON DELETE SET NULL`), a write
     // of that trigger row, so when a trigger names a run of the batch the

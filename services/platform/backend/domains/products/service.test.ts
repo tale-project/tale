@@ -92,7 +92,7 @@ beforeEach(() => {
   });
 });
 
-describe('product status vocabulary', () => {
+describe('product status vocabulary [PROD-R1]', () => {
   it('refuses a status outside the vocabulary before any statement runs', async () => {
     const { sql, statements } = recordingSql();
     let caught: unknown;
@@ -124,7 +124,7 @@ describe('product status vocabulary', () => {
   });
 });
 
-describe('product external id uniqueness', () => {
+describe('product external id uniqueness [PROD-R2]', () => {
   it('refuses a second product carrying the same external id with 409', async () => {
     const { sql, statements } = recordingSql((text) =>
       text.includes('external_id = ?') ? [{ id: 'p-other' }] : [],
@@ -170,11 +170,13 @@ describe('product external id uniqueness', () => {
  * was refused so no spelling cleared a field, and a `null` status tripped
  * the vocabulary check; `tags: null` kept the stored list.
  */
-describe('product update — merge and the clearing rule', () => {
+describe('product update — merge and the clearing rule [PROD-R6]', () => {
   /** The UPDATE's bound values, by column order of the statement. */
   const UPDATE = {
     description: 1,
     imageUrl: 2,
+    stock: 3,
+    price: 4,
     currency: 5,
     category: 6,
     tags: 7,
@@ -185,7 +187,10 @@ describe('product update — merge and the clearing rule', () => {
   const stored = {
     ...product,
     description: 'A widget',
+    stock: 8,
+    price: 12.5,
     currency: 'EUR',
+    category: 'Gadgets',
     tags: ['a'],
     metadata: { a: 1, keep: true, nested: { x: 1 } },
   };
@@ -213,6 +218,8 @@ describe('product update — merge and the clearing rule', () => {
       b: 2,
     });
     expect(values[UPDATE.description]).toBe('A widget');
+    expect(values[UPDATE.stock]).toBe(8);
+    expect(values[UPDATE.price]).toBe(12.5);
     expect(values[UPDATE.tags]).toEqual(['a']);
   });
 
@@ -220,6 +227,8 @@ describe('product update — merge and the clearing rule', () => {
     const values = await update({
       description: null,
       imageUrl: null,
+      stock: null,
+      price: null,
       currency: null,
       category: null,
       tags: null,
@@ -229,6 +238,8 @@ describe('product update — merge and the clearing rule', () => {
     });
     expect(values[UPDATE.description]).toBeNull();
     expect(values[UPDATE.imageUrl]).toBeNull();
+    expect(values[UPDATE.stock]).toBeNull();
+    expect(values[UPDATE.price]).toBeNull();
     expect(values[UPDATE.currency]).toBeNull();
     expect(values[UPDATE.category]).toBeNull();
     expect(values[UPDATE.tags]).toEqual([]);
@@ -281,7 +292,7 @@ describe('product update — a patch that changes nothing', () => {
 
   // A no-op used to move `updatedAt`, write an audit row and raise a hint
   // (2026-09-14 evaluation, g7-7c).
-  it('writes nothing, audits nothing and raises no hint when every field is already at its value', async () => {
+  it('writes nothing, audits nothing and raises no hint when every field is already at its value [PROD-R8]', async () => {
     const { sql, statements } = sqlWithRow();
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
     await updateProduct(sql as never, scope, 'p-1', {
@@ -299,7 +310,7 @@ describe('product update — a patch that changes nothing', () => {
     expect(emitHintInTx).not.toHaveBeenCalled();
   });
 
-  it('still refuses a stale expectedUpdatedAt ahead of the short-circuit', async () => {
+  it('still refuses a stale expectedUpdatedAt ahead of the short-circuit [PROD-R7]', async () => {
     const { sql, statements } = sqlWithRow();
     await expect(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
@@ -353,7 +364,7 @@ describe('product delete and image release', () => {
     });
   }
 
-  it('deletes the image row inside the write and answers its blob for the reclaim', async () => {
+  it('deletes the image row inside the write and answers its blob for the reclaim [PROD-R12]', async () => {
     const { sql, statements } = harness({});
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
     const released = await deleteProduct(sql as never, scope, 'p-1');
@@ -373,7 +384,7 @@ describe('product delete and image release', () => {
     );
   });
 
-  it('keeps the upload when another product still shows it', async () => {
+  it('keeps the upload when another product still shows it [PROD-R12]', async () => {
     const { sql, statements } = harness({ stillShown: true });
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
     expect(await deleteProduct(sql as never, scope, 'p-1')).toEqual([]);
@@ -384,13 +395,13 @@ describe('product delete and image release', () => {
     ).toBe(false);
   });
 
-  it('keeps the blob when another row still serves the same bytes', async () => {
+  it('keeps the blob when another row still serves the same bytes [PROD-R12]', async () => {
     const { sql } = harness({ referenced: true });
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
     expect(await deleteProduct(sql as never, scope, 'p-1')).toEqual([]);
   });
 
-  it('asks the files domain holder rule, so a task or a retained version keeps the bytes (#4110)', async () => {
+  it('asks the files domain holder rule, so a task or a retained version keeps the bytes (#4110) [PROD-R12]', async () => {
     const { sql, statements } = harness({});
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
     await deleteProduct(sql as never, scope, 'p-1');
@@ -404,7 +415,7 @@ describe('product delete and image release', () => {
     expect(texts.some((t) => t.includes('FROM app.tasks held'))).toBe(true);
   });
 
-  it('releases nothing for an external image URL', async () => {
+  it('releases nothing for an external image URL [PROD-R12]', async () => {
     const { sql, statements } = recordingSql((text) =>
       text.includes('FROM app.products WHERE id = ?')
         ? [{ ...product, imageUrl: 'https://images.example/p.png' }]
@@ -417,7 +428,7 @@ describe('product delete and image release', () => {
     );
   });
 
-  it('refuses the delete under an organization-wide legal hold, nothing written', async () => {
+  it('refuses the delete under an organization-wide legal hold, nothing written [PROD-R13]', async () => {
     loadActiveHolds.mockResolvedValue({
       orgHeld: true,
       userMembershipIds: new Set<string>(),
@@ -430,7 +441,7 @@ describe('product delete and image release', () => {
     expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(false);
   });
 
-  it('refuses the delete while the image uploader is on a custodian hold', async () => {
+  it('refuses the delete while the image uploader is on a custodian hold [PROD-R13]', async () => {
     loadActiveHolds.mockResolvedValue({
       orgHeld: false,
       userMembershipIds: new Set(['user-2']),
@@ -443,7 +454,7 @@ describe('product delete and image release', () => {
     expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(false);
   });
 
-  it('releases the superseded image on a replace or a remove, and keeps it under a hold', async () => {
+  it('releases the superseded image on a replace or a remove, and keeps it under a hold [PROD-R12]', async () => {
     const run = async (patch: { imageUrl: string | null }) => {
       const { sql, statements } = harness({});
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction

@@ -21,11 +21,14 @@
 // usage stamp (0 or 1 output tokens), not the final count; the turn's totals
 // are the result's `usage`.
 
+import { z } from 'zod';
+
 import {
   asArray,
   asNumber,
   asRecord,
   asString,
+  BoundedIdLedger,
   LineReassembler,
   parseJsonLine,
 } from '../jsonl';
@@ -79,11 +82,30 @@ const TERMINAL_TASK_STATUSES: ReadonlySet<string> = new Set([
   'killed',
 ]);
 
+const checkpointSchema = z.object({
+  lines: z.string(),
+  seenUsageMsgIds: z.array(z.string()),
+});
+
 class ClaudeStreamJsonParser implements HarnessEventParser {
   private readonly lines = new LineReassembler();
-  private readonly seenUsageMsgIds = new Set<string>();
+  private readonly seenUsageMsgIds = new BoundedIdLedger();
 
   constructor(private readonly slug: HarnessSlug) {}
+
+  snapshot(): Record<string, unknown> {
+    return {
+      lines: this.lines.snapshot(),
+      seenUsageMsgIds: [...this.seenUsageMsgIds],
+    };
+  }
+
+  restore(value: unknown): void {
+    const state = checkpointSchema.parse(value);
+    this.lines.restore(state.lines);
+    this.seenUsageMsgIds.clear();
+    for (const item of state.seenUsageMsgIds) this.seenUsageMsgIds.add(item);
+  }
 
   feed(chunk: string): HarnessEvent[] {
     return this.lines.push(chunk).flatMap((line) => this.line(line));
@@ -306,6 +328,17 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
       if (typeof ev.is_error === 'boolean') out.isError = ev.is_error;
       if (typeof ev.api_error_status === 'number') {
         out.apiErrorStatus = ev.api_error_status;
+      }
+      // Only the CLI's terminal provider envelope has authority here. An
+      // ordinary quotation or arbitrary 403 must not cool an account.
+      if (
+        (this.slug === 'claude-code' || this.slug === 'claude-code-compact') &&
+        ev.is_error === true &&
+        ev.api_error_status === 403 &&
+        finalText?.trim() ===
+          'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access'
+      ) {
+        out.providerErrorKind = 'subscription_access_disabled';
       }
       if (typeof ev.duration_ms === 'number') out.durationMs = ev.duration_ms;
       // The turn's totals are the result's own: its `usage` counts every

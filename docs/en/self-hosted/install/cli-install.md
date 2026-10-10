@@ -14,8 +14,8 @@ For your first instance, use the [quickstart](/self-hosted/install/quickstart). 
 You need:
 
 - A workstation running macOS, Linux, or Windows with PowerShell.
-- For local container operations: Docker with Compose and a running Docker daemon.
-- For a remote workspace: access to its Docker daemon, usually through an SSH Docker context. The remote operator must be able to run Docker.
+- For local container operations: Docker Engine 24.0 or later with Compose and a running Docker daemon. Tale’s images have zstd-compressed layers, which Docker pulls from Engine 23.0 on; `tale doctor` reports an older engine, and `tale dev` and `tale deploy` refuse it before downloading images.
+- For a remote workspace: access to its Docker daemon, running Docker Engine 24.0 or later, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
 The bundled object store currently ships only a `linux/amd64` image. On an ARM64 host, local development and workspace deployment need working amd64 emulation: Docker Desktop includes it; a standalone Linux Docker host needs [QEMU registered on the host](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale selects the amd64 image but does not install emulation. Managed bundles still require native images for their declared architecture, so an ARM64 managed deployment must wait for a native object-store image.
 
@@ -99,12 +99,12 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 ### Setup
 
-`tale doctor` — inspect local startup prerequisites without creating a project, installing software or changing configuration. It checks the Docker daemon, Compose support and Linux-container mode, reports the daemon architecture and checks local ports. A remote Docker context skips local port checks. ARM64 and occupied-port warnings require review; an existing instance may already own a port.
+`tale doctor` — inspect local startup prerequisites without creating a project, installing software or changing configuration. It checks the Docker daemon, its Docker Engine version, Compose support and Linux-container mode, reports the daemon architecture and checks local ports. A remote Docker context skips local port checks. ARM64 and occupied-port warnings require review; an existing instance may already own a port.
 
 - `-p, --port <port>` — HTTPS port to check (default `443`); the sandbox port `8003` is also checked.
 - `--json` — emit the checks as machine-readable JSON.
 
-Docker, Compose, unsupported container-mode failures or selecting HTTPS port `8003` exit `3`. Warnings alone exit `0`; this does not verify image downloads, storage capacity or a model provider. Check a different port with `tale doctor --port 8443`, then use the same port with `tale dev`.
+Docker, Compose, Docker Engine version or unsupported container-mode failures or selecting HTTPS port `8003` exit `3`. Warnings alone exit `0`; this does not verify image downloads, storage capacity or a model provider. Check a different port with `tale doctor --port 8443`, then use the same port with `tale dev`.
 
 `tale init [directory]` — create a project: it scaffolds the example configs, `AGENTS.md` + a `CLAUDE.md` pointer, and a local-default `.env` (localhost, self-signed certificate, generated secrets). No Docker is needed, and the production domain and TLS are chosen later, at `tale deploy`. In a terminal it asks for a project name when `directory` is omitted, confirms before overwriting an existing project, and asks once whether agents may run `docker` inside sandboxes (default: no — enabling it runs a privileged inner Docker); non-interactive runs skip all prompts. `directory` is optional (default: the current directory).
 
@@ -129,6 +129,7 @@ Docker, Compose, unsupported container-mode failures or selecting HTTPS port `80
 - `-q, --quiet` — suppress container logs during the deploy.
 - `-y, --yes` — auto-accept destructive confirmation prompts (e.g. `--override-all`).
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
+- `--configuration-only` — with `--bundle <directory>` (required), apply only hot managed configuration (instructions, agent tool grants and automations) to the exact healthy runtime of an already-ready deployment, skipping the pre-deploy snapshot and restart. Use it when only those resources change; runtime and identity inputs must stay unchanged, with no pending runtime rollout.
 - `--dry-run` — preview what would change without touching anything.
 
 ### Managed deployments
@@ -194,6 +195,10 @@ The example sets `runtime.containerPrefix` to make its environment recognizable 
   ]
 }
 ```
+
+#### Choose the error reporting environment
+
+Managed runtime events default `SENTRY_ENVIRONMENT` to the retained deployment `name`. To use a canonical label such as `example-pr`, declare `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` and set that variable at the destination. The label starts with a lowercase letter or digit and contains 1–64 lowercase letters, digits or hyphens. Browser, backend and sandbox use this label without changing `name`, `composeProject`, `stateDirectory` or stored credentials.
 
 #### Choose container names
 
@@ -277,9 +282,37 @@ Preparation checks each configuration first, with this CLI's own schemas, and on
 
 `deploy verify-bundle` checks the complete file inventory and hashes without a destination. `deploy --bundle --dry-run` checks configuration artifacts and destination preconditions without applying changes. Managed bundle deployment does not accept workspace-only overrides such as `--services`, `--host` or `--override-all`. It is a state-preserving stack rollout with health and provenance checks; the workspace blue-green behavior described above is a separate path.
 
+#### Verify the current deployment
+
+After the exact bundle has completed, collect a fresh acceptance receipt on the deployment host:
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Both source commits are required for acceptance; the bundle must have been prepared with `--deployment-ref`. Set `TALE_RELEASE_VERSION` to the independently selected published version, without its `v` prefix. The CLI holds the existing deployment lock and reads the Ready receipt, current containers, pinned images, and all three migration ledgers. It compares the frontend’s `/api/health` and the API’s `/api/health/ready` at the canonical HTTPS origin with fresh process identities read directly from their captured local containers, then rereads those identities. Missing identities or a different server process are refused even when the version matches. Every Tale image’s OCI version and source must agree with the bundle. An image’s `sourceTag` may be `sha-<source>`; it is reference metadata, not the served version.
+
+The JSON result contains source pins, bundle and Ready hashes, image identities, the canonical origin and both serving process identities, and complete source-derived migration IDs with inventory hashes. Application SQL and numbered TypeScript data migrations are both included. Missing, extra, duplicate or unfinished migrations, pending deployment state, version drift and identity changes are refused. These public process identities correlate a local container with an origin response; they are not credentials or authentication proof.
+
+Docker and HTTPS observations have individual cancellation limits and share a 120-second elapsed budget checked at observation boundaries. Bundle verification, the owned temporary copy and cleanup use the existing size limits (2 GiB total, 256 MiB per file); filesystem waits are not covered by a cancellable whole-command deadline. Use an external process supervisor when a whole-command deadline is required. Acceptance does not apply configuration, restart containers, run migrations or export credentials. It changes lock metadata and creates and removes its private temporary bundle copy.
+
+Older bundles remain deployable, but acceptance requires both a source-derived migration inventory and compatible servers that publish process identities. Prepare and complete a reviewed bundle through the normal deployment flow before collecting its acceptance receipt. A receipt proves the observed state at its timestamp; it does not guarantee later routing or server state. Repeat acceptance when fresh evidence is needed.
+
+#### Observe retained state before a rollout
+
+`tale --json deploy observe --spec <file> --cli-ref <sha> --deployment-ref <sha> --machine-id-sha256 <digest>` collects runtime image identities, migration inventories, corpus and disk metadata, and retained native configuration proof. Run the pinned compiled CLI on the admitted Linux host with its local Docker socket. Supply private JSON on stdin as `{"environment":{"UPPERCASE_ENV_NAME":"value"}}`, containing only the variables the reviewed specification needs; ambient variables are not a fallback. Input is limited to 64 KiB, 128 keys and 8192 bytes per value.
+
+The observer reuses existing credentials and exact retained account and organization IDs. It reads preserved pack bytes without compiling them again, verifies current native versions, assets and owned-skill owners, and rechecks custody and container identities. It creates only temporary tooling and authentication sessions, then removes the tooling and signs out. It does not provision identities, prepare or apply configuration, migrate, restart, prune or acquire the cutover lock. Docker and native reads are bounded; supervise the command externally to bound filesystem waits too.
+
+A complete observation returns `ok:true` and `data.complete:true`. Missing legacy custody or ownership returns available host/database facts with `ok:false`, `data.complete:false`, an authored reason code and exit `3`; retain that report for investigation. Malformed input, mismatched identities or changed state refuse the observation. Neither result is Ready acceptance, permission to cut over, nor proof that packs will survive a future deployment. Use the normal reviewed deployment and acceptance flow for those decisions.
+
 #### Provision the native identity
 
 `deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials, and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
+
+Bundle deployment invokes `deploy provision` with internal options for configuration-only updates and retained identity checks; use `tale deploy --bundle <directory> --configuration-only` for this operator workflow.
 
 For an administratively verified fresh operator, explicitly declare `identity.emailVerification: "operator-attested"`. This is an operator assertion of the authenticated account’s email ownership, not proof of mailbox delivery. The backend uses a short-lived native verification token bound to that exact account and email, retaining native hooks without sending email, changing the address or creating another session. It is permitted only with `bootstrap: "fresh"`. Omit it to retain normal native email verification. A previously ready account whose verification changes holds for review.
 
@@ -384,6 +417,14 @@ These resource kinds use the platform’s shared schemas and native permissions:
 | `provider-credential` | Named environment credential metadata                      | Organization |
 | `knowledge-embedding` | Provider, model, dimensions, endpoint and server limits    | Organization |
 | `deployment`          | Instance deployment settings, including sandbox runtime    | Instance     |
+
+Use `agent-tools` to manage only the tool grants of an existing agent. Its `config` requires the exact `projectId`, `agentId` and complete desired `tools` array, for example `["task_find", "task_get", "task_review"]`. Keep every grant you intend to retain; `[]` clears the tool set. The native catalog rejects unknown names and canonicalizes order and duplicates before hashing.
+
+Applying this resource requires editor access to the active project and an agent that the platform does not manage. Members can read the narrow configuration. Changes preserve every other agent field, including instructions, model and exact secret grants. The native hash refuses concurrent tool edits; a changed set also invalidates stale full-agent saves. An equivalent set changes no timestamp or audit row. A runtime without the requested capability refuses the operation. Read back the tools after applying, and retain the pending receipt to recover an interrupted apply.
+
+Use `agent-model` to select the serving configuration for future starts of an existing agent. Its `config` requires exact `projectId` and `agentId` values plus `harness`, `model` and an explicit `modelProvider` from the native catalog. The platform validates that combination and its available credentials; it never chooses a different provider. The same project editing permissions and platform-managed-agent restriction apply. Instructions, tools, skills, connectors and secret grants stay unchanged. Queued and running work keeps the complete serving configuration recorded when it was admitted. An equal selection is a no-op; a changed selection invalidates stale full-agent saves. A legacy unset provider appears as `null` in readback, but a declaration must choose one. Use the existing plan, apply and read commands, and retain the receipt if application is interrupted.
+
+Use `task-review-context` to enroll a pristine operational task for one reviewer. Its `config` contains `projectId`, `taskId`, `reviewerAgentId` and `enabled`. By default the task must already exist, with no execution, review or source-work history. To create it, add `createIfMissing: true` beside `kind` and `config`, and choose a stable UUID for `taskId`. A project editor can then create and enroll the backlog task in one transaction; failed enrollment leaves no task or counter/audit changes. The reviewer must already have `task_review`; enrollment grants no tools and starts no work. Existing tasks still pass the pristine checks, and occupied identities are never overwritten. Keep the same ID and pending receipt after an interruption. Disabling the context preserves its reviewer and purpose.
 
 Retention and DSAR policies require their dedicated native workflows. Pause uploads, synchronization and crawls before changing the embedding model. The CLI checks organization-wide document and website counts; it does not lock ingestion or migrate existing vectors. For an organization with documents or registered websites, a model change requires a separate native indexing migration. A change limited to `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` or `maxRequestsPerMinute` keeps existing vectors valid, so it skips this check. Instance settings also require the native deployment editor allowlist. Standalone application reports `restartRequired` for boot settings; saving those settings alone does not activate them. Review the plan’s effects before applying.
 
@@ -504,6 +545,15 @@ The public `native.configuration` proof records each resource’s intended hash 
 ### Operate
 
 `tale status` — show the current deployment status. No arguments.
+
+`tale deploy smoke --url <url>` — check a running deployment through its public URL, the way a browser reaches it. Without `--full` it sends no credentials and writes nothing, so you can run it against any deployment, production included. It checks `/api/health` (and the version, with `--expected-version <version>`), the API's readiness, the app shell and its script, an anonymous session read, and that `/events` and `/api/app` refuse a visitor without a session. Plain `http://` is accepted only for `localhost`; for a private certificate authority, set `NODE_EXTRA_CA_CERTS` to its root certificate.
+
+- `--full` — also sign in as a dedicated account and walk one user journey: open the organization's live-update stream, create a task, wait for its live update, read it back and delete it (an account that may not delete tasks archives it instead). Put the account in `TALE_SMOKE_EMAIL` and `TALE_SMOKE_PASSWORD`; it must not need a second factor. If the account sees no project, the first run creates one named "Tale deployment smoke" and later runs reuse it.
+- `--chat` — with `--full`, also run one chat turn on the first model available to the account. The turn spends model tokens; the conversation goes to the trash afterwards, stopped first if the turn is still running.
+- `--organization <id-or-slug>`, `--project <id>` — where the journey runs; by default, the account's first organization and project.
+- `--timeout <seconds>` — bound on each request and wait (default `15`); `--turn-timeout <seconds>` bounds the chat turn (default `120`).
+
+With `--json`, the report lists each check with its status (`pass`, `fail` or `skip`), duration and reason. Exit `0` means every check passed, `5` that at least one failed and `2` that an option is invalid. The full journey removes its task (deleted or archived) and signs out even after a failed check.
 
 `tale logs <service>` — stream a service's logs (`service` is one of the running services; on a dev-only stack with no deployment, it falls back to the dev container).
 

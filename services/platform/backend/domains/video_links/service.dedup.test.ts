@@ -34,8 +34,8 @@ vi.mock('../../jobs/enqueue.ts', () => ({
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('../tts/service.ts', () => ({
-  checkTtsBudget: vi.fn(() => Promise.resolve({ allowed: true })),
+vi.mock('../governance/direct-calls.ts', () => ({
+  directCallBlocked: vi.fn(() => Promise.resolve(null)),
 }));
 vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember: vi.fn(() => Promise.resolve(null)),
@@ -285,7 +285,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('in-thread dedup', () => {
+describe('in-thread dedup [VID-R3]', () => {
   it('keeps chat A’s job after the same URL was pasted in chat B (A/B/A)', async () => {
     const hash = await urlHash();
     const table = [

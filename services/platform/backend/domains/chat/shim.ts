@@ -1,11 +1,13 @@
 import type { Sql } from 'postgres';
 
 import { parseTaskRepeat } from '../../../lib/shared/task-repeat.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { isAudienceAdmin } from '../../core/lib/audience.ts';
+import { relabelTaskMentions } from '../../core/tasks/mentions.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import {
@@ -130,7 +132,9 @@ export async function resolveAccessScope(
   includeConversationScoped: boolean;
   archivedProjectIds: string[];
 }> {
-  const member = await findOrganizationMember(sql, organizationId, userId);
+  // A team's or the organization's own API key acts with the role it was
+  // made with; a project's own key, with its project alone (below).
+  const member = await findActingMember(sql, organizationId, userId);
   if (member === null || member.role === 'disabled') {
     return {
       teamIds: [],
@@ -141,17 +145,23 @@ export async function resolveAccessScope(
       archivedProjectIds: [],
     };
   }
-  const auth = await getProjectAuthContext(sql, {
-    organizationId,
-    userId,
-    role: member.role,
-  });
+  const auth = await getProjectAuthContext(
+    sql,
+    { organizationId, userId, role: member.role },
+    undefined,
+    member.apiKeyOwner?.kind === 'project' &&
+      member.apiKeyOwner.projectId !== null
+      ? { projectScope: member.apiKeyOwner.projectId }
+      : {},
+  );
   const projects = await listProjects(sql, auth, { includeArchived: true });
   return {
     teamIds: [...auth.teamIds],
     isAdmin: isAudienceAdmin(member.role),
     projectIds: projects.map((project) => project.id),
-    includeHub: true,
+    // A project's own key reaches its project alone: the organization's
+    // knowledge outside it is not searched for it.
+    includeHub: auth.projectScope === undefined,
     // A person asks here, so conversation-scoped rows are in play: the
     // uploads of the turn's own threads, and — for the one door that also
     // asks for mail (`includeConversationMessages`, the chat tools, which
@@ -181,6 +191,16 @@ const WEBSITE_HIDDEN_STATUSES = new Set(['deleting', 'error']);
  * stays truthful for any org this bound can cut.
  */
 const WEBSITE_SUMMARY_CAP = 200;
+
+/** What a project's own API key may read through the chat tools: the
+ * subjects its access scope narrows to its project. Contacts, products,
+ * websites, knowledge entries and the inbox are the organization's, never
+ * one project's. */
+const PROJECT_KEY_READ_SUBJECTS: ReadonlySet<string> = new Set([
+  'documents',
+  'tasks',
+  'projects',
+]);
 
 interface TaskLegRow {
   _id: string;
@@ -571,7 +591,14 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
 
     'file_metadata/internal_queries:getByStorageId': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
-      const args = raw as { storageId: string };
+      const args = raw as {
+        storageId: string;
+        organizationId: string;
+        userId: string;
+      };
+      if (!args.organizationId || !args.userId) return null;
+      const viewer = await viewerForUser(sql, args.organizationId, args.userId);
+      if (viewer === null) return null;
       const rows = await sql<
         {
           id: string;
@@ -587,6 +614,8 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           ragStatus: string | null;
           threadId: string | null;
           documentId: string | null;
+          uploadedBy: string | null;
+          conversationId: string | null;
         }[]
       >`
         SELECT id, org_id AS "organizationId", storage_ref AS "storageId",
@@ -596,13 +625,26 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
                transcription_error AS "transcriptionError",
                transcription_duration_sec AS "transcriptionDurationSec",
                rag_status AS "ragStatus", thread_id AS "threadId",
-               document_id AS "documentId"
+               document_id AS "documentId", uploaded_by AS "uploadedBy",
+               conversation_id AS "conversationId"
         FROM app.file_metadata
-        WHERE storage_ref = ${args.storageId}
+        WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageId}
+          AND (lifecycle_status IS NULL OR lifecycle_status <> 'trashed')
         LIMIT 1
       `;
       const row = rows[0];
       if (!row) return null;
+      if (
+        !(await resolveFileReadAccess(sql, viewer, {
+          organizationId: row.organizationId,
+          storageRef: row.storageId,
+          uploadedBy: row.uploadedBy,
+          documentId: row.documentId,
+          threadId: row.threadId,
+          conversationId: row.conversationId,
+        }))
+      )
+        return null;
       return Object.fromEntries(
         Object.entries(row).map(([key, value]) => [key, value ?? undefined]),
       );
@@ -806,6 +848,35 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const projectReadable =
         args.projectId !== undefined &&
         scope.projectIds.includes(args.projectId);
+      // A project's own API key reaches its project alone: its files, and
+      // never the hub's — not even their titles.
+      if (!scope.includeHub) {
+        const projectIds =
+          projectReadable && args.projectId !== undefined
+            ? [args.projectId]
+            : scope.projectIds;
+        if (projectIds.length === 0) {
+          return {
+            documents: [],
+            totalCount: null,
+            hasMore: false,
+            cursor: null,
+            warning: null,
+          };
+        }
+        return listDocumentsForAgent(sql, {
+          organizationId: args.organizationId,
+          teamIds: scope.teamIds,
+          isAdmin: scope.isAdmin,
+          projectIds,
+          ...(args.fileName !== undefined ? { fileName: args.fileName } : {}),
+          ...(args.extension !== undefined
+            ? { extension: args.extension }
+            : {}),
+          ...(args.limit !== undefined ? { limit: args.limit } : {}),
+          ...(args.cursor !== undefined ? { cursor: args.cursor } : {}),
+        });
+      }
       return listDocumentsForAgent(sql, {
         organizationId: args.organizationId,
         teamIds: scope.teamIds,
@@ -859,16 +930,28 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     // ------------------------------------------------------- role gate
     // Tier-A matrix: an active member reads every chat-tool subject; the
     // disabled role reads nothing. The 0.4 per-subject role matrix ports
-    // with governance.
+    // with governance. A project's own API key reaches its project alone:
+    // the subjects narrowed to the caller's projects (documents, tasks,
+    // projects) stay open to it, the organization-wide ones do not.
     'sandbox/workspace_access:resolveWorkspaceReadAccess': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
-      const args = raw as { organizationId: string; userId: string };
-      const member = await findOrganizationMember(
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+        subject?: string;
+      };
+      const member = await findActingMember(
         sql,
         args.organizationId,
         args.userId,
       );
-      return { allowed: member !== null && member.role !== 'disabled' };
+      if (member === null || member.role === 'disabled') {
+        return { allowed: false };
+      }
+      if (member.apiKeyOwner?.kind === 'project') {
+        return { allowed: PROJECT_KEY_READ_SUBJECTS.has(args.subject ?? '') };
+      }
+      return { allowed: true };
     },
 
     // ------------------------------------------------------- observability
@@ -906,6 +989,16 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       `;
       const row = rows[0];
       if (!row) return null;
+      // The assistant reads each mention with the current name of whoever
+      // it names.
+      if (row.description != null) {
+        row.description = relabelTaskMentions(
+          row.description,
+          await currentMentionNames(sql, args.organizationId, [
+            row.description,
+          ]),
+        );
+      }
       return Object.fromEntries(
         Object.entries(row).filter(([, value]) => value !== null),
       );
@@ -1003,6 +1096,12 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       // Read leniently, as the board reads it: a rule that no longer
       // validates is no rule.
       const repeat = parseTaskRepeat(task.repeat);
+      // The agent reads each mention with the CURRENT name of whoever it
+      // names; the address it acts on stays as stored.
+      const names = await currentMentionNames(sql, args.organizationId, [
+        task.description ?? '',
+        ...commentPage.comments.map((comment) => comment.body),
+      ]);
       return {
         task: {
           _id: task._id,
@@ -1010,7 +1109,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           status: task.status,
           ...(task.number != null ? { number: task.number } : {}),
           ...(task.description != null
-            ? { description: task.description }
+            ? { description: relabelTaskMentions(task.description, names) }
             : {}),
           ...(task.projectId != null ? { projectId: task.projectId } : {}),
           ...(task.startDate != null ? { startDate: task.startDate } : {}),
@@ -1057,7 +1156,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
               commentId: comment.messageId,
               authorType: comment.authorType,
               authorId: comment.authorId,
-              body: comment.body,
+              body: relabelTaskMentions(comment.body, names),
               createdAt: comment.createdAt,
             },
             comment.editedAt !== null ? { editedAt: comment.editedAt } : {},
@@ -1191,11 +1290,15 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as {
         organizationId: string;
         topic?: string;
+        /** The agents' `knowledge_entry_find` also looks in the content;
+         * the chat legs match topics only. */
+        matchContent?: boolean;
         paginationOpts: { numItems: number; cursor: string | null };
       };
       return listEntriesForAgent(sql, {
         organizationId: args.organizationId,
         ...(args.topic !== undefined ? { topic: args.topic } : {}),
+        ...(args.matchContent === true ? { matchContent: true } : {}),
         matchWords: true,
         numItems: args.paginationOpts.numItems,
         cursor: args.paginationOpts.cursor,

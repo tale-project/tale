@@ -33,18 +33,22 @@ here the first time a round re-files it.
   textbox — a property of any text control, not a leak: stored secrets are
   never echoed into the field. Report it only if a round finds a stored value
   rendered into the field.
-- **A client-side search, filter or sort on a paginated list drains every
-  page.** The contacts table (and every `useListPage` list) fetches one page
-  at rest, but a search box, facet or sort that is evaluated client-side
-  intentionally loads the remaining pages so the result is complete (#2054) —
-  eleven list responses after typing a query are that drain, not eager
-  paging. PERF-B2 measures the resting page only.
+- **A client-side filter or sort on a paginated list drains every page.**
+  A list fetches one page at rest, but a client-side facet or sort intentionally
+  loads the remaining pages so the result is complete (#2054). Contacts uses
+  its complete TanStack column model before displaying a bounded initial sort
+  window. Other lists retain their existing client-sort behavior unless they
+  opt into column-aware windowing. Contacts search is
+  server-side and does not use this exception: it sends the query with the
+  paginated request and keeps matching fields name, email and external id,
+  additionally matching phone via the existing server predicate.
+  PERF-B2 measures the resting page and the bounded sorted window.
 - **A new org in mode A is not provider-wired.** Wizard-created or minted by
   `save-auth-state.ts`, it lands on chat's **No AI provider connected yet**
   empty state with zero credentials until the mock provider is wired per
   [setup.md](../setup.md) §1.A (the provider file, then its environment
   credential). Observed live 2026-08-04 and 2026-10-03.
-- **"Tale is ready to work offline." fires once on first service-worker
+- **"Tale's offline screen is ready." fires once on first service-worker
   install.** Benign, and it will photobomb an unrelated screenshot.
 - **A chunked body past a route's cap is read to the cap before the 413.** A
   JSON write sent with `Transfer-Encoding: chunked` and no `Content-Length`
@@ -63,6 +67,20 @@ here the first time a round re-files it.
   `INVALID_HEADER`) is reachable only with the semicolon form
   (`-H 'Idempotency-Key;'`), which sends an empty value. Observed in the
   2026-09-14 round-h API evaluation (h1).
+
+- **A long board lane or list section keeps only the tasks near its view in
+  the page.** A status lane (or, in **List**, a status section) holding more
+  than 40 tasks mounts the tasks in and near its scrollport and the ones a
+  scroll reaches, and stays so until it falls below 30 tasks
+  (`windowed-task-rows.tsx`, `WINDOWED_LANE_MIN_CARDS`,
+  `UNWINDOWED_LANE_MAX_CARDS`); a 2,000-task board that mounted every card
+  blocked the tab for 16–26 s (#4062). The browser's find in page and a
+  screen reader's browse mode therefore reach a long lane's tasks only once
+  they are near the view, and **Tab** from a task the lane has scrolled away
+  from goes on to the tasks in view; **Search tasks** finds any task, the
+  header counts all of them, **Tab** walks the tasks in order from the view,
+  and a keyboard drag reaches every slot (`TASK-P5`). Report a lane or
+  section of fewer than 30 tasks missing one.
 
 ## Known benign console output
 
@@ -88,6 +106,10 @@ defect, with the reason. Anything not on this list is a finding, on any page.
   fetch dynamically imported module` shown together with the **A new version
   is available** toast is different: it is the real error of a chunk that
   failed again after its reload, and it is reported.
+- `[mcp] origin-mismatch origin=… enforced=false` (warn, backend log) during the `mcp` suite: a
+  coding agent sent an `Origin` that is neither the deployment's own address nor listed in
+  `TALE_MCP_ALLOWED_ORIGINS`. Enforcement is off by default and the call was answered; record the
+  origin and the client in the round record (`MCP-F1`, `MCP-F2`, `reference/pins.md`).
 
 ## Known debt
 
@@ -103,3 +125,4 @@ on; a round never re-files one.
 | `BL-5` | An accent's text shade (`--primary`, `--ring`, the accent context) is walked to 4.5:1 against the theme's `--background` and a tint of itself only (`deriveAccentText` in `lib/utils/color.ts`, whose docstring measures the rest). On the dark theme's lighter grays it can read below that: over `--accent` (`#2b2b2b`, the gray hover) `#0066CC` reads 4.12:1, `#0B0B2A` 4.18:1 and `#443366` 4.21:1, with a worst case near 3.8:1; over `--muted` it reads down to about 4.0:1, and beneath a tint on `--card` to about 3.9:1. On the page, accent text can hover on its own tint (`hover:bg-primary/10`); on a lighter container, even that tint can fail, so choose ink that clears contrast on the actual surface. This records the palette’s limits, not an accessibility exemption: insufficient text, icon or focus contrast on any rendered surface remains a finding, including a tint over a lighter container. | a design call to judge the dark walk against a lighter surface (against `--accent`, most dark text shades would lift by 8 to 19 lightness points), then `deriveAccentText` and `color.test.ts` change together |
 | `BL-6` | A near-white pick keeps its hue on the light theme, so it turns muddy there: `#F5F5F0` fills primary buttons in the olive `#909060` and sets accent text in `#626241`, its own hue darkened until it clears 3:1 and 4.5:1 on the page (SET-F28a). Tale does not fall back to a neutral for a pick with almost no colour. | a design call on near-neutral picks (for example, dropping the saturation of a pick below a chroma threshold), made in `adjustColorForTheme` with a case in `color.test.ts` |
 | `BL-7` | A file that two documents share has ONE row in the search index. A WebDAV **COPY** (of a document, or of a folder) leaves the copy on the source's stored file, and the row carries the scope of the file's holder — the lowest-id active document holding it: its teams, project and folder. Searches are pre-filtered on that scope, so the file is found only where its holder is: a member outside the holder's team (when it has one) finds it in no search, even with access to the copy, and a search scoped to the copy's folder or team misses it. Document ids are random, so the copy is the holder about half the time — a COPY into a team folder then narrows the original to that team — and the holder moves when it is trashed, restored or deleted. A write that moves it re-stamps the row (`syncRagRefHolderScopes`); on a lane that does not, the nightly scope pass rewrites the row once and counts it in its `corpus scope drift` warning. The gap predates #3808, when whichever copy was written last won. | a stored file can carry more than one scope in the index (one row per document that holds it, or a scope list the search pre-filter matches), or a COPY stores bytes of its own; a first step is a holder order a copy cannot win (the oldest document first, then the id) |
+| `BL-8` | The chaos boxes `AUTO-L1`–`AUTO-L5` cannot be run on this backend: they drive Convex functions (`testing/e2e_chaos:severRunWakes`, `automations/triggers:enforceRunLiveness`) and a `TALE_CHAOS_DOORS` switch that no longer exist. A run whose wakes were all lost is revived by the minute liveness sweep, which `checkAutomationRunLifecycle` in `backend:integration` and `store.liveness-sweep.test.ts` hold; `AUTO-F58` and `AUTO-F60` cover a crashed and a stopped worker by hand. Mark the five boxes **ENVIRONMENT** with this ID. | a scripted chaos door on this backend (an integration-only route that cancels a run's queued wakes) — then rewrite the five boxes against it |

@@ -6,6 +6,7 @@
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
 
 import type { SessionDiskState } from '../host-disk.ts';
+import type { LargestWorkspaces } from '../session/workspace-usage.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
@@ -19,14 +20,28 @@ export type HealthResult =
       transient?: boolean;
     };
 
-/** A fenced stop found a DIFFERENT incarnation under the session's
- * deterministic name than the one it was asked to stop (`expectedCreatedAtMs`
+/** A fenced operation found a DIFFERENT incarnation under the session's
+ * deterministic name than the one it was asked to observe (`expectedCreatedAtMs`
  * mismatch, or the Pod/Secret UID moved): nothing was touched, and the caller
  * must not count that replacement as freed. */
 export class SessionIncarnationChangedError extends Error {
   constructor(sessionId: string, detail: string) {
-    super(`session ${sessionId} changed before idle stop (${detail})`);
+    super(`session ${sessionId} incarnation changed (${detail})`);
     this.name = 'SessionIncarnationChangedError';
+  }
+}
+
+/** A create found a LIVE session under the id's deterministic name — a
+ * running container, or a Pod that is neither terminating nor ended — that
+ * the route's registry does not hold: a peer replica's create, or compute
+ * this spawner lost track of (a restart before adoption). Nothing was
+ * touched. The route answers it as a duplicate, so the caller adopts the
+ * session through acquire instead of treating the create as failed and
+ * tearing down what runs under the id. */
+export class SessionExistsError extends Error {
+  constructor(sessionId: string, detail: string, options?: ErrorOptions) {
+    super(`session ${sessionId} already exists (${detail})`, options);
+    this.name = 'SessionExistsError';
   }
 }
 
@@ -57,7 +72,8 @@ export interface HostBackend {
 
   /** Liveness probe backing GET /health. */
   health(): Promise<HealthResult>;
-  /** Best-effort warm of the runtime image (no-op where the platform pulls). */
+  /** Make the runtime image present (no-op where the platform pulls).
+   * Throws while it stays absent, so the caller tries again later. */
   warmImage(): Promise<void>;
 
   /**
@@ -94,6 +110,8 @@ export interface SessionSpec {
    * process env — docker inspect must never show user values. */
   env: Record<string, string>;
   createdAtMs: number;
+  /** Caller cancellation; never serialized into the container or Pod. */
+  signal?: AbortSignal;
 }
 
 /** A backend's record of one live session, reconstructed from backend-object
@@ -120,6 +138,10 @@ export interface BackendSession {
    * dead, a Pod Succeeded or Failed) — nothing runs or will run in it. Unlike
    * `degraded`, which also covers one still starting. */
   ended?: boolean;
+  /** The egress proxy address the session pinned its transparent egress to
+   * when it booted (Docker: the `tale.egress-ip` label). Absent when the
+   * session pins none, or a spawner without the label created it. */
+  egressAddress?: string;
 }
 
 /** One workspace a backend holds (host dir / PVC), whatever its compute
@@ -157,6 +179,18 @@ export interface CreateSessionResult {
    * the half-made workspace it provisioned itself.
    */
   resumed: boolean;
+  /**
+   * The incarnation runnerd named in the readiness answer this create waited
+   * for (see RUNNERD_INCARNATION_ENV): the route layer records it like any
+   * later runnerd answer, so a fresh or resumed session's first activity call
+   * needs no backend existence check. Absent when runnerd named none (an
+   * older runtime image, or a backend that launches without the stamp).
+   */
+  incarnation?: string;
+  /** The egress proxy address the create recorded as the one the session
+   * pins (see {@link BackendSession.egressAddress}); absent when it pins
+   * none or the address could not be read. */
+  egressAddress?: string;
 }
 
 /**
@@ -182,6 +216,18 @@ export interface BuildCacheUpkeep {
   sessionDisk?: () => Promise<SessionDiskState | null>;
 }
 
+/** How a stop ends what still runs in the session. */
+export interface StopSessionOptions {
+  /** Let the session end its own work for this long before it is killed:
+   * runnerd passes the stop on to every live exec (a harness writes its
+   * transcript, a wrapper restores what it staged) and a Docker-in-sandbox
+   * session's supervisor shuts its inner engine down. Absent or 0, the
+   * compute is killed at once — the stop of an idle session, which has
+   * nothing to end. Docker only: a Kubernetes Pod is always deleted with its
+   * own grace period. */
+  graceMs?: number;
+}
+
 export interface SessionBackend {
   readonly kind: 'docker' | 'kubernetes';
   /**
@@ -194,8 +240,13 @@ export interface SessionBackend {
   createSession(spec: SessionSpec): Promise<CreateSessionResult>;
   /** Base URL of the session's runnerd (e.g. http://tale-sbx-ses-<id>:8200).
    * Resolved per call — on K8s the Pod IP can change across container
-   * restarts. Throws if the backend object doesn't exist. */
-  resolveEndpoint(sessionId: string): Promise<string>;
+   * replacements. Throws if the backend object doesn't exist. When given a
+   * creation stamp, rejects a replacement with SessionIncarnationChangedError;
+   * never pairs listed metadata with another incarnation's endpoint. */
+  resolveEndpoint(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<string>;
   /**
    * DEFINITIVE liveness check of the backend object: true only when the
    * container/Pod exists AND is running. Returns false on a confirmed
@@ -203,9 +254,23 @@ export interface SessionBackend {
    * container) — the zombie-registry-eviction signal. THROWS when the
    * backend can't answer (daemon/API hiccup): callers MUST treat a throw as
    * "unknown", never as "gone" — a transient backend blip must not get a
-   * live session destroyed.
+   * live session destroyed. With an expected creation stamp, a different
+   * incarnation is false, while unreadable identity still throws. Without
+   * one, ANY running incarnation counts (notably when verifying freed capacity).
    */
-  sessionExists(sessionId: string): Promise<boolean>;
+  sessionExists(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean>;
+  /**
+   * Whether the kernel's OOM killer ended processes of this incarnation,
+   * as the last {@link sessionExists} that found it dead read it (Docker's
+   * `State.OOMKilled`, from the same inspect: no call of its own). Asked
+   * once per dead incarnation; false when the check saw no such kill or
+   * never ran. Absent on Kubernetes, which restarts an OOM-killed runner
+   * in its Pod instead of ending the session.
+   */
+  takeOutOfMemory?(sessionId: string, createdAtMs: number): boolean;
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
    * (host dir / PVC). The ONLY data-deleting verb — reached through the
    * DELETE route (the explicit Destroy, and the platform's workspace cleanup)
@@ -242,6 +307,7 @@ export interface SessionBackend {
   stopSession(
     sessionId: string,
     expectedCreatedAtMs?: number,
+    options?: StopSessionOptions,
   ): Promise<boolean>;
   /** Recover an abandoned startup only when its durable age and current
    * backend state prove no peer is still starting it. Fenced to the original
@@ -251,6 +317,21 @@ export interface SessionBackend {
     sessionId: string,
     expectedCreatedAtMs: number,
   ): Promise<boolean>;
+  /** Hear that a create found the runtime image missing on this host (an
+   * `image prune` on an idle Docker host removes it once no session uses
+   * it): the spawner pulls it again and holds creates until it is back. */
+  onRuntimeImageMissing?(listener: (detail: string) => void): void;
+  /**
+   * The address a session booting now would pin its transparent egress to,
+   * read once per sweep and compared with what each session recorded: the
+   * egress proxy is recreated by every stack restart and deploy, and Docker
+   * may hand it another address, while a running session keeps relaying to
+   * the old one and has no egress left. Null when no move can be followed (a
+   * literal proxy address). THROWS when it cannot be read. Absent on
+   * Kubernetes: sessions reach the proxy through its Service's cluster IP,
+   * which stays the same while the proxy's Pods are replaced.
+   */
+  egressAddress?(): Promise<string | null>;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
    * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":
@@ -305,6 +386,14 @@ export interface SessionBackend {
    * containers/Pods beside them cannot be listed at all.
    */
   listWorkspaces(): Promise<BackendWorkspace[]>;
+  /**
+   * The `limit` largest workspaces this backend holds, measured now, for the
+   * log of a session disk below its critical tier. Bounded in time: what was
+   * measured by the deadline is answered, with how much that was. THROWS
+   * when the workspaces cannot be listed. Absent where the spawner does not
+   * hold the workspaces' disk (Kubernetes).
+   */
+  largestWorkspaces?(limit: number): Promise<LargestWorkspaces>;
   /**
    * The organizations holding resources beyond their sessions' workspaces
    * (Docker: the organization's build helpers, their network and cache

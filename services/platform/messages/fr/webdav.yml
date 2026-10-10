@@ -1,0 +1,47 @@
+description: Monte les documents Tale comme lecteur réseau dans Finder, File
+  Explorer ou n'importe quel client WebDAV.
+connectionDetails:
+  title: Détails de connexion
+  usernameLabel: Nom d'utilisateur
+  usernameHelp: L'e-mail de ton compte Tale (ou ton nom d'utilisateur)
+  copyUsername: Copier le nom d'utilisateur
+  passwordLabel: Mot de passe
+  passwordHelp:
+    Un mot de passe applicatif que tu génères ci-dessous — pas le mot
+    de passe de ton compte.
+create:
+  title: Générer un nouveau mot de passe applicatif
+  description:
+    Utilises-en un par appareil. Le mot de passe complet n'est affiché
+    qu'une fois — copie-le avant de fermer ce dialogue.
+  labelLabel: Libellé
+  labelPlaceholder: p. ex. MacBook Finder
+  submit: Générer
+  error: Impossible de créer le mot de passe applicatif
+  errorLimit: Tu as atteint le nombre maximum de mots de passe applicatifs.
+    Révoque-en un inutilisé d’abord.
+  errorRateLimited: Trop de mots de passe applicatifs créés récemment. Réessaie plus tard.
+  savedTitle: Sauvegarde ce mot de passe — il ne sera plus affiché.
+  copy: Copier
+  dismiss: Je l'ai sauvegardé
+list:
+  title: Mots de passe applicatifs
+  empty: Aucun mot de passe applicatif pour l'instant.
+  emptyDescription: Génère un mot de passe applicatif ci-dessous pour monter les documents Tale comme lecteur réseau.
+  label: Libellé
+  prefix: Préfixe
+  lastUsed: Dernière utilisation
+  created: Créé
+  neverUsed: jamais
+  revoked: révoqué
+  revoke: Révoquer
+  revokedToast: Révoqué
+  revokeError: Révocation impossible
+  revokeErrorNotFound: Ce mot de passe applicatif n’existe plus.
+revokeDialog:
+  title: Révoquer ce mot de passe applicatif ?
+  body:
+    Tout appareil monté avec ce mot de passe sera déconnecté et les verrous
+    actifs seront libérés.
+  confirm: Révoquer
+  cancel: Annuler

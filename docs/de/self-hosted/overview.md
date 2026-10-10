@@ -31,7 +31,7 @@ Die Anwendungsrollen verwenden dasselbe Tale-Platform-Image. `TALE_ROLE=api` sta
 | `config-data` | Konfigurationsdateien der Organisationen, darunter Agenten, Skills, Anbieterdefinitionen, Richtlinien, SSO-Einstellungen und Branding. |
 | `object-store-data` | Hochgeladene Dokumente, Anhänge, Audio und erzeugte Dateien. |
 | `caddy-data`, `caddy-config` | Zertifikate und Proxy-Zustand. |
-| `llm-gateway-data` | Gateway-Konfiguration, Zugangsdaten für Sitzungen und das Anfrageprotokoll des Gateways mit Modell, Tokens und Dauer, ohne Prompts oder Antworten. |
+| `llm-gateway-data` | Gateway-Konfiguration, Zugangsdaten für Sitzungen und das Anfrageprotokoll des Gateways mit Modell, Tokens und Dauer, ohne Prompts oder Antworten, standardmäßig drei Tage lang aufbewahrt. |
 
 Im mitgelieferten Stack liegen beide Datenbanken in einem Postgres-Dienst. Der Netzwerkalias `knowledge-db` führt zur Wissensverbindung. Es bleiben zwei getrennte Datenbanken. Eine Bereitstellung aus dem Quellcode mit eigenem Wissensdienst besitzt zusätzlich `knowledge-db-data`.
 
@@ -49,4 +49,4 @@ Anwendungsrollen können mehrere Replikate haben. Die CLI aktualisiert sie als g
 
 Anwendungsdatenbank, Wissensdatenbank und Dateispeicher können auf externe Infrastruktur umziehen. Eine Organisation kann außerdem eine eigene Wissensdatenbank und einen eigenen Bucket wählen. Eine geänderte Verbindung überträgt keine vorhandenen Inhalte. Plane Kopie, Umschaltung, Prüfung und Sicherungsumfang anhand von [Datenresidenz](/de/self-hosted/configuration/data-residency).
 
-Selbsthosting bestimmt, wo Tale läuft. Anbieteraufrufe, Konnektoren, Webabrufe und Netzwerkzugriffe der Sandbox hängen weiterhin von deiner Konfiguration ab. Prüfe diese Ziele zusammen mit den Speicherorten unter [Härtung](/de/self-hosted/operate/security/hardening).
+Selbsthosting bestimmt, wo Tale läuft. Anbieteraufrufe, Connectors, Webabrufe und Netzwerkzugriffe der Sandbox hängen weiterhin von deiner Konfiguration ab. Prüfe diese Ziele zusammen mit den Speicherorten unter [Härtung](/de/self-hosted/operate/security/hardening).

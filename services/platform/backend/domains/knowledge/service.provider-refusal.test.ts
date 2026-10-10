@@ -6,9 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { EmbeddingDimensionMismatch } from '../../core/knowledge/dimensions.ts';
-import { embedderForOrg } from '../../core/knowledge/embedding.ts';
+import {
+  embedderForOrg,
+  EmbeddingNotConfigured,
+} from '../../core/knowledge/embedding.ts';
 import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
 import {
+  RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
   RAG_ERROR_EMBEDDING_UPSTREAM,
   RAG_ERROR_INDEXER_ERROR,
@@ -51,12 +55,6 @@ vi.mock('../../core/knowledge/pool.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../core/knowledge/pool.ts')>()),
   getKnowledgePoolForOrg: vi.fn(async () => ({})),
   resolveOrgUrl: vi.fn(async () => 'postgres://knowledge.example/acme'),
-}));
-vi.mock('../../core/knowledge/dimensions.ts', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../../core/knowledge/dimensions.ts')
-  >()),
-  pinDimensions: vi.fn(async () => undefined),
 }));
 vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
   ...(await importOriginal<
@@ -144,7 +142,7 @@ describe('indexUploadedFile — provider refusals', () => {
       }),
     ],
   ])(
-    'ends the job on %s with the cause on the file, never a retry',
+    'ends the job on %s with the cause on the file, never a retry [KNOW-R12]',
     async (_label, error) => {
       vi.mocked(indexWholeDocument).mockRejectedValue(error);
       const log: Query[] = [];
@@ -182,7 +180,7 @@ describe('indexUploadedFile — provider refusals', () => {
     'CREDENTIAL_ENV_NAME_INVALID',
     'CREDENTIAL_ENV_UNSET',
   ])(
-    'ends the job on %s with the remedy under the re-queued code',
+    'ends the job on %s with the remedy under the re-queued code [KNOW-R12]',
     async (code) => {
       vi.mocked(embedderForOrg).mockRejectedValueOnce(
         new AppError({
@@ -237,7 +235,7 @@ describe('indexUploadedFile — provider refusals', () => {
   // A model that answers another width than the settings state — a provider
   // that ignores the requested `dimensions` — answers every retry the same
   // way; the job used to retry five times and report "the platform's side".
-  it('ends the job on a vector-width mismatch with both widths on the file', async () => {
+  it('ends the job on a vector-width mismatch with both widths on the file [KNOW-R11]', async () => {
     vi.mocked(indexWholeDocument).mockRejectedValue(
       new EmbeddingDimensionMismatch(1536, 1024, 'the embedding model "flash"'),
     );
@@ -258,7 +256,31 @@ describe('indexUploadedFile — provider refusals', () => {
     expect(markCorpusIndexingFailed).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps throwing on a transient provider failure — that is what the retries are for', async () => {
+  // No model at all: nothing to call, and nothing a retry could change. The
+  // job ends with the one cause a member can route to a fix, under the code
+  // the embedding save re-queues.
+  it('ends the job without an embedding model, with that cause on the file [KNOW-R10]', async () => {
+    vi.mocked(embedderForOrg).mockRejectedValueOnce(
+      new EmbeddingNotConfigured('acme'),
+    );
+    const log: Query[] = [];
+
+    await expect(indexUploadedFile(fakeSql(log), 'file-1')).resolves.toBe(
+      undefined,
+    );
+
+    const write = lastStatusWrite(log);
+    expect(write).toContain('failed');
+    expect(write).toContain(RAG_ERROR_EMBEDDING_NOT_CONFIGURED);
+    const prose = write.find(
+      (value) => typeof value === 'string' && value.includes('embedding model'),
+    );
+    expect(prose).toContain('Settings → Data residency → Embedding model');
+    expect(indexWholeDocument).not.toHaveBeenCalled();
+    expect(markCorpusIndexingFailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps throwing on a transient provider failure — that is what the retries are for [KNOW-R12]', async () => {
     vi.mocked(indexWholeDocument).mockRejectedValue(
       providerError(503, { error: { message: 'The server is overloaded' } }),
     );

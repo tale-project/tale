@@ -1,11 +1,10 @@
 'use client';
 
-import { Link } from '@tanstack/react-router';
+import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base';
+import { lazy, Suspense } from 'react';
 
-import { ShellAlert } from '@/app/components/layout/shell-alert';
 import { useProviderCredentials } from '@/app/features/settings/providers/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
-import { useT } from '@/lib/i18n/client';
 
 import { useOrgKnowledgeEmbedding } from '../hooks/queries';
 
@@ -72,33 +71,21 @@ export function useEmbeddingSetupNudge(
   return credentialsQuery.data.length > 0 ? 'shown' : 'hidden';
 }
 
-function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
-  const { t } = useT('settings');
-  if (useEmbeddingSetupNudge(organizationId) !== 'shown') return null;
+// The alert itself, with the settings words it quotes, loads only for an
+// organization that needs it.
+const EmbeddingSetupAlert = lazy(() =>
+  import('./embedding-setup-alert').then((module) => ({
+    default: module.EmbeddingSetupAlert,
+  })),
+);
 
+function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
+  if (useEmbeddingSetupNudge(organizationId) !== 'shown') return null;
   return (
-    <ShellAlert>
-      <span className="grow">
-        <span className="font-medium">
-          {t('dataResidency.orgEmbedding.banner.title')}
-        </span>
-        {/* On a phone, and on a viewport too short to spare the lines (a
-            phone held sideways, a laptop at 200 %), the explanation is read
-            out but not drawn: it wrapped the banner to three or four lines
-            above every page, and the title plus the link already say what
-            to do. */}
-        <span className="short-viewport:sr-only sr-only sm:not-sr-only">
-          {' — '}
-          {t('dataResidency.orgEmbedding.banner.body')}
-        </span>
-      </span>
-      <Link
-        to="/dashboard/$id/settings/data-residency"
-        params={{ id: organizationId }}
-        className="underline underline-offset-2"
-      >
-        {t('dataResidency.orgEmbedding.banner.link')}
-      </Link>
-    </ShellAlert>
+    <ErrorBoundaryBase fallback={() => null}>
+      <Suspense fallback={null}>
+        <EmbeddingSetupAlert organizationId={organizationId} />
+      </Suspense>
+    </ErrorBoundaryBase>
   );
 }

@@ -5,11 +5,8 @@ import { Tooltip } from '@tale/ui/tooltip';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import {
   Ban,
-  Bot,
   CalendarClock,
   CalendarSync,
-  Eye,
-  MessageCircleQuestion,
   MessageSquare,
   Repeat,
 } from 'lucide-react';
@@ -19,6 +16,24 @@ import { type TaskRepeat, taskRepeatCreateOn } from '@/lib/shared/task-repeat';
 
 import { TASK_TERMINAL_STATUSES, isTaskStatus } from '../lib/display';
 import { useTaskRepeatLabel } from '../lib/task-repeat-label';
+
+// Each indicator below is a guard and a chip: the guard decides from its
+// props alone, so a card pays for the translations and formatters of the
+// chips it shows, not of the ten it could show.
+
+export function useTaskCardStateLabels() {
+  const { t } = useT('tasks');
+  return {
+    blocked: t('detail.blocked'),
+    comments: (count: number) => t('detail.commentCount', { count }),
+    review: (reviewerName?: string, reviewerIsMe = false) =>
+      reviewerIsMe
+        ? t('review.waitingOnYou')
+        : reviewerName !== undefined
+          ? t('review.waitingOn', { name: reviewerName })
+          : t('review.needsReview'),
+  };
+}
 
 /**
  * Amber "blocked" glyph shown on a task card/row when the task has at least one
@@ -33,16 +48,20 @@ export function BlockedIndicator({
   blocked: boolean;
   className?: string;
 }) {
-  const { t } = useT('tasks');
-  if (!blocked) return null;
+  return blocked ? <BlockedChip className={className} /> : null;
+}
+
+function BlockedChip({ className }: { className?: string }) {
+  const labels = useTaskCardStateLabels();
   return (
-    <Tooltip content={t('detail.blocked')}>
+    <Tooltip content={labels.blocked}>
       <span
         className={cn(
           'inline-flex items-center text-amber-600 dark:text-amber-400',
           className,
         )}
-        aria-label={t('detail.blocked')}
+        aria-label={labels.blocked}
+        role="img"
       >
         <Ban className="size-3.5 shrink-0" aria-hidden="true" />
       </span>
@@ -62,9 +81,20 @@ export function CommentCountIndicator({
   count: number | undefined;
   className?: string;
 }) {
-  const { t } = useT('tasks');
-  if (!count || count <= 0) return null;
-  const label = `${count} ${t('detail.comments')}`;
+  return count && count > 0 ? (
+    <CommentCountChip count={count} className={className} />
+  ) : null;
+}
+
+function CommentCountChip({
+  count,
+  className,
+}: {
+  count: number;
+  className?: string;
+}) {
+  const labels = useTaskCardStateLabels();
+  const label = labels.comments(count);
   return (
     <Tooltip content={label}>
       <span
@@ -73,6 +103,7 @@ export function CommentCountIndicator({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <MessageSquare className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="tabular-nums">{count}</span>
@@ -95,8 +126,21 @@ export function SubtaskProgress({
   total: number;
   className?: string;
 }) {
+  return total > 0 ? (
+    <SubtaskProgressRing done={done} total={total} className={className} />
+  ) : null;
+}
+
+function SubtaskProgressRing({
+  done,
+  total,
+  className,
+}: {
+  done: number;
+  total: number;
+  className?: string;
+}) {
   const { t } = useT('tasks');
-  if (total <= 0) return null;
   const radius = 6;
   const circumference = 2 * Math.PI * radius;
   const ratio = Math.min(1, Math.max(0, done / total));
@@ -110,6 +154,7 @@ export function SubtaskProgress({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <svg
           viewBox="0 0 16 16"
@@ -145,111 +190,6 @@ export function SubtaskProgress({
 }
 
 /**
- * Pulsing "agent is working" glyph — shown while the task has a live agent
- * run (`getTaskOpsIndicators`). The pulse is the acknowledgment signal of
- * the task-ops pack: assignment should never look dead.
- */
-export function AgentWorkingIndicator({
-  working,
-  className,
-}: {
-  working: boolean;
-  className?: string;
-}) {
-  const { t } = useT('tasks');
-  if (!working) return null;
-  return (
-    <Tooltip content={t('agentRuns.working')}>
-      <span
-        className={cn('text-primary inline-flex items-center', className)}
-        aria-label={t('agentRuns.working')}
-      >
-        <Bot className="size-3.5 shrink-0 animate-pulse" aria-hidden="true" />
-      </span>
-    </Tooltip>
-  );
-}
-
-/**
- * Amber "the agent needs your answer" glyph — the task's live automation run
- * is parked on an unanswered `ask_human` question (`getTaskOpsIndicators`).
- * Deliberately distinct from the working pulse: a run waiting on a person
- * must read as the viewer's move, not as the agent still grinding. Same
- * glyph as the answer card the task dialog opens onto (`RunAskCard`).
- */
-export function AgentNeedsAnswerIndicator({
-  asking,
-  className,
-}: {
-  asking: boolean;
-  className?: string;
-}) {
-  const { t } = useT('tasks');
-  if (!asking) return null;
-  const label = t('agentRuns.needsAnswer');
-  return (
-    <Tooltip content={label}>
-      <span
-        className={cn(
-          'inline-flex items-center text-amber-600 dark:text-amber-400',
-          className,
-        )}
-        aria-label={label}
-      >
-        <MessageCircleQuestion
-          className="size-3.5 shrink-0"
-          aria-hidden="true"
-        />
-      </span>
-    </Tooltip>
-  );
-}
-
-/**
- * "Needs review" chip — the task sits at the review gate waiting for a
- * human decision. Paired with the review card in the detail sheet. When the
- * waiting-on reviewer is known the chip shows a count (today always 1); the
- * tooltip names them ("You" for the viewer). Without a resolved reviewer the
- * bare glyph keeps the pre-reviewer behavior.
- */
-export function NeedsReviewIndicator({
-  needsReview,
-  reviewerName,
-  reviewerIsMe = false,
-  className,
-}: {
-  needsReview: boolean;
-  /** Display name of the reviewer the task waits on, when resolved. */
-  reviewerName?: string;
-  /** True when the viewer IS the reviewer — tooltip reads "Waiting on you". */
-  reviewerIsMe?: boolean;
-  className?: string;
-}) {
-  const { t } = useT('tasks');
-  if (!needsReview) return null;
-  const hasNamedReviewer = reviewerIsMe || reviewerName !== undefined;
-  const label = reviewerIsMe
-    ? t('review.waitingOnYou')
-    : reviewerName !== undefined
-      ? t('review.waitingOn', { name: reviewerName })
-      : t('review.needsReview');
-  return (
-    <Tooltip content={label}>
-      <span
-        className={cn(
-          'inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400',
-          className,
-        )}
-        aria-label={label}
-      >
-        <Eye className="size-3.5 shrink-0" aria-hidden="true" />
-        {hasNamedReviewer && <span className="tabular-nums">1</span>}
-      </span>
-    </Tooltip>
-  );
-}
-
-/**
  * Repeat glyph shown on a task card/row that comes back when it closes; the
  * tooltip names the rule. Only an open task that still carries its series
  * shows it: one that already continued it (on its due date, while still
@@ -269,10 +209,21 @@ export function RepeatIndicator({
   continued?: boolean;
   className?: string;
 }) {
+  const open = isTaskStatus(status) && !TASK_TERMINAL_STATUSES.has(status);
+  return repeat && continued !== true && open ? (
+    <RepeatChip repeat={repeat} className={className} />
+  ) : null;
+}
+
+function RepeatChip({
+  repeat,
+  className,
+}: {
+  repeat: TaskRepeat;
+  className?: string;
+}) {
   const { t } = useT('tasks');
   const repeatLabel = useTaskRepeatLabel();
-  const open = isTaskStatus(status) && !TASK_TERMINAL_STATUSES.has(status);
-  if (!repeat || continued === true || !open) return null;
   const label = t('repeat.indicator', { rule: repeatLabel(repeat) });
   // The same glyph the Repeat row shows: a series that also creates its
   // next task on the due date reads differently at a glance.
@@ -286,6 +237,7 @@ export function RepeatIndicator({
           className,
         )}
         aria-label={label}
+        role="img"
       >
         <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
       </span>
@@ -308,9 +260,22 @@ export function DueDateIndicator({
   status: string;
   className?: string;
 }) {
+  return dueDate === undefined ? null : (
+    <DueDateChip dueDate={dueDate} status={status} className={className} />
+  );
+}
+
+function DueDateChip({
+  dueDate,
+  status,
+  className,
+}: {
+  dueDate: number;
+  status: string;
+  className?: string;
+}) {
   const { t } = useT('tasks');
   const { formatDate } = useFormatDate();
-  if (dueDate === undefined) return null;
   const overdue =
     dueDate < Date.now() &&
     (!isTaskStatus(status) || !TASK_TERMINAL_STATUSES.has(status));
@@ -327,6 +292,7 @@ export function DueDateIndicator({
           className,
         )}
         aria-label={tooltip}
+        role="img"
       >
         <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
         {formatDate(date, 'short')}

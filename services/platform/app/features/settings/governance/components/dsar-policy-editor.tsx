@@ -25,6 +25,7 @@ import {
   useProposeDsarPolicy,
 } from '../hooks/mutations';
 import { useDsarPolicyForUi } from '../hooks/queries';
+import { withDsarPolicyReadBoundary } from './policy-read-boundary';
 
 interface DsarPolicyEditorProps {
   organizationId: string;
@@ -50,7 +51,7 @@ type DsarPendingFields = {
  * Notifications fan out on propose / apply / cancel / tighten so other
  * admins can react before a weakened policy takes effect.
  */
-export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
+function DsarPolicyEditorContent({ organizationId }: DsarPolicyEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
 
@@ -116,7 +117,12 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
   const commitCoolingOffHours = useCallback(() => {
     if (!data) return;
     const hours = Number(coolingOffHours);
-    if (!Number.isInteger(hours) || hours < 0 || hours > 72) {
+    if (
+      coolingOffHours.trim() === '' ||
+      !Number.isInteger(hours) ||
+      hours < 0 ||
+      hours > 72
+    ) {
       toast({
         title: t('dsarPolicy.invalidCoolingOffHours'),
         variant: 'destructive',
@@ -135,7 +141,12 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
   const commitDailyLimit = useCallback(() => {
     if (!data) return;
     const limit = Number(dailyLimitPerAdmin);
-    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+    if (
+      dailyLimitPerAdmin.trim() === '' ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 50
+    ) {
       toast({
         title: t('dsarPolicy.invalidDailyLimit'),
         variant: 'destructive',
@@ -423,3 +434,7 @@ function PendingChangeBanner({
     </Alert>
   );
 }
+
+export const DsarPolicyEditor = withDsarPolicyReadBoundary(
+  DsarPolicyEditorContent,
+);

@@ -25,11 +25,11 @@ Réunis une tâche, un fichier source et les instructions du projet. Choisis ce 
 
 ## Créer des processus et connecter des systèmes
 
-Ces tutoriels demandent des droits supplémentaires ou un service déjà configuré. Consulte les prérequis de la page avant de commencer. Un chat ordinaire ne nécessite pas de harness d'agent.
+Ces tutoriels demandent des droits supplémentaires ou un service déjà configuré. Consulte les prérequis de la page avant de commencer. Un chat ordinaire ne nécessite pas d’environnement d’agent.
 
 | Ton objectif | Tutoriel | Ce qu'il te faut |
 | --- | --- | --- |
-| Déléguer une tâche de projet | [Exécuter ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) | Le droit de configurer les agents du projet, un modèle et un harness opérationnel |
+| Déléguer une tâche de projet | [Exécuter ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) | Le droit de configurer les agents du projet, un modèle et un environnement d’agent opérationnel |
 | Vérifier une action avant son exécution | [Créer un workflow avec approbations](/fr/tutorials/editor/workflow-with-approvals) | Le droit de modifier les automatisations et une personne autorisée à approuver |
 | Envoyer un message depuis ton programme | [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script) | Une instance opérationnelle, un modèle, une clé API et Python |
 | Lancer une automatisation depuis un autre système | [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook) | Une automatisation publiée et un identifiant de webhook conservé en lieu sûr |

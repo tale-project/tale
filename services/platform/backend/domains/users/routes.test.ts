@@ -13,6 +13,7 @@ import {
   DEFAULT_PASSWORD_POLICY,
   type PasswordPolicyConfig,
 } from '@tale/shared/schemas/governance';
+import { APIError } from 'better-auth/api';
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -74,7 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('GET /me/password-policy', () => {
+describe('GET /me/password-policy [USER-R1]', () => {
   it('answers the strictest policy across every organization the caller belongs to', async () => {
     getUserOrganizations.mockResolvedValue([
       { organizationId: 'org-strict', role: 'member' },
@@ -109,7 +110,7 @@ describe('GET /me/password-policy', () => {
 });
 
 describe('POST /update-password', () => {
-  it('refuses a password the read rules refuse, though the default accepts it', async () => {
+  it('refuses a password the read rules refuse, though the default accepts it [USER-R1]', async () => {
     getUserOrganizations.mockResolvedValue([
       { organizationId: 'org-strict', role: 'member' },
     ]);
@@ -141,10 +142,72 @@ describe('POST /update-password', () => {
   });
 });
 
+describe('POST /update-password — the current password counts like a sign-in [USER-R3]', () => {
+  /** A caller with a password and no expiry: the voluntary change lane. */
+  const credentialedSql = (() => {
+    const tag = (strings: TemplateStringsArray) =>
+      Promise.resolve(
+        strings.join('?').includes('FROM "account"') ? [{ id: 'acc-1' }] : [],
+      );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for postgres.js
+    return tag as never;
+  })();
+
+  function changePasswordRefusedWith(error: unknown) {
+    const changePassword = vi.fn().mockRejectedValue(error);
+    const app = createUserRoutes({
+      sql: credentialedSql,
+      auth: { api: { changePassword } } as never,
+    });
+    return app.request('/update-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        currentPassword: 'guess',
+        newPassword: DEFAULT_GRADE_PASSWORD,
+      }),
+    });
+  }
+
+  beforeEach(() => {
+    getUserOrganizations.mockResolvedValue([]);
+  });
+
+  it('answers a locked account with its wait, for the form to say', async () => {
+    const response = await changePasswordRefusedWith(
+      new APIError('TOO_MANY_REQUESTS', {
+        message: 'Invalid credentials',
+        retryAfter: 90,
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toBe('90');
+    expect(await response.json()).toEqual({
+      error: 'PASSWORD_ATTEMPTS_LOCKED',
+      data: { retryAfter: 90 },
+    });
+  });
+
+  it('still answers a wrong current password as its own refusal', async () => {
+    const response = await changePasswordRefusedWith(
+      new APIError('BAD_REQUEST', {
+        message: 'Invalid password',
+        code: 'INVALID_PASSWORD',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'INVALID_CURRENT_PASSWORD',
+    });
+  });
+});
+
 describe('POST /update-name', () => {
   // The door used to answer the bare code, so the account form could only
   // say "Couldn't update profile"; the sentence now rides beside it.
-  it('answers a refused name with its code and its sentence', async () => {
+  it('answers a refused name with its code and its sentence [USER-R6]', async () => {
     const response = await routes().request('/update-name', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

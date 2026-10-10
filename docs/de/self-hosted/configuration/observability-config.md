@@ -55,16 +55,21 @@ Frage `/metrics/sla-rules` nicht als Metriken ab. Die generierten Regeln verweis
 
 ## Ziel für Fehlerberichte wählen
 
-`SENTRY_DSN` aktiviert die optionale Fehlererfassung. Du kannst Sentry oder einen kompatiblen Dienst wie GlitchTip oder Bugsink verwenden. Browser und Backend nutzen denselben DSN; Backend-Ereignisse enthalten Prozessrolle und Versionsnummer.
+`SENTRY_DSN` aktiviert die optionale Fehlererfassung. Du kannst Sentry oder einen kompatiblen Dienst wie GlitchTip oder Bugsink verwenden. Browser, Backend und Sandbox nutzen denselben DSN und die Umgebungsbezeichnung `SENTRY_ENVIRONMENT`; Server-Ereignisse enthalten Prozessrolle und Versionsnummer.
 
 ```bash
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
+SENTRY_ENVIRONMENT=example-pr
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
+Verwaltete Deployments verwenden als Umgebungsbezeichnung standardmäßig ihren bestehenden `name`. Für eine andere Bezeichnung deklarierst du `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` in der Deployment-Spezifikation und setzt die Variable am Ziel. Der Wert beginnt mit einem Kleinbuchstaben oder einer Ziffer und enthält 1–64 Kleinbuchstaben, Ziffern oder Bindestriche. Deployment-Identität, Zustand und gespeicherte Zugangsdaten bleiben an ihren bestehenden Pfaden.
+
+Sandbox-Fehler umfassen fehlgeschlagene HTTP-Anfragen und Hintergrundaufgaben. Erwartete Client-Abbrüche und nach einer Abmeldung geschlossene SSE-Streams werden ausgeschlossen. Die Sandbox sendet nur Fehler; die Tracing-Einstellungen für Browser und Backend aktivieren kein Sandbox-Tracing. Sie nutzt den unten beschriebenen Datenschutzfilter des Backends.
+
 `SENTRY_TRACES_SAMPLE_RATE` gilt für Leistungstraces im Browser; in der Entwicklung beträgt die Standardrate 1.0. Backend-Tracing ist standardmäßig deaktiviert. Setze `BACKEND_SENTRY_TRACES_SAMPLE_RATE` auf einen Wert zwischen `0` und `1`, um es einzuschalten (zum Beispiel erfasst `0.05` 5 % der Vorgänge), und verwende ein Ziel, das Sentry-Transaktionen annimmt. Erstelle die Backend-API- und Worker-Dienste nach der Änderung neu. Wähle Raten passend zu deinem Überwachungsbudget; mit der Backend-Rate `0` deaktivierst du Spans, während die Fehlererfassung aktiv bleibt.
 
-Backend-Spans messen die Bearbeitung von HTTP-Anfragen und die Ausführung von Hintergrundjobs. Ein Job enthält untergeordnete Spans für die Drain-Prüfung, den Handler oder die Übergabe. Zustandsprüfungen und Metrikabfragen sind ausgenommen; HTTP-Spans messen nicht die Lebensdauer eines gestreamten Antwortinhalts. Span-Namen verwenden Routenklassen und registrierte Warteschlangennamen. Spans enthalten weder Anfrage- und Job-Inhalte noch SQL-Text, Kennungen, URLs, Benutzerkontext oder Breadcrumbs. Ausgehende Anfragen tragen keine Trace-Header.
+Backend-Spans messen die Bearbeitung von HTTP-Anfragen und die Ausführung von Hintergrundjobs. Ein Job enthält untergeordnete Spans für die Drain-Prüfung, den Handler oder die Übergabe. Zustandsprüfungen und Metrikabfragen sind ausgenommen; HTTP-Spans messen nicht die Lebensdauer eines gestreamten Antwortinhalts. Span-Namen verwenden Routenklassen und registrierte Warteschlangennamen. Spans enthalten weder Anfrage- und Job-Inhalte noch SQL-Text, Kennungen, URLs, Benutzerkontext oder Breadcrumbs. Ausgehende Anfragen tragen keine Trace-Header. Agentenarbeit enthält außerdem untergeordnete Spans für Belegen, Gateway-Bereitstellung, Staging, Ausführung, Persistierung und Harvest. Sie verwenden feste Namen und enthalten keine Prompts, Dateipfade oder Zugangsdaten.
 
 Backend-Ereignisse enthalten nie Cookies oder Inhalte der Anfrage. Autorisierungs-, Cookie-, API-Schlüssel-, Token-, Secret- und Sitzungs-Header, Webhook- und Freigabe-Tokens in URLs sowie Zugangswerte in Abfrageparametern wie OAuth-Codes werden vor dem Senden durch `[Filtered]` ersetzt. Stackframes und Fehlermeldungen werden unverändert übertragen; berücksichtige bei der Zielwahl deine Vorgaben zur Datenverarbeitung.
 

@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 35 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -78,7 +78,9 @@ if you want to keep a write.
   **Settings** (`navigation.userSettings`) — no **More** tab, no overflow
   sheet, no separate Projects or Inbox tab. **Home** is the active tab on the
   chat, and on a project, a task page and the inbox too; each other tab opens
-  its section's first page.
+  its section's first page, also from inside that section: **Knowledge**
+  opened from **Websites** lands on **Documents**, **Automations** opened from
+  an automation's **Runs** tab on the list.
 - [ ] `RESP-F2` · **~~More sheet~~ (retired)** → The **More** tab and its
   overflow sheet are gone: Knowledge, Automations and Settings are tabs of
   their own (`RESP-F1`).
@@ -194,7 +196,12 @@ if you want to keep a write.
   (`home.scope.emptyChatsTitle`) and **Tasks** reads
   **No open tasks assigned to you in this project** (`home.scope.emptyTasksTitle`). **Open project**
   (`home.scope.open`) in the project row's **...** menu opens the project's page. Choosing the row
-  again brings all chats/tasks back. **All** and **Inbox** show all items without narrowing.
+  again brings all chats/tasks back. Narrow to the first project in **Chats**, then choose
+  **All** → only that project's chat and task are listed; the row stays pressed and items
+  outside the project stay hidden. **Tasks** keeps the same project narrowing. There is no
+  project bar or **Show all** control above the list. Choose the selected project row again
+  → **All** shows items from outside the project again. **Inbox** is never narrowed by project.
+  Narrow to the first project in **Chats** again.
   Open a chat and go back → the narrowing is still on when viewing **Chats**. Delete the project in
   another browser tab and reload → the list shows everything.
   **Inbox** lists the same conversations narrowed or not, and carries no
@@ -250,6 +257,17 @@ if you want to keep a write.
   view with the conversation's header above, and a long reply scrolls
   inside the box. The chat's empty composer is two lines tall and the
   thread shows above it.
+
+- [ ] `RESP-B8` · **Document preview reading width** — Store a short plain-text
+  document named `folder-audit.txt` in Knowledge > Documents, then open its
+  preview at **320×844** and **390×844**, in EN, DE and FR → The filename is
+  readable above the Download and Close actions; text uses the full preview
+  width, without a fixed metadata column or horizontal dialog overflow.
+  Scroll below the preview to read metadata and Tab into its indexing status
+  control. Download and Close remain reachable. At **1280×900**, the metadata
+  is again a **260 px** right-hand column with its own scroll area. Capture
+  mobile and desktop screenshots in real Chrome; also check a long filename
+  and a loading preview before closing with Escape.
 
 ## Accessibility (WCAG 2.1 AA)
 

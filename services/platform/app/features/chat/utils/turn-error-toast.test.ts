@@ -62,6 +62,20 @@ describe('turnRefusalToastContent', () => {
       description: 'errorHintBudgetExceeded',
     });
   });
+
+  it('says a project’s cap is the project’s', () => {
+    expect(
+      turnRefusalToastContent(
+        "Usage limit reached. This project's monthly request limit is used up until 2026-11-01T00:00:00.000Z.",
+        t,
+        'BUDGET_EXCEEDED',
+        'project',
+      ),
+    ).toEqual({
+      titleKey: 'toast.budgetExceeded',
+      description: 'errorHintProjectBudgetExceeded',
+    });
+  });
 });
 
 describe('turnNamedFailureToastContent', () => {

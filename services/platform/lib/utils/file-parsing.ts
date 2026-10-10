@@ -32,10 +32,12 @@ export type ImportRowReason = (typeof IMPORT_ROW_REASONS)[number];
 
 /** A row the mapper refused, by the line the user sees in a spreadsheet
  * (the header is line 1, so the first data row is line 2). The parser's own
- * refusals carry an i18n `field` + `reason` the dialog translates; a row the
+ * refusals carry an i18n `field` + `reason` the dialog translates, or
+ * `quotes: 'unpaired'` for a CSV row whose quotes don't pair up; a row the
  * server refused carries the server's text as `message`. */
 export type ImportRowError =
   | { row: number; message: string }
+  | { row: number; quotes: 'unpaired' }
   | {
       row: number;
       field: ImportRowField;
@@ -151,56 +153,119 @@ type CSVParseOptions = {
   hasHeaders?: boolean;
 };
 
+/** One CSV record: its trimmed fields, whether its quotes failed to pair up
+ * (a quoted field never closed, or text after a closing quote), and its
+ * spreadsheet row. */
+type CSVRecord = {
+  values: string[];
+  unpairedQuotes: boolean;
+  /** 1-based; every record is one row — a blank line, and a quoted cell
+   * across line breaks (LF or CRLF), count one row each. */
+  line: number;
+};
+
 type CSVParseOutput = {
   headers: string[] | null;
-  rows: string[][];
+  /** The header record's row, when headers are present. */
+  headerLine: number | null;
+  /** The header record's quotes failed to pair up. */
+  headerUnpairedQuotes: boolean;
+  rows: CSVRecord[];
 };
 
 /**
- * Parse a single CSV line respecting quoted fields (RFC 4180).
- * Handles commas, newlines, and escaped quotes inside quoted values.
+ * Split CSV text into records of trimmed fields (RFC 4180). A record is not
+ * a physical line: a quoted field holds the delimiter, `""` for a quote and
+ * line breaks, which is how a spreadsheet exports a cell with a line break.
+ * A quote opens a quoted field only at the start of a field; inside one
+ * (`6" long`) it is a literal character. A quote that never closes is read as
+ * a literal character too, so an unbalanced quote cannot swallow the records
+ * after it, and its record, like one with text after a closing quote, is
+ * marked `unpairedQuotes`. Records end at `\n` (a CRLF's `\r` is trimmed with
+ * its field); a blank line is a record of one blank field.
  */
-function parseCSVLine(line: string, delimiter: string): string[] {
-  const fields: string[] = [];
-  let current = '';
-  let inQuotes = false;
+function parseCSVRecords(text: string, delimiter: string): CSVRecord[] {
+  const records: CSVRecord[] = [];
+  let fields: string[] = [];
+  let field = '';
+  // Only whitespace read into the field so far: a quote here opens it.
+  let atFieldStart = true;
+  // The field's quoted part has closed: only whitespace may follow it.
+  let quoteClosed = false;
+  let unpairedQuotes = false;
+  let recordStart = 0;
+  // The open quoted field: where its quote is and what the field held before.
+  let quote: { at: number; before: string } | null = null;
   let i = 0;
 
-  while (i < line.length) {
-    const char = line[i];
+  const endField = () => {
+    fields.push(field.trim());
+    field = '';
+    atFieldStart = true;
+    quoteClosed = false;
+  };
+  const endRecord = (next: number) => {
+    endField();
+    // Rows are counted by record, not by line break: the breaks inside a
+    // quoted cell belong to the cell, as in the spreadsheet it came from.
+    records.push({ values: fields, unpairedQuotes, line: records.length + 1 });
+    fields = [];
+    unpairedQuotes = false;
+    recordStart = next;
+  };
 
-    if (inQuotes) {
-      if (char === '"') {
-        // Check for escaped quote ("")
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          current += '"';
-          i += 2;
-        } else {
-          // End of quoted field
-          inQuotes = false;
-          i++;
-        }
-      } else {
-        current += char;
+  while (i < text.length || quote) {
+    if (i === text.length && quote) {
+      // The text ended inside quotes: read that quote as a literal
+      // character, and what follows it again, unquoted.
+      field = `${quote.before}"`;
+      // No record ended inside the quotes, so the replayed records keep
+      // their rows.
+      i = quote.at + 1;
+      quote = null;
+      unpairedQuotes = true;
+      continue;
+    }
+    const char = text[i];
+    if (quote) {
+      if (char !== '"') {
+        field += char;
+      } else if (text[i + 1] === '"') {
+        field += '"';
         i++;
+      } else {
+        quote = null;
+        quoteClosed = true;
       }
+      i++;
+    } else if (char === '"' && atFieldStart) {
+      quote = { at: i, before: field };
+      atFieldStart = false;
+      i++;
+    } else if (char === delimiter) {
+      endField();
+      i++;
+    } else if (char === '\n') {
+      endRecord(i + 1);
+      i++;
     } else {
-      if (char === '"') {
-        inQuotes = true;
-        i++;
-      } else if (char === delimiter) {
-        fields.push(current.trim());
-        current = '';
-        i++;
-      } else {
-        current += char;
-        i++;
+      field += char;
+      if ((atFieldStart || quoteClosed) && char.trim() !== '') {
+        // Text after a closing quote leaves the field's quotes unpaired.
+        if (quoteClosed) unpairedQuotes = true;
+        atFieldStart = false;
       }
+      i++;
     }
   }
+  // A last line without a line break is a record too.
+  if (recordStart < text.length) endRecord(text.length);
+  return records;
+}
 
-  fields.push(current.trim());
-  return fields;
+/** A record of one blank field: an empty or whitespace-only line. */
+function isBlankLine({ values }: CSVRecord): boolean {
+  return values.length === 1 && values[0] === '';
 }
 
 /**
@@ -214,23 +279,27 @@ function parseCSVText(
 ): CSVParseOutput {
   const { delimiter = ',', skipEmptyLines = true } = options;
 
-  const lines = csvText.trim().split('\n');
-  const rows: string[][] = [];
+  const rows: CSVRecord[] = [];
 
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (skipEmptyLines && !trimmedLine) continue;
-
-    const values = parseCSVLine(trimmedLine, delimiter);
-    rows.push(values);
+  for (const record of parseCSVRecords(csvText, delimiter)) {
+    if (skipEmptyLines && isBlankLine(record)) continue;
+    rows.push(record);
   }
 
   let headers: string[] | null = null;
-  if (options.hasHeaders !== false && rows.length > 0) {
-    headers = rows.shift()?.map((h) => h.toLowerCase()) ?? null;
+  let headerUnpairedQuotes = false;
+  const header = options.hasHeaders !== false ? rows.shift() : undefined;
+  if (header) {
+    headers = header.values.map((h) => h.toLowerCase());
+    headerUnpairedQuotes = header.unpairedQuotes;
   }
 
-  return { headers, rows };
+  return {
+    headers,
+    headerLine: header?.line ?? null,
+    headerUnpairedQuotes,
+    rows,
+  };
 }
 
 /**
@@ -248,11 +317,21 @@ export function parseCSVWithMapper<T>(
   } = {},
 ): FileParseResult<T> {
   const { recordMapper, requiredColumns, ...csvOptions } = options;
-  const { headers, rows } = parseCSVText(csvText, {
-    ...csvOptions,
-    hasHeaders: !!recordMapper,
-  });
+  const { headers, headerLine, headerUnpairedQuotes, rows } = parseCSVText(
+    csvText,
+    {
+      ...csvOptions,
+      hasHeaders: !!recordMapper,
+    },
+  );
   const result = emptyResult<T>();
+
+  // A header whose quotes don't pair up names no column reliably: refuse the
+  // file at the header's row instead of importing under misread headers.
+  if (headerUnpairedQuotes) {
+    result.rowErrors.push({ row: headerLine ?? 1, quotes: 'unpaired' });
+    return result;
+  }
 
   // Fail loudly when the header row is missing a required column, instead of
   // silently dropping rows or importing partial data (see #1312, #1323).
@@ -263,11 +342,14 @@ export function parseCSVWithMapper<T>(
     }
   }
 
-  const firstLine = headers ? 2 : 1;
-  rows.forEach((row, index) => {
-    const line = firstLine + index;
+  rows.forEach(({ values: row, unpairedQuotes, line }, index) => {
     // `,,,,` is not a record: skipped like an empty line, never refused.
     if (isBlankRecord(row)) return;
+    // A row whose quotes don't pair up may hold misread cells: refused.
+    if (unpairedQuotes) {
+      result.rowErrors.push({ row: line, quotes: 'unpaired' });
+      return;
+    }
     try {
       let mapped: T | null;
       if (headers && recordMapper) {
@@ -367,18 +449,43 @@ export function excelRecords(
   }));
 }
 
+/** Convert a worksheet header cell to its textual column name safely. */
+export function excelHeaderText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object' && value !== null) {
+    const text = (value as { text?: unknown; w?: unknown }).text;
+    if (typeof text === 'string') return text;
+    const formatted = (value as { text?: unknown; w?: unknown }).w;
+    if (typeof formatted === 'string') return formatted;
+  }
+  return '';
+}
+
 /**
  * Parse an Excel file and return its rows with their lines.
  * Dynamically imports xlsx to reduce initial bundle size.
  */
-async function parseExcelFile(file: File): Promise<ExcelRecord[]> {
+async function parseExcelFile(
+  file: File,
+): Promise<{ headers: string[]; records: ExcelRecord[] }> {
   const XLSX = await import('xlsx');
   const buffer = await readFileAsArrayBuffer(file);
   const data = new Uint8Array(buffer);
   const workbook = XLSX.read(data, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  return excelRecords(XLSX, worksheet);
+  const headerRows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+    header: 1,
+    range: 0,
+    blankrows: false,
+  });
+  const headers = (headerRows[0] ?? []).map((header) =>
+    excelHeaderText(header).trim().toLowerCase(),
+  );
+  return { headers, records: excelRecords(XLSX, worksheet) };
 }
 
 function isCSVFile(file: File): boolean {
@@ -410,12 +517,10 @@ export async function parseImportFile<T>(
       });
       return result;
     } else if (isExcelFile(file)) {
-      const records = await parseExcelFile(file);
+      const { headers: headerKeys, records } = await parseExcelFile(file);
 
       // Validate the header row (the keys of the first record) so a
       // mismatched schema fails loudly rather than dropping data silently.
-      const headerKeys =
-        records.length > 0 ? Object.keys(records[0].record) : [];
       const missing = detectMissingColumns(headerKeys, options.requiredColumns);
       if (missing.length > 0) {
         return emptyResult([missingColumnsError(missing, headerKeys)]);

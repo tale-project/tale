@@ -5,13 +5,113 @@ import {
   pointerWithin,
   useSensor,
   useSensors,
+  type ClientRect,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type KeyboardCoordinateGetter,
 } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import {
+  arrayMove,
+  hasSortableData,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+// Module constants: `useSensor` memoizes on its options' identity, and a new
+// object each render handed `DndContext` new sensors, re-rendering every
+// draggable and droppable under it on every render.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
+const KEYBOARD_SENSOR_OPTIONS = {
+  coordinateGetter: (...args: Parameters<KeyboardCoordinateGetter>) =>
+    boardKeyboardCoordinates(...args),
+};
+
+const NO_LANE_IDS: readonly string[] = [];
+/** Each lane's ids as a set, per lane array: the working copy replaces a
+ * lane's array whenever it changes and never edits one in place. A lane's
+ * `includes` per mounted card made every pointer move cost cards × lane. */
+const laneIdSets = new WeakMap<readonly string[], ReadonlySet<string>>();
+function laneIdSet(ids: readonly string[]): ReadonlySet<string> {
+  let set = laneIdSets.get(ids);
+  if (set === undefined) {
+    set = new Set(ids);
+    laneIdSets.set(ids, set);
+  }
+  return set;
+}
+
+/**
+ * A keyboard drag has no pointer: the sensor puts the dragged box's top-left
+ * corner on the target it chose. That lane decides, and only its own cards
+ * (or its surface) compete — so a wide box moved onto a narrow folded lane
+ * can land neither on the next lane's card nor back in its own source slot.
+ */
+function keyboardCollision(
+  args: Parameters<CollisionDetection>[0],
+  cols: Record<string, string[]>,
+) {
+  const isLane = (id: string | number): boolean =>
+    Object.hasOwn(cols, String(id));
+  const corner = {
+    x: args.collisionRect.left + 1,
+    y: args.collisionRect.top + 1,
+  };
+  const lane = pointerWithin({ ...args, pointerCoordinates: corner }).find(
+    (collision) => isLane(collision.id),
+  );
+  if (lane === undefined) return closestCorners(args);
+  const items = laneIdSet(cols[String(lane.id)] ?? NO_LANE_IDS);
+  const nearest = closestCorners({
+    ...args,
+    droppableContainers: args.droppableContainers.filter((container) =>
+      items.has(String(container.id)),
+    ),
+  });
+  return nearest.length > 0 ? nearest : [lane];
+}
+
+/**
+ * The board's ← / → for a keyboard drag: one lane per key. The sortable step
+ * alone can stay in the card's own lane (the card sits inset in it, so the
+ * lane counts as lying to its left) or jump past a narrow folded lane to the
+ * card beyond it. Here the nearest lane in that direction is the target; the
+ * sortable step stands where it lands inside that lane (beside a card),
+ * otherwise the box goes to the lane's top.
+ */
+export const boardKeyboardCoordinates: KeyboardCoordinateGetter = (
+  event,
+  args,
+) => {
+  const next = sortableKeyboardCoordinates(event, args);
+  const { collisionRect, droppableRects, droppableContainers } = args.context;
+  const right = event.code === 'ArrowRight';
+  if (collisionRect === null || (!right && event.code !== 'ArrowLeft')) {
+    return next;
+  }
+  let target: ClientRect | undefined;
+  for (const container of droppableContainers.getEnabled()) {
+    if (hasSortableData(container)) continue; // a card, not a lane
+    const rect = droppableRects.get(container.id);
+    if (rect === undefined) continue;
+    const ahead = right
+      ? rect.left > collisionRect.left + 1
+      : rect.right <= collisionRect.left;
+    if (
+      ahead &&
+      (target === undefined ||
+        (right ? rect.left < target.left : rect.left > target.left))
+    ) {
+      target = rect;
+    }
+  }
+  if (target === undefined) return next;
+  if (next !== undefined && next.x >= target.left && next.x < target.right) {
+    return next;
+  }
+  return { x: target.left, y: target.top };
+};
 
 /**
  * Pointer-first collision detection for a lane board.
@@ -23,8 +123,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
  * pointer decides: a card under the pointer wins outright; otherwise the
  * candidates are that lane's own cards (closest corners among them), the lane
  * surface itself when it has no cards or the pointer sits below its last card.
- * With no pointer at all (the keyboard sensor) or a pointer over no drop
- * target, it falls back to `closestCorners` so keyboard drags keep working.
+ * With no pointer at all (the keyboard sensor), the lane under the dragged
+ * box's corner decides (`keyboardCollision`); a pointer over no drop target
+ * falls back to `closestCorners`.
  *
  * `getColumns` reads the LIVE lane → card-id working copy (it moves mid-drag).
  */
@@ -32,6 +133,9 @@ export function createBoardCollisionDetection(
   getColumns: () => Record<string, string[]>,
 ): CollisionDetection {
   return (args) => {
+    if (args.pointerCoordinates === null) {
+      return keyboardCollision(args, getColumns());
+    }
     const under = pointerWithin(args);
     if (under.length === 0) return closestCorners(args);
 
@@ -43,9 +147,9 @@ export function createBoardCollisionDetection(
 
     const lane = under[0];
     if (!lane) return closestCorners(args);
-    const items = cols[String(lane.id)] ?? [];
+    const items = laneIdSet(cols[String(lane.id)] ?? NO_LANE_IDS);
     const laneCards = args.droppableContainers.filter((container) =>
-      items.includes(String(container.id)),
+      items.has(String(container.id)),
     );
     if (laneCards.length === 0) return [lane];
 
@@ -176,10 +280,8 @@ export function useBoardDnd<Row>({
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
   );
 
   const byId = useMemo(() => {

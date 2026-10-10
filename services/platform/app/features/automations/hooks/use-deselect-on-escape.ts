@@ -2,8 +2,10 @@
 
 import { useEffect } from 'react';
 
-/** Marks a canvas node button so focus can return there after the inspector closes. */
-const AUTOMATION_NODE_ATTR = 'data-automation-node';
+/** Marks a canvas node button (the flow canvas's own attribute: a node's,
+ * a condition's, Start's or End's id) so focus can return there after the
+ * inspector closes. */
+const AUTOMATION_NODE_ATTR = 'data-flow-node';
 
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -13,18 +15,13 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return target.closest('[contenteditable="true"]') !== null;
 }
 
-/** The canvas button of one node, looked up inside `root`. */
-export function automationNodeElement(
-  nodeId: string,
-  root: ParentNode = document,
-): HTMLElement | null {
-  return root.querySelector<HTMLElement>(
-    `[${AUTOMATION_NODE_ATTR}="${CSS.escape(nodeId)}"]`,
-  );
-}
-
+/** Moves focus to the canvas button of one node. */
 export function focusAutomationNode(nodeId: string): void {
-  automationNodeElement(nodeId)?.focus();
+  document
+    .querySelector<HTMLElement>(
+      `[${AUTOMATION_NODE_ATTR}="${CSS.escape(nodeId)}"]`,
+    )
+    ?.focus();
 }
 
 /**

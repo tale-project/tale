@@ -40,7 +40,7 @@ vi.mock('./dispatch-store.ts', () => ({
   }),
 }));
 
-import { createAutomationRoutes } from './routes.ts';
+import { authoringRefusalBody, createAutomationRoutes } from './routes.ts';
 import { AutomationError } from './store.ts';
 
 function document(multiplier: number) {
@@ -102,7 +102,7 @@ describe('app automation acceptance gate', () => {
       );
     },
   );
-  it('refuses an untested stored version whose declared tests fail and records the verdict', async () => {
+  it('refuses an untested stored version whose declared tests fail and records the verdict [AUTO-R4]', async () => {
     io.document = document(3);
     const result = await post('/double/deploy', { version: 2 });
     expect(result.status).toBe(409);
@@ -136,7 +136,7 @@ describe('app automation acceptance gate', () => {
     expect(result.status).toBe(400);
     expect(io.save).not.toHaveBeenCalled();
   });
-  it('forwards the version the draft started from and hands back a stale refusal with its detail', async () => {
+  it('forwards the version the draft started from and hands back a stale refusal with its detail [AUTO-R3]', async () => {
     const result = await post('/double/save', {
       document: document(2),
       baseVersion: 5,
@@ -178,6 +178,106 @@ describe('app automation acceptance gate', () => {
       error: 'PROJECT_NOT_FOUND',
       message: 'Project not found',
     });
+  });
+  it('refuses an invalid save with every problem and where it is, and saves nothing [AUTO-R23]', async () => {
+    const invalid = {
+      ...document(2),
+      nodes: [
+        { id: 'stale', type: 'transform', code: 'return 1;' },
+        ...document(2).nodes,
+      ],
+      output: '{{ nodes.nope.output }}',
+    };
+    const result = await post('/double/save', { document: invalid });
+    expect(result.status).toBe(400);
+    const body = (await result.json()) as {
+      error: string;
+      data?: { errors?: unknown[]; warnings?: unknown[]; hint?: string };
+    };
+    expect(body.error).toBe('AUTOMATION_INVALID');
+    // The structured part rides under `data`, the one place the app's fetch
+    // layer keeps beside the code and the sentence.
+    expect(body.data?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'REF_UNKNOWN_NODE',
+          at: expect.objectContaining({ pointer: '/output' }),
+        }),
+      ]),
+    );
+    expect(body.data?.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'UNUSED_NODE', nodeId: 'stale' }),
+      ]),
+    );
+    expect(typeof body.data?.hint).toBe('string');
+    // Older readers keep finding them at the top level.
+    const top = body as unknown as Record<string, unknown>;
+    expect(top.errors).toEqual(body.data?.errors);
+    expect(top.warnings).toEqual(body.data?.warnings);
+    expect(top.hint).toBe(body.data?.hint);
+    expect(io.save).not.toHaveBeenCalled();
+  });
+  it("keeps a refusal's own data beside the detail it nests there", () => {
+    const refusal = authoringRefusalBody({
+      error: 'the run input does not fit the schema',
+      code: 'RUN_INPUT_INVALID',
+      hint: 'send the fields the schema requires',
+      data: { schemaErrors: [{ path: '/city', message: 'required' }] },
+    });
+    expect(refusal).toEqual({
+      status: 400,
+      body: {
+        error: 'RUN_INPUT_INVALID',
+        code: 'RUN_INPUT_INVALID',
+        message: 'the run input does not fit the schema',
+        hint: 'send the fields the schema requires',
+        data: {
+          schemaErrors: [{ path: '/city', message: 'required' }],
+          hint: 'send the fields the schema requires',
+        },
+      },
+    });
+  });
+  it('refuses to deploy a stored version that no longer validates, naming its problems [AUTO-R23]', async () => {
+    io.document = { ...document(2), output: '{{ nodes.nope.output }}' };
+    const result = await post('/double/deploy', { version: 2 });
+    expect(result.status).toBe(400);
+    const body = (await result.json()) as {
+      error: string;
+      data?: { errors?: unknown[] };
+    };
+    expect(body.error).toBe('AUTOMATION_INVALID');
+    expect(body.data?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'REF_UNKNOWN_NODE' }),
+      ]),
+    );
+    expect(io.deploy).not.toHaveBeenCalled();
+  });
+  it('saves and deploys a version whose only problems are warnings [AUTO-R24]', async () => {
+    const warned = {
+      ...document(2),
+      nodes: [
+        { id: 'stale', type: 'transform', code: 'return 1;' },
+        ...document(2).nodes,
+      ],
+    };
+    const saved = await post('/double/save', { document: warned });
+    expect(saved.status).toBe(201);
+    expect(await saved.json()).toMatchObject({
+      name: 'double',
+      version: 2,
+      warnings: expect.arrayContaining([
+        expect.objectContaining({ code: 'UNUSED_NODE' }),
+      ]),
+    });
+    expect(io.save).toHaveBeenCalledTimes(1);
+
+    io.document = warned;
+    const deployed = await post('/double/deploy', { version: 2 });
+    expect(deployed.status).toBe(200);
+    expect(io.deploy).toHaveBeenCalledWith('double', 2, { testsPassed: true });
   });
   it('preserves a store refusal after the shared deploy gate', async () => {
     io.document = document(2);

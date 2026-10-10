@@ -1,10 +1,11 @@
-import { modelAccessConfigSchema } from '@tale/shared/schemas/governance';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AppShell } from '@tale/ui/app-shell';
+import { render as renderWithProviders } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { settingsWriteAdapters } from '@/app/lib/backend/settings';
-import { evaluateModelAccess } from '@/backend/core/governance/model_access_enforcement';
-import { isRecord } from '@/lib/utils/type-utils';
-import { render, screen, within } from '@/tests/utils/render';
+import { inPolicyWriteOrder } from '@/app/lib/backend/policy-write-order';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { act, cleanup, render, screen, within } from '@/tests/utils/render';
 
 import { ModelAccessEditor } from './model-access-editor';
 
@@ -13,24 +14,24 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast }),
 }));
 
-const { upsert } = vi.hoisted(() => ({
-  upsert: { mutateAsync: vi.fn(async (_args: unknown) => undefined) },
+const { upsert, toast } = vi.hoisted(() => ({
+  upsert: {
+    mutateAsync: vi.fn(async (_args: unknown) => undefined),
+    isPending: false,
+  },
+  toast: vi.fn(),
 }));
 
 vi.mock('../hooks/mutations', () => ({
   useUpsertGovernancePolicy: () => ({
     mutateAsync: upsert.mutateAsync,
-    isPending: false,
+    isPending: upsert.isPending,
   }),
 }));
 
-// Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
-// imports). Toggling `state` flips the editor between loading and loaded.
-// A fresh object per render is fine: the editor seeds local state once via an
-// init ref, so it never loops on a changing reference.
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
@@ -39,12 +40,20 @@ const { state } = vi.hoisted(() => ({
       mode: 'blocklist' as const,
       rules: [] as unknown[],
     } as Record<string, unknown> | null,
+    defaultConfig: null as Record<string, unknown> | null,
   },
 }));
 
 vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => ({
-    data: state.isLoading ? undefined : { config: state.config },
+  useGovernancePolicy: (_organizationId: string, policyType: string) => ({
+    data: state.isLoading
+      ? undefined
+      : {
+          config:
+            policyType === 'default_models'
+              ? state.defaultConfig
+              : state.config,
+        },
     isLoading: state.isLoading,
   }),
 }));
@@ -100,207 +109,500 @@ afterEach(() => {
 });
 
 describe('ModelAccessEditor', () => {
-  it('stages repairs of several legacy rules and writes only the complete valid policy', async () => {
-    setLoaded();
-    state.config = {
-      enabled: false,
-      mode: 'blocklist',
-      rules: [
-        { scope: 'user', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
-        { scope: 'team', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
-      ],
-    };
-    upsert.mutateAsync.mockClear();
-    const { user } = render(<ModelAccessEditor organizationId="org-1" />);
-    expect(screen.getAllByText('Missing target')).toHaveLength(2);
-    await user.click(screen.getAllByRole('button', { name: 'Edit rule' })[0]);
-    await user.click(screen.getByRole('button', { name: 'User' }));
-    await user.click(screen.getByRole('option', { name: 'Proof member' }));
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
-    expect(upsert.mutateAsync).not.toHaveBeenCalled();
-    expect(screen.getAllByText('Missing target')).toHaveLength(1);
-    await user.click(screen.getAllByRole('button', { name: 'Edit rule' })[1]);
-    await user.click(screen.getByRole('button', { name: 'Team' }));
-    await user.click(screen.getByRole('option', { name: 'Proof team' }));
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
-    expect(upsert.mutateAsync).toHaveBeenCalledOnce();
-    expect(upsert.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        config: {
-          enabled: false,
+  beforeEach(() => {
+    upsert.mutateAsync.mockReset();
+    upsert.mutateAsync.mockResolvedValue(undefined);
+    upsert.isPending = false;
+    toast.mockClear();
+    state.defaultConfig = null;
+  });
+
+  describe('immediate saves and server readback', () => {
+    const accessSwitch = () =>
+      screen.getByRole('switch', { name: 'Enable model access policy' });
+
+    it('invalidates delete confirmation when readback replaces indexed rules', async () => {
+      setLoaded();
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(screen.getByRole('button', { name: /delete rule/i }));
+      state.config = {
+        ...state.config,
+        rules: [
+          {
+            scope: 'role',
+            scopeId: 'member',
+            allowedModels: [],
+            blockedModels: [],
+          },
+          ...(state.config!.rules as unknown[]),
+        ],
+      };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      await user.click(
+        screen.getAllByRole('button', { name: /delete rule/i })[1],
+      );
+      await user.click(screen.getByRole('button', { name: 'Delete' }));
+      expect(upsert.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            rules: [
+              {
+                scope: 'role',
+                scopeId: 'member',
+                allowedModels: [],
+                blockedModels: [],
+              },
+            ],
+          }),
+        }),
+      );
+    });
+
+    it('invalidates an edit draft when readback replaces indexed rules', async () => {
+      setLoaded();
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      state.config = {
+        ...state.config,
+        rules: [
+          {
+            scope: 'role',
+            scopeId: 'member',
+            allowedModels: [],
+            blockedModels: [],
+          },
+          ...(state.config!.rules as unknown[]),
+        ],
+      };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      expect(
+        screen.getAllByRole('button', { name: /edit rule/i }),
+      ).toHaveLength(2);
+      await user.click(
+        screen.getAllByRole('button', { name: /edit rule/i })[1],
+      );
+      expect(
+        within(screen.getByRole('dialog')).getByRole('combobox', {
+          name: 'Scope',
+        }),
+      ).toHaveTextContent('Default');
+    });
+
+    it('preserves an earlier acknowledged save when a later save fails before cache refresh', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('save failed'));
+      const endpointsSwitch = () =>
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        });
+      await user.click(endpointsSwitch());
+      await vi.waitFor(() =>
+        expect(endpointsSwitch()).toHaveAttribute('aria-checked', 'false'),
+      );
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      await user.click(endpointsSwitch());
+      expect(upsert.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            enabled: true,
+            modelApi: { enabled: true },
+          }),
+        }),
+      );
+    });
+
+    it('applies a newer complete readback after rejection held behind the pending flag', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      const request = Promise.withResolvers<undefined>();
+      upsert.mutateAsync.mockReturnValueOnce(request.promise);
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      upsert.isPending = true;
+      state.config = {
+        enabled: true,
+        mode: 'allowlist',
+        rules: [],
+        modelApi: { enabled: true },
+      };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      request.reject(new Error('save failed'));
+      await vi.waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ variant: 'destructive' }),
+        ),
+      );
+      upsert.isPending = false;
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('combobox')).toHaveTextContent('Allowlist');
+      expect(screen.queryByRole('button', { name: /edit rule/i })).toBeNull();
+      expect(
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        }),
+      ).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('blocks whole-policy writes while the shared policy read is settling', async () => {
+      setLoaded();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      const request = Promise.withResolvers<undefined>();
+      let write!: Promise<undefined>;
+      act(() => {
+        write = inPolicyWriteOrder(
+          'org-1',
+          'model_access',
+          () => request.promise,
+        );
+      });
+      try {
+        expect(accessSwitch()).toBeDisabled();
+        expect(
+          screen.getByRole('switch', {
+            name: 'Enable model endpoints for API keys',
+          }),
+        ).toBeDisabled();
+        expect(screen.getByRole('combobox')).toBeDisabled();
+        expect(
+          screen.getByRole('button', { name: /delete rule/i }),
+        ).toBeDisabled();
+        expect(
+          screen.getByRole('button', { name: /edit rule/i }),
+        ).toBeDisabled();
+        expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => {
+          request.resolve(undefined);
+          await write;
+        });
+      }
+      expect(accessSwitch()).not.toBeDisabled();
+    });
+
+    it('rolls back failed enablement, keeps one failure toast, and allows retry', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('save failed'));
+      const { user, rerender, unmount } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      await vi.waitFor(() => {
+        expect(accessSwitch()).toHaveAttribute('aria-checked', 'false');
+      });
+      expect(screen.queryByRole('button', { name: /edit rule/i })).toBeNull();
+      expect(toast).toHaveBeenCalledTimes(1);
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'destructive' }),
+      );
+      state.config = structuredClone(state.config);
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'false');
+      unmount();
+      const remounted = render(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'false');
+      await remounted.user.click(accessSwitch());
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      expect(upsert.mutateAsync).toHaveBeenCalledTimes(2);
+    });
+
+    it('applies fresh enabled, mode, rules and endpoint state without remounting', () => {
+      setLoaded();
+      const { rerender, container } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      expect(container.querySelectorAll('tbody tr')).toHaveLength(1);
+      state.config = {
+        enabled: false,
+        mode: 'allowlist',
+        rules: [],
+        modelApi: { enabled: true },
+      };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'false');
+      expect(
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        }),
+      ).toHaveAttribute('aria-checked', 'true');
+      state.config = { ...state.config, enabled: true };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.queryByRole('button', { name: /edit rule/i })).toBeNull();
+      expect(screen.getByRole('combobox')).toHaveTextContent(/allowlist/i);
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('does not replace a successful optimistic save with the unchanged cached policy', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      expect(
+        screen.getByRole('button', { name: /edit rule/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('rolls back a failed enablement after confirming affected defaults', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      state.defaultConfig = {
+        enabled: true,
+        rules: [
+          {
+            scope: 'default',
+            providerName: 'openai',
+            modelId: 'openai/gpt-4o',
+          },
+        ],
+      };
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('save failed'));
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(accessSwitch());
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+      await vi.waitFor(() => {
+        expect(accessSwitch()).toHaveAttribute('aria-checked', 'false');
+      });
+      expect(toast).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores the previous mode when its immediate save fails', async () => {
+      setLoaded();
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('save failed'));
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(screen.getByRole('combobox'));
+      await user.click(screen.getByRole('option', { name: 'Allowlist' }));
+      await vi.waitFor(() => {
+        expect(screen.getByRole('combobox')).toHaveTextContent('Blocklist');
+      });
+      expect(toast).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores a rule when deletion fails', async () => {
+      setLoaded();
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('save failed'));
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: /delete rule/i }));
+      await user.click(screen.getByRole('button', { name: 'Delete' }));
+      await vi.waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /edit rule/i }),
+        ).toBeInTheDocument();
+      });
+      expect(toast).toHaveBeenCalledTimes(1);
+    });
+
+    it('defers readback while a save is in flight, then applies the latest server state', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      const request = Promise.withResolvers<undefined>();
+      upsert.mutateAsync.mockReturnValueOnce(request.promise);
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      upsert.isPending = true;
+      state.config = { ...state.config, modelApi: { enabled: true } };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      expect(accessSwitch()).toBeDisabled();
+      request.resolve(undefined);
+      await vi.waitFor(() => {
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ variant: 'success' }),
+        );
+      });
+      upsert.isPending = false;
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'false');
+      expect(
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        }),
+      ).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('does not roll back over a newer authoritative readback when rejection settles', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      const request = Promise.withResolvers<undefined>();
+      upsert.mutateAsync.mockReturnValueOnce(request.promise);
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      state.config = { ...state.config, enabled: true, rules: [] };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      request.reject(new Error('save failed'));
+      await vi.waitFor(() => {
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ variant: 'destructive' }),
+        );
+      });
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'true');
+      expect(screen.queryByRole('button', { name: /edit rule/i })).toBeNull();
+    });
+
+    it('keeps a confirmation draft until cancellation, then applies fresh readback', async () => {
+      setLoaded();
+      state.config = { ...state.config, enabled: false };
+      state.defaultConfig = {
+        enabled: true,
+        rules: [
+          {
+            scope: 'default',
+            providerName: 'openai',
+            modelId: 'openai/gpt-4o',
+          },
+        ],
+      };
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.click(accessSwitch());
+      state.config = { ...state.config, modelApi: { enabled: true } };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(accessSwitch()).toHaveAttribute('aria-checked', 'false');
+      expect(
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        }),
+      ).toHaveAttribute('aria-checked', 'true');
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+      expect(toast).not.toHaveBeenCalled();
+    });
+  });
+  it.each(['en', 'de', 'fr'])(
+    'localizes scope, role and mode labels (%s)',
+    async (language) => {
+      await i18n.changeLanguage(language);
+      try {
+        setLoaded();
+        state.config = {
+          enabled: true,
           mode: 'blocklist',
-          modelApi: { enabled: false },
           rules: [
             {
-              scope: 'user',
-              scopeId: 'member-proof',
-              allowedModels: [],
-              blockedModels: ['openai/gpt-4o'],
-            },
-            {
-              scope: 'team',
-              scopeId: 'team-proof',
+              scope: 'role',
+              scopeId: 'developer',
               allowedModels: [],
               blockedModels: ['openai/gpt-4o'],
             },
           ],
-        },
-      }),
-    );
-  });
+        };
 
-  it('shows existing untargeted rules without dropping their neighboring restrictions', async () => {
-    setLoaded();
-    state.config = {
-      enabled: true,
-      mode: 'blocklist',
-      rules: [
-        {
-          scope: 'default',
-          allowedModels: [],
-          blockedModels: ['openai/gpt-4o'],
-        },
-        { scope: 'user', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
-      ],
-    };
-    upsert.mutateAsync.mockClear();
-    const { user, container } = render(
-      <ModelAccessEditor organizationId="org-1" />,
-    );
-    expect(container.querySelectorAll('tbody tr')).toHaveLength(2);
-    expect(screen.getByText('Missing target')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Some rules have no target',
-    );
-    await user.click(
-      screen.getByRole('switch', { name: 'Enable model access policy' }),
-    );
-    expect(upsert.mutateAsync).not.toHaveBeenCalled();
-  });
+        const t = i18n.getFixedT(language, 'governance');
+        // Keep the selected test language: the shared render helper's client
+        // locale bridge would replace it with the detected browser preference.
+        const user = userEvent.setup();
+        renderWithProviders(
+          <AppShell i18n={i18n}>
+            <ModelAccessEditor organizationId="org-1" />
+          </AppShell>,
+        );
+        expect(
+          screen.getByRole('cell', { name: t('modelAccess.scopeLabels.role') }),
+        ).toBeInTheDocument();
 
-  it.each(['User', 'Team', 'Role'])(
-    'repairs an existing %s target and saves an enforceable block',
-    async (scope) => {
-      setLoaded();
-      state.config = {
-        enabled: true,
-        mode: 'blocklist',
-        rules: [
-          {
-            scope: scope.toLowerCase(),
-            allowedModels: [],
-            blockedModels: ['openai/gpt-4o'],
-          },
-        ],
-      };
-      upsert.mutateAsync.mockClear();
-      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
-      await user.click(screen.getByRole('button', { name: 'Edit rule' }));
-      window.__ENV__ = { BASE_PATH: '' };
-      let stored: unknown;
-      const transport = vi
-        .spyOn(window, 'fetch')
-        .mockImplementation(async (_url, init) => {
-          if (typeof init?.body !== 'string')
-            throw new Error('Expected JSON body');
-          const body: unknown = JSON.parse(init.body);
-          if (!isRecord(body)) throw new Error('Expected a policy request');
-          stored = modelAccessConfigSchema.parse(body.config);
-          return Response.json({ ok: true });
-        });
-      upsert.mutateAsync.mockImplementationOnce(async (args) => {
-        if (!isRecord(args)) throw new Error('Expected policy arguments');
-        const adapter =
-          settingsWriteAdapters['governance/file_actions:saveGovernancePolicy'];
-        if (!adapter) throw new Error('Missing policy save adapter');
-        await adapter.run(args, {});
-      });
-      await user.click(screen.getByRole('button', { name: 'Confirm' }));
-      const dialog = screen.getByRole('dialog');
-      expect(within(dialog).getByRole('alert')).toHaveTextContent(
-        'Select a target for this rule.',
-      );
-      expect(transport).not.toHaveBeenCalled();
-      const target = within(dialog).getByRole(
-        scope === 'Role' ? 'combobox' : 'button',
-        { name: scope },
-      );
-      const descriptionId = target.getAttribute('aria-describedby');
-      expect(descriptionId).toBeTruthy();
-      expect(document.getElementById(descriptionId ?? '')).toHaveTextContent(
-        'Select a target for this rule.',
-      );
-      if (scope === 'Role') {
-        await user.click(screen.getByRole('combobox', { name: 'Role' }));
-        await user.click(screen.getByRole('option', { name: 'Member' }));
-      } else {
-        await user.click(screen.getByRole('button', { name: scope }));
-        await user.click(
+        expect(
+          screen.getByRole('cell', {
+            name: t('modelAccess.roleLabels.developer'),
+          }),
+        ).toBeInTheDocument();
+
+        const modeSelect = screen.getByRole('combobox');
+        expect(modeSelect).toHaveTextContent(
+          t('modelAccess.modeLabels.blocklist'),
+        );
+        await user.click(modeSelect);
+        expect(
           screen.getByRole('option', {
-            name: scope === 'User' ? 'Proof member' : 'Proof team',
+            name: t('modelAccess.modeLabels.allowlist'),
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('option', {
+            name: t('modelAccess.modeLabels.blocklist'),
+          }),
+        ).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+
+        await user.click(
+          screen.getByRole('button', {
+            name: t('modelAccess.editRule', { index: 1 }),
           }),
         );
+        const dialog = within(screen.getByRole('dialog'));
+        const scopeSelect = dialog.getByRole('combobox', {
+          name: t('modelAccess.scope'),
+        });
+        expect(scopeSelect).toHaveTextContent(
+          t('modelAccess.scopeLabels.role'),
+        );
+        await user.click(scopeSelect);
+        for (const value of ['default', 'user', 'team', 'role']) {
+          expect(
+            i18n.exists(`modelAccess.scopeLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`modelAccess.scopeLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+        const roleSelect = dialog.getByRole('combobox', {
+          name: t('modelAccess.role'),
+        });
+        expect(roleSelect).toHaveTextContent(
+          t('modelAccess.roleLabels.developer'),
+        );
+        await user.click(roleSelect);
+        for (const value of ['admin', 'developer', 'editor', 'member']) {
+          expect(
+            i18n.exists(`modelAccess.roleLabels.${value}`, {
+              lng: language,
+              ns: 'governance',
+            }),
+          ).toBe(true);
+          expect(
+            screen.getByRole('option', {
+              name: t(`modelAccess.roleLabels.${value}`),
+            }),
+          ).toBeInTheDocument();
+        }
+        await user.keyboard('{Escape}');
+      } finally {
+        cleanup();
+        await i18n.changeLanguage('en');
       }
-      await user.click(screen.getByRole('button', { name: 'Confirm' }));
-      expect(upsert.mutateAsync).toHaveBeenCalledOnce();
-      expect(transport).toHaveBeenCalledOnce();
-      const call = upsert.mutateAsync.mock.calls[0]?.[0];
-      expect(call).toMatchObject({ policyType: 'model_access' });
-      const config = modelAccessConfigSchema.parse(stored);
-      expect(
-        evaluateModelAccess(
-          config,
-          {
-            userId: 'member-proof',
-            teamIds: ['team-proof'],
-            userRole: 'member',
-          },
-          'openai/gpt-4o',
-        ).allowed,
-      ).toBe(false);
-      expect(screen.queryByText('Missing target')).not.toBeInTheDocument();
-    },
-  );
-
-  it('clears the old target when switching between targeted scopes', async () => {
-    setLoaded();
-    state.config = {
-      enabled: true,
-      mode: 'blocklist',
-      rules: [
-        {
-          scope: 'role',
-          scopeId: 'member',
-          allowedModels: [],
-          blockedModels: ['openai/gpt-4o'],
-        },
-      ],
-    };
-    upsert.mutateAsync.mockClear();
-    const { user } = render(<ModelAccessEditor organizationId="org-1" />);
-    await user.click(screen.getByRole('button', { name: 'Edit rule' }));
-    await user.click(screen.getByRole('combobox', { name: 'Scope' }));
-    await user.click(screen.getByRole('option', { name: 'User' }));
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(upsert.mutateAsync).not.toHaveBeenCalled();
-  });
-
-  it.each(['User', 'Team', 'Role'])(
-    'keeps an untargeted %s rule in the dialog without saving',
-    async (scope) => {
-      setLoaded();
-      upsert.mutateAsync.mockClear();
-      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
-      await user.click(screen.getByRole('button', { name: 'Add rule' }));
-      await user.click(screen.getByRole('combobox', { name: 'Scope' }));
-      await user.click(screen.getByRole('option', { name: scope }));
-      await user.click(screen.getByRole('button', { name: 'Confirm' }));
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'Select a target for this rule.',
-      );
-      expect(upsert.mutateAsync).not.toHaveBeenCalled();
     },
   );
 

@@ -90,6 +90,42 @@ describe('collectAllApplicableRules', () => {
     expect(result.length).toBeGreaterThanOrEqual(3); // user + team + role + default
   });
 
+  it('returns a project-scoped rule only for work in that project [GOV-R14]', () => {
+    const projectRules: BudgetRule[] = [
+      {
+        scope: 'project',
+        scopeId: 'project-1',
+        period: 'monthly',
+        maxCostCents: 1_000,
+      },
+    ];
+    // One project, or one of several an automation is bound to.
+    for (const projectIds of [['project-1'], ['project-2', 'project-1']]) {
+      expect(
+        collectAllApplicableRules(
+          projectRules,
+          'user-1',
+          [],
+          'member',
+          undefined,
+          projectIds,
+        ),
+      ).toHaveLength(1);
+    }
+    for (const projectIds of [undefined, [], ['project-2']]) {
+      expect(
+        collectAllApplicableRules(
+          projectRules,
+          'user-1',
+          [],
+          'member',
+          undefined,
+          projectIds,
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it('returns empty array when no rules match', () => {
     const result = collectAllApplicableRules(
       [],
@@ -101,7 +137,7 @@ describe('collectAllApplicableRules', () => {
   });
 });
 
-describe('checkRuleAgainstUsage', () => {
+describe('checkRuleAgainstUsage [GOV-R4]', () => {
   it('returns null when no limits are set', () => {
     const rule: BudgetRule = { scope: 'default', period: 'monthly' };
     const result = checkRuleAgainstUsage(rule, {
@@ -206,7 +242,7 @@ describe('checkRuleAgainstUsage', () => {
 });
 
 describe('resolveEffectiveLimits', () => {
-  it('uses user-scoped limits as highest priority', () => {
+  it('uses user-scoped limits as highest priority [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
       {
@@ -220,7 +256,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(1_000_000);
   });
 
-  it('falls back to team-scoped limits when no user limit', () => {
+  it('falls back to team-scoped limits when no user limit [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
       {
@@ -239,7 +275,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(750_000);
   });
 
-  it('falls back to role-scoped limits when no user or team limit', () => {
+  it('falls back to role-scoped limits when no user or team limit [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
       {
@@ -253,7 +289,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(600_000);
   });
 
-  it('falls back to default when no more specific limits exist', () => {
+  it('falls back to default when no more specific limits exist [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxTokens: 500_000 },
     ];
@@ -261,7 +297,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(500_000);
   });
 
-  it('resolves each limit field independently', () => {
+  it('resolves each limit field independently [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       { scope: 'default', period: 'monthly', maxCostCents: 10_000 },
       {
@@ -286,7 +322,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxRequests).toBeUndefined();
   });
 
-  it('picks the strictest team rule for multi-team users', () => {
+  it('picks the strictest team rule for multi-team users [GOV-R1]', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -312,7 +348,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(500_000);
   });
 
-  it("returns the team's own caps as its shared teamLimits entry", () => {
+  it("returns the team's own caps as its shared teamLimits entry [GOV-R2]", () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -332,7 +368,7 @@ describe('resolveEffectiveLimits', () => {
     ]);
   });
 
-  it('keeps the team shared cap in force when a user rule wins the personal tier', () => {
+  it('keeps the team shared cap in force when a user rule wins the personal tier [GOV-R2]', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'user',
@@ -388,7 +424,7 @@ describe('resolveEffectiveLimits', () => {
     ]);
   });
 
-  it('measures each team against its own rule, and the person against the strictest', () => {
+  it('measures each team against its own rule, and the person against the strictest [GOV-R2]', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -513,6 +549,74 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxCostCents).toBe(5_000);
     expect(result.orgMaxTokens).toBe(50_000_000);
     expect(result.orgMaxCostCents).toBe(100_000);
+  });
+
+  it('resolves a project’s caps as its own bucket, never a personal one [GOV-R14]', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'project',
+        scopeId: 'project-1',
+        period: 'monthly',
+        maxCostCents: 10_000,
+        warningThresholdPercent: 80,
+      },
+      {
+        scope: 'project',
+        scopeId: 'project-1',
+        period: 'monthly',
+        maxCostCents: 6_000,
+        maxRequests: 900,
+      },
+      {
+        scope: 'project',
+        scopeId: 'project-2',
+        period: 'monthly',
+        maxCostCents: 1,
+      },
+      { scope: 'default', period: 'monthly', maxCostCents: 5_000 },
+    ];
+    const inProject = resolveEffectiveLimits(
+      collectAllApplicableRules(rules, 'user-1', [], 'member', undefined, [
+        'project-1',
+      ]),
+      'user-1',
+      [],
+      'member',
+      undefined,
+      ['project-1'],
+    );
+    // The tightest of the project's own rules, field by field.
+    expect(inProject.projectLimits).toEqual([
+      {
+        projectId: 'project-1',
+        maxCostCents: 6_000,
+        maxRequests: 900,
+        warningThresholdPercent: 80,
+      },
+    ]);
+    // The person's own cap is still the default's.
+    expect(inProject.maxCostCents).toBe(5_000);
+    // Work in no project is held to no project's cap.
+    const outside = resolveEffectiveLimits(
+      collectAllApplicableRules(rules, 'user-1', [], 'member'),
+      'user-1',
+      [],
+      'member',
+    );
+    expect(outside.projectLimits).toEqual([]);
+    // Work in several projects is held to each project's own caps.
+    const inBoth = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      [],
+      'member',
+      undefined,
+      ['project-1', 'project-2'],
+    );
+    expect(inBoth.projectLimits).toEqual([
+      expect.objectContaining({ projectId: 'project-1', maxCostCents: 6_000 }),
+      { projectId: 'project-2', maxCostCents: 1 },
+    ]);
   });
 
   it('resolves limits independently across different periods', () => {
@@ -648,7 +752,7 @@ describe('collectAllApplicableRules — apiKey scope', () => {
   });
 });
 
-describe('resolveEffectiveLimits — apiKey scope (independent bucket)', () => {
+describe('resolveEffectiveLimits — apiKey scope (independent bucket) [GOV-R3]', () => {
   it('resolves apiKey caps into their own bucket, not the per-user tier', () => {
     const rules: BudgetRule[] = [
       {

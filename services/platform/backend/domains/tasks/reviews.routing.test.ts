@@ -126,12 +126,14 @@ function fixture(
 ) {
   const rows = [...(options.approvals ?? [])];
   const writes: string[] = [];
+  const reads: string[] = [];
   const source =
     options.source === undefined
       ? { id: 'run', agentId: 'author', status: 'settled' }
       : options.source;
   const tag = (parts: TemplateStringsArray, ...values: unknown[]) => {
     const text = parts.join('?').replaceAll(/\s+/g, ' ').trim();
+    if (text.startsWith('SELECT')) reads.push(text);
     if (text.startsWith('SELECT') && text.includes('FROM app.approvals')) {
       return Promise.resolve(
         text.includes("status = 'pending'")
@@ -208,7 +210,7 @@ function fixture(
     unsafe: (value: string) => value,
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the postgres.js members reached by the actual review domain
-  return { tx: tx as unknown as TransactionSql, rows, writes };
+  return { tx: tx as unknown as TransactionSql, rows, writes, reads };
 }
 
 const expected: PendingReviewIdentity = {
@@ -405,6 +407,30 @@ describe('captured independent-agent review routing', () => {
       agentReviewBlockedReason: 'human_policy',
     });
     expect(writes).toEqual([]);
+  });
+
+  it('preserves editor no-pending and stale checks before resolving the default reviewer', async () => {
+    vi.mocked(findOrganizationMember).mockClear();
+    const absent = fixture();
+    await replacePendingTaskReviewer(absent.tx, {
+      task: task(),
+      expected: null,
+      actorUserId: 'editor',
+    });
+    expect(absent.reads).toHaveLength(1);
+    expect(absent.reads[0]).toContain('FROM app.approvals');
+    expect(absent.writes).toEqual([]);
+    const conflict = fixture({ approvals: [approval()] });
+    await expect(
+      replacePendingTaskReviewer(conflict.tx, {
+        task: task(),
+        expected: null,
+        actorUserId: 'editor',
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_STALE' });
+    expect(conflict.reads).toHaveLength(1);
+    expect(conflict.writes).toEqual([]);
+    expect(findOrganizationMember).not.toHaveBeenCalled();
   });
 
   it.each([

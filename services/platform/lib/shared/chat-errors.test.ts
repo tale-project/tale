@@ -369,6 +369,24 @@ describe('describeChatError', () => {
   });
 });
 
+describe('a budget failure names whose cap it is', () => {
+  it('round-trips the scope of the cap beside the code [GOV-R14]', () => {
+    expect(
+      decodeChatError(
+        encodeChatError({
+          code: 'budget_exceeded',
+          raw: 'Usage limit reached.',
+          budgetScope: 'project',
+        }),
+      ),
+    ).toMatchObject({ code: 'budget_exceeded', budgetScope: 'project' });
+    // A row written before the scope rode along reads without one.
+    expect(
+      decodeChatError(encodeChatError({ code: 'budget_exceeded' })),
+    ).not.toHaveProperty('budgetScope', expect.anything());
+  });
+});
+
 describe('encodeChatError / decodeChatError', () => {
   it('round-trips structured fields', () => {
     const encoded = encodeChatError({

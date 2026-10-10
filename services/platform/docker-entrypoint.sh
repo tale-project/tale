@@ -107,6 +107,12 @@ if [ "$(id -u)" = '0' ]; then
     chown app:app /app/data 2>/dev/null || \
       log_warn "could not chown /app/data (read-only mount or unsupported fs)"
   fi
+  # The deployment-owned immutable bundle cache is shared by both colours.
+  # Fail startup if it cannot be written; partial handovers must not pass
+  # readiness without publishing their build artifacts.
+  if [ -d /app/static-assets ]; then
+    chown app:app /app/static-assets
+  fi
   # Dev image opt-out: the hot-reload watchers (`vite build --watch`) must write
   # to dist/ and read the host-owned bind-mounted source, and running as root
   # sidesteps uid-mismatch permission errors. vite only writes container-local

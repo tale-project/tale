@@ -1,0 +1,59 @@
+title: Entrées de connaissances
+entityLabelOne: entrée de connaissance
+searchPlaceholder: Rechercher des entrées de connaissances
+refreshFailed: Impossible de charger les dernières entrées de connaissances. La liste est peut-être incomplète ou obsolète.
+addButton: Ajouter une entrée
+addEntry: Ajouter une entrée de connaissances
+addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
+editEntry: Modifier l'entrée de connaissances
+editDialog:
+  newerVersion: Une nouvelle version a été publiée pendant ta modification. Ton brouillon est toujours là ; enregistre-le pour remplacer cette version, ou annule pour le supprimer.
+adding: Ajout en cours...
+saving: Enregistrement...
+topic: Sujet
+topicPlaceholder: p. ex. Horaires d'ouverture
+content: Contenu
+contentPlaceholder: Rédige la connaissance pour qu'elle soit compréhensible
+  seule, p. ex. "Notre magasin est ouvert du lundi au vendredi de 9 h à 17 h."
+headers:
+  topic: Sujet
+  content: Contenu
+  source: Source
+  updated: Mis à jour
+source:
+  agent: Agent
+  api: API
+  chat: Chat
+  manual: Manuel
+validation:
+  topicRequired: Le sujet est requis
+  topicTooLong: Le sujet doit contenir au maximum 120 caractères
+  contentRequired: Le contenu est requis
+  contentTooLong: Le contenu doit contenir au maximum 8000 caractères
+toast:
+  addSuccess: Entrée de connaissances ajoutée
+  addError: Échec de l'ajout de l'entrée de connaissances
+  addErrorDuplicate: Une entrée existe déjà pour ce sujet
+  updateSuccess: Entrée de connaissances mise à jour
+  updateError: Échec de la mise à jour de l'entrée de connaissances
+  deleteError: Échec de la suppression de l'entrée de connaissances
+delete:
+  title: Supprimer l'entrée de connaissances
+  confirmation: Supprimer « {name} » ?
+  warning: Les agents ne pourront plus retrouver cette entrée dans la base de connaissances.
+viewDialog:
+  title: Détails de l'entrée de connaissances
+  updated: Mis à jour
+  entryId: ID de version
+  entryIdHint: Un nouvel identifiant est attribué à chaque modification. Le
+    sujet identifie l'entrée d'une version à l'autre, tout comme son ID de
+    document.
+  history: Historique des versions
+  versionCount: '{count, plural, one {# version précédente} other {# versions
+    précédentes}}'
+  superseded: Remplacée
+  supersededOn: Remplacée le {date}
+  historyLoading: "Chargement de l'historique des versions…"
+  historyEmpty: "Aucune version précédente pour l'instant — chaque modification conserve ici le texte qu'elle remplace."
+  historyLoadFailed: "Impossible de charger l'historique des versions."
+  historyRefreshFailed: "Impossible d'actualiser l'historique des versions. Les versions affichées ne sont peut-être plus à jour."

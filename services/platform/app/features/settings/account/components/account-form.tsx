@@ -17,6 +17,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
+import { useLockoutMessage } from '@/app/features/auth/hooks/use-lockout-message';
 import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -33,7 +34,10 @@ import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { USER_NAME_MAX_LENGTH } from '@/lib/shared/constants/user-name';
-import { backendErrorCode } from '@/lib/utils/backend-error';
+import {
+  backendErrorCode,
+  backendErrorNumber,
+} from '@/lib/utils/backend-error';
 import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
 import {
@@ -285,6 +289,7 @@ interface PasswordDialogProps {
 function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
+  const lockoutMessage = useLockoutMessage();
   const { mutateAsync: updatePassword } = useUpdatePassword();
   const { signOut } = useAuth();
   const { toast } = useToast();
@@ -348,6 +353,15 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         setError('currentPassword', {
           type: 'manual',
           message: tAuth('changePassword.validation.currentIncorrect'),
+        });
+        return;
+      }
+      // The current password counts like a sign-in: after repeated wrong
+      // ones the account's lock refuses it, and says how long it lasts.
+      if (backendErrorCode(error) === 'PASSWORD_ATTEMPTS_LOCKED') {
+        setError('currentPassword', {
+          type: 'manual',
+          message: lockoutMessage(backendErrorNumber(error, 'retryAfter')),
         });
         return;
       }

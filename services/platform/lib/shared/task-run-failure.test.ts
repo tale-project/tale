@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import deMessages from '../../messages/de.yml';
-import enMessages from '../../messages/en.yml';
-import frMessages from '../../messages/fr.yml';
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
+
 import {
   TASK_RUN_FAILURE_CLASSES,
   taskRunFailureClass,
@@ -18,12 +17,14 @@ describe('taskRunFailureClass', () => {
     ['deadline', 'time_limit'],
     ['park_deadline', 'capacity'],
     ['harness_error', 'model'],
+    ['model_capacity', 'model'],
     ['empty_turn', 'model'],
     ['credential_rotated', 'model'],
     ['credential_cooldown', 'model'],
     ['start_failed', 'start'],
     ['session_gone', 'interrupted'],
     ['turn_crashed', 'interrupted'],
+    ['turn_stalled', 'stalled'],
     ['harvest_failed', 'interrupted'],
     ['steer_restart_failed', 'interrupted'],
   ])('reads %s as %s', (code, failureClass) => {

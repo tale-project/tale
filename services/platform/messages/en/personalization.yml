@@ -1,0 +1,19 @@
+page:
+  title: User preferences
+  enable:
+    orgStateOn: on
+    orgStateOff: off
+    followingOrgDefault: Following organization default ({state}).
+    overridingOrgDefault: Overriding organization default ({state}).
+  customInstructionsToggle:
+    label: Custom instructions
+    description: "Standing instructions the chat assistant follows in every reply to you. In a project chat they apply alongside the project's instructions."
+  customInstructions:
+    title: Custom instructions
+    placeholder: e.g. Reply concisely. Default to TypeScript when discussing code.
+errors:
+  saveFailed: Couldn't save. Try again.
+  loadFailed: Couldn't load your preferences. Custom instructions are unavailable until they load.
+  tooLong: Custom instructions exceed {max} characters.
+toasts:
+  preferencesUpdated: Preferences updated.

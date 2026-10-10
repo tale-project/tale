@@ -4,11 +4,9 @@
  * key. Catches `{name}` renamed to `{nom}` in fr, missing placeholders, etc.
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 
-import { parse as parseYaml } from 'yaml';
-
+import { catalogPath, readCatalog } from '../internals/catalog';
 import { lexIcu } from '../scanner/icu-lexer';
 import type { Finding } from './types';
 import { createCheck } from './types';
@@ -20,18 +18,17 @@ export const icuPlaceholderParity = createCheck({
   localeFilter: (locale) => !locale.regional && locale.id !== 'en',
   run(ctx) {
     if (!ctx.messagesDir) return [];
-    const baseFile = path.join(ctx.messagesDir, 'en.yml');
-    if (!fs.existsSync(baseFile)) return [];
-    const base = flatten(parseYaml(fs.readFileSync(baseFile, 'utf8')));
+    const baseCatalog = readCatalog(ctx.messagesDir, 'en');
+    if (baseCatalog === undefined) return [];
+    const base = flatten(baseCatalog);
 
     const findings: Finding[] = [];
     for (const locale of ctx.locales) {
       if (locale.regional || locale.id === 'en') continue;
-      const localeFile = path.join(ctx.messagesDir, `${locale.id}.json`);
-      if (!fs.existsSync(localeFile)) continue;
-      const localeMap = flatten(
-        JSON.parse(fs.readFileSync(localeFile, 'utf8')),
-      );
+      const localeCatalog = readCatalog(ctx.messagesDir, locale.id);
+      if (localeCatalog === undefined) continue;
+      const localeFile = catalogPath(ctx.messagesDir, locale.id);
+      const localeMap = flatten(localeCatalog);
       for (const [key, enValue] of base) {
         const enShape = lexIcu(enValue);
         if (enShape.placeholders.size === 0) continue;

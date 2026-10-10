@@ -186,6 +186,25 @@ describe('the settings an embedding write keeps', () => {
     expect(error.status).toBe(400);
     expect(error.code).toBe('INVALID_EMBEDDING');
   });
+
+  // A knowledge database keeps a table per supported width. A width with
+  // none would save and then fail every document at index time.
+  it.each([1000, 1535, 2560, 16_000])(
+    'refuses a vector width of %s, which no table stores, and names the ones that are [KNOW-R11]',
+    async (dimensions) => {
+      const error = await refusal(() =>
+        writeKnowledgeEmbedding(unreachableSql(), 'acme', {
+          ...model,
+          dimensions,
+        }),
+      );
+      expect(error.status).toBe(400);
+      expect(error.code).toBe('INVALID_EMBEDDING');
+      expect(error.message).toContain(
+        '256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096',
+      );
+    },
+  );
 });
 
 /**

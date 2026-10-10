@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 describe('account bulk chat actions', () => {
-  it('enumerates only the caller’s visible active history in the current organization', async () => {
+  it('enumerates only the caller’s visible active history in the current organization [CHAT-R1]', async () => {
     const sql = vi.fn().mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
     const result = await bulkUpdateThreads(
       sql as unknown as Sql,
@@ -47,7 +47,7 @@ describe('account bulk chat actions', () => {
     expect(result).toEqual({ changedIds: ['t1', 't2'], failed: 0 });
   });
 
-  it('keeps legal-hold and running-thread refusals separate from successful trash operations', async () => {
+  it('keeps legal-hold and running-thread refusals separate from successful trash operations [CHAT-R13]', async () => {
     const sql = vi
       .fn()
       .mockResolvedValue([{ id: 'held' }, { id: 'busy' }, { id: 'archived' }]);

@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 
 import { createPlaywrightConfig, devices } from '@tale/e2e/config';
 
-import { E2E_CONTACT_SUPPORT_URL } from './tests/e2e/helpers/env';
+import {
+  E2E_CONTACT_SUPPORT_URL,
+  E2E_TOTP_CLIENT_NAME,
+  E2E_TOTP_ENVIRONMENT,
+} from './tests/e2e/helpers/env';
 
 /**
  * Full-app E2E suite (issue #179). Runs the platform smoke flows — auth
@@ -154,6 +158,11 @@ export default createPlaywrightConfig({
         // error displays' contact-support link follows the operator's
         // setting (env → window.__ENV__ → the app-root provider → the link).
         TALE_CONTACT_SUPPORT_URL: E2E_CONTACT_SUPPORT_URL,
+        // A synthetic client on a test environment, so `auth-account.spec.ts`
+        // can prove the backup codes download under the deployment's
+        // authenticator name (env → backend + window.__ENV__ → the file name).
+        TOTP_CLIENT_NAME: E2E_TOTP_CLIENT_NAME,
+        TOTP_ENVIRONMENT: E2E_TOTP_ENVIRONMENT,
         // Deterministic 32-byte (hex) key so the hermetic stack can encrypt
         // secret-box values (project secrets, guardrails) — without it
         // `convex/lib/secret_box.ts` throws and secret-create flows fail. A
@@ -166,7 +175,8 @@ export default createPlaywrightConfig({
         // `tests/manual/setup.md` §1A's mode-A command block mirrors this exact
         // env set (TALE_CONFIG_DIR, TALE_CONFIG_BUILTIN_DIR, TALE_PROVIDER_KEY_
         // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_MOCK_CONNECTORS_
-        // BASE, and TALE_CONTACT_SUPPORT_URL above) for AI/manual testers —
+        // BASE, TALE_CONTACT_SUPPORT_URL and the two TOTP_ settings above) for
+        // AI/manual testers —
         // when you change a value or add/remove a var here, update that doc in
         // the same change (#2633 was a drift here).
         ...(useMockLlm

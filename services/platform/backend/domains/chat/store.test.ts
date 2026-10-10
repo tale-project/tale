@@ -45,6 +45,7 @@ import {
   createPgTurnStore,
   createPgUsageLedger,
   estimateTurnCostCents,
+  streamWriteIntervalMs,
 } from './store.ts';
 
 const OPENROUTER = {
@@ -152,6 +153,19 @@ describe('createPgUsageLedger', () => {
     }
   });
 
+  it('books a turn in a project’s thread into the project’s buckets too [GOV-R14]', async () => {
+    const { sql, calls } = capturingSql();
+    await createPgUsageLedger(sql).record({
+      ...ENTRY,
+      projectIds: ['project_1'],
+    });
+    // The three ledger buckets and the project's three.
+    expect(calls.length).toBe(6);
+    expect(calls.filter((values) => values.includes('project_1'))).toHaveLength(
+      3,
+    );
+  });
+
   it('books a REST turn against the API key that authenticated it', async () => {
     const { sql, calls } = capturingSql();
     await createPgUsageLedger(sql).record({ ...ENTRY, apiKeyId: 'key_1' });
@@ -186,6 +200,8 @@ function fakeChatSql(
     streamed?: { text: string; reasoning?: string };
     /** The placeholder's parts as stored before the finalize. */
     storedParts?: unknown[];
+    /** Progress writes of the text that fail, as a dropped connection does. */
+    failTextWrites?: number;
   } = {},
 ): {
   sql: Sql;
@@ -197,6 +213,7 @@ function fakeChatSql(
   const tx: Statement[] = [];
   const transactions: Array<'commit' | 'rollback'> = [];
   let messageRows = 0;
+  let textWriteFailures = options.failTextWrites ?? 0;
   const answer = (text: string): unknown[] => {
     if (text.includes('FOR UPDATE OF tm')) {
       return options.scopeChanged ? [] : [{ id: 'thread_1' }];
@@ -245,6 +262,14 @@ function fakeChatSql(
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?');
       log.push({ text, values });
+      if (
+        textWriteFailures > 0 &&
+        text.includes('UPDATE app.generations SET') &&
+        text.includes('text = ')
+      ) {
+        textWriteFailures -= 1;
+        return Promise.reject(new Error('Connection terminated unexpectedly'));
+      }
       return Promise.resolve(answer(text));
     };
     tag.json = (value: unknown) => ({ json: value });
@@ -299,7 +324,12 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1' },
+      {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+        projectIds: [],
+      },
       { threadId: 'thread_b' },
     );
     expect(f.transactions).toEqual(['commit']);
@@ -314,7 +344,12 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1' },
+      {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+        projectIds: [],
+      },
       undefined,
     );
   });
@@ -411,7 +446,7 @@ describe('createPgTurnStore.beginTurn', () => {
     ).toBe(true);
   });
 
-  it('claims the thread with DO NOTHING and rolls the whole open back when another turn holds it', async () => {
+  it('claims the thread with DO NOTHING and rolls the whole open back when another turn holds it [CHAT-R5]', async () => {
     const f = fakeChatSql({ threadHeld: true });
 
     await expect(
@@ -432,6 +467,7 @@ describe('createPgTurnStore.beginTurn', () => {
 
   const SPEND = {
     userId: 'user_1',
+    projectIds: ['original-project'],
     apiKeyId: 'key_1',
     tokens: 4_096.4,
     costCents: 12.5,
@@ -446,7 +482,13 @@ describe('createPgTurnStore.beginTurn', () => {
     );
     expect(claim?.text).toContain('user_id, api_key_id, reserved_cost_cents,');
     expect(claim?.values).toEqual(
-      expect.arrayContaining(['user_1', 'key_1', 12.5, 4_097]),
+      expect.arrayContaining([
+        'user_1',
+        'key_1',
+        12.5,
+        4_097,
+        ['original-project'],
+      ]),
     );
     // No budget policy is on: nothing to serialize, no admission.
     expect(budget.budgetPolicyActive).toHaveBeenCalledWith(f.sql, 'org_1');
@@ -469,6 +511,8 @@ describe('createPgTurnStore.beginTurn', () => {
         organizationId: 'org_1',
         userId: 'user_1',
         apiKeyId: 'key_1',
+        threadId: 'thread_1',
+        projectIds: ['original-project'],
       },
       // No partner column to leave out of the measure on an ordinary open.
       undefined,
@@ -478,7 +522,7 @@ describe('createPgTurnStore.beginTurn', () => {
     expect(f.transactions).toEqual(['commit']);
   });
 
-  it('rolls the whole open back when the admission refuses', async () => {
+  it('rolls the whole open back when the admission refuses [CHAT-R6]', async () => {
     budget.budgetPolicyActive.mockResolvedValueOnce(true);
     budget.admitChatTurnSpend.mockRejectedValueOnce(
       new Error('BUDGET_EXCEEDED'),
@@ -503,7 +547,7 @@ describe('createPgTurnStore.beginTurn', () => {
     const claim = f.tx.find((statement) =>
       statement.text.includes('INSERT INTO app.generations'),
     );
-    expect(claim?.values.slice(-4)).toEqual([null, null, 0, 0]);
+    expect(claim?.values.slice(-5)).toEqual([null, null, 0, 0, []]);
   });
 });
 
@@ -563,6 +607,44 @@ describe('createPgTurnStore.endGeneration', () => {
           t.includes("status = 'failed'") && t.includes("status = 'pending'"),
       ),
     ).toBe(true);
+  });
+});
+
+describe('createPgTurnStore.holdNextRound [GOV-R5]', () => {
+  const ROUND = {
+    organizationId: 'org_1',
+    threadId: 'thread_1',
+    tokens: 1_200.4,
+    costCents: 0.8,
+  };
+
+  it('raises the generation row’s hold under the admission lock', async () => {
+    budget.budgetPolicyActive.mockResolvedValueOnce(true);
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).holdNextRound?.(ROUND);
+
+    expect(f.transactions).toEqual(['commit']);
+    const texts = f.tx.map((statement) => statement.text);
+    const lock = texts.findIndex((t) =>
+      t.includes('INSERT INTO app.budget_admissions'),
+    );
+    const raise = texts.findIndex(
+      (t) =>
+        t.includes('UPDATE app.generations') &&
+        t.includes('reserved_cost_cents = reserved_cost_cents +'),
+    );
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(raise).toBeGreaterThan(lock);
+    expect(f.tx[raise]?.values).toEqual(
+      expect.arrayContaining([0.8, 1_201, 'thread_1', 'org_1']),
+    );
+  });
+
+  it('holds nothing while no budget binds the organization', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).holdNextRound?.(ROUND);
+    expect(f.transactions).toEqual([]);
+    expect(f.tx).toEqual([]);
   });
 });
 
@@ -659,7 +741,7 @@ describe('createPgTurnStore.finalizeAssistantMessage', () => {
     expect(f.pool[0]?.values).toContain('complete');
   });
 
-  it('settles a stopped turn as cancelled, keeping what streamed and its usage', async () => {
+  it('settles a stopped turn as cancelled, keeping what streamed and its usage [CHAT-R9]', async () => {
     // A user stop used to be recorded as a complete, often empty, reply —
     // the documented `cancelled` status was never written.
     const f = fakeChatSql();
@@ -701,5 +783,112 @@ describe('createPgTurnStore — the pre-minted placeholder id', () => {
       s.text.includes("generation_status = 'generating'"),
     );
     expect(metadata?.text).toContain('generation_queued_since_ms = NULL');
+  });
+});
+
+describe('createPgTurnStore.streamProgress write gap', () => {
+  it('keeps the shortest gap for most replies and grows it with a long one', () => {
+    expect(streamWriteIntervalMs(0)).toBe(250);
+    expect(streamWriteIntervalMs(2000)).toBe(250);
+    expect(streamWriteIntervalMs(4000)).toBe(500);
+    expect(streamWriteIntervalMs(8000)).toBe(1000);
+    expect(streamWriteIntervalMs(100_000)).toBe(1000);
+  });
+
+  it('skips writes inside the gap the streamed length allows, and always flushes', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000_000);
+      const f = fakeChatSql();
+      const store = createPgTurnStore(f.sql);
+      const progress = (text: string, flush?: boolean) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          ...(flush === undefined ? {} : { flush }),
+        });
+      const writes = () =>
+        f.pool.filter((s) => s.text.includes('UPDATE app.generations SET'))
+          .length;
+      const long = 'x'.repeat(4000);
+
+      await progress('short');
+      expect(writes()).toBe(1);
+      vi.advanceTimersByTime(300);
+      await progress('short and a bit');
+      expect(writes()).toBe(2);
+      // 4,000 characters wait 500 ms between writes.
+      vi.advanceTimersByTime(300);
+      await progress(long);
+      expect(writes()).toBe(2);
+      vi.advanceTimersByTime(250);
+      await progress(long);
+      expect(writes()).toBe(3);
+      await progress(`${long}!`, true);
+      expect(writes()).toBe(4);
+      // A stall's cancel poll waits only the shortest gap, however long the
+      // reply: 300 ms after the last write it reads the row again. With
+      // nothing new to store it touches only the heartbeat.
+      const poll = (text: string) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          poll: true,
+        });
+      const heartbeats = () =>
+        f.pool.filter((s) =>
+          s.text.includes('UPDATE app.generations SET heartbeat_at_ms'),
+        ).length;
+      vi.advanceTimersByTime(300);
+      await poll(`${long}!`);
+      expect(writes() - heartbeats()).toBe(4);
+      expect(heartbeats()).toBe(1);
+      // A tail the throttle held back is stored by the next poll.
+      await progress(`${long}!?`);
+      expect(writes() - heartbeats()).toBe(4);
+      vi.advanceTimersByTime(300);
+      await poll(`${long}!?`);
+      expect(writes() - heartbeats()).toBe(5);
+      expect(heartbeats()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('repairs a progress write that failed on the next poll', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000_000);
+      const f = fakeChatSql({ failTextWrites: 1 });
+      const store = createPgTurnStore(f.sql);
+      const update = (text: string, poll?: true) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          ...(poll === undefined ? {} : { poll }),
+        });
+      const textWrites = () =>
+        f.pool.filter(
+          (s) =>
+            s.text.includes('UPDATE app.generations SET') &&
+            s.text.includes('text = '),
+        ).length;
+      // The write of the newest text is lost to a dropped connection.
+      await expect(update('Hello world')).rejects.toThrow('terminated');
+      expect(textWrites()).toBe(1);
+      // The stall's poll carries the same text and writes it again.
+      vi.advanceTimersByTime(300);
+      await update('Hello world', true);
+      expect(textWrites()).toBe(2);
+      // Once stored, the next poll only touches the heartbeat.
+      vi.advanceTimersByTime(300);
+      await update('Hello world', true);
+      expect(textWrites()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

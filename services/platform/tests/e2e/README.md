@@ -85,6 +85,7 @@ mock README for the boundary between fixture responses and real integration cove
 | Helper | Purpose |
 | --- | --- |
 | [`helpers/auth.ts`](helpers/auth.ts) | Sign up, sign in, drive the organization wizard, and wait for seeded state |
+| [`helpers/automations.ts`](helpers/automations.ts) | Upload a workflow document as a draft, and delete an automation from its list row |
 | [`helpers/env.ts`](helpers/env.ts) | Base URL, mock-mode detection, and named timeout budgets |
 | [`helpers/chat.ts`](helpers/chat.ts) | Fill the composer, create a thread, wait for reply completion, and clean up by ID |
 | [`helpers/forms.ts`](helpers/forms.ts) | Reload and wait for a stable form before checking persisted values |

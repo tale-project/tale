@@ -3,6 +3,7 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import type { RunnerLimits } from '../core/runner';
+import { probedExprSource } from '../core/syntax/probe';
 import {
   createSandboxExecRunner,
   createSessionTransport,
@@ -402,6 +403,101 @@ describe('createSessionTransport — building a transport from a session', () =>
       await expect(
         runner.runBody('throw new Error("kaboom");', {}, LIMITS),
       ).rejects.toThrow(/kaboom/);
+    });
+  });
+});
+
+describe('createSandboxExecRunner — probed expressions', () => {
+  const PROBED = '__taleProbe$(0,(__taleProbe$(1,(input.n)) > 5))';
+
+  it('ships the one probed wrapper through the existing code field, the scope as before', async () => {
+    const seen: Array<{ code: string; scopeJson: string }> = [];
+    const capturing: SandboxExecTransport = async (request) => {
+      seen.push({ code: request.code, scopeJson: request.scopeJson });
+      return runningTransport()(request);
+    };
+    const runner = createSandboxExecRunner(capturing);
+    const scope = { input: { n: 7 }, 'not-valid': 1 };
+    await runner.evalExpr('input.n > 5', scope, LIMITS);
+    await runner.evalExprProbed?.(PROBED, scope, LIMITS);
+    expect(seen[1]).toEqual({
+      code: probedExprSource(PROBED, ['input']),
+      scopeJson: seen[0]?.scopeJson,
+    });
+  });
+
+  it('answers the value and the probes', async () => {
+    const runner = createSandboxExecRunner(runningTransport());
+    await expect(
+      runner.evalExprProbed?.(PROBED, { input: { n: 7 } }, LIMITS),
+    ).resolves.toEqual({
+      value: true,
+      probes: [
+        [1, { kind: 'number', text: '7', bytes: 1 }],
+        [0, { kind: 'boolean', text: 'true', bytes: 4 }],
+      ],
+    });
+  });
+
+  it('answers an error the expression throws instead of rejecting', async () => {
+    const runner = createSandboxExecRunner(runningTransport());
+    const answer = await runner.evalExprProbed?.(
+      '__taleProbe$(0,(input.a)).b.c',
+      { input: {} },
+      LIMITS,
+    );
+    expect(answer?.error).toEqual({
+      message: "TypeError: Cannot read properties of undefined (reading 'b')",
+      name: 'TypeError',
+    });
+    expect(answer?.probes).toEqual([[0, { kind: 'undefined' }]]);
+  });
+
+  it('still rejects what the transport reports, and an over-large scope', async () => {
+    const killed: SandboxExecTransport = async ({ limits }) => ({
+      ok: false,
+      error: `run exceeded the ${limits.timeoutMs}ms wall-clock deadline; the sandbox process was killed`,
+    });
+    await expect(
+      createSandboxExecRunner(killed).evalExprProbed?.(PROBED, {}, LIMITS),
+    ).rejects.toThrow(/run failed:.*deadline/);
+    let called = false;
+    const spy: SandboxExecTransport = async () => {
+      called = true;
+      return { ok: true, valueJson: '{}' };
+    };
+    await expect(
+      createSandboxExecRunner(spy, { maxScopeBytes: 16 }).evalExprProbed?.(
+        PROBED,
+        { input: 'longer than sixteen bytes, comfortably' },
+        LIMITS,
+      ),
+    ).rejects.toThrow(/over the 16-byte/);
+    expect(called).toBe(false);
+  });
+
+  it('rejects an answer that is not the wrapper’s', async () => {
+    const garbled: SandboxExecTransport = async () => ({
+      ok: true,
+      valueJson: 'not json',
+    });
+    await expect(
+      createSandboxExecRunner(garbled).evalExprProbed?.(PROBED, {}, LIMITS),
+    ).rejects.toThrow(/no readable result/);
+  });
+
+  it('runs end to end through the whole assembled program', async () => {
+    const runner = createSandboxExecRunner(
+      createSessionTransport(executingProgramRunner()),
+    );
+    await expect(
+      runner.evalExprProbed?.(PROBED, { input: { n: 1 } }, LIMITS),
+    ).resolves.toMatchObject({
+      value: false,
+      probes: [
+        [1, { kind: 'number', text: '1' }],
+        [0, { kind: 'boolean', text: 'false' }],
+      ],
     });
   });
 });

@@ -42,6 +42,10 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     >();
   return {
     ...actual,
+    // The window closes a Claude turn's held stdin; no spawner answers here.
+    sessionWriteExecStdin: async () => ({ ok: true }),
+    sessionGetExecCheckpoint: async () => null,
+    sessionPutExecCheckpoint: async () => undefined,
     drainSessionExecResilient: async (
       _sessionId: string,
       body: { execId: string; command?: string[] },
@@ -187,6 +191,7 @@ const KEYS = {
 };
 
 beforeEach(() => {
+  vi.clearAllMocks();
   io.stdout = `${readFixture('claude-code', 'empty-answer-turn')}\n`;
   io.starts = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -194,6 +199,87 @@ beforeEach(() => {
 });
 
 describe('a task agent turn whose model answered nothing', () => {
+  it('keeps a resumed Codex conversation when capacity refuses its first response, without launching fresh', async () => {
+    const message =
+      'Selected model is at capacity. Please try a different model.';
+    io.stdout = `${[
+      { type: 'thread.started', thread_id: CONVERSATION },
+      { type: 'turn.failed', error: { message } },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n')}\n`;
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'glm',
+      modelProvider: 'local-inference',
+      skills: [],
+      connectors: [],
+      tools: [],
+      secrets: [],
+      resume: CONVERSATION,
+      resumeSessionCreatedAt: 1000,
+      sweep: false,
+    });
+
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.argv).toContain('resume');
+    expect(failedMarks(mutations).map((m) => m.args)).toEqual([
+      {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: message,
+        failureCode: 'model_capacity',
+        agentSessionId: CONVERSATION,
+        sessionCreatedAt: 1000,
+      },
+    ]);
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+  });
+
+  it('still requires an explicit final report after a long assistant draft', async () => {
+    const report = `BEGIN ${'draft '.repeat(20_000)} END`;
+    io.stdout = `${[
+      { type: 'system', subtype: 'init', session_id: CONVERSATION },
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: report }] },
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        result: '',
+        session_id: CONVERSATION,
+      },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n')}\n`;
+    const { ctx, mutations } = makeCtx({ status: 'running', execId: 'exec-1' });
+
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'empty_turn',
+      agentSessionId: CONVERSATION,
+    });
+    expect(
+      mutations.some((m) => m.name.endsWith(':completeTaskAgentRun')),
+    ).toBe(false);
+    const progress = mutations
+      .map((mutation) => mutation.args.progressText)
+      .filter((text): text is string => typeof text === 'string');
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress.every((text) => text.length <= 64 * 1024)).toBe(true);
+  });
+
   it('fails retryably, naming the empty answer and keeping the conversation', async () => {
     const run: RunState = { status: 'running', execId: 'exec-1' };
     const { ctx, mutations } = makeCtx(run);

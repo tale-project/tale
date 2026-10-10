@@ -1,0 +1,217 @@
+title: Sandboxes
+sessionsTitle: Arbeitsbereiche
+description:
+  Ein Projekt-Agent bearbeitet jede Aufgabe, an der er gleichzeitig arbeitet,
+  in einem eigenen Worker, einer Sandbox mit eigenem Arbeitsbereich, die
+  spätere Aufgaben wiederverwenden. Die Schritte eines Workflow-Laufs teilen
+  sich einen Arbeitsbereich. Der Arbeitsbereich eines Workers wird gelöscht,
+  sobald er länger ungenutzt ist, als die Bereinigung der Arbeitsbereiche
+  zulässt, oder sobald sein Agent, sein Projekt oder das zugehörige Mitglied
+  entfernt wird. Laufzeitstatus und
+  Kontingentbelegung stehen getrennt, denn ein Container kann nach der Freigabe
+  des Kontingents weiterlaufen.
+limits:
+  title: Organisationslimits
+  description:
+    Lege fest, wie viele Sitzungen jede Arbeitsart gleichzeitig nutzen darf.
+    Sitzungen belegen das Kontingent beim Start und während der Arbeit.
+    Die Summe passt sich automatisch an und darf die Kapazität der
+    Bereitstellung nicht überschreiten.
+  usage: 'Belegt: {used} / {limit}'
+  usageUnavailable: Kontingentbelegung nicht verfügbar
+  # Unter dem Limit der Agenten-Worker: die Läufe, die ein höheres Limit sofort starten würde.
+  waitingForWorkers: '{count, plural, one {# Agentenlauf wartet auf einen freien Worker.} other {# Agentenläufe warten auf einen freien Worker.}}'
+  usageLoadFailed: Kontingentbelegung konnte nicht geladen werden
+  usageRetry: Erneut versuchen
+  invalidSessions: Gib eine ganze Zahl zwischen 1 und 500 ein.
+  total: Sitzungen deiner Organisation insgesamt
+  totalValue: '{total} / {maxSessions}'
+  totalHint: Summe der drei Limits / Kapazität der Bereitstellung. Andere Organisationen teilen sich diese Kapazität.
+  totalHintWithDevices: Summe der drei Limits / Kapazität der Bereitstellung plus die {deviceSessions} Sandboxes deiner Geräte. Andere Organisationen teilen sich die Kapazität der Bereitstellung.
+  totalExceedsDeployment: Die Summe von {total} Sitzungen überschreitet die Kapazität der Bereitstellung von {maxSessions}. Verringere mindestens ein Limit, um zu speichern.
+  totalExceedsCapacity: 'Die Summe von {total} Sitzungen überschreitet die Kapazität von {maxSessions}: {deploymentSessions} in der Bereitstellung und {deviceSessions} auf deinen Geräten. Verringere mindestens ein Limit, um zu speichern.'
+  capacityUnavailable: Die Kapazität der Bereitstellung ist nicht verfügbar. Niedrigere Limits kannst du speichern; aktualisiere die Infrastrukturdaten, bevor du ein Limit erhöhst.
+  capacityLoading: Kapazität der Bereitstellung prüfen…
+  saveFailed: Sandbox-Limits konnten nicht gespeichert werden
+quota:
+  budgets:
+    project: Agenten-Worker
+    workflow: Workflow-Sitzungen
+    render: Render-Sitzungen
+  budgetHints:
+    project: Jede Aufgabe, an der ein Agent gleichzeitig arbeitet, läuft in einer eigenen Sandbox.
+    workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
+    render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
+cleanup:
+  title: Bereinigung der Arbeitsbereiche
+  description:
+    Projekt-Agenten bewahren ihre Dateien zwischen den Läufen in Arbeitsbereichen
+    auf. Ein Arbeitsbereich wird sofort gelöscht, wenn sein Agent, sein Projekt
+    oder das zugehörige Mitglied entfernt wird. Arbeitsbereiche unter einem
+    Legal Hold bleiben erhalten.
+  deleteUnused: Ungenutzte Arbeitsbereiche löschen
+  deleteUnusedHint: Löscht einen Arbeitsbereich nach der unten angegebenen Anzahl Tage ohne Nutzung. Angepinnte Arbeitsbereiche bleiben erhalten.
+  unusedDays: Tage ohne Nutzung
+  unusedDaysHint: Die Tage zählen ab dem Zeitpunkt, an dem der Agent zuletzt im Arbeitsbereich gearbeitet hat. Wenn du das Löschen einschaltest oder den Zeitraum verkürzt, wird kein Arbeitsbereich gelöscht, bevor die volle Anzahl Tage vergangen ist.
+  invalidDays: Gib eine ganze Zahl zwischen 1 und 3650 ein.
+  loadFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht geladen werden. Lade die Seite neu, um es erneut zu versuchen.
+  saveFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht gespeichert werden
+capacity:
+  title: Infrastrukturkapazität
+  description:
+    Tatsächlich laufende Umgebungen und gemessene Host-Ressourcen. Die Zahlen
+    können von der Kontingentbelegung abweichen, weil Umgebungen nach dem Ende
+    einer Aufgabe weiterlaufen können.
+  refresh: Aktualisieren
+  hostSessions: Sandboxes der Bereitstellung
+  namespaceSessions: Sandboxes der Bereitstellung (Namespace)
+  organizationSessions: Sandboxes deiner Organisation
+  slots: '{used} / {limit}'
+  sessionStates: '{running} laufen · {starting} starten'
+  sessionSlotsHint: Aktuell laufend oder startend / Kapazität der Bereitstellung, gemeinsam für alle Organisationen.
+  organizationSessionsHint: Aktuell laufend oder startend, auch Sandboxes im Leerlauf, die zur Wiederverwendung bereitstehen.
+  cpu: CPU-Auslastung des Hosts
+  cpuUsage: '{used} / {total} Kerne'
+  cpuHint: Messung über alle Prozesse auf dem Host.
+  memory: Speichernutzung des Hosts
+  memoryUsage: '{used} / {total} GiB'
+  memoryHint: Genutzter und gesamter Host-Speicher, einschließlich anderer Dienste.
+  unknownValue: Nicht verfügbar
+  operatorLimits:
+    Alle Organisationen teilen sich die vom Betreiber festgelegte Kapazität.
+    Ein freier Platz garantiert keine ausreichende Rechenleistung oder
+    ausreichend Speicher für eine neue Sandbox.
+  observedAt: 'Messzeitpunkt: {time}'
+  scopes:
+    host: Host gesamt
+    namespace: Kubernetes-Namespace; Messwerte für Host-Ressourcen fehlen
+  notConfigured: Für diese Bereitstellung ist keine Sandbox-Infrastruktur eingerichtet.
+  unreachable: Infrastrukturdaten konnten nicht aktualisiert werden. Laufzeitstatus und Ressourcennutzung sind unbekannt.
+columns:
+  owner: Arbeitsbereich
+  agent: Agent
+  status: Status
+  task: Aktuelle Aufgaben
+  spend: Kosten
+  created: Erstellt
+status:
+  runtime:
+    running: Läuft
+    starting: Startet
+    stopped: Gestoppt
+    unknown: Unbekannt
+  quotaInUse: Kontingent belegt
+  quotaReleased: Kontingent freigegeben
+  pausedBudget: Pausiert (Budget)
+  pinned: Angepinnt
+  deletesOn: Wird am {date} gelöscht, falls weiterhin ungenutzt
+  destroying: Wird gelöscht
+  destroyFailed: Nicht gelöscht
+task:
+  none: Keine aktive Aufgabe
+  project: '{count, plural, one {Projektaufgabe} other {# Projektaufgaben}}'
+  workflow: '{count, plural, one {Workflow-Lauf} other {# Workflow-Läufe}}'
+  active: '{count, plural, one {Aktive Ausführung} other {# aktive Ausführungen}}'
+actions:
+  stop: Aufgabe stoppen
+  pin: Anpinnen
+  unpin: Lösen
+  destroy: Löschen
+destroyConfirm:
+  title: Sandbox löschen?
+  description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Der nächste Lauf des Agenten nimmt einen anderen freien Worker oder, sobald diese Sandbox entfernt ist, eine neue.
+  confirm: Löschen
+toast:
+  stopped: Aufgabe gestoppt
+  pinned: Sandbox angepinnt
+  unpinned: Sandbox gelöst
+  destroying: Sandbox wird gelöscht
+  destroyingDescription: Sie verschwindet aus der Liste, sobald ihr Arbeitsbereich gelöscht ist.
+  error: Aktion fehlgeschlagen
+empty:
+  title: Noch keine Arbeitsbereiche
+  description:
+    Der Worker eines Projekt-Agenten erscheint mit seiner ersten Aufgabe, einer
+    für jede Aufgabe, an der der Agent gleichzeitig arbeitet. Sein
+    Arbeitsbereich wird gelöscht, sobald er länger ungenutzt ist, als die
+    Bereinigung der Arbeitsbereiche zulässt, oder sobald sein Agent, sein
+    Projekt oder das zugehörige Mitglied entfernt wird. Der Arbeitsbereich eines Workflow-Laufs
+    wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
+    enthalten auch temporäre Crawler-Sitzungen.
+accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
+# Welcher Worker seines Agenten ein Arbeitsbereich ist: einer des Agenten
+# selbst oder einer, der den Agenten für ein Mitglied ausführt.
+worker:
+  agent: Worker {number}
+  member: Mitglieder-Worker {number}
+deletedAgent: Gelöschter Agent
+devices:
+  title: Geräte
+  description:
+    Führe die Sandboxes deiner Organisation auf deinen eigenen Rechnern aus. Neue
+    Arbeitsbereiche für Agenten und Automatisierungen starten auf einem verbundenen
+    Gerät mit freiem Platz, sonst auf dem Server. Ein Arbeitsbereich bleibt auf dem
+    Rechner, auf dem er gestartet ist.
+  add: Gerät hinzufügen
+  columns:
+    name: Gerät
+    status: Status
+    sandboxes: Sandboxes
+    machine: Rechner
+    version: Version
+    lastSeen: Zuletzt gesehen
+  status:
+    online: Online
+    updating: Wird aktualisiert
+    outdated: Update nötig
+    update_failed: Update fehlgeschlagen
+    offline: Offline
+  platform: '{os} · {arch}'
+  sandboxCount: '{used} / {limit}'
+  lastSeenNow: Jetzt
+  machine: '{cpus, plural, one {# CPU} other {# CPUs}} · {memory} GiB'
+  updatingTo: 'Wird auf {version} aktualisiert'
+  updateFailedHint: Das Update auf {version} ist fehlgeschlagen. Das Gerät versucht es selbst erneut.
+  outdatedHint: Läuft mit einem anderen Release als Tale ({version}). Führe tale sandbox update auf dem Rechner aus.
+  empty:
+    title: Noch keine Geräte
+    description: Füge einen Linux- oder macOS-Rechner mit Docker hinzu, um die Sandboxes deiner Organisation darauf auszuführen.
+  hub:
+    notConfigured: Der Sandbox-Dienst dieser Bereitstellung nimmt keine Geräte an. Bitte deinen Betreiber, den Geräte-Hub einzuschalten.
+    unavailable: Der Sandbox-Dienst war nicht erreichbar. Der Gerätestatus ist möglicherweise nicht aktuell.
+  actions:
+    remove: Entfernen
+  removeConfirm:
+    title: '{name} entfernen?'
+    description:
+      Das Gerät führt ab sofort keine Sandboxes mehr für deine Organisation aus.
+      Seine Arbeitsbereiche bleiben auf dem Rechner, sind von Tale aus aber nicht
+      mehr erreichbar.
+    confirm: Gerät entfernen
+  toast:
+    removed: Gerät entfernt
+    error: Das Gerät konnte nicht entfernt werden
+  addDialog:
+    title: Gerät hinzufügen
+    description:
+      Führe diesen Befehl in einem Terminal auf dem Rechner aus, den du hinzufügen
+      möchtest. Er installiert die Tale CLI und verbindet den Rechner mit deiner
+      Organisation.
+    commandLabel: Installieren und verbinden
+    copyCommand: Befehl kopieren
+    copied: Kopiert
+    requirements:
+      Voraussetzung sind Docker unter Linux oder macOS und ausgehender HTTPS-Zugriff
+      auf diese Seite. Das Gerät läuft nach einem Neustart weiter und aktualisiert
+      sich selbst, wenn Tale aktualisiert wird.
+    expires: Der Befehl funktioniert einmal, und zwar innerhalb einer Stunde.
+    cliInstalled: Tale CLI schon installiert? Führe stattdessen das aus
+    generating: Verbindungsbefehl wird erstellt…
+    generateFailed: Der Verbindungsbefehl konnte nicht erstellt werden.
+    retry: Erneut versuchen
+    waiting: Warte darauf, dass sich das Gerät verbindet…
+    connected: '{name} ist verbunden.'
+runsOn:
+  server: Auf dem Server
+  device: 'Auf {name}'
+  deviceOffline: 'Auf {name} (offline)'

@@ -10,10 +10,11 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 
+import { resourceId } from '@tale/shared/config/platform-resources';
+
+import { platformConfigurationFixture } from '../../../../../packages/shared/src/config/platform-resources.fixture';
 import { CliError, ExitCode } from '../../utils/fail';
 import * as logger from '../../utils/logger';
-import { platformConfigurationFixture } from '../config/platform-fixture';
-import { resourceId } from '../config/platform-model';
 import { sha256, valueHash, loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { commandFixture } from '../config/releases/tests/command-fixture';
@@ -27,7 +28,10 @@ import {
 import { deploymentSpecSchema } from './model';
 import { prepareDeployment } from './prepare';
 import { applyRuntime, prepareRuntime } from './runtime';
-import { activateRuntimeConfiguration } from './runtime-apply';
+import {
+  activateRuntimeConfiguration,
+  observeReadyRuntime,
+} from './runtime-apply';
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { parseRuntimeEnvironment } from './runtime-env';
 import { readRuntimeBundle } from './runtime-model';
@@ -166,6 +170,7 @@ async function create(
   docker.calls = [];
   const events: string[] = [];
   const nativeCopies: { source: string; binary: Buffer }[] = [];
+  const nativeCommands: string[][] = [];
   docker.onUp = () => {
     events.push('up');
   };
@@ -194,6 +199,8 @@ async function create(
   const dependencies: NonNullable<Parameters<typeof applyDeployment>[1]> = {
     runtime: (options) =>
       applyRuntime(options, configurationDocker.dependencies()),
+    observeRuntime: (options) =>
+      observeReadyRuntime(options, configurationDocker.dependencies()),
     activateConfiguration: (options, effect) =>
       activateRuntimeConfiguration(
         options,
@@ -238,6 +245,7 @@ async function create(
       const ok = { success: true, exitCode: 0, stdout: '', stderr: '' };
       if (args.includes('stat')) return { ...ok, stdout: '1001:1001\n' };
       if (args.includes('provision')) {
+        nativeCommands.push([...args]);
         events.push('provision');
         // The backend-local phase runs as the owner of the data directory,
         // never as the container's root default, on a copy it owns.
@@ -306,6 +314,7 @@ async function create(
     native,
     events,
     nativeCopies,
+    nativeCommands,
     dependencies,
     receiptPath,
     apply: (dryRun = false) =>
@@ -1973,5 +1982,299 @@ describePosix('complete managed deployment lifecycle', () => {
       }),
     );
     expect(await run.apply()).toMatchObject({ phase: 'ready' });
+  });
+});
+
+describePosix('configuration-only managed deployment', () => {
+  async function hotBundle(
+    run: Awaited<ReturnType<typeof create>>,
+    identityDrift = false,
+  ) {
+    const directory = join(run.fixture.directory, 'hot-configuration');
+    const configuration = {
+      schemaVersion: 1,
+      resources: [
+        {
+          kind: 'project-instructions',
+          config: {
+            projectId: 'native-project',
+            instructions: 'Reviewed policy',
+          },
+        },
+      ],
+    };
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({
+        ...run.spec,
+        ...(identityDrift
+          ? { identity: { ...run.spec.identity, name: 'Changed identity' } }
+          : {}),
+        configuration,
+      }),
+    );
+    await prepareDeployment(
+      { ...run.preparation, output: directory },
+      run.prepareDependencies,
+    );
+    const proof = {
+      configured: true,
+      configurationSha256: valueHash(configuration),
+      deploymentBundleSha256: sha256(
+        readFileSync(join(directory, 'deployment.json')),
+      ),
+      target: {
+        origin: run.spec.origin,
+        organizationId: run.native.organizationId,
+        organizationSlug: run.native.organizationSlug,
+      },
+      resources: [
+        {
+          id: 'project-instructions/native-project',
+          configurationSha256: valueHash(configuration.resources[0]!.config),
+          revision: 'a'.repeat(64),
+        },
+      ],
+      unchanged: false,
+      restartRequired: false,
+    };
+    run.nativeOutput(() =>
+      JSON.stringify({
+        ok: true,
+        command: 'deploy provision',
+        data: { ...run.native, nativeClients: [], configuration: proof },
+      }),
+    );
+    return { directory, proof };
+  }
+
+  test('a dry run verifies runtime admission without native or receipt writes', async () => {
+    const run = await create();
+    await run.apply();
+    const ready = readFileSync(run.receiptPath);
+    const hot = await hotBundle(run);
+    run.events.length = 0;
+    expect(
+      await applyDeployment(
+        { bundle: hot.directory, configurationOnly: true, dryRun: true },
+        run.dependencies,
+      ),
+    ).toMatchObject({ dryRun: true, configurationOnly: true });
+    expect(run.events).toEqual([]);
+    expect(readFileSync(run.receiptPath)).toEqual(ready);
+    expect(
+      existsSync(
+        join(
+          run.fixture.options.stateDirectory,
+          '.tale/configuration-ready.json',
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  test.each([
+    'user',
+    'organization',
+    'client',
+    'restart',
+    'post-runtime',
+  ] as const)(
+    'refuses %s proof drift after native work without certifying the apply',
+    async (reason) => {
+      const run = await create();
+      await run.apply();
+      const ready = readFileSync(run.receiptPath);
+      const hot = await hotBundle(run);
+      run.nativeOutput(() => {
+        if (reason === 'post-runtime') {
+          run.docker.containers.find(
+            (container) =>
+              (container.Config as { Labels: Record<string, string> }).Labels[
+                'com.docker.compose.service'
+              ] === 'backend-api',
+          )!.Id = 'replaced-backend-container';
+        }
+        return JSON.stringify({
+          ok: true,
+          command: 'deploy provision',
+          data: {
+            ...run.native,
+            userId: reason === 'user' ? 'foreign-user' : run.native.userId,
+            organizationId:
+              reason === 'organization'
+                ? 'foreign-org'
+                : run.native.organizationId,
+            nativeClients: reason === 'client' ? run.native.nativeClients : [],
+            configuration: {
+              ...hot.proof,
+              restartRequired: reason === 'restart',
+            },
+          },
+        });
+      });
+      run.events.length = 0;
+      await expect(
+        applyDeployment(
+          { bundle: hot.directory, configurationOnly: true },
+          run.dependencies,
+        ),
+      ).rejects.toThrow();
+      expect(run.events).toEqual(['provision', 'cleanup']);
+      expect(readFileSync(run.receiptPath)).toEqual(ready);
+      expect(
+        existsSync(
+          join(
+            run.fixture.options.stateDirectory,
+            '.tale/configuration-ready.json',
+          ),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test('changes hot native configuration without snapshot, Compose or full Ready replacement', async () => {
+    const run = await create();
+    await run.apply();
+    const ready = readFileSync(run.receiptPath);
+    const beforeIds = run.docker.containers.map((container) => container.Id);
+    const hot = await hotBundle(run);
+    run.events.length = 0;
+    run.docker.calls = [];
+    const result = await applyDeployment(
+      { bundle: hot.directory, configurationOnly: true },
+      run.dependencies,
+    );
+    expect(result).toMatchObject({
+      phase: 'configuration-ready',
+      runtimeChanged: false,
+      native: { configuration: hot.proof },
+    });
+    expect(run.events).toEqual(['provision', 'cleanup']);
+    expect(run.nativeCommands.at(-1)).toContain('--configuration-only');
+    expect(run.nativeCommands.at(-1)).toEqual(
+      expect.arrayContaining([
+        '--expected-user',
+        run.native.userId,
+        '--expected-organization',
+        run.native.organizationId,
+      ]),
+    );
+    expect(readFileSync(run.receiptPath)).toEqual(ready);
+    expect(run.docker.containers.map((container) => container.Id)).toEqual(
+      beforeIds,
+    );
+    expect(
+      run.docker.calls.some(
+        (call) =>
+          call.args.includes('compose') ||
+          call.args.includes('pause') ||
+          call.args.includes('pull'),
+      ),
+    ).toBe(false);
+    const receipt = join(
+      run.fixture.options.stateDirectory,
+      '.tale/configuration-ready.json',
+    );
+    expect(JSON.parse(readFileSync(receipt, 'utf8'))).toMatchObject({
+      phase: 'configuration-ready',
+      baseDeploymentBundleSha256: JSON.parse(ready.toString()).bundleSha256,
+    });
+    expect(
+      existsSync(
+        join(
+          run.fixture.options.stateDirectory,
+          '.tale/deployment-pending.json',
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  test('refuses a fresh destination before native writes or recovery snapshots', async () => {
+    const run = await create();
+    const hot = await hotBundle(run);
+    run.events.length = 0;
+    await expect(
+      applyDeployment(
+        { bundle: hot.directory, configurationOnly: true },
+        run.dependencies,
+      ),
+    ).rejects.toThrow('already-ready');
+    expect(run.events).toEqual([]);
+    expect(existsSync(run.receiptPath)).toBe(false);
+  });
+
+  test.each(['old-ready', 'pending', 'identity', 'runtime'] as const)(
+    'refuses %s drift without side effects',
+    async (reason) => {
+      const run = await create();
+      await run.apply();
+      const hot = await hotBundle(run, reason === 'identity');
+      if (reason === 'old-ready') {
+        const ready = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
+        delete ready.configurationBasisSha256;
+        writeFileSync(run.receiptPath, JSON.stringify(ready));
+      } else if (reason === 'pending') {
+        writeFileSync(
+          join(
+            run.fixture.options.stateDirectory,
+            '.tale/deployment-pending.json',
+          ),
+          JSON.stringify({
+            schemaVersion: 1,
+            phase: 'pending',
+            name: run.spec.name,
+            bundleSha256: hot.proof.deploymentBundleSha256,
+          }),
+        );
+      } else if (reason === 'runtime') {
+        const backend = run.docker.containers.find(
+          (container) =>
+            (container.Config as { Labels: Record<string, string> }).Labels[
+              'com.docker.compose.service'
+            ] === 'backend-api',
+        )!;
+        (backend.State as { Running: boolean }).Running = false;
+      }
+      run.events.length = 0;
+      await expect(
+        applyDeployment(
+          { bundle: hot.directory, configurationOnly: true },
+          run.dependencies,
+        ),
+      ).rejects.toThrow();
+      expect(run.events).toEqual([]);
+    },
+  );
+
+  test('a failed native apply preserves full Ready and does not invent a configuration receipt', async () => {
+    const run = await create();
+    await run.apply();
+    const ready = readFileSync(run.receiptPath);
+    const hot = await hotBundle(run);
+    run.nativeFailure(true);
+    run.events.length = 0;
+    await expect(
+      applyDeployment(
+        { bundle: hot.directory, configurationOnly: true },
+        run.dependencies,
+      ),
+    ).rejects.toThrow('did not complete');
+    expect(run.events).toEqual(['provision', 'cleanup']);
+    expect(readFileSync(run.receiptPath)).toEqual(ready);
+    expect(
+      existsSync(
+        join(
+          run.fixture.options.stateDirectory,
+          '.tale/configuration-ready.json',
+        ),
+      ),
+    ).toBe(false);
+    run.nativeFailure(false);
+    expect(
+      await applyDeployment(
+        { bundle: hot.directory, configurationOnly: true },
+        run.dependencies,
+      ),
+    ).toMatchObject({ phase: 'configuration-ready' });
   });
 });

@@ -12,6 +12,7 @@
 // sessionIsAlive GET) from colliding in the spawner's replay cache.
 
 import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { createParser } from 'eventsource-parser';
 import { z } from 'zod';
@@ -25,6 +26,7 @@ import {
   hubDevicesSchema,
   type HubDevices,
 } from '../../../../../lib/shared/schemas/sandbox-devices.ts';
+import { traceSandboxPhase } from '../../../../tracing';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
@@ -97,7 +99,8 @@ export interface SpawnerQueuePlace {
 }
 
 /** The spawner is at its global host capacity (HTTP 429: `session_quota`,
- * `host_memory` when the host is short of memory, or `host_disk` when the
+ * `host_memory` when the host is short of memory, `host_cpu` while its CPU
+ * is under pressure and sessions start one at a time, or `host_disk` when the
  * disk the workspaces live on is short of space), or a destroy of the id
  * is still under way. Distinct from the platform's per-workload
  * `QUOTA_EXCEEDED`: the host is shared across organizations. The retry hint
@@ -115,6 +118,99 @@ export class SpawnerBusyError extends Error {
     this.retryAfterMs = retryAfterMs;
     this.queue = queue;
   }
+}
+
+/** The `errorCode` of an exec result whose exec the session's runtime refused
+ * before it spawned, because the session already runs its maximum of live
+ * execs (runnerd's `EXEC_LIMIT`, forwarded as is by the spawner:
+ * `services/sandbox/src/wire.ts`). */
+const SESSION_EXEC_LIMIT_CODE = 'EXEC_LIMIT';
+
+/** Whether an exec's result is the session runtime's refusal for want of a
+ * live-exec place ({@link SESSION_EXEC_LIMIT_CODE}): the process never ran. */
+export function isSessionExecLimitResult(
+  result: SessionExecResult | undefined,
+): boolean {
+  return (
+    result?.status === 'failed' &&
+    result.exitCode === null &&
+    result.errorCode === SESSION_EXEC_LIMIT_CODE
+  );
+}
+
+/** A start whose exec the session's runtime refused because every one of its
+ * live-exec places is taken by the session's other execs. Distinct from
+ * {@link SpawnerBusyError}: the room that ran out is this one workspace's,
+ * not the shared host's, and it frees when another exec of the session
+ * ends. Nothing ran, so the start waits instead of failing. */
+export class SessionExecLimitError extends Error {
+  readonly sessionId: string;
+  constructor(sessionId: string, execId: string) {
+    super(
+      `sandbox session ${sessionId} refused exec ${execId}: every live-exec place is taken`,
+    );
+    this.name = 'SessionExecLimitError';
+    this.sessionId = sessionId;
+  }
+}
+
+/** The `error` of a 429 the spawner forwards when the session's runtime
+ * refused to start an exec because the session's memory is nearly spent
+ * (runnerd's `session_memory_busy`, `services/sandbox/src/session/runnerd-protocol.ts`). */
+const SESSION_MEMORY_BUSY_ERROR = 'session_memory_busy';
+
+/** How long a memory refusal that names no wait is waited out. */
+const SESSION_MEMORY_BUSY_RETRY_MS = 5_000;
+
+/** A start whose exec the session's runtime refused because the session's
+ * working set has reached its share of the memory limit: one more exec
+ * would make the kernel end a running one, most often the agent. Nothing
+ * ran, and the room frees as the session's other work settles, so it waits
+ * like a session whose live-exec places are all taken — it is one of those
+ * refusals to every lane that waits for sandbox room. */
+export class SessionMemoryBusyError extends SessionExecLimitError {
+  readonly retryAfterMs: number;
+  constructor(
+    sessionId: string,
+    execId: string,
+    retryAfterMs: number,
+    detail: string,
+  ) {
+    super(sessionId, execId);
+    this.name = 'SessionMemoryBusyError';
+    this.message = `sandbox session ${sessionId} refused exec ${execId}: ${detail}`;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/** The memory refusal a 429 to an exec is, or null for any other 429 (the
+ * host short of memory or disk, the session limit). */
+async function sessionMemoryBusyErrorOf(
+  res: Response,
+  sessionId: string,
+  execId: string,
+): Promise<SessionMemoryBusyError | null> {
+  let body: unknown;
+  try {
+    body = JSON.parse(await safeText(res));
+  } catch {
+    return null;
+  }
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('error' in body) ||
+    body.error !== SESSION_MEMORY_BUSY_ERROR
+  )
+    return null;
+  return new SessionMemoryBusyError(
+    sessionId,
+    execId,
+    parseRetryAfterMs(res) ?? SESSION_MEMORY_BUSY_RETRY_MS,
+    'message' in body && typeof body.message === 'string'
+      ? body.message
+      : 'the session is short of memory',
+  );
 }
 
 /** The `queue` field of a 429 body, as a boundary: a body that is not JSON,
@@ -235,6 +331,228 @@ function parseRetryAfterMs(res: Response): number | undefined {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
 }
 
+/** How long one acquire or create keeps asking again after answers that say
+ * "in a moment": a 503 `session_unavailable` (a sibling create of the id in
+ * flight, a backend listing that timed out, a container still starting) and
+ * a connection the spawner did not take (it is restarting). Long enough for
+ * a spawner restart or a slow `docker ps`; short against the turn it delays,
+ * so a spawner that stays away still fails the start. */
+const SPAWNER_TRANSIENT_RETRY_BUDGET_MS = 20_000;
+/** The first wait after a refused connection; it doubles per retry. */
+const SPAWNER_TRANSIENT_RETRY_MIN_MS = 250;
+/** The longest single wait, whatever the backoff or a `retry-after` says. */
+const SPAWNER_TRANSIENT_RETRY_MAX_MS = 5_000;
+
+/** The connection failures that say the spawner is not there right now
+ * rather than that the request went wrong: refused (restarting), reset
+ * (killed mid-connect) and a name lookup that timed out (its DNS entry is
+ * being replaced). */
+const TRANSIENT_CONNECTION_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EAI_AGAIN',
+]);
+
+function errorCodeOf(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error))
+    return undefined;
+  return typeof error.code === 'string' ? error.code : undefined;
+}
+
+/** Whether a call failed because the spawner did not take the connection
+ * (see {@link TRANSIENT_CONNECTION_CODES}). The runtime's fetch reports the
+ * syscall on the failure's `cause`, or on each of an `AggregateError`'s
+ * errors when it tried several addresses. */
+function isTransientConnectionFailure(error: unknown): boolean {
+  if (!(error instanceof SpawnerUnreachableError)) return false;
+  const fetchFailure = error.cause;
+  const syscall =
+    fetchFailure instanceof Error ? fetchFailure.cause : undefined;
+  const codes =
+    syscall instanceof AggregateError
+      ? syscall.errors.map(errorCodeOf)
+      : [errorCodeOf(syscall)];
+  return codes.some(
+    (code) => code !== undefined && TRANSIENT_CONNECTION_CODES.has(code),
+  );
+}
+
+/** One call's allowance of retries of transient spawner answers: an
+ * acquire's or a create's {@link SPAWNER_TRANSIENT_RETRY_BUDGET_MS}, or, for
+ * an exec drain riding out a spawner outage, as long as its caller's signal
+ * lets it run. */
+class SpawnerRetryBudget {
+  private readonly deadline: number;
+  private retries = 0;
+
+  constructor(budgetMs: number = SPAWNER_TRANSIENT_RETRY_BUDGET_MS) {
+    this.deadline = Date.now() + budgetMs;
+  }
+
+  /** How long to wait before asking again — the spawner's own hint when it
+   * gave one, else a doubling backoff — or undefined once that wait would
+   * end past the budget. */
+  nextWaitMs(hintMs: number | undefined): number | undefined {
+    const backoff = SPAWNER_TRANSIENT_RETRY_MIN_MS * 2 ** this.retries;
+    const waitMs = Math.min(
+      SPAWNER_TRANSIENT_RETRY_MAX_MS,
+      Math.max(SPAWNER_TRANSIENT_RETRY_MIN_MS, hintMs ?? backoff),
+    );
+    if (Date.now() + waitMs > this.deadline) return undefined;
+    this.retries += 1;
+    return waitMs;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Wait `ms`, or reject with the signal's reason the moment it aborts. */
+function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+/** Send one acquire or create request, waiting out a refused connection
+ * within the call's retry budget; any other failure, or one past the
+ * budget, is thrown as it came. */
+async function spawnerFetchRetryingConnection(
+  budget: SpawnerRetryBudget,
+  method: string,
+  path: string,
+  opts: () => { body?: string; signal?: AbortSignal },
+): Promise<Response> {
+  for (;;) {
+    try {
+      return await spawnerFetch(method, path, opts());
+    } catch (error) {
+      const waitMs = isTransientConnectionFailure(error)
+        ? budget.nextWaitMs(undefined)
+        : undefined;
+      if (waitMs === undefined) throw error;
+      console.warn(
+        `[sandbox] ${method} ${path}: the spawner did not take the connection; asking again in ${waitMs} ms`,
+      );
+      await sleep(waitMs);
+    }
+  }
+}
+
+/** A spawner call answered with a status its caller has no answer of its own
+ * for (a 404 is {@link SessionNotFoundError}). Keeps the status and the
+ * spawner's `retry-after`, so a drain can tell "not now" from a verdict. */
+export class SpawnerStatusError extends Error {
+  readonly status: number;
+  readonly retryAfterMs: number | undefined;
+  constructor(message: string, res: Response) {
+    super(message);
+    this.name = 'SpawnerStatusError';
+    this.status = res.status;
+    this.retryAfterMs = parseRetryAfterMs(res);
+  }
+}
+
+/**
+ * The error a refused exec, attach or checkpoint request is. A 503 the
+ * device hub gave because the session's device is not connected is
+ * {@link SandboxDeviceOfflineError}: the spawner did answer, and a device
+ * can stay away for hours (a closed laptop), so a drain fails on it as on
+ * any verdict, naming the device, instead of waiting it out as a spawner
+ * outage. Only a device's 503 is read, to tell that answer from the device
+ * spawner's own "not now". Anything else is a {@link SpawnerStatusError}, its
+ * body released: a drain that asks again every few seconds must not hold a
+ * connection per refused answer until it is collected. The release is not
+ * awaited — a cancel acknowledgement can stall.
+ */
+async function refusedAnswerErrorOf(
+  message: string,
+  res: Response,
+): Promise<SpawnerStatusError | SandboxDeviceOfflineError> {
+  if (res.status === 503 && res.headers.get(DEVICE_HEADER) !== null) {
+    return (
+      deviceOfflineIn(res, await safeText(res)) ??
+      new SpawnerStatusError(message, res)
+    );
+  }
+  void res.body?.cancel().catch((error: unknown) => {
+    console.warn('[session_client] releasing a refused answer failed:', error);
+  });
+  return new SpawnerStatusError(message, res);
+}
+
+/** The answers that say "not now" rather than anything about the exec: the
+ * spawner is at capacity (429), nothing answered behind a proxy (502), it is
+ * booting, adopting its sessions or could not list them in time (503
+ * `session_unavailable`), or a gateway stopped waiting for it (504). A
+ * device's offline answer is no such status: it arrives as
+ * {@link SandboxDeviceOfflineError}. */
+const SPAWNER_NOT_NOW_STATUSES: ReadonlySet<number> = new Set([
+  429, 502, 503, 504,
+]);
+
+/** The exec's stream broke before it delivered the exec's result: the
+ * connection dropped mid-read (the spawner restarted, the network cut it).
+ * It says nothing about the exec, which runnerd keeps running; a re-attach
+ * resumes after the cursor. A stream the spawner closed cleanly without a
+ * result is not this: it still costs the drain one of its failures. */
+class ExecStreamDroppedError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ExecStreamDroppedError';
+  }
+}
+
+/**
+ * Whether an exec drain lost the exec to the way there rather than to a
+ * verdict on it. Transport: the spawner did not take or answer the request
+ * ({@link SpawnerUnreachableError} — every fetch failure, the refused, reset
+ * and unresolved connections a restart causes included), the stream broke
+ * mid-read, the spawner answered "not now" ({@link SPAWNER_NOT_NOW_STATUSES}),
+ * or a call to it timed out. Everything else is a verdict: a 404
+ * ({@link SessionNotFoundError}), a device the hub reports not connected
+ * ({@link SandboxDeviceOfflineError}), a replay or protocol gap, an error the
+ * stream itself reported.
+ *
+ * Wider than the connection codes an acquire or a create waits out
+ * ({@link isTransientConnectionFailure}): a drain runs against an exec the
+ * same `SANDBOX_URL` already started, so a name that stops resolving while
+ * the spawner's container is replaced is the spawner being away, not a
+ * misconfiguration to fail fast on.
+ */
+export function isSpawnerTransportFailure(error: unknown): boolean {
+  if (
+    error instanceof SpawnerUnreachableError ||
+    error instanceof ExecStreamDroppedError
+  )
+    return true;
+  if (error instanceof SpawnerStatusError)
+    return SPAWNER_NOT_NOW_STATUSES.has(error.status);
+  return error instanceof Error && error.name === 'TimeoutError';
+}
+
+/** What a drain that rides out a spawner outage tells its caller about its
+ * hold on the exec's stream. */
+export interface ExecStreamContact {
+  /** The spawner answered with the exec's stream. */
+  onAttached(): void;
+  /** The stream was lost to the transport; the drain attaches again. */
+  onLost(error: unknown): void;
+}
+
 /** The exec SSE went silent past the idle-read deadline (no events AND no
  * keepalive — a half-open/wedged connection). The resilient drain re-attaches
  * via sinceSeq WITHOUT consuming its consecutive-failure budget: a genuinely
@@ -346,7 +664,7 @@ export interface SessionCreateBody {
   workload?: 'project' | 'workflow';
   sessionId: string;
   organizationId: string;
-  profile: 'default' | 'agent';
+  profile: 'default' | 'agent' | 'agent-light';
   ttlMs?: number;
   idleTimeoutMs?: number;
   env?: Record<string, string>;
@@ -359,7 +677,7 @@ export interface SessionCreateBody {
 export interface SessionInfo {
   sessionId: string;
   organizationId: string;
-  profile: 'default' | 'agent';
+  profile: 'default' | 'agent' | 'agent-light';
   state: string;
   backend: string;
   createdAtMs: number;
@@ -449,32 +767,51 @@ export async function sandboxDeviceDisconnect(
 /** Claim warm compute before staging any new work. A concurrent idle stop
  * finishes first; a definitive 404 then allows the caller to recreate it. */
 export async function sessionAcquire(sessionId: string): Promise<boolean> {
-  const response = await spawnerFetch(
-    'POST',
-    `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
-    { signal: AbortSignal.timeout(15_000) },
-  );
-  await throwIfDeviceOffline(response);
-  if (response.status === 429) throw await spawnerBusyErrorOf(response);
-  if (response.status === 404) {
-    // Rolling upgrade: an old spawner has neither activity routes nor the
-    // limits endpoint (and cannot pressure-reclaim compute). Only that
-    // positively identified legacy protocol may use the old liveness door.
-    const limits = await spawnerFetch('GET', '/v1/limits', {
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (limits.status === 404) return sessionIsAlive(sessionId);
-    if (!limits.ok)
-      throw new Error(
-        `Sandbox acquisition protocol unavailable (${limits.status})`,
+  return traceSandboxPhase('acquire', async () => {
+    const path = `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`;
+    const budget = new SpawnerRetryBudget();
+    let response: Response;
+    for (;;) {
+      response = await spawnerFetchRetryingConnection(
+        budget,
+        'POST',
+        path,
+        () => ({ signal: AbortSignal.timeout(15_000) }),
       );
-    sandboxDeploymentLimitsSchema.parse(await limits.json());
-    return false;
-  }
-  if (!response.ok)
-    throw new Error(`Sandbox acquisition unavailable (${response.status})`);
-  acquisitionSchema.parse(await response.json());
-  return true;
+      await throwIfDeviceOffline(response);
+      // `session_unavailable`: a create of the id is in flight, the backend
+      // listing timed out, or the container is still starting — the
+      // spawner says when to ask again (`retry-after`).
+      if (response.status !== 503) break;
+      const body = await safeText(response);
+      const waitMs = body.includes('session_unavailable')
+        ? budget.nextWaitMs(parseRetryAfterMs(response))
+        : undefined;
+      if (waitMs === undefined)
+        throw new Error(`Sandbox acquisition unavailable (503): ${body}`);
+      await sleep(waitMs);
+    }
+    if (response.status === 429) throw await spawnerBusyErrorOf(response);
+    if (response.status === 404) {
+      // Rolling upgrade: an old spawner has neither activity routes nor the
+      // limits endpoint (and cannot pressure-reclaim compute). Only that
+      // positively identified legacy protocol may use the old liveness door.
+      const limits = await spawnerFetch('GET', '/v1/limits', {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (limits.status === 404) return sessionIsAlive(sessionId);
+      if (!limits.ok)
+        throw new Error(
+          `Sandbox acquisition protocol unavailable (${limits.status})`,
+        );
+      sandboxDeploymentLimitsSchema.parse(await limits.json());
+      return false;
+    }
+    if (!response.ok)
+      throw new Error(`Sandbox acquisition unavailable (${response.status})`);
+    acquisitionSchema.parse(await response.json());
+    return true;
+  });
 }
 
 /** Capture BEFORE releasing the database allocation. The generation binds a
@@ -514,7 +851,7 @@ export async function sessionReleaseIdle(
     .released;
 }
 
-const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
+const CREATE_TIMEOUT_MS = 240_000; // bounded creation (180s) plus failed-start cleanup
 // Drain-retry for session create. A 503 "draining" means the spawner is being
 // rolled in place at deploy time — it refuses NEW sessions while it drains
 // in-flight work before its restart. Re-POST so the create lands once the
@@ -550,33 +887,54 @@ const IDLE_READ_TIMEOUT_MS = Number(
  * POST /v1/sessions — create + wait for runnerd ready. Throws on 4xx/5xx.
  * Targets the bare `sandbox` alias.
  */
-export async function sessionCreate(
+export function sessionCreate(
+  body: SessionCreateBody,
+): Promise<SessionCreateResult> {
+  return traceSandboxPhase('acquire', () => createSession(body));
+}
+
+async function createSession(
   body: SessionCreateBody,
 ): Promise<SessionCreateResult> {
   const path = '/v1/sessions';
   const bodyJson = JSON.stringify(body);
+  const budget = new SpawnerRetryBudget();
+  let drainRetries = 0;
   // Re-sign per attempt: each retry needs a fresh timestamp (clock-skew window)
   // and a fresh nonce (spawner replay cache) — see signedHeaders.
-  for (let attempt = 0; ; attempt++) {
-    const res = await spawnerFetch('POST', path, {
-      body: bodyJson,
-      signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
-    });
+  for (;;) {
+    const res = await spawnerFetchRetryingConnection(
+      budget,
+      'POST',
+      path,
+      () => ({
+        body: bodyJson,
+        signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
+      }),
+    );
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
     if (res.status === 429) throw await spawnerBusyErrorOf(res);
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
     // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
     // offline device is final for this create: the session's workspace lives
-    // there. A non-draining 503 (or exhausted retries) falls through to the
-    // generic failure below.
+    // there. A 503 `session_unavailable` (a create of the id already in
+    // flight, the backend listing timed out) is asked again at its
+    // `retry-after`, within the create's retry budget. Any other 503, or
+    // exhausted retries, falls through to the generic failure below.
     if (res.status === 503) {
       const peek = await safeText(res);
       const offline = deviceOfflineIn(res, peek);
       if (offline) throw offline;
-      if (peek.includes('draining') && attempt < CREATE_DRAIN_RETRY_MAX) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, CREATE_DRAIN_RETRY_DELAY_MS),
-        );
+      if (peek.includes('draining') && drainRetries < CREATE_DRAIN_RETRY_MAX) {
+        drainRetries += 1;
+        await sleep(CREATE_DRAIN_RETRY_DELAY_MS);
+        continue;
+      }
+      const waitMs = peek.includes('session_unavailable')
+        ? budget.nextWaitMs(parseRetryAfterMs(res))
+        : undefined;
+      if (waitMs !== undefined) {
+        await sleep(waitMs);
         continue;
       }
       throw new Error(`sandbox session create failed (503): ${peek}`);
@@ -596,10 +954,16 @@ export async function sessionCreate(
 /** GET /v1/sessions/:id — is the session alive spawner-side? `false` ONLY on
  * a definitive 404 (the phantom-session signal); transport errors throw so a
  * spawner blip is never misread as "session gone". */
-export async function sessionIsAlive(sessionId: string): Promise<boolean> {
+export async function sessionIsAlive(
+  sessionId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(15_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return false;
   await throwIfDeviceOffline(res);
@@ -628,14 +992,15 @@ export async function sessionObserve(
   if (res.status === 404) return null;
   await throwIfDeviceOffline(res);
   if (!res.ok) throw new Error(`sandbox session get failed (${res.status})`);
-  return z
+  const observed = z
     .object({
       session: z.object({
         pinned: z.boolean().optional(),
         pinSynchronized: z.boolean().optional(),
       }),
     })
-    .parse(await res.json()).session;
+    .safeParse(await res.json().catch(() => null));
+  return observed.success ? observed.data.session : {};
 }
 
 /** Returns true when the spawner destroyed a live session, false when it had
@@ -665,10 +1030,14 @@ export async function sessionDestroy(sessionId: string): Promise<boolean> {
  * non-2xx THROW contract as sessionDestroy. */
 export async function sessionDestroyIfIdle(
   sessionId: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<{ destroyed: boolean; busy: boolean }> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1`;
   const res = await spawnerFetch('DELETE', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   await throwIfDeviceOffline(res);
   if (!res.ok) {
@@ -677,6 +1046,46 @@ export async function sessionDestroyIfIdle(
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { destroyed?: boolean; busy?: boolean };
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
+}
+
+/** Conditional stop (`?if_idle=1&keep_workspace=1`): the spawner no-ops
+ * with {busy:true} while the session still has a live exec, exactly as
+ * {@link sessionDestroyIfIdle} does, and otherwise releases its compute and
+ * KEEPS its workspace — the cleanup after a failed create of an agent
+ * session, whose id may name a workspace preserved for its next turn (a
+ * container lost to a host reboot or the OOM killer leaves exactly that).
+ * Deleting a workspace nothing owns any more stays the workspace cleanup's
+ * job. `workspaceKept: false` is the answer of a spawner or device older
+ * than the flag, which destroyed instead. Same non-2xx THROW contract as
+ * sessionDestroy. */
+export async function sessionStopIfIdle(
+  sessionId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<{ stopped: boolean; busy: boolean; workspaceKept: boolean }> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1&keep_workspace=1`;
+  const res = await spawnerFetch('DELETE', path, {
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
+  });
+  await throwIfDeviceOffline(res);
+  if (!res.ok) {
+    throw new Error(`sandbox session stop failed (${res.status})`);
+  }
+  const answer = z
+    .object({
+      stopped: z.boolean().optional(),
+      destroyed: z.boolean().optional(),
+      busy: z.boolean().optional(),
+      workspaceKept: z.boolean().optional(),
+    })
+    .parse(await res.json());
+  return {
+    stopped: answer.stopped === true || answer.destroyed === true,
+    busy: answer.busy === true,
+    workspaceKept: answer.workspaceKept === true,
+  };
 }
 
 /** How far deleting a destroyed workspace's bytes has come, as the spawner
@@ -760,10 +1169,16 @@ export type SandboxWorkspaceInventory = z.infer<
 /** GET /v1/workspaces — every workspace the spawner holds (stopped sessions'
  * preserved data included) and the organizations holding resources beyond
  * them. `null` from a spawner that predates the route; THROWS when the
- * spawner could not read its inventory. */
-export async function sandboxWorkspaceInventory(): Promise<SandboxWorkspaceInventory | null> {
+ * spawner could not read its inventory, or once `signal` aborts (the read
+ * gives up after 60 s on its own). */
+export async function sandboxWorkspaceInventory(
+  options: { signal?: AbortSignal } = {},
+): Promise<SandboxWorkspaceInventory | null> {
   const res = await spawnerFetch('GET', '/v1/workspaces', {
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(60_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -810,7 +1225,7 @@ export async function sandboxOrganizationTeardown(
 export async function sessionSetPinned(
   sessionId: string,
   pinned: boolean,
-  signal?: AbortSignal,
+  options: { signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/pin`;
   const bodyJson = JSON.stringify({ pinned });
@@ -818,7 +1233,7 @@ export async function sessionSetPinned(
     body: bodyJson,
     signal: AbortSignal.any([
       AbortSignal.timeout(30_000),
-      ...(signal ? [signal] : []),
+      ...(options.signal ? [options.signal] : []),
     ]),
   });
   if (!res.ok) return false;
@@ -871,10 +1286,14 @@ export type ExecLiveness =
 export async function sessionExecStatus(
   sessionId: string,
   execId: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<ExecLiveness> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}`;
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(options.timeoutMs ?? 30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return { state: 'gone' };
   if (!res.ok) {
@@ -910,6 +1329,8 @@ export interface SessionStageFile {
   /** Trusted immutable source identity. Runnerd verifies actual target bytes
    * against its own manifest before reusing them; this is never permission. */
   sourceId?: string;
+  sha256?: string;
+  cacheKey?: string;
 }
 
 export interface SessionStageResult {
@@ -920,6 +1341,7 @@ export interface SessionStageResult {
 }
 
 interface StageOptions {
+  signal?: AbortSignal;
   /** Directories this payload fully owns; absent files are pruned only after
    * every chunk staged successfully. Never name the workspace root. */
   replaceRoots?: string[];
@@ -990,13 +1412,17 @@ async function postStageFiles(
   sessionId: string,
   files: SessionStageFile[],
   reconcile?: { replaceRoots: string[]; keepPaths: string[] },
+  callerSignal?: AbortSignal,
 ): Promise<SessionStageResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
   const bodyJson = JSON.stringify({ files, ...reconcile });
   if (Buffer.byteLength(bodyJson) > STAGE_BODY_BUDGET_BYTES) {
     throw new Error('Sandbox staging manifest exceeds the request budget');
   }
-  const signal = AbortSignal.timeout(30_000);
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(callerSignal ? [callerSignal] : []),
+  ]);
   for (;;) {
     signal.throwIfAborted();
     const res = await spawnerFetch('POST', path, { body: bodyJson, signal });
@@ -1026,9 +1452,7 @@ async function postStageFiles(
     // or a final prune must wait for another staging request. Keep the queue
     // in the caller, bounded by this batch's one deadline, rather than retain
     // arbitrary request bodies inside the memory-constrained daemon.
-    await new Promise((resolve) =>
-      setTimeout(resolve, 50 + Math.floor(Math.random() * 200)),
-    );
+    await delay(50 + Math.floor(Math.random() * 200), undefined, { signal });
   }
 }
 
@@ -1042,73 +1466,131 @@ export async function sessionStageFiles(
   files: SessionStageFile[],
   options: StageOptions = {},
 ): Promise<SessionStageResult> {
-  const merged: SessionStageResult = { staged: [], skipped: [] };
-  const identified = options.reuse
-    ? files.map((file) =>
-        file.contentBase64 !== undefined
-          ? {
-              ...file,
-              sourceId: `sha256:${createHash('sha256').update(Buffer.from(file.contentBase64, 'base64')).digest('hex')}`,
-            }
-          : file,
+  return traceSandboxPhase('stage', async () => {
+    options.signal?.throwIfAborted();
+    // A previous node (or the agent) can replace a managed directory with a
+    // file/link. Prepare directory roots even for an empty desired manifest. Intact
+    // directory contents stay available for current-byte verification; the
+    // daemon prunes stale children only after every transfer succeeds.
+    for (const root of new Set(options.replaceRoots ?? [])) {
+      // An explicitly staged root file is not a directory to prepare.
+      if (files.some((file) => file.path === root.replace(/\/$/, ''))) continue;
+      if (
+        (await sessionListFiles(sessionId, root, {
+          signal: options.signal,
+        })) !== null
       )
-    : files;
-  let missing = identified;
-  if (
-    options.reuse &&
-    identified.length > 0 &&
-    identified.every((file) => file.sourceId !== undefined)
-  ) {
-    try {
-      const hits = new Map<string, { path: string; bytes: number }>();
-      for (const batch of chunkStageFiles(
-        identified.map(({ path, sourceId }) => ({ path, sourceId })),
-      )) {
-        const probe = await postStageFiles(sessionId, batch);
-        // Legacy runtimes may accept a source-only entry but report no_source;
-        // only explicit staged paths count as verified cache hits.
-        for (const hit of probe.staged) {
-          if (typeof hit === 'object' && typeof hit.path === 'string')
-            hits.set(hit.path, hit);
-        }
-      }
-      missing = identified.filter((file) => !hits.has(file.path));
-      merged.staged.push(...hits.values());
-    } catch (error) {
-      // Old controls reject source-only probes. Their normal stage path still
-      // works during rolling upgrades; other failures must remain visible.
-      if (!(error instanceof StageRequestError && error.status === 400))
-        throw error;
-    }
-  }
-  for (const batch of chunkStageFiles(missing)) {
-    const result = await postStageFiles(sessionId, batch);
-    merged.staged.push(...result.staged);
-    merged.skipped.push(...result.skipped);
-  }
-  if (options.replaceRoots?.length && merged.skipped.length === 0) {
-    const final = await postStageFiles(sessionId, [], {
-      replaceRoots: options.replaceRoots,
-      keepPaths: identified.map((file) => file.path),
-    });
-    merged.skipped.push(...final.skipped);
-    if (final.skipped.length === 0 && final.reconciled !== true) {
-      // A legacy runtime ignored the new reconciliation fields. Restore the
-      // old clear-and-copy behavior so removed files cannot survive a roll.
-      const cleared = await sessionDeleteFiles(sessionId, options.replaceRoots);
+        continue;
+      const cleared = await sessionDeleteFiles(sessionId, [root], {
+        signal: options.signal,
+      });
       if (cleared.skipped.length > 0) {
-        merged.skipped.push(...cleared.skipped);
-      } else {
-        merged.staged = [];
-        for (const batch of chunkStageFiles(identified)) {
-          const result = await postStageFiles(sessionId, batch);
-          merged.staged.push(...result.staged);
-          merged.skipped.push(...result.skipped);
+        throw new Error(
+          `managed staging roots could not be prepared: ${cleared.skipped.map((file) => file.path).join(', ')}`,
+        );
+      }
+    }
+    const merged: SessionStageResult = { staged: [], skipped: [] };
+    // An inline file is identified by the digest of its bytes, and the digest
+    // rides the probe too: a runtime that lost its record of what it staged
+    // (every restart of a stopped session) checks the file already on disk
+    // against it instead of having the bytes sent again.
+    const identified = options.reuse
+      ? files.map((file) => {
+          if (file.contentBase64 === undefined) return file;
+          const sha256 = createHash('sha256')
+            .update(Buffer.from(file.contentBase64, 'base64'))
+            .digest('hex');
+          return { ...file, sha256, sourceId: `sha256:${sha256}` };
+        })
+      : files;
+    let missing = identified;
+    if (
+      options.reuse &&
+      identified.length > 0 &&
+      identified.every((file) => file.sourceId !== undefined)
+    ) {
+      try {
+        const hits = new Map<string, { path: string; bytes: number }>();
+        for (const batch of chunkStageFiles(
+          identified.map(({ path, sourceId, sha256 }) => ({
+            path,
+            sourceId,
+            ...(sha256 !== undefined ? { sha256 } : {}),
+          })),
+        )) {
+          const probe = await postStageFiles(
+            sessionId,
+            batch,
+            undefined,
+            options.signal,
+          );
+          // Legacy runtimes may accept a source-only entry but report no_source;
+          // only explicit staged paths count as verified cache hits.
+          for (const hit of probe.staged) {
+            if (typeof hit === 'object' && typeof hit.path === 'string')
+              hits.set(hit.path, hit);
+          }
+        }
+        missing = identified.filter((file) => !hits.has(file.path));
+        merged.staged.push(...hits.values());
+      } catch (error) {
+        // Old controls reject source-only probes. Their normal stage path still
+        // works during rolling upgrades; other failures must remain visible.
+        if (!(error instanceof StageRequestError && error.status === 400))
+          throw error;
+      }
+    }
+    for (const batch of chunkStageFiles(missing)) {
+      const result = await postStageFiles(
+        sessionId,
+        batch,
+        undefined,
+        options.signal,
+      );
+      merged.staged.push(...result.staged);
+      merged.skipped.push(...result.skipped);
+    }
+    if (options.replaceRoots?.length && merged.skipped.length === 0) {
+      const final = await postStageFiles(
+        sessionId,
+        [],
+        {
+          replaceRoots: options.replaceRoots,
+          keepPaths: identified.map((file) => file.path),
+        },
+        options.signal,
+      );
+      merged.skipped.push(...final.skipped);
+      if (final.skipped.length === 0 && final.reconciled !== true) {
+        // A legacy runtime ignored the new reconciliation fields. Restore the
+        // old clear-and-copy behavior so removed files cannot survive a roll.
+        options.signal?.throwIfAborted();
+        const cleared = await sessionDeleteFiles(
+          sessionId,
+          options.replaceRoots,
+          { signal: options.signal },
+        );
+        if (cleared.skipped.length > 0) {
+          merged.skipped.push(...cleared.skipped);
+        } else {
+          merged.staged = [];
+          for (const batch of chunkStageFiles(identified)) {
+            const result = await postStageFiles(
+              sessionId,
+              batch,
+              undefined,
+              options.signal,
+            );
+            merged.staged.push(...result.staged);
+            merged.skipped.push(...result.skipped);
+          }
         }
       }
     }
-  }
-  return merged;
+    options.signal?.throwIfAborted();
+    return merged;
+  });
 }
 
 export interface SessionDeleteResult {
@@ -1123,12 +1605,18 @@ export interface SessionDeleteResult {
 export async function sessionDeleteFiles(
   sessionId: string,
   paths: string[],
+  options: { signal?: AbortSignal } = {},
 ): Promise<SessionDeleteResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/delete`;
   const bodyJson = JSON.stringify({ paths });
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+  signal.throwIfAborted();
   const res = await spawnerFetch('POST', path, {
     body: bodyJson,
-    signal: AbortSignal.timeout(30_000),
+    signal,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
   if (!res.ok) {
@@ -1151,10 +1639,16 @@ export interface SessionFsEntry {
 export async function sessionListFiles(
   sessionId: string,
   dirPath: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<SessionFsEntry[] | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(dirPath)}`;
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(30_000),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+  signal.throwIfAborted();
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal,
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -1331,6 +1825,35 @@ export interface SessionExecResult {
   errorMessage?: string;
 }
 
+const execOutputSchema = z
+  .object({
+    text: z.string().optional(),
+    b64: z.base64().optional(),
+    seq: z.number().int().positive().optional(),
+  })
+  .refine((value) => value.text !== undefined || value.b64 !== undefined);
+
+const execResultSchema = z.object({
+  status: z.enum(['completed', 'failed', 'cancelled']),
+  exitCode: z.number().int().nullable(),
+  durationMs: z.number().nonnegative(),
+  stdoutBase64: z.base64(),
+  stderrBase64: z.base64(),
+  truncated: z.object({ stdout: z.boolean(), stderr: z.boolean() }),
+  errorCode: z.string().optional(),
+  errorMessage: z.string().optional(),
+}) satisfies z.ZodType<SessionExecResult>;
+
+const execErrorSchema = z.object({
+  message: z.string().optional(),
+  code: z.string().optional(),
+});
+
+const replayStartSchema = z.object({});
+const replayCompleteSchema = z.object({
+  throughSeq: z.number().int().nonnegative(),
+});
+
 export interface SessionExecCallbacks {
   onStdout?: (text: string) => void;
   onStderr?: (text: string) => void;
@@ -1342,10 +1865,153 @@ export interface SessionExecCallbacks {
 
 /** A protocol or consumer failure cannot be repaired by replaying a later
  * suffix. Fail the turn visibly instead of advancing past corrupt state. */
+class ExecAttachBusyError extends Error {}
+
 export class ExecStreamProtocolError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = 'ExecStreamProtocolError';
+  }
+}
+
+const execCheckpointSchema = z.object({
+  seq: z.number().int().nonnegative(),
+  state: z.unknown(),
+});
+export type SessionExecCheckpoint = z.infer<typeof execCheckpointSchema>;
+
+/** The daemon stores parser state beside its replay spool. A 404 is the
+ * rolling-upgrade fallback; attaching still determines whether the exec lives.
+ * A transient read must get the same recovery opportunity as the following
+ * attach: five retries, each bounded to 5s, with the reconnect backoff. */
+export async function sessionGetExecCheckpoint(
+  sessionId: string,
+  execId: string,
+): Promise<SessionExecCheckpoint | null> {
+  // fetch reports malformed URL configuration as TypeError too. Refuse it
+  // before classifying transport errors, without exposing URL credentials.
+  let target: URL;
+  try {
+    target = new URL(getSpawnerUrl());
+  } catch {
+    throw new Error('Invalid SANDBOX_URL configuration');
+  }
+  if (
+    !['http:', 'https:'].includes(target.protocol) ||
+    target.username ||
+    target.password
+  )
+    throw new Error('Invalid SANDBOX_URL configuration');
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/checkpoint`;
+  for (let attempt = 0; ; attempt += 1) {
+    let transientStatus = false;
+    try {
+      const response = await spawnerFetch('GET', path, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          // No error body is needed. Release it rather than leaving the
+          // connection alive until it is collected.
+          void response.body?.cancel().catch((error: unknown) => {
+            console.warn(
+              '[session_client] releasing a checkpoint answer failed:',
+              error,
+            );
+          });
+          return null;
+        }
+        transientStatus = [408, 429, 500, 502, 503, 504].includes(
+          response.status,
+        );
+        // Released by refusedAnswerErrorOf rather than kept alive through the
+        // backoff; a device that is not connected is retried like any 503
+        // and then named, never taken for the spawner being away.
+        throw await refusedAnswerErrorOf(
+          `sandbox exec checkpoint read failed (${response.status})`,
+          response,
+        );
+      }
+      return z
+        .object({ checkpoint: execCheckpointSchema.nullable() })
+        .parse(await response.json()).checkpoint;
+    } catch (error) {
+      const transient =
+        transientStatus ||
+        error instanceof SpawnerUnreachableError ||
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          (error.name === 'TimeoutError' || error.name === 'AbortError'));
+      if (!transient || attempt >= MAX_RECONNECT_ATTEMPTS) throw error;
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(RECONNECT_BACKOFF_MS * (attempt + 1), MAX_BACKOFF_MS),
+        ),
+      );
+    }
+  }
+}
+
+/** Acknowledge only a complete cursor + parser snapshot. Oversized partial
+ * JSONL records wait for their closing newline rather than acknowledging
+ * bytes whose parser state cannot fit; the spool retains them meanwhile. */
+export async function sessionPutExecCheckpoint(
+  sessionId: string,
+  execId: string,
+  checkpoint: SessionExecCheckpoint,
+): Promise<void> {
+  const body = JSON.stringify(checkpoint);
+  if (Buffer.byteLength(body) > 1024 * 1024) return;
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/checkpoint`;
+  const response = await spawnerFetch('PUT', path, {
+    body,
+    signal: AbortSignal.timeout(5_000),
+  });
+  // A later checkpoint may have won on a concurrent recovering drainer.
+  // Neither that nor an old runtime's absent endpoint justifies restarting.
+  if (response.status === 404 || response.status === 409) return;
+  if (!response.ok)
+    throw new Error(
+      `sandbox exec checkpoint write failed (${response.status})`,
+    );
+}
+
+const execReplayGapSchema = z
+  .object({
+    fromSeq: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    toSeq: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  })
+  .refine((range) => range.toSeq >= range.fromSeq);
+
+/** Output outside the durable replay retention is not a valid parser prefix. */
+export class ExecReplayGapError extends Error {
+  readonly fromSeq: number | undefined;
+  readonly toSeq: number | undefined;
+
+  constructor(execId: string, range?: { fromSeq: number; toSeq: number }) {
+    super(
+      `sandbox exec ${execId} output is no longer available for lossless replay`,
+    );
+    this.name = 'ExecReplayGapError';
+    this.fromSeq = range?.fromSeq;
+    this.toSeq = range?.toSeq;
+  }
+}
+
+/** Missing earlier control/output records cannot be repaired by reattaching. */
+export class ExecOutputGapError extends ExecStreamProtocolError {
+  readonly code = 'OUTPUT_GAP';
+}
+
+/** The session's runtime could not write the exec's output because the
+ * sandbox host's disk is full (runnerd's `REPLAY_DISK_FULL`), and ended the exec: a
+ * condition of the host, not a lost transcript, so it says so in its own
+ * words. Reattaching cannot help. */
+export class ExecDiskFullError extends ExecStreamProtocolError {
+  readonly code = 'REPLAY_DISK_FULL';
+  constructor() {
+    super('the sandbox host ran out of disk space');
   }
 }
 
@@ -1361,28 +2027,54 @@ async function sessionExec(
   signal: AbortSignal,
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec`;
   const bodyJson = JSON.stringify(body);
   // One healthy connection holds for the whole turn (timeoutMs + grace); the
   // resilient drain only re-attaches when this connection actually DROPS before
   // the terminal result (network blip / spawner restart), not on a fixed cycle.
+  const subscription = new AbortController();
   const fetchAbort = AbortSignal.any([
     signal,
+    subscription.signal,
     AbortSignal.timeout(
       (body.timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await spawnerFetch('POST', path, {
-    body: bodyJson,
-    accept: 'text/event-stream',
-    signal: fetchAbort,
-  });
-  if (res.status === 404) throw new SessionNotFoundError(sessionId);
-  if (!res.ok || !res.body) {
-    throw new Error(`sandbox session exec failed (${res.status})`);
+  try {
+    const res = await spawnerFetch('POST', path, {
+      body: bodyJson,
+      accept: 'text/event-stream; tale-output=base64',
+      signal: fetchAbort,
+    });
+    if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (res.status === 429) {
+      // Read once: the body says whether the session's own memory refused it.
+      const message = `sandbox session exec failed (${res.status})`;
+      throw (
+        (await sessionMemoryBusyErrorOf(res, sessionId, body.execId)) ??
+        new SpawnerStatusError(message, res)
+      );
+    }
+    if (!res.ok || !res.body) {
+      throw await refusedAnswerErrorOf(
+        `sandbox session exec failed (${res.status})`,
+        res,
+      );
+    }
+    return await consumeExecSse(
+      res.body,
+      body.execId,
+      callbacks,
+      cursor,
+      false,
+      onAttached,
+    );
+  } finally {
+    // Own this attachment's transport without aborting the caller's turn.
+    subscription.abort();
   }
-  return consumeExecSse(res.body, body.execId, callbacks, cursor);
 }
 
 /**
@@ -1400,6 +2092,7 @@ async function sessionAttachExec(
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
   timeoutMs?: number,
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   callbacks.onReplayStarted?.();
   const query = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
@@ -1408,21 +2101,37 @@ async function sessionAttachExec(
   // a non-zero cursor (i.e. every real continuation), which silently killed
   // the resilient drain + the stdin-steering continuation path.
   const signedPath = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/attach${query}`;
+  const subscription = new AbortController();
   const fetchAbort = AbortSignal.any([
     signal,
+    subscription.signal,
     AbortSignal.timeout(
       (timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await spawnerFetch('GET', signedPath, {
-    accept: 'text/event-stream',
-    signal: fetchAbort,
-  });
-  if (res.status === 404) throw new SessionNotFoundError(sessionId);
-  if (!res.ok || !res.body) {
-    throw new Error(`sandbox session attach failed (${res.status})`);
+  try {
+    const res = await spawnerFetch('GET', signedPath, {
+      accept: 'text/event-stream; tale-output=base64',
+      signal: fetchAbort,
+    });
+    if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (!res.ok || !res.body) {
+      throw await refusedAnswerErrorOf(
+        `sandbox session attach failed (${res.status})`,
+        res,
+      );
+    }
+    return await consumeExecSse(
+      res.body,
+      execId,
+      callbacks,
+      cursor,
+      true,
+      onAttached,
+    );
+  } finally {
+    subscription.abort();
   }
-  return consumeExecSse(res.body, execId, callbacks, cursor, true);
 }
 
 /**
@@ -1436,6 +2145,15 @@ async function sessionAttachExec(
  * reconnect makes progress) so a truly-dead exec doesn't loop forever; a
  * caller-aborted signal stops immediately (an explicit Stop already yields a
  * terminal 'cancelled' result, so it doesn't reach here).
+ *
+ * A caller that passes `contact` rides out a spawner outage instead: a
+ * transport failure ({@link isSpawnerTransportFailure} — a restart, a
+ * partition, a "not now" answer) costs none of that budget. The drain waits
+ * the spawner's `retry-after`, or a backoff doubling from 250 ms to 5 s, and
+ * attaches again, for as long as the caller's signal lets it run; `contact`
+ * hears when the stream is lost and when it flows again, so the caller can
+ * bound the outage across its windows. Only a caller whose signal ends the
+ * drain may pass it.
  */
 export async function drainSessionExecResilient(
   sessionId: string,
@@ -1445,6 +2163,7 @@ export async function drainSessionExecResilient(
   opts: {
     cursor?: ExecCursor;
     resumeSinceSeq?: number;
+    contact?: ExecStreamContact;
   } = {},
 ): Promise<SessionExecResult> {
   // External cursor lets the caller (run_agent) read the resume position; on a
@@ -1465,11 +2184,30 @@ export async function drainSessionExecResilient(
   // an exec that produced output existed, and re-running it would execute
   // the turn twice — and never on a resume, whose caller owns that recovery.
   let recreate = !startWithAttach;
+  // The outage being ridden out (with `contact`): when the stream was lost,
+  // and the waits between attempts, which start short again after it flows.
+  let outage: { since: number; budget: SpawnerRetryBudget } | undefined;
+  const onAttached = () => {
+    if (outage !== undefined) {
+      console.warn(
+        `[session_client] exec ${body.execId}: the spawner serves the stream again after ${Date.now() - outage.since} ms`,
+      );
+      outage = undefined;
+    }
+    opts.contact?.onAttached();
+  };
   for (;;) {
     try {
       if (recreate) {
         recreate = false;
-        return await sessionExec(sessionId, body, signal, callbacks, cursor);
+        return await sessionExec(
+          sessionId,
+          body,
+          signal,
+          callbacks,
+          cursor,
+          onAttached,
+        );
       }
       return await sessionAttachExec(
         sessionId,
@@ -1479,13 +2217,39 @@ export async function drainSessionExecResilient(
         callbacks,
         cursor,
         body.timeoutMs,
+        onAttached,
       );
     } catch (err) {
       if (signal.aborted) throw err;
       // A 404 means the session is gone, not a transient drop — retrying can't
       // help. Surface it so the caller self-heals the stale platform row.
       if (err instanceof SessionNotFoundError) throw err;
+      if (err instanceof ExecReplayGapError) throw err;
+      if (err instanceof ExecOutputConsumerError) throw err.cause;
       if (err instanceof ExecStreamProtocolError) throw err;
+      if (err instanceof SessionMemoryBusyError) {
+        // Nothing started: the session's runtime refused the exec for want
+        // of memory. Start it again once the refusal's wait has passed,
+        // within the consecutive-failure budget; past it, the caller's lane
+        // waits for room as for any refused start.
+        attempt += 1;
+        if (attempt > MAX_RECONNECT_ATTEMPTS) throw err;
+        recreate = true;
+        console.warn(
+          `[session_client] exec ${body.execId} refused: the session is short of memory (attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}); starting it again in ${Math.min(err.retryAfterMs, MAX_BACKOFF_MS)} ms`,
+        );
+        await sleepUnlessAborted(
+          Math.min(err.retryAfterMs, MAX_BACKOFF_MS),
+          signal,
+        );
+        continue;
+      }
+      if (err instanceof ExecAttachBusyError) {
+        // Reader admission is temporary pressure, not a failure of the exec.
+        // Keep retrying this attach within the action/window cancellation.
+        await delay(RECONNECT_BACKOFF_MS, undefined, { signal });
+        continue;
+      }
       // An idle SSE (no keepalive) is a wedged socket, NOT an exec failure: a
       // live-but-quiet exec resumes losslessly via sinceSeq, and a genuinely
       // dead sandbox surfaces as a real fetch error on the next re-attach
@@ -1493,12 +2257,32 @@ export async function drainSessionExecResilient(
       // an arbitrarily long quiet phase can never exhaust MAX_RECONNECT_ATTEMPTS
       // — the only bound on a quiet phase is the action window (signal abort).
       if (err instanceof ExecStreamIdleError) {
+        opts.contact?.onLost(err);
         seqAtAttemptStart = cursor.lastSeq;
         continue;
       }
       // Progress since the last failure resets the consecutive-failure budget.
       if (cursor.lastSeq > seqAtAttemptStart) attempt = 0;
       seqAtAttemptStart = cursor.lastSeq;
+      if (opts.contact !== undefined && isSpawnerTransportFailure(err)) {
+        opts.contact.onLost(err);
+        if (outage === undefined) {
+          outage = {
+            since: Date.now(),
+            budget: new SpawnerRetryBudget(Number.POSITIVE_INFINITY),
+          };
+          console.warn(
+            `[session_client] exec ${body.execId} lost its stream to the transport (sinceSeq=${cursor.lastSeq}); attaching again until the spawner answers:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+        const waitMs =
+          outage.budget.nextWaitMs(
+            err instanceof SpawnerStatusError ? err.retryAfterMs : undefined,
+          ) ?? SPAWNER_TRANSIENT_RETRY_MAX_MS;
+        await sleepUnlessAborted(waitMs, signal);
+        continue;
+      }
       attempt += 1;
       if (attempt > MAX_RECONNECT_ATTEMPTS) throw err;
       recreate =
@@ -1520,6 +2304,12 @@ export async function drainSessionExecResilient(
  * resilient drain passes this so a re-attach replays only newer events. */
 export interface ExecCursor {
   lastSeq: number;
+}
+
+class ExecOutputConsumerError extends Error {
+  constructor(cause: unknown) {
+    super('Sandbox exec output consumer failed', { cause });
+  }
 }
 
 // Decoding is part of the cursor's in-memory state: a runnerd chunk can end
@@ -1571,14 +2361,19 @@ async function consumeExecSse(
   callbacks: SessionExecCallbacks,
   cursor?: ExecCursor,
   attaching = false,
+  /** Called once, at the stream's first bytes: the spawner serves the exec
+   * again. Not at the response headers — a connection that is accepted and
+   * cut before a byte arrives has not reached the exec. */
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   const reader = body.getReader();
+  let delivered = false;
   const decoder = new TextDecoder('utf-8');
   const frameBudget = new SseFrameBudget();
   let result: SessionExecResult | null = null;
   const outputDecoders = (cursor && cursorDecoders.get(cursor)) || {
-    stdout: new TextDecoder(),
-    stderr: new TextDecoder(),
+    stdout: new TextDecoder('utf-8', { ignoreBOM: true }),
+    stderr: new TextDecoder('utf-8', { ignoreBOM: true }),
   };
   if (cursor) cursorDecoders.set(cursor, outputDecoders);
   let replay: 'unknown' | 'journal' | 'complete' = attaching
@@ -1592,25 +2387,28 @@ async function consumeExecSse(
   };
   const handleEvent = (event: string, data: string): void => {
     if (event === 'replay-start') {
+      parseExecData(data, replayStartSchema, event);
       journal = true;
       if (attaching) replay = 'journal';
       return;
     }
     if (event === 'stdout' || event === 'stderr') {
-      const parsed = parseData<{ text?: string; b64?: string; seq?: number }>(
-        data,
-      );
-      if (
-        cursor &&
-        typeof parsed?.seq === 'number' &&
-        parsed.seq <= cursor.lastSeq
-      )
+      const parsed = parseExecData(data, execOutputSchema, event);
+      const bytes =
+        parsed.b64 === undefined
+          ? undefined
+          : Buffer.from(parsed.b64, 'base64');
+      // The schema checks syntax; the round trip also rejects nonzero padding
+      // bits. Validate before changing replay state or the reconnect cursor.
+      if (bytes !== undefined && bytes.toString('base64') !== parsed.b64)
+        throw new ExecStreamProtocolError('Invalid sandbox output base64.');
+      if (cursor && parsed.seq !== undefined && parsed.seq <= cursor.lastSeq)
         return;
       if (
         attaching &&
         !journal &&
         cursor &&
-        typeof parsed?.seq === 'number' &&
+        parsed.seq !== undefined &&
         parsed.seq > Math.max(2, cursor.lastSeq + 1)
       ) {
         throw new ExecStreamProtocolError(
@@ -1621,54 +2419,51 @@ async function consumeExecSse(
       // replay retains its old progress and completion behavior; a visible
       // ring rollover is refused instead of reconstructing partial state.
       if (replay === 'unknown') completeReplay();
+      // Include these bytes in a checkpoint taken synchronously by the
+      // consumer; a rejected record rolls back the candidate cursor below.
+      const previousSeq = cursor?.lastSeq;
+      if (cursor && typeof parsed?.seq === 'number')
+        cursor.lastSeq = parsed.seq;
       try {
         const text =
-          typeof parsed?.b64 === 'string'
-            ? outputDecoders[event].decode(Buffer.from(parsed.b64, 'base64'), {
-                stream: true,
-              })
-            : (parsed?.text ?? '');
+          bytes !== undefined
+            ? outputDecoders[event].decode(bytes, { stream: true })
+            : (parsed.text ?? '');
         if (text !== '') {
           if (event === 'stdout') callbacks.onStdout?.(text);
           else callbacks.onStderr?.(text);
         }
       } catch (cause) {
-        throw new ExecStreamProtocolError(
-          cause instanceof Error
-            ? cause.message
-            : 'Harness stream consumer failed',
-          { cause },
-        );
+        if (cursor !== undefined && previousSeq !== undefined)
+          cursor.lastSeq = previousSeq;
+        if (cause instanceof ExecStreamProtocolError) throw cause;
+        throw new ExecOutputConsumerError(cause);
       }
-      // Advance only AFTER consumption, so a refused protocol record cannot
-      // be silently skipped on reconnect.
-      // Advance the reconnect cursor as each seq'd delta is consumed, so a drop
-      // resumes from exactly here (no missed or replayed bytes).
-      if (
-        cursor &&
-        typeof parsed?.seq === 'number' &&
-        parsed.seq > cursor.lastSeq
-      ) {
-        cursor.lastSeq = parsed.seq;
-      }
+    } else if (event === 'gap') {
+      throw new ExecReplayGapError(
+        execId,
+        parseExecData(data, execReplayGapSchema, event),
+      );
     } else if (event === 'replay-complete') {
+      parseExecData(data, replayCompleteSchema, event);
       completeReplay();
     } else if (event === 'result') {
+      const parsed = parseExecData(data, execResultSchema, event);
       if (replay === 'unknown') completeReplay();
-      const parsed = parseData<SessionExecResult>(data);
-      if (parsed) result = parsed;
+      result = parsed;
     } else if (event === 'error') {
-      const parsed = parseData<{ message?: string; code?: string }>(data);
-      const message = parsed?.message ?? 'sandbox session exec stream error';
+      const parsed = parseExecData(data, execErrorSchema, event);
+      const message = parsed.message ?? 'sandbox session exec stream error';
       // The spawner's attach grammar for an unknown exec (session-routes.ts):
       // `exec <id> not found`.
+      if (parsed?.code === 'ATTACH_BUSY')
+        throw new ExecAttachBusyError(message);
+      if (parsed?.code === 'OUTPUT_GAP') throw new ExecOutputGapError(message);
+      if (parsed?.code === 'REPLAY_DISK_FULL') throw new ExecDiskFullError();
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
-      if (
-        parsed?.code?.startsWith('REPLAY_') ||
-        parsed?.code === 'OUTPUT_LIMIT'
-      )
+      if (parsed.code?.startsWith('REPLAY_') || parsed.code === 'OUTPUT_LIMIT')
         throw new ExecStreamProtocolError(message);
       throw new Error(message);
     }
@@ -1694,7 +2489,16 @@ async function consumeExecSse(
       let chunk: Awaited<ReturnType<typeof reader.read>>;
       try {
         chunk = await Promise.race([
-          reader.read(),
+          // A read that fails is the connection breaking under the stream;
+          // an abort is the caller's own cut and passes as it came.
+          reader.read().catch((cause: unknown) => {
+            if (cause instanceof Error && cause.name === 'AbortError')
+              throw cause;
+            throw new ExecStreamDroppedError(
+              `sandbox exec ${execId} stream broke: ${cause instanceof Error ? cause.message : String(cause)}`,
+              { cause },
+            );
+          }),
           new Promise<never>((_, reject) => {
             idleTimer = setTimeout(
               () => reject(new ExecStreamIdleError(execId)),
@@ -1702,14 +2506,15 @@ async function consumeExecSse(
             );
           }),
         ]);
-      } catch (err) {
-        await reader.cancel().catch(() => {});
-        throw err;
       } finally {
         if (idleTimer) clearTimeout(idleTimer);
       }
       const { value, done } = chunk;
       if (done) break;
+      if (!delivered && value.byteLength > 0) {
+        delivered = true;
+        onAttached?.();
+      }
       const text = decoder.decode(value, { stream: true });
       frameBudget.accept(text);
       parser.feed(text);
@@ -1733,22 +2538,31 @@ async function consumeExecSse(
     // A transport drop must discard its incomplete event. Only the cursor's
     // accepted output decoder state survives a reconnect.
     parser.reset();
-    await reader.cancel().catch(() => {});
+    // Cancellation acknowledgements can stall forever. Release the reader now;
+    // the attachment owner also aborts its fetch before retrying or returning.
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
 
-function parseData<T>(data: string): T | null {
+/** Called only after the SSE frame is complete. A broken JSON payload is not
+ * a transport split: ignoring it would let later records advance the cursor
+ * past lost lifecycle or usage facts. Keep raw payloads out of the refusal. */
+function parseExecData<T>(
+  data: string,
+  schema: z.ZodType<T>,
+  event: string,
+): T {
+  let value: unknown;
   try {
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    return JSON.parse(data) as T;
+    value = JSON.parse(data);
   } catch {
-    // Intentional silence: SSE legitimately delivers partial/malformed payloads
-    // (a chunk split mid-JSON, a stray keepalive). Callers handle null and the
-    // remainder is reassembled on the next read — logging here would fire on
-    // every benign partial chunk.
-    return null;
+    throw new ExecStreamProtocolError(`Invalid sandbox ${event} event`);
   }
+  const parsed = schema.safeParse(value);
+  if (!parsed.success)
+    throw new ExecStreamProtocolError(`Invalid sandbox ${event} event`);
+  return parsed.data;
 }
 
 async function safeText(res: Response): Promise<string> {

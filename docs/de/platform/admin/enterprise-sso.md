@@ -39,7 +39,7 @@ Verwende für Entra eine Tenant-spezifische Issuer-URL wie `https://login.micros
 Wähle für Google **Generisches OIDC** mit dem Issuer `https://accounts.google.com`; siehe Googles [OpenID-Connect-Einrichtung](https://developers.google.com/identity/openid-connect/openid-connect). Googles Standard-OIDC liefert keine Gruppenmitgliedschaften. Eine Google-Anmeldung allein ermöglicht deshalb keine Gruppen-Team-Synchronisierung.
 
 <Note>
-Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge `Files.Read` oder `Sites.Read.All` nicht zu den SSO-Scopes hinzu, wenn Mitglieder sich nur anmelden sollen. Richte den Import über [OAuth-Apps für Konnektoren](/de/platform/admin/connectors) ein.
+Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge `Files.Read` oder `Sites.Read.All` nicht zu den SSO-Scopes hinzu, wenn Mitglieder sich nur anmelden sollen. Richte den Import über [OAuth-Apps für Connectors](/de/platform/admin/connectors) ein.
 </Note>
 
 ## Einen SAML-Anbieter verbinden

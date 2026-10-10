@@ -21,6 +21,7 @@ export const Route = createFileRoute(
   loader: ({ context, params }) =>
     ensureGovernancePolicies(context, params.id, [
       'budgets',
+      'project_budgets',
       'upload_policy',
       'retention_policy',
       'feature_flags',

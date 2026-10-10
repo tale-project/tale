@@ -138,3 +138,34 @@ describe('resolveProvidersForOrg', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 });
+
+describe('custom provider parsing is memoized by file stamp', () => {
+  it('returns the same parse for an unchanged file and sees an edit on the next call', async () => {
+    await writeProvider('ollama-lab.yml', OLLAMA_YML);
+    const first = loadOrgCustomProviders(ORG)[0];
+    const again = loadOrgCustomProviders(ORG)[0];
+    // Unchanged file: the parsed definition object is reused as is.
+    expect(again).toBe(first);
+    await writeProvider(
+      'ollama-lab.yml',
+      OLLAMA_YML.replace('Ollama Lab', 'Ollama Lab Renamed'),
+    );
+    const edited = loadOrgCustomProviders(ORG)[0];
+    expect(edited?.displayName).toBe('Ollama Lab Renamed');
+  });
+
+  it('keeps refusing a broken file on every call, and forgets a deleted one', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await writeProvider('broken.yml', 'name: [ not yaml');
+    expect(loadOrgCustomProviders(ORG)).toEqual([]);
+    expect(loadOrgCustomProviders(ORG)).toEqual([]);
+    expect(
+      errors.mock.calls.filter(([line]) =>
+        String(line).includes('skipping unreadable provider'),
+      ),
+    ).toHaveLength(2);
+    await rm(path.join(root, ORG, 'providers', 'broken.yml'));
+    expect(loadOrgCustomProviders(ORG)).toEqual([]);
+    errors.mockRestore();
+  });
+});

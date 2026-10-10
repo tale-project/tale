@@ -5,6 +5,7 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Row } from '@tale/ui/layout';
+import { formatMentionToken } from '@tale/ui/mentions/mention-token';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
@@ -17,6 +18,11 @@ import {
   approvalIdFromDetail,
 } from '@/app/features/automations/components/run-approval-card';
 import { RunAskCard } from '@/app/features/automations/components/run-ask-card';
+import {
+  RunInDoubtCard,
+  inDoubtNodeFromDetail,
+} from '@/app/features/automations/components/run-in-doubt-card';
+import { RunQuarantineCard } from '@/app/features/automations/components/run-quarantine-card';
 import { useRunPendingAsk } from '@/app/features/automations/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -67,13 +73,17 @@ function reviewConfirmationIdentity(
  * input renders Start soft-disabled with the reason attached, because a promise
  * of "then start" with no Start on screen leaves the reader hunting the board
  * for a gesture that doesn't exist.
+ *
+ * Everything the reader started here belongs to ONE task: the board dialog
+ * keeps this panel mounted when it opens another task, so each task gets a
+ * fresh panel — a Request changes draft, a pending verb or an open
+ * confirmation never carries over to the next task.
  */
-export function TaskSubjectPanel({
-  organizationId,
-  task,
-  ownedBy,
-  canEdit,
-}: {
+export function TaskSubjectPanel(props: TaskSubjectPanelProps) {
+  return <TaskSubjectPanelBody key={props.task._id} {...props} />;
+}
+
+interface TaskSubjectPanelProps {
   organizationId: string;
   task: {
     _id: string;
@@ -90,7 +100,14 @@ export function TaskSubjectPanel({
   /** The viewer may work the task (`useTaskAccess`): start, approve,
    * request changes, cancel. */
   canEdit: boolean;
-}) {
+}
+
+function TaskSubjectPanelBody({
+  organizationId,
+  task,
+  ownedBy,
+  canEdit,
+}: TaskSubjectPanelProps) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const headingId = useId();
@@ -137,11 +154,40 @@ export function TaskSubjectPanel({
     projectId: task.projectId,
     taskId: task._id,
   });
+  // A retry without cached data can return to pending. Keep the explanation
+  // mounted until a successful read, rather than losing the recovery surface.
+  const [runReadFailed, setRunReadFailed] = useState(false);
+  const runReadError = runQuery.isError || runReadFailed;
+  if (runQuery.isError && !runReadFailed) setRunReadFailed(true);
+  if (!runQuery.isError && runQuery.data !== undefined && runReadFailed) {
+    setRunReadFailed(false);
+  }
   const run = runQuery.data ?? null;
   // The live run's parked question, if its agent asked one — the panel's
   // whole story flips to "answer this" while it is pending.
   const pendingAskQuery = useRunPendingAsk(organizationId, run?.runId);
   const pendingAsk = pendingAskQuery.data ?? null;
+  // A write the run was making when its server stopped may already have
+  // reached its service: the run waits for a person to decide how it goes
+  // on, and nothing works on it meanwhile.
+  const inDoubtNode =
+    run?.status === 'waiting' ? inDoubtNodeFromDetail(run.detail) : undefined;
+  // Keep recovery visible through an uncached retry, but never carry a failed
+  // question read into another run. React Query retains any cached question.
+  const [failedAskRunId, setFailedAskRunId] = useState<string>();
+  const askReadError =
+    run !== null && (pendingAskQuery.isError || failedAskRunId === run.runId);
+  if (pendingAskQuery.isError && run !== null && failedAskRunId !== run.runId) {
+    setFailedAskRunId(run.runId);
+  } else if (
+    failedAskRunId !== undefined &&
+    (failedAskRunId !== run?.runId ||
+      (!pendingAskQuery.isError &&
+        !pendingAskQuery.isFetching &&
+        pendingAskQuery.data !== undefined))
+  ) {
+    setFailedAskRunId(undefined);
+  }
 
   // `hasFiles` is the server-stamped subtree fact (`getTask` and the list
   // queries share one predicate with staging) — a client-side root-only probe
@@ -173,7 +219,11 @@ export function TaskSubjectPanel({
           hasFiles,
         });
   const canReview =
-    canEdit && state?.kind === 'review' && reviewReady && !agentReview;
+    canEdit &&
+    !runReadError &&
+    state?.kind === 'review' &&
+    reviewReady &&
+    !agentReview;
   const reviewIdentity = reviewConfirmationIdentity(
     task._id,
     pendingReview ?? null,
@@ -186,6 +236,65 @@ export function TaskSubjectPanel({
   if ((!canReview || reviewChanged) && (approveOpen || changesOpen)) {
     setApproveOpen(false);
     setChangesOpen(false);
+  }
+  const ownershipContext = (
+    <>
+      <Row gap={2} align="center">
+        <Workflow
+          className="text-muted-foreground size-4 shrink-0"
+          aria-hidden
+        />
+        <Text
+          as="h3"
+          id={headingId}
+          variant="label"
+          className="min-w-0 flex-1 truncate"
+        >
+          {displayName}
+        </Text>
+        {!runReadError && state?.kind === 'running' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDetailsOpen(true)}
+          >
+            {t('run.details')}
+          </Button>
+        )}
+      </Row>
+
+      {/* The automation's OWN words on what it does — clamped, because a pack
+          may declare a paragraph and this is orientation, not documentation. */}
+      {displayDescription !== undefined && (
+        <Text as="p" variant="caption" className="line-clamp-2 text-pretty">
+          {displayDescription}
+        </Text>
+      )}
+    </>
+  );
+  if (runReadError) {
+    return (
+      <section
+        aria-labelledby={headingId}
+        className="border-border bg-card flex flex-col gap-2 rounded-lg border p-3"
+      >
+        {ownershipContext}
+        <Text as="p" role="alert" className="text-pretty">
+          {t('subject.runLoadError')}
+        </Text>
+        <Row gap={2} wrap>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-busy={runQuery.isFetching}
+            disabled={runQuery.isFetching}
+            onClick={() => void runQuery.refetch()}
+          >
+            {tCommon('actions.tryAgain')}
+          </Button>
+        </Row>
+      </section>
+    );
   }
   // Facts still loading — render nothing rather than a state that flips.
   if (state === null || state.kind === 'idle') return null;
@@ -284,8 +393,8 @@ export function TaskSubjectPanel({
 
   /**
    * Request changes is ONE gesture, and that gesture is an `@`-mention: the
-   * feedback posts as a task comment addressed to the owning automation
-   * (`@<slug> …`), and the comment's mention trigger starts the rerun — the
+   * feedback posts as a task comment that mentions the owning automation
+   * first, and the comment's mention trigger starts the rerun — the
    * same lane a hand-typed `@` in the composer uses, so the timeline itself
    * teaches the pattern. Plain comments stay inert; only the mention runs.
    * The rerun starts after the comment lands (same transaction), so the
@@ -299,7 +408,11 @@ export function TaskSubjectPanel({
     try {
       const result = await addComment.mutateAsync({
         taskId: task._id,
-        body: `@${automationSlug} ${body}`,
+        body: `${formatMentionToken({
+          kind: 'automation',
+          id: automationSlug,
+          label: displayName,
+        })} ${body}`,
       });
       // The comment landed either way, so the box always closes and empties:
       // leaving the text in a still-open dialog invites a second Send back,
@@ -326,11 +439,43 @@ export function TaskSubjectPanel({
     }
   };
 
+  if (run?.status === 'quarantined') {
+    return (
+      <section aria-labelledby={headingId} className="flex flex-col gap-3">
+        {ownershipContext}
+        <RunQuarantineCard
+          key={run.runId}
+          organizationId={organizationId}
+          runId={run.runId}
+          quarantine={run.legacyQuarantine}
+          canRequestStop={canEdit}
+          onReload={() => void runQuery.refetch()}
+        />
+        <TaskRunDetailsDialog
+          organizationId={organizationId}
+          projectId={task.projectId}
+          automationSlug={run.name}
+          runId={run.runId}
+          name={displayName}
+          live={false}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+        />
+      </section>
+    );
+  }
+
   const stateLine =
     state.kind === 'running'
       ? pendingAsk !== null
         ? t('run.waitingAnswer', { name: displayName })
-        : t('run.working', { name: displayName })
+        : askReadError
+          ? t('subject.askLoadError')
+          : inDoubtNode !== undefined
+            ? canEdit
+              ? t('run.waitingDecision', { name: displayName })
+              : t('run.waitingDecisionOther', { name: displayName })
+            : t('run.working', { name: displayName })
       : state.kind === 'review'
         ? pendingReview !== undefined && pendingReview !== null
           ? t('reviewer.pendingFor', {
@@ -364,37 +509,7 @@ export function TaskSubjectPanel({
           : 'border-primary/40 bg-primary/[0.03]',
       )}
     >
-      <Row gap={2} align="center">
-        <Workflow
-          className="text-muted-foreground size-4 shrink-0"
-          aria-hidden
-        />
-        <Text
-          as="h3"
-          id={headingId}
-          variant="label"
-          className="min-w-0 flex-1 truncate"
-        >
-          {displayName}
-        </Text>
-        {state.kind === 'running' && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDetailsOpen(true)}
-          >
-            {t('run.details')}
-          </Button>
-        )}
-      </Row>
-
-      {/* The automation's OWN words on what it does — clamped, because a pack
-          may declare a paragraph and this is orientation, not documentation. */}
-      {displayDescription !== undefined && (
-        <Text as="p" variant="caption" className="line-clamp-2 text-pretty">
-          {displayDescription}
-        </Text>
-      )}
+      {ownershipContext}
 
       <Skeletonize
         loading={
@@ -402,17 +517,49 @@ export function TaskSubjectPanel({
         }
       >
         <Row gap={2} align="center">
-          {state.kind === 'running' && pendingAsk === null && (
-            <Loader2
-              className="text-muted-foreground size-4 shrink-0 animate-spin"
-              aria-hidden
-            />
-          )}
-          <Text as="p" className="min-w-0 flex-1 text-pretty">
+          {state.kind === 'running' &&
+            pendingAsk === null &&
+            !askReadError &&
+            inDoubtNode === undefined && (
+              <Loader2
+                className="text-muted-foreground size-4 shrink-0 animate-spin"
+                aria-hidden
+              />
+            )}
+          <Text
+            as="p"
+            role={
+              state.kind === 'running' && askReadError && pendingAsk === null
+                ? 'alert'
+                : undefined
+            }
+            className="min-w-0 flex-1 text-pretty"
+          >
             {stateLine}
           </Text>
         </Row>
       </Skeletonize>
+
+      {state.kind === 'running' && askReadError && (
+        <>
+          {pendingAsk !== null && (
+            <Text as="p" role="alert" className="text-pretty">
+              {t('subject.askLoadError')}
+            </Text>
+          )}
+          <Row gap={2} wrap>
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-busy={pendingAskQuery.isFetching}
+              disabled={pendingAskQuery.isFetching}
+              onClick={() => void pendingAskQuery.refetch()}
+            >
+              {tCommon('actions.tryAgain')}
+            </Button>
+          </Row>
+        </>
+      )}
 
       {state.kind === 'review' && reviewerQuery.isError && (
         <Row gap={2} align="center">
@@ -519,6 +666,16 @@ export function TaskSubjectPanel({
         <RunApprovalCard
           organizationId={organizationId}
           approvalId={approvalId}
+        />
+      )}
+      {/* Deciding moves the run on, like stopping it: only someone who may
+          work the task decides; anyone else reads the state line. */}
+      {canEdit && run !== null && inDoubtNode !== undefined && (
+        <RunInDoubtCard
+          key={run.runId}
+          organizationId={organizationId}
+          runId={run.runId}
+          node={inDoubtNode}
         />
       )}
       {run !== null && (

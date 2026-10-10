@@ -4,7 +4,7 @@ import { isAdminRole } from '../../auth/membership.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { pokeParkedRun } from '../automations/store.ts';
+import { lockRunInTx, pokeParkedRunInTx } from '../automations/store.ts';
 import {
   confirmAndScheduleErasure,
   rejectErasure,
@@ -126,15 +126,40 @@ const DEDICATED_RESPOND_DOORS: Readonly<Record<string, string>> = {
  * only from `pending`, only to `executing` (approve) or `rejected`;
  * `completed` is the execution path's to set. Review-gate rows refuse
  * toward their dedicated respond doors, whose permission checks and state
- * transitions a generic settle would bypass. A decided connector operation
- * pokes the automation run parked behind it (post-commit; the run's own
- * poll chain is the backstop, the 0.4 posture).
+ * transitions a generic settle would bypass.
+ *
+ * A decided connector operation wakes the automation run parked behind it
+ * in the same transaction, approved or rejected — the decision is the event,
+ * and the run's own poll is only a backstop, minutes out. Both commit
+ * together or neither does: a wake that cannot be queued fails the decision
+ * unrecorded, so the reviewer's retry decides it again. (A wake sent after
+ * the commit could fail with the decision already recorded: the reviewer
+ * was told it failed, a retry met ALREADY_RESOLVED, and the run waited for
+ * its poll.)
+ *
+ * The run's row is locked before the approval's: the run's terminal doors
+ * lock the run first and its approvals after (`lockRunInTx`), so the
+ * decision takes them in the same order — run, approval, audit chain.
  */
 export async function decideApproval(
   sql: Sql,
   args: DecideApprovalArgs,
 ): Promise<void> {
-  const decided = await sql.begin(async (tx) => {
+  await sql.begin(async (tx) => {
+    // Which run the decision wakes, read before any lock: an approval's
+    // kind and run never change once it is minted.
+    const facts = await tx<{ resourceType: string; runId: string | null }[]>`
+      SELECT resource_type AS "resourceType", metadata->>'runId' AS "runId"
+      FROM app.approvals
+      WHERE id = ${args.approvalId} AND org_id = ${args.organizationId}
+    `;
+    const wakes =
+      facts[0]?.resourceType === 'connector_operation' &&
+      typeof facts[0].runId === 'string'
+        ? { organizationId: args.organizationId, runId: facts[0].runId }
+        : null;
+    if (wakes !== null) await lockRunInTx(tx, wakes);
+
     const rows = await tx<
       {
         resourceType: string;
@@ -240,19 +265,8 @@ export async function decideApproval(
       entity: 'approval',
       entityId: args.approvalId,
     });
-    return approval;
+    // A run still walking is not parked yet: it reads the decision when it
+    // parks (`suspendRun`). A finished or deleted one is a silent no-op.
+    if (wakes !== null) await pokeParkedRunInTx(tx, wakes);
   });
-
-  // A workflow node parked behind this approval resumes NOW, approved or
-  // rejected — the decision is the event; the run's own poll is only its
-  // backstop. Anything stale is a silent no-op inside the poke.
-  if (decided.resourceType === 'connector_operation') {
-    const runId = decided.metadata?.runId;
-    if (typeof runId === 'string') {
-      await pokeParkedRun(sql, {
-        organizationId: args.organizationId,
-        runId,
-      });
-    }
-  }
 }

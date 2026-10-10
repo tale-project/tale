@@ -25,8 +25,10 @@
 # REQUIRED: run with --privileged (buildkitd needs mount/namespace ops to run
 # builds). See services/sandbox/src/buildkitd.ts (the spawner launches this).
 
-# Pinned tag carries the buildkit binaries we run; the alpine userland is unused.
-FROM moby/buildkit:buildx-stable-1 AS buildkit
+# The buildkit binaries we run, pinned by version and digest so a rebuild
+# never picks up a different buildkit (Renovate bumps both together); the
+# alpine userland is unused.
+FROM moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea AS buildkit
 
 # Root + --privileged are required: buildkitd needs the mount/namespace ops a
 # build performs; the daemon is reachable only on its organization's network

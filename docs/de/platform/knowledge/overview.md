@@ -42,7 +42,7 @@ Prüfe eine neue Quelle mit einer Frage, deren Antwort du kennst: „Wann ist un
 
 ## Zugriff und Suche verstehen
 
-Im Organisationschat kann der Assistent die gemeinsame Bibliothek innerhalb deiner Berechtigungen durchsuchen. Im Projektchat kommen die Dateien und gespeicherten Anweisungen dieses Projekts hinzu. Dateien anderer Projekte gehören nicht dazu. Projektagenten brauchen die passenden Plattform-Tools in ihrer Ausstattung.
+Im Organisationschat kann der Assistent die gemeinsame Bibliothek innerhalb deiner Berechtigungen durchsuchen. Im Projektchat kommen die Dateien und gespeicherten Anweisungen dieses Projekts hinzu. Dateien anderer Projekte gehören nicht dazu. Projektagenten und Agentenschritte von Automatisierungen durchsuchen dieses Wissen im Bereich ihres Projekts immer, ohne Freigabe; um [Wissenseinträge](/de/platform/knowledge/knowledge-entries) direkt zu lesen oder zu ändern, brauchen sie das passende Tool in ihrer Ausstattung.
 
 Team-Beschränkungen gelten auch bei der Suche. Eine Datei, die du in einem Arbeitsbereich siehst, kann deshalb im Kontext eines anderen Projekts fehlen. Nutze [Projektdateien](/de/platform/projects/manage-files) für projektspezifische Inhalte und die Team-Zuordnung von Dokumenten für die gemeinsame Bibliothek.
 

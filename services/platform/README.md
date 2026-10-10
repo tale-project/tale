@@ -35,6 +35,7 @@ use CLI-generated files.
 | `/api/auth` | Sessions and authentication. |
 | `/api/app` | The application’s authenticated operations. |
 | `/api/v1` | Public REST API and inbound MCP endpoint. |
+| `/api/health/ready` | Public API/database readiness; HTTP 200 with `{ok:true, service:'backend'}`. |
 | `/events`, `/dav`, `/scim` | Change hints, WebDAV and SCIM. |
 | `/status`, `/status.json` | Public availability summary. |
 | `/docs`, `/openapi.json` | Interactive API reference and its raw schema. |
@@ -44,6 +45,26 @@ The production web shim also serves `/api/health` for its liveness probe. Local
 Vite routes are not an exact copy of that shim; do not assume every production
 health route exists on the development server. The
 [backend README](backend/README.md) describes backend routes and process roles.
+
+The browser uses `/api/health/ready` through the public proxy to verify API and
+database availability. It refreshes failed reads after recovery and never
+automatically replays writes. The service worker caches the connection screen
+and its recovery script, with bounded probes and retries through HTTP proxy
+failures; it does not cache application data.
+
+Every production web replica mounts the same deployment-owned `static-assets`
+volume at `/app/static-assets`. Before listening, it atomically publishes the
+immutable files listed in `dist/pwa-build.json`. Serving local files first and
+retained artifacts second keeps either blue-green colour compatible with the
+other colour's HTML and older tabs. Running replicas refresh their artifacts
+hourly; inactive artifacts expire seven days after their last refresh. Keep the
+mount when maintaining your own Compose configuration.
+
+The worker verifies the offline shell, recovery script and build identity with
+SHA-256 integrity. Mismatched recovery bytes fail installation while the current
+worker stays active; subsequent update checks retry after the handover. The
+server serves canonical offline HTML to precache requests, and the worker scopes
+the cached recovery script to the deployment's base path before displaying it.
 
 The prose guides live on the separate docs origin. The interactive reference
 links to the published developer guides and the same-origin OpenAPI document.
@@ -70,6 +91,15 @@ are:
   cryptographic purposes. Preserve the matching secrets with recovery plans.
 - `SANDBOX_URL`, `SANDBOX_TOKEN` and
   `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` for the sandbox and model gateway.
+
+Set `TOTP_CLIENT_NAME` and `TOTP_ENVIRONMENT` in the deployment environment
+(the web tier and the backend both read them) so new authenticator entries and
+backup-code downloads say which client, product and environment they belong to:
+`Acme` with `te` produces `Acme Tale Platform TE` and
+`acme-tale-platform-te-backup-codes.txt`, while `pr` or an unset environment adds
+none and an unset client keeps `Tale Platform`. Existing saved entries keep their
+names; they can be renamed in the authenticator app without changing the
+secret.
 
 A second worktree does not isolate databases, container names or ports. Use
 separate backing state when parallel work must not affect another instance.
@@ -126,3 +156,20 @@ required Umami headers; it drops browser cookies, credentials and referrer heade
 See the [environment reference](../../docs/en/self-hosted/configuration/environment-reference.md)
 and [observability guide](../../docs/en/self-hosted/configuration/observability-config.md) for the
 collector contract, collected fields, opt-outs and verification steps.
+
+Agent starts can use `SANDBOX_AGENT_PROFILE=agent-light` on the backend API and
+worker to create workspaces without inner Docker or shared build-cache helpers.
+The default `agent` and existing workspaces keep their Docker capability.
+`TALE_SANDBOX_CLAUDE_EFFORT=low|medium|high|max` selects Claude Code effort per
+exec; `max` preserves the existing default. Lower values omit the automatic
+Ultrathink prefix without disabling adaptive thinking. Benchmark representative
+outcomes before lowering effort. See the operator [environment reference](../../docs/en/self-hosted/configuration/environment-reference.md).
+
+Agent progress coalesces to one in-flight database update and the latest pending
+snapshot. Drain windows restore bounded parser/projection checkpoints from the
+runtime, including partial JSONL, background tasks and accumulated usage. The
+checkpoint is saved before acknowledging replay; an unrecoverable replay gap
+fails explicitly. Each JSONL record, including an unfinished one, is limited to
+8 MiB of UTF-8; oversized records fail explicitly instead of growing memory
+without bound. Sampled backend traces separate acquire, gateway, stage,
+execute, persist and harvest without carrying prompts or credentials.

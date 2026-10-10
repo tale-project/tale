@@ -1,0 +1,44 @@
+description: Mount Tale documents as a network drive in Finder, File Explorer,
+  or any WebDAV client.
+connectionDetails:
+  title: Connection details
+  usernameLabel: Username
+  usernameHelp: Your Tale account email (or username)
+  copyUsername: Copy username
+  passwordLabel: Password
+  passwordHelp: An app-password you generate below — not your account password.
+create:
+  title: Generate a new app-password
+  description:
+    Use one per device. The full password is only shown once — copy it
+    before closing this dialog.
+  labelLabel: Label
+  labelPlaceholder: e.g. MacBook Finder
+  submit: Generate
+  error: Couldn't create app-password
+  errorLimit: You have reached the maximum number of app-passwords. Revoke an
+    unused one first.
+  errorRateLimited: Too many app-passwords created recently. Try again later.
+  savedTitle: Save this password — it will not be shown again.
+  copy: Copy
+  dismiss: I have saved it
+list:
+  title: App-passwords
+  empty: No app-passwords yet.
+  emptyDescription: Generate an app-password below to mount Tale documents as a network drive.
+  label: Label
+  prefix: Prefix
+  lastUsed: Last used
+  created: Created
+  neverUsed: never
+  revoked: revoked
+  revoke: Revoke
+  revokedToast: Revoked
+  revokeError: Could not revoke
+  revokeErrorNotFound: This app-password no longer exists.
+revokeDialog:
+  title: Revoke this app-password?
+  body: Any device mounted with this password will be disconnected and active
+    locks released.
+  confirm: Revoke
+  cancel: Cancel

@@ -1,11 +1,14 @@
 import { readdir, readFile } from 'node:fs/promises';
 
+import { isMigrationFile } from '@tale/shared/db/migration-files';
 import { withRetry } from '@tale/shared/db/retry';
 import type { BetterAuthOptions } from 'better-auth';
 import postgres from 'postgres';
 
 import { resolvePostgresConnection } from './ssl.ts';
 import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
+
+export { isMigrationFile } from '@tale/shared/db/migration-files';
 
 /**
  * Boot-time migrator for the 0.5 app database.
@@ -29,6 +32,8 @@ import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
 
 /** Arbitrary-but-fixed app-wide advisory lock key for boot migrations. */
 const MIGRATION_LOCK_KEY = 72_085_001;
+/** Held (never waited for) by the one process building the e-mail index. */
+const EMAIL_INDEX_LOCK_KEY = 72_085_003;
 
 const MIGRATIONS_DIR = new URL('./migrations/', import.meta.url);
 
@@ -95,6 +100,74 @@ async function defaultTeamMemberCount(sql: postgres.Sql): Promise<void> {
 }
 
 /**
+ * Index the case-folded address every sign-in looks its user up by.
+ *
+ * The sign-in hooks (`domains/login_attempts`), the member and user doors
+ * and the owner checks all match `lower("email")`, while Better Auth only
+ * declares a unique index on the raw column — so each of those lookups read
+ * the whole `user` table, which at a million users costs a sequential scan
+ * per sign-in and turns a morning sign-in wave into a queue.
+ *
+ * Built CONCURRENTLY so a live deployment keeps signing people up while a
+ * new image builds it mid-roll, which also means it cannot run inside a
+ * transaction (this boot step runs on the migrator's autocommit session).
+ * A concurrent build waits for every transaction holding a snapshot, so it
+ * runs only AFTER the migration lock is released: a second booting replica
+ * waits for that lock inside a statement, and a build under the lock would
+ * wait for that very statement — a deadlock. One replica builds, under a
+ * lock nobody waits for; the others skip, so none mistakes the build in
+ * progress (an INVALID index until it completes) for an interrupted one.
+ * A build that died — a crash, a restart mid-roll — leaves an INVALID index
+ * that `IF NOT EXISTS` would keep forever; the next boot drops it and builds
+ * again. A failed build is reported, never fatal: sign-in only runs slower
+ * without the index. Not a numbered migration for the same reason
+ * `defaultTeamMemberCount` is not: the `.sql` files run before Better
+ * Auth's tables exist.
+ */
+async function indexUserEmailLower(
+  sql: postgres.Sql,
+  log: (message: string) => void,
+): Promise<void> {
+  const [claim] = await sql<{ claimed: boolean }[]>`
+    SELECT pg_try_advisory_lock(${EMAIL_INDEX_LOCK_KEY}) AS claimed
+  `;
+  if (!claim?.claimed) return;
+  try {
+    // Resolved through the search path, like Better Auth's own unqualified
+    // tables: they land in the first schema of it (`tale` on the tale-db
+    // image, `public` on a plain Postgres), and an index lives beside its
+    // table.
+    const existing = await sql<{ valid: boolean }[]>`
+      SELECT i.indisvalid AS valid
+      FROM pg_index i
+      WHERE i.indexrelid = to_regclass('"user_email_lower_idx"')
+    `;
+    if (existing[0]?.valid) return;
+    if (existing[0] !== undefined) {
+      log('[backend] rebuilding an interrupted user e-mail index');
+      await sql`DROP INDEX CONCURRENTLY IF EXISTS "user_email_lower_idx"`;
+    }
+    log('[backend] indexing user e-mail addresses for sign-in');
+    await sql`
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS "user_email_lower_idx"
+      ON "user" (lower("email"))
+    `;
+  } catch (error) {
+    if (isDatabaseUnavailable(error, { fromDatabase: true })) throw error;
+    console.warn(
+      '[backend] the user e-mail index was not built; the next boot retries:',
+      error,
+    );
+  } finally {
+    await sql`SELECT pg_advisory_unlock(${EMAIL_INDEX_LOCK_KEY})`.catch(
+      (error: unknown) => {
+        console.warn('[backend] e-mail index unlock failed (ignored):', error);
+      },
+    );
+  }
+}
+
+/**
  * Catch up accounts this deployment provisioned before a provisioned account
  * counted as a verified one (`backend/auth/auth.ts`). A `credential` row is
  * the proof: it exists only for an account whose password this instance
@@ -123,6 +196,42 @@ async function verifyProvisionedAccounts(
   if (caught.count > 0) {
     log(`[backend] verified ${caught.count} provisioned account(s)`);
   }
+}
+
+/** The `app.boot_repairs` name of {@link revokeClientWrittenTrustFields}. */
+const REVOKE_CLIENT_TRUST_FIELDS = 'revoke-client-written-trust-fields';
+
+/**
+ * Sign out, once, every session that carries trusted-headers fields, so each
+ * is minted again by the trusted-headers door — the only writer of those
+ * fields from now on (`backend/auth/auth.ts`). A proxy's users get a fresh
+ * session through the proxy's sign-in hand-off on their next visit; anyone
+ * else signs in again.
+ *
+ * Recorded in `app.boot_repairs` (0193) so it runs once per database: the
+ * sessions are Better Auth's, and exist only after its migrator ran.
+ */
+async function revokeClientWrittenTrustFields(
+  sql: postgres.Sql,
+  log: (message: string) => void,
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    const recorded = await tx`
+      INSERT INTO app.boot_repairs (name) VALUES (${REVOKE_CLIENT_TRUST_FIELDS})
+      ON CONFLICT (name) DO NOTHING
+      RETURNING name
+    `;
+    if (recorded.length === 0) return;
+    const revoked = await tx`
+      DELETE FROM "session"
+      WHERE "trustedRole" IS NOT NULL OR "trustedOrganizationId" IS NOT NULL
+    `;
+    if (revoked.count > 0) {
+      log(
+        `[backend] reset ${revoked.count} session(s) carrying a trusted role`,
+      );
+    }
+  });
 }
 
 /**
@@ -154,15 +263,6 @@ export interface DataMigration {
 
 /** The files the migrator applies: `.sql`, and `.ts` data migrations — never
  * a test or a declaration file beside them. */
-export function isMigrationFile(name: string): boolean {
-  if (name.endsWith('.sql')) return true;
-  return (
-    name.endsWith('.ts') &&
-    !name.endsWith('.test.ts') &&
-    !name.endsWith('.d.ts')
-  );
-}
-
 async function listMigrationFiles(): Promise<string[]> {
   const entries = await readdir(MIGRATIONS_DIR);
   return entries.filter(isMigrationFile).sort();
@@ -178,7 +278,7 @@ function isDataMigration(value: unknown): value is DataMigration {
 }
 
 /** Apply one migration file inside the transaction that records it. */
-async function applyMigrationFile(
+export async function applyMigrationFileInTx(
   tx: postgres.TransactionSql,
   file: string,
 ): Promise<void> {
@@ -277,7 +377,7 @@ async function migrateOnce(
       }
       log(`[backend] applying app migration ${file}`);
       await sql.begin(async (tx) => {
-        await applyMigrationFile(tx, file);
+        await applyMigrationFileInTx(tx, file);
         await tx`INSERT INTO app_migrations (name) VALUES (${file})`;
       });
     }
@@ -297,7 +397,13 @@ async function migrateOnce(
       }
       await defaultTeamMemberCount(sql);
       await verifyProvisionedAccounts(sql, log);
+      await revokeClientWrittenTrustFields(sql, log);
     }
+    // The e-mail index builds concurrently, which must not happen under
+    // this lock (see `indexUserEmailLower`).
+    await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`;
+    locked = false;
+    if (options.authOptions) await indexUserEmailLower(sql, log);
   } catch (error) {
     failure = error;
     throw error;

@@ -7,14 +7,121 @@
  * actually serve them.
  */
 
+import type {
+  TriggerView,
+  TriggerWrite,
+} from '@tale/shared/schemas/automation-trigger';
+
+import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
+import type { Issue } from '@/lib/engine/core/types';
+export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
+import type { RunDiff } from '@/lib/engine/core/record/compare';
+import type {
+  NodeRunDetail,
+  NodeRunPage,
+  RunRecordView,
+} from '@/lib/engine/core/record/read';
+import type {
+  ReplayKind,
+  ReplayPlan,
+  ReplayVersionChoice,
+} from '@/lib/engine/core/record/replay';
+export type { RunDiff } from '@/lib/engine/core/record/compare';
+export type {
+  NodeRunDetail,
+  NodeRunPage,
+  RecordedStep,
+  RecordedUnit,
+  RunEventView,
+  RunRecordView,
+} from '@/lib/engine/core/record/read';
+export type { ReplayKind, ReplayPlan } from '@/lib/engine/core/record/replay';
+
+import type { NodeTypeCatalog } from '@/lib/shared/schemas/node-type-catalog';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
+
+/** How a run was run again, and from which run. */
+export interface RunReplayOf {
+  /** Null once the run it replays was deleted. */
+  runId: string | null;
+  kind: ReplayKind;
+  fromNode?: string;
+}
+
+/** What running a run again asks for. A type, not an interface: the
+ * contract's arguments must read as plain records. */
+export type ReplayRequestArgs = {
+  kind: ReplayKind;
+  from?: string;
+  version?: ReplayVersionChoice;
+  mode?: 'mock' | 'live';
+  input?: unknown;
+};
+
+/** What a replay started. */
+export interface ReplayStarted {
+  runId: string;
+  version: number;
+  mode: 'mock' | 'live';
+  kind: ReplayKind;
+  reused: number;
+  duplicate?: true;
+}
+
+/** What a `waiting` run is parked on. `approval`, `ask` and `in_doubt`
+ * wait on a person; the rest on the run itself. */
+export type RunWaitingFor =
+  | 'approval'
+  | 'ask'
+  | 'in_doubt'
+  | 'agent'
+  | 'room'
+  | 'repeat';
+
+/** Why and when a run last moved to another server: `shutdown` — its server
+ * was being updated or restarted and handed it on; `lease_expired` — its
+ * server stopped responding and another one took it over. */
+export interface RunLastResume {
+  reason: 'shutdown' | 'lease_expired';
+  at: number;
+}
+
+/** How a person continues past a write that may already have happened. */
+export type InDoubtResolution = 'retry' | 'skip' | 'fail';
+
+/** The write a run waits on a person about: a connector call that may or
+ * may not have reached its service when the run was interrupted. */
+export interface RunInDoubt {
+  attemptId: string;
+  /** The node's path: its id at the top level, `<parent>[<item>:<pass>]/<id>`
+   * inside a subautomation. */
+  nodeId: string;
+  itemIndex: number;
+  pass: number;
+  attempt: number;
+  nodeType: string;
+  /** The connector in words — its display name, or its slug. */
+  connector: string;
+  action: string;
+  /** What the step was sending. */
+  input: unknown;
+  startedAt: number;
+}
 
 /** One subject-linked run as the task modal reads it. */
 export interface AutomationRunForTask {
   detail?: string;
   runId: string;
   name: string;
-  status: 'queued' | 'running' | 'waiting' | 'success' | 'failed' | 'cancelled';
+  status:
+    | 'queued'
+    | 'running'
+    | 'waiting'
+    | 'quarantined'
+    | 'success'
+    | 'failed'
+    | 'cancelled';
+  legacyQuarantine?: LegacyRunQuarantine;
   version: number;
 }
 
@@ -22,15 +129,7 @@ export interface AutomationsContract {
   'automations/catalog:listNodeTypes': {
     kind: 'action';
     args: { organizationId: string };
-    returns: Array<{
-      hasEffect?: boolean;
-      type: string;
-      kind: 'connector' | 'core';
-      description: string;
-      allowedFields: string[];
-      requiredFields: string[];
-      outputKind: 'structured' | 'unstructured';
-    }>;
+    returns: NodeTypeCatalog;
   };
   'automations/human_asks:answerAsk': {
     kind: 'mutation';
@@ -56,6 +155,46 @@ export interface AutomationsContract {
     args: { organizationId: string; runId: string };
     returns: { cancelled: boolean };
   };
+  'automations/mutations:replayRun': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      runId: string;
+      /** A nonce: a repeat of the same click starts one replay. */
+      requestId?: string;
+    } & ReplayRequestArgs;
+    returns: ReplayStarted;
+  };
+  'automations/mutations:requestLegacyRunStop': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      runId: string;
+      expectedClaimEpoch: number;
+      expectedObservedAt: number;
+      action: 'stop';
+      acknowledgeUnknownExternalEffects: true;
+    };
+    returns: {
+      requested: true;
+      status: 'quarantined';
+      legacyQuarantine: LegacyRunQuarantine;
+    };
+  };
+  'automations/mutations:resolveRunInDoubt': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      runId: string;
+      attemptId: string;
+      /** The attempt the choice is about (`RunInDoubt.attempt`): a write run
+       * again keeps its `attemptId`, so a choice about an earlier attempt
+       * is refused (409) instead of deciding a later one. */
+      attempt: number;
+      resolution: InDoubtResolution;
+    };
+    returns: null;
+  };
   'automations/mutations:deleteAutomation': {
     kind: 'mutation';
     args: { organizationId: string; name: string };
@@ -69,7 +208,20 @@ export interface AutomationsContract {
   'automations/mutations:deployAutomation': {
     kind: 'mutation';
     args: { organizationId: string; name: string; version: number };
-    returns: { name: string; version: number };
+    /** `trigger` is what starts the automation now that this version runs:
+     * whether it is on, its next start, and what this version would make
+     * of what it sends (`TRIGGER_INPUT_MISMATCH`,
+     * `TRIGGER_INPUT_NOT_TEMPLATED`); null when nothing starts it. */
+    returns: {
+      name: string;
+      version: number;
+      trigger?: {
+        kind: TriggerView['kind'];
+        enabled: boolean;
+        nextRunAt: number | null;
+        warnings: Issue[];
+      } | null;
+    };
   };
   'automations/mutations:saveAutomation': {
     kind: 'mutation';
@@ -84,7 +236,9 @@ export interface AutomationsContract {
       organizationId: string;
       automation: unknown;
     };
-    returns: { name: string; version: number };
+    /** `warnings` are the problems the save let through — they never
+     * refuse one (`lib/shared/schemas/automation-issues.ts` reads them). */
+    returns: { name: string; version: number; warnings?: unknown[] };
   };
   'automations/mutations:setAutomationProjects': {
     kind: 'mutation';
@@ -97,17 +251,19 @@ export interface AutomationsContract {
       rotateToken?: boolean;
       organizationId: string;
       name: string;
-      trigger: {
-        cron?: string;
-        event?: string;
-        timezone?: string;
-        enabled?: boolean;
-        kind: 'schedule' | 'webhook' | 'event';
-      };
+      /** The shared write contract: one strict shape per kind. */
+      trigger: TriggerWrite;
     };
     /** `revoked` names a live webhook URL this bind replaced with another
-     * kind — it stopped answering the moment the bind committed. */
-    returns: { token?: string; revoked?: 'webhook' };
+     * kind — it stopped answering the moment the bind committed.
+     * `nextRunAt` is a schedule's next start; `warnings` what the deployed
+     * version would make of what the trigger sends. */
+    returns: {
+      token?: string;
+      revoked?: 'webhook';
+      nextRunAt?: number | null;
+      warnings?: Issue[];
+    };
   };
   'automations/mutations:startRun': {
     kind: 'mutation';
@@ -204,6 +360,8 @@ export interface AutomationsContract {
       finishedAt?: number;
       startedAt: number;
       detail?: string;
+      /** Why a `failed` run failed, as a stable code (`Run.failureCode`). */
+      failureCode?: string;
       effects?: unknown;
       trace?: unknown;
       checkpoints?: unknown;
@@ -216,17 +374,76 @@ export interface AutomationsContract {
         | 'queued'
         | 'running'
         | 'waiting'
+        | 'quarantined'
         | 'success'
         | 'failed'
         | 'cancelled';
       mode: 'mock' | 'live';
       startedBy: string;
+      legacyQuarantine?: LegacyRunQuarantine;
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */
-      waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
+      waitingFor?: RunWaitingFor;
+      /** How often the run moved to another server; absent while never. */
+      resumeCount?: number;
+      /** Why and when it last moved to another server. */
+      lastResume?: RunLastResume;
+      /** A running run waiting for a server to take it over. */
+      stalled?: boolean;
+      /** A run started by running another one again. */
+      replayOf?: RunReplayOf;
       input: unknown;
     };
+  };
+  'automations/queries:getRunRecord': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      runId: string;
+      /** A cursor an earlier read answered: only what changed since. */
+      since?: number;
+      travels?: boolean;
+    };
+    returns: RunRecordView | null;
+  };
+  'automations/queries:getRunNode': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      runId: string;
+      node: string;
+      item?: number;
+      pass?: number;
+    };
+    returns: NodeRunDetail | null;
+  };
+  'automations/queries:getRunItems': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      runId: string;
+      node: string;
+      cursor?: string;
+      limit?: number;
+      status?: 'all' | 'failed';
+    };
+    returns: NodeRunPage | null;
+  };
+  'automations/queries:compareRuns': {
+    kind: 'query';
+    args: { organizationId: string; runId: string; otherRunId: string };
+    returns: RunDiff | null;
+  };
+  'automations/queries:getReplayPlan': {
+    kind: 'query';
+    args: { organizationId: string; runId: string } & ReplayRequestArgs;
+    returns: ReplayPlan | null;
+  };
+  'automations/queries:getRunInDoubt': {
+    kind: 'query';
+    args: { organizationId: string; runId: string };
+    returns: null | RunInDoubt;
   };
   'automations/queries:listAutomationProjects': {
     kind: 'query';
@@ -250,6 +467,45 @@ export interface AutomationsContract {
       projectIds: string[];
     }>;
   };
+  'automations/queries:listRunsPaginated': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      name: string;
+      projectId?: string;
+      /** Only runs in these statuses (any of them). */
+      statuses?: string[];
+      mode?: 'mock' | 'live';
+      paginationOpts: { numItems: number; cursor: null | string };
+    };
+    returns: {
+      page: Array<{
+        id: string;
+        name: string;
+        version: number;
+        status:
+          | 'queued'
+          | 'running'
+          | 'waiting'
+          | 'quarantined'
+          | 'success'
+          | 'failed'
+          | 'cancelled';
+        mode: 'mock' | 'live';
+        startedBy: string;
+        startedVia?: 'schedule' | 'webhook' | 'event';
+        waitingFor?: RunWaitingFor;
+        stalled?: boolean;
+        detail?: string;
+        /** Why a `failed` run failed, as a stable code. */
+        failureCode?: string;
+        startedAt: number;
+        finishedAt?: number;
+      }>;
+      isDone: boolean;
+      continueCursor: string;
+    };
+  };
   'automations/queries:listRuns': {
     kind: 'query';
     args: {
@@ -262,6 +518,8 @@ export interface AutomationsContract {
       finishedAt?: number;
       startedAt: number;
       detail?: string;
+      /** Why a `failed` run failed, as a stable code (`Run.failureCode`). */
+      failureCode?: string;
       id: string;
       name: string;
       version: number;
@@ -269,48 +527,48 @@ export interface AutomationsContract {
         | 'queued'
         | 'running'
         | 'waiting'
+        | 'quarantined'
         | 'success'
         | 'failed'
         | 'cancelled';
       mode: 'mock' | 'live';
       startedBy: string;
+      legacyQuarantine?: LegacyRunQuarantine;
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */
-      waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
+      waitingFor?: RunWaitingFor;
+      /** How often the run moved to another server; absent while never. */
+      resumeCount?: number;
+      /** Why and when it last moved to another server. */
+      lastResume?: RunLastResume;
+      /** A running run waiting for a server to take it over. */
+      stalled?: boolean;
     }>;
   };
   'automations/queries:listTriggers': {
     kind: 'query';
     args: { name?: string; organizationId: string };
+    /** The shared read shape: a schedule's rule or cron, its zone, catch-up
+     * policy and next start; the fixed input; the fire ledger (the last run,
+     * the last skip, why, and its detail) and the failure streak. Never the
+     * webhook secret: `hasToken` says one exists. */
+    returns: TriggerView[];
+  };
+  'automations/queries:listTriggerRuns': {
+    kind: 'query';
+    args: { name: string; limit?: number; organizationId: string };
+    /** The runs the bound trigger started, newest first (runs of projects
+     * the member cannot read left out), each with the webhook delivery lane
+     * that started it while the delivery's ledger row lives: a delivery-id
+     * `header` (its name) or the `body`; null for a schedule, an event, or
+     * once the row is gone. */
     returns: Array<{
-      id?: string;
-      /** The last time this binding started a run — `lastRunId` names it. */
-      lastFiredAt?: number;
-      lastRunId?: string | null;
-      /** The last time it came due and started nothing, and why — or, for
-       * `paused_after_failures`, when the schedule paused itself. */
-      lastSkippedAt?: number | null;
-      lastSkipReason?:
-        | 'not_deployed'
-        | 'unusable_cron'
-        | 'start_refused'
-        | 'paused_after_failures'
-        | null;
-      /** Permanent failures in a row among the runs it started since its
-       * last save; the last of them is `lastFailedAt` / `lastFailureCode` /
-       * `lastFailedRunId`. */
-      consecutiveFailures?: number;
-      lastFailedAt?: number | null;
-      lastFailureCode?: string | null;
-      lastFailedRunId?: string | null;
-      hasToken: boolean;
-      enabled: boolean;
-      event?: string;
-      timezone?: string;
-      cron?: string;
-      name: string;
-      kind: 'schedule' | 'webhook' | 'event' | 'api-key';
+      runId: string;
+      startedAt: number;
+      status: string;
+      deliverySource: 'header' | 'body' | null;
+      header: string | null;
     }>;
   };
   'automations/queries:listVersions': {

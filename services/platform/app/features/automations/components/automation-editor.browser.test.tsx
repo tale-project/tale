@@ -15,6 +15,7 @@ import {
   useSearch,
   useNavigate,
 } from '@tanstack/react-router';
+import axe from 'axe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
@@ -36,12 +37,13 @@ import '@/app/globals.css';
  * cuts those controls off first.
  */
 
-const { automation } = vi.hoisted(() => {
+const { automation, check, saved } = vi.hoisted(() => {
   const nodes: {
     id: string;
     type: string;
     code: string;
     input?: Record<string, string>;
+    when?: string;
   }[] = [
     { id: 'pulls', type: 'transform', code: 'return { items: [] };' },
     {
@@ -57,21 +59,76 @@ const { automation } = vi.hoisted(() => {
       code: 'return { text: "" };',
     },
   ];
-  // Every node placed, so the canvas never waits on the layout engine.
-  const positions: Record<string, { x: number; y: number }> = {
-    pulls: { x: 0, y: 0 },
-    diff: { x: 0, y: 196 },
-    summary: { x: 0, y: 392 },
-  };
+  // The canvas lays every document out itself (ELK, in a worker); nothing
+  // is placed by hand.
   return {
     automation: {
       name: 'pr-digest',
       nodes,
-      ui: { positions },
       deployedVersion: 1 as number | undefined,
     },
+    /** What the draft check answers: nothing, unless a test plants a problem. */
+    check: {
+      errors: [] as Array<Record<string, unknown> & { id: string }>,
+      warnings: [] as Array<Record<string, unknown> & { id: string }>,
+    },
+    /** Every version a save appends. */
+    saved: vi.fn(async (_request: unknown) => ({
+      name: 'pr-digest',
+      version: 3,
+    })),
   };
 });
+
+/** The `diff` node's code starts with a word the check refuses. */
+const CODE_PROBLEM = {
+  id: 'error|REF_UNKNOWN_NODE|/nodes/1/code|0-6',
+  level: 'error',
+  code: 'REF_UNKNOWN_NODE',
+  message: 'nodes.nope does not exist',
+  at: { pointer: '/nodes/1/code', range: [0, 6] },
+  params: { node: 'diff', field: 'code', ref: 'nope', available: ['pulls'] },
+};
+
+/** The `summary` node's input reads a number where text is wanted. */
+const INPUT_WARNING = {
+  id: 'warning|TYPE_MISMATCH|/nodes/2/input/diff|3-26',
+  level: 'warning',
+  code: 'TYPE_MISMATCH',
+  nodeId: 'summary',
+  message: 'node "summary" input.diff: expects string, but it is number',
+  at: { pointer: '/nodes/2/input/diff', range: [3, 26] },
+  params: {
+    node: 'summary',
+    consumer: 'connector-input',
+    property: 'diff',
+    expr: '{{ nodes.diff.output.text }}',
+    expected: 'string',
+    actual: 'number',
+  },
+};
+
+// The check is a server round trip; the page's handling of its answer is
+// what these tests lay out, so the hook answers from `check`.
+vi.mock('../hooks/use-automation-validation', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-automation-validation')
+  >()),
+  useAutomationValidation: ({ document }: { document: unknown }) => {
+    const hash = document === null ? null : JSON.stringify(document);
+    return {
+      status: 'ready',
+      errors: check.errors,
+      warnings: check.warnings,
+      settledFor: hash,
+      settledDocument: document,
+      currentHash: hash,
+      analysis: null,
+      types: null,
+    };
+  },
+  useInvalidateAutomationValidation: () => () => undefined,
+}));
 
 // Browser ESM links named imports eagerly, so every mocked module keeps its
 // real exports and overrides only the hooks this page reads.
@@ -86,6 +143,7 @@ vi.mock('@/app/features/projects/hooks/queries', async (importOriginal) => ({
     typeof import('@/app/features/projects/hooks/queries')
   >()),
   useProjects: () => ({ projects: [], isLoading: false }),
+  useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
 }));
 
 vi.mock('../hooks/queries', async (importOriginal) => ({
@@ -124,13 +182,15 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
     ],
   }),
   useAutomationRuns: () => ({ data: [] }),
+  useAutomationRun: () => ({ data: undefined }),
   useAutomationProjects: () => ({ data: [] }),
+  useAutomationTriggers: () => ({ data: [] }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
 }));
 
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/mutations')>()),
-  useSaveAutomation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSaveAutomation: () => ({ mutateAsync: saved, isPending: false }),
   useStartAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useDeployAutomation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -160,7 +220,13 @@ vi.mock(
   }),
 );
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  check.errors = [];
+  check.warnings = [];
+  saved.mockClear();
+  document.documentElement.classList.remove('dark');
+});
 
 const ZOOM_CONTROLS = ['Zoom in', 'Zoom out', 'Reset view'];
 
@@ -283,13 +349,40 @@ function scrollContainerOf(element: Element) {
  * A real pointer click: React Flow's pane reads the event's window on
  * mousedown, which a synthesized event does not carry. */
 async function selectNode(id: string) {
+  await expectLaidOut();
   await userEvent.click(
     await screen.findByRole('button', { name: new RegExp(`^${id}`, 'i') }),
   );
   await screen.findByRole('textbox', { name: 'Code' });
 }
 
+/** The chart is drawn: the canvas laid the document out (in a worker, the
+ * first time a while), the frame is no longer busy and the view has come to
+ * rest. */
+async function expectLaidOut() {
+  const canvas = await screen.findByRole(
+    'group',
+    { name: 'Automation canvas' },
+    { timeout: 20_000 },
+  );
+  await vi.waitFor(() => expect(canvas).toHaveAttribute('aria-busy', 'false'), {
+    timeout: 20_000,
+  });
+  await viewportAtRest(canvas);
+  return canvas;
+}
+
+/** The canvas as it is shown: the chart, or the List view that stands in
+ * for it on a narrow screen. */
+function canvasView() {
+  return (
+    screen.queryByRole('group', { name: 'Automation canvas' }) ??
+    screen.getByRole('list', { name: 'Automation canvas' })
+  );
+}
+
 async function expectWholeCanvas() {
+  await expectLaidOut();
   for (const name of ZOOM_CONTROLS) {
     const control = await screen.findByRole('button', { name });
     expect(unclippedShare(control), name).toBeCloseTo(1, 2);
@@ -315,9 +408,14 @@ describe('automation editor workbench in Chromium', () => {
       try {
         renderEditorTab();
         await userEvent.click(
-          await screen.findByRole('button', { name: /^pulls/i }),
+          // The first chart of the file waits for the layout worker.
+          await screen.findByRole(
+            'button',
+            { name: /^pulls/i },
+            { timeout: 15_000 },
+          ),
         );
-        const sheet = await screen.findByRole('dialog', { name: 'pulls' });
+        const sheet = await screen.findByRole('dialog', { name: 'Pulls' });
         const closeActions = within(sheet).getAllByRole('button', {
           name: /^(Close|Schließen|Fermer)$/,
         });
@@ -358,11 +456,8 @@ describe('automation editor workbench in Chromium', () => {
       expect(bounds.bottom).toBeLessThanOrEqual(
         strip.getBoundingClientRect().bottom,
       );
-      expect(
-        screen
-          .getByRole('group', { name: 'Automation canvas' })
-          .contains(picker),
-      ).toBe(false);
+      // Narrower than 24rem the List view stands in for the chart.
+      expect(canvasView().contains(picker)).toBe(false);
       await userEvent.click(picker);
       const history = await screen.findByRole('dialog', { name: 'Versions' });
       expect(history.getBoundingClientRect().left).toBeGreaterThanOrEqual(0);
@@ -414,7 +509,7 @@ describe('automation editor workbench in Chromium', () => {
       await screen.findByText('General settings');
       await userEvent.click(screen.getByRole('button', { name: 'Version' }));
       await userEvent.click(await screen.findByRole('radio', { name: /^v1/ }));
-      await screen.findByRole('group', { name: 'Automation canvas' });
+      await vi.waitFor(() => canvasView());
       expect(screen.getByRole('button', { name: 'Version' })).toHaveTextContent(
         'v1',
       );
@@ -519,7 +614,7 @@ describe('automation editor workbench in Chromium', () => {
     expect(canvasBox.width).toBeCloseTo(canvasBoxBefore.width, 0);
     expect(canvasBox.height).toBeCloseTo(canvasBoxBefore.height, 0);
     expect(pageScroll.scrollHeight).toBe(pageScroll.clientHeight);
-    expect(screen.queryByRole('region', { name: 'pulls' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Pulls' })).toBeNull();
 
     // The fields — and the document's Save/Discard — live in a sheet over
     // the canvas instead, not the side panel and not the canvas's own
@@ -573,12 +668,12 @@ describe('automation editor workbench in Chromium', () => {
     expect(canvasBox.left).toBeCloseTo(frame.left, 0);
     expect(canvasBox.top).toBeCloseTo(strip.getBoundingClientRect().bottom, 0);
     expect(canvasBox.right).toBeCloseTo(frame.left + pageScroll.clientWidth, 0);
-    expect(screen.queryByRole('region', { name: 'pulls' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Pulls' })).toBeNull();
 
     // A picked node opens the inspector: it ends at the page's right and
     // bottom edges, and meets the canvas at its border with no gutter.
     await selectNode('pulls');
-    const inspector = screen.getByRole('region', { name: 'pulls' });
+    const inspector = screen.getByRole('region', { name: 'Pulls' });
     canvasBox = canvas.getBoundingClientRect();
     const inspectorBox = inspector.getBoundingClientRect();
     expect(inspectorBox.right).toBeCloseTo(
@@ -600,18 +695,44 @@ describe('automation editor workbench in Chromium', () => {
   it('pans a picked box back into view when the inspector narrows the canvas', async () => {
     await page.viewport(1280, 800);
     const { nodes } = automation;
-    const { positions } = automation.ui;
-    // A box fitted against the canvas's right edge: the inspector's column
-    // opens right over where it was drawn.
+    // Six nodes that read nothing make the chart as wide as the canvas
+    // once it is fitted: the right-most box sits against the canvas's
+    // right edge, where the inspector's column opens.
     automation.nodes = [
       ...nodes,
-      { id: 'archive', type: 'transform', code: 'return {};' },
+      ...['archive', 'backup', 'cleanup', 'digest', 'export'].map((id) => ({
+        id,
+        type: 'transform',
+        code: 'return {};',
+      })),
     ];
-    automation.ui.positions = { ...positions, archive: { x: 1600, y: 0 } };
     try {
       renderEditorTab();
       const canvas = await expectWholeCanvas();
-      const box = await screen.findByRole('button', { name: /^archive/i });
+      const roots = [
+        'pulls',
+        'archive',
+        'backup',
+        'cleanup',
+        'digest',
+        'export',
+      ];
+      const boxes = await Promise.all(
+        roots.map((id) =>
+          screen.findByRole('button', { name: new RegExp(`^${id}`, 'i') }),
+        ),
+      );
+      const box = boxes.reduce((right, candidate) =>
+        candidate.getBoundingClientRect().right >
+        right.getBoundingClientRect().right
+          ? candidate
+          : right,
+      );
+      // The inspector's column is 22rem wide.
+      const inspectorWidth = 22 * 16;
+      expect(box.getBoundingClientRect().right).toBeGreaterThan(
+        canvas.getBoundingClientRect().right - inspectorWidth,
+      );
       await userEvent.click(box);
       await screen.findByRole('textbox', { name: 'Code' });
       await expect
@@ -625,21 +746,491 @@ describe('automation editor workbench in Chromium', () => {
       // frame before the 200ms pan ends: measure where the view comes to rest.
       await viewportAtRest(canvas);
 
-      // Closing hands the width back without moving the graph: focus returns
-      // to the box, which is already in sight.
-      const settled = box.getBoundingClientRect();
+      // Closing hands the width back: focus returns to the box, and the
+      // view — still the canvas's own fit, nobody moved it — follows the
+      // canvas back to its full width with the box in sight.
       await userEvent.keyboard('{Escape}');
       await expect.poll(() => document.activeElement).toBe(box);
-      // A pan that must not come has no event to await: the pause gives one
-      // time to show. A runner too slow to draw it in time can only miss it,
-      // never fail a graph that holds still.
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await viewportAtRest(canvas);
+      const frame = canvas.getBoundingClientRect();
       const after = box.getBoundingClientRect();
-      expect(after.left).toBeCloseTo(settled.left, 0);
-      expect(after.top).toBeCloseTo(settled.top, 0);
+      expect(after.left).toBeGreaterThanOrEqual(frame.left - 1);
+      expect(after.right).toBeLessThanOrEqual(frame.right + 1);
     } finally {
       automation.nodes = nodes;
-      automation.ui.positions = positions;
     }
+  });
+
+  it('opens Problems under the canvas column on a desktop and goes to the offending text', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Problems: 1 error' }),
+    );
+    const dock = await screen.findByRole('region', { name: 'Problems' });
+    // The dock takes part of the canvas column, never the whole canvas: the
+    // zoom cluster above it stays drawn.
+    await expectWholeCanvas();
+    const canvas = screen.getByRole('group', { name: 'Automation canvas' });
+    expect(dock.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      canvas.getBoundingClientRect().bottom - 1,
+    );
+    const row = within(dock).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    await userEvent.keyboard('{Enter}');
+
+    const code = await screen.findByRole('textbox', { name: 'Code' });
+    // The code editor selects exactly the offending characters.
+    await vi.waitFor(() => expect(code).toHaveFocus());
+    await vi.waitFor(() =>
+      expect(document.getSelection()?.toString()).toBe('return'),
+    );
+    // The inspector opened beside the canvas, and the dock stays open.
+    expect(screen.getByRole('region', { name: 'Problems' })).toBeVisible();
+    const box = screen.getByRole('button', { name: /^diff/i });
+    expect(box).toHaveAccessibleName(/\(1 error\)$/);
+  });
+
+  it('lists Problems in a sheet on a tablet and hands the reader to the node sheet', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(900, 800);
+    renderEditorTab();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Problems: 1 error' }),
+    );
+    const sheet = await screen.findByRole('dialog', { name: 'Problems' });
+    const row = within(sheet).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    await userEvent.keyboard('{Enter}');
+
+    const nodeSheet = await screen.findByRole('dialog', { name: 'Diff' });
+    const code = await within(nodeSheet).findByRole('textbox', {
+      name: 'Code',
+    });
+    await vi.waitFor(() => expect(code).toHaveFocus());
+    await vi.waitFor(() =>
+      expect(document.getSelection()?.toString()).toBe('return'),
+    );
+    expect(screen.queryByRole('dialog', { name: 'Problems' })).toBeNull();
+  });
+
+  it.each(['light', 'dark'])(
+    'keeps the Problems dock, the node marks and the field messages readable in %s',
+    async (theme) => {
+      check.errors = [CODE_PROBLEM];
+      check.warnings = [INPUT_WARNING];
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      await page.viewport(1280, 800);
+      renderEditorTab();
+      await userEvent.click(
+        await screen.findByRole('button', {
+          name: 'Problems: 1 error and 1 warning',
+        }),
+      );
+      const dock = await screen.findByRole('region', { name: 'Problems' });
+      await selectNode('summary');
+      const input = screen.getByRole('textbox', { name: 'Input' });
+      // A warning describes the field without marking it invalid.
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(input).toHaveAccessibleDescription(/Warning:/);
+      // The boxes carry both marks: the one-digit chips are too short for
+      // axe to judge, so @tale/ui's severity test measures their colours.
+      expect(
+        screen.getByRole('button', { name: /^diff/i }),
+      ).toHaveAccessibleName(/\(1 error\)$/);
+      expect(
+        screen.getByRole('button', { name: /^summary/i }),
+      ).toHaveAccessibleName(/\(1 warning\)$/);
+      // Let the dock finish fading in: axe reads colours at rest.
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const inspector = screen.getByRole('region', { name: 'Summary' });
+      for (const region of [dock, inspector]) {
+        const result = await axe.run(region, {
+          runOnly: [
+            'color-contrast',
+            'aria-allowed-attr',
+            'aria-valid-attr-value',
+            'button-name',
+            'list',
+            'listitem',
+          ],
+        });
+        expect(result.violations).toEqual([]);
+        expect(result.passes.some((rule) => rule.id === 'color-contrast')).toBe(
+          true,
+        );
+      }
+    },
+  );
+
+  it('reopens the Problems sheet on every problem, so focus never stays behind it', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(900, 800);
+    renderEditorTab();
+    const button = await screen.findByRole('button', {
+      name: 'Problems: 1 error',
+    });
+    await userEvent.click(button);
+    const sheet = await screen.findByRole('dialog', { name: 'Problems' });
+    await userEvent.click(
+      within(sheet).getByRole('radio', { name: 'Warnings' }),
+    );
+    await vi.waitFor(() =>
+      expect(within(sheet).getByText('No warnings')).toBeVisible(),
+    );
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Problems' })).toBeNull(),
+    );
+
+    await userEvent.click(button);
+    const reopened = await screen.findByRole('dialog', { name: 'Problems' });
+    expect(
+      within(reopened).getByRole('radio', { name: 'All' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    const row = within(reopened).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it('takes the reader from the phone node sheet to the problems that hold Save', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(390, 844);
+    renderEditorTab();
+    // The error is in "diff"; the reader edits "summary".
+    await selectNode('summary');
+    const nodeSheet = await screen.findByRole('dialog');
+    await userEvent.type(
+      within(nodeSheet).getByRole('textbox', { name: 'Code' }),
+      ' ',
+    );
+    expect(within(nodeSheet).getByText('Fix 1 error to save')).toBeVisible();
+    await userEvent.click(
+      within(nodeSheet).getByRole('button', { name: 'Show problems' }),
+    );
+
+    const sheet = await screen.findByRole('dialog', { name: 'Problems' });
+    const row = within(sheet).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    expect(screen.queryByRole('dialog', { name: 'Summary' })).toBeNull();
+  });
+
+  it('says why Save waits in a visible line on a phone', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(390, 844);
+    renderEditorTab();
+    await selectNode('diff');
+    const sheet = await screen.findByRole('dialog');
+    await userEvent.type(
+      within(sheet).getByRole('textbox', { name: 'Code' }),
+      ' ',
+    );
+    const reason = within(sheet).getByText('Fix 1 error to save');
+    expect(reason).toBeVisible();
+    const save = within(sheet).getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
+    expect(save).toHaveAccessibleDescription('Fix 1 error to save');
+  });
+});
+
+describe('automation editor paths in Chromium', () => {
+  /** Summary runs only when the diff has text: two ways a run can go. */
+  async function withCondition(test: () => Promise<void>) {
+    const { nodes } = automation;
+    automation.nodes = nodes.map((node) =>
+      node.id === 'summary'
+        ? { ...node, when: '{{ nodes.diff.output.text !== "" }}' }
+        : node,
+    );
+    try {
+      await test();
+    } finally {
+      automation.nodes = nodes;
+    }
+  }
+
+  it('lists the paths in a panel under the view switch that stays open while a node is picked', async () =>
+    withCondition(async () => {
+      await page.viewport(1280, 800);
+      renderEditorTab();
+      const canvas = await expectWholeCanvas();
+      const button = screen.getByRole('button', { name: '2 paths' });
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+      await userEvent.click(button);
+      const panel = await screen.findByRole('region', {
+        name: 'Possible paths',
+      });
+      expect(button).toHaveAttribute('aria-expanded', 'true');
+      expect(button).toHaveAttribute('aria-controls', panel.id);
+      // Under the view switch, inside the canvas's top-left corner.
+      const viewSwitch = screen.getByRole('radiogroup', { name: 'View' });
+      const panelBox = panel.getBoundingClientRect();
+      const canvasBox = canvas.getBoundingClientRect();
+      expect(panelBox.top).toBeGreaterThanOrEqual(
+        viewSwitch.getBoundingClientRect().bottom,
+      );
+      expect(panelBox.left).toBeGreaterThanOrEqual(canvasBox.left);
+      expect(panelBox.bottom).toBeLessThanOrEqual(canvasBox.bottom);
+
+      const row = within(panel).getByRole('button', { name: /^Path 2/ });
+      await userEvent.click(row);
+      expect(row).toHaveAttribute('aria-pressed', 'true');
+      // Not a popover: picking a node leaves the list open. (The panel
+      // names Pulls too, as a node that ends a run when it fails: the box
+      // is picked by its own mark.)
+      const pulls = canvas.querySelector<HTMLElement>(
+        '[data-flow-node="pulls"]',
+      );
+      if (pulls === null) throw new Error('no Pulls box');
+      await userEvent.click(pulls);
+      await screen.findByRole('textbox', { name: 'Code' });
+      expect(
+        screen.getByRole('region', { name: 'Possible paths' }),
+      ).toBeVisible();
+      expect(row).toHaveAttribute('aria-pressed', 'true');
+
+      await userEvent.click(
+        within(panel).getByRole('button', { name: 'Close' }),
+      );
+      await vi.waitFor(() =>
+        expect(
+          screen.queryByRole('region', { name: 'Possible paths' }),
+        ).toBeNull(),
+      );
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+    }));
+
+  it('opens the List view on a 375px phone, pins a path from a sheet and leaves a pill to undo it', async () =>
+    withCondition(async () => {
+      await page.viewport(375, 812);
+      renderEditorTab();
+      // Narrower than 24rem, the chart is too small to read: the List view
+      // says the same, and the view switch says which one is shown.
+      await screen.findByRole('list', { name: 'Automation canvas' });
+      expect(screen.getByRole('radio', { name: 'List' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      );
+      await userEvent.click(screen.getByRole('button', { name: '2 paths' }));
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Possible paths',
+      });
+      await userEvent.click(
+        within(sheet).getByRole('button', { name: /^Path 2/ }),
+      );
+      await vi.waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Possible paths' }),
+        ).toBeNull(),
+      );
+      const pill = await screen.findByText(/^Path 2 · /);
+      expect(pill).toBeVisible();
+      await userEvent.click(screen.getByRole('button', { name: 'Show all' }));
+      await vi.waitFor(() =>
+        expect(screen.queryByText(/^Path 2 · /)).toBeNull(),
+      );
+    }));
+
+  it.each([375, 390])(
+    'keeps every canvas verb at least 24px on a %ipx phone',
+    async (width) =>
+      withCondition(async () => {
+        await page.viewport(width, 812);
+        renderEditorTab();
+        await screen.findByRole('button', { name: 'Test run' });
+        const verbs = [
+          screen.getByRole('radio', { name: 'Canvas' }),
+          screen.getByRole('radio', { name: 'List' }),
+          screen.getByRole('radio', { name: 'Source' }),
+          screen.getByRole('button', { name: '2 paths' }),
+          screen.getByRole('button', { name: 'Edit with your coding agent' }),
+          screen.getByRole('button', { name: 'Test run' }),
+        ];
+        for (const verb of verbs) {
+          const box = verb.getBoundingClientRect();
+          expect(box.width, verb.textContent ?? '').toBeGreaterThanOrEqual(24);
+          expect(box.height, verb.textContent ?? '').toBeGreaterThanOrEqual(24);
+          expect(box.right).toBeLessThanOrEqual(width);
+        }
+      }),
+  );
+});
+
+describe('automation editor code fields, Start, End and Source in Chromium', () => {
+  const MOD = navigator.platform.toLowerCase().includes('mac')
+    ? 'Meta'
+    : 'Control';
+
+  /** The open completion list, once it takes keys (CodeMirror ignores
+   *  them for its first 75 ms). */
+  async function listbox(): Promise<HTMLElement> {
+    const list = await screen.findByRole('listbox', {}, { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return list;
+  }
+
+  function optionLabels(list: HTMLElement): (string | null | undefined)[] {
+    return [...list.querySelectorAll('[role="option"]')].map(
+      (option) => option.querySelector('.cm-completionLabel')?.textContent,
+    );
+  }
+
+  /** A box on the canvas by its graph id, clicked by a real pointer. */
+  async function clickBox(id: string) {
+    const canvas = await expectLaidOut();
+    const box = canvas.querySelector<HTMLElement>(
+      `[data-flow-node="${CSS.escape(id)}"]`,
+    );
+    if (box === null) throw new Error(`no ${id} box`);
+    await userEvent.click(box);
+  }
+
+  it('completes only the nodes that run before a code field, and Expand brings an edit back', async () => {
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await selectNode('summary');
+    const code = await screen.findByRole(
+      'textbox',
+      { name: 'Code' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(code);
+    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
+    const list = await listbox();
+    await vi.waitFor(() =>
+      expect(optionLabels(list)).toEqual(['pulls', 'diff']),
+    );
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+
+    const frame = code.closest<HTMLElement>('[data-code-editor]');
+    if (frame === null) throw new Error('no code editor frame');
+    await userEvent.click(
+      within(frame).getByRole('button', { name: 'Expand editor' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    const big = await within(dialog).findByRole(
+      'textbox',
+      {},
+      { timeout: 5000 },
+    );
+    await vi.waitFor(() => expect(big).toHaveFocus());
+    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}diff`);
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Back to the field' }),
+    );
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await vi.waitFor(() => expect(code).toHaveFocus());
+    expect(code.textContent).toContain('nodes.diff');
+    // The edit is the draft's: Save can act on it.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('closes the suggestions, then arms leaving, then the node sheet on a phone', async () => {
+    await page.viewport(390, 844);
+    renderEditorTab();
+    await selectNode('diff');
+    const sheet = await screen.findByRole('dialog', { name: 'Diff' });
+    const code = await within(sheet).findByRole(
+      'textbox',
+      { name: 'Code' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(code);
+    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
+    const list = await listbox();
+    await vi.waitFor(() => expect(optionLabels(list)).toEqual(['pulls']));
+    // The list sits inside the sheet.
+    const sheetBox = sheet.getBoundingClientRect();
+    expect(list.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      sheetBox.bottom + 1,
+    );
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+    expect(screen.getByRole('dialog', { name: 'Diff' })).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: 'Diff' })).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Diff' })).toBeNull(),
+    );
+  });
+
+  it('edits the run input on Start and the output on End, and saves both', async () => {
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await clickBox('__start');
+    const schema = await screen.findByRole(
+      'textbox',
+      { name: 'Input schema' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(schema);
+    await userEvent.keyboard(`{${MOD}>}a{/${MOD}}{{}`);
+    await vi.waitFor(() => expect(schema.textContent).toBe('{}'));
+
+    await clickBox('__end');
+    const output = await screen.findByRole(
+      'textbox',
+      { name: 'Output' },
+      { timeout: 10_000 },
+    );
+    await userEvent.click(output);
+    await userEvent.keyboard(`{${MOD}>}a{/${MOD}}42`);
+    await vi.waitFor(() => expect(output.textContent).toBe('42'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Save version' }),
+    );
+    await vi.waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
+    const [request] = saved.mock.calls[0] ?? [];
+    expect(request).toMatchObject({
+      automation: { inputs: {}, output: 42 },
+    });
+  });
+
+  it('goes to a problem in the document on its line in the Source view', async () => {
+    check.errors = [
+      {
+        id: 'error|NAME_X|/name|',
+        level: 'error',
+        code: 'NAME_X',
+        message: 'the name is odd',
+        at: { pointer: '/name' },
+      },
+    ];
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Problems: 1 error' }),
+    );
+    const dock = await screen.findByRole('region', { name: 'Problems' });
+    const row = within(dock).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    await userEvent.keyboard('{Enter}');
+
+    const source = await screen.findByRole(
+      'textbox',
+      { name: 'Source of this automation (YAML)' },
+      { timeout: 10_000 },
+    );
+    expect(screen.getByRole('radio', { name: 'Source' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await vi.waitFor(() => expect(source).toHaveFocus());
+    await vi.waitFor(() =>
+      expect(document.getSelection()?.toString()).toBe('pr-digest'),
+    );
+    expect(source).toHaveAttribute('aria-readonly', 'true');
+    // Line numbers, and the problem marked where it is.
+    const editor = source.closest('.cm-editor');
+    expect(editor?.querySelector('.cm-lineNumbers')).not.toBeNull();
+    await vi.waitFor(() =>
+      expect(editor?.querySelector('.cm-diagnostic-error')?.textContent).toBe(
+        'pr-digest',
+      ),
+    );
   });
 });

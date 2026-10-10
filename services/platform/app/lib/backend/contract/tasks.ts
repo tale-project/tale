@@ -1,4 +1,5 @@
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
+import type { ExternalStatusRequestInput } from '@tale/shared/schemas/task-external-status';
 import type {
   ProjectTaskReviewer,
   SetTaskReviewerInput,
@@ -6,7 +7,10 @@ import type {
   TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 
+import type { TaskStatusSnapshot } from '@/backend/domains/tasks/external-status';
 import type { PendingTaskReview } from '@/backend/domains/tasks/reviews';
+import type { TaskOpsRun } from '@/backend/domains/tasks/service';
+import type { AgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
 /**
@@ -74,7 +78,31 @@ export interface TaskPendingReviewIndicator {
   reviewer?: TaskReviewRecipient | null;
 }
 
+/** One live agent run on the board's ops read: running, queued, or waiting
+ * for a worker with its reason (`TaskOpsRun`). */
+export type TaskOpsRunIndicator = TaskOpsRun;
+
+/** The board and Home only read task metadata. Full descriptions and files
+ * are loaded by the task detail read before its editor mounts. */
+export type TaskBoardSummary = Omit<
+  NonNullable<TasksContract['tasks/queries:getTask']['returns']>['task'],
+  'description' | 'attachments' | 'outputs' | 'externalIssue'
+>;
+
 export interface TasksContract {
+  'tasks/queries:getExternalStatus': {
+    kind: 'query';
+    args: { organizationId: string; taskId: string };
+    returns: TaskStatusSnapshot;
+  };
+  'tasks/mutations:requestExternalStatus': {
+    kind: 'mutation';
+    args: ExternalStatusRequestInput & {
+      organizationId: string;
+      taskId: string;
+    };
+    returns: TaskStatusSnapshot;
+  };
   'tasks/queries:getTaskReviewer': {
     kind: 'query';
     args: { organizationId: string; taskId: string };
@@ -332,6 +360,8 @@ export interface TasksContract {
         failureCode?: string;
         retryPending?: boolean;
         waitingForCapacity?: boolean;
+        /** Why it waits, while it waits and the park kept a reason. */
+        waitingReason?: AgentRunWaitingReason;
       };
     }>;
   };
@@ -348,6 +378,11 @@ export interface TasksContract {
       autoRetryAttempt?: number;
       trigger?: 'manual' | 'mention' | 'auto_retry';
       waitingForCapacity?: boolean;
+      /** Why it waits, while it waits and the park kept a reason. */
+      waitingReason?: AgentRunWaitingReason;
+      /** The worker it works in, while it holds one: its number among its
+       * agent's workers (or the member's, for a run a member started). */
+      worker?: number;
       resultText?: string;
       error?: string;
       /** The producer's classification of a failed run; the card words its
@@ -526,6 +561,12 @@ export interface TasksContract {
       runningTaskIds: string[];
       askingTaskIds: string[];
       pendingReviews: TaskPendingReviewIndicator[];
+      /** Live agent runs, running first, then queued ones oldest first; at
+       * most 50. */
+      runs: TaskOpsRunIndicator[];
+      /** More live runs exist than `runs` lists: a task missing from it may
+       * still have one, so read it as unknown, never as idle. */
+      runsTruncated: boolean;
     };
   };
   'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects': {
@@ -535,6 +576,8 @@ export interface TasksContract {
       runningTaskIds: string[];
       askingTaskIds: never[];
       pendingReviews: TaskPendingReviewIndicator[];
+      runs: TaskOpsRunIndicator[];
+      runsTruncated: boolean;
     };
   };
   'tasks/queries:listProjectDependencies': {
@@ -653,6 +696,12 @@ export interface TasksContract {
       status: 'running' | 'failed' | 'completed' | 'timed_out';
       error: undefined | string;
       failureCode: undefined | string;
+      /** Queued while no worker or no room is free for it. */
+      waitingForCapacity?: boolean;
+      /** Why it waits, while it waits and the park kept a reason. */
+      waitingReason?: AgentRunWaitingReason;
+      /** The worker it works in, while it holds one. */
+      worker?: number;
       startedAt: number;
       durationMs: undefined | number;
       costCents: number;
@@ -833,78 +882,7 @@ export interface TasksContract {
       projectId: string;
     };
     returns: {
-      tasks: Array<
-        {
-          number?: number;
-          attachments?: Array<{
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-          }>;
-          status:
-            | 'cancelled'
-            | 'done'
-            | 'in_review'
-            | 'backlog'
-            | 'todo'
-            | 'in_progress';
-          rank: string;
-          organizationId: string;
-          projectId: string;
-          createdBy: string;
-          createdAt: number;
-          _creationTime: number;
-          updatedAt: number;
-          claimedAt?: number;
-          statusChangedAt?: number;
-          title: string;
-          threadId?: string;
-          priority?: 'p0' | 'p1' | 'p2' | 'p3';
-          dueDate?: number;
-          description?: string;
-          completedAt?: number;
-          externalId?: string;
-          reviewerUserId?: string;
-          reviewerAgentId?: string;
-          archivedAt?: number;
-          createdByType: 'user' | 'agent' | 'app';
-          outputs?: Array<{
-            runId: string;
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-            producedAt: number;
-          }>;
-          labelIds?: string[];
-          assigneeType?: 'user' | 'agent' | 'app';
-          assigneeId?: string;
-          parentTaskId?: string;
-          commentCount?: number;
-          externalSystem?: string;
-          externalUrl?: string;
-          externalIssue?: TaskExternalIssue;
-          startDate?: number;
-          startNotifiedAt?: number;
-          repeat?: TaskRepeat;
-          repeatNextTaskId?: string;
-          repeatContinued?: boolean;
-          slaLevel?: number;
-          slaLevelAt?: number;
-          agentRunsPausedAt?: number;
-          agentRunsPausedReason?: string;
-          totalCostCents?: number;
-          agentRunCount?: number;
-          lastAgentRunAt?: number;
-          discussionThreadId?: string;
-          sourceDiscussionThreadId?: string;
-          _id: string;
-        } & { labels?: Array<{ id?: string; name: string; color: string }> } & {
-          folderExists: boolean;
-          hasFiles: boolean;
-        }
-      >;
+      tasks: TaskBoardSummary[];
       truncated: boolean;
       /** An editor of the (active) project: may work every task on it. */
       canEdit: boolean;
@@ -934,79 +912,7 @@ export interface TasksContract {
       organizationId: string;
     };
     returns: {
-      tasks: Array<
-        {
-          number?: number;
-          attachments?: Array<{
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-          }>;
-          status:
-            | 'cancelled'
-            | 'done'
-            | 'in_review'
-            | 'backlog'
-            | 'todo'
-            | 'in_progress';
-          rank: string;
-          organizationId: string;
-          projectId: string;
-          createdBy: string;
-          createdAt: number;
-          _creationTime: number;
-          updatedAt: number;
-          claimedAt?: number;
-          statusChangedAt?: number;
-          title: string;
-          threadId?: string;
-          priority?: 'p0' | 'p1' | 'p2' | 'p3';
-          dueDate?: number;
-          description?: string;
-          completedAt?: number;
-          externalId?: string;
-          reviewerUserId?: string;
-          reviewerAgentId?: string;
-          archivedAt?: number;
-          createdByType: 'user' | 'agent' | 'app';
-          outputs?: Array<{
-            runId: string;
-            fileId: string;
-            fileName: string;
-            fileType: string;
-            fileSize: number;
-            producedAt: number;
-          }>;
-          labelIds?: string[];
-          assigneeType?: 'user' | 'agent' | 'app';
-          assigneeId?: string;
-          parentTaskId?: string;
-          commentCount?: number;
-          externalSystem?: string;
-          externalUrl?: string;
-          externalIssue?: TaskExternalIssue;
-          startDate?: number;
-          startNotifiedAt?: number;
-          repeat?: TaskRepeat;
-          repeatNextTaskId?: string;
-          repeatContinued?: boolean;
-          slaLevel?: number;
-          slaLevelAt?: number;
-          agentRunsPausedAt?: number;
-          agentRunsPausedReason?: string;
-          totalCostCents?: number;
-          agentRunCount?: number;
-          lastAgentRunAt?: number;
-          discussionThreadId?: string;
-          sourceDiscussionThreadId?: string;
-          _id: string;
-        } & { labels?: Array<{ id?: string; name: string; color: string }> } & {
-          projectKey?: string;
-          folderExists: boolean;
-          hasFiles: boolean;
-        }
-      >;
+      tasks: Array<TaskBoardSummary & { projectKey?: string }>;
       truncated: boolean;
       /** Role-level: an editor role works every task on the board. */
       canEdit: boolean;

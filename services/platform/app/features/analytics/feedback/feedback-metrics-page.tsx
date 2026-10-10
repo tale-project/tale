@@ -6,6 +6,7 @@ import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
 import { HStack } from '@tale/ui/layout';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import {
   seriesToLegend,
   TrendBarChart,
@@ -20,7 +21,6 @@ import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
 import { Select } from '@tale/ui/select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -75,6 +75,9 @@ interface FeedbackMetricsPageViewProps {
   recentLoading: boolean;
   recentHasMore: boolean;
   recentLoadingMore: boolean;
+  recentError: Error | null;
+  onRetryRecent: () => void;
+  recentRetrying: boolean;
   onLoadMoreRecent: () => void;
   /** Loaded-and-empty for the active period with no filters. */
   isPeriodEmpty: boolean;
@@ -110,6 +113,9 @@ function FeedbackMetricsPageView({
   recentLoading,
   recentHasMore,
   recentLoadingMore,
+  recentError,
+  onRetryRecent,
+  recentRetrying,
   onLoadMoreRecent,
   isPeriodEmpty,
   isFilteredZero,
@@ -294,6 +300,9 @@ function FeedbackMetricsPageView({
         isLoading={recentLoading}
         hasMore={recentHasMore}
         isLoadingMore={recentLoadingMore}
+        error={recentError}
+        retry={onRetryRecent}
+        isRetrying={recentRetrying}
         onLoadMore={onLoadMoreRecent}
         headerActions={
           <HStack gap={2} className="flex-wrap">
@@ -454,6 +463,9 @@ export function FeedbackMetricsPage({
         recentLoading={recent.status === 'LoadingFirstPage'}
         recentHasMore={recent.status === 'CanLoadMore'}
         recentLoadingMore={recent.status === 'LoadingMore'}
+        recentError={recent.error}
+        onRetryRecent={recent.retry}
+        recentRetrying={recent.isRetrying}
         onLoadMoreRecent={() => recent.loadMore(DEFAULT_LIST_PAGE_SIZE)}
         isPeriodEmpty={isPeriodEmpty}
         isFilteredZero={isFilteredZero}

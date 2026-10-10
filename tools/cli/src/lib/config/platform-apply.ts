@@ -1,3 +1,11 @@
+import {
+  resourceConverged,
+  resourceConvergedWithHash,
+  resourceId,
+  sameConfiguration,
+  type PlatformConfiguration,
+  type PlatformResource,
+} from '@tale/shared/config/platform-resources';
 import { z } from 'zod';
 
 import { CliError, preconditionError } from '../../utils/fail';
@@ -6,13 +14,7 @@ import type { PlatformConfigurationClient } from './platform-client';
 import {
   configurationPlanSchema,
   parsePlatformConfiguration,
-  resourceConverged,
-  resourceConvergedWithHash,
-  resourceId,
-  sameConfiguration,
   type ConfigurationPlan,
-  type PlatformConfiguration,
-  type PlatformResource,
 } from './platform-model';
 import {
   checkResourceChange,
@@ -93,6 +95,9 @@ function ordered(configuration: PlatformConfiguration) {
     if (resource.kind === 'provider-credential')
       return resource.config.isDefault ? 2 : 1;
     if (resource.kind === 'deployment') return 4;
+    if (resource.kind === 'automation-definition') return 5;
+    if (resource.kind === 'automation-deployment') return 6;
+    if (resource.kind === 'automation-schedule') return 7;
     return 3;
   };
   return [...configuration.resources].sort(
@@ -279,7 +284,7 @@ export async function applyPlatformConfiguration(
       assertUnchanged(resource, current, plan.resources[index]);
       if (!resourceConverged(resource, current.config)) {
         await checkResourceChange(client, resource, current);
-        await writeResource(client, resource, current);
+        await writeResource(client, resource, current, configuration.resources);
         changed = true;
       }
       const observed = await verifyResource(client, resource);

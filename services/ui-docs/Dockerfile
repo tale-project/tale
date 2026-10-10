@@ -1,7 +1,7 @@
 # Tale UI Docs Dockerfile — Vite SPA + Bun server, mirrors services/docs.
 ARG VERSION=dev
 
-FROM oven/bun:1.3.12 AS bun-bin
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
 
 # ============================================================================
 # Stage 1: workspace deps
@@ -62,7 +62,7 @@ WORKDIR /app/services/ui-docs
 # server.ts (and its `@tale/ui/*` source imports) into a self-contained
 # server.js — the runner stage carries no node_modules, mirroring web/docs.
 RUN bun --bun scripts/build-content.ts \
-    && bun --bun vite build \
+    && bun --bun ../../packages/ui/bin/build-client.ts \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
     && bun --bun scripts/prerender.ts \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo \
@@ -72,19 +72,13 @@ WORKDIR /app
 # ============================================================================
 # Stage 3: runtime
 # ============================================================================
-FROM oven/bun:1.3.12-slim AS runner
-
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-ui-docs" \
-      org.opencontainers.image.description="Tale design-system documentation site (ui.tale.dev)"
+FROM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS runner
 
 ARG LOCALE_COOKIE_DOMAIN=
 # Re-declare UI_DOCS_BASE_URL here so the runner stage can promote it to ENV;
 # the server uses it as the public mount prefix for locale redirects.
 ARG UI_DOCS_BASE_URL=/
 ENV NODE_ENV=production \
-    TALE_VERSION=${VERSION} \
     PORT=3003 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
@@ -104,6 +98,13 @@ COPY --from=builder --chown=app:app /app/services/ui-docs/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/ui-docs/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/ui-docs/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-ui-docs" \
+      org.opencontainers.image.description="Tale design-system documentation site (ui.tale.dev)"
+ENV TALE_VERSION=${VERSION}
 
 USER app
 EXPOSE 3003

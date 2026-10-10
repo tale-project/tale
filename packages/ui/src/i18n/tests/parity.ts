@@ -1,11 +1,16 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
 import { describe, expect, it } from 'vitest';
-import { parse as parseYaml } from 'yaml';
+
+import {
+  catalogTopics,
+  listCatalogLocales,
+  readCatalog,
+} from './internals/catalog';
 
 interface MessagesParityConfig {
-  /** Absolute path to the directory containing locale JSON files. */
+  /**
+   * Absolute path to the directory holding the locale catalogs, each a
+   * `<locale>.yml` file or a `<locale>/` directory of topic files.
+   */
   messagesDir: string;
   /** Base locale that all primary locales must match. Defaults to `'en'`. */
   baseLocale?: string;
@@ -24,23 +29,13 @@ function isMessages(v: unknown): v is Messages {
 }
 
 function loadLocale(messagesDir: string, locale: string): Messages {
-  const file = path.join(messagesDir, `${locale}.yml`);
-  let raw: unknown;
-  try {
-    raw = parseYaml(fs.readFileSync(file, 'utf8'));
-  } catch (err) {
-    const cause = err instanceof Error ? err.message : String(err);
+  const catalog = readCatalog(messagesDir, locale);
+  if (catalog === undefined) {
     throw new Error(
-      `Failed to load locale "${locale}" from ${file} (messagesDir=${messagesDir}): ${cause}`,
-      { cause: err },
+      `No catalog for locale "${locale}" in ${messagesDir} (neither ${locale}.yml nor ${locale}/).`,
     );
   }
-  if (!isMessages(raw)) {
-    throw new Error(
-      `Expected JSON object at top level of ${file}, got ${Array.isArray(raw) ? 'array' : typeof raw}.`,
-    );
-  }
-  return raw;
+  return catalog;
 }
 
 function flatten(
@@ -77,20 +72,24 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
 
   const primary: string[] = [];
   const regional: string[] = [];
-  for (const file of fs.readdirSync(messagesDir)) {
-    if (!file.endsWith('.yml') || sharedSet.has(file)) continue;
-    const locale = file.slice(0, -'.yml'.length);
+  for (const locale of listCatalogLocales(messagesDir, [...sharedSet])) {
     if (locale === baseLocale) continue;
     (locale.includes('-') ? regional : primary).push(locale);
   }
-  primary.sort();
-  regional.sort();
 
   const baseKeys = flatten(loadLocale(messagesDir, baseLocale));
+  // A catalog split into topic files is split the same way in every locale.
+  const baseTopics = catalogTopics(messagesDir, baseLocale);
 
   describe('i18n messages parity', () => {
     describe.for(primary)('primary locale %s', (locale) => {
       const keys = flatten(loadLocale(messagesDir, locale));
+
+      if (baseTopics.length > 0) {
+        it(`has the topic files of ${baseLocale}/, and no others`, () => {
+          expect(catalogTopics(messagesDir, locale)).toEqual(baseTopics);
+        });
+      }
 
       it(`has every key from ${baseLocale}.yml`, () => {
         const missing = [...baseKeys].filter((k) => !keys.has(k));
@@ -111,6 +110,19 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
 
     describe.for(regional)('regional override %s', (locale) => {
       const keys = flatten(loadLocale(messagesDir, locale));
+
+      if (baseTopics.length > 0) {
+        it(`overrides only topics ${baseLocale}/ has, one file each`, () => {
+          const topics = catalogTopics(messagesDir, locale);
+          expect(
+            topics.length,
+            `${locale} is not split into topic files`,
+          ).toBeGreaterThan(0);
+          expect(topics.filter((topic) => !baseTopics.includes(topic))).toEqual(
+            [],
+          );
+        });
+      }
 
       it(`has no extra keys not present in ${baseLocale}.yml`, () => {
         const extra = [...keys].filter((k) => !baseKeys.has(k));

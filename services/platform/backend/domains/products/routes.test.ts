@@ -197,7 +197,7 @@ describe('POST /products — a refused body names its field', () => {
     );
   });
 
-  it('imports the valid rows and names the row and column of each refused one', async () => {
+  it('imports the valid rows and names the row and column of each refused one [PROD-R5]', async () => {
     bulkCreateProducts.mockResolvedValue({ success: 1, failed: 0, errors: [] });
     const res = await makeApp().request('/bulk?orgId=o1', {
       method: 'POST',
@@ -229,7 +229,7 @@ describe('POST /products — a refused body names its field', () => {
     expect(body.errors[1]?.error).toMatch(/^name: /);
   });
 
-  it('reports a domain refusal at the row index the caller sent', async () => {
+  it('reports a domain refusal at the row index the caller sent [PROD-R5]', async () => {
     bulkCreateProducts.mockResolvedValue({
       success: 0,
       failed: 1,
@@ -255,7 +255,11 @@ describe('POST /products — a refused body names its field', () => {
 
   // The import dialog refuses a longer file before sending it, reading the
   // same constant; this pins the door's half of that agreement.
-  it('takes a file of PRODUCT_IMPORT_ROWS_MAX rows and refuses one more by name', async () => {
+  it('holds an import to 1,000 rows [PROD-R4]', () => {
+    expect(PRODUCT_IMPORT_ROWS_MAX).toBe(1_000);
+  });
+
+  it('takes a file of PRODUCT_IMPORT_ROWS_MAX rows and refuses one more by name [PROD-R4]', async () => {
     bulkCreateProducts.mockClear();
     bulkCreateProducts.mockResolvedValue({ success: 0, failed: 0, errors: [] });
     const send = (count: number) =>
@@ -276,6 +280,43 @@ describe('POST /products — a refused body names its field', () => {
     };
     expect(body.data.issues.map((issue) => issue.path)).toEqual(['products']);
     expect(bulkCreateProducts).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The body the edit dialog sends once the person empties every optional
+ * field (#3615): the door hands each `null` to the update as a clear, so
+ * none is stripped or refused on the way.
+ */
+describe('POST /products/:id — the edit dialog clears its optional fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    updateProduct.mockResolvedValue([]);
+  });
+
+  it('passes every cleared field to the update as null', async () => {
+    const body = {
+      name: 'Audit widget',
+      description: null,
+      imageUrl: null,
+      stock: null,
+      price: null,
+      currency: null,
+      category: null,
+      status: 'active',
+    };
+    const res = await makeApp().request('/p-1?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+    expect(updateProduct).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1' }),
+      'p-1',
+      body,
+    );
   });
 });
 
@@ -312,7 +353,7 @@ describe('DELETE and POST /products/:id — the managed image goes with the row'
     expect(order).toEqual(['commit', 'reclaim']);
   });
 
-  it('answers a legal hold as 409 LEGAL_HOLD_ACTIVE with nothing reclaimed', async () => {
+  it('answers a legal hold as 409 LEGAL_HOLD_ACTIVE with nothing reclaimed [PROD-R13]', async () => {
     const { LegalHoldError } = await import('../legal_holds/service.ts');
     deleteProduct.mockRejectedValue(
       new LegalHoldError('LEGAL_HOLD_ACTIVE', 'held', 409),

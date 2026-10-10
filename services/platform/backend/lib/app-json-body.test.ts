@@ -6,7 +6,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { appErrorHandler } from '../error-reporting.ts';
-import { appJsonBody, INVALID_JSON_MESSAGE } from './app-json-body.ts';
+import {
+  appJsonBody,
+  INVALID_JSON_MESSAGE,
+  readOptionalAppJsonBody,
+} from './app-json-body.ts';
 
 /**
  * The app door's bare `await c.req.json()` — about 127 handlers — answered
@@ -33,6 +37,10 @@ function app(): Hono {
     const body: unknown = await c.req.json().catch(() => ({}));
     return c.json({ received: body });
   });
+  // A handler whose body is optional (`domains/projects/routes.ts`).
+  hono.post('/api/app/projects/:id/duplicate', async (c) =>
+    c.json({ received: await readOptionalAppJsonBody(c) }),
+  );
   // A SyntaxError that is not the body's: still the defect it is.
   hono.post('/api/app/broken', async (c) => {
     await c.req.json();
@@ -80,6 +88,60 @@ describe('appJsonBody', () => {
     },
   );
 
+  it.each([
+    ['a NUL character', '{"status":"do\\u0000ne"}', 'status', 'NUL character'],
+    [
+      'a NUL in a key',
+      '{"st\\u0000atus":"done"}',
+      'st\u0000atus',
+      'NUL character',
+    ],
+  ])(
+    'refuses %s Postgres could not store as 400 invalid body, naming the field',
+    async (_n, body, path, reason) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const res = await post('/api/app/tasks/t1/move', body);
+      expect(res.status).toBe(400);
+      const answer = (await res.json()) as {
+        error: string;
+        data: { issues: { path: string; message: string }[] };
+      };
+      expect(answer.error).toBe('invalid body');
+      expect(answer.data.issues[0]?.path).toBe(path);
+      expect(answer.data.issues[0]?.message).toContain(reason);
+      expect(errors).not.toHaveBeenCalled();
+    },
+  );
+
+  it('stores an unpaired surrogate as U+FFFD, whatever the column', async () => {
+    const res = await post('/api/app/tasks/t1/move', '{"status":"\\ud800"}');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, status: '\uFFFD' });
+  });
+
+  it('mends unpaired surrogates in nested values and keys, keeping key order', async () => {
+    const res = await post(
+      '/api/app/legal-holds/h1/release',
+      '{"first":1,"a\\ud800":["x\\udc00",{"k":"\\ud800y"}],"__proto__":{"p":"\\ud800"},"last":"ok"}',
+    );
+    expect(res.status).toBe(200);
+    const { received } = (await res.json()) as {
+      received: Record<string, unknown>;
+    };
+    expect(Object.keys(received)).toEqual([
+      'first',
+      'a\uFFFD',
+      '__proto__',
+      'last',
+    ]);
+    expect(received['a\uFFFD']).toEqual(['x\uFFFD', { k: '\uFFFDy' }]);
+    expect(
+      Object.getOwnPropertyDescriptor(received, '__proto__')?.value,
+    ).toEqual({
+      p: '\uFFFD',
+    });
+  });
+
   it('parses a valid body exactly as before', async () => {
     const res = await post('/api/app/tasks/t1/move', '{"status":"done"}');
     expect(res.status).toBe(200);
@@ -118,6 +180,77 @@ describe('appJsonBody', () => {
       },
     });
     const res = await hono.request('http://localhost/api/app/upload', {
+      method: 'POST',
+      body,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- duplex is required for stream bodies and missing from the lib type
+      ...({ duplex: 'half' } as unknown as RequestInit),
+    });
+    expect(res.status).toBe(500);
+    expect(seen).toEqual([aborted]);
+  });
+});
+
+describe('readOptionalAppJsonBody', () => {
+  it.each([
+    ['no body', ''],
+    ['only whitespace', ' \r\n\t'],
+  ])('reads %s as an empty object', async (_n, body) => {
+    const res = await post('/api/app/projects/p1/duplicate', body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: {} });
+  });
+
+  it('parses a body that is sent', async () => {
+    const res = await post(
+      '/api/app/projects/p1/duplicate',
+      ' {"name":"Copy"} ',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: { name: 'Copy' } });
+  });
+
+  it.each([
+    ['a lone brace', '{'],
+    ['a truncated body', '{"name":"Co'],
+    ['a body that is not JSON', 'name=Copy'],
+  ])(
+    'answers %s with the door’s 400 INVALID_JSON, never as no body',
+    async (_n, body) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const res = await post('/api/app/projects/p1/duplicate', body, {
+        'x-request-id': 'req-optional',
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: INVALID_JSON_MESSAGE,
+        code: 'INVALID_JSON',
+        requestId: 'req-optional',
+      });
+      expect(errors).not.toHaveBeenCalled();
+    },
+  );
+
+  it('passes a body the client stopped sending through, never as no body', async () => {
+    const hono = new Hono();
+    const seen: unknown[] = [];
+    hono.onError((err, c) => {
+      seen.push(err);
+      return c.text('seen', 500);
+    });
+    hono.use('/api/app/*', appJsonBody());
+    hono.post('/api/app/optional', async (c) =>
+      c.json({ received: await readOptionalAppJsonBody(c) }),
+    );
+    const aborted = Object.assign(new Error('aborted'), {
+      code: 'ECONNRESET',
+    });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"name":'));
+        controller.error(aborted);
+      },
+    });
+    const res = await hono.request('http://localhost/api/app/optional', {
       method: 'POST',
       body,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- duplex is required for stream bodies and missing from the lib type

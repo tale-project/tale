@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 81 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 93 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -44,9 +44,10 @@ Stack up + signed in per [SETUP.md](../setup.md) as owner/admin. Mock mode (A)
 is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
 target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
-select lists every member's live key, read from
-`GET /api/app/governance/api-keys` (disabled and expired keys are left out;
-GOV-F48 covers a rule on such a key).
+select lists every live key that works in the organization — members' own
+keys and the keys made for members, teams, projects and the organization —
+read from `GET /api/app/governance/api-keys` (disabled and expired keys are
+left out; GOV-F48 covers a rule on such a key).
 
 **GOV-F40–GOV-F47 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
@@ -141,6 +142,139 @@ agent.
   creates a second key in their own session → it joins the select within
   seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
   answers 403, and no response carries a key secret.
+- [ ] `GOV-F53` · **A team's key spends as the team** — create the Finance
+  team's API key (settings.md SET-F78) and a GOV-F4-style **Team** rule on
+  Finance with **Max requests** 2; open the GOV-F4b dialog → the **API key**
+  select lists the team's key as **‹name› · Team Finance**
+  (`governance.budgets.apiKeyOwnerTeam`) and the organization's key as
+  **‹name› · The organization**
+  (`governance.budgets.apiKeyOwnerOrganization`). Send REST chat messages
+  with the team's key until the team's cap is reached → the next send answers
+  429 `BUDGET_EXCEEDED` naming the team's cap, while no member's personal
+  usage under **Settings → Usage** grew; **Usage analytics** lists the key as
+  its own row, **API key of team Finance**
+  (`analytics.usage.tables.users.teamKey`), and the active-user count does
+  not count it. **Delete the rule after**
+- [ ] `GOV-F54` · **A project's budget caps the project** — GOV-F4 → **Add
+  rule**, **Scope** = **Project** (`governance.budgets.scopeLabels.project`):
+  the **Project** select appears (placeholder
+  `governance.budgets.selectProject`, aria-label
+  `governance.budgets.selectProjectAriaLabel`) and offers the active
+  projects, and **Warning threshold (%)** says everyone chatting in the
+  project sees its warning (`governance.budgets.warningThresholdProjectHelp`);
+  pick one, set **Max
+  requests** 2 → **Confirm** → reload → the row's **Scope** reads
+  **Project** and its **Target** the project's name. As a member far from
+  any personal cap, send one message in a new chat of that project (its
+  reply and the chat's title are the project's two requests) → the next send
+  is refused with **Usage limit reached** (`chat.toast.budgetExceeded`) and
+  **This project's usage limit has been reached…**
+  (`chat.errorHintProjectBudgetExceeded`), while a chat outside the project
+  still answers; with the model endpoints on (GOV-F40), the project's own key
+  (settings.md SET-F78) is refused at the same cap on
+  `POST /api/v1/openai/chat/completions` with 429 `BUDGET_EXCEEDED`. Archive
+  the project → the row still names it, marked **Archived**, and **Edit
+  rule** keeps it selected while the select offers only active projects
+  besides it; delete the project → the row reads **Deleted project**
+  (`governance.budgets.projectDeleted`). Every label reads in German and
+  French too. **Delete the rule after**
+- [ ] `GOV-F55` · **An automation's `llm` step is held to the budget** —
+  install an automation with one `llm` node in a new project P1, and
+  GOV-F54-style give P1 a **Project** rule with **Max requests** 1. Deploy
+  it and choose **Run live** in the editor → it succeeds, and **Usage
+  analytics** counts the call under the automation's name in **Top
+  assistants**. **Run live** again → the run fails with `failureCode`
+  `budget_exceeded`, its detail reading **‹node id›: the llm call was
+  refused: Usage limit reached. This project's monthly request limit is
+  used up until … — wait until the limit resets, or ask an administrator
+  to raise it**, and the provider received no second request. Delete P1's
+  rule, install the automation in a second new project P2 as well, and
+  give P2 the same rule; let its schedule start a run (it names no
+  project, so it is both projects' work) → it succeeds, and the next
+  scheduled run is refused naming **This project's** request limit: the
+  first one counted toward P2 too, not only toward P1. **Delete the rule
+  after**
+- [ ] `GOV-F56` · **Improve with AI and a chat's title are held to the
+  budget** — read your monthly requests under **Settings → Usage**, then
+  GOV-F4-style give yourself a **User** rule with **Max requests** one above
+  them. Send the first message of a new chat → the reply comes, and the
+  chat is named from the first words of the message, not by a model: the
+  reply took the last request, so the naming call was refused, and **Usage
+  analytics** books no `thread-title` request for it. In the Inbox, choose
+  **Improve with AI** on a draft → it is refused with **Usage limit
+  reached** (`conversations.editor.improveLimitReached`), its description
+  sending you to **Settings → Usage**
+  (`conversations.editor.improveLimitReachedDescription`) — in your
+  language, German and French too, never the server's English. **Delete
+  the rule after**
+- [ ] `GOV-F57` · **A transcription is held to the limits of whoever added
+  the recording** — with an OpenAI credential serving `whisper-1`, read
+  your monthly cost under **Settings → Usage**, then GOV-F4-style give
+  yourself a **User** rule with **Max cost** a cent above it. In a
+  project's new chat, add a recording longer than two minutes before the
+  first send → its chip reads **Usage limit reached**
+  (`chat.transcription.limitReached`), its tooltip saying where to see the
+  limit (`chat.transcription.limitReachedHint`), in German and French too,
+  and it never retries by itself. In a browser without built-in speech
+  recognition (Firefox), dictate into the composer → the toast reads
+  `chat.dictation.limitReached`. Paste a YouTube link → refused before any
+  download. Delete the rule, choose **Try again**
+  (`chat.transcription.retry`) on the chip → it transcribes, and **Usage
+  analytics** books **Transcription** under you at 0.6¢ a minute — and the
+  project's usage counts it too, though the chat had no thread yet
+- [ ] `GOV-F58` · **Knowledge indexing and search wait for a reached limit**
+  — with an embedding model set, GOV-F4-style give yourself a **User** rule
+  with **Max cost** at your monthly cost under **Settings → Usage**. Upload
+  a text document → its badge reads **Waiting for a usage limit**
+  (`documents.rag.status.usageLimit`), its dialog explains it in your
+  language, German and French too. Search with your API key
+  (`POST /api/v1/knowledge/search`) → 429 `BUDGET_EXCEEDED` with
+  `Retry-After`. Add a website → its details say a usage limit stopped the
+  scan (`websites.viewDialog.embeddingLimitNotice`). Raise the rule's
+  **Max cost** to a few cents above your monthly cost and, in a new chat,
+  ask about something your documents hold → the reply runs, holding what
+  is left, and the assistant says the search did not run because of a
+  usage limit, naming it, never that nothing was found. Delete the rule →
+  within the hour the document reads **Indexed**, the website's notice is
+  gone, and **Usage analytics** lists **Knowledge indexing and search**
+  (`analytics.usage.embedding`) under you
+- [ ] `GOV-F59` · **A connector call never counts as a request** — read your
+  monthly requests under **Settings → Usage**, then GOV-F4-style give
+  yourself a **User** rule with **Max requests** two above that figure. In a
+  chat you already have (a new chat's title is a request of its own), ask
+  the assistant to search your documents for three different things in one
+  message → the reply runs, and **Settings → Usage** shows your requests up
+  by one, the reply, never by its searches. Send one more message there →
+  it runs. Delete the rule
+- [ ] `GOV-F60` · **A subscription turn is a request at no cost** — with a
+  project agent whose model a provider subscription serves (a Claude or
+  ChatGPT subscription credential), GOV-F4-style give yourself a **User**
+  rule with **Max cost** at your monthly cost under **Settings → Usage**.
+  Start the agent on a task → it runs, and **Usage analytics** books one
+  request for it at $0.00, with its tokens. Change the rule to **Max
+  requests** at your monthly requests and start it again → the run fails
+  at its start with the request limit named, and no subscription account
+  is used. Delete the rule
+- [ ] `GOV-F61` · **An agent run started with a key counts toward the key**
+  — GOV-F4b-style give your own REST key a rule with **Max requests** 1.
+  With that key, comment on a task in a project that has an agent
+  (`POST /api/v1/projects/{id}/tasks/{taskId}/comments`, a body that
+  mentions the agent) → the agent starts working. Once its run has ended,
+  comment again the same way → the new run fails at its start with the API
+  key's limit named, while you can still start the agent from the task in
+  the app. Delete the rule
+- [ ] `GOV-F62` · **A project's budget warns in its chats** — GOV-F54-style
+  give a project a **Project** rule with **Max requests** 10 and **Warning
+  threshold (%)** 10. As a member far from any personal cap, send one message
+  in a new chat of that project → the banner above the composer reads
+  **Project ‹name›: 8 of 10 request left this month**
+  (`chat.budgetRemainingProject`), with **Dismiss** and no **View usage**
+  link; a chat outside the project shows no such banner. Edit the rule to
+  **Max requests** 2 → in the project's chat the banner turns destructive,
+  reading **Project ‹name›: Usage limit reached · resets monthly**
+  (`chat.budgetLimitReachedProject`), and Send is blocked, while the chat
+  outside the project still sends. Every label reads in German and French
+  too. **Delete the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the
@@ -197,8 +331,8 @@ agent.
   tab** — rows are auto-purged at the end of their grace window
   (`governance.trash.empty` describes this)
 - [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
-  **Organization limits** (`sandboxes.limits.title`) → change **Project agent
-  sessions**, **Workflow sessions**, and **Render sessions**
+  **Organization limits** (`sandboxes.limits.title`) → change **Agent
+  workers**, **Workflow sessions**, and **Render sessions**
   (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) within the
   displayed deployment capacity → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
@@ -592,6 +726,13 @@ agent.
   receipt lists **Sandbox workspaces**
   (`governance.dataSubjectRequests.categories.sandboxWorkspaces`) with `1`,
   and the member's workspace is gone from Sandboxes.
+- [ ] `GOV-F63` · **A receipt names every category** — after an erasure
+  (`GOV-F8`), open its receipt's **Full breakdown across all data
+  categories** (`governance.dataSubjectRequests.drawer.fullBreakdownTitle`)
+  → every row
+  reads a name — **Chats**, **Agent runs**, **Audit log entries** and the
+  rest (`governance.dataSubjectRequests.categories.*`) — never a bare pass
+  name such as `agentRuns`; German and French too.
 - [ ] `GOV-F50` · **The standard agent is on, and automatic** — On
   `content-models` in a fresh organization, find **Standard agent**
   (`governance.standardAgent.title`) → its switch
@@ -656,7 +797,7 @@ agent.
   scope row; no rule row is added (reload confirms). The same guard already
   covers the user/team/role scopes.
 - [ ] `GOV-B7` · **Sandbox quota bounds** — `/dashboard/{org}/settings/sandboxes` →
-  **Project agent sessions** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
+  **Agent workers** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
   Save → Validation message **"Must be a whole number between 1 and 500."**
   (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
   workflow and render limits.
@@ -675,6 +816,24 @@ agent.
   The **Owner** cell (`governance.trash.column.owner`) ends in an ellipsis
   inside its own column, never over the **Trashed** badge
   (`governance.trash.status.trashed`); hovering it shows the full owner.
+- [ ] `GOV-B22` · **A Trash read that fails is not an empty Trash** — Block
+  `*/api/app/governance/trash*` in DevTools (Network → request blocking) and
+  reload `trash` → after the retries (a few seconds) an alert reads
+  **Couldn't load the records in Trash.** (`governance.trash.loadFailed`)
+  with **Try again** (`common.actions.tryAgain`) where the table was, never
+  **Trash is empty** (`governance.trash.emptyTitle`) with a disabled
+  **Filter**; a screen reader announces the alert, and **Try again** pressed
+  while still blocked stays focused (busy) and announces the failure again;
+  unblock → **Try again** → the list returns without a reload and the focus
+  lands on the **Trash** section. With more than 20
+  trashed rows, block only `*/api/app/governance/trash?cursor=*` and scroll
+  to the end of the list → one notice above the table
+  (`governance.trash.refreshFailed`) with **Try again**
+  (`common.actions.tryAgain`), the footer reads **the rest couldn't be
+  loaded** (`common.pagination.showingLoadedFailed`), never **Showing all**
+  (`common.pagination.showingAll`), and Network shows one run of four
+  requests for that page; unblock → **Try again** → the remaining rows appear
+  below the ones already listed. No toast in either case.
 - [ ] `GOV-B11` · **Stale routing rules never break ingest** — Keep a rule for
   mailbox B, then remove mailbox B under **Settings > Connectors** → the row's
   **Arrives on** reads **Removed mailbox**
@@ -766,6 +925,16 @@ agent.
   `15`. Set `20` and **Save** again → the switch stays disabled until the
   page has read the policy back, and turning it off after that keeps `20`.
   Restore: throttling off, the switch off.
+
+- [ ] `GOV-B21` · **Fractional login delays survive unrelated edits** — On
+  `security-monitoring`, enable **Login attempt limits** and record the current
+  schedule and attempt limit. Set **Backoff schedule (seconds)**
+  (`governance.loginPolicy.backoffSchedule`) to `0.4, 1.5`, then **Save**
+  (`common.actions.save`) and reload → the schedule still reads `0.4, 1.5`.
+  Change only **Failures before lockout** (`governance.loginPolicy.maxAttempts`)
+  and **Save**, then reload → the schedule still reads `0.4, 1.5`, never
+  `0, 2`. Repeat with `1, 2` → whole-second delays remain unchanged too.
+  Restore the original schedule, attempt limit and enabled state.
 
 ## Accessibility (WCAG 2.1 AA)
 

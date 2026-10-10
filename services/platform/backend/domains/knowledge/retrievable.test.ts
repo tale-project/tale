@@ -30,7 +30,7 @@ const unboundFile = (
 });
 
 describe('decideRetrievable', () => {
-  it('denies a ref with no candidates (replaced/rotated history, purged rows)', () => {
+  it('denies a ref with no candidates (replaced/rotated history, purged rows) [KNOW-R6]', () => {
     expect(decideRetrievable([], [], undefined)).toBe(false);
   });
 
@@ -38,7 +38,7 @@ describe('decideRetrievable', () => {
     expect(decideRetrievable([activeDoc()], [], undefined)).toBe(true);
   });
 
-  it('denies trashed and expired documents — lifecycle truth beats the physical purge', () => {
+  it('denies trashed and expired documents — lifecycle truth beats the physical purge [KNOW-R6]', () => {
     for (const lifecycleStatus of ['trashed', 'expired', 'purge_pending']) {
       expect(
         decideRetrievable([activeDoc({ lifecycleStatus })], [], undefined),
@@ -46,14 +46,14 @@ describe('decideRetrievable', () => {
     }
   });
 
-  it('scopes a project document to the granted projects', () => {
+  it('scopes a project document to the granted projects [KNOW-R3]', () => {
     const doc = activeDoc({ projectId: 'p1' });
     expect(decideRetrievable([doc], [], { projectIds: ['p1'] })).toBe(true);
     expect(decideRetrievable([doc], [], { projectIds: ['p2'] })).toBe(false);
     expect(decideRetrievable([doc], [], {})).toBe(false);
   });
 
-  it('scopes hub documents by team, honoring includeHub', () => {
+  it('scopes hub documents by team, honoring includeHub [KNOW-R3]', () => {
     const teamDoc = activeDoc({ teamId: 't1' });
     expect(decideRetrievable([teamDoc], [], { teamIds: ['t1'] })).toBe(true);
     expect(decideRetrievable([teamDoc], [], { teamIds: ['t2'] })).toBe(false);
@@ -68,6 +68,24 @@ describe('decideRetrievable', () => {
     expect(decideRetrievable([tagged], [], { teamIds: ['t3'] })).toBe(true);
   });
 
+  it('admits a team document to an owner or admin who is in none of its teams [KNOW-R3]', () => {
+    const teamDoc = activeDoc({ teamTags: ['t1', 't2'] });
+    expect(
+      decideRetrievable([teamDoc], [], { teamIds: [], isAdmin: true }),
+    ).toBe(true);
+    expect(
+      decideRetrievable([teamDoc], [], { teamIds: [], isAdmin: false }),
+    ).toBe(false);
+    // The role opens every team's documents, not a project that was not
+    // granted.
+    expect(
+      decideRetrievable([activeDoc({ projectId: 'p1' })], [], {
+        projectIds: [],
+        isAdmin: true,
+      }),
+    ).toBe(false);
+  });
+
   it('lets a live COPY twin admit through its own scope after the sibling dies', () => {
     const trashedTwin = activeDoc({ lifecycleStatus: 'trashed' });
     const liveTwin = activeDoc({ projectId: 'p1' });
@@ -79,7 +97,7 @@ describe('decideRetrievable', () => {
     );
   });
 
-  it('scopes thread files to their thread and honors the conversation switch', () => {
+  it('scopes thread files to their thread and honors the conversation switch [KNOW-R4]', () => {
     const threadFile = unboundFile({ threadId: 'th1' });
     expect(decideRetrievable([], [threadFile], undefined)).toBe(true);
     expect(decideRetrievable([], [threadFile], { threadIds: ['th1'] })).toBe(
@@ -96,7 +114,7 @@ describe('decideRetrievable', () => {
     ).toBe(false);
   });
 
-  it('denies a live row bound to neither a document nor a thread', () => {
+  it('denies a live row bound to neither a document nor a thread [KNOW-R4]', () => {
     // This replaces an assertion that admitted the same shape same-org. The
     // corpus stamps no project and no team for a row with no document, and
     // the SQL half reads that as org-wide — so admitting it here served one
@@ -125,7 +143,7 @@ describe('decideRetrievable', () => {
     ).toBe(true);
   });
 
-  it('does not admit a thread-bound row from outside its thread', () => {
+  it('does not admit a thread-bound row from outside its thread [KNOW-R4]', () => {
     expect(
       decideRetrievable([], [unboundFile({ threadId: 'thread_1' })], {
         teamIds: [],
@@ -242,7 +260,7 @@ describe('decideRetrievable', () => {
  * door that wraps it as untrusted may serve — decided exactly like an email
  * body.
  */
-describe('decideRetrievable — the conversation branch', () => {
+describe('decideRetrievable — the conversation branch [KNOW-R5]', () => {
   const mail = (
     conversationId: string,
     overrides: Partial<UnboundFileCandidate> = {},
@@ -436,7 +454,7 @@ describe('decideRetrievable — the conversation branch', () => {
  * body is text an outsider wrote and only a door that wraps it as untrusted
  * may serve it.
  */
-describe('decideMessageRetrievable', () => {
+describe('decideMessageRetrievable [KNOW-R5]', () => {
   const message = (
     overrides: Partial<MessageCandidate> = {},
   ): MessageCandidate => ({

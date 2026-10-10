@@ -19,7 +19,11 @@ vi.mock('../hooks/queries', () => ({
     project: { _id: 'project-1', name: 'Website', canEdit: state.canEdit },
     isLoading: false,
   }),
-  useProjectAgents: () => ({ agents: state.agents, isLoading: false }),
+  useProjectAgents: () => ({
+    agents: state.agents,
+    hasAnswer: true,
+    isLoading: false,
+  }),
   useProjectHarnesses: () => ({ data: undefined }),
   useProjectCapabilityCatalog: () => ({ data: undefined }),
   useStandardAgent: () => ({
@@ -30,6 +34,10 @@ vi.mock('../hooks/queries', () => ({
 
 vi.mock('../hooks/mutations', () => ({
   useDeleteProjectAgent: () => ({ mutateAsync: vi.fn() }),
+}));
+
+vi.mock('../hooks/use-unpinned-serving-preview', () => ({
+  useUnpinnedServingPreview: () => ({ data: undefined }),
 }));
 
 // The New agent form is its own component with its own writes.
@@ -98,6 +106,53 @@ describe('ProjectAgentsTab', () => {
     expect(
       screen.getByText('projects.agents.standard.emptyReaderBody'),
     ).toBeInTheDocument();
+  });
+
+  it('opens read-only details from an agent row', async () => {
+    state.agents = [
+      {
+        _id: 'agent-1',
+        name: 'Writer',
+        organizationId: 'org-1',
+        projectId: 'project-1',
+        harness: 'codex',
+        model: 'gpt-6.1',
+        modelProvider: 'openai',
+        skills: ['docx'],
+        connectors: [],
+        tools: [],
+        instructions: 'Drafts copy.',
+        managed: false,
+      },
+    ];
+    const { user } = renderTab();
+    await user.click(
+      screen.getByRole('button', { name: 'projects.agents.rowView' }),
+    );
+    expect(
+      await screen.findByText('projects.agents.detailsTitle'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Drafts copy.')).toBeInTheDocument();
+  });
+
+  it('shows how each agent is mentioned', () => {
+    state.agents = [
+      {
+        _id: 'agent-1',
+        name: 'My Opus Agent #3',
+        handle: 'my-opus-agent-3',
+        organizationId: 'org-1',
+        projectId: 'project-1',
+        harness: 'codex',
+        model: 'gpt-6.1',
+        skills: [],
+        connectors: [],
+        tools: [],
+        managed: false,
+      },
+    ];
+    renderTab();
+    expect(screen.getByText(/^@my-opus-agent-3 · /)).toBeInTheDocument();
   });
 
   it('marks the standard agent and offers no edit for it, while it stays removable', () => {

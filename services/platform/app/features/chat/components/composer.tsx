@@ -28,7 +28,12 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SendButton } from '@tale/ui/send-button';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
+import {
+  THREAD_COMPOSER_FIELD_CLASS,
+  THREAD_COMPOSER_FRAME_CLASS,
+} from '@tale/ui/thread/layout';
 import { Tooltip } from '@tale/ui/tooltip';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { toast } from '@tale/ui/use-toast';
 import { CircleStop, Loader2 } from 'lucide-react';
 import {
@@ -52,10 +57,6 @@ import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { hasVisibleText } from '@/lib/shared/utils/visible-text';
 
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
-import {
-  CHAT_COMPOSER_FIELD_CLASS,
-  CHAT_COMPOSER_FRAME_CLASS,
-} from '../lib/layout';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { ComposerAttachments } from './composer-attachments';
@@ -232,9 +233,7 @@ export const Composer = memo(
     // composer's life, so two pastes of the same screenshot stay two
     // attachments instead of colliding in the upload dedup.
     const pasteCounterRef = useRef(1);
-    // React's synthetic events don't expose `isComposing`, so the DOM
-    // composition events keep this mirror for the key and paste guards.
-    const isComposingRef = useRef(false);
+    const { isComposing, compositionProps } = useImeComposition();
 
     useImperativeHandle(
       ref,
@@ -294,18 +293,14 @@ export const Composer = memo(
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      // IME composition guard: macOS Pinyin / Japanese Kotoeri commit a
-      // candidate via Enter; without this the commit would send the
-      // half-composed text. `isComposing` is the WHATWG API, the ref is the
-      // React mirror, and `keyCode === 229` is the legacy Safari path — all
-      // three are needed to cover Chromium + WebKit + Firefox.
-      const isComposing =
-        event.nativeEvent.isComposing ||
-        isComposingRef.current ||
-        event.keyCode === 229;
       // Enter sends, Shift+Enter breaks the line — the convention every
       // message field in the product follows.
-      if (event.key !== 'Enter' || event.shiftKey || isComposing) return;
+      if (
+        event.key !== 'Enter' ||
+        event.shiftKey ||
+        isComposing(event.nativeEvent)
+      )
+        return;
       event.preventDefault();
       submit();
     };
@@ -313,7 +308,7 @@ export const Composer = memo(
     const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
       // Mid-composition a rewrite would corrupt the IME commit — let the
       // native paste land untouched.
-      if (isComposingRef.current) return;
+      if (isComposing()) return;
       // Images first: a clipboard carrying image bytes (a screenshot, a
       // copied image) attaches them instead of pasting the text/alt fallback
       // many clipboards ship alongside — that fallback would double the
@@ -406,7 +401,7 @@ export const Composer = memo(
             aria-label={t('aria.chatRegion')}
             as="section"
             // Soft top shadow lifts the composer off the conversation above it.
-            className={CHAT_COMPOSER_FRAME_CLASS}
+            className={THREAD_COMPOSER_FRAME_CLASS}
           >
             {onQuotedTextChange !== undefined && (
               <QuotedReferenceChip
@@ -481,12 +476,7 @@ export const Composer = memo(
                 onChange={(event) => setText(event.target.value)}
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
-                onCompositionStart={() => {
-                  isComposingRef.current = true;
-                }}
-                onCompositionEnd={() => {
-                  isComposingRef.current = false;
-                }}
+                {...compositionProps}
                 // The placeholder renders as the overlay below so it can carry the
                 // Enter-to-send hint; the attribute stays empty.
                 placeholder=""
@@ -496,7 +486,7 @@ export const Composer = memo(
                 // ring OFFSET shadow as a faint outline, so the offset goes to 0
                 // with it.
                 className={cn(
-                  CHAT_COMPOSER_FIELD_CLASS,
+                  THREAD_COMPOSER_FIELD_CLASS,
                   'text-foreground placeholder:text-muted-foreground relative resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 )}
               />
@@ -518,7 +508,8 @@ export const Composer = memo(
                     <span className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
                       <EnterKeyIcon className="size-3" />
                     </span>
-                    {tDialogs('toSend')}
+                    <span aria-hidden="true">{tDialogs('toSend')}</span>
+                    <span className="sr-only">{tDialogs('enterToSend')}</span>
                   </span>
                 </Text>
               )}

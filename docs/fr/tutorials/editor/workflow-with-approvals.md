@@ -9,7 +9,7 @@ Cet exercice crée un workflow en deux étapes : préparer un message, puis dem
 
 Utilise un compte Développeur, Admin ou Propriétaire. Vérifie que la politique de ton organisation exige une approbation pour `imap-smtp.send` ; c’est le comportement par défaut. Une politique personnalisée peut le modifier. Consulte donc [Configurer les approbations](/fr/platform/approvals/configure) avant la partie réelle.
 
-Le test simulé n’a pas besoin d’identifiants de messagerie. Un envoi réellement approuvé nécessiterait un connecteur IMAP / SMTP configuré et un destinataire que tu souhaites contacter. Cet exercice se termine par **Rejeter**.
+Le test simulé n’a pas besoin d’identifiants de messagerie. Un envoi réellement approuvé nécessiterait un connector IMAP / SMTP configuré et un destinataire que tu souhaites contacter. Cet exercice se termine par **Rejeter**.
 
 ## Importer l’exemple
 
@@ -60,7 +60,7 @@ Si ce nom existe déjà, l’import ajoute une version. Choisis une autre valeur
 
 Dans **Éditeur**, clique sur **Essai**. Cet exemple ne demande aucune donnée d’exécution ; un objet vide suffit. Passe à **Exécutions** : la liste doit afficher une exécution de test au statut **Réussie**.
 
-Ouvre l’exécution et vérifie sur le canvas que les deux nœuds ont été exécutés. Sélectionne `send` et examine ses données résolues. Le destinataire doit être `reviewer@example.com`, l’objet `Approval practice` et le texte la phrase de `draft`. Le connecteur utilise une simulation déterministe dans ce mode. Aucun e-mail n’est envoyé et aucune carte d’approbation n’apparaît.
+Ouvre l’exécution et vérifie sur le canevas que les deux nœuds affichent **Réussi**. Sélectionne `send` et examine ses données résolues. Le destinataire doit être `reviewer@example.com`, l’objet `Approval practice` et le texte la phrase de `draft`. Le connector utilise une simulation déterministe dans ce mode. Aucun e-mail n’est envoyé et aucune carte d’approbation n’apparaît.
 
 Le workflow comprend un test qui attend l’effet `imap-smtp.send`. Une simulation réussie vérifie le graphe et l’appel prévu. Elle ne prouve ni la validité des identifiants de messagerie ni la livraison du message.
 
@@ -68,9 +68,9 @@ Le workflow comprend un test qui attend l’effet `imap-smtp.send`. Une simulati
 
 Reviens à **Éditeur** et clique sur **Mettre v1 en service** pour rendre la version testée active. Laisse le déclencheur non configuré : cet exercice se lance une fois manuellement.
 
-Choisis **Exécuter en réel**, lis la confirmation et le périmètre de l’organisation, puis confirme. Passe à **Exécutions** et ouvre la nouvelle exécution en attente. La carte doit présenter l’approbation attendue, `imap-smtp.send`, le nœud `send` et les données de l’appel prévu. Destinataire, objet et texte doivent correspondre au test simulé.
+Choisis **Exécuter en réel**, lis la confirmation et le périmètre de l’organisation, puis confirme. Passe à **Exécutions** et ouvre la nouvelle exécution au statut **En attente**. La carte doit présenter le titre **En attente de ton approbation : imap-smtp.send**, le nœud `send` et les données de l’appel prévu sous **L'étape appellerait avec**. Destinataire, objet et texte doivent correspondre au test simulé.
 
-Si l’exécution ne se met pas en attente, examine son statut et la politique avant de continuer. Un appel de connecteur échoué ne prouve pas qu’une approbation a été demandée.
+Si l’exécution ne se met pas en attente, examine son statut et la politique avant de continuer. Un appel de connector échoué ne prouve pas qu’une approbation a été demandée.
 
 ## Refuser et examiner le résultat
 

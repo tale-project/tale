@@ -1,7 +1,12 @@
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
+import {
+  totpClientNameSchema,
+  totpEnvironmentSchema,
+} from '../lib/shared/authenticator-name.ts';
 import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
+import { invalidAllowedOrigins } from './domains/mcp/origin.ts';
 
 /**
  * Process roles: `api` serves HTTP/SSE, `worker` runs pg-boss task queues,
@@ -12,7 +17,22 @@ import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3005),
+  /**
+   * Interface the API listens on; unset, every interface (what a container
+   * needs). A process run straight on a workstation — the load harness's
+   * `stack up` — binds loopback through it. Not `HOST`: deployments already
+   * set that to the public host name, which no interface answers to.
+   */
+  BACKEND_LISTEN_HOST: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
   ROLE: z.enum(['api', 'worker', 'all']).default('all'),
+  SANDBOX_AGENT_PROFILE: z.enum(['agent', 'agent-light']).default('agent'),
+  TALE_SANDBOX_CLAUDE_EFFORT: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['low', 'medium', 'high', 'max']).optional(),
+  ),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(5),
   /**
    * Agent turn starts a worker runs at once, per lane (task and automation);
@@ -27,6 +47,36 @@ const envSchema = z.object({
    * the recovery horizon.
    */
   AGENT_DRIVE_SLOTS: z.coerce.number().int().min(1).max(256).optional(),
+  /**
+   * Automation steps one organization runs at once across every worker
+   * (`jobs/tasks.ts` `queueGroupConcurrency`), so one organization's burst
+   * of runs cannot take every step slot; 0 turns the limit off. A single
+   * worker at the default WORKER_CONCURRENCY never reaches it.
+   */
+  AUTOMATION_ORG_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(256)
+    .default(8),
+  /**
+   * Most runner processes this process evaluates automation code in
+   * (`backend/lib/code-runner.ts`); unset, two for the api and one per core
+   * but one, at most four, for a worker. Each starts only when the others
+   * are busy, and one beyond the first stops after five idle minutes.
+   */
+  AUTOMATION_RUNNER_PROCESSES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(16)
+    .optional(),
+  /**
+   * How long a stopping process waits for its jobs before it fails what is
+   * left (`shutdown-sequence.ts`); unset, 15 s for the api and 90 s for a
+   * worker. Keep the container's stop grace at least 15 s above it.
+   */
+  SHUTDOWN_DRAIN_MS: z.coerce.number().int().min(1_000).max(600_000).optional(),
   /**
    * Required by the api/all roles (asserted in main.ts); a pure worker can
    * boot without auth configuration.
@@ -48,6 +98,13 @@ const envSchema = z.object({
   /** Public origin auth cookies bind to; defaults to the direct dev port. */
   SITE_URL: z.string().url().default('http://localhost:3005'),
   /**
+   * The client this deployment serves and its environment, as newly generated
+   * authenticator entries name them (`Acme Tale Platform TE`). Unset client:
+   * `Tale Platform`; `pr` or unset environment: no environment.
+   */
+  TOTP_CLIENT_NAME: totpClientNameSchema,
+  TOTP_ENVIRONMENT: totpEnvironmentSchema,
+  /**
    * The other public origins this deployment is served from, comma- or
    * whitespace-separated (`https://tale.partner.example, https://…`). Each
    * is a first-class entry point next to SITE_URL: Better Auth trusts it, and
@@ -68,6 +125,29 @@ const envSchema = z.object({
         });
       }
     }),
+  /**
+   * Browser origins, besides the site's own, from which the MCP endpoint
+   * takes requests that carry an `Origin` (comma- or space-separated, each
+   * `scheme://host[:port]`, e.g. a desktop editor's own origin). Read per
+   * request by `domains/mcp/origin.ts`; validated here so a typo fails boot.
+   */
+  TALE_MCP_ALLOWED_ORIGINS: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      const invalid = invalidAllowedOrigins(value);
+      if (invalid.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `TALE_MCP_ALLOWED_ORIGINS must list origins (scheme://host[:port], no path), got: ${invalid.join(', ')}`,
+        });
+      }
+    }),
+  /**
+   * Whether the MCP endpoint refuses (403 `ORIGIN_FORBIDDEN`) a request
+   * whose `Origin` it does not accept, rather than only logging it.
+   */
+  TALE_MCP_ORIGIN_ENFORCE: z.enum(['true', 'false']).optional(),
   /**
    * Sentry-compatible error reporting (Sentry, GlitchTip, Bugsink), opt-in —
    * unset disables it entirely. See `error-reporting.ts`.

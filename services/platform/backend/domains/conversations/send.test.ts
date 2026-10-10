@@ -19,6 +19,8 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { plaintextToEmailHtml } from '../../../lib/shared/conversations/plaintext-email';
+
 const {
   runConnectorAction,
   createAuditLog,
@@ -143,14 +145,14 @@ const SETTLE = "delivery_state = 'sent'";
 describe('runSendMessageJob — the claim', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('does not send when the row cannot be claimed (undone, settled, or already claimed)', async () => {
+  it('does not send when the row cannot be claimed (undone, settled, or already claimed) [CONV-R10]', async () => {
     const { sql, statements } = fakeSql({ [CLAIM]: [] });
     await runSendMessageJob(sql, JOB_PAYLOAD);
     expect(runConnectorAction).not.toHaveBeenCalled();
     expect(statements.some((s) => s.text.includes(SETTLE))).toBe(false);
   });
 
-  it('claims the queued row in one conditional update, then sends and settles it', async () => {
+  it('claims the queued row in one conditional update, then sends and settles it [CONV-R10]', async () => {
     runConnectorAction.mockResolvedValue({
       status: 'ok',
       output: { messageId: '<smtp-1@door.test>' },
@@ -181,6 +183,25 @@ describe('runSendMessageJob — the claim', () => {
     expect(claimIndex).toBeGreaterThanOrEqual(0);
     expect(settleIndex).toBeGreaterThan(claimIndex);
     expect(statements[settleIndex]?.text).toContain('RETURNING id');
+  });
+
+  it('counts the delivery as its sender’s connector call [GOV-R15]', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const { sql } = fakeSql({
+      [CLAIM]: [QUEUED_ROW],
+      [SETTLE]: [{ id: 'm1' }],
+    });
+    await runSendMessageJob(sql, { ...JOB_PAYLOAD, sentBy: { userId: 'u1' } });
+    expect(runConnectorAction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        caller: { kind: 'system', reason: 'conversation email reply' },
+        spender: { userId: 'u1' },
+      }),
+    );
   });
 
   it('hands the chosen From to the connector send', async () => {
@@ -302,6 +323,9 @@ describe('composeEmailConversation — one transaction', () => {
     expect(conversationInsert?.begin).toBe(0);
     expect(messageInsert?.begin).toBe(0);
     expect(addJobInTx).toHaveBeenCalledTimes(1);
+    // The delivery is the sender's connector call.
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({ sentBy: { userId: 'u1' } });
   });
 
   it('a failed enqueue rolls the conversation back too — no empty outbound thread', async () => {
@@ -403,6 +427,8 @@ describe('retrySendMessage — the mailbox', () => {
     });
     const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
     expect(payload).toMatchObject({ credentialId: 'cred-b' });
+    // A retry is a new delivery, the retrying member's call.
+    expect(payload).toMatchObject({ sentBy: { userId: 'u1' } });
   });
 
   it('leaves the credential unset for a message that recorded none', async () => {
@@ -417,7 +443,7 @@ describe('retrySendMessage — the mailbox', () => {
   });
 });
 
-describe('undoSendMessage — after the claim', () => {
+describe('undoSendMessage — after the claim [CONV-R9]', () => {
   beforeEach(() => vi.clearAllMocks());
   const actor = { userId: 'u1' };
   const LOAD = 'FROM app.conversation_messages WHERE id = ? LIMIT 1';
@@ -693,6 +719,36 @@ describe('replyToConversation — the mailbox', () => {
     return insert?.values[3];
   }
 
+  it.each([
+    ['Use <price> from A&B.', '<p>Use &lt;price&gt; from A&amp;B.</p>'],
+    [
+      '<script>alert("x")</script><b>bold</b>',
+      '<p>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&lt;b&gt;bold&lt;/b&gt;</p>',
+    ],
+    ['First line\n\nSecond line', '<p>First line<br><br>Second line</p>'],
+  ])('stores and queues the same safe bulk body for %s', async (text, html) => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [{ conversationId: 'c1', credentialId: 'cred-b' }],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+    await replyToConversation(sql, {
+      ...REPLY,
+      content: plaintextToEmailHtml(text),
+    });
+    const insert = statements.find((st) =>
+      st.text.includes('INSERT INTO app.conversation_messages'),
+    );
+    expect(insert?.values[4]).toBe(html);
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({
+      body: html,
+      contentType: 'HTML',
+    });
+    expect(runConnectorAction).not.toHaveBeenCalled();
+  });
+
   it('replies through the mailbox the newest inbound message recorded', async () => {
     const { sql, statements } = fakeSql({
       [CONVERSATION]: [EMAIL_ROW],
@@ -821,6 +877,102 @@ describe('replyToConversation — the mailbox', () => {
     await replyToConversation(sql, REPLY);
 
     expect(insertedCredential(statements)).toBeNull();
+  });
+});
+
+/**
+ * What queueing a reply promises besides the message itself: it waits out
+ * the undo window before its send job may start, and the drafted reply an
+ * automation left on the conversation is settled by the person's send, in
+ * the transaction that queues it.
+ */
+describe('replyToConversation — the queued reply', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const THREAD = {
+    'FROM app.conversations c': [
+      {
+        organizationId: 'o1',
+        connectorName: 'imap-smtp',
+        channel: 'email',
+        subject: 'Order 42',
+        contactEmail: 'carla@ext.test',
+      },
+    ],
+    'FROM app.conversations WHERE id': [
+      { id: 'c1', organizationId: 'o1', metadata: null },
+    ],
+    'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+  };
+  const REPLY = {
+    conversationId: 'c1',
+    organizationId: 'o1',
+    content: '<p>On its way.</p>',
+    actor: { userId: 'u1' },
+  };
+  const queuedMessage = (statements: Statement[]) =>
+    statements.find((st) =>
+      st.text.startsWith('INSERT INTO app.conversation_messages'),
+    );
+
+  it('holds a reply for 10 seconds before its send may start [CONV-R9]', async () => {
+    // Unset, the window is the product's own: ten seconds.
+    vi.stubEnv('CONVERSATION_UNDO_SEND_DELAY_MS', '');
+    try {
+      const { sql, statements } = fakeSql(THREAD);
+      await replyToConversation(sql, REPLY);
+
+      // org, conversation, connector_name, credential_id, content, sent_at,
+      // delivered_at, metadata: the row is stamped when it was queued.
+      const insert = queuedMessage(statements);
+      const queuedAt = Number(insert?.values[5]);
+      expect(Number.isFinite(queuedAt)).toBe(true);
+      expect(insert?.values[7]).toMatchObject({
+        scheduledSendAt: queuedAt + 10_000,
+      });
+      const [, options] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+      expect(options).toEqual({ startAfter: new Date(queuedAt + 10_000) });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('completes the drafted reply waiting on the conversation [CONV-R12]', async () => {
+    const { sql, statements } = fakeSql({
+      ...THREAD,
+      'FROM app.approvals': [
+        { id: 'appr_1', metadata: { emailBody: 'A drafted answer.' } },
+      ],
+    });
+    await replyToConversation(sql, REPLY);
+
+    const settled = statements.find((st) =>
+      st.text.startsWith('UPDATE app.approvals'),
+    );
+    expect(settled?.text).toContain("status = 'completed'");
+    // approved_by, reviewed_at_ms, metadata, id: the person who sent, and
+    // what they sent beside what was drafted.
+    expect(settled?.values[0]).toBe('u1');
+    expect(settled?.values[2]).toMatchObject({
+      emailBody: 'A drafted answer.',
+      sentContent: '<p>On its way.</p>',
+      sentTo: ['carla@ext.test'],
+      sentSubject: 'Re: Order 42',
+    });
+    expect(settled?.values[3]).toBe('appr_1');
+    // In the reply's own transaction: a send that rolls back leaves the
+    // draft waiting.
+    expect(settled?.begin).not.toBeNull();
+    expect(settled?.begin).toBe(queuedMessage(statements)?.begin);
+  });
+
+  it('settles nothing when no draft is waiting [CONV-R12]', async () => {
+    const { sql, statements } = fakeSql(THREAD);
+    await replyToConversation(sql, REPLY);
+
+    expect(
+      statements.some((st) => st.text.startsWith('UPDATE app.approvals')),
+    ).toBe(false);
   });
 });
 
@@ -961,6 +1113,46 @@ describe('replyToConversation and composeEmailConversation — files alone', () 
       contentType: 'Text',
       attachments: [expect.objectContaining({ storageRef: 'blob-1' })],
     });
+  });
+
+  // Both doors hold an email's files to the same two checks: each file is
+  // the sender's own upload, and the set stays within the email's limits.
+  it('proves the files of a reply and of a new email the sender’s own [CONV-R11]', async () => {
+    const owned = [
+      expect.anything(),
+      { organizationId: 'o1', userId: 'u1' },
+      [FILE],
+    ];
+    await reply(fakeSql(threadOn('email')).sql, { attachments: [FILE] });
+    expect(assertOwnedAttachments).toHaveBeenCalledWith(...owned);
+
+    vi.clearAllMocks();
+    await compose(fakeSql(COMPOSE_ANSWERS).sql, { attachments: [FILE] });
+    expect(assertOwnedAttachments).toHaveBeenCalledWith(...owned);
+  });
+
+  it('refuses an eleventh file on a reply and on a new email before writing anything [CONV-R11]', async () => {
+    const files = Array.from({ length: 11 }, (_, index) => ({
+      ...FILE,
+      storageId: `blob-${index}`,
+    }));
+    const tooMany = { data: { code: 'CONVERSATION_ATTACHMENTS_TOO_MANY' } };
+
+    const replied = fakeSql(threadOn('email'));
+    await expect(
+      reply(replied.sql, { attachments: files }),
+    ).rejects.toMatchObject(tooMany);
+    const composed = fakeSql(COMPOSE_ANSWERS);
+    await expect(
+      compose(composed.sql, { attachments: files }),
+    ).rejects.toMatchObject(tooMany);
+
+    for (const { statements } of [replied, composed]) {
+      expect(statements.some((st) => /^(INSERT|UPDATE)/.test(st.text))).toBe(
+        false,
+      );
+    }
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -18,6 +18,7 @@ import {
   CACHE_AFFINITY_GATEWAY_HEADER,
   isClaudeModelRef,
   PLAYWRIGHT_MCP_ARG_SETS,
+  stagedInstructionsPathForExec,
 } from './exec-builder';
 import { batteryFor, GOLDEN_BYO_ENV, GOLDEN_GATEWAY } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
@@ -27,6 +28,7 @@ const BYO_SECRET = GOLDEN_BYO_ENV.GOLDEN_BYO_KEY;
 beforeEach(() => {
   vi.stubEnv('TALE_SANDBOX_CONTEXT_1M', undefined);
   vi.stubEnv('TALE_SANDBOX_ULTRATHINK', undefined);
+  vi.stubEnv('TALE_SANDBOX_CLAUDE_EFFORT', undefined);
   vi.stubEnv('TALE_SANDBOX_HOUSE_RULES', undefined);
 });
 
@@ -165,6 +167,32 @@ describe('secret hygiene over every shipped YAML', () => {
     expect(buildHarnessExec(fact('gemini'), managedSpec()).argv).not.toContain(
       '--resume',
     );
+  });
+});
+
+describe('the per-exec instructions file', () => {
+  it('is named where the builder stages it, so the turn can remove it', () => {
+    for (const harness of loadHarnesses()) {
+      if (!harness.credentialPolicy.managed) continue;
+      const exec = buildHarnessExec(
+        harness,
+        managedSpec({ instructions: 'Follow the runbook.', execId: 'exec-7' }),
+      );
+      const staged = (exec.stagedFiles ?? []).filter(
+        (file) => file.content === 'Follow the runbook.',
+      );
+      const removed = stagedInstructionsPathForExec(harness, 'exec-7');
+      expect(
+        staged.map((file) => file.path),
+        `${harness.slug}: the removal names another file than the stage`,
+      ).toEqual(removed === undefined ? [] : [removed]);
+    }
+    expect(stagedInstructionsPathForExec(fact('opencode'), 'exec-7')).toBe(
+      '.runtime/tale/instructions/exec-7.md',
+    );
+    expect(
+      stagedInstructionsPathForExec(fact('claude-code'), 'exec-7'),
+    ).toBeUndefined();
   });
 });
 
@@ -925,4 +953,25 @@ describe('the Playwright MCP server the runtime image prepares for', () => {
     );
     expect(recorded).toEqual(PLAYWRIGHT_MCP_ARG_SETS);
   });
+});
+
+describe('operator reasoning effort', () => {
+  it.each(['low', 'medium', 'high'])(
+    'requests %s effort without forcing maximum reasoning in the prompt',
+    (effort) => {
+      vi.stubEnv('TALE_SANDBOX_CLAUDE_EFFORT', effort);
+      const exec = buildHarnessExec(
+        fact('claude-code'),
+        managedSpec({ model: 'claude-opus-5-5' }),
+      );
+      expect(exec.env.CLAUDE_CODE_EFFORT_LEVEL).toBe(effort);
+      expect(exec.stdin).not.toContain('Ultrathink:');
+      expect(exec.env.CLAUDE_CODE_DISABLE_THINKING).toBeUndefined();
+      const foreign = buildHarnessExec(
+        fact('claude-code'),
+        managedSpec({ model: 'deepseek/deepseek-chat' }),
+      );
+      expect(foreign.env.CLAUDE_CODE_EFFORT_LEVEL).toBeUndefined();
+    },
+  );
 });

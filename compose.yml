@@ -274,6 +274,7 @@ services:
     # tier mounts the same volume read-write — it owns every write.
     volumes:
       - config-data:/app/data:ro
+      - static-assets:/app/static-assets
 
     # Environment file (optional — see env_file note below)
     # Provide real secrets via .env; dev defaults live in compose.dev.yml.
@@ -437,6 +438,8 @@ services:
       # defaults to localhost:8003 (host bun-dev); without the compose
       # default a container worker cannot start an agent run.
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
+      SANDBOX_AGENT_PROFILE: ${SANDBOX_AGENT_PROFILE:-agent}
+      TALE_SANDBOX_CLAUDE_EFFORT: ${TALE_SANDBOX_CLAUDE_EFFORT:-}
       # Where a sandbox CONTAINER reaches this backend: the in-sandbox
       # connectors bridge and the live-body host-call door are served here.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
@@ -459,6 +462,10 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # Graceful shutdown: close HTTP/SSE and stop the job queue inside the
+    # api's drain (SHUTDOWN_DRAIN_MS, 15s) before SIGKILL. Mirrors the CLI
+    # generator (create-backend-services.ts: 30s).
+    stop_grace_period: 30s
     # Override the image's baked web healthcheck (port 3000) with the api port.
     healthcheck:
       test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
@@ -505,6 +512,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}}
       TALE_CONFIG_DIR: /app/data
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
+      SANDBOX_AGENT_PROFILE: ${SANDBOX_AGENT_PROFILE:-agent}
+      TALE_SANDBOX_CLAUDE_EFFORT: ${TALE_SANDBOX_CLAUDE_EFFORT:-}
       # The worker DISPATCHES connector bodies too (automation nodes), so it
       # mints the same in-sandbox host-call URL the api does.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
@@ -527,9 +536,15 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # Graceful shutdown: a stopping worker hands its automation runs to
+    # another one and waits out its other jobs inside its drain
+    # (SHUTDOWN_DRAIN_MS, 90s) before SIGKILL; the grace stays 15s above it.
+    # Mirrors the CLI generator (create-backend-services.ts: 120s).
+    stop_grace_period: 120s
     # The worker exposes no HTTP; the image's baked healthcheck targets the web
     # port and would read permanently unhealthy here, so disable it. Liveness
-    # is the Graphile Worker heartbeat + at-least-once job recovery.
+    # is pg-boss's job heartbeat and at-least-once recovery; a stopping worker
+    # hands its automation runs to another one (SHUTDOWN_DRAIN_MS).
     healthcheck:
       disable: true
     depends_on:
@@ -689,6 +704,10 @@ services:
       # Connections the proxy serves at once for the whole fleet (tinyproxy
       # MaxClients). Mirrors the CLI compose generator.
       SANDBOX_EGRESS_MAX_CLIENTS: ${SANDBOX_EGRESS_MAX_CLIENTS:-2000}
+      # Connections one session (one client address) may hold open to the
+      # proxy at once, so no session takes the whole pool above; 0 turns the
+      # cap off. Mirrors the CLI compose generator.
+      SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: ${SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:-256}
     # Mirrors the CLI compose generator (create-sandbox-egress-service.ts):
     # tinyproxy runs a thread and holds two descriptors per connection
     # (SANDBOX_EGRESS_MAX_CLIENTS, 2000 by default), and threads count
@@ -711,10 +730,9 @@ services:
     #   NET_ADMIN     — install the iptables OUTPUT REJECT rules for IMDS
     #                   (169.254.169.254) + RFC1918 (the only hostname-
     #                   independent egress fence; fail-closed without it).
-    #   DAC_OVERRIDE  — entrypoint.sh (root) touches/creates the tinyproxy log
-    #                   inside /var/log/tinyproxy, which the image owns by
-    #                   `nobody`; without it the touch fails Permission denied.
-    #   CHOWN         — chown that log file to nobody.
+    #   DAC_OVERRIDE / CHOWN — part of the live-verified set. tinyproxy logs
+    #                   to stdout, so no entrypoint step is known to need them;
+    #                   drop them only once a live boot without them passes.
     #   SETUID/SETGID — tinyproxy drops privileges to nobody after bind.
     #   NET_BIND_SERVICE — dnsmasq binds privileged port 53 to serve external
     #                   DNS to the internal-only sandbox network (dnsmasq checks
@@ -739,7 +757,10 @@ services:
       # `-f`. NOT `nc -z`: tinyproxy logs every connect-and-close at ERROR
       # ("read_request_line: Client … closed socket before read."), which
       # wrote one error line per interval into the log an operator reads to
-      # find real failures.
+      # find real failures. Then one DNS query to dnsmasq on 127.0.0.1 for the
+      # name it answers from its own `--host-record`: nested containers and
+      # BuildKit RUN steps resolve only through it, and busybox `nslookup`
+      # exits non-zero when it does not answer within a second.
       # We intentionally do NOT CONNECT-probe an external host (pypi/npm)
       # — flapping that probe against a transient upstream outage flips
       # the spawner's `depends_on: service_healthy` gate to false and
@@ -750,7 +771,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1",
+          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1",
         ]
       interval: 10s
       timeout: 5s
@@ -834,7 +855,7 @@ services:
       # generator (create-sandbox-service.ts) — R2-B11 lockstep.
       SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
       SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
-      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:
@@ -867,12 +888,16 @@ services:
       nofile:
         soft: 4096
         hard: 8192
+    # Each probe is a runc exec of curl, every 30 s, so a booting spawner
+    # reads healthy up to 30 s after it starts. No `start_interval`: Docker
+    # Compose refuses it on Engine 24, the oldest engine Tale supports.
+    # Mirrors the CLI generator and the image's HEALTHCHECK.
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health']
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 30s
     depends_on:
       sandbox-egress:
         condition: service_healthy
@@ -941,6 +966,14 @@ services:
       # `llm-gateway`); kept as-is to avoid a data migration.
       - llm-gateway-data:/app/data
     restart: unless-stopped
+    # Graceful shutdown: on SIGTERM the gateway stops taking new calls and
+    # waits for the ones in flight (streamed answers included) to finish. It
+    # writes its in-memory budget counters (the spend the platform books) to
+    # its store only when that drain ends within 30s of the signal, its own
+    # cleanup window. Docker's 10s default would cut every model stream still
+    # running 10s into a deploy's stop.
+    # Mirrors the CLI generator (create-sandbox-llm-gateway-service.ts: 90s).
+    stop_grace_period: 90s
     mem_limit: 512m
     healthcheck:
       # The gateway image ships busybox wget but no curl.
@@ -966,6 +999,9 @@ services:
 # Volumes
 # ============================================================================
 volumes:
+  # Immutable frontend bundles retained across blue/green rollouts.
+  static-assets:
+    driver: local
   # Tale DB persistent storage
   db-data:
     driver: local

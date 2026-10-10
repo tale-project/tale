@@ -1,6 +1,7 @@
 import { Hono, type Context, type Env } from 'hono';
 import type { Sql } from 'postgres';
 
+import { withRunnerTenant } from '../../lib/engine/runners/tenant.ts';
 import {
   isValidOrgSlug,
   MAX_ORG_SLUG_LENGTH,
@@ -12,6 +13,8 @@ import {
 } from '../auth/auth.ts';
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
+import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
+import { withApiKeyAuditActor } from '../domains/audit_logs/request-actor.ts';
 import { isModelApiDoorPath } from '../domains/model_api/wire.ts';
 import {
   listSelectableOrganizations,
@@ -29,6 +32,8 @@ import {
   checkIpRateLimit,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
+import { projectKeyReaches } from './api-key-scope.ts';
+import { resolveBoundKeyCaller } from './bound-key.ts';
 import {
   domainErrorResponse,
   restRateLimited,
@@ -281,6 +286,51 @@ export function createRestV1Routes(deps: {
     // routed rather than told the organization does not exist.
     const orgSlugRaw = c.req.header('x-organization-slug')?.trim();
     const orgSlugHeader = orgSlugRaw?.toLowerCase();
+
+    // The api-key plugin verifies the bearer into a session whose id IS
+    // the key row's id (`@better-auth/api-key`: `session.id = apiKey.id`);
+    // `/me` reads the key's name and expiry from it.
+    const sessionKeyId: unknown = session.session?.id;
+    const apiKeyId = typeof sessionKeyId === 'string' ? sessionKeyId : '';
+
+    // A key bound to ONE organization — made for a member, or a team's, a
+    // project's or the organization's own — works there and nowhere else,
+    // with no header needed; a header naming another organization is
+    // refused with its own organization listed (`bound-key.ts`).
+    const owner = await readApiKeyOwner(deps.sql, apiKeyId);
+    if (owner !== null) {
+      const bound = await resolveBoundKeyCaller(deps.sql, {
+        owner,
+        userId: session.user.id,
+        orgSlugHeader: orgSlugRaw ? orgSlugHeader : undefined,
+      });
+      if (!bound.ok) {
+        if (bound.status === 401) {
+          return unauthorized(c, bound.message, 'invalid_token');
+        }
+        return c.json(
+          {
+            error: bound.message,
+            code: bound.code,
+            data: { organizations: bound.organizations },
+          },
+          403,
+        );
+      }
+      // The key authenticates as its own identity; it acts as the member a
+      // member's key was made for, or as that identity. A key that is not a
+      // person has no address of its own to report.
+      c.set('userId', bound.userId);
+      c.set('userEmail', bound.email);
+      c.set('organizationId', bound.organizationId);
+      c.set('orgSlug', bound.orgSlug);
+      c.set('role', bound.role);
+      c.set('orgExplicit', Boolean(orgSlugRaw));
+      c.set('clientIp', ip);
+      c.set('apiKeyId', apiKeyId);
+      c.set('apiKeyOwner', owner);
+      return next();
+    }
     // A header that cannot be a slug at all names no organization: the
     // domain's own 404, answered here without looking the value up and
     // without echoing an unbounded value back (the message used to quote
@@ -362,12 +412,48 @@ export function createRestV1Routes(deps: {
     c.set('role', member.role);
     c.set('orgExplicit', Boolean(orgSlugHeader));
     c.set('clientIp', ip);
-    // The api-key plugin verifies the bearer into a session whose id IS
-    // the key row's id (`@better-auth/api-key`: `session.id = apiKey.id`);
-    // `/me` reads the key's name and expiry from it.
-    const keyId: unknown = session.session?.id;
-    c.set('apiKeyId', typeof keyId === 'string' ? keyId : '');
+    c.set('apiKeyId', apiKeyId);
+    c.set('apiKeyOwner', null);
     return next();
+  });
+
+  // Automation code a request evaluates queues as its organization's, so the
+  // runner serves organizations in turn (`runners/tenant.ts`).
+  app.use((c, next) => withRunnerTenant(c.get('organizationId'), next));
+
+  // Authorization stays with the member; every audit append made during
+  // this verified request instead names the key and its maker. A person's
+  // own key has no binding row: that verified user is also its maker.
+  app.use(async (c, next) => {
+    const apiKeyId = c.get('apiKeyId');
+    if (!apiKeyId) return next();
+    return withApiKeyAuditActor(
+      {
+        organizationId: c.get('organizationId'),
+        apiKeyId,
+        makerUserId: c.get('apiKeyOwner')?.createdBy ?? c.get('userId'),
+        subjectUserId: c.get('userId'),
+      },
+      next,
+    );
+  });
+
+  // A project's own key reaches its project and nothing else: every other
+  // route is refused here, before a handler could answer it from the
+  // audience the key sees inside its project (`api-key-scope.ts`).
+  app.use(async (c, next) => {
+    const owner = c.get('apiKeyOwner');
+    if (owner?.kind !== 'project' || owner.projectId === null) return next();
+    if (projectKeyReaches(c.req.method, c.req.path, owner.projectId)) {
+      return next();
+    }
+    return c.json(
+      {
+        error: 'This key belongs to one project and reaches only that project.',
+        code: 'API_KEY_SCOPE_FORBIDDEN',
+      },
+      403,
+    );
   });
 
   // No write on this door reads a query parameter — every argument of a

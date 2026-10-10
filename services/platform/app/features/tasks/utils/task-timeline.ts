@@ -1,3 +1,5 @@
+import type { AgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
+
 export type TaskActivityRow = {
   _id: string;
   actorType: 'user' | 'agent';
@@ -21,6 +23,12 @@ export type TaskAgentRunRow = {
   /** The producer's classification of a failed run (see
    * `lib/shared/task-run-failure.ts`). */
   failureCode?: string;
+  /** Queued while no worker or no room is free for it. */
+  waitingForCapacity?: boolean;
+  /** Why it waits, while it waits and the park kept a reason. */
+  waitingReason?: AgentRunWaitingReason;
+  /** The worker it works in, while it holds one. */
+  worker?: number;
   startedAt: number;
   durationMs?: number;
   costCents: number;

@@ -45,14 +45,16 @@ export interface SpawnerConfig {
   // ghcr ref so the daemon matches the deployed version.
   buildkitdImage: string;
   // The pull-through registry mirror image (env SANDBOX_BUILDKITD_MIRROR_IMAGE;
-  // default stock `registry:2`) launched alongside the buildkitd so base-image
-  // pulls resolve by name on the internal net (buildkit can't resolve external
-  // registry names through docker's embedded DNS).
+  // default stock registry 2.8.3, pinned by digest) launched alongside the
+  // buildkitd so base-image pulls resolve by name on the internal net (buildkit
+  // can't resolve external registry names through docker's embedded DNS).
   buildkitdMirrorImage: string;
   // The bounds of each organization's builder (env SANDBOX_BUILDKITD_CPUS and
   // SANDBOX_BUILDKITD_MEMORY): unset, an agent session's CPUs and twice its
   // memory (buildkitd.ts buildkitHelperLimits).
   buildkitdCpus?: number;
+  // Total optional-cache provisioning budget, including queued Docker calls.
+  buildkitdProvisionTimeoutMs?: number;
   buildkitdMemoryBytes?: number;
   // The build cache an organization's builder keeps when it stops for want of
   // agent sessions (env SANDBOX_BUILDKITD_IDLE_CACHE): unset, 5 GiB
@@ -62,6 +64,19 @@ export interface SpawnerConfig {
   // (env SANDBOX_BUILDKITD_CACHE_RETENTION): unset, 14 days; 0 keeps them
   // until the organization is deleted (buildkitd.ts sweepIdleBuildkitd).
   buildkitdCacheRetentionMs?: number;
+  // How long an organization's build helpers keep running once no agent
+  // session that builds may use them (env SANDBOX_BUILDKITD_IDLE_MS): unset,
+  // 10 minutes (buildkitd.ts DEFAULT_HELPER_IDLE_MS), apart from the session
+  // idle window.
+  buildkitdIdleMs?: number;
+  // The most build cache each organization's builder keeps (env
+  // SANDBOX_BUILDKITD_MAX_CACHE): unset, a tenth of the session disk, from
+  // 1 GiB to 20 GiB (buildkitd.ts buildkitCacheBudget).
+  buildkitdMaxCacheBytes?: number;
+  // How long an organization's pip, npm and bun cache volumes outlive their
+  // last use (env SANDBOX_PACKAGE_CACHE_RETENTION): unset, 14 days; 0 keeps
+  // them until the organization is deleted (package-cache-retention.ts).
+  packageCacheRetentionMs?: number;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
   // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client
@@ -84,17 +99,34 @@ export interface SpawnerConfig {
     runtimeClassName: string | null;
     // Size of the per-session /agent workspace PVC (K8s quantity string, env
     // SANDBOX_K8S_WORKSPACE_SIZE_LIMIT; storage class from
-    // SANDBOX_K8S_CACHE_STORAGECLASS) and, under DinD, the sizeLimit of the
-    // inner-docker emptyDir. Everything the session writes — dependency
-    // installs, temp files, outputs — lands on the workspace, so without a
-    // bound a runaway session can fill the node disk; the K8s analogue of
-    // docker's fsize ulimit.
+    // SANDBOX_K8S_CACHE_STORAGECLASS) and of a crawler render's workspace
+    // emptyDir. Everything the session writes — dependency installs, temp
+    // files, outputs — lands on the workspace, so without a bound a runaway
+    // session can fill the node disk; the K8s analogue of docker's fsize
+    // ulimit.
     workspaceSizeLimit: string;
     // What every session Pod requests from the scheduler, overriding the
     // per-profile defaults (env SANDBOX_K8S_CPU_REQUEST /
     // SANDBOX_K8S_MEMORY_REQUEST, K8s quantities). Never above the limit.
     cpuRequest?: string;
     memoryRequest?: string;
+    // The runner's node-disk budget (env SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST
+    // / _LIMIT, K8s quantities), overriding the pod-spec defaults. The limit
+    // covers what the runner writes outside its sized volumes (writable root
+    // filesystem, logs); the Pod's limit adds those volumes on top.
+    ephemeralStorageRequest?: string;
+    ephemeralStorageLimit?: string;
+    // sizeLimit of a DinD session's inner Docker store emptyDir (env
+    // SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT); unset, the pod-spec default.
+    dockerStorageSizeLimit?: string;
+    // Where session Pods may run and how they rank against other Pods (env
+    // SANDBOX_K8S_NODE_SELECTOR and SANDBOX_K8S_TOLERATIONS as JSON,
+    // SANDBOX_K8S_PRIORITY_CLASS), so untrusted sessions can be kept off the
+    // nodes of the database and platform and yield to them under pressure.
+    // Unset, the scheduler places them anywhere at the default priority.
+    nodeSelector?: Readonly<Record<string, string>>;
+    tolerations?: readonly K8sToleration[];
+    priorityClassName?: string;
   };
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls
@@ -103,6 +135,9 @@ export interface SpawnerConfig {
   // still adopted (running ones keep their live mount; stopped ones via the
   // legacy-compat resume fallback in docker-session-backend.ts).
   hostSessionRoot: string;
+  /** Opt-in, verified read-only view of DockerRootDir for disk admission. */
+  dockerDataPath?: string;
+  dockerDataRoot?: string;
   cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
   egressProxy: string;
@@ -134,6 +169,15 @@ export interface SpawnerConfig {
   session: SessionConfig;
 }
 
+/** A Pod toleration, as the apiserver accepts it (validated by loadConfig). */
+export interface K8sToleration {
+  key?: string;
+  operator?: 'Equal' | 'Exists';
+  value?: string;
+  effect?: 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
+  tolerationSeconds?: number;
+}
+
 export interface HubConfig {
   /** Port of the WebSocket door (published by the proxy at /sandbox/tunnel). */
   port: number;
@@ -152,10 +196,21 @@ export interface SessionConfig {
   /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
    * unset is a tenth of the host, at least 1 GiB. */
   minFreeMemoryBytes?: number;
-  /** Free space admission keeps on the disk the workspaces live on
+  /** CPU pressure (the host's PSI `some avg10`, in percent) at and above
+   * which admission lets sessions start only one at a time
+   * (SANDBOX_CPU_PRESSURE_PERCENT; 0 turns the gate off); unset is 60. Read
+   * where the host's memory is. */
+  cpuPressurePercent?: number;
+  /** Free space admission keeps on the workspace and verified Docker metadata filesystems
    * (SANDBOX_MIN_FREE_DISK; 0 turns the floor off); unset is a twentieth of
-   * the disk, at least 2 GiB and at most 20 GiB (host-disk.ts). */
+   * each filesystem, at least 2 GiB and at most 20 GiB (host-disk.ts). */
   minFreeDiskBytes?: number;
+  /** Free space below which that disk is critical (SANDBOX_CRITICAL_FREE_DISK;
+   * 0 turns the tier off): released Docker-in-sandbox sessions are stopped
+   * at once, and the largest workspaces are logged. Unset is a quarter of
+   * the floor, at least 1 GiB; set or unset never above the floor, and off
+   * while the floor is (host-disk.ts). */
+  criticalFreeDiskBytes?: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */
@@ -173,8 +228,18 @@ export interface SessionConfig {
   /** Default + ceiling for per-exec timeoutMs inside a session. */
   execDefaultTimeoutMs: number;
   execMaxTimeoutMs: number;
-  /** Create-time budget for container launch + runnerd /healthz to go green
-   * (covers a cold image pull on K8s). */
+  /** How long a session exec may print nothing while its processes use
+   * under 1% of one CPU before runnerd ends it as stalled
+   * (SANDBOX_EXEC_STALL_MINUTES, passed as `TALE_EXEC_STALL_MS`); 0 turns
+   * the watch off. */
+  execStallMs: number;
+  /** The share of a session's memory limit its working set may reach
+   * before runnerd refuses to start another exec in it (passed as
+   * `TALE_EXEC_ADMISSION_MEMORY_PERCENT`); running execs are never
+   * touched. */
+  execAdmissionMemoryPercent: number;
+  /** Docker's total provisioning/readiness/seed-environment budget. On K8s,
+   * the runtime readiness budget includes a cold image pull. */
   createHealthTimeoutMs: number;
   /** Resource caps for the `agent` profile session containers. The `default`
    * profile mirrors the one-shot caps and is not configurable separately. */
@@ -183,9 +248,17 @@ export interface SessionConfig {
 
 export interface SessionAgentProfileConfig {
   cpus: number;
+  /** Relative CPU weight under contention (`--cpu-shares`; cgroup v2
+   * cpu.weight is derived from it). Below the 1024 every control-plane
+   * container runs at, so busy sessions yield the CPU to the database and
+   * backend instead of starving them; an idle host still gives a session its
+   * full `cpus` quota. */
+  cpuShares: number;
   /** Docker quantity string, e.g. '4g' (memory-swap is pinned to the same
    * value — no swap headroom, matching the one-shot containers). */
   memory: string;
+  /** Derived non-Docker ceiling; an explicit SANDBOX_AGENT_MEMORY sets both. */
+  memoryWithoutDocker?: string;
   pidsLimit: number;
   nofileSoft: number;
   nofileHard: number;

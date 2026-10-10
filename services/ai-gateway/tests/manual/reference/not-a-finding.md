@@ -40,12 +40,14 @@ Intentional behaviours that look surprising but are correct by design.
   listed with `status: "expired"` so the caller can see what it has rather than
   silently receiving a shorter pool, and so the panel can offer
   **Reauthenticate**.
-- **A failed usage read leaves credential status unchanged.** The metrics
+- **A failed metrics read usually leaves credential status unchanged.** The
   endpoint can fail while inference still works; its old figures and their
-  timestamp remain visible. `error` indicates a transient token-refresh
-  failure, while `expired` means a refused grant or unreadable stored token
-  needs a new sign-in. An unreadable access token is omitted from token
-  responses because it cannot be handed out.
+  timestamp remain visible. A direct authenticated usage rejection is the
+  exception: the gateway marks that exact access-token generation `error`,
+  refreshes it once through the normal single-flight path, and returns it to
+  `active` only after the replacement works. A terminal refresh refusal stays
+  `expired` and needs a new sign-in. An unreadable access token is omitted from
+  token responses because it cannot be handed out.
 - **The OpenAI browser flow sends you to an address that does not load.** Only
   the fallback does ("Sign in through the browser instead"): the Codex OAuth
   client is registered for `http://localhost:1455/auth/callback`, which answers

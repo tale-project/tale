@@ -1,17 +1,17 @@
 ---
 title: Connectors
-description: Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient.
+description: Comment un connector est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connector ne convient.
 ---
 
-Un connecteur donne à Tale un moyen réutilisable d'appeler un service. Sa définition décrit l'authentification, les destinations autorisées et les actions ; chaque organisation fournit ses propres identifiants. Cette page t'aide à examiner ce contrat ou à contribuer un nouveau connecteur.
+Un connector donne à Tale un moyen réutilisable d'appeler un service. Sa définition décrit l'authentification, les destinations autorisées et les actions ; chaque organisation fournit ses propres identifiants. Cette page t'aide à examiner ce contrat ou à contribuer un nouveau connector.
 
-Pour connecter un compte dans l'application, consulte [Identifiants des connecteurs](/fr/platform/admin/connectors). Pour choisir une intégration existante, parcours le [catalogue](/fr/platform/connectors/overview).
+Pour connecter un compte dans l'application, consulte [Identifiants des connectors](/fr/platform/admin/connectors). Pour choisir une intégration existante, parcours le [catalogue](/fr/platform/connectors/overview).
 
-## Comment un connecteur est déclaré
+## Comment un connector est déclaré {#comment-un-connecteur-est-declare}
 
-Les définitions se trouvent dans `configs/platform/system/connectors/<slug>/connector.yml`, avec l'icône du connecteur. Le slug du dossier doit correspondre à `name`. Une automatisation appelle une action avec `<connector>.<action>`, par exemple `tavily.search`. Les connecteurs de fournisseurs apparaissent dans les paramètres ; les connecteurs internes utilisant l'authentification de la plateforme n'y figurent pas.
+Les définitions se trouvent dans `configs/platform/system/connectors/<slug>/connector.yml`, avec l'icône du connector. Le slug du dossier doit correspondre à `name`. Une automatisation appelle une action avec `<connector>.<action>`, par exemple `tavily.search`. Les connectors de fournisseurs apparaissent dans les paramètres ; les connectors internes utilisant l'authentification de la plateforme n'y figurent pas.
 
-Cet extrait de la définition Tavily fournie montre l'identité et l'authentification. Ce n'est pas un connecteur complet : les définitions d'actions doivent aussi figurer dans le fichier.
+Cet extrait de la définition Tavily fournie montre l'identité et l'authentification. Ce n'est pas un connector complet : les définitions d'actions doivent aussi figurer dans le fichier.
 
 ```yaml
 name: tavily
@@ -24,6 +24,8 @@ allowedHosts:
 auth:
   - method: api-key
 ```
+
+Un connector dont le nom est fait de mots courants, comme `task` (Tasks), déclare aussi `i18n.de.displayName` et `i18n.fr.displayName`. Un connector qui porte le nom d’un produit, comme Tavily, garde ce nom dans toutes les langues.
 
 ### Définir les destinations autorisées
 
@@ -38,7 +40,7 @@ Confluence, GlitchTip et Shopify utilisent des origines propres à chaque identi
 
 <Info>
 
-Ajouter un connecteur demande une contribution au code source. L'exécution lit le catalogue de la plateforme ; une organisation ne peut pas importer sa propre définition. Commence par [l'environnement de contribution](/fr/develop/contributor-setup), puis étudie un connecteur existant utilisant une authentification et un transport similaires.
+Ajouter un connector demande une contribution au code source. L'exécution lit le catalogue de la plateforme ; une organisation ne peut pas importer sa propre définition. Commence par [l'environnement de contribution](/fr/develop/contributor-setup), puis étudie un connector existant utilisant une authentification et un transport similaires.
 
 </Info>
 
@@ -47,31 +49,33 @@ Ajouter un connecteur demande une contribution au code source. L'exécution lit 
 | Champ | Contrat pour l'auteur et l'appelant |
 | --- | --- |
 | `name`, `description` | Nom stable en snake_case et explication de l'usage de l'action |
+| `title`, `i18n` | L’action en mots pour les personnes : un `title` anglais court, avec une seule majuscule initiale et sans le nom du connector (« List issues »), plus `i18n.de.title` et `i18n.fr.title` (et `de-CH` quand l’orthographe suisse diffère). Le canevas d’automatisation affiche un nœud sous la forme « GitHub · Lister les issues » dans la langue du lecteur ; une action fournie à laquelle il en manque un fait échouer les tests du catalogue |
 | `input` | Schéma JSON objet, validé avant exécution ; décrire les champs et signaler ceux requis |
 | `output` | Signature du résultat au style TypeScript ; documentation, pas validation des sorties à l'exécution |
 | `effects` | `read` ou `write` ; les écritures passent par la politique d'approbation |
 | `mock` | JavaScript déterministe obligatoire : même entrée, même sortie, sans accès réseau |
 | `backend` | Implémentation réelle facultative : `yaml-js` avec `live`, ou `native` avec un identifiant `impl` |
 | `exampleInput` | Petit exemple facultatif utile à la découverte et aux tests |
+| `idempotent` | Facultatif ; `true` seulement pour une écriture dont un second appel avec la même `ctx.idempotencyKey` ne change plus rien. Une exécution d’automatisation interrompue la relance alors d’elle-même au lieu d’attendre une décision |
 
-Sans backend réel, le connecteur fonctionne en simulation mais refuse l'exécution réelle. Une écriture n'a pas lieu si la plateforme ne peut pas obtenir une décision d'approbation. La [référence de politique](/fr/self-hosted/configuration/approvals) explique la priorité des règles et les décisions en attente.
+Sans backend réel, le connector fonctionne en simulation mais refuse l'exécution réelle. Une écriture n'a pas lieu si la plateforme ne peut pas obtenir une décision d'approbation. La [référence de politique](/fr/self-hosted/configuration/approvals) explique la priorité des règles et les décisions en attente.
 
 Pour comprendre un résultat, lis aussi l'implémentation réelle. Par exemple, la recherche Tavily décrit l'entrée `max_results`, mais l'action fournie limite les résultats renvoyés à cinq. La signature de sortie seule ne précise pas cette limite.
 
 ### Sélectionner le bon compte
 
-L'identifiant est choisi au moment de l'appel : celui nommé explicitement, sinon celui par défaut du connecteur. Modifier le défaut peut donc changer le compte d'une exécution ultérieure. Nomme l'identifiant explicitement lorsque le compte fait partie du contrat de ton intégration.
+L'identifiant est choisi au moment de l'appel : celui nommé explicitement, sinon celui par défaut du connector. Modifier le défaut peut donc changer le compte d'une exécution ultérieure. Nomme l'identifiant explicitement lorsque le compte fait partie du contrat de ton intégration.
 
-La découverte des boîtes mail fait exception : `conversation.sync_mailbox` et `conversation.list_mailbox_messages` parcourent tous les identifiants actifs du connecteur. Ces actions couvrent ainsi toutes les boîtes connectées, sans se limiter au compte par défaut.
+La découverte des boîtes mail fait exception : `conversation.sync_mailbox` et `conversation.list_mailbox_messages` parcourent tous les identifiants actifs du connector. Ces actions couvrent ainsi toutes les boîtes connectées, sans se limiter au compte par défaut.
 
 ## Les méthodes d’authentification
 
-Un connecteur peut accepter plusieurs méthodes ; un identifiant enregistré en utilise exactement une.
+Un connector peut accepter plusieurs méthodes ; un identifiant enregistré en utilise exactement une.
 
 | Méthode   | Libellé dans l’interface          | Ce que porte l’identifiant                                                                                                     |
 | --------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `api-key` | Clé API                           | Un secret unique que le corps de l’action place lui-même — un en-tête du fournisseur, un paramètre d’URL ou un champ du corps. |
-| `bearer`  | Jeton                             | Un jeton envoyé dans l’en-tête Authorization, sous le schéma que le connecteur nomme.                                          |
+| `bearer`  | Jeton                             | Un jeton envoyé dans l’en-tête Authorization, sous le schéma que le connector nomme.                                          |
 | `basic`   | Nom d’utilisateur et mot de passe | Un nom d’utilisateur et un mot de passe en HTTP Basic, la forme que prend aussi un login de boîte mail.                        |
 | `oauth2`  | OAuth                             | Une autorisation par code : jeton d’accès, jeton de rafraîchissement, expiration et portées accordées.                         |
 
@@ -81,18 +85,18 @@ Les secrets sont chiffrés au repos. Les listes renvoient un aperçu masqué et 
 
 ## Enregistrer une application OAuth
 
-Le connecteur déclare les URL d'autorisation et de jeton, ainsi que les permissions demandées. Configure d'abord l'application du fournisseur, puis connecte un compte par son intermédiaire.
+Le connector déclare les URL d'autorisation et de jeton, ainsi que les permissions demandées. Configure d'abord l'application du fournisseur, puis connecte un compte par son intermédiaire.
 
 | Source | Priorité et configuration |
 | --- | --- |
-| Application d'organisation | Prioritaire. Un administrateur renseigne ID client et secret dans **Paramètres > Connecteurs > Applications OAuth** |
+| Application d'organisation | Prioritaire. Un administrateur renseigne ID client et secret dans **Paramètres > Connectors > Apps OAuth** |
 | Application de déploiement | Défaut sans application d'organisation : `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` et `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
 
 Dans les variables d'environnement, mets le slug en majuscules et remplace ses tirets par des traits de soulignement. Pour une application Microsoft à locataire unique, configure aussi l'ID d'annuaire afin de cibler ce locataire plutôt que `/common`. Les secrets d'organisation sont chiffrés et ne sont plus affichés ensuite.
 
 ### Enregistrer exactement l'URL de retour
 
-Tous les connecteurs OAuth d'organisation utilisent cette URI de redirection :
+Tous les connectors OAuth d'organisation utilisent cette URI de redirection :
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
@@ -100,7 +104,7 @@ ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 
 Le schéma, l'hôte et le chemin doivent correspondre exactement, sans barre oblique finale. Tale refuse de commencer le consentement si `SITE_URL` manque ; il ne déduit pas une URL publique de la requête reçue. Un refus `redirect_uri` sur l'écran du fournisseur indique généralement une différence entre l'URI enregistrée et celle envoyée.
 
-Les imports personnels OneDrive/Google Drive pour les connaissances suivent un parcours distinct. Google Drive partage son application OAuth entre connecteur et import : enregistre les deux URI de redirection sur ce client Google. Le retour d'import est décrit dans la [référence d'environnement](/fr/self-hosted/configuration/environment-reference).
+Les imports personnels OneDrive/Google Drive pour les connaissances suivent un parcours distinct. Google Drive partage son application OAuth entre connector et import : enregistre les deux URI de redirection sur ce client Google. Le retour d'import est décrit dans la [référence d'environnement](/fr/self-hosted/configuration/environment-reference).
 
 ### Configurer le point d'accès aux événements Slack
 
@@ -112,14 +116,14 @@ Enregistre `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` comme Events Re
 
 | Besoin | Solution |
 | --- | --- |
-| Action fournisseur prise en charge | Connecteur fourni et identifiant d'organisation |
+| Action fournisseur prise en charge | Connector fourni et identifiant d'organisation |
 | Action réutilisable absente du catalogue | Contribution avec schéma, mock déterministe, backend réel et tests |
 | Appels propres au projet vers ton service | Secrets et code dans la sandbox d'un agent de projet, selon ses permissions réseau |
 | Logique personnalisée dans une automatisation | Nœud `transform`, selon les capacités et règles réseau du moteur |
 
 Un secret permet l'authentification ; il ne rend pas joignable un service privé inaccessible. Vérifie le réseau depuis la sandbox ou le moteur réellement utilisé avant de concevoir ton intégration autour de cet accès.
 
-L'enregistrement de serveurs MCP externes n'est pas disponible. Le [point d'accès MCP de Tale](/fr/develop/mcp-endpoint) permet à un client externe d'appeler Tale ; il n'ajoute pas de connecteur sortant vers un autre serveur MCP.
+L'enregistrement de serveurs MCP externes n'est pas disponible. Le [point d'accès MCP de Tale](/fr/develop/mcp-endpoint) permet à un client externe d'appeler Tale ; il n'ajoute pas de connector sortant vers un autre serveur MCP.
 
 ## Où cela s’inscrit
 

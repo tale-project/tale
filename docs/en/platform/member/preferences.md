@@ -11,9 +11,13 @@ Open **Settings > Account**. Under **Profile**, edit **Name** and click **Save**
 
 The name is visible to teammates and can be at most 100 characters long. It is not a private instruction to the assistant.
 
+## When a password change is required
+
+If an administrator sets or resets your password, or your password expires under the organization's rotation policy, the **Password change required** screen appears when you sign in. Enter a new password that meets the requirements shown on screen, confirm it, and select **Update password** to continue. For the exact messages, see [Members and roles](/platform/admin/members-and-roles).
+
 ## Protect your sign-in
 
-The **Password** section offers **Change password**, or **Set password** for an account that does not yet have one. Follow the password requirements shown in the dialog. They come from your organization's password policy. If you belong to several organizations, your password must meet the requirements of every one of them. Changing the password signs out your sessions, so keep the new password available before confirming.
+The **Password** section offers **Change password**, or **Set password** for an account that does not yet have one. Follow the password requirements shown in the dialog. They come from your organization's password policy. If you belong to several organizations, your password must meet the requirements of every one of them. Changing the password signs out your sessions, so keep the new password available before confirming. A wrong current password counts toward the same temporary lock as a failed sign-in.
 
 Set up an authenticator under **Two-factor authentication** or add a passkey under **Passkeys**. Store backup codes somewhere you can reach without signing in to Tale. [Two-factor authentication](/platform/admin/two-factor-authentication) covers setup, recovery, and organization requirements.
 
@@ -29,7 +33,7 @@ Check the organization name before changing settings or adding content.
 
 ## See your teams {#teams}
 
-**Settings > Account > Your teams** lists the teams you belong to. Teams decide which team documents, projects, and inbox queues you can see; work shared with the whole organization is visible to you regardless. When you are in no team, the section says so.
+**Settings > Account > Your teams** lists the teams you belong to. Teams decide which team documents, projects, and inbox queues you can see; work shared with the whole organization is visible to you regardless. When you are in no team, the section says so. If your teams can't be loaded, the section says that instead of claiming you are in no team. Choose **Try again** to load them. When a refresh fails, the teams already shown stay, with a note that they may be out of date.
 
 To narrow a list to certain work, use its **Teams** filter: **Organization-wide** shows only items without a team, **My teams** shows items any of your teams can see, and each team is listed by name. The inbox offers an **Assignee** filter behind its search box, listing people and teams together. A filter changes the current view; it does not grant access to another team’s data.
 
@@ -53,7 +57,7 @@ Your instructions never override the organization’s mandatory instructions or 
 
 ## Check your usage limits {#usage-limits}
 
-Open **Settings > Usage** to see how much you have used of each limit your organization applies to you. The page says so when no limit covers you.
+Open **Settings > Usage** to see how much you have used of each limit your organization applies to you. The page says so when no limit covers you. A project's limit, which caps everything spent in that project, is not listed here: in the project's chats, the banner above the composer warns about it, and a request it refuses says so.
 
 <Frame caption="Settings > Usage lists each limit that applies to you with its usage and next reset.">
 
@@ -65,7 +69,7 @@ Open **Settings > Usage** to see how much you have used of each limit your organ
 - **Shared limits** count the usage of everyone they cover, such as a team you belong to or the entire organization, so they can be reached before your own limits.
 - **Storage** compares the files you have uploaded with your storage limit. New document uploads are refused once it is reached.
 
-Each usage limit shows the amount used, the limit, and when it resets in your local time. Periods follow UTC: daily limits reset at midnight, weekly limits on Monday, and monthly limits on the first of the month. If an administrator set a warning threshold, the bar turns amber once your usage reaches it. When a banner above the composer warns about a limit, **View usage** opens this page. Administrators also see **Manage limits**, which opens **Governance > Policies & Limits**.
+Each usage limit shows the amount used, the limit, and when it resets in your local time. Periods follow UTC: daily limits reset at midnight, weekly limits on Monday, and monthly limits on the first of the month. If an administrator set a warning threshold, the bar turns amber once your usage reaches it. When a banner above the composer warns about a limit, **View usage** opens this page; a banner about a project's limit names the project instead. Administrators also see **Manage limits**, which opens **Governance > Policies & Limits**.
 
 ## Archive old chats or sign out
 

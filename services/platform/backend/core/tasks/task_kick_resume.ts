@@ -89,10 +89,9 @@ export function isValidResumeHandle(handle: string): boolean {
  * never-started run being woken is `queued`, so a terminal-only lookup
  * naturally decides on its predecessor, not on itself.
  *
- * Never derive the handle from "the latest conversation on the standing
- * session": the session is per AGENT and two tasks can run on it at once —
- * session-latest can resume the sibling task's conversation and write into
- * its delivery box. Only the per-task run row (or its own op row) is a valid
+ * Never derive the handle from "the latest conversation on the worker": a
+ * worker serves the agent's tasks one after another — session-latest can
+ * resume another task's conversation and write into its delivery box. Only the per-task run row (or its own op row) is a valid
  * source, which is why this function takes facts, not a session to scan.
  */
 export function resolveTaskKickResume(args: {

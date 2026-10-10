@@ -1,0 +1,75 @@
+title: Accueil
+newChat: Nouveau chat
+panel:
+  hide: Masquer le panneau latéral
+  show: Afficher le panneau latéral
+views:
+  label: Afficher
+  all: Tout
+  chats: Chats
+  tasks: Tâches
+  inbox: Réception
+groups:
+  pinned: Épinglés
+  today: Aujourd’hui
+  yesterday: Hier
+  thisWeek: 7 derniers jours
+  earlier: Plus ancien
+  searchPlaceholderAll: Tout rechercher...
+  searchPlaceholderChats: Rechercher des chats...
+  searchPlaceholderTasks: Rechercher des tâches...
+  newChatInProject: 'Nouveau chat dans {project}'
+projects:
+  title: Projets
+  newProject: Nouveau projet
+  allProjects: Tous les projets
+  actions: 'Actions pour {project}'
+  empty: Aucun projet pour le moment
+scope:
+  open: Ouvrir le projet
+  emptyChatsTitle: Aucun chat dans ce projet
+  emptyChatsHint: Les chats classés dans ce projet apparaissent ici.
+  emptyTasksTitle: Aucune tâche ouverte vous étant attribuée dans ce projet
+  emptyTasksHint: Les tâches qui vous sont attribuées dans ce projet apparaissent ici.
+inbox:
+  statusLabel: '{status}, statut de la conversation'
+  compose: Nouvel e-mail
+  clearSelection: Effacer la sélection
+  status:
+    open: Ouvert
+    closed: Fermé
+    spam: Spam
+    archived: Archivé
+row:
+  untitledChat: Chat sans titre
+  chat: Chat
+  draft: Brouillon
+  unread: Non lu
+  generating: Rédige une réponse…
+  awaitingReview: En attente de ta relecture
+empty:
+  all:
+    title: Rien pour le moment
+    hint: Lance un chat ou prends en charge une tâche d’un projet.
+  chats:
+    title: Aucun chat pour le moment
+    hint: Tes conversations avec l’assistant apparaissent ici.
+  tasks:
+    title: Rien ne t’est attribué
+    hint: Les tâches ouvertes qui te sont attribuées dans un projet apparaissent ici.
+  inbox:
+    title: Aucune conversation
+    hint: Les conversations clients de ce statut apparaissent ici.
+    filtered: Aucune conversation ne correspond à la recherche ou aux filtres.
+# Une lecture abandonnée (#4093) : une ligne par type que la vue liste,
+# mises bout à bout si plusieurs ont échoué, au-dessus des lignes chargées.
+failed:
+  chats: Impossible de charger tes chats.
+  tasks: Impossible de charger tes tâches.
+  conversations: Impossible de charger les conversations clients.
+  retrying: Nouvelle tentative…
+aria:
+  panel: Accueil
+  stream: Tes chats, tâches et conversations
+  inbox: Conversations de la boîte de réception
+  attention: '{count, plural, one {# élément attend ton action} other {# éléments attendent ton action}}'

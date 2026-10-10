@@ -11,9 +11,10 @@
  * once the job's signal aborts (stamping only the rows it visited), the
  * ended-run reclaim settles a row
  * only when the spawner confirmed the session is gone or idle (busy and
- * errors leave it for the next tick), and the failed-create collect destroys
- * a session only when no newer or live incarnation carries its id, then
- * stamps that one row, and the render release destroys the idle session of
+ * errors leave it for the next tick), and the failed-create collect removes
+ * a session only when no newer or live incarnation carries its id — an agent
+ * session's compute alone, keeping its workspace — then stamps that one row,
+ * and the render release destroys the idle session of
  * a render row older than a scan link can keep one. Every tick also deletes the settled model-endpoint
  * request rows a week old, between closing the lost requests and the
  * settlement sweep, and a failure there stops neither. The real-Postgres
@@ -48,10 +49,13 @@ import {
 } from './watchdogs.ts';
 
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
+  sandboxWorkspaceInventory: vi.fn(),
   sessionCreate: vi.fn(),
   sessionIsAlive: vi.fn(),
+  sessionObserve: vi.fn(),
   sessionDestroyIfIdle: vi.fn(),
   sessionSetPinned: vi.fn(),
+  sessionStopIfIdle: vi.fn(),
 }));
 vi.mock('../tasks/agent-runs.ts', () => ({
   wakeParkedAgentRuns: vi.fn(() => Promise.resolve()),
@@ -75,6 +79,7 @@ interface Candidate {
   id: string;
   sessionId: string;
   orgId: string;
+  ownerType?: string;
 }
 
 /**
@@ -88,6 +93,7 @@ interface Candidate {
 function fakeSql(script: {
   expire?: { orgId: string; sessionId: string }[][];
   reconcile?: Candidate[][];
+  historical?: Candidate[][];
   reclaim?: Candidate[][];
   collect?: Candidate[][];
   release?: Candidate[][];
@@ -113,9 +119,14 @@ function fakeSql(script: {
     }
     if (
       text.includes('SELECT id, session_id') &&
-      text.includes("WHERE status IN ('creating', 'active', 'degraded')")
+      text.includes("status IN ('creating', 'active', 'degraded')")
     ) {
       return Promise.resolve(script.reconcile?.shift() ?? []);
+    }
+    if (
+      text.includes("WHERE status IN ('stopped', 'expired') AND pinned = false")
+    ) {
+      return Promise.resolve(script.historical?.shift() ?? []);
     }
     if (text.includes("WHERE status = 'failed' AND destroyed_at_ms IS NULL")) {
       return Promise.resolve(script.collect?.shift() ?? []);
@@ -141,8 +152,9 @@ function candidate(id: string): Candidate {
   return { id, sessionId: `ses-${id}`, orgId: 'org_1' };
 }
 
-/** A scripted spawner: every session alive, every pin taken, every create
- * and idle destroy served — a test overrides the verbs it scripts. */
+/** A scripted spawner: every session alive, every pin taken, every create,
+ * idle destroy and idle stop served — a test overrides the verbs it
+ * scripts. */
 function scriptedSpawner(
   overrides: Partial<WatchdogSpawner> = {},
 ): WatchdogSpawner {
@@ -153,6 +165,7 @@ function scriptedSpawner(
     destroyIfIdle: vi.fn(() =>
       Promise.resolve({ destroyed: true, busy: false }),
     ),
+    stopIfIdle: vi.fn(() => Promise.resolve({ stopped: true, busy: false })),
     ...overrides,
   };
 }
@@ -193,7 +206,7 @@ describe('runSandboxWatchdog — expiry spares a live turn', () => {
   // The regression: every unpinned session past its TTL expired whatever
   // ran in it, so a turn still working when the window lapsed had its model
   // key revoked mid-turn and its slot handed to a parked run.
-  it('keeps a session past its TTL while one of its running ops signed its lease inside the recovery window', async () => {
+  it('keeps a session past its TTL while one of its running ops signed its lease inside the recovery window [SBX-R10]', async () => {
     const { sql, statements } = fakeSql({});
 
     const result = await runSandboxWatchdog(sql, { skipReconcile: true });
@@ -252,37 +265,56 @@ describe('runSandboxWatchdog — expiry spares a live turn', () => {
 });
 
 describe('runSandboxWatchdog — fair reconcile', () => {
-  it('probes four sessions at a time and waits for in-flight probes before stamping', async () => {
-    const batch = Array.from({ length: 7 }, (_, n) =>
-      candidate(`parallel-${n}`),
+  it('reserves independently rotated active and historical quotas without increasing fanout or batch size', async () => {
+    const active = Array.from({ length: 20 }, (_, index) =>
+      candidate(`active-${index}`),
     );
-    const { sql, statements } = fakeSql({ reconcile: [batch] });
-    let release: () => void = () => {};
-    const blocked = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let active = 0;
-    let peak = 0;
-    vi.mocked(reconcileSession).mockImplementation(async () => {
-      active += 1;
-      peak = Math.max(peak, active);
-      await blocked;
-      active -= 1;
-      return 'live';
-    });
-    const sweep = runSandboxWatchdog(sql, {
-      reconcileBatch: 7,
-      spawner: scriptedSpawner(),
-    });
-    await vi.waitFor(() => expect(reconcileSession).toHaveBeenCalledTimes(4));
-    expect(stampsOf(statements)).toHaveLength(0);
-    release();
-    await sweep;
-    expect(peak).toBe(4);
-    expect(reconcileSession).toHaveBeenCalledTimes(7);
-    expect(stampsOf(statements)[0]?.values).toContainEqual(
-      batch.map((row) => row.id),
+    const historical = Array.from({ length: 5 }, (_, index) =>
+      candidate(`cold-${index}`),
     );
+    const { sql, statements } = fakeSql({
+      reconcile: [active],
+      historical: [historical],
+    });
+    const spawner = {
+      ...scriptedSpawner(),
+      observe: async () => ({ pinned: true }),
+    };
+
+    await runSandboxWatchdog(sql, { spawner });
+
+    const activeSelect = statements.find((s) =>
+      s.text.includes("WHERE status IN ('creating', 'active', 'degraded')"),
+    );
+    const pinSelect = statements.find((s) =>
+      s.text.includes(
+        "WHERE status IN ('stopped', 'expired') AND pinned = false",
+      ),
+    );
+    expect(activeSelect?.values).toEqual([null, null, 20]);
+    expect(pinSelect?.values).toEqual([null, null, 5]);
+    expect(pinSelect?.text).toContain(
+      'newer.session_id = sandbox_sessions.session_id',
+    );
+    expect(pinSelect?.text).toContain('newer.created_at_ms, newer.id');
+    expect(pinSelect?.text).toContain(
+      'ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC',
+    );
+    expect(reconcileSession).toHaveBeenCalledTimes(25);
+    expect(
+      vi
+        .mocked(reconcileSession)
+        .mock.calls.slice(0, 6)
+        .map((call) => call[1].sessionId),
+    ).toEqual([
+      'ses-active-0',
+      'ses-active-1',
+      'ses-active-2',
+      'ses-active-3',
+      'ses-cold-0',
+      'ses-active-4',
+    ]);
+    expect(stampsOf(statements)[0]?.values[0]).toHaveLength(25);
   });
 
   it('walks least-recently-visited first, probes with the injected spawner, and stamps every visited row', async () => {
@@ -300,7 +332,7 @@ describe('runSandboxWatchdog — fair reconcile', () => {
     const select = statements.find(
       (s) =>
         s.text.includes('SELECT id, session_id') &&
-        s.text.includes("WHERE status IN ('creating', 'active', 'degraded')"),
+        s.text.includes("status IN ('creating', 'active', 'degraded')"),
     );
     // The rotation: never-visited rows first, then the stalest visit — NOT
     // `ORDER BY created_at_ms`, which parked the same 25 oldest rows at the
@@ -318,7 +350,7 @@ describe('runSandboxWatchdog — fair reconcile', () => {
         sql,
         { organizationId: row.orgId, sessionId: row.sessionId },
         spawner,
-        { signal: expect.any(AbortSignal) },
+        expect.any(Object),
       );
     }
 
@@ -345,6 +377,74 @@ describe('runSandboxWatchdog — fair reconcile', () => {
     expect(result.healed).toBe(0);
     expect(warn).toHaveBeenCalled();
     expect(stampsOf(statements)[0]?.values).toContainEqual(['x', 'y']);
+  });
+});
+
+describe('runSandboxWatchdog — the workspace inventory in the reconcile', () => {
+  // A host reboot leaves every session's compute gone at once, and each
+  // agent session's heal asks whether its workspace is still held.
+  it('reads the inventory at most once per pass, however many rows heal [SBX-R17]', async () => {
+    const { sql } = fakeSql({
+      reconcile: [[candidate('gone-a'), candidate('gone-b'), candidate('c')]],
+    });
+    const inventory = vi.fn(() =>
+      Promise.resolve({
+        backend: 'docker' as const,
+        workspaces: [],
+        organizations: [],
+      }),
+    );
+    vi.mocked(reconcileSession).mockImplementation(
+      async (_sql, args, spawner) => {
+        if (args.sessionId === 'ses-c') return 'live';
+        await spawner?.inventory?.();
+        return 'healed';
+      },
+    );
+
+    const result = await runSandboxWatchdog(sql, {
+      spawner: scriptedSpawner({ inventory }),
+    });
+
+    expect(result.healed).toBe(2);
+    expect(inventory).toHaveBeenCalledOnce();
+  });
+
+  it("bounds the shared read by the pass's signal", async () => {
+    const { sql } = fakeSql({ reconcile: [[candidate('gone-a')]] });
+    const inventory = vi.fn((_options?: { signal?: AbortSignal }) =>
+      Promise.resolve(null),
+    );
+    const passSignal = new AbortController().signal;
+    vi.mocked(reconcileSession).mockImplementation(
+      async (_sql, _args, spawner) => {
+        await spawner?.inventory?.({ signal: passSignal });
+        return 'healed';
+      },
+    );
+
+    await runSandboxWatchdog(sql, {
+      spawner: scriptedSpawner({ inventory }),
+    });
+
+    expect(inventory).toHaveBeenCalledExactlyOnceWith({ signal: passSignal });
+  });
+
+  it('reads it again on the next pass', async () => {
+    const inventory = vi.fn(() => Promise.resolve(null));
+    vi.mocked(reconcileSession).mockImplementation(
+      async (_sql, _args, spawner) => {
+        await spawner?.inventory?.();
+        return 'healed';
+      },
+    );
+    for (let pass = 0; pass < 2; pass += 1) {
+      const { sql } = fakeSql({ reconcile: [[candidate(`gone-${pass}`)]] });
+      await runSandboxWatchdog(sql, {
+        spawner: scriptedSpawner({ inventory }),
+      });
+    }
+    expect(inventory).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -382,7 +482,7 @@ describe('runSandboxWatchdog — pinned sessions in the reconcile', () => {
       sql,
       { organizationId: 'org_1', sessionId: 'ses-pinned' },
       spawner,
-      { schedule: scheduleRecreate, signal: expect.any(AbortSignal) },
+      expect.objectContaining({ schedule: scheduleRecreate }),
     );
   });
 
@@ -405,8 +505,6 @@ describe('runSandboxWatchdog — the job signal', () => {
     const controller = new AbortController();
     const { sql, statements } = fakeSql({
       reconcile: [[candidate('a'), candidate('b'), candidate('c')]],
-      reclaim: [[candidate('ended')]],
-      collect: [[candidate('failed')]],
     });
     const spawner = scriptedSpawner();
     // The tick's expiry lapses while the second row is probed.
@@ -567,8 +665,12 @@ describe('runSandboxWatchdog — collect of failed creates', () => {
 
     expect(result.collected).toBe(2);
     expect(destroyIfIdle).toHaveBeenCalledTimes(2);
-    expect(destroyIfIdle).toHaveBeenCalledWith(live.sessionId);
-    expect(destroyIfIdle).toHaveBeenCalledWith(gone.sessionId);
+    expect(destroyIfIdle).toHaveBeenCalledWith(live.sessionId, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(destroyIfIdle).toHaveBeenCalledWith(gone.sessionId, {
+      signal: expect.any(AbortSignal),
+    });
     // Destroyed now, or nothing left spawner-side: both rows settle — by
     // primary key, keeping `failed`. `markSessionDestroyed` would settle
     // every row and token under the session id.
@@ -600,7 +702,9 @@ describe('runSandboxWatchdog — collect of failed creates', () => {
 
     expect(result.collected).toBe(2);
     expect(destroyIfIdle).toHaveBeenCalledTimes(1);
-    expect(destroyIfIdle).toHaveBeenCalledWith(latest.sessionId);
+    expect(destroyIfIdle).toHaveBeenCalledWith(latest.sessionId, {
+      signal: expect.any(AbortSignal),
+    });
     expect(collectStampsOf(statements).map((s) => s.values[1])).toEqual([
       superseded.id,
       latest.id,
@@ -640,13 +744,66 @@ describe('runSandboxWatchdog — collect of failed creates', () => {
     expect(destroyIfIdle).toHaveBeenCalledTimes(2);
     expect(collectStampsOf(statements)).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('failed-session destroy failed'),
+      expect.stringContaining('failed-session collect failed'),
       expect.any(Error),
     );
     expect(stampsOf(statements)[0]?.values).toContainEqual([
       busy.id,
       broken.id,
     ]);
+  });
+
+  // An agent session's id may name a workspace preserved for the owner's
+  // next turn — its last container lost to a host reboot or the OOM killer
+  // — so its leftover loses its compute alone. A render's is disposable.
+  it('stops an agent session keeping its workspace, and destroys a render session whole [SBX-R17]', async () => {
+    const project = {
+      ...candidate('failed-project'),
+      ownerType: 'project_agent',
+    };
+    const run = { ...candidate('failed-run'), ownerType: 'workflow_run' };
+    const render = { ...candidate('failed-render'), ownerType: 'render' };
+    const { sql, statements } = fakeSql({
+      collect: [[project, run, render]],
+    });
+    const spawner = scriptedSpawner();
+
+    const result = await runSandboxWatchdog(sql, { spawner });
+
+    expect(result.collected).toBe(3);
+    expect(vi.mocked(spawner.stopIfIdle).mock.calls.map(([id]) => id)).toEqual([
+      project.sessionId,
+      run.sessionId,
+    ]);
+    expect(
+      vi.mocked(spawner.destroyIfIdle).mock.calls.map(([id]) => id),
+    ).toEqual([render.sessionId]);
+    expect(collectStampsOf(statements).map((s) => s.values[1])).toEqual([
+      project.id,
+      run.id,
+      render.id,
+    ]);
+    const select = statements.find((s) =>
+      s.text.includes("WHERE status = 'failed' AND destroyed_at_ms IS NULL"),
+    );
+    expect(select?.text).toContain('owner_type AS "ownerType"');
+  });
+
+  it('leaves an agent session a turn is executing in for a later tick', async () => {
+    const busy = {
+      ...candidate('failed-busy-agent'),
+      ownerType: 'project_agent',
+    };
+    const { sql, statements } = fakeSql({ collect: [[busy]] });
+    const spawner = scriptedSpawner({
+      stopIfIdle: vi.fn(() => Promise.resolve({ stopped: false, busy: true })),
+    });
+
+    const result = await runSandboxWatchdog(sql, { spawner });
+
+    expect(result.collected).toBe(0);
+    expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
+    expect(collectStampsOf(statements)).toHaveLength(0);
   });
 
   it('targets only unstamped failed rows past the grace, in the fair order', async () => {
@@ -810,10 +967,16 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
     );
     // Two rows came back from a batch of 1,000: one statement drained it.
     expect(sweeps).toHaveLength(1);
-    expect(sweeps[0]?.values).toEqual([NOW - WEEK_MS, 1_000]);
+    expect(sweeps[0]?.values).toEqual([
+      NOW - WEEK_MS,
+      1_000,
+      NOW - WEEK_MS,
+      1_000,
+      1_000,
+    ]);
     const close = indexOf(statements, "status = 'failed', finished_at_ms");
     const sweep = indexOf(statements, "WHERE kind = 'model-api'");
-    const settle = indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL');
+    const settle = indexOf(statements, 'WHERE ((finalized_at_ms IS NOT NULL');
     expect(close).toBeGreaterThanOrEqual(0);
     expect(sweep).toBeGreaterThan(close);
     expect(settle).toBeGreaterThan(sweep);
@@ -857,7 +1020,7 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
       failure,
     );
     expect(
-      indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL'),
+      indexOf(statements, 'WHERE ((finalized_at_ms IS NOT NULL'),
     ).toBeGreaterThan(
       indexOf(statements, 'DELETE FROM app.sandbox_session_ops'),
     );
@@ -869,8 +1032,8 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
   // hibernated (`stopped`) ones included, and settled each spawner 404 as
   // destroyed — so opening the page emptied it of idle project workspaces
   // (their containers are reaped by design; the workspace waits on disk).
-  // The probe is now the sweep's own compute-holding-only pass, org-scoped.
-  it('runs the compute-holding-only fair pass scoped to the org, probes with the given spawner, and stamps the visit', async () => {
+  // The shared pass repairs stale pins on retained workspaces without healing their 404s.
+  it('runs the fair lifecycle and pin-drift pass scoped to the org and stamps each visit', async () => {
     const batch = [candidate('a'), candidate('b')];
     const { sql, statements } = fakeSql({ reconcile: [batch] });
     const spawner = scriptedSpawner({ destroyIfIdle: idleAnswer() });
@@ -882,11 +1045,10 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
     const select = statements.find(
       (s) =>
         s.text.includes('SELECT id, session_id') &&
-        s.text.includes("WHERE status IN ('creating', 'active', 'degraded')"),
+        s.text.includes("status IN ('creating', 'active', 'degraded')"),
     );
-    // `stopped` is not a candidate status, the walk is scoped to the org and
-    // stays the sweep's fair rotation with the page's batch of 25.
-    expect(select?.text).not.toContain("'stopped'");
+    // Legacy spawners cannot inspect retained pins, so the whole batch stays active.
+    expect(select?.text).not.toContain("status IN ('stopped', 'expired')");
     expect(select?.text).toContain('org_id = ?');
     expect(select?.text).toContain(
       'ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC',
@@ -904,7 +1066,7 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
     const stamps = stampsOf(statements);
     expect(stamps).toHaveLength(1);
-    expect(stamps[0]?.values[1]).toEqual(['a', 'b']);
+    expect(stamps[0]?.values[0]).toEqual(['a', 'b']);
   });
 
   it('leaves the sweep tick unscoped (a null scope matches every org)', async () => {
@@ -918,8 +1080,110 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
     const select = statements.find(
       (s) =>
         s.text.includes('SELECT id, session_id') &&
-        s.text.includes("WHERE status IN ('creating', 'active', 'degraded')"),
+        s.text.includes("status IN ('creating', 'active', 'degraded')"),
     );
     expect(select?.values).toEqual([null, null, 1]);
+  });
+});
+
+describe('independent bounded sandbox watchdog passes', () => {
+  it('reclaims ended runs, failed creates and render sessions while reconciliation is stalled', async () => {
+    const { sql, statements } = fakeSql({
+      reconcile: [[candidate('slow'), candidate('not-visited')]],
+      reclaim: [[candidate('ended')]],
+      collect: [[candidate('failed')]],
+      release: [[candidate('render')]],
+    });
+    const events: string[] = [];
+    vi.mocked(reconcileSession).mockImplementationOnce(
+      async (_sql, _args, _spawner, options) => {
+        const signal = options?.signal;
+        if (signal === undefined) throw new Error('missing pass signal');
+        await new Promise<void>((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              events.push('probe-aborted');
+              reject(signal.reason);
+            },
+            { once: true },
+          );
+        });
+        return 'live';
+      },
+    );
+    const spawner = scriptedSpawner({
+      destroyIfIdle: vi.fn(async (sessionId) => {
+        events.push(sessionId);
+        return { destroyed: true, busy: false };
+      }),
+    });
+    const result = await runSandboxWatchdog(sql, {
+      spawner,
+      passTimeoutMs: 30,
+    });
+    expect(result).toMatchObject({
+      reclaimed: 1,
+      collected: 1,
+      released: 1,
+      healed: 0,
+    });
+    expect(events.at(-1)).toBe('probe-aborted');
+    expect(events.slice(0, -1).sort()).toEqual([
+      'ses-ended',
+      'ses-failed',
+      'ses-render',
+    ]);
+    expect(reconcileSession).toHaveBeenCalledOnce();
+    const visited = stampsOf(statements).flatMap((entry) =>
+      entry.values.flat(),
+    );
+    expect(visited).toContain('slow');
+    expect(visited).not.toContain('not-visited');
+  });
+
+  it('limits concurrency to one session per independent pass', async () => {
+    const { sql } = fakeSql({
+      reconcile: [[candidate('a'), candidate('b')]],
+      reclaim: [[candidate('c'), candidate('d')]],
+      collect: [[candidate('e'), candidate('f')]],
+      release: [[candidate('g'), candidate('h')]],
+    });
+    let active = 0;
+    let peak = 0;
+    const visit = async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+    };
+    vi.mocked(reconcileSession).mockImplementation(async () => {
+      await visit();
+      return 'live';
+    });
+    const spawner = scriptedSpawner({
+      destroyIfIdle: vi.fn(async () => {
+        await visit();
+        return { destroyed: true, busy: false };
+      }),
+    });
+    await runSandboxWatchdog(sql, { spawner });
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(active).toBe(0);
+  });
+
+  it('an already-aborted job visits and destroys no sessions in any pass', async () => {
+    const { sql, statements } = fakeSql({
+      reconcile: [[candidate('a')]],
+      reclaim: [[candidate('b')]],
+      collect: [[candidate('c')]],
+      release: [[candidate('d')]],
+    });
+    const spawner = scriptedSpawner();
+    await runSandboxWatchdog(sql, { spawner, signal: AbortSignal.abort() });
+    expect(reconcileSession).not.toHaveBeenCalled();
+    expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
+    expect(stampsOf(statements)).toEqual([]);
   });
 });

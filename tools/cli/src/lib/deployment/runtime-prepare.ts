@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { externalDepError, preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { git } from '../config/releases/git';
+import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
+import { imageWriterProtocol } from './automation-protocol';
 import { runtimeCommand } from './runtime-command';
 import {
   atomicRuntimeFile,
@@ -27,8 +29,10 @@ import {
   type RuntimeImage,
   type RuntimePlatform,
 } from './runtime-model';
+import { sourceAutomationProtocol } from './source-automation-protocol';
+import { sourceMigrationInventory } from './source-migrations';
 
-const imageInspectSchema = z.object({
+export const imageInspectSchema = z.object({
   Os: z.string(),
   Architecture: z.string(),
   RepoDigests: z.array(z.string()),
@@ -45,7 +49,12 @@ export async function inspectRuntimeImage(
   platform: RuntimePlatform,
   revision: string | null,
   dependencies: RuntimeDependencies,
-): Promise<{ digest: string; reference: string; revision: string | null }> {
+): Promise<{
+  digest: string;
+  reference: string;
+  revision: string | null;
+  automationWriterProtocol?: 1 | 2;
+}> {
   const result = await runtimeCommand(
     ['image', 'inspect', reference],
     dependencies,
@@ -90,6 +99,9 @@ export async function inspectRuntimeImage(
     reference: `${repository}@${unique[0]}`,
     revision:
       image.Config.Labels?.['org.opencontainers.image.revision'] ?? null,
+    ...(repository.endsWith('/tale-platform')
+      ? { automationWriterProtocol: imageWriterProtocol(image.Config.Labels) }
+      : {}),
   };
 }
 
@@ -266,6 +278,19 @@ export async function prepareRuntime(
     'Runtime output must be separate from the source checkout.',
   );
   const source = sourceFiles(options.repoRoot, options.revision);
+  const migrations = sourceMigrationInventory(
+    options.repoRoot,
+    options.revision,
+  );
+  const automationWriterProtocol = sourceAutomationProtocol(
+    options.repoRoot,
+    options.revision,
+  );
+  requireRuntime(
+    (automationWriterProtocol === 2) ===
+      migrations[0].ids.includes(AUTOMATION_PROTOCOL_MIGRATION),
+    'Runtime automation writer protocol lacks its source migration.',
+  );
   const compose = parseCompose(source.compose.toString('utf8'));
   if (containerPrefix !== undefined)
     for (const service of RUNTIME_SERVICES)
@@ -317,6 +342,11 @@ export async function prepareRuntime(
       selected,
       'No verified image is available for this source commit and platform.',
     );
+    requireRuntime(
+      !repository.endsWith('/tale-platform') ||
+        selected.automationWriterProtocol === automationWriterProtocol,
+      'Runtime image automation writer protocol differs from its exact source.',
+    );
     images.set(repository, selected);
     return selected;
   };
@@ -355,13 +385,21 @@ export async function prepareRuntime(
   const sandboxEnvironment = z
     .record(z.string(), z.unknown())
     .parse(compose.services.sandbox.environment);
+  // The source names the stock registry mirror by tag, or by version and
+  // digest; the bundle pins whichever it names.
+  const mirror =
+    typeof sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE === 'string'
+      ? /^\$\{SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry(?::([A-Za-z0-9_.-]+))?(?:@(sha256:[a-f0-9]{64}))?\}$/.exec(
+          sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+        )
+      : null;
+  const mirrorPin = mirror?.[2] ?? mirror?.[1];
   requireRuntime(
     sandboxEnvironment.SANDBOX_RUNTIME_IMAGE ===
       '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}' &&
       sandboxEnvironment.SANDBOX_BUILDKITD_IMAGE ===
         '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}' &&
-      sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE ===
-        '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
+      mirrorPin !== undefined,
     'Runtime sandbox image routing changed.',
   );
   sandboxEnvironment.SANDBOX_RUNTIME_IMAGE = images.get(
@@ -372,7 +410,7 @@ export async function prepareRuntime(
   )?.reference;
   // The pull-through mirror is another spawner-created image, outside Compose.
   sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE = (
-    await getImage('registry', '2')
+    await getImage('registry', mirrorPin)
   ).reference;
   compose.services.sandbox.environment = sandboxEnvironment;
   const sandboxVolumes = z
@@ -429,6 +467,8 @@ export async function prepareRuntime(
     images: [...images.values()].sort((a, b) =>
       a.repository.localeCompare(b.repository),
     ),
+    migrations,
+    automationWriterProtocol,
   });
   const files = {
     'compose.yml': productionCompose,

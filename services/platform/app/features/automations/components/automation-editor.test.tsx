@@ -1,9 +1,10 @@
 import { ActiveEditorProvider } from '@tale/ui/editor';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type AnchorHTMLAttributes } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationVersionPicker } from './automation-version-picker';
 import { AutomationVersionPickerTarget } from './automation-version-picker-target';
@@ -25,7 +26,11 @@ const {
   saveMutation,
   startRun,
   deploy,
+  setTriggerMutation,
   toastSpy,
+  refetch,
+  validationMock,
+  invalidateValidation,
 } = vi.hoisted(() => ({
   state: {
     document: {
@@ -44,6 +49,9 @@ const {
     deployedUnpinnedAgentNodes: undefined as string[] | undefined,
     /** A `?version=` the read refuses with `AUTOMATION_VERSION_UNKNOWN`. */
     missingVersion: undefined as number | undefined,
+    detailError: undefined as Error | undefined,
+    deployedDetailError: undefined as Error | undefined,
+    realDetailRead: false,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
    * appears only when two or more projects are bound. */
@@ -60,11 +68,72 @@ const {
     mode: string;
     startedBy: string;
     startedAt: number;
+    checkpoints?: unknown;
   }>,
   saveMutation: { mutateAsync: vi.fn(), isPending: false },
   startRun: { mutate: vi.fn(), isPending: false },
   deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
+  /** Turning on the trigger a deploy found off. */
+  setTriggerMutation: { mutateAsync: vi.fn(), isPending: false },
   toastSpy: vi.fn(),
+  refetch: vi.fn(),
+  /** What the draft check answers. Arrays are set whole per test, so their
+   * identity is stable across renders the way a settled query's is. */
+  validationMock: {
+    status: 'ready' as 'idle' | 'checking' | 'ready' | 'failed',
+    errors: [] as Array<Record<string, unknown> & { id: string }>,
+    warnings: [] as Array<Record<string, unknown> & { id: string }>,
+    calls: [] as Array<{
+      document: unknown;
+      isDraft: boolean;
+      enabled: boolean;
+    }>,
+    /** The developer capability; a member's editor checks nothing. */
+    canAuthor: true,
+  },
+  invalidateValidation: vi.fn(),
+}));
+
+// The draft check is a server round trip; the page's handling of its answer
+// is what these tests hold, so the hook answers from `validationMock`.
+vi.mock('../hooks/use-automation-validation', () => ({
+  useAutomationValidation: ({
+    document,
+    isDraft,
+    enabled,
+  }: {
+    document: unknown;
+    isDraft: boolean;
+    enabled: boolean;
+  }) => {
+    validationMock.calls.push({ document, isDraft, enabled });
+    const currentHash = document === null ? null : JSON.stringify(document);
+    if (!enabled || currentHash === null) {
+      return {
+        status: 'idle',
+        errors: [],
+        warnings: [],
+        settledFor: null,
+        settledDocument: null,
+        currentHash,
+        analysis: null,
+        types: null,
+      };
+    }
+    return {
+      status: validationMock.status,
+      errors: validationMock.errors,
+      warnings: validationMock.warnings,
+      settledFor:
+        validationMock.status === 'ready' ? currentHash : 'an older draft',
+      settledDocument: validationMock.status === 'ready' ? document : null,
+      currentHash,
+      analysis: null,
+      types: null,
+    };
+  },
+  useInvalidateAutomationValidation: () => invalidateValidation,
+  VALIDATION_DEBOUNCE_MS: 400,
 }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
@@ -78,7 +147,10 @@ vi.mock('@tale/ui/use-toast', () => ({
 // live runs) from members; these tests exercise that surface, so they run
 // with the developer capability granted.
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true, cannot: () => false }),
+  useAbility: () => ({
+    can: () => validationMock.canAuthor,
+    cannot: () => !validationMock.canAuthor,
+  }),
   useAbilityLoading: () => false,
 }));
 
@@ -91,68 +163,145 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useAutomation: (_organizationId: string, _name: string, version?: number) =>
-    version !== undefined && version === state.missingVersion
-      ? {
-          data: undefined,
-          isPending: false,
-          isError: true,
-          error: {
-            data: {
-              code: 'AUTOMATION_VERSION_UNKNOWN',
-              message: `version ${version} does not exist`,
-              latestVersion: state.version,
-            },
-          },
-        }
-      : {
-          data: {
-            document:
-              version === state.deployedVersion &&
-              state.deployedDocument !== undefined
-                ? state.deployedDocument
-                : state.document,
-            version: version ?? state.version,
-            deployedVersion: state.deployedVersion,
-            ...(state.presentation !== undefined
-              ? { presentation: state.presentation }
-              : {}),
-            settings: state.settings,
-            taskContract: state.taskContract,
-            ...(state.deployedUnpinnedAgentNodes !== undefined
-              ? { deployedUnpinnedAgentNodes: state.deployedUnpinnedAgentNodes }
-              : {}),
-          },
-          isPending: false,
-          isError: false,
-          error: null,
+vi.mock('../hooks/queries', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../hooks/queries')>();
+  return {
+    useAutomation: (
+      _organizationId: string,
+      _name: string,
+      version?: number,
+    ) =>
+      state.realDetailRead
+        ? actual.useAutomation(_organizationId, _name, version)
+        : version === undefined && state.detailError !== undefined
+          ? {
+              data: undefined,
+              isPending: false,
+              isError: true,
+              error: state.detailError,
+              isFetching: false,
+              errorUpdateCount: 1,
+              refetch,
+            }
+          : version !== undefined && state.deployedDetailError !== undefined
+            ? {
+                data: undefined,
+                isPending: false,
+                isError: true,
+                error: state.deployedDetailError,
+                isFetching: false,
+                errorUpdateCount: 1,
+                refetch,
+              }
+            : version !== undefined && version === state.missingVersion
+              ? {
+                  data: undefined,
+                  isPending: false,
+                  isError: true,
+                  isFetching: false,
+                  errorUpdateCount: 1,
+                  error: {
+                    data: {
+                      code: 'AUTOMATION_VERSION_UNKNOWN',
+                      message: `version ${version} does not exist`,
+                      latestVersion: state.version,
+                    },
+                  },
+                  refetch,
+                }
+              : {
+                  data: {
+                    document:
+                      version === state.deployedVersion &&
+                      state.deployedDocument !== undefined
+                        ? state.deployedDocument
+                        : state.document,
+                    version: version ?? state.version,
+                    deployedVersion: state.deployedVersion,
+                    ...(state.presentation !== undefined
+                      ? { presentation: state.presentation }
+                      : {}),
+                    settings: state.settings,
+                    taskContract: state.taskContract,
+                    ...(state.deployedUnpinnedAgentNodes !== undefined
+                      ? {
+                          deployedUnpinnedAgentNodes:
+                            state.deployedUnpinnedAgentNodes,
+                        }
+                      : {}),
+                  },
+                  isPending: false,
+                  isError: false,
+                  isFetching: false,
+                  errorUpdateCount: 0,
+                  error: null,
+                  refetch,
+                },
+    useAutomationVersions: () => ({
+      data: [
+        {
+          version: 3,
+          message: 'tightened the prompt',
+          createdBy: 'user:a',
+          createdAt: 1_700_000_100_000,
         },
-  useAutomationVersions: () => ({
-    data: [
-      {
-        version: 3,
-        message: 'tightened the prompt',
-        createdBy: 'user:a',
-        createdAt: 1_700_000_100_000,
-      },
-      {
-        version: 2,
-        message: 'first cut',
-        createdBy: 'user:a',
-        createdAt: 1_700_000_000_000,
-      },
-    ],
-  }),
-  useAutomationRuns: () => ({ data: runsData }),
-  useAutomationProjects: () => ({ data: projectsData.bound }),
-  useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
-}));
+        {
+          version: 2,
+          message: 'first cut',
+          createdBy: 'user:a',
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+    }),
+    useAutomationRuns: () => ({ data: runsData }),
+    // A run's own read: what Start's and End's Last run tabs show.
+    useAutomationRun: (_organizationId: string, runId?: string) => ({
+      data:
+        runId === undefined
+          ? undefined
+          : { id: runId, input: { owner: 'acme' }, output: { sent: 2 } },
+    }),
+    useAutomationProjects: () => ({ data: projectsData.bound }),
+    useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+    // The stored trigger the deploy notice turns on: a weekday schedule.
+    useAutomationTriggers: () => ({
+      data: [
+        {
+          id: 'trigger-1',
+          name: 'billing/dunning',
+          kind: 'schedule',
+          cron: '0 9 * * 1-5',
+          repeat: null,
+          startDate: null,
+          timezone: 'Europe/Zurich',
+          catchUp: 'latest',
+          input: null,
+          event: null,
+          hasToken: false,
+          enabled: false,
+          nextRunAt: null,
+          lastFiredAt: null,
+          lastRunId: null,
+          lastSkippedAt: null,
+          lastSkipReason: null,
+          lastSkipDetail: null,
+          consecutiveFailures: 0,
+          lastFailedAt: null,
+          lastFailureCode: null,
+          lastFailedRunId: null,
+        },
+      ],
+      isPending: false,
+      isError: false,
+    }),
+  };
+});
 
 vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => saveMutation,
   useStartAutomationRun: () => startRun,
   useDeployAutomation: () => deploy,
+  useSetAutomationTrigger: () => setTriggerMutation,
 }));
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -179,33 +328,79 @@ vi.mock('@tanstack/react-router', async () => {
   };
 });
 
-// The canvas is a React Flow viewport and jsdom performs no layout; the page
-// only needs it to hand a node to the inspector, so the stub offers that.
+// The canvas is a laid-out chart and jsdom performs no layout; the page only
+// needs it to hand a box to the inspector and to carry the page's own
+// controls in its corners, so the stub offers that.
 vi.mock('./automation-canvas', () => ({
   AutomationCanvas: ({
-    graph,
-    onSelectNode,
+    automation,
+    layoutKey,
+    onSelect,
     inspectorId,
+    run,
+    changed,
+    view,
+    topStart,
+    topEnd,
+    toolbar,
   }: {
-    graph: { nodes: readonly { id: string }[] };
-    onSelectNode: (nodeId: string | null) => void;
+    automation: { nodes: readonly { id: string; when?: string }[] };
+    layoutKey: string;
+    onSelect: (id: string | null) => void;
     inspectorId: string;
+    run?: { statusByNode: ReadonlyMap<string, string> };
+    changed?: { ids: ReadonlySet<string>; key: string | number };
+    view?: string;
+    topStart?: React.ReactNode;
+    topEnd?: React.ReactNode;
+    toolbar?: React.ReactNode;
   }) => (
-    <div data-testid="canvas" data-inspector-id={inspectorId}>
-      {graph.nodes.map((node) => (
+    <div
+      data-testid="canvas"
+      data-inspector-id={inspectorId}
+      data-layout-key={layoutKey}
+      data-view={view}
+      data-changed={
+        changed === undefined ? undefined : [...changed.ids].sort().join(',')
+      }
+    >
+      <div data-testid="canvas-top-start">{topStart}</div>
+      <div data-testid="canvas-top-end">{topEnd}</div>
+      {automation.nodes.map((node) => (
         <button
           key={node.id}
           type="button"
           onClick={() => {
-            onSelectNode(node.id);
+            onSelect(node.id);
           }}
+          data-run-status={run?.statusByNode.get(node.id)}
         >
           {`select ${node.id}`}
         </button>
       ))}
-      <button type="button" onClick={() => onSelectNode(null)}>
+      {automation.nodes
+        .filter((node) => node.when !== undefined)
+        .map((node) => (
+          <button
+            key={`gate-${node.id}`}
+            type="button"
+            onClick={() => {
+              onSelect(`__gate:${node.id}`);
+            }}
+          >
+            {`select the condition of ${node.id}`}
+          </button>
+        ))}
+      <button type="button" onClick={() => onSelect('__start')}>
+        select Start
+      </button>
+      <button type="button" onClick={() => onSelect('__end')}>
+        select End
+      </button>
+      <button type="button" onClick={() => onSelect(null)}>
         deselect
       </button>
+      {toolbar}
     </div>
   ),
 }));
@@ -216,6 +411,7 @@ vi.mock('@tale/ui/json-viewer', () => ({
   ),
 }));
 
+import { withIssueIds } from '../lib/issues';
 import { AutomationEditor } from './automation-editor';
 
 const onSelectVersion = vi.fn();
@@ -284,6 +480,22 @@ const saveButton = () => screen.getByRole('button', { name: 'Save' });
 const discardButton = () => screen.getByRole('button', { name: 'Discard' });
 const whenField = () => screen.getByRole('textbox', { name: 'When' });
 const versionPicker = () => screen.getByRole('button', { name: 'Version' });
+/** The live region that counts problems; the canvas has one of its own. */
+const issueAnnouncer = () => {
+  const region = screen
+    .getAllByRole('status')
+    .find((element) => element.dataset.slot === 'issue-announcer');
+  if (region === undefined) throw new Error('No problems announcer');
+  return region;
+};
+/** The live region that says what changed on the canvas. */
+const canvasAnnouncer = () => {
+  const region = screen
+    .getAllByRole('status')
+    .find((element) => element.dataset.slot === 'canvas-announcer');
+  if (region === undefined) throw new Error('No canvas announcer');
+  return region;
+};
 
 /** Select the one node and edit a field every node type accepts. */
 async function editTheNode(user: ReturnType<typeof renderPage>['user']) {
@@ -292,7 +504,10 @@ async function editTheNode(user: ReturnType<typeof renderPage>['user']) {
 }
 
 beforeEach(() => {
-  saveMutation.mutateAsync = vi.fn().mockResolvedValue(undefined);
+  saveMutation.mutateAsync = vi.fn().mockResolvedValue({
+    name: 'billing/dunning',
+    version: 4,
+  });
   saveMutation.isPending = false;
   toastSpy.mockClear();
   onSelectVersion.mockClear();
@@ -318,6 +533,305 @@ beforeEach(() => {
   state.deployedVersion = 2;
   state.deployedUnpinnedAgentNodes = undefined;
   state.missingVersion = undefined;
+  state.detailError = undefined;
+  state.deployedDetailError = undefined;
+  state.realDetailRead = false;
+  refetch.mockClear();
+  validationMock.status = 'ready';
+  validationMock.errors = [];
+  validationMock.warnings = [];
+  validationMock.calls = [];
+  validationMock.canAuthor = true;
+  invalidateValidation.mockClear();
+});
+
+const detailQueryKey = [
+  'backend',
+  'org-1',
+  'automation',
+  'detail',
+  'billing/dunning',
+  'latest',
+];
+
+function realReadPage() {
+  state.realDetailRead = true;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
+  });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <button type="button">Outside editor</button>
+      {page()}
+    </QueryClientProvider>,
+  );
+  return { ...view, client };
+}
+
+function automationResponse() {
+  return Response.json({
+    document: state.document,
+    version: state.version,
+    deployedVersion: state.deployedVersion,
+  });
+}
+
+function failedReadResponse() {
+  return Response.json({ message: 'Service unavailable' }, { status: 503 });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('AutomationEditor real detail read recovery', () => {
+  it.each(['retry', 'outside'] as const)(
+    'keeps keyboard retry stable and respects %s focus on recovery',
+    async (recoveryFocus) => {
+      let recovering = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (
+            new URL(url, window.location.origin).searchParams.has('version')
+          ) {
+            return Promise.resolve(automationResponse());
+          }
+          if (!recovering) return Promise.resolve(failedReadResponse());
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user } = realReadPage();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 15000 },
+      );
+      await user.click(screen.getByRole('button', { name: 'Outside editor' }));
+      await user.tab();
+      expect(retryButton).toHaveFocus();
+      recovering = true;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined());
+      expect(retryButton).toHaveFocus();
+      // A server fault has no words for the reader: the generic sentence,
+      // never the body it answered with.
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Something went wrong — try again',
+      );
+      expect(screen.queryByText('Loading the automation…')).toBeNull();
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      await act(async () => {
+        finishRead?.(
+          Response.json({ message: 'Still unavailable' }, { status: 400 }),
+        );
+      });
+      await waitFor(() => expect(retryButton).not.toHaveAttribute('aria-busy'));
+      expect(screen.getByRole('button', { name: 'Try again' })).toBe(
+        retryButton,
+      );
+      expect(retryButton).toHaveFocus();
+      expect(screen.getByRole('alert')).toHaveTextContent('Still unavailable');
+      finishRead = undefined;
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(finishRead).toBeDefined());
+      if (recoveryFocus === 'outside') {
+        await user.click(
+          screen.getByRole('button', { name: 'Outside editor' }),
+        );
+      }
+      await act(async () => {
+        finishRead?.(automationResponse());
+      });
+      await screen.findByTestId('canvas');
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      await waitFor(() => {
+        const target =
+          recoveryFocus === 'retry'
+            ? screen.getByRole('region', { name: 'Editor' })
+            : screen.getByRole('button', { name: 'Outside editor' });
+        expect(target).toHaveFocus();
+      });
+    },
+    30000,
+  );
+
+  it('keeps the canvas, inspector and dirty draft after a failed background read', async () => {
+    let failRefresh = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const deployed = new URL(url, window.location.origin).searchParams.has(
+          'version',
+        );
+        return Promise.resolve(
+          failRefresh && !deployed
+            ? failedReadResponse()
+            : automationResponse(),
+        );
+      }),
+    );
+    const { user, client } = realReadPage();
+    await screen.findByTestId('canvas');
+    await editTheNode(user);
+    const canvas = screen.getByTestId('canvas');
+    const draftField = whenField();
+    expect(draftField).toHaveValue('x');
+    failRefresh = true;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: detailQueryKey });
+    });
+    await waitFor(
+      () => expect(client.getQueryState(detailQueryKey)?.status).toBe('error'),
+      { timeout: 15000 },
+    );
+    expect(screen.getByTestId('canvas')).toBe(canvas);
+    expect(whenField()).toBe(draftField);
+    expect(draftField).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+    expect(screen.queryByRole('alert')).toBeNull();
+  }, 30000);
+
+  it('does not steal outside focus when the initial failure settles', async () => {
+    let finishRead: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          }),
+      ),
+    );
+    const { user } = realReadPage();
+    await user.click(screen.getByRole('button', { name: 'Outside editor' }));
+    await act(async () => {
+      finishRead?.(
+        Response.json({ message: 'Service unavailable' }, { status: 400 }),
+      );
+    });
+    await screen.findByRole('alert', {}, { timeout: 15000 });
+    expect(
+      screen.getByRole('button', { name: 'Outside editor' }),
+    ).toHaveFocus();
+  }, 30000);
+});
+
+describe('AutomationEditor detail read failure', () => {
+  it('names the error and retries instead of staying loading', async () => {
+    state.detailError = new Error('Request failed with status 503');
+    const { user } = renderPage();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the automation: Request failed with status 503",
+    );
+    const retryButton = screen.getByRole('button', { name: 'Try again' });
+    expect(retryButton).not.toHaveFocus();
+    expect(screen.queryByText('Loading the automation…')).toBeNull();
+
+    await user.click(retryButton);
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+});
+
+describe('AutomationEditor deployed read failure', () => {
+  it('reports the read error and offers retry with an accurate live reason', async () => {
+    state.deployedDetailError = new Error('Request failed with status 503');
+    const { user } = renderPage();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the deployed version: Request failed with status 503",
+    );
+    const liveRun = screen.getByRole('button', { name: 'Run live' });
+    expect(liveRun).toHaveAttribute('aria-disabled', 'true');
+    act(() => liveRun.focus());
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "Couldn't load the deployed version — try again.",
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+  it.each([400, 503])(
+    'keeps the secondary %s failure visible during a real retry and recovers live runs',
+    async (status) => {
+      let recovering = false;
+      let finishRead: ((response: Response) => void) | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (
+            !new URL(url, window.location.origin).searchParams.has('version')
+          ) {
+            return Promise.resolve(automationResponse());
+          }
+          if (!recovering)
+            return Promise.resolve(
+              Response.json(
+                {
+                  error: 'AUTOMATION_READ_REFUSED',
+                  message: 'Version unavailable',
+                },
+                { status },
+              ),
+            );
+          return new Promise<Response>((resolve) => {
+            finishRead = resolve;
+          });
+        }),
+      );
+      const { user } = realReadPage();
+      const retryButton = await screen.findByRole(
+        'button',
+        { name: 'Try again' },
+        { timeout: 15000 },
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        status === 400
+          ? "Couldn't load the deployed version: Version unavailable"
+          : "Couldn't load the deployed version",
+      );
+      if (status === 503)
+        expect(screen.getByRole('alert')).not.toHaveTextContent(
+          'Version unavailable',
+        );
+      recovering = true;
+      await user.click(retryButton);
+      await waitFor(() => expect(finishRead).toBeDefined());
+      expect(retryButton).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the deployed version",
+      );
+      expect(screen.getByRole('alert')).not.toHaveTextContent(/null|undefined/);
+      expect(screen.getByRole('button', { name: 'Run live' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      await act(async () => {
+        finishRead?.(automationResponse());
+      });
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      expect(
+        screen.getByRole('button', { name: 'Run live' }),
+      ).not.toHaveAttribute('aria-disabled', 'true');
+    },
+    30000,
+  );
+
+  it.each([new TypeError('runtime internals'), { message: 'private payload' }])(
+    'omits unsafe failure detail (%s)',
+    (error) => {
+      state.deployedDetailError = error as Error;
+      renderPage();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the deployed version",
+      );
+      expect(screen.getByRole('alert')).not.toHaveTextContent(
+        /runtime internals|private payload|\[object Object\]/,
+      );
+    },
+  );
 });
 
 /**
@@ -345,6 +859,25 @@ describe('AutomationEditor missing version', () => {
 function inspector(): HTMLElement | null {
   const id = screen.getByTestId('canvas').dataset.inspectorId;
   return id === undefined ? null : document.getElementById(id);
+}
+
+/** The open inspector; fails the test when none is. */
+function openInspector(): HTMLElement {
+  const found = inspector();
+  if (found === null) throw new Error('No inspector is open');
+  return found;
+}
+
+/** Replace a code field's whole text, as a paste over a selection does. */
+async function replaceText(
+  user: ReturnType<typeof renderPage>['user'],
+  box: HTMLElement,
+  text: string,
+): Promise<void> {
+  if (!(box instanceof HTMLTextAreaElement)) throw new Error('Not a text box');
+  await user.click(box);
+  act(() => box.setSelectionRange(0, box.value.length));
+  await user.paste(text);
 }
 
 describe('AutomationEditor', () => {
@@ -464,6 +997,87 @@ describe('AutomationEditor', () => {
       ),
     ).toBeVisible();
   });
+
+  // Leo deploys a pack whose schedule was created off: the editor says so
+  // and offers to turn it on, instead of letting him think it now runs.
+  it('offers to turn on the trigger a deploy found off, and hands it the focus', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onSuccess?: (result: unknown) => void } | undefined,
+      ) => {
+        handlers?.onSuccess?.({
+          name: 'billing/dunning',
+          version: 3,
+          trigger: {
+            kind: 'schedule',
+            enabled: false,
+            nextRunAt: null,
+            warnings: [],
+          },
+        });
+      },
+    );
+    setTriggerMutation.mutateAsync.mockResolvedValue({});
+    const { user, rerender } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    const title = screen.getByRole('heading', { name: 'Its trigger is off' });
+    expect(
+      screen.getByText('The schedule starts no runs until you turn it on.'),
+    ).toBeVisible();
+    // The version on screen is live now: Deploy leaves the page with the
+    // focus, and the notice takes it over.
+    state.deployedVersion = 3;
+    rerender(page());
+    expect(
+      screen.queryByRole('button', { name: 'Deploy v3' }),
+    ).not.toBeInTheDocument();
+    const frame = title.closest<HTMLElement>('[tabindex="-1"]');
+    await waitFor(() => expect(frame).toHaveFocus());
+    await user.click(
+      screen.getByRole('button', { name: 'Turn on the trigger' }),
+    );
+    expect(setTriggerMutation.mutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      name: 'billing/dunning',
+      trigger: {
+        kind: 'schedule',
+        enabled: true,
+        cron: '0 9 * * 1-5',
+        timezone: 'Europe/Zurich',
+        catchUp: 'latest',
+      },
+    });
+    expect(await screen.findByText('The trigger is on.')).toBeVisible();
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['on', { kind: 'schedule', enabled: true, nextRunAt: 1, warnings: [] }],
+    ['absent', null],
+  ])(
+    'says nothing more after a deploy when the trigger is %s',
+    async (_case, trigger) => {
+      deploy.mutate.mockImplementation(
+        (
+          _args: unknown,
+          handlers: { onSuccess?: (result: unknown) => void } | undefined,
+        ) => {
+          handlers?.onSuccess?.({
+            name: 'billing/dunning',
+            version: 3,
+            trigger,
+          });
+        },
+      );
+      const { user } = renderPage();
+      await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+      expect(screen.queryByText('Its trigger is off')).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: 'Turn on the trigger' }),
+      ).toBeNull();
+    },
+  );
 
   it('offers no header deploy when the canvas version is already live', () => {
     state.deployedVersion = 3;
@@ -606,9 +1220,12 @@ describe('AutomationEditor', () => {
       startedAt: 1_700_000_200_000,
     });
     const { user } = renderPage();
-    const hide = screen.getByRole('button', { name: 'Hide last run' });
+    // Among the canvas's own verbs, in its top-right corner.
+    const hide = within(screen.getByTestId('canvas-top-end')).getByRole(
+      'button',
+      { name: 'Hide last run' },
+    );
     expect(hide).toHaveAttribute('aria-pressed', 'true');
-    expect(hide.closest('.absolute')).not.toBeNull();
     expect(
       screen.queryByRole('link', { name: 'Open the last run' }),
     ).toBeNull();
@@ -617,6 +1234,23 @@ describe('AutomationEditor', () => {
     expect(
       screen.getByRole('button', { name: 'Show last run' }),
     ).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('marks a waiting run cursor as running in the last-run overlay', () => {
+    runsData.push({
+      id: 'run_1',
+      name: 'billing/dunning',
+      version: 3,
+      status: 'waiting',
+      mode: 'mock',
+      startedBy: 'user:a',
+      startedAt: 1_700_000_200_000,
+      checkpoints: { cursor: { node: 'summary' } },
+    });
+    renderPage();
+    expect(
+      screen.getByRole('button', { name: 'select summary' }),
+    ).toHaveAttribute('data-run-status', 'running');
   });
 
   it('stays quiet when the deployed version has no pinless agent node', () => {
@@ -912,6 +1546,46 @@ describe('AutomationEditor', () => {
     expect(toastSpy).not.toHaveBeenCalled();
   });
 
+  it('saves and checks the document as stored, with only the edit changed', async () => {
+    // What this build has no control for — a connector's credential, a key
+    // a newer engine knows, a node without a type, the tests, the canvas
+    // metadata, an unknown top-level key — travels with the edit unchanged.
+    const stored = {
+      version: 1,
+      name: 'billing/dunning',
+      nodes: [
+        { id: 'summary', type: 'llm', prompt: 'One sentence, please.' },
+        {
+          id: 'post',
+          type: 'slack.post_message',
+          credential: 'slack-ops',
+          input: { channel: '#billing' },
+          reviewNote: 'kept',
+        },
+        { id: 'draft_only', prompt: 'no type yet' },
+      ],
+      tests: [{ name: 'smoke', expect: { output: null } }],
+      ui: { positions: { summary: { x: 0, y: 0 } } },
+      owner: 'billing team',
+    };
+    state.document = stored;
+    const { user } = renderPage();
+    await editTheNode(user);
+    const checked = validationMock.calls.at(-1)?.document;
+    expect(checked).toEqual({
+      ...stored,
+      nodes: [{ ...stored.nodes[0], when: 'x' }, ...stored.nodes.slice(1)],
+    });
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => {
+      expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(saveMutation.mutateAsync.mock.calls[0]?.[0].automation).toEqual(
+      checked,
+    );
+  });
+
   it('keeps the edited version’s package metadata when saving a node change', async () => {
     state.presentation = { name: 'Pack title' };
     state.settings = { folder: 'Setup', forms: [] };
@@ -989,7 +1663,7 @@ describe('AutomationEditor', () => {
           baseVersion: 3,
         },
       })
-      .mockResolvedValue(undefined);
+      .mockResolvedValue({ name: 'billing/dunning', version: 5 });
     const { user } = renderPage();
     await editTheNode(user);
     await user.click(saveButton());
@@ -1019,6 +1693,208 @@ describe('AutomationEditor', () => {
     await waitFor(() => {
       expect(saveButton()).toBeDisabled();
     });
+  });
+
+  it.each([false, true])(
+    'keeps later edits dirty after Save anyway succeeds (query refreshed: %s)',
+    async (refreshQuery) => {
+      const append = Promise.withResolvers<{ name: string; version: number }>();
+      saveMutation.mutateAsync = vi
+        .fn()
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v4 landed.',
+            latestVersion: 4,
+            baseVersion: 3,
+          },
+        })
+        .mockImplementationOnce(() => append.promise)
+        .mockResolvedValue({ name: 'billing/dunning', version: 6 });
+      const { user, rerender } = renderPage();
+      await user.click(screen.getByRole('button', { name: 'select summary' }));
+      const prompt = () => screen.getByRole('textbox', { name: 'Prompt' });
+      await user.clear(prompt());
+      await user.paste('Submitted draft');
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v4 landed.');
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+
+      saveMutation.isPending = true;
+      rerender(page());
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(prompt()).not.toHaveAttribute('readonly');
+      expect(saveButton()).toBeDisabled();
+      expect(discardButton()).toBeDisabled();
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 4,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Submitted draft' })],
+          }),
+        }),
+      );
+
+      await user.clear(prompt());
+      await user.paste('Later unsaved draft');
+      expect(prompt()).toHaveValue('Later unsaved draft');
+      const submitted = saveMutation.mutateAsync.mock.calls[1]?.[0].automation;
+      expect(submitted.nodes[0].prompt).toBe('Submitted draft');
+      if (refreshQuery) {
+        state.document = submitted;
+        state.version = 5;
+        rerender(page());
+      }
+      await act(async () => {
+        saveMutation.isPending = false;
+        append.resolve({ name: 'billing/dunning', version: 5 });
+      });
+      rerender(page());
+
+      expect(prompt()).toHaveValue('Later unsaved draft');
+      expect(saveButton()).toBeEnabled();
+      expect(discardButton()).toBeEnabled();
+      expect(toastSpy).not.toHaveBeenCalled();
+      expect(onSelectVersion).toHaveBeenCalledWith(undefined);
+
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await waitFor(() => expect(discardButton()).toBeDisabled());
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 5,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Later unsaved draft' })],
+          }),
+        }),
+      );
+    },
+    30_000,
+  );
+
+  it.each([true, false])(
+    'settles only its own draft after a pending append is discarded (replacement edited while pending: %s)',
+    async (editWhilePending) => {
+      state.deployedDocument = {
+        name: 'billing/dunning',
+        description: 'The v2 document.',
+        nodes: [{ id: 'summary', type: 'llm', prompt: 'Stored on v2' }],
+      };
+      const append = Promise.withResolvers<{ name: string; version: number }>();
+      saveMutation.mutateAsync = vi
+        .fn()
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v4 landed.',
+            latestVersion: 4,
+            baseVersion: 3,
+          },
+        })
+        .mockImplementationOnce(() => append.promise)
+        .mockRejectedValueOnce({
+          data: {
+            code: 'AUTOMATION_VERSION_STALE',
+            message: 'v5 landed after v2.',
+            latestVersion: 5,
+            baseVersion: 2,
+          },
+        });
+      const { user, rerender } = renderPage();
+      const prompt = () => screen.getByRole('textbox', { name: 'Prompt' });
+      const editReplacement = async () => {
+        await user.clear(prompt());
+        await user.paste('Edited on v2');
+      };
+      await user.click(screen.getByRole('button', { name: 'select summary' }));
+      await user.clear(prompt());
+      await user.paste('Submitted draft');
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v4 landed.');
+      await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+      saveMutation.isPending = true;
+      rerender(page());
+
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 4,
+          automation: expect.objectContaining({
+            nodes: [expect.objectContaining({ prompt: 'Submitted draft' })],
+          }),
+        }),
+      );
+      const submitted = saveMutation.mutateAsync.mock.calls[1]?.[0].automation;
+      await user.click(versionPicker());
+      await user.click(screen.getByRole('radio', { name: /^v2/ }));
+      await user.click(
+        screen.getByRole('button', { name: 'Discard and switch' }),
+      );
+      expect(prompt()).toHaveValue('Stored on v2');
+      if (editWhilePending) await editReplacement();
+      expect(versionPicker()).toHaveTextContent('v2');
+      onSelectVersion.mockClear();
+
+      state.document = submitted;
+      state.version = 5;
+      rerender(page());
+      await act(async () => {
+        saveMutation.isPending = false;
+        append.resolve({ name: 'billing/dunning', version: 5 });
+      });
+      rerender(page());
+
+      expect(versionPicker()).toHaveTextContent('v2');
+      expect(onSelectVersion).not.toHaveBeenCalled();
+      expect(prompt()).toHaveValue(
+        editWhilePending ? 'Edited on v2' : 'Stored on v2',
+      );
+      expect(submitted.nodes[0].prompt).toBe('Submitted draft');
+      if (!editWhilePending) {
+        expect(discardButton()).toBeDisabled();
+        await editReplacement();
+      }
+      expect(saveButton()).toBeEnabled();
+      expect(discardButton()).toBeEnabled();
+      await user.click(saveButton());
+      await user.click(screen.getByRole('button', { name: 'Save version' }));
+      await screen.findByText('v5 landed after v2.');
+      expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseVersion: 2,
+          automation: expect.objectContaining({
+            description: 'The v2 document.',
+            nodes: [expect.objectContaining({ prompt: 'Edited on v2' })],
+          }),
+        }),
+      );
+      expect(toastSpy).not.toHaveBeenCalled();
+    },
+    30_000,
+  );
+
+  it('keeps the draft when the stale-version decision is cancelled', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue({
+      data: {
+        code: 'AUTOMATION_VERSION_STALE',
+        message: 'v4 landed.',
+        latestVersion: 4,
+        baseVersion: 3,
+      },
+    });
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await screen.findByText('v4 landed.');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(whenField()).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+    expect(discardButton()).toBeEnabled();
+    expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(toastSpy).not.toHaveBeenCalled();
   });
 
   it('drops the draft and shows the newer version on reload after a stale refusal', async () => {
@@ -1085,5 +1961,621 @@ describe('AutomationEditor', () => {
   it('passes an axe audit', async () => {
     const { container } = renderPage();
     await checkAccessibility(container);
+  });
+});
+
+describe('AutomationEditor problems', () => {
+  /** The draft's prompt reads a node that does not exist. */
+  const promptError = {
+    level: 'error' as const,
+    code: 'REF_UNKNOWN_NODE',
+    message: 'nodes.nope does not exist',
+    hint: 'reference an existing node',
+    at: { pointer: '/nodes/0/prompt', range: [4, 9] as [number, number] },
+    params: { node: 'summary', field: 'prompt', ref: 'nope', available: [] },
+  };
+
+  function refusal() {
+    return {
+      data: {
+        code: 'AUTOMATION_INVALID',
+        message: 'automation failed validation — fix errors before saving',
+        errors: [promptError],
+        warnings: [],
+      },
+    };
+  }
+
+  const problemsButton = () =>
+    screen.getByRole('button', { name: /^(Problems|No problems)/ });
+
+  it('counts what the check found and keeps Save disabled with the reason', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user } = renderPage();
+    expect(problemsButton()).toHaveAccessibleName('Problems: 1 error');
+    await editTheNode(user);
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
+    act(() => saveButton().focus());
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Fix 1 error to save',
+    );
+  });
+
+  it('keeps Save waiting while a fix is checked, and lets it act once the check settles clean', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    validationMock.status = 'checking';
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+    act(() => saveButton().focus());
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Checking your changes…',
+    );
+    validationMock.errors = [];
+    validationMock.status = 'ready';
+    rerender(page());
+    expect(saveButton()).toBeEnabled();
+    expect(problemsButton()).toHaveAccessibleName('No problems');
+  });
+
+  it('never blocks Save on a check that failed', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    validationMock.status = 'failed';
+    const { user } = renderPage();
+    await editTheNode(user);
+    expect(saveButton()).toBeEnabled();
+    expect(problemsButton()).toHaveAccessibleName("Problems: couldn't check");
+  });
+
+  it('opens the list under the canvas and goes to the field with the text selected', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    expect(problemsButton()).toHaveAttribute('aria-expanded', 'true');
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    expect(problemsButton()).toHaveAttribute('aria-controls', dock.id);
+    const row = within(dock).getByRole('button', {
+      name: /Error: .*summary › Prompt/,
+    });
+    await waitFor(() => expect(row).toHaveFocus());
+    await user.keyboard('{Enter}');
+    const prompt = await screen.findByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Prompt',
+    });
+    await waitFor(() => expect(prompt).toHaveFocus());
+    expect([prompt.selectionStart, prompt.selectionEnd]).toEqual([4, 9]);
+    // The field carries its own problem, and the row stays marked current.
+    expect(prompt).toHaveAttribute('aria-invalid', 'true');
+    expect(row).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('closes the list on Escape and returns focus to the Problems button', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    await waitFor(() =>
+      expect(within(dock).getAllByRole('button')[0]).toBeDefined(),
+    );
+    act(() =>
+      within(dock)
+        .getByRole('button', { name: /Error:/ })
+        .focus(),
+    );
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: 'Problems' })).toBeNull();
+    expect(problemsButton()).toHaveFocus();
+  });
+
+  it('lands a refused save in Problems on its first error, with no toast [AUTO-R23]', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue(refusal());
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+
+    const dock = await screen.findByRole('region', { name: 'Problems' });
+    const row = within(dock).getByRole('button', { name: /Error:/ });
+    await waitFor(() => expect(row).toHaveFocus());
+    expect(toastSpy).not.toHaveBeenCalled();
+    expect(problemsButton()).toHaveAccessibleName('Problems: 1 error');
+    // The server's errors hold Save until the draft changes.
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
+    await waitFor(() =>
+      expect(issueAnnouncer()).toHaveTextContent('Saving was refused. 1 error'),
+    );
+  });
+
+  it('points a refused deploy at Problems', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onError: (error: unknown) => void } | undefined,
+      ) => {
+        handlers?.onError(refusal());
+      },
+    );
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      screen.getByText(
+        'This version has problems that block deploying it. Problems lists them.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Problems' })).toBeVisible();
+  });
+
+  it('says a draft check only when its counts change', async () => {
+    const { user } = renderPage();
+    const status = issueAnnouncer;
+    // The stored version had no problems: a clean draft is no news.
+    await editTheNode(user);
+    await user.type(whenField(), 'y');
+    expect(status()).toBeEmptyDOMElement();
+    validationMock.errors = withIssueIds([promptError]);
+    await user.type(whenField(), 'z');
+    await waitFor(() => expect(status()).toHaveTextContent('1 error'));
+    const spoken = status().firstElementChild;
+    // The same count after the next pause in typing is not said again.
+    await user.type(whenField(), 'w');
+    expect(status().firstElementChild).toBe(spoken);
+    validationMock.errors = [];
+    await user.type(whenField(), 'v');
+    await waitFor(() => expect(status()).toHaveTextContent('No problems'));
+  });
+
+  it('shows every problem again on a refusal, whatever the list was filtered to', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue(refusal());
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    await user.click(within(dock).getByRole('radio', { name: 'Warnings' }));
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+
+    const row = await within(dock).findByRole('button', { name: /Error:/ });
+    await waitFor(() => expect(row).toHaveFocus());
+    expect(within(dock).getByRole('radio', { name: 'All' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  it('says "Checking…" above an empty list while the first check runs', async () => {
+    validationMock.status = 'checking';
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    expect(within(dock).getAllByText('Checking…')).toHaveLength(2);
+    expect(within(dock).queryByText('No problems')).toBeNull();
+  });
+
+  it('says a refused deploy once: the alert names it, the announcer counts', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onError: (error: unknown) => void } | undefined,
+      ) => {
+        handlers?.onError(refusal());
+      },
+    );
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    await waitFor(() =>
+      expect(issueAnnouncer()).toHaveTextContent(/^1 error$/),
+    );
+  });
+
+  it('words a refused deploy with a draft on screen in the reader’s language', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onError: (error: unknown) => void } | undefined,
+      ) => {
+        handlers?.onError(refusal());
+      },
+    );
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      screen.getByText(
+        'This version has problems that block deploying it. Discard your draft to see them in Problems.',
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/automation failed validation/)).toBeNull();
+  });
+
+  it("says why a problem in a node the draft no longer has can't be gone to", async () => {
+    // The check answered for an older draft that had a second node.
+    validationMock.errors = withIssueIds([
+      {
+        level: 'error' as const,
+        code: 'REF_UNKNOWN_NODE',
+        message: 'nodes.nope does not exist',
+        at: { pointer: '/nodes/3/prompt' },
+        params: {},
+      },
+    ]);
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const row = within(
+      screen.getByRole('region', { name: 'Problems' }),
+    ).getByRole('button', { name: /Error:/ });
+    expect(row).toHaveAttribute('aria-disabled', 'true');
+    expect(row).toHaveAccessibleDescription(/with your coding agent/);
+  });
+
+  it('checks nothing and shows no Problems for a member', () => {
+    validationMock.canAuthor = false;
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Problems/ })).toBeNull();
+    expect(validationMock.calls.every((call) => !call.enabled)).toBe(true);
+  });
+
+  it('passes an axe audit with the Problems list open', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user, container } = renderPage();
+    await user.click(problemsButton());
+    await checkAccessibility(container);
+  });
+});
+
+describe('AutomationEditor canvas', () => {
+  const twoNodes = {
+    name: 'billing/dunning',
+    nodes: [
+      { id: 'summary', type: 'llm', prompt: 'One sentence, please.' },
+      {
+        id: 'notify',
+        type: 'transform',
+        when: '{{ nodes.summary.output !== null }}',
+        input: { text: '{{ nodes.summary.output }}' },
+        code: 'return input.text;',
+      },
+    ],
+  };
+
+  it('follows a version saved elsewhere, rings what changed and says so', async () => {
+    const { user, rerender } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-layout-key',
+      'billing/dunning:latest',
+    );
+
+    // A coding agent saves v4: Summary changed, Notify is new.
+    state.version = 4;
+    state.document = {
+      ...twoNodes,
+      nodes: [
+        { id: 'summary', type: 'llm', prompt: 'Two sentences, please.' },
+        ...twoNodes.nodes.slice(1),
+      ],
+    };
+    rerender(page());
+
+    await waitFor(() =>
+      expect(canvasAnnouncer()).toHaveTextContent('Now showing v4.'),
+    );
+    const canvas = screen.getByTestId('canvas');
+    // The same picture, glided to: the key stays, the changed nodes ring.
+    expect(canvas).toHaveAttribute('data-layout-key', 'billing/dunning:latest');
+    expect(canvas).toHaveAttribute('data-changed', 'notify,summary');
+    // The open node is still there, so it stays open.
+    expect(inspector()).not.toBeNull();
+  });
+
+  it('closes the open node when the newer version no longer has it', async () => {
+    state.document = twoNodes;
+    const { user, rerender } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'select notify' }));
+    expect(inspector()).not.toBeNull();
+
+    state.version = 4;
+    state.document = { ...twoNodes, nodes: twoNodes.nodes.slice(0, 1) };
+    rerender(page());
+
+    await waitFor(() =>
+      expect(canvasAnnouncer()).toHaveTextContent(
+        'Now showing v4. Notify is no longer in this version.',
+      ),
+    );
+    expect(inspector()).toBeNull();
+  });
+
+  it('says nothing new about the version this tab saved', async () => {
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => expect(saveMutation.mutateAsync).toHaveBeenCalled());
+
+    state.version = 4;
+    rerender(page());
+    expect(canvasAnnouncer()).toHaveTextContent('');
+    expect(
+      screen.queryByRole('button', { name: /discard my draft/ }),
+    ).toBeNull();
+  });
+
+  it('leaves a draft where it is and offers the newer version', async () => {
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+
+    state.version = 4;
+    state.document = twoNodes;
+    rerender(page());
+
+    expect(screen.getByText('A newer version was saved')).toBeVisible();
+    expect(
+      screen.getByText(
+        'v4 was saved while you were editing. Your draft is based on v3.',
+      ),
+    ).toBeVisible();
+    // Nothing on the canvas moved: the draft is still what it shows.
+    expect(screen.queryByRole('button', { name: 'select notify' })).toBeNull();
+    expect(screen.getByTestId('canvas')).not.toHaveAttribute('data-changed');
+    expect(whenField()).toHaveValue('x');
+
+    await user.click(
+      screen.getByRole('button', { name: 'Show v4 and discard my draft' }),
+    );
+    expect(
+      await screen.findByRole('button', { name: 'select notify' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('A newer version was saved')).toBeNull();
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it('opens the node a link names, and keeps the open node in the link', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ node: 'summary', onSearchChange });
+    expect(inspector()).not.toBeNull();
+    expect(onSearchChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'deselect' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ node: null });
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ node: 'summary' });
+  });
+
+  it('opens a node at its condition when the condition is picked', async () => {
+    state.document = twoNodes;
+    const { user } = renderPage();
+    await user.click(
+      screen.getByRole('button', { name: 'select the condition of notify' }),
+    );
+    expect(inspector()).not.toBeNull();
+    await waitFor(() => expect(whenField()).toHaveFocus());
+  });
+
+  it('switches between the chart and the List view and keeps it in the link', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ view: 'list', onSearchChange });
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas).toHaveAttribute('data-view', 'list');
+
+    const views = within(screen.getByTestId('canvas-top-start')).getByRole(
+      'radiogroup',
+      { name: 'View' },
+    );
+    await user.click(within(views).getByRole('radio', { name: 'Canvas' }));
+    expect(canvas).toHaveAttribute('data-view', 'chart');
+    expect(onSearchChange).toHaveBeenLastCalledWith({ view: 'canvas' });
+  });
+
+  it('puts the coding-agent entry among the canvas verbs for an author', () => {
+    renderPage();
+    expect(
+      within(screen.getByTestId('canvas-top-end')).getByRole('button', {
+        name: 'Edit with your coding agent',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('offers no coding-agent entry to a member', () => {
+    validationMock.canAuthor = false;
+    renderPage();
+    expect(
+      screen.queryByRole('button', { name: 'Edit with your coding agent' }),
+    ).toBeNull();
+  });
+});
+
+describe('Start, End and the Source view', () => {
+  const documentWithInputs = {
+    name: 'billing/dunning',
+    inputs: {
+      type: 'object',
+      properties: { owner: { type: 'string' } },
+      required: ['owner'],
+    },
+    nodes: [{ id: 'summary', type: 'llm', prompt: 'Hi {{ input.owner }}' }],
+    output: '{{ nodes.summary.output }}',
+    tests: [{ name: 'smoke', input: { owner: 'acme' } }],
+  };
+
+  it('opens Start, edits the run input schema and saves it with the document', async () => {
+    state.document = documentWithInputs;
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ onSearchChange });
+    await user.click(screen.getByRole('button', { name: 'select Start' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ node: '__start' });
+    const panel = openInspector();
+    expect(within(panel).getByRole('heading', { name: 'Start' })).toBeVisible();
+    // The stored schedule in its trigger card's words, then the start every
+    // automation has.
+    expect(
+      within(panel).getByText('Every weekday at 9:00 AM · Europe/Zurich'),
+    ).toBeVisible();
+    expect(within(panel).getByText('By hand, the API or MCP')).toBeVisible();
+    expect(
+      within(panel).getByRole('link', { name: 'Change in General' }),
+    ).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/automations/billing__dunning/general',
+    );
+    // The fields of the run input, as a tree.
+    expect(within(panel).getByText('owner')).toBeVisible();
+
+    const schema = within(panel).getByRole('textbox', { name: 'Input schema' });
+    await replaceText(user, schema, '{"type":"object"}');
+    const checked = validationMock.calls.at(-1)?.document;
+    expect(checked).toEqual({
+      ...documentWithInputs,
+      inputs: { type: 'object' },
+    });
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => {
+      expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(saveMutation.mutateAsync.mock.calls[0]?.[0].automation).toEqual(
+      checked,
+    );
+  });
+
+  it('opens End, edits the output and goes to a node whose failure stops the run', async () => {
+    state.document = documentWithInputs;
+    const { user } = renderPage({ node: '__end' });
+    const panel = openInspector();
+    expect(within(panel).getByRole('heading', { name: 'End' })).toBeVisible();
+    expect(
+      within(panel).getByRole('list', { name: 'How a run ends' }),
+    ).toBeVisible();
+    const output = within(panel).getByRole('textbox', { name: 'Output' });
+    expect(output).toHaveValue('"{{ nodes.summary.output }}"');
+    await replaceText(user, output, '{"text":"{{ nodes.summary.output }}"}');
+    expect(validationMock.calls.at(-1)?.document).toEqual({
+      ...documentWithInputs,
+      output: { text: '{{ nodes.summary.output }}' },
+    });
+
+    await user.click(within(panel).getByRole('button', { name: 'Summary' }));
+    expect(
+      within(openInspector()).getByRole('heading', { name: 'Summary' }),
+    ).toBeVisible();
+  });
+
+  it('shows the input and the output of the run on the canvas', async () => {
+    state.document = documentWithInputs;
+    runsData.push({
+      id: 'run-1',
+      name: 'billing/dunning',
+      version: 3,
+      status: 'success',
+      mode: 'mock',
+      startedBy: 'user:a',
+      startedAt: 1_700_000_000_000,
+    });
+    const { user } = renderPage({ node: '__start' });
+    await user.click(
+      within(openInspector()).getByRole('tab', { name: 'Last run' }),
+    );
+    expect(within(openInspector()).getByTestId('json')).toHaveTextContent(
+      '{"owner":"acme"}',
+    );
+    await user.click(screen.getByRole('button', { name: 'select End' }));
+    await user.click(
+      within(openInspector()).getByRole('tab', { name: 'Last run' }),
+    );
+    expect(within(openInspector()).getByTestId('json')).toHaveTextContent(
+      '{"sent":2}',
+    );
+  });
+
+  it('goes to a problem in the run input, the output and the tests', async () => {
+    state.document = documentWithInputs;
+    validationMock.errors = withIssueIds([
+      {
+        level: 'error',
+        code: 'SCHEMA_X',
+        message: 'owner is wrong',
+        at: { pointer: '/inputs/properties/owner' },
+      },
+      {
+        level: 'error',
+        code: 'OUTPUT_X',
+        message: 'output is wrong',
+        at: { pointer: '/output' },
+      },
+      {
+        level: 'error',
+        code: 'TEST_X',
+        message: 'the test is wrong',
+        at: { pointer: '/tests/0/name' },
+      },
+    ]);
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ onSearchChange });
+    const problems = screen.getByRole('button', { name: /^Problems/ });
+    const goTo = async (location: RegExp) => {
+      if (problems.getAttribute('aria-expanded') !== 'true') {
+        await user.click(problems);
+      }
+      const dock = screen.getByRole('region', { name: 'Problems' });
+      await user.click(within(dock).getByRole('button', { name: location }));
+    };
+
+    await goTo(/Inputs › properties › owner/);
+    const schema = await within(
+      openInspector(),
+    ).findByRole<HTMLTextAreaElement>('textbox', { name: 'Input schema' });
+    await waitFor(() => expect(schema).toHaveFocus());
+    expect(schema.value.slice(schema.selectionStart, schema.selectionEnd)).toBe(
+      '{\n      "type": "string"\n    }',
+    );
+
+    await goTo(/Output/);
+    const output = await within(openInspector()).findByRole('textbox', {
+      name: 'Output',
+    });
+    await waitFor(() => expect(output).toHaveFocus());
+
+    await goTo(/Tests › 1 › name/);
+    expect(onSearchChange).toHaveBeenLastCalledWith({ view: 'source' });
+    const source = await screen.findByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Source of this automation (YAML)',
+    });
+    await waitFor(() => expect(source).toHaveFocus());
+    expect(source.value.slice(source.selectionStart, source.selectionEnd)).toBe(
+      'smoke',
+    );
+    // Every problem is marked in the source, at the place it names.
+    expect(
+      JSON.parse(source.dataset.diagnostics ?? '[]').map(
+        (mark: { id: string }) => mark.id,
+      ),
+    ).toHaveLength(3);
+  });
+
+  it('shows the whole document as read-only YAML in the Source view', async () => {
+    state.document = documentWithInputs;
+    const { user } = renderPage();
+    await user.click(
+      within(screen.getByTestId('canvas-top-start')).getByRole('radio', {
+        name: 'Source',
+      }),
+    );
+    expect(screen.queryByTestId('canvas')).toBeNull();
+    const source = screen.getByRole('textbox', {
+      name: 'Source of this automation (YAML)',
+    });
+    expect(source).toHaveAttribute('aria-readonly', 'true');
+    expect(source).toHaveAttribute('data-language', 'yaml');
+    expect((source as HTMLTextAreaElement).value).toContain(
+      'tests:\n  - name: smoke',
+    );
+    expect(
+      screen.getByText(
+        'To change the document, use the fields or your coding agent.',
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Edit with your coding agent' }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('radio', { name: 'Canvas' }));
+    expect(screen.getByTestId('canvas')).toBeInTheDocument();
   });
 });

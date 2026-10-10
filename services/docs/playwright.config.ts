@@ -25,14 +25,17 @@ export default createPlaywrightConfig({
     // the web suite hit — the deps optimizer never finishes; `vite preview`
     // has no optimizer). SSR/prerender/SEO stay out of the command — the
     // suite exercises the SPA the dev server serves. The build runs through
-    // `scripts/build-client.ts` (vite's JS API + an explicit exit), not the
+    // `../../packages/ui/bin/build-client.ts` (vite's JS API + an explicit exit), not the
     // `vite build` CLI: the CLI process occasionally never exits after a
     // successful build, and the `&&` chain then starves silently until this
     // webServer timeout with zero tests run. The explicit exit is only safe
     // on Bun ≥ 1.4.1 — see build-client.ts for why.
     command:
-      `bun --bun scripts/build-search-index.ts && ` +
-      `bun --bun scripts/build-client.ts && ` +
+      // CI restores/builds the complete site through Turbo once, including
+      // search. Ordinary local runs keep the client-only build below.
+      (process.env.E2E_USE_BUILD === '1'
+        ? ''
+        : `bun --bun scripts/build-search-index.ts && bun --bun ../../packages/ui/bin/build-client.ts && `) +
       `bun --bun vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     // Locally reuse an already-running `bun run dev`; in CI boot fresh.

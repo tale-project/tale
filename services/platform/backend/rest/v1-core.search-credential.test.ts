@@ -1,10 +1,15 @@
 // @vitest-environment node
 
 import { Hono } from 'hono';
+import OpenAI from 'openai';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../lib/shared/errors/app-error.ts';
+import {
+  EmbeddingBudgetExceeded,
+  EmbeddingNotConfigured,
+} from '../core/knowledge/embedding.ts';
 import { searchKnowledge } from '../core/knowledge/search.ts';
 import {
   KnowledgeError,
@@ -77,6 +82,7 @@ describe('knowledge search with a credential that does not resolve', () => {
 
     const caught = await searchKnowledgeForOrg(fakeSql(), {
       organizationId: 'org-1',
+      spender: { userId: 'user-1', agentSlug: '__embedding__' },
       query: 'refunds',
     }).catch((error: unknown) => error);
 
@@ -120,4 +126,144 @@ describe('knowledge search with a credential that does not resolve', () => {
       });
     },
   );
+});
+
+/**
+ * The same boundary for the two other ways a search loses its embedding
+ * model: there is none, or the provider behind it fails. What the caller
+ * needs from the answer is whether waiting helps, so each class of failure
+ * keeps its own code and only the one a wait can lift carries `Retry-After`.
+ * The real domain translation runs here as well; the corpus search beneath it
+ * is replaced by the failure its embedder raises.
+ */
+const search = () =>
+  mount().request('http://localhost/knowledge/search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query: 'refunds' }),
+  });
+
+const providerError = (status: number, body: Record<string, unknown>) =>
+  OpenAI.APIError.generate(status, body, undefined, new Headers());
+
+describe('knowledge search without an embedding model', () => {
+  it('answers 409 with the code an admin acts on, never a retry hint [KNOW-R10]', async () => {
+    vi.mocked(searchKnowledge).mockRejectedValueOnce(
+      new EmbeddingNotConfigured('acme'),
+    );
+
+    const res = await search();
+
+    expect(res.status).toBe(409);
+    expect(res.headers.get('retry-after')).toBeNull();
+    expect(await res.json()).toEqual({
+      error: 'No embedding model is configured for this organization',
+      code: 'EMBEDDING_NOT_CONFIGURED',
+    });
+  });
+});
+
+describe('knowledge search when the embedding provider fails', () => {
+  it.each([
+    [
+      'a rate limit',
+      providerError(429, {
+        error: { code: 'rate_limit_exceeded', message: 'Too many requests' },
+      }),
+    ],
+    [
+      'an outage',
+      providerError(503, { error: { message: 'The server is overloaded' } }),
+    ],
+  ])(
+    'answers %s as 503 with the wait to retry after [KNOW-R12]',
+    async (_case, failure) => {
+      vi.mocked(searchKnowledge).mockRejectedValueOnce(failure);
+
+      const res = await search();
+
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('5');
+      expect(await res.json()).toMatchObject({
+        code: 'EMBEDDING_UPSTREAM_ERROR',
+      });
+    },
+  );
+
+  it.each([
+    [
+      'a refused account',
+      providerError(429, {
+        error: {
+          code: 'insufficient_quota',
+          message: 'You exceeded your current quota',
+        },
+      }),
+      'EMBEDDING_CREDIT_EXHAUSTED',
+    ],
+    [
+      'a rejected key',
+      providerError(401, {
+        error: { code: 'invalid_api_key', message: 'Incorrect API key' },
+      }),
+      'EMBEDDING_CREDENTIAL_REJECTED',
+    ],
+  ])(
+    'answers %s as 409 with no retry hint [KNOW-R12]',
+    async (_case, failure, code) => {
+      vi.mocked(searchKnowledge).mockRejectedValueOnce(failure);
+
+      const res = await search();
+
+      expect(res.status).toBe(409);
+      expect(res.headers.get('retry-after')).toBeNull();
+      expect(await res.json()).toMatchObject({ code });
+    },
+  );
+});
+
+describe('knowledge search at a usage limit', () => {
+  it('answers the 429 every budget refusal answers, with the cap and its wait [GOV-R4] [KNOW-R18]', async () => {
+    const resetsAt = Date.now() + 3_600_000;
+    vi.mocked(searchKnowledge).mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.', resetsAt, {
+        scope: 'apiKey',
+        code: 'REQUEST_LIMIT',
+        period: 'daily',
+        used: 50,
+        limit: 50,
+        reason: 'x',
+        resetsAt,
+      }),
+    );
+
+    const res = await search();
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(3_500);
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('Usage limit reached'),
+      code: 'BUDGET_EXCEEDED',
+      data: {
+        scope: 'apiKey',
+        period: 'daily',
+        limitCode: 'REQUEST_LIMIT',
+        used: 50,
+        limit: 50,
+        resetsAt,
+      },
+    });
+  });
+
+  it('meters the query as the key holder’s spend [GOV-R5]', async () => {
+    vi.mocked(searchKnowledge).mockResolvedValueOnce({
+      hits: [],
+      diagnostics: {},
+    } as never);
+    await search();
+    expect(searchKnowledge).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter: expect.any(Object) }),
+    );
+  });
 });

@@ -271,6 +271,37 @@ describe('providerDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  it('accepts a target variable on a subscription-key entry only', () => {
+    const constraints = { execution: 'sandbox', harness: 'claude-code' };
+    const parse = (entry: Record<string, unknown>) =>
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        auth: [entry],
+      }).success;
+    expect(
+      parse({
+        method: 'subscription-key',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+        constraints,
+      }),
+    ).toBe(true);
+    expect(
+      parse({
+        method: 'subscription-key',
+        targetEnvVar: 'claude_code_oauth_token',
+        constraints,
+      }),
+    ).toBe(false);
+    // A broker names its variable on the credential row, never on the provider.
+    expect(
+      parse({
+        method: 'subscription-broker',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+        constraints,
+      }),
+    ).toBe(false);
+  });
+
   it('rejects broker constraints demanding direct execution', () => {
     expect(
       providerDefinitionSchema.safeParse({

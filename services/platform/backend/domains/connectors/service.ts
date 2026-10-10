@@ -7,6 +7,7 @@ import {
   type ConnectorAuditSink,
   type ConnectorCaller,
   type ConnectorDispatchResult,
+  type ConnectorUsageSink,
   type CredentialResolver,
 } from '../../../lib/connectors/dispatcher.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
@@ -17,14 +18,7 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
 } from '../../../lib/connectors/natives/index.ts';
-import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
-import {
-  hasCodeRunner,
-  setCodeRunner,
-  type CodeRunner,
-} from '../../../lib/engine/core/runner.ts';
-import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
-import { signHostcallToken } from '../../core/connectors/hostcall_token.ts';
+import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
   ingestEmails,
   ingestSentEmails,
@@ -32,7 +26,7 @@ import {
   querySyncCursor,
   syncMailbox,
 } from '../../core/conversations/sync_mailbox.ts';
-import { codeRunnerForSession } from '../../core/node_only/sandbox/engine_exec_runner.ts';
+import { installCodeRunner } from '../../lib/code-runner.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -43,7 +37,13 @@ import {
   listUntriagedConversations,
   recordConversationTriage,
 } from '../conversations/triage.ts';
+import { withAutomationOrigin } from '../events/origin.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
+import { recordConnectorUsage } from '../governance/service.ts';
+import {
+  resolveAutomationRunAttribution,
+  type SessionOpAttribution,
+} from '../sandbox/op-attribution.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
 import { connectorBlobSink } from './blob-sink.ts';
 import { pgDocumentStore } from './document-store.ts';
@@ -63,9 +63,9 @@ import { pgTaskStore } from './task-store.ts';
  * run's own workflow session over the automations ctx shim — the same
  * session the run's agent nodes use. A live yaml-js body runs on the
  * host-capable in-process runner (the shipped catalog is trusted code, and
- * `ctx.http` is the same policed live host either way) unless the caller
- * owns a sandbox session, in which case the body runs out of process on the
- * session-bound runner and phones its host calls home.
+ * `ctx.http` is the same policed live host either way) — the external-turn
+ * bridge included, so a sandboxed agent's call never runs its body, or
+ * carries its credential, inside the agent's own session.
  */
 
 let mailTransportOverride: MailTransport | undefined;
@@ -226,10 +226,65 @@ function auditSink(sql: Sql): ConnectorAuditSink {
   };
 }
 
+/**
+ * Whose spend a connector call is: the spender its caller names — an
+ * agent's turn names the run it works for — else an automation step's run
+ * (`resolveAutomationRunAttribution`, the subject its agent and `llm` steps
+ * book under), else the member who made it. The platform's own sends name
+ * nobody, and are not counted.
+ */
+async function connectorSpender(
+  sql: Sql,
+  args: RunConnectorArgs,
+): Promise<SessionOpAttribution | null> {
+  if (args.spender !== undefined) return args.spender;
+  if (args.caller.kind === 'workflow') {
+    return (
+      (await resolveAutomationRunAttribution(sql, {
+        organizationId: args.organizationId,
+        runId: args.caller.runId,
+      })) ?? { userId: AUTOMATION_SUBJECT_ID }
+    );
+  }
+  if (args.caller.kind === 'user') return { userId: args.caller.userId };
+  return null;
+}
+
+/** Every live connector call that ran, counted as one under its spender —
+ * at no cost and never as a model request (`recordConnectorUsage`). */
+function connectorUsageSink(
+  sql: Sql,
+  args: RunConnectorArgs,
+): ConnectorUsageSink {
+  return {
+    record: async (entry) => {
+      const spender = await connectorSpender(sql, args);
+      if (spender === null) return;
+      await recordConnectorUsage(sql, {
+        organizationId: entry.organizationId,
+        userId: spender.userId,
+        ...(spender.agentSlug !== undefined
+          ? { agentSlug: spender.agentSlug }
+          : {}),
+        ...(spender.apiKeyId !== undefined
+          ? { apiKeyId: spender.apiKeyId }
+          : {}),
+        ...(spender.projectIds !== undefined
+          ? { projectIds: spender.projectIds }
+          : {}),
+        connectorName: entry.connector,
+        connectorOperation: entry.action,
+        costEstimateCents: 0,
+        timestamp: Date.now(),
+      });
+    },
+  };
+}
+
 /** Install the seams one invocation needs — cheap and idempotent (the
  * catalog read is stat-memoized). */
 function assembleConnectorHost(sql: Sql): void {
-  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+  installCodeRunner();
   loadConnectorCatalog();
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),
@@ -255,53 +310,51 @@ export interface RunConnectorArgs {
   credentialRef?: string;
   mode?: 'mock' | 'live';
   caller: ConnectorCaller;
+  /** Whose spend the call is, when the caller knows better than its kind:
+   * an agent's turn names its run's subject — the person, the agent, the
+   * API key and the projects. */
+  spender?: SessionOpAttribution;
   idempotencyKey?: string;
   /**
-   * A live sandbox session to run a yaml-js body IN, out of process. Only
-   * the external-turn bridge owns one; every other live caller (automation
-   * runs, chat, the platform's own senders) runs the body on the in-process
-   * live runner. The runner is per-invocation ON PURPOSE — the
-   * process-global slot is shared by every concurrent org.
+   * Whether a live body may store files through `ctx.files` (default yes).
+   * The agent bridge says no: an agent's read calls should not leave blobs
+   * and file records in the organization's store, and an action that needs
+   * the store refuses instead, as it always did for agent calls.
    */
-  execSessionId?: string;
+  storeFiles?: boolean;
+  /**
+   * The caller's own stop: an automation run's turn passes its signal so a
+   * live call still running when the server is shutting down is cut
+   * (`INTERRUPTED`) instead of holding the walker. An in-process reference —
+   * it reaches this door only through direct calls and the ctx shim, which
+   * hands its arguments over untouched.
+   */
+  signal?: AbortSignal;
 }
 
 /**
  * Invoke one connector action — the platform's single door. Coded refusals
  * surface as {@link ConnectorError}; callers branch on `code`.
+ *
+ * A step of an automation run acts as that run: the events its natives
+ * raise, and those of every domain service they call, name the run as their
+ * origin, so the event triggers can keep a run from starting its own
+ * automation again (`events/origin.ts`).
  */
 export async function runConnectorAction(
   sql: Sql,
   args: RunConnectorArgs,
 ): Promise<ConnectorDispatchResult> {
+  return args.caller.kind === 'workflow'
+    ? withAutomationOrigin(args.caller.runId, () => invokeConnector(sql, args))
+    : invokeConnector(sql, args);
+}
+
+async function invokeConnector(
+  sql: Sql,
+  args: RunConnectorArgs,
+): Promise<ConnectorDispatchResult> {
   assembleConnectorHost(sql);
-  // Out-of-process live execution: the session-bound sandbox-exec runner
-  // plus the one-run capability its in-sandbox façade phones home with. No
-  // HMAC root ⇒ no token ⇒ the body runs in process instead, where its
-  // `ctx.http` is mediated by the live host directly.
-  let portableRunner:
-    | { codeRunner: CodeRunner; portableHost: PortableHostCall }
-    | undefined;
-  if (args.execSessionId !== undefined && args.mode === 'live') {
-    const token = await signHostcallToken({
-      org: args.organizationId,
-      connector: args.connector,
-      action: args.action,
-      ...(args.credentialRef !== undefined
-        ? { credentialRef: args.credentialRef }
-        : {}),
-    });
-    if (token === null) {
-      console.warn(
-        '[connectors] no HMAC root configured — live sandbox execution unavailable, running the body in process',
-      );
-    } else {
-      portableRunner = {
-        codeRunner: codeRunnerForSession(args.execSessionId),
-        portableHost: { url: connectorsHostcallUrlForSessions(), token },
-      };
-    }
-  }
   return executeConnectorAction({
     connector: args.connector,
     action: args.action,
@@ -316,32 +369,27 @@ export async function runConnectorAction(
       credentials: credentialResolver(sql),
       approvals: approvalGate(sql),
       audit: auditSink(sql),
+      usage: connectorUsageSink(sql, args),
       // `ctx.files` for an in-process live body: the org's own blob store.
-      blobs: connectorBlobSink(sql, {
-        organizationId: args.organizationId,
-        connector: args.connector,
-        caller: args.caller,
-      }),
+      ...(args.storeFiles !== false
+        ? {
+            blobs: connectorBlobSink(sql, {
+              organizationId: args.organizationId,
+              connector: args.connector,
+              caller: args.caller,
+            }),
+          }
+        : {}),
       ...(args.idempotencyKey !== undefined
         ? { idempotencyKey: args.idempotencyKey }
         : {}),
-      // A live yaml-js body needs a host-capable runner: the session-bound
-      // one when the caller owns a session, the in-process one otherwise.
-      // The process-global slot stays the data-only runner for mock bodies.
-      ...(portableRunner !== undefined
-        ? portableRunner
-        : args.mode === 'live'
-          ? { codeRunner: inProcessLive }
-          : {}),
+      ...(args.signal !== undefined ? { signal: args.signal } : {}),
+      // A live yaml-js body needs a host-capable runner: the in-process one,
+      // never a `node -e` program in a sandbox session, whose command line
+      // would carry the body's scope (credential secrets included) to every
+      // process of that session. The process-global slot stays the
+      // data-only runner for mock bodies.
+      ...(args.mode === 'live' ? { codeRunner: inProcessLive } : {}),
     },
   });
-}
-
-/** Where a session's CONTAINER reaches the host-call door (the same origin
- * contract the staging callback and the tools bridge use). */
-function connectorsHostcallUrlForSessions(): string {
-  const origin = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'
-  ).replace(/\/$/, '');
-  return `${origin}/api/connectors/hostcall`;
 }

@@ -137,6 +137,11 @@ export interface TokenMappingDiagnostics {
  * selections, for its organization and credential. */
 export const BROKER_RATE_LIMIT_COOLDOWN_MS = 60_000;
 
+/** An explicit subscription-access refusal outlasts a rate-limit retry.
+ * Keep only this account out for one hour; a restored entitlement can wait
+ * at most this interval, while the remaining pool can serve immediately. */
+export const BROKER_SUBSCRIPTION_DISABLED_COOLDOWN_MS = 60 * 60_000;
+
 export interface BrokerPoolAccount {
   token: string;
   /** Stable identity inside this broker, distinct from the vendor account. */

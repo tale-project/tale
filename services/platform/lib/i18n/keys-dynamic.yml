@@ -11,11 +11,11 @@
 entries:
   - 'metadata'
 
-  # `roles.${role.toLowerCase()}` in member-table.tsx — the `owner` role is
+  # `role.toLowerCase()` under `roles` in role-badge.tsx — the `owner` role is
   # never referenced as a string literal because it can't be assigned through
   # the UI (only inherited from the org creator), so the regex scanner can't
   # see it.
-  - 'settings.roles.owner'
+  - 'roles.owner'
 
   # Notifications written by Convex mutations carry `titleKey` / `bodyKey`
   # strings stored on the row; the client looks them up under the
@@ -175,6 +175,10 @@ entries:
   # owners and admins for more usage credits.
   - 'inbox.usageCreditsRequested'
   - 'inbox.usageCreditsRequestedBody'
+  # Keys made for a member (domains/api_keys/service.ts): an Owner or Admin
+  # created an API key that acts as the member in this organization.
+  - 'inbox.apiKeyCreatedForYou'
+  - 'inbox.apiKeyCreatedForYouBody'
   # Paused schedules (domains/automations/trigger-failures.ts): a schedule
   # stopped itself after repeated permanent failures; owners and admins.
   - 'inbox.automationTriggerPaused'
@@ -293,3 +297,22 @@ entries:
   # app/features/automations/lib/run-view.ts (`runReasonKey`) and rendered by
   # the run list and the run header.
   - 'automations.runs.waiting'
+  # The same runReasonKey projection supplies the held-run list explanation.
+  - 'automations.runs.quarantine.reason'
+
+  # How a validation issue reads: app/features/automations/lib/issue-text.ts
+  # renders `codes.<CODE>.{title,explanation,cause,fix}` from the issue's
+  # engine code, and the phrases its derived params are built from, through
+  # the `t` its caller hands it. lib/i18n/automation-issue-keys.test.ts holds
+  # the catalog to the engine's code list instead (one entry per code, none
+  # left over, and the shape of the phrases).
+  - 'automationIssues'
+
+  # Why a run or one of its steps failed:
+  # app/features/automations/lib/run-failure.ts renders
+  # `runtime.codes.<REASON>.*` and `runFailure.codes.<code>.*` (or
+  # `runFailure.unknown.*`) from the run record's failure, through the `t`
+  # its caller hands it. lib/i18n/automation-run-failure-keys.test.ts holds
+  # the catalog to the engine's reasons and the run failure codes instead.
+  - 'automationRuns.runtime'
+  - 'automationRuns.runFailure'

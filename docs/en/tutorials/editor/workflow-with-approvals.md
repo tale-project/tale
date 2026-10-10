@@ -60,7 +60,7 @@ If that name already exists, uploading adds another version. Use a different wor
 
 On **Editor**, click **Test run**. This example has no runtime input, so it can run with an empty object. Switch to **Runs**. The list should show a **Succeeded** test run.
 
-Open the run and check that the canvas shows both nodes as **Ran**. Select `send` and inspect its resolved input. The recipient should be `reviewer@example.com`, the subject `Approval practice`, and the text the sentence from `draft`. The connector uses a deterministic mock in this mode. No email is sent and no approval card appears.
+Open the run and check that the canvas marks both nodes **Succeeded**. Select `send` and inspect its resolved input. The recipient should be `reviewer@example.com`, the subject `Approval practice`, and the text the sentence from `draft`. The connector uses a deterministic mock in this mode. No email is sent and no approval card appears.
 
 The workflow includes a test expecting the `imap-smtp.send` effect. A passing mock confirms the graph and proposed call; it does not prove mailbox credentials or message delivery.
 

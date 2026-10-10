@@ -16,6 +16,7 @@ import {
   readMarketingContent,
 } from '../../lib/content/server';
 import { localizedPath, SUPPORTED_LOCALES } from '../../lib/i18n/locales';
+import { UI_DOCS_ENTRY_PATHS } from '../../lib/redirects';
 import {
   prerenderedBodyCount,
   RELEASE_DISPLAY_LIMIT,
@@ -132,13 +133,47 @@ describe('prerender SEO suite', () => {
             .get(page.url)
             ?.content.match(/^## (.+)$/m)?.[1];
           expect(heading).toBeTruthy();
-          expect(document.querySelector('article')?.textContent).toContain(
-            heading,
-          );
+          const isComparisonHub =
+            page.category === 'comparisons' && page.slug === 'index';
+          expect(
+            document.querySelector(isComparisonHub ? 'main' : 'article')
+              ?.textContent,
+          ).toContain(heading);
           const markdown = readFileSync(
             join(SEO_DIST, `${page.url.slice(1)}.md`),
             'utf8',
           );
+          if (isComparisonHub) {
+            const directory = document.querySelector(
+              'main section[aria-labelledby]',
+            );
+            const directoryHeading = directory?.querySelector('h2');
+            expect(directoryHeading?.textContent).toBeTruthy();
+            expect(directory?.getAttribute('aria-labelledby')).toBe(
+              directoryHeading?.id,
+            );
+            expect(markdown).toContain(directoryHeading?.textContent);
+            const guides = published.filter(
+              (guide) =>
+                guide.category === 'comparisons' &&
+                guide.slug !== 'index' &&
+                guide.locale === page.locale,
+            );
+            const links = [...(directory?.querySelectorAll('li a') ?? [])];
+            expect(
+              links
+                .map((link) => link.getAttribute('href'))
+                .sort((left, right) => (left ?? '').localeCompare(right ?? '')),
+            ).toEqual(guides.map((guide) => guide.url).sort());
+            for (const guide of guides) {
+              expect(
+                links.find((link) => link.getAttribute('href') === guide.url)
+                  ?.textContent,
+              ).toContain(guide.frontmatter.competitor);
+              expect(markdown).toContain(`(${TALE_SITE_URL}${guide.url})`);
+              expect(markdown).toContain(guide.frontmatter.competitor);
+            }
+          }
           // The HTML-to-Markdown converter normalizes French nonbreaking
           // spaces; compare semantic heading text while keeping HTML exact.
           expect(markdown.replace(/\s+/g, ' ')).toContain(
@@ -170,6 +205,75 @@ describe('prerender SEO suite', () => {
     expect(html).not.toBeNull();
     expect(html ?? '').toMatch(/noindex/i);
   });
+
+  for (const path of UI_DOCS_ENTRY_PATHS) {
+    it(`${path} has a static Tale UI redirect without indexable marketing content`, () => {
+      const dom = new JSDOM(readHtml(path) ?? '');
+      try {
+        const document = dom.window.document;
+        expect(
+          document
+            .querySelector('meta[http-equiv="refresh"]')
+            ?.getAttribute('content'),
+        ).toBe('0;url=https://ui.tale.dev');
+        expect(
+          document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+        ).toBe('https://ui.tale.dev');
+        expect(
+          document
+            .querySelector('meta[name="robots"]')
+            ?.getAttribute('content'),
+        ).toContain('noindex');
+        expect(document.querySelectorAll('h1')).toHaveLength(0);
+        expect(document.querySelector('a')?.getAttribute('href')).toBe(
+          'https://ui.tale.dev',
+        );
+      } finally {
+        dom.window.close();
+      }
+    });
+  }
+
+  for (const path of [
+    '/missing',
+    '/de/missing',
+    '/fr/platform/missing',
+    '/de/legal/missing',
+  ]) {
+    it(`${path} renders the marketing 404 in SSR with metadata and site chrome`, async () => {
+      const { render } = (await import(`${ROOT}/dist-ssr/entry-server.js`)) as {
+        render: (url: string) => Promise<{ html: string; head: string }>;
+      };
+      const result = await render(path);
+      const dom = new JSDOM(
+        `<html><head>${result.head}</head><body>${result.html}</body></html>`,
+      );
+      try {
+        const document = dom.window.document;
+        expect(document.querySelectorAll('main h1')).toHaveLength(1);
+        expect(document.querySelector('main')?.textContent).not.toBe(
+          'Not Found',
+        );
+        expect(document.querySelectorAll('header')).toHaveLength(1);
+        expect(document.querySelectorAll('footer')).toHaveLength(1);
+        expect(
+          document
+            .querySelector('meta[name="robots"]')
+            ?.getAttribute('content'),
+        ).toContain('noindex');
+        const prefix = path.startsWith('/de/')
+          ? '/de'
+          : path.startsWith('/fr/')
+            ? '/fr'
+            : '';
+        expect(
+          document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+        ).toBe(`https://tale.dev${prefix}/404`);
+      } finally {
+        dom.window.close();
+      }
+    });
+  }
 
   it('ships og.png', () => {
     expect(existsSync(join(DIST, 'og.png'))).toBe(true);
@@ -445,9 +549,9 @@ describe('prerender SEO suite', () => {
     const PRERENDERED_BODIES = prerenderedBodyCount(
       RELEASES.slice(0, RELEASE_DISPLAY_LIMIT),
     );
-    // The prose wrapper ReleaseBody renders — one per rendered body.
-    const BODY_MARKER = /max-w-none text-\[15px\]/g;
-
+    const MARKDOWN_BODY_COUNT = RELEASES.slice(0, PRERENDERED_BODIES).filter(
+      ({ body }) => Boolean(body),
+    ).length;
     for (const url of ['/changelog', '/de/changelog', '/fr/changelog']) {
       it(`${url} lists every release but prerenders a bounded set of bodies`, () => {
         const html = readHtml(url);
@@ -457,9 +561,11 @@ describe('prerender SEO suite', () => {
         expect((found.match(/<article/g) ?? []).length).toBe(
           RELEASE_DISPLAY_LIMIT,
         );
-        expect((found.match(BODY_MARKER) ?? []).length).toBe(
-          PRERENDERED_BODIES,
-        );
+        // Count rendered release bodies independently of typography classes.
+        const document = new JSDOM(found).window.document;
+        expect(
+          document.querySelectorAll('article [data-release-body]'),
+        ).toHaveLength(MARKDOWN_BODY_COUNT);
         // The budget is a bound, never a reason to prerender nothing.
         expect(PRERENDERED_BODIES).toBeGreaterThanOrEqual(1);
       });

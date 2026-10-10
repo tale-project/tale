@@ -15,16 +15,24 @@ import {
   ensureModelPricingOverride,
   mintVirtualKey,
   provisionProviders,
+  scheduleProviderPoolShrink,
 } from './llm_gateway_admin';
 
 vi.mock('./llm_gateway_admin', async (importOriginal) => {
   const original = await importOriginal<typeof import('./llm_gateway_admin')>();
   return {
     ...original,
-    provisionProviders: vi.fn(async () => []),
+    provisionProviders: vi.fn<typeof original.provisionProviders>(
+      async (_organizationId, providers, options) => {
+        for (const provider of providers)
+          options?.onProviderKey?.(provider.name, `test-${provider.name}`);
+        return [];
+      },
+    ),
     applyGatewayConfig: vi.fn(async () => {}),
     ensureModelPricingOverride: vi.fn(async () => {}),
     mintVirtualKey: vi.fn(async () => ({ key: 'sk-bf-t', keyId: 'vk-9' })),
+    scheduleProviderPoolShrink: vi.fn(() => {}),
   };
 });
 vi.mock('../../provider_credentials/resolve_credential', () => ({
@@ -177,10 +185,12 @@ describe('provisionSessionGatewayKey', () => {
     expect(provisionProviders).toHaveBeenCalledWith(
       'org_1',
       [expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' })],
-      { reuseRecent: false },
+      expect.objectContaining({ reuseRecent: false }),
     );
     expect(applyGatewayConfig).toHaveBeenCalledTimes(1);
-    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: false });
+    expect(applyGatewayConfig).toHaveBeenCalledWith({
+      reuseRecent: false,
+    });
     expect(mintVirtualKey).toHaveBeenCalledWith(
       {
         budgetCents: 500,
@@ -188,8 +198,14 @@ describe('provisionSessionGatewayKey', () => {
         organizationId: 'org_1',
         sessionId: 'sess-1',
       },
-      { reuseRecent: false },
+      expect.objectContaining({ reuseRecent: false }),
     );
+    expect(
+      vi.mocked(mintVirtualKey).mock.calls[0]?.[1]?.provisionedKeys,
+    ).toEqual({
+      organizationId: 'org_1',
+      keyIds: new Map([['openrouter', 'test-openrouter']]),
+    });
     expect(result.token).toBe('sk-bf-t');
     expect(result.keyId).toBe('vk-9');
     expect(result.keyHash).toMatch(/^[0-9a-f]{64}$/);
@@ -331,7 +347,7 @@ describe('provisionSessionGatewayKey', () => {
           apiKey: 'sk-ds',
         }),
       ],
-      { reuseRecent: false },
+      expect.objectContaining({ reuseRecent: false }),
     );
     // The price is scoped to that same per-model record, matched on the
     // wire model id (the ref with the record prefix stripped).
@@ -380,7 +396,7 @@ describe('provisionSessionGatewayKey', () => {
           apiKey: 'sk-ds',
         }),
       ],
-      { reuseRecent: false },
+      expect.objectContaining({ reuseRecent: false }),
     );
     // Pricing scoped to that SAME distinct record, else its turns bill 0.
     expect(ensureModelPricingOverride).toHaveBeenCalledWith({
@@ -428,7 +444,7 @@ describe('provisionSessionGatewayKey', () => {
           apiKey: 'sk-live',
         }),
       ],
-      { reuseRecent: false },
+      expect.objectContaining({ reuseRecent: false }),
     );
     expect(ensureModelPricingOverride).toHaveBeenCalledWith({
       gatewayProvider:
@@ -648,6 +664,24 @@ describe('provisionSessionGatewayKey', () => {
       }),
     ).rejects.toThrow('config PUT failed');
     expect(mintVirtualKey).not.toHaveBeenCalled();
+    expect(scheduleProviderPoolShrink).not.toHaveBeenCalled();
+  });
+
+  it('schedules the resize of the records no session provisions once the posture is applied', async () => {
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    const result = await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-4',
+      allowedModels: MODELS,
+      budgetCents: 100,
+    });
+    expect(result.keyId).toBe('vk-9');
+    expect(scheduleProviderPoolShrink).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(applyGatewayConfig).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(scheduleProviderPoolShrink).mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
   it('passes an explicit credential selection through to resolution', async () => {
@@ -713,9 +747,11 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
     expect(provisionProviders).toHaveBeenCalledWith(
       'org_1',
       [expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' })],
-      { reuseRecent: true },
+      expect.objectContaining({ reuseRecent: true }),
     );
-    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: true });
+    expect(applyGatewayConfig).toHaveBeenCalledWith({
+      reuseRecent: true,
+    });
     expect(mintVirtualKey).toHaveBeenCalledWith(
       {
         budgetCents: 4,
@@ -724,7 +760,7 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
         sessionId: 'model-api:key-1',
         requestId: 'req-1',
       },
-      { reuseRecent: true },
+      expect.objectContaining({ reuseRecent: true }),
     );
   });
 
@@ -780,9 +816,13 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
       allowedModels: models,
       budgetCents: 4,
     });
-    expect(provisionProviders).toHaveBeenCalledWith('org_1', [], {
-      reuseRecent: false,
-    });
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [],
+      expect.objectContaining({
+        reuseRecent: false,
+      }),
+    );
     expect(mintVirtualKey).toHaveBeenCalledTimes(1);
   });
 });

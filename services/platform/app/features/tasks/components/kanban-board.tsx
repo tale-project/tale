@@ -5,15 +5,18 @@ import { memo, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { TaskActorDirectoryProvider } from '../hooks/task-actor-directory-context';
+import { isCollapsibleLane } from '../hooks/use-collapsed-lanes';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
 import { plannedTransitionKind } from '../hooks/use-task-status-choreography';
 import {
   resolveTaskOwnership,
   useTaskContractAutomations,
 } from '../hooks/use-task-subject-contract';
-import { BOARD_TASK_STATUSES } from '../lib/display';
+import { BOARD_TASK_STATUSES, type TaskStatus } from '../lib/display';
 import { partitionSubtasks } from '../lib/subtasks';
 import { BoardColumn } from './board-column';
+import type { LaneQuickAddConfig } from './lane-quick-add';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { useTaskBoardContext } from './task-board-context';
 import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
@@ -36,6 +39,10 @@ export const KanbanBoard = memo(function KanbanBoard({
   onOpenTask,
   projectKey,
   canWorkTask = readOnlyBoard,
+  onAddTask,
+  quickAdd,
+  collapsedLanes,
+  onLaneCollapsedChange,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
@@ -43,6 +50,15 @@ export const KanbanBoard = memo(function KanbanBoard({
   /** Whether the viewer may work a task (`useTaskAccess`) — gates its
    * drag-reorder and inline pickers. Absent, every card is read-only. */
   canWorkTask?: (task: TaskRow) => boolean;
+  /** A lane's "+": the create dialog with that lane's status. Absent for a
+   * viewer who may not create here. Must be stable (the board is memoized). */
+  onAddTask?: (status: TaskStatus) => void;
+  /** Where each lane's "Add task" row creates. Absent with `onAddTask`. */
+  quickAdd?: LaneQuickAddConfig;
+  /** The lanes folded to a rail (`useCollapsedLanes`). */
+  collapsedLanes?: ReadonlySet<TaskStatus>;
+  /** Fold or unfold a lane that can fold. Must be stable. */
+  onLaneCollapsedChange?: (status: TaskStatus, collapsed: boolean) => void;
 }) {
   const { t } = useT('tasks');
   const { confirmCancel, dialog } = useRunCancelConfirm();
@@ -102,7 +118,7 @@ export const KanbanBoard = memo(function KanbanBoard({
     return hints.size > 0 ? hints : null;
   }, [automations, dnd.activeTask, isAgentWorking, locale, t]);
 
-  return (
+  const board = (
     <DndContext
       sensors={dnd.sensors}
       collisionDetection={dnd.collisionDetection}
@@ -122,14 +138,23 @@ export const KanbanBoard = memo(function KanbanBoard({
           <BoardColumn
             key={status}
             status={status}
-            tasks={dnd.columns[status]
-              .map((id) => dnd.byId.get(id))
-              .filter((row): row is TaskRow => row != null)}
+            taskIds={dnd.columns[status]}
+            tasksById={dnd.byId}
+            activeId={dnd.activeId}
             childrenByParent={childrenByParent}
             onOpenTask={onOpenTask}
             projectKey={projectKey}
             canWorkTask={canWorkTask}
             dropHint={dropHints?.get(status) ?? null}
+            {...(onAddTask !== undefined ? { onAddTask } : {})}
+            {...(quickAdd !== undefined ? { quickAdd } : {})}
+            {...(onLaneCollapsedChange !== undefined &&
+            isCollapsibleLane(status)
+              ? {
+                  collapsed: collapsedLanes?.has(status) ?? false,
+                  onCollapsedChange: onLaneCollapsedChange,
+                }
+              : {})}
           />
         ))}
       </Row>
@@ -151,5 +176,16 @@ export const KanbanBoard = memo(function KanbanBoard({
       </DragOverlay>
       {dialog}
     </DndContext>
+  );
+  const organizationId = tasks[0]?.organizationId;
+  return organizationId === undefined ? (
+    board
+  ) : (
+    <TaskActorDirectoryProvider
+      organizationId={organizationId}
+      projectId={choreographyProjectId}
+    >
+      {board}
+    </TaskActorDirectoryProvider>
   );
 });

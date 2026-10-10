@@ -1,8 +1,11 @@
 import { useCallback, useState } from 'react';
 
+import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { COMPARISON_OFFLINE } from '@/app/lib/backend/documents';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import type { DocumentComparisonResult } from '../components/document-comparison/comparison-types';
 
@@ -72,10 +75,19 @@ export function useDocumentComparison({
         });
         return result;
       } catch (err) {
+        // The offline lane refuses without words of its own: they are said
+        // here, in the person's language, for this state and the caller.
+        const refusal =
+          extractErrorCode(err) === COMPARISON_OFFLINE
+            ? new AppError({
+                code: COMPARISON_OFFLINE,
+                message: t('history.compareOffline'),
+              })
+            : err;
         // A refusal's own words, else the localized line for a fault.
-        const message = failureDetail(err) ?? t('history.compareFailed');
+        const message = failureDetail(refusal) ?? t('history.compareFailed');
         setState({ result: null, error: message, isPending: false });
-        throw err;
+        throw refusal;
       }
     },
     [compareAction, organizationId, t],

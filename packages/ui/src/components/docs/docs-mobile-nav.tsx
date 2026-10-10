@@ -7,10 +7,10 @@ import { TaleLogo } from '@tale/ui/logo';
 import { MobileAppHeader } from '@tale/ui/mobile-app-header';
 import { Sheet } from '@tale/ui/sheet';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
-import { Link } from '@tanstack/react-router';
 import { Menu, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { DocsAncestorLink } from './docs-ancestor-link';
 import type { DocsNavRailProps } from './docs-nav-rail';
 import { DocsNavTree } from './docs-nav-tree';
 import { DocsSearchTrigger } from './docs-search-trigger';
@@ -85,14 +85,14 @@ export function DocsMobileNav({
           />
         }
       >
-        <Link
+        <DocsAncestorLink
           to={homeHref}
           activeOptions={{ exact: true }}
           aria-label={homeLabel}
           className={LOGO_LINK_CLASS}
         >
           <TaleLogo />
-        </Link>
+        </DocsAncestorLink>
       </MobileAppHeader>
       <Sheet
         open={open && isMobile}
@@ -103,7 +103,7 @@ export function DocsMobileNav({
         className="bg-background flex w-[min(100vw,20rem)] flex-col gap-0 p-0 md:hidden"
       >
         <div className="border-border/70 flex min-h-13 shrink-0 items-center justify-between gap-2 border-b px-4 pt-(--safe-top)">
-          <Link
+          <DocsAncestorLink
             to={homeHref}
             activeOptions={{ exact: true }}
             aria-label={homeLabel}
@@ -111,7 +111,7 @@ export function DocsMobileNav({
             className={LOGO_LINK_CLASS}
           >
             <TaleLogo />
-          </Link>
+          </DocsAncestorLink>
           {/* A plain Button, not an IconButton: the IconButton's automatic
               hover/focus tooltip would open the moment the drawer focuses its
               close control, and a Radix tooltip layer swallows the first

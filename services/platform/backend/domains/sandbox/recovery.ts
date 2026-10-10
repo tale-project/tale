@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { sessionOpLastSignOfLifeMs } from '../../core/sandbox/agent_deadline.ts';
 import type { SandboxAgentOpKind } from '../../core/sandbox/session_constants.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 
 /**
  * The agent-turn recovery primitives shared by the task and automation
@@ -23,6 +24,40 @@ export const RECOVERY_STALE_MS = (() => {
     : 4 * 60 * 1000;
 })();
 
+/** A sweep has 60 s to probe, inside its queue's 120 s expiry. Four
+ * concurrent five-second probes keep a full offline batch below that budget.
+ * A reservation expires with the sweep, independently of the agent lease. */
+export const RECOVERY_PROBE_BUDGET_MS = 60_000;
+export const RECOVERY_PROBE_TIMEOUT_MS = 5_000;
+
+export function recoveryProbeSignal(signal?: AbortSignal): AbortSignal {
+  const budget = AbortSignal.timeout(RECOVERY_PROBE_BUDGET_MS);
+  return signal === undefined ? budget : AbortSignal.any([signal, budget]);
+}
+
+/** Shared bounded walker; the visit passes this signal into network I/O.
+ * Every selected row was reserved in SQL before this starts, so a killed
+ * worker or an expired budget leaves fair, retryable work for another tick. */
+export async function visitRecoveryCandidates<T>(
+  candidates: readonly T[],
+  signal: AbortSignal,
+  visit: (candidate: T, signal: AbortSignal) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const visits = await Promise.allSettled(
+    Array.from({ length: Math.min(4, candidates.length) }, async () => {
+      while (!signal.aborted && next < candidates.length) {
+        const candidate = candidates[next++];
+        if (candidate !== undefined) await visit(candidate, signal);
+      }
+    }),
+  );
+  // Do not let one failed database call leave other probes detached from
+  // the job that owns them while its retry begins.
+  const failed = visits.find((result) => result.status === 'rejected');
+  if (failed?.status === 'rejected') throw failed.reason;
+}
+
 /**
  * Whether a drive job for this exec is already on its way: queued (or
  * waiting out a retry) for a worker slot, or running and started inside the
@@ -31,8 +66,9 @@ export const RECOVERY_STALE_MS = (() => {
  * silent while its chain is alive; re-attaching it would start a second
  * chain beside the first, and a third on a later sweep. A running job that
  * started before the window, with the op silent since, belongs to a worker
- * that died with it: drive jobs carry no heartbeat and expire only after
- * twelve hours, so the re-attach must not wait for it.
+ * that died with it: the re-attach does not wait for it. A drive job's
+ * 60-second heartbeat (`jobs/tasks.ts`) has pg-boss fail such a job soon
+ * after its worker dies; its twelve-hour expiry would be far too late.
  */
 export async function driveJobPending(
   sql: Sql,
@@ -45,7 +81,7 @@ export async function driveJobPending(
   const rows = await sql<{ pending: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM pgboss.job
-      WHERE name = ${args.queue} AND data ->> 'execId' = ${args.execId}
+      WHERE name = ${physicalTaskQueue(args.queue)} AND data ->> 'execId' = ${args.execId}
         AND (state IN ('created', 'retry')
           OR (state = 'active'
             AND started_on >= to_timestamp(${args.staleBeforeMs / 1000})))
@@ -104,7 +140,7 @@ export async function claimRecoveryResume(
     const row = rows[0];
     const now = Date.now();
     if (row === undefined) {
-      await tx`
+      const inserted = await tx<{ id: string }[]>`
         INSERT INTO app.sandbox_session_ops (
           org_id, session_id, exec_id, kind, status, harness, deadline_ms,
           started_at_ms, heartbeat_at_ms, resumed_by
@@ -115,8 +151,9 @@ export async function claimRecoveryResume(
           ${args.createMissing.deadlineMs}, ${now}, ${now}, 'watchdog'
         )
         ON CONFLICT (session_id, exec_id) DO NOTHING
+        RETURNING id
       `;
-      return true;
+      return inserted.length > 0;
     }
     const lastSignOfLife = sessionOpLastSignOfLifeMs({
       startedAt: row.startedAt,

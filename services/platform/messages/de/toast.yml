@@ -1,0 +1,39 @@
+success:
+  passwordChanged:
+    title: Passwort geändert
+    description: Verwende dein neues Passwort bei der nächsten Anmeldung.
+  passwordSet:
+    title: Passwort festgelegt
+    description: Du kannst dich jetzt mit deinem Passwort anmelden.
+  newMemberCreated:
+    title: Mitglied hinzugefügt
+    description: Das neue Mitglied wurde erstellt und zu deiner Organisation hinzugefügt.
+  existingUserAdded:
+    title: Mitglied hinzugefügt
+    description: Der Benutzer wurde zu deiner Organisation hinzugefügt.
+  faviconGenerated:
+    title: Favicon erzeugt
+    description: Wir haben aus deinem Logo ein Favicon erstellt.
+error:
+  profileUpdateFailed:
+    title: Profil konnte nicht aktualisiert werden
+    withReason: 'Profil konnte nicht aktualisiert werden: {reason}'
+  passwordChangeFailed:
+    title: Passwort konnte nicht geändert werden
+    description: Prüf dein aktuelles Passwort und versuch es nochmal.
+  organizationUpdateFailed:
+    title: Organisation konnte nicht aktualisiert werden
+  brandingUpdateFailed:
+    title: Branding konnte nicht aktualisiert werden
+  imageUploadFailed: Bild konnte nicht hochgeladen werden
+  logoTooSmall: Das Logo muss mindestens {min}×{min} Pixel groß sein.
+  imageTooLarge: Bild ist zu groß. Maximale Größe ist 2 MB.
+  imageMimeUnsupported: Nicht unterstütztes Bildformat. Verwende PNG, SVG, JPG, WebP oder ICO.
+  imageSvgActiveContent: Die SVG-Datei enthält Skripte oder Event-Handler. Entferne sie oder lade ein PNG hoch.
+  imageTypeInvalid: Ungültiger Bildtyp
+  addMemberFailed:
+    title: Mitglied konnte nicht hinzugefügt werden
+    description: Etwas ist schiefgelaufen. Versuch es nochmal.
+  generic:
+    title: Etwas ist schiefgelaufen
+    description: Versuch es nochmal.

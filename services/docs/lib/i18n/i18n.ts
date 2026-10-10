@@ -1,4 +1,3 @@
-import { marketingUiMessages } from '@tale/marketing-ui/i18n/messages';
 import { initServiceI18n } from '@tale/ui/i18n/init-service';
 import { uiMessages } from '@tale/ui/i18n/messages';
 
@@ -17,5 +16,5 @@ export const i18n = initServiceI18n({
     import: 'default',
   }),
   global: globalMessages,
-  packages: [uiMessages, marketingUiMessages],
+  packages: [uiMessages],
 });
