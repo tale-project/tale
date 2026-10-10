@@ -3,7 +3,8 @@
  * person, a coding agent and the engine share), the bench a run is given,
  * what a run of the tests answers (each test, whether it passed and, for one
  * that did not, what differed), the report a saved version keeps of its
- * latest check, and the answer of a run made in one call and never stored.
+ * latest check, the answer of a run made in one call and never stored, and
+ * a run turned into a test.
  *
  * The engine owns every shape: the grammar in `lib/engine/core/types.ts`,
  * the report in `lib/engine/api/tests.ts`, the record of a run that is never
@@ -26,7 +27,7 @@ import { z } from 'zod';
 import { reportText } from '../../engine/api/expect';
 import type { TestFailure, TestReport } from '../../engine/api/tests';
 import type { TransientRecord } from '../../engine/core/record/transient';
-import type { EvalTrace } from '../../engine/core/record/types';
+import type { EvalTrace, ValueRedaction } from '../../engine/core/record/types';
 import type { BenchMark } from '../../engine/core/types';
 import { isRecord } from '../../utils/type-utils';
 import { issueSchema } from './automation-issues';
@@ -71,7 +72,7 @@ const expectedEffectSchema = z
   );
 
 /** What a run must do for its test to pass. */
-export const testExpectationSchema = z
+const testExpectationSchema = z
   .strictObject({
     output: z.json().optional(),
     outputIncludes: z.json().optional(),
@@ -308,7 +309,7 @@ const testRunDetailSchema = z.object({
   record: transientRecordSchema.optional(),
 });
 
-export const testResultSchema = z.object({
+const testResultSchema = z.object({
   name: z.string(),
   index: count,
   pass: z.boolean(),
@@ -388,6 +389,59 @@ export const transientRunSchema = z.object({
   version: z.number().int().min(1).optional(),
   bench: runBenchSchema.optional(),
   record: transientRecordSchema.optional(),
+});
+
+// ------------------------------------------------------ a run as a test
+
+/** Why a node asked to answer in a test as it did in a run cannot: its
+ * stand-in is larger than a document keeps, the document has no such node,
+ * the node is code (what the test checks), or its step has nothing to
+ * answer with (it was skipped, or never ran). */
+const droppedStandInSchema = z.object({
+  node: z.string(),
+  reason: z.enum(['too_large', 'not_in_document', 'transform', 'no_output']),
+});
+
+const REDACTION_WHYS = [
+  'key',
+  'pattern',
+  'name',
+] as const satisfies ReadonlyArray<ValueRedaction['why']>;
+
+/** What the author of a test made from a run should know before saving
+ * it: values that looked like secrets were withheld (where — the first
+ * hundred places — and how many in all); a live run's calls the test does
+ * not stand in for answer otherwise in a test; a part is larger than a
+ * document should keep (the input and the whole test are kept, an output
+ * that large is not expected). */
+const testFromRunWarningSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('redacted'),
+    places: z.array(
+      z.object({ pointer: z.string(), why: z.enum(REDACTION_WHYS) }),
+    ),
+    total: count,
+  }),
+  z.object({
+    kind: z.literal('live-run-needs-stand-ins'),
+    nodes: z.array(z.string()),
+  }),
+  z.object({
+    kind: z.literal('too-large'),
+    part: z.enum(['input', 'output', 'test']),
+    bytes: count,
+  }),
+]);
+
+export type DroppedStandIn = z.infer<typeof droppedStandInSchema>;
+export type TestFromRunWarning = z.infer<typeof testFromRunWarningSchema>;
+
+/** A run turned into a test (`testFromRun`): the test, the stand-ins it was
+ * asked for and could not keep, and what its author should know. */
+export const testFromRunSchema = z.object({
+  test: automationTestSchema,
+  dropped: z.array(droppedStandInSchema),
+  warnings: z.array(testFromRunWarningSchema),
 });
 
 // ------------------------------------------------------ the stored report
