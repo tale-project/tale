@@ -47,7 +47,7 @@ export function ProjectsBoard({
         label={scene.label}
         title={t('demos.projects.windowTitle')}
         activeNav="projects"
-        className="mx-auto aspect-[7/10] min-h-128 max-w-4xl @lg/demo:aspect-[16/10] @lg/demo:min-h-112"
+        className="mx-auto aspect-[7/10] min-h-144 max-w-4xl @lg/demo:aspect-[16/10] @lg/demo:min-h-112"
       >
         <div className="flex h-full flex-col gap-3 p-3 @2xl/demo:gap-4 @2xl/demo:p-4">
           <DemoToolbar
