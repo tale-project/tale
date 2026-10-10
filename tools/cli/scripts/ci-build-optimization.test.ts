@@ -1676,6 +1676,9 @@ test('SARIF preserves all findings while direct SBOM analysis retains package ha
   );
   expect(sourceCheckout.with?.path).toBeUndefined();
   const sarif = findStep(scan, 'Upload SARIF');
+  expect(sarif['continue-on-error']).toBe(
+    "${{ github.event_name == 'merge_group' }}",
+  );
   expect(sarif.if).toBe(
     "always() && hashFiles(format('{0}-trivy.sarif', matrix.service)) != ''",
   );
