@@ -434,6 +434,18 @@ describe('UserButton', () => {
         expect(document.activeElement).toBe(trigger);
       });
     });
+
+    it('renders the refreshed member name in the account menu', async () => {
+      mockMemberContext = {
+        data: { displayName: 'Mia Rossi', role: 'admin' },
+        isLoading: false,
+      };
+
+      const { menu } = await openMenu();
+
+      expect(menu).toHaveTextContent('Mia Rossi');
+      expect(menu).not.toHaveTextContent('John Doe');
+    });
   });
 
   describe('accessibility', () => {

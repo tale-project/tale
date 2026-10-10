@@ -94,11 +94,12 @@ describe('account name cache', () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')
       .mockImplementation(async (input) => {
-        if (String(input) === '/api/app/users/update-name?orgId=org-1') {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url === '/api/app/users/update-name?orgId=org-1') {
           savedName = 'Mia Rossi';
           return jsonResponse(200, { ok: true });
         }
-        if (String(input) === '/api/app/users/me') {
+        if (url === '/api/app/users/me') {
           return jsonResponse(200, {
             user: {
               userId: 'member-1',
@@ -107,7 +108,7 @@ describe('account name cache', () => {
             },
           });
         }
-        throw new Error(`Unexpected fetch: ${String(input)}`);
+        throw new Error(`Unexpected fetch: ${url}`);
       });
     const { user, client } = renderAccount();
     const name = screen.getByRole('textbox', { name: 'Name' });

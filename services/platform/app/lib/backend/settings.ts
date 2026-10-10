@@ -25,6 +25,7 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch } from './api-client';
+import { memberContextQuery } from './org';
 import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
 import {
   backendEntityPrefix,
@@ -1338,8 +1339,13 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         orgId: requireOrg(args, ctx),
         body: { name: stringArg(args, 'name') },
       }).then(() => null),
-    invalidate: (client) => {
+    invalidate: (client, _args, ctx) => {
       void client.invalidateQueries({ queryKey: currentUserQuery().queryKey });
+      if (ctx.organizationId !== undefined) {
+        void client.invalidateQueries({
+          queryKey: memberContextQuery(ctx.organizationId).queryKey,
+        });
+      }
     },
   },
   'users/mutations:updateUserPassword': {
