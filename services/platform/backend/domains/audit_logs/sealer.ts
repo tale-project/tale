@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import type { Sql } from 'postgres';
 
 import { listUnsealedOrgIds, sealAuditChain } from './service.ts';
@@ -48,19 +50,6 @@ export async function sealPendingAuditChains(
   return { sealed, organizations: orgIds.length };
 }
 
-/** Wait `ms`, or until `signal` aborts if that comes first. */
-function pause(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const done = () => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', done);
-      resolve();
-    };
-    const timer = setTimeout(done, ms);
-    signal.addEventListener('abort', done, { once: true });
-  });
-}
-
 export function startAuditSealer(
   sql: Sql,
   options: { intervalMs?: number } = {},
@@ -76,7 +65,9 @@ export function startAuditSealer(
         console.error('[audit-sealer] round failed; retrying:', error);
       }
       if (signal.aborted) break;
-      await pause(intervalMs, signal);
+      await sleep(intervalMs, undefined, { signal }).catch((error: unknown) => {
+        if (!signal.aborted) throw error;
+      });
     }
   })();
   return {
