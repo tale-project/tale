@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
 import { scanScheduledTriggers } from '../automations/triggers.ts';
 /** Real Postgres proof of a scheduled issue import that resumes across its
@@ -301,27 +302,27 @@ export async function checkImportCursorContinuation(
       organizationId: orgId,
       name: importer,
       document: importerDocument,
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: projectA,
     });
     await deploy(sql, {
       organizationId: orgId,
       name: importer,
       version: 1,
-      actor: userId,
+      origin: appOrigin(userId),
     });
     await saveVersion(sql, {
       organizationId: orgId,
       name,
       document,
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: projectA,
     });
     await deploy(sql, {
       organizationId: orgId,
       name,
       version: 1,
-      actor: userId,
+      origin: appOrigin(userId),
     });
     await setTrigger(sql, {
       organizationId: orgId,
@@ -332,7 +333,7 @@ export async function checkImportCursorContinuation(
         timezone: 'Europe/Zurich',
         enabled: true,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
 
     // ---- occurrence 1: the first batch of a fresh pass ------------------

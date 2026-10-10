@@ -13,6 +13,7 @@
 import type { Sql } from 'postgres';
 
 import { PERMANENT_FAILURES_BEFORE_PAUSE } from '../../core/automations/failure.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import {
   deleteTrigger,
   deploy,
@@ -124,14 +125,19 @@ export async function checkTriggerPauseAfterFailures(
     document: document(
       'throw new Error("itest: this automation always fails"); return null;',
     ),
-    actor: userId,
+    origin: appOrigin(userId),
   });
-  await deploy(sql, { organizationId: orgId, name, version: 1, actor: userId });
+  await deploy(sql, {
+    organizationId: orgId,
+    name,
+    version: 1,
+    origin: appOrigin(userId),
+  });
   await setTrigger(sql, {
     organizationId: orgId,
     name,
     trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
-    actor: userId,
+    origin: appOrigin(userId),
   });
 
   try {
@@ -312,7 +318,7 @@ export async function checkTriggerPauseAfterFailures(
         timezone: 'UTC',
         enabled: true,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const resumed = await trigger();
     const readNotices = await sql<{ read: boolean }[]>`
@@ -340,13 +346,13 @@ export async function checkTriggerPauseAfterFailures(
       organizationId: orgId,
       name,
       document: document('return { ok: true };'),
-      actor: userId,
+      origin: appOrigin(userId),
     });
     await deploy(sql, {
       organizationId: orgId,
       name,
       version: 2,
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const success = await fireOnce();
     const reset = await trigger();
@@ -426,7 +432,7 @@ export async function checkTriggerPauseAfterFailures(
     );
   } finally {
     // Leave nothing armed for the lanes after this one.
-    await deleteTrigger(sql, orgId, name, 'itest');
+    await deleteTrigger(sql, orgId, name, appOrigin('itest'));
     await waitFor(async () => {
       const live = await sql<{ count: string }[]>`
         SELECT count(*)::text AS count FROM app.automation_runs

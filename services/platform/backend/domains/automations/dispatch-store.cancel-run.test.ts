@@ -21,6 +21,7 @@ vi.mock('./store.ts', async (importOriginal) => {
   return { ...actual, cancelRun, getRun };
 });
 
+import { appOrigin, mcpOrigin } from '../../lib/write-origin.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 
 /** Scripted root handle: the actor is an org owner; nothing else is read. */
@@ -29,7 +30,7 @@ const sql = ((strings: TemplateStringsArray): Promise<unknown[]> =>
     strings.join('?').includes('FROM "member"') ? [{ role: 'owner' }] : [],
   )) as unknown as Sql;
 
-const scope = { organizationId: 'org_1', actor: 'user_1' };
+const scope = { organizationId: 'org_1', origin: appOrigin('user_1') };
 
 describe('pgAutomationStore.cancelRun', () => {
   it('surfaces a store failure instead of answering "no run"', async () => {
@@ -55,7 +56,7 @@ describe('pgAutomationStore.cancelRun', () => {
     cancelRun.mockResolvedValueOnce({ cancelled: true, status: 'cancelled' });
     const store = pgAutomationStore(sql, {
       organizationId: 'org_1',
-      actor: 'api-key:user_1',
+      origin: mcpOrigin({ userId: 'user_1' }),
     });
     await store.cancelRun?.('run_1');
     expect(cancelRun).toHaveBeenLastCalledWith(sql, 'org_1', 'run_1', 'user_1');

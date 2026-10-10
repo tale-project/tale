@@ -9,6 +9,7 @@ import {
 } from '@tale/shared/schemas/managed-configuration';
 import type { Sql } from 'postgres';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { createProject } from '../projects/service.ts';
 import { managedConfigurationHash } from './managed-configuration-value.ts';
 import {
@@ -65,7 +66,7 @@ export async function checkManagedAutomationConfiguration(
     expectedHash: string | null,
     definitionSha256?: string,
   ) =>
-    writeManagedAutomation(sql, ctx.orgId, ctx.userId, {
+    writeManagedAutomation(sql, ctx.orgId, appOrigin(ctx.userId, 'managed'), {
       resource,
       expectedHash,
       ...(definitionSha256 ? { definitionSha256 } : {}),
@@ -302,7 +303,7 @@ export async function checkManagedAutomationConfiguration(
         timezone: 'UTC',
         enabled: false,
       },
-      actor: ctx.userId,
+      origin: appOrigin(ctx.userId),
     });
     assert.equal(
       (await listTriggers(sql, ctx.orgId, name))[0]?.consecutiveFailures,
@@ -334,7 +335,7 @@ export async function checkManagedAutomationConfiguration(
         timezone: 'UTC',
         enabled: true,
       },
-      actor: ctx.userId,
+      origin: appOrigin(ctx.userId),
     });
     await sql`UPDATE app.automation_triggers SET last_fired_at_ms = ${firedAt}, last_due_at_ms = ${firedAt}, updated_at_ms = ${firedAt - HOUR} WHERE org_id = ${ctx.orgId} AND name = ${name}`;
     const daily = await read('automation-schedule');
@@ -430,7 +431,7 @@ export async function checkManagedAutomationConfiguration(
     await deleteAutomationCascade(sql, {
       organizationId: ctx.orgId,
       name,
-      actor: ctx.userId,
+      origin: appOrigin(ctx.userId),
     });
     await assert.rejects(
       write({ kind: 'automation-definition', config: definition(1) }, null),
@@ -446,7 +447,7 @@ export async function checkManagedAutomationConfiguration(
     await deleteAutomationCascade(sql, {
       organizationId: ctx.orgId,
       name,
-      actor: ctx.userId,
+      origin: appOrigin(ctx.userId),
     });
   }
 }

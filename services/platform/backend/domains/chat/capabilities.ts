@@ -12,6 +12,7 @@ import {
 import type { KnowledgeCorpus } from '../../../lib/knowledge/types.ts';
 import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import { findActingMember } from '../../auth/membership.ts';
+import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import { KnowledgeError, searchKnowledgeForOrg } from '../knowledge/service.ts';
 import { ChatBudgetExceededError } from './budget-admission.ts';
@@ -45,12 +46,23 @@ interface SurfaceScope {
   readonly apiKeyId?: string;
 }
 
+/** The capability surface acts as the person who called it through the
+ * MCP endpoint, under their bare id — the runs it starts record them as
+ * `user:<id>` — and books what it spends to the key they came with. It runs
+ * deployed automations and changes no definition. */
+function surfaceOrigin(scope: SurfaceScope): WriteOrigin {
+  return {
+    actor: scope.userId,
+    via: 'mcp',
+    ...(scope.apiKeyId !== undefined ? { apiKeyId: scope.apiKeyId } : {}),
+  };
+}
+
 function buildBackends(sql: Sql, scope: SurfaceScope): CapabilityBackends {
   const automation = createAutomationsBackend({
     store: pgAutomationStore(sql, {
       organizationId: scope.organizationId,
-      actor: scope.userId,
-      ...(scope.apiKeyId !== undefined ? { apiKeyId: scope.apiKeyId } : {}),
+      origin: surfaceOrigin(scope),
     }),
     allowLive: true,
   });
@@ -170,7 +182,7 @@ async function registerAutomations(
   try {
     const store = pgAutomationStore(sql, {
       organizationId: scope.organizationId,
-      actor: scope.userId,
+      origin: surfaceOrigin(scope),
     });
     for (const item of await store.list()) {
       // The registry holds DEPLOYED automations, as the MCP page says:

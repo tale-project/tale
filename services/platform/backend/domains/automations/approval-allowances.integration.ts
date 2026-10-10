@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import {
   readApprovalAllowanceRows,
@@ -57,14 +58,14 @@ export async function checkApprovalAllowances(
           nodes: [{ id: 'noop', type: 'transform', code: 'return null;' }],
           output: '{{ nodes.noop.output }}',
         },
-        actor: userId,
+        origin: appOrigin(userId),
       });
     }
     const granted = await setApprovalAllowances(sql, {
       organizationId: orgId,
       automation: name,
       allowed: ['slack.send_message'],
-      actor: userId,
+      origin: appOrigin(userId),
       grantedBy: userId,
     });
     const allowed = await gate(name);
@@ -95,7 +96,7 @@ export async function checkApprovalAllowances(
       organizationId: orgId,
       automation: name,
       allowed: [],
-      actor: userId,
+      origin: appOrigin(userId),
       grantedBy: userId,
     });
     const asksAgain = await gate(name);
@@ -111,13 +112,13 @@ export async function checkApprovalAllowances(
       organizationId: orgId,
       automation: name,
       allowed: ['slack.send_message'],
-      actor: userId,
+      origin: appOrigin(userId),
       grantedBy: userId,
     });
     await deleteAutomationCascade(sql, {
       organizationId: orgId,
       name,
-      actor: userId,
+      origin: appOrigin(userId),
     });
     record(
       'approval allowance: deleting the automation removes it',
@@ -129,7 +130,7 @@ export async function checkApprovalAllowances(
       await deleteAutomationCascade(sql, {
         organizationId: orgId,
         name: automation,
-        actor: userId,
+        origin: appOrigin(userId),
       }).catch((error: unknown) => {
         console.warn(
           `[itest] cleanup of ${automation}:`,

@@ -25,6 +25,7 @@ vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(async () => undefined),
 }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { deploy, recordTestVerdict, setTestsVerdict } from './store.ts';
 
 interface Statement {
@@ -71,7 +72,7 @@ const args = {
   organizationId: 'org_1',
   name: 'ops/greet',
   version: 1,
-  actor: 'u',
+  origin: appOrigin('u'),
 };
 const stamp = (statements: Statement[]) =>
   statements.find((s) =>

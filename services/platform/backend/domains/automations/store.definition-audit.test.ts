@@ -21,6 +21,7 @@ vi.mock('./audit.ts', () => ({
   listDeployments: vi.fn(async () => []),
 }));
 
+import { appOrigin, mcpOrigin } from '../../lib/write-origin.ts';
 import { auditDefinitionWrite } from './audit.ts';
 import {
   AutomationError,
@@ -105,7 +106,7 @@ describe('deploy', () => {
       organizationId: 'org_1',
       name: 'ops/greet',
       version: 2,
-      actor: 'api-key:user_ada',
+      origin: mcpOrigin({ userId: 'user_ada' }),
     });
     expect(result).toEqual({
       name: 'ops/greet',
@@ -122,7 +123,7 @@ describe('deploy', () => {
     expect(firstLock).toBe(nameLock);
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
-      actor: 'api-key:user_ada',
+      origin: mcpOrigin({ userId: 'user_ada' }),
       action: 'automation.deployed',
       name: 'ops/greet',
       version: 2,
@@ -141,7 +142,7 @@ describe('deploy', () => {
       organizationId: 'org_1',
       name: 'ops/greet',
       version: 2,
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
       expectedDeployedVersion: 5,
     }).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(AutomationError);
@@ -167,7 +168,7 @@ describe('deploy', () => {
         organizationId: 'org_1',
         name: 'ops/greet',
         version: 2,
-        actor: 'user_ada',
+        origin: appOrigin('user_ada'),
         expectedDeployedVersion: null,
       }),
     ).resolves.toEqual({
@@ -189,7 +190,7 @@ describe('deleteAutomationCascade', () => {
       deleteAutomationCascade(fake.sql, {
         organizationId: 'org_1',
         name: 'ops/greet',
-        actor: 'user_ada',
+        origin: appOrigin('user_ada'),
       }),
     ).resolves.toEqual({ versions: 4 });
     const { chain, nameLock, firstLock } = lockOrder(
@@ -201,7 +202,7 @@ describe('deleteAutomationCascade', () => {
     expect(firstLock).toBe(nameLock);
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
       action: 'automation.deleted',
       name: 'ops/greet',
       previousState: { versions: 4, deployedVersion: 3 },
@@ -213,7 +214,7 @@ describe('deleteAutomationCascade', () => {
     const refused = await deleteAutomationCascade(fake.sql, {
       organizationId: 'org_1',
       name: 'ops/greet',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
       expectedLatestVersion: 4,
     }).catch((error: unknown) => error);
     expect(refused).toMatchObject({
@@ -251,7 +252,7 @@ describe('triggers', () => {
       organizationId: 'org_1',
       name: 'ops/greet',
       trigger: { kind: 'webhook', rotateToken: true },
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
     });
     const { chain, nameLock } = lockOrder(fake.statements, 'ops/greet');
     const rowLock = fake.statements.findIndex((s) =>
@@ -262,7 +263,7 @@ describe('triggers', () => {
     expect(rowLock).toBeGreaterThan(nameLock);
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
       action: 'automation.trigger.set',
       name: 'ops/greet',
       previousState: { kind: 'webhook', enabled: true },
@@ -307,7 +308,7 @@ describe('triggers', () => {
     await setTrigger(fake.sql, {
       organizationId: 'org_1',
       name: 'ops/greet',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
       trigger: {
         kind: 'schedule',
         cron: '0 9 * * 1',
@@ -319,7 +320,7 @@ describe('triggers', () => {
       expect.anything(),
       expect.objectContaining({
         organizationId: 'org_1',
-        actor: 'user_ada',
+        origin: appOrigin('user_ada'),
         action: 'automation.trigger.set',
         name: 'ops/greet',
         previousState: expect.objectContaining({ wakeOnSlotFreed: false }),
@@ -349,7 +350,7 @@ describe('triggers', () => {
       ],
     ]);
     await expect(
-      deleteTrigger(fake.sql, 'org_1', 'ops/greet', 'user_ada'),
+      deleteTrigger(fake.sql, 'org_1', 'ops/greet', appOrigin('user_ada')),
     ).resolves.toBe(true);
     expect(lockOrder(fake.statements, 'ops/greet')).toMatchObject({
       chain: -1,
@@ -358,7 +359,7 @@ describe('triggers', () => {
     });
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
       action: 'automation.trigger.deleted',
       name: 'ops/greet',
       previousState: {
@@ -373,7 +374,7 @@ describe('triggers', () => {
   it('audits nothing when no trigger was bound', async () => {
     const fake = fakeSql();
     await expect(
-      deleteTrigger(fake.sql, 'org_1', 'ops/greet', 'user_ada'),
+      deleteTrigger(fake.sql, 'org_1', 'ops/greet', appOrigin('user_ada')),
     ).resolves.toBe(false);
     expect(auditDefinitionWrite).not.toHaveBeenCalled();
   });
@@ -389,14 +390,14 @@ describe('installations', () => {
       organizationId: 'org_1',
       name: 'ops/greet',
       projectId: 'p-1',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
     });
     const again = fakeSql([['SELECT id FROM app.projects', [{ id: 'p-1' }]]]);
     await bindProjectInTx(again.tx, {
       organizationId: 'org_1',
       name: 'ops/greet',
       projectId: 'p-1',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
     });
     const unbound = fakeSql([
       ['DELETE FROM app.automation_project_bindings', [], 1],
@@ -405,7 +406,7 @@ describe('installations', () => {
       organizationId: 'org_1',
       name: 'ops/greet',
       projectId: 'p-1',
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
     });
     expect(
       vi.mocked(auditDefinitionWrite).mock.calls.map(([, args]) => ({
@@ -437,7 +438,7 @@ describe('installations', () => {
       organizationId: 'org_1',
       name: 'ops/greet',
       projectIds: ['p-2'],
-      actor: 'user_ada',
+      origin: appOrigin('user_ada'),
     });
     expect(lockOrder(fake.statements, 'ops/greet')).toMatchObject({
       chain: -1,

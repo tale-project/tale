@@ -25,13 +25,14 @@ vi.mock('../provider_credentials/service.ts', () => ({
 }));
 vi.mock('../chat/shim.ts', () => ({ chatShimHandlers: () => ({}) }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import {
   MODEL_AVAILABILITY_BUDGET_MS,
   pgAutomationStore,
 } from './dispatch-store.ts';
 
 const sql = {} as unknown as Sql;
-const scope = { organizationId: 'org_1', actor: 'user_1' };
+const scope = { organizationId: 'org_1', origin: appOrigin('user_1') };
 
 beforeEach(() => {
   vi.clearAllMocks();

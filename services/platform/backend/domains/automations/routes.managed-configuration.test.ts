@@ -161,7 +161,13 @@ describe('managed automation configuration door', () => {
       'automation-definition',
     );
     expect((await request('POST')).status).toBe(200);
-    expect(io.write).toHaveBeenCalledWith(expect.anything(), 'o1', 'u1', body);
+    // Through the managed door, as the person who applies it.
+    expect(io.write).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      { actor: 'u1', via: 'managed' },
+      body,
+    );
   });
   it('does not run authoring tests after a failed ownership/tombstone read, and preserves native stale codes', async () => {
     io.read.mockRejectedValueOnce(

@@ -159,10 +159,9 @@ describe('the starters, at the app door', () => {
       expect.objectContaining({
         organizationId: 'o1',
         name: 'tell-ada',
-        actor: 'u1',
+        origin: { actor: 'u1', via: 'app' },
         create: true,
         projectId: 'prj_1',
-        origin: { via: 'app' },
         presentation: PREPARED.presentation,
         message: PREPARED.message,
         // The save ran the starter's tests.
@@ -173,7 +172,7 @@ describe('the starters, at the app door', () => {
       organizationId: 'o1',
       name: 'tell-ada',
       trigger: PREPARED.trigger,
-      actor: 'u1',
+      origin: { actor: 'u1', via: 'app' },
     });
   });
 

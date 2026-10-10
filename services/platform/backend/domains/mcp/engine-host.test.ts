@@ -42,9 +42,11 @@ describe('engineScope', () => {
   it('records a keyed caller as the api-key door, with the key, and reads as the app would show them [MCP-R9]', () => {
     expect(engineScope(caller('key-laptop'))).toEqual({
       organizationId: 'org-acme',
-      actor: 'api-key:user-ada',
-      apiKeyId: 'key-laptop',
-      via: 'mcp',
+      origin: {
+        actor: 'api-key:user-ada',
+        apiKeyId: 'key-laptop',
+        via: 'mcp',
+      },
       visibleOnly: true,
     });
   });
@@ -52,17 +54,18 @@ describe('engineScope', () => {
   it('names no key the credential does not carry', () => {
     expect(engineScope(caller())).toEqual({
       organizationId: 'org-acme',
-      actor: 'api-key:user-ada',
-      via: 'mcp',
+      origin: { actor: 'api-key:user-ada', via: 'mcp' },
       visibleOnly: true,
     });
   });
 
   it('records the client a request names beside the door', () => {
     expect(engineScope(caller('key-laptop', 'Claude Code'))).toMatchObject({
-      via: 'mcp',
-      apiKeyId: 'key-laptop',
-      clientName: 'Claude Code',
+      origin: {
+        via: 'mcp',
+        apiKeyId: 'key-laptop',
+        clientName: 'Claude Code',
+      },
     });
   });
 });
@@ -80,9 +83,11 @@ describe('mcpHost', () => {
     expect(answer).toEqual({ automations: [] });
     expect(pgAutomationStore).toHaveBeenCalledWith(sql, {
       organizationId: 'org-acme',
-      actor: 'api-key:user-ada',
-      apiKeyId: 'key-laptop',
-      via: 'mcp',
+      origin: {
+        actor: 'api-key:user-ada',
+        apiKeyId: 'key-laptop',
+        via: 'mcp',
+      },
       visibleOnly: true,
     });
     expect(dispatch).toHaveBeenCalledWith(

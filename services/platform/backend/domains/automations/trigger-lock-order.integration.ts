@@ -5,6 +5,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { EVENT_PAYLOAD_EXAMPLES } from '../../../lib/shared/event-types.ts';
 import { toJson } from '../../db/sql.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import { sweepOrgPhase2 } from '../retention/service.ts';
@@ -166,14 +167,14 @@ export async function checkTriggerStreakLockOrder(
       nodes: [{ id: 'noop', type: 'transform', code: 'return null;' }],
       output: '{{ nodes.noop.output }}',
     },
-    actor: userId,
+    origin: appOrigin(userId),
   });
   const bind = (organizationId: string) =>
     setTrigger(sql, {
       organizationId,
       name,
       trigger: { kind: 'event', event },
-      actor: userId,
+      origin: appOrigin(userId),
     });
   await bind(orgId);
 
@@ -509,8 +510,8 @@ export async function checkTriggerStreakLockOrder(
       );
     }
   } finally {
-    await deleteTrigger(sql, orgId, name, 'itest');
-    await deleteTrigger(sql, removalOrgId, name, 'itest');
+    await deleteTrigger(sql, orgId, name, appOrigin('itest'));
+    await deleteTrigger(sql, removalOrgId, name, appOrigin('itest'));
     await sql.begin(async (fixtureTx) => {
       await markAutomationWriterInTx(fixtureTx);
       return fixtureTx`

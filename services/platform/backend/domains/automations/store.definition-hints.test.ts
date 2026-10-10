@@ -20,6 +20,7 @@ vi.mock('./audit.ts', () => ({
   listDeployments: vi.fn(async () => []),
 }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import {
   bindProject,
   deleteAutomationCascade,
@@ -131,7 +132,7 @@ describe('definition doors emit the automation hint in their transaction', () =>
       organizationId: 'org_1',
       name: 'ops/greet',
       version: 2,
-      actor: 'user_1',
+      origin: appOrigin('user_1'),
     });
     expect(hints(fake)).toEqual([{ values: HINT, inTx: true }]);
     // The deployment upsert rides the same transaction as the hint.
@@ -151,7 +152,7 @@ describe('definition doors emit the automation hint in their transaction', () =>
         organizationId: 'org_1',
         name: 'ops/greet',
         version: 2,
-        actor: 'user_1',
+        origin: appOrigin('user_1'),
       }),
     ).rejects.toMatchObject({ code: 'AUTOMATION_DEPLOY_REJECTED' });
     expect(hints(fake)).toEqual([]);
@@ -160,13 +161,13 @@ describe('definition doors emit the automation hint in their transaction', () =>
   it('deleteTrigger — only when a row went away', async () => {
     const deleted = fakeSql({ triggerDeleted: true });
     await expect(
-      deleteTrigger(deleted.sql, 'org_1', 'ops/greet', 'user_1'),
+      deleteTrigger(deleted.sql, 'org_1', 'ops/greet', appOrigin('user_1')),
     ).resolves.toBe(true);
     expect(hints(deleted)).toEqual([{ values: HINT, inTx: true }]);
 
     const absent = fakeSql({ triggerDeleted: false });
     await expect(
-      deleteTrigger(absent.sql, 'org_1', 'ops/greet', 'user_1'),
+      deleteTrigger(absent.sql, 'org_1', 'ops/greet', appOrigin('user_1')),
     ).resolves.toBe(false);
     expect(hints(absent)).toEqual([]);
   });
@@ -177,7 +178,7 @@ describe('definition doors emit the automation hint in their transaction', () =>
       organizationId: 'org_1',
       name: 'ops/greet',
       projectIds: ['proj_1'],
-      actor: 'user_1',
+      origin: appOrigin('user_1'),
     });
     expect(hints(fake)).toEqual([{ values: HINT, inTx: true }]);
   });
@@ -189,7 +190,7 @@ describe('definition doors emit the automation hint in their transaction', () =>
         organizationId: 'org_1',
         name: 'ops/greet',
         projectId: 'proj_1',
-        actor: 'user_1',
+        origin: appOrigin('user_1'),
       }),
     ).resolves.toEqual({ bound: true });
     expect(hints(fresh)).toEqual([{ values: HINT, inTx: true }]);
@@ -200,7 +201,7 @@ describe('definition doors emit the automation hint in their transaction', () =>
         organizationId: 'org_1',
         name: 'ops/greet',
         projectId: 'proj_1',
-        actor: 'user_1',
+        origin: appOrigin('user_1'),
       }),
     ).resolves.toEqual({ bound: false });
     expect(hints(again)).toEqual([]);
@@ -211,7 +212,7 @@ describe('definition doors emit the automation hint in their transaction', () =>
     await deleteAutomationCascade(fake.sql, {
       organizationId: 'org_1',
       name: 'ops/greet',
-      actor: 'user_1',
+      origin: appOrigin('user_1'),
     });
     expect(hints(fake)).toEqual([{ values: HINT, inTx: true }]);
   });
@@ -240,7 +241,7 @@ describe('removing a schedule its failures paused reads the admins’ notices of
       triggerSkipReason: 'paused_after_failures',
     });
     await expect(
-      deleteTrigger(paused.sql, 'org_1', 'ops/greet', 'user_1'),
+      deleteTrigger(paused.sql, 'org_1', 'ops/greet', appOrigin('user_1')),
     ).resolves.toBe(true);
     expect(dismissals(paused)).toEqual([
       { values: [expect.any(Number), 'org_1', 'trg_1'], inTx: true },
@@ -259,14 +260,14 @@ describe('removing a schedule its failures paused reads the admins’ notices of
     'deleteTrigger — none for a trigger whose skip reason is %s',
     async (triggerSkipReason) => {
       const fake = fakeSql({ triggerDeleted: true, triggerSkipReason });
-      await deleteTrigger(fake.sql, 'org_1', 'ops/greet', 'user_1');
+      await deleteTrigger(fake.sql, 'org_1', 'ops/greet', appOrigin('user_1'));
       expect(dismissals(fake)).toEqual([]);
     },
   );
 
   it('deleteTrigger — none when no trigger was removed', async () => {
     const fake = fakeSql({ triggerDeleted: false });
-    await deleteTrigger(fake.sql, 'org_1', 'ops/greet', 'user_1');
+    await deleteTrigger(fake.sql, 'org_1', 'ops/greet', appOrigin('user_1'));
     expect(dismissals(fake)).toEqual([]);
   });
 
@@ -278,7 +279,7 @@ describe('removing a schedule its failures paused reads the admins’ notices of
     await deleteAutomationCascade(paused.sql, {
       organizationId: 'org_1',
       name: 'ops/greet',
-      actor: 'user_1',
+      origin: appOrigin('user_1'),
     });
     expect(dismissals(paused)).toEqual([
       { values: [expect.any(Number), 'org_1', 'trg_1'], inTx: true },
@@ -290,7 +291,7 @@ describe('removing a schedule its failures paused reads the admins’ notices of
     await deleteAutomationCascade(running.sql, {
       organizationId: 'org_1',
       name: 'ops/greet',
-      actor: 'user_1',
+      origin: appOrigin('user_1'),
     });
     expect(dismissals(running)).toEqual([]);
 
@@ -298,7 +299,7 @@ describe('removing a schedule its failures paused reads the admins’ notices of
     await deleteAutomationCascade(none.sql, {
       organizationId: 'org_1',
       name: 'ops/greet',
-      actor: 'user_1',
+      origin: appOrigin('user_1'),
     });
     expect(dismissals(none)).toEqual([]);
   });

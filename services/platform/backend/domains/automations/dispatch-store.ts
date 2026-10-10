@@ -24,6 +24,7 @@ import {
   verifyCursorFor,
 } from '../../core/lib/signed_cursor.ts';
 import { toJson } from '../../db/sql.ts';
+import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   assertWritable,
@@ -51,7 +52,6 @@ import {
 import {
   AutomationError,
   assertAutomationName,
-  type AutomationWriteVia,
   bindingProjectIds,
   bindProjectInTx,
   lockAutomationProjectBindingsInTx,
@@ -193,18 +193,14 @@ export const ORG_FACTS_BUDGET_MS = 5_000;
 
 export interface PgStoreScope {
   organizationId: string;
-  /** Who saves/runs are attributed to (`api-key:<userId>` or a user id). */
-  actor: string;
-  /** The API key an `api-key:` actor authenticated with — recorded on the
-   * runs this store starts so their spend books to the key as well, and on
-   * the versions it saves. */
-  apiKeyId?: string;
+  /** Who calls, through which door (`write-origin.ts`). Its actor
+   * (`api-key:<userId>` or a user id) is who every check authorizes and
+   * every run this store starts records as its starter; its API key is
+   * recorded on those runs, so their spend books to the key as well; and
+   * every definition write records the whole origin — the door, the key and
+   * the client on the version a save adds and on the audit row. */
+  origin: WriteOrigin;
   projectId?: string;
-  /** The door this store's saves come through, recorded on each version
-   * (0181); absent, a version records none. */
-  via?: AutomationWriteVia;
-  /** The name the caller's client gave itself, recorded beside `via`. */
-  clientName?: string;
   /** Answer reads as the app's listing would for the actor: an automation
    * installed only in projects the actor cannot read is "not found" on
    * every read (`automationVisible`). The machine doors set it. */
@@ -232,7 +228,8 @@ export function pgAutomationStore(
   sql: Sql,
   scope: PgStoreScope,
 ): DispatchStore {
-  const { organizationId, actor } = scope;
+  const { organizationId, origin } = scope;
+  const { actor } = origin;
   // Who reads, and which projects they can read — asked once per store
   // (one dispatch call), however many automations the call reads.
   let viewer:
@@ -463,7 +460,7 @@ export function pgAutomationStore(
         organizationId,
         name,
         document: automation,
-        actor,
+        origin,
         authorize,
         ...(message !== undefined && message !== '' ? { message } : {}),
         ...(options?.testsPassed !== undefined
@@ -490,19 +487,6 @@ export function pgAutomationStore(
                 ? { presentation: metadata.presentation }
                 : {}),
             }),
-        ...(scope.via === undefined
-          ? {}
-          : {
-              origin: {
-                via: scope.via,
-                ...(scope.apiKeyId === undefined
-                  ? {}
-                  : { apiKeyId: scope.apiKeyId }),
-                ...(scope.clientName === undefined
-                  ? {}
-                  : { clientName: scope.clientName }),
-              },
-            }),
       });
     },
     recordTestVerdict: (name, version, testsPassed) =>
@@ -512,7 +496,7 @@ export function pgAutomationStore(
         organizationId,
         name,
         version,
-        actor,
+        origin,
         ...(options?.testsPassed !== undefined
           ? { testsPassed: options.testsPassed }
           : {}),
@@ -542,7 +526,7 @@ export function pgAutomationStore(
         organizationId,
         name: automation,
         trigger: input,
-        actor,
+        origin,
       });
       return Object.keys(outcome).length === 0 ? undefined : outcome;
     },
@@ -574,7 +558,7 @@ export function pgAutomationStore(
             finished_at_ms, record_bytes
           ) VALUES (
             ${organizationId}, ${name}, ${version}, ${projectId}, ${status}, ${mode},
-            ${runStarter(actor)}, ${scope.apiKeyId ?? null},
+            ${runStarter(actor)}, ${origin.apiKeyId ?? null},
             ${tx.json(toJson(JSON.stringify(run?.input ?? null)))},
             ${result.output === undefined ? null : tx.json(toJson(result.output))},
             ${tx.json(toJson({ nodes: {}, executions: 0 }))},
@@ -633,7 +617,7 @@ export function pgAutomationStore(
         input: input === undefined ? {} : input,
         mode,
         startedBy: runStarter(actor),
-        ...(scope.apiKeyId !== undefined ? { apiKeyId: scope.apiKeyId } : {}),
+        ...(origin.apiKeyId !== undefined ? { apiKeyId: origin.apiKeyId } : {}),
         ...(version !== undefined ? { version } : {}),
       };
       // The caller's idempotency key rides the REST door's own ledger —
@@ -690,7 +674,7 @@ export function pgAutomationStore(
     deleteTrigger: async (name) => {
       await authorizeActorRun(sql, organizationId, actor, 'developer');
       return {
-        deleted: await deleteTrigger(sql, organizationId, name, actor),
+        deleted: await deleteTrigger(sql, organizationId, name, origin),
       };
     },
     listRuns: async (options) => {
@@ -797,7 +781,7 @@ export function pgAutomationStore(
             'read',
             'developerSettings',
           ),
-          ...(scope.apiKeyId !== undefined && { apiKeyId: scope.apiKeyId }),
+          ...(origin.apiKeyId !== undefined && { apiKeyId: origin.apiKeyId }),
           ...(options.idempotencyKey !== undefined && {
             idempotencyKey: options.idempotencyKey,
           }),
@@ -974,7 +958,7 @@ export function pgAutomationStore(
       return deleteAutomationCascade(sql, {
         organizationId,
         name,
-        actor,
+        origin,
         expectedLatestVersion,
       });
     },
@@ -1013,7 +997,7 @@ export function pgAutomationStore(
             organizationId,
             name,
             projectId,
-            actor,
+            origin,
           });
           removed.push(projectId);
         }
@@ -1022,7 +1006,7 @@ export function pgAutomationStore(
             organizationId,
             name,
             projectId,
-            actor,
+            origin,
           });
           (bound ? added : unchanged).push(projectId);
         }

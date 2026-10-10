@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
 import { fireDueProjectWakes } from '../automations/wakes.ts';
 import {
@@ -119,7 +120,7 @@ export async function checkStandingRoleWake(
         enabled: true,
         ...(wakeOnSlotFreed === undefined ? {} : { wakeOnSlotFreed }),
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
   /** One worker release in the standing workspace: s + 1. */
   const releaseOnce = async (taskId: string) => {
@@ -186,14 +187,14 @@ export async function checkStandingRoleWake(
         ],
         output: '{{ nodes.start.output }}',
       },
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: project,
     });
     await deploy(sql, {
       organizationId: orgId,
       name,
       version: 1,
-      actor: userId,
+      origin: appOrigin(userId),
     });
     // A yearly cron: only wakes fire T during the lane.
     await optIn(true);

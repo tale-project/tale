@@ -4,6 +4,7 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
 import { createTaskList } from '../../jobs/task-list.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
 import { scanScheduledTriggers } from '../automations/triggers.ts';
 /** Real Postgres proof of project agents put to work by a schedule and by
@@ -503,14 +504,14 @@ export async function checkScheduledAgentStarts(
       organizationId: orgId,
       name,
       document,
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: projectA,
     });
     await deploy(sql, {
       organizationId: orgId,
       name,
       version: 1,
-      actor: userId,
+      origin: appOrigin(userId),
     });
     await setTrigger(sql, {
       organizationId: orgId,
@@ -521,7 +522,7 @@ export async function checkScheduledAgentStarts(
         timezone: 'Europe/Zurich',
         enabled: true,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const triggerId = (await trigger()).id;
 
@@ -854,7 +855,7 @@ export async function checkScheduledAgentStarts(
         timezone: 'Europe/Zurich',
         enabled: false,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const whilePaused = await fire();
     await setTrigger(sql, {
@@ -866,7 +867,7 @@ export async function checkScheduledAgentStarts(
         timezone: 'Europe/Zurich',
         enabled: true,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const beforeResume = await automationRuns();
     // Thirty minutes of occurrences went by while it was paused.
@@ -1014,14 +1015,14 @@ export async function checkScheduledAgentStarts(
       organizationId: orgId,
       name: hookName,
       document: { ...document, name: hookName },
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: projectA,
     });
     await setTrigger(sql, {
       organizationId: orgId,
       name: hookName,
       trigger: { kind: 'webhook', enabled: true },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const hook = await sql<{ id: string }[]>`
       SELECT id FROM app.automation_triggers
@@ -2205,7 +2206,7 @@ export async function checkDelegatedAgentStartTool(
         nodes: [{ id: 'noop', type: 'transform', code: 'return 1;' }],
         output: '{{ nodes.noop.output }}',
       },
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: projectA,
     });
     await setTrigger(sql, {
@@ -2217,7 +2218,7 @@ export async function checkDelegatedAgentStartTool(
         timezone: 'Europe/Zurich',
         enabled: true,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const scheduleTrigger = await sql<{ id: string }[]>`
       SELECT id FROM app.automation_triggers
@@ -2272,7 +2273,7 @@ export async function checkDelegatedAgentStartTool(
         timezone: 'Europe/Zurich',
         enabled: false,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     const pausedChain = await dispatch(
       scheduledManager.token,
@@ -2479,14 +2480,14 @@ export async function checkInPlaceCompletionCycle(
       organizationId: orgId,
       name,
       document: documentFor(name, taskId),
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: projectA,
     });
     await deploy(sql, {
       organizationId: orgId,
       name,
       version: 1,
-      actor: userId,
+      origin: appOrigin(userId),
     });
   };
   const schedule = (name: string, enabled: boolean) =>
@@ -2499,7 +2500,7 @@ export async function checkInPlaceCompletionCycle(
         timezone: 'Europe/Zurich',
         enabled,
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
 
   try {

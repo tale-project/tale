@@ -1669,7 +1669,7 @@ describe('DELETE /automations/{name}', () => {
     expect(deleteAutomationCascade).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
       name: SAVED,
-      actor: 'api-key:user-1',
+      origin: { actor: 'api-key:user-1', via: 'rest' },
     });
   });
 
@@ -1806,6 +1806,13 @@ describe('definition writes made with an API key name the key [AUTO-R28]', () =>
     requestId: 'req-9',
     apiKeyId: 'key-7',
   };
+  /** What the write records: the key holder over the REST API, with the key
+   * the channel names. */
+  const keyOrigin = {
+    actor: 'api-key:user-1',
+    via: 'rest',
+    apiKeyId: 'key-7',
+  };
 
   it('DELETE /automations/{name} runs as the key, inside its channel', async () => {
     const seen: unknown[] = [];
@@ -1825,7 +1832,7 @@ describe('definition writes made with an API key name the key [AUTO-R28]', () =>
     expect(seen).toEqual([keyChannel]);
     expect(deleteAutomationCascade).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ actor: 'api-key:user-1' }),
+      expect.objectContaining({ origin: keyOrigin }),
     );
   });
 
@@ -1847,7 +1854,7 @@ describe('definition writes made with an API key name the key [AUTO-R28]', () =>
     expect(seen).toEqual([keyChannel]);
     expect(setTrigger).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ actor: 'api-key:user-1' }),
+      expect.objectContaining({ origin: keyOrigin }),
     );
   });
 
@@ -1871,7 +1878,7 @@ describe('definition writes made with an API key name the key [AUTO-R28]', () =>
       expect.anything(),
       'org-1',
       SAVED,
-      'api-key:user-1',
+      keyOrigin,
     );
   });
 });

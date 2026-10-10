@@ -9,6 +9,7 @@ import {
 } from '../../../lib/automations/model-defaults.ts';
 import { automationPresentationSchema } from '../../../lib/shared/schemas/automation_presentation.ts';
 import { loadSeedablePacks } from '../../core/provisioning/provision_default_automations.ts';
+import { PROVISIONING_ORIGIN } from '../../lib/write-origin.ts';
 import { resolveModelReplacements } from '../automations/model-defaults.ts';
 import { saveVersion, setTrigger } from '../automations/store.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
@@ -159,8 +160,7 @@ export async function seedDefaultAutomationPacks(
       organizationId,
       name,
       document: seeded.document,
-      actor: 'system:provisioning',
-      origin: { via: 'system' },
+      origin: PROVISIONING_ORIGIN,
       message:
         seeded.changes.length === 0
           ? 'Shipped default pack'
@@ -181,7 +181,7 @@ export async function seedDefaultAutomationPacks(
           organizationId,
           name,
           trigger: { ...pack.trigger, enabled: pack.trigger.enabled ?? false },
-          actor: 'system:provisioning',
+          origin: PROVISIONING_ORIGIN,
         });
       }
     }

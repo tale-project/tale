@@ -17,6 +17,7 @@ import type { Sql } from 'postgres';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type { TriggerView as EngineTriggerView } from '../../../lib/engine/api/dispatch.ts';
+import { mcpOrigin } from '../../lib/write-origin.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 
 interface Statement {
@@ -68,7 +69,7 @@ function store(rows: Record<string, unknown>[]): {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a scripted tagged template standing in for postgres.js
     engine: pgAutomationStore(sql as unknown as Sql, {
       organizationId: 'org_1',
-      actor: 'api-key:user_1',
+      origin: mcpOrigin({ userId: 'user_1' }),
     }),
     statements,
   };

@@ -20,6 +20,7 @@ vi.mock('../audit_logs/service.ts', async (importOriginal) => ({
   createAuditLog: vi.fn(),
 }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -224,7 +225,7 @@ describe('deleteAutomationCascade [AUTO-R15]', () => {
   const automation = {
     organizationId: 'org-1',
     name: 'orders/process',
-    actor: 'user-1',
+    origin: appOrigin('user-1'),
   };
 
   it.each(['queued', 'running', 'waiting'])(

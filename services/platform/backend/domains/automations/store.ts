@@ -52,7 +52,6 @@ import {
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
-import type { AutomationWriteVia } from '../../../lib/shared/schemas/automation-versions.ts';
 import { localDateIn } from '../../../lib/shared/zoned-time.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
@@ -85,6 +84,7 @@ import {
 import { jsonParam, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { engineVersion, instanceId } from '../../lib/instance.ts';
+import type { WriteOrigin, WriteVia } from '../../lib/write-origin.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -211,23 +211,6 @@ export function assertAutomationNameCreatable(name: string): string {
 
 // ------------------------------------------------------------- definitions
 
-// The doors a version can be saved through (`automations.created_via`,
-// 0181) are listed once, with the wire's version schemas
-// (`AUTOMATION_WRITE_VIAS`, `lib/shared/schemas/automation-versions.ts`),
-// where the app reads every door's answer with them.
-export type { AutomationWriteVia };
-
-/** Which door a definition write came through, and — for a keyed door —
- * with which key and client. Recorded on the version a save writes. */
-export interface AutomationWriteOrigin {
-  via: AutomationWriteVia;
-  /** The API key the door authenticated, by id. */
-  apiKeyId?: string;
-  /** The name the agent's client gave itself, already cleaned by
-   * `displayClientName` (at most 80 characters). */
-  clientName?: string;
-}
-
 /** The three version fields beside the document a save can carry forward
  * from the latest version. */
 export const CARRIED_VERSION_FIELDS = [
@@ -242,7 +225,9 @@ export interface SaveVersionArgs {
   organizationId: string;
   name: string;
   document: unknown;
-  actor: string;
+  /** Who saves, through which door (`write-origin.ts`): recorded on the
+   * version (0181) and on its audit row. */
+  origin: WriteOrigin;
   /** Install target for a NEW automation — the first version binds the name
    * to this project atomically with the insert (the 0.4 `storeSave`
    * contract). Saves of an existing name ignore it: membership is managed
@@ -277,8 +262,6 @@ export interface SaveVersionArgs {
    * copied under the name lock so no save lands between the read and the
    * write; `null` stores none. The answer's `carried` names what was kept. */
   metadataMode?: 'explicit' | 'carry';
-  /** The door the save came through, recorded on the version (0181). */
-  origin?: AutomationWriteOrigin;
   /** Declarative ownership is field/value bounded and checked under the
    * same native name lock as every version writer. */
   managed?: { projectId: string; expectedHash: string | null };
@@ -494,8 +477,8 @@ export async function saveVersion(
              ${stored.taskContract === undefined || stored.taskContract === null ? null : tx.json(toJson(stored.taskContract))},
              ${stored.settings === undefined || stored.settings === null ? null : tx.json(toJson(stored.settings))},
              ${stored.presentation === undefined || stored.presentation === null ? null : tx.json(toJson(stored.presentation))},
-             ${args.actor}, ${now}, ${args.origin?.via ?? null},
-             ${args.origin?.apiKeyId ?? null}, ${args.origin?.clientName ?? null}
+             ${args.origin.actor}, ${now}, ${args.origin.via},
+             ${args.origin.apiKeyId ?? null}, ${args.origin.clientName ?? null}
       FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
       RETURNING version
@@ -509,7 +492,7 @@ export async function saveVersion(
     `;
     await auditDefinitionWrite(tx, {
       organizationId: args.organizationId,
-      actor: args.actor,
+      origin: args.origin,
       action: 'automation.version.saved',
       name,
       version,
@@ -546,7 +529,7 @@ export async function saveVersion(
             org_id, automation_name, project_id, bound_at_ms, bound_by
           ) VALUES (
             ${args.organizationId}, ${name}, ${projectId}, ${Date.now()},
-            ${args.actor}
+            ${args.origin.actor}
           )
           ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
         `,
@@ -554,7 +537,7 @@ export async function saveVersion(
       if (bound.count > 0) {
         await auditDefinitionWrite(tx, {
           organizationId: args.organizationId,
-          actor: args.actor,
+          origin: args.origin,
           action: 'automation.project.bound',
           name,
           newState: { projectId },
@@ -606,7 +589,7 @@ export interface VersionRow {
   createdAt: number;
   /** The door the version was saved through (0181) — null for a version
    * saved before the door was recorded. */
-  createdVia: AutomationWriteVia | null;
+  createdVia: WriteVia | null;
   /** The API key a keyed door saved it with, by id. */
   apiKeyId: string | null;
   /** The name the saving agent's client gave itself. */
@@ -760,7 +743,8 @@ export async function deploy(
     organizationId: string;
     name: string;
     version: number;
-    actor: string;
+    /** Who deploys, through which door (`write-origin.ts`). */
+    origin: WriteOrigin;
     /** The deploy gate's verdict when it ran the version's tests just now.
      * A fresh verdict WINS over the stored one: `true` stamps a version
      * saved without one (`tests_passed` NULL) and lifts a `false` an
@@ -899,8 +883,8 @@ export async function deploy(
       INSERT INTO app.automation_deployments (
         org_id, name, version, deployed_by, deployed_at_ms
       ) VALUES (
-        ${args.organizationId}, ${args.name}, ${args.version}, ${args.actor},
-        ${Date.now()}
+        ${args.organizationId}, ${args.name}, ${args.version},
+        ${args.origin.actor}, ${Date.now()}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
         version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
@@ -916,7 +900,7 @@ export async function deploy(
     }
     await auditDefinitionWrite(tx, {
       organizationId: args.organizationId,
-      actor: args.actor,
+      origin: args.origin,
       action: 'automation.deployed',
       name: args.name,
       version: args.version,
@@ -1181,7 +1165,7 @@ export interface VersionListing {
   createdBy: string;
   createdAt: number;
   /** The door it was saved through (0181) — null before it was recorded. */
-  createdVia: AutomationWriteVia | null;
+  createdVia: WriteVia | null;
   /** The name the saving agent's client gave itself. */
   clientName: string | null;
 }
@@ -1210,7 +1194,8 @@ export async function setAutomationProjects(
     organizationId: string;
     name: string;
     projectIds: string[];
-    actor: string;
+    /** Who changes the installations, through which door. */
+    origin: WriteOrigin;
     /** The projects the saving person can read. The editor only ever sees
      * those bindings, so the save replaces that part of the set and keeps
      * every binding to a project outside it; a project they cannot read
@@ -1286,7 +1271,7 @@ export async function setAutomationProjects(
             org_id, automation_name, project_id, bound_at_ms, bound_by
           ) VALUES (
             ${args.organizationId}, ${args.name}, ${projectId}, ${Date.now()},
-            ${args.actor}
+            ${args.origin.actor}
           )
           ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
         `,
@@ -1302,13 +1287,13 @@ export async function setAutomationProjects(
 /** The audit row of one installation added to or removed from a project. */
 function auditProjectBinding(
   tx: TransactionSql,
-  args: { organizationId: string; name: string; actor: string },
+  args: { organizationId: string; name: string; origin: WriteOrigin },
   projectId: string,
   change: 'bound' | 'unbound',
 ): Promise<void> {
   return auditDefinitionWrite(tx, {
     organizationId: args.organizationId,
-    actor: args.actor,
+    origin: args.origin,
     action:
       change === 'bound'
         ? 'automation.project.bound'
@@ -1327,7 +1312,7 @@ export async function bindProject(
     organizationId: string;
     name: string;
     projectId: string;
-    actor: string;
+    origin: WriteOrigin;
   },
 ): Promise<{ bound: boolean }> {
   return sql.begin((tx) => bindProjectInTx(tx, args));
@@ -1340,7 +1325,8 @@ export async function bindProjectInTx(
     organizationId: string;
     name: string;
     projectId: string;
-    actor: string;
+    /** Who installs it, through which door. */
+    origin: WriteOrigin;
   },
 ): Promise<{ bound: boolean }> {
   await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
@@ -1362,7 +1348,7 @@ export async function bindProjectInTx(
         org_id, automation_name, project_id, bound_at_ms, bound_by
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${args.projectId}, ${Date.now()},
-        ${args.actor}
+        ${args.origin.actor}
       )
       ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
     `,
@@ -1386,8 +1372,8 @@ export async function unbindProjectInTx(
     organizationId: string;
     name: string;
     projectId: string;
-    /** Who removes it — the audit row's actor. */
-    actor: string;
+    /** Who removes it, through which door — the audit row's actor. */
+    origin: WriteOrigin;
   },
 ): Promise<{ unbound: boolean }> {
   await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
@@ -1722,7 +1708,8 @@ export async function setTrigger(
     organizationId: string;
     name: string;
     trigger: TriggerInput;
-    actor: string;
+    /** Who binds it, through which door. */
+    origin: WriteOrigin;
     managed?: {
       projectId: string;
       expectedHash: string | null;
@@ -1923,7 +1910,7 @@ export async function setTrigger(
         ${args.organizationId}, ${args.name}, ${trigger.kind},
         ${trigger.cron}, ${trigger.timezone},
         ${trigger.event}, ${mintedHash}, ${trigger.enabled},
-        ${args.actor}, ${now}, ${now},
+        ${args.origin.actor}, ${now}, ${now},
         ${jsonParam(tx, trigger.scheduleRule)}, ${trigger.catchUp}, ${nextDue},
         ${jsonParam(tx, trigger.input)}, ${wakes}
       )
@@ -2024,7 +2011,7 @@ export async function setTrigger(
     // What the binding was and is — never its token or the token's hash.
     await auditDefinitionWrite(tx, {
       organizationId: args.organizationId,
-      actor: args.actor,
+      origin: args.origin,
       action: 'automation.trigger.set',
       name: args.name,
       ...(before === undefined
@@ -2270,8 +2257,8 @@ export async function deleteTrigger(
   sql: Sql,
   organizationId: string,
   name: string,
-  /** Who removes it — the audit row's actor. */
-  actor: string,
+  /** Who removes it, through which door — the audit row's actor. */
+  origin: WriteOrigin,
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
     // The name before the trigger row (`trigger-failures.ts`).
@@ -2297,7 +2284,7 @@ export async function deleteTrigger(
     if (removed === undefined) return false;
     await auditDefinitionWrite(tx, {
       organizationId,
-      actor,
+      origin,
       action: 'automation.trigger.deleted',
       name,
       previousState: triggerAuditState(removed),
@@ -4700,7 +4687,8 @@ export async function deleteAutomationCascade(
   args: {
     organizationId: string;
     name: string;
-    actor: string;
+    /** Who deletes it, through which door. */
+    origin: WriteOrigin;
     /** Compare-and-set on the history: the latest version the caller read.
      * A version saved since refuses the delete with
      * `AUTOMATION_VERSION_STALE` (409, `data.latestVersion`) and removes
@@ -4792,7 +4780,7 @@ export async function deleteAutomationCascade(
       INSERT INTO app.automation_tombstones (
         org_id, name, deleted_by, deleted_at_ms
       ) VALUES (
-        ${args.organizationId}, ${args.name}, ${args.actor}, ${Date.now()}
+        ${args.organizationId}, ${args.name}, ${args.origin.actor}, ${Date.now()}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
         deleted_by = EXCLUDED.deleted_by,
@@ -4801,7 +4789,7 @@ export async function deleteAutomationCascade(
     const removed = versions.count;
     await auditDefinitionWrite(tx, {
       organizationId: args.organizationId,
-      actor: args.actor,
+      origin: args.origin,
       action: 'automation.deleted',
       name: args.name,
       previousState: {

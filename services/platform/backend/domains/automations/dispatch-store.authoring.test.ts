@@ -15,6 +15,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mintCursorFor } from '../../core/lib/signed_cursor.ts';
+import { mcpOrigin } from '../../lib/write-origin.ts';
 import {
   assertWritable,
   listProjects,
@@ -71,6 +72,12 @@ vi.mock('../projects/service.ts', async (original) => ({
 
 const ORG = 'org-1';
 const NAME = 'hr/onboarding';
+/** The coding agent's door the store records on every write it makes. */
+const ORIGIN = mcpOrigin({
+  userId: 'user-1',
+  apiKeyId: 'key-1',
+  clientName: 'Claude Code',
+});
 
 /** p-1 is readable and writable; p-ro readable, not writable; p-hidden is
  * a project the caller cannot read. */
@@ -125,10 +132,7 @@ function store(
   }) as unknown as Sql;
   return pgAutomationStore(sql, {
     organizationId: options.organizationId ?? ORG,
-    actor: 'api-key:user-1',
-    apiKeyId: 'key-1',
-    via: 'mcp',
-    clientName: 'Claude Code',
+    origin: ORIGIN,
     ...(options.visibleOnly === false ? {} : { visibleOnly: true }),
   });
 }
@@ -271,13 +275,12 @@ describe('save', () => {
       organizationId: ORG,
       name: NAME,
       document: doc,
-      actor: 'api-key:user-1',
       message: 'why',
       baseVersion: 7,
       create: true,
       metadataMode: 'carry',
       presentation: null,
-      origin: { via: 'mcp', apiKeyId: 'key-1', clientName: 'Claude Code' },
+      origin: ORIGIN,
       authorize: expect.any(Function),
     });
   });
@@ -347,7 +350,7 @@ describe('deploy and delete', () => {
       organizationId: ORG,
       name: NAME,
       version: 7,
-      actor: 'api-key:user-1',
+      origin: ORIGIN,
       testsPassed: true,
       expectedDeployedVersion: 6,
     });
@@ -368,7 +371,7 @@ describe('deploy and delete', () => {
     expect(deleteAutomationCascade).toHaveBeenCalledWith(expect.anything(), {
       organizationId: ORG,
       name: NAME,
-      actor: 'api-key:user-1',
+      origin: ORIGIN,
       expectedLatestVersion: 7,
     });
   });
@@ -419,7 +422,7 @@ describe('setAutomationProjects', () => {
       organizationId: ORG,
       name: NAME,
       projectId: 'p-1',
-      actor: 'api-key:user-1',
+      origin: ORIGIN,
     });
   });
 });

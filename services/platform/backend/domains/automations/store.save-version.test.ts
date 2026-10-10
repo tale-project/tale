@@ -22,6 +22,7 @@ vi.mock('./audit.ts', () => ({
   listDeployments: vi.fn(async () => []),
 }));
 
+import { appOrigin, mcpOrigin } from '../../lib/write-origin.ts';
 import { auditDefinitionWrite } from './audit.ts';
 import { AutomationError, saveVersion } from './store.ts';
 
@@ -75,7 +76,7 @@ const args = (overrides: Partial<Parameters<typeof saveVersion>[1]> = {}) => ({
   organizationId: 'org_1',
   name: 'ops/greet',
   document: { version: 1, name: 'ops/greet', nodes: [] },
-  actor: 'user_1',
+  origin: appOrigin('user_1'),
   ...overrides,
 });
 
@@ -187,8 +188,8 @@ describe('saveVersion', () => {
       statement.text.includes('INSERT INTO app.automations'),
     );
     // message, the verdict and its time, the three version fields, and the
-    // door, key and client of a save that names no door (0181).
-    expect(bare?.values.filter((value) => value === null).length).toBe(9);
+    // key and client of a save from the app, which names neither (0181).
+    expect(bare?.values.filter((value) => value === null).length).toBe(8);
   });
 
   it('binds the install project to version 1 only', async () => {
@@ -473,8 +474,11 @@ describe('saveVersion carry mode', () => {
     await saveVersion(
       fake.sql,
       carryArgs({
-        actor: 'api-key:user_ada',
-        origin: { via: 'mcp', apiKeyId: 'key_1', clientName: 'Claude Code' },
+        origin: mcpOrigin({
+          userId: 'user_ada',
+          apiKeyId: 'key_1',
+          clientName: 'Claude Code',
+        }),
       }),
     );
     expect(inserted(fake.statements)).toMatchObject({
@@ -490,14 +494,14 @@ describe('saveVersion carry mode', () => {
     await saveVersion(
       fake.sql,
       carryArgs({
-        actor: 'api-key:user_ada',
+        origin: mcpOrigin({ userId: 'user_ada' }),
         baseVersion: 5,
         testsPassed: true,
       }),
     );
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
-      actor: 'api-key:user_ada',
+      origin: mcpOrigin({ userId: 'user_ada' }),
       action: 'automation.version.saved',
       name: 'billing/dunning',
       version: 6,

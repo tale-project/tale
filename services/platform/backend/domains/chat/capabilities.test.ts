@@ -112,8 +112,7 @@ describe('get_knowledge on the capability surface', () => {
     );
     expect(pgAutomationStore).toHaveBeenCalledWith(sql, {
       organizationId: 'org_1',
-      actor: 'user_1',
-      apiKeyId: 'key_1',
+      origin: { actor: 'user_1', via: 'mcp', apiKeyId: 'key_1' },
     });
   });
 

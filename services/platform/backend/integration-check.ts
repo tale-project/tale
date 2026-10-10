@@ -222,6 +222,7 @@ import {
   installClientErrorEnvelope,
 } from './lib/http-hygiene.ts';
 import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
+import { appOrigin } from './lib/write-origin.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 import { checkOrgSlugRefusals } from './rest/org-slug-refusals.integration.ts';
 
@@ -12923,13 +12924,13 @@ async function checkAutomations(
       organizationId: orgId,
       name: 'ops/files',
       document: invalidConnectorDocument,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     await legacyStore.deploy(sql, {
       organizationId: orgId,
       name: 'ops/files',
       version: 2,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     const badRun = z.object({ runId: z.string() }).safeParse(
       await (
@@ -14674,7 +14675,7 @@ async function checkAutomationTriggerDelivery(
         organizationId: orgId,
         name,
         trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
-        actor: 'itest',
+        origin: appOrigin('itest'),
       }),
     ),
   );
@@ -14869,7 +14870,7 @@ async function checkAutomationTriggerDelivery(
     organizationId: orgId,
     name,
     trigger: { kind: 'schedule', cron: `${minute} * * * *`, timezone: 'UTC' },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
   const hour = 60 * 60_000;
   const latestAt = (() => {
@@ -14938,7 +14939,7 @@ async function checkAutomationTriggerDelivery(
       timezone: 'Europe/Zurich',
       startDate: '2026-01-01',
     },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
   await sql`
     UPDATE app.automation_triggers
@@ -15068,7 +15069,7 @@ async function checkAutomationTriggerDelivery(
       timezone: 'UTC',
       input: { fence: 'fixed' },
     },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
   await backdateStamp();
   await triggersModule.scanScheduledTriggers(sql);
@@ -15104,7 +15105,7 @@ async function checkAutomationTriggerDelivery(
     organizationId: orgId,
     name,
     trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
 
   // ---- #2: webhook redelivery is idempotent — a vendor's delivery id, or a
@@ -42982,13 +42983,13 @@ async function checkAutomationAgentNode(
       organizationId: orgId,
       name: 'ops/parent-agentic',
       document: parentAgentDocument,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     await legacyStore.deploy(sql, {
       organizationId: orgId,
       name: 'ops/parent-agentic',
       version: 1,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     const spentBefore = { ...gatewayCalls };
     const subAgentRun = await startLiveAndSettle('ops/parent-agentic');

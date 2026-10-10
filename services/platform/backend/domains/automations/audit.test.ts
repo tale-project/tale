@@ -7,6 +7,7 @@ vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(async () => 'row-1'),
 }));
 
+import { appOrigin, mcpOrigin } from '../../lib/write-origin.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { auditDefinitionWrite, listDeployments } from './audit.ts';
 
@@ -28,7 +29,7 @@ describe('auditDefinitionWrite [AUTO-R28]', () => {
     async (actor, actorId, actorType) => {
       await auditDefinitionWrite(tx, {
         organizationId: 'org_1',
-        actor,
+        origin: appOrigin(actor),
         action: 'automation.version.saved',
         name: 'billing/dunning',
         version: 6,
@@ -52,7 +53,7 @@ describe('auditDefinitionWrite [AUTO-R28]', () => {
   it('never names the door itself — the request channel does, inside an MCP call', async () => {
     await auditDefinitionWrite(tx, {
       organizationId: 'org_1',
-      actor: 'api-key:user_ada',
+      origin: mcpOrigin({ userId: 'user_ada' }),
       action: 'automation.deleted',
       name: 'billing/dunning',
       previousState: { versions: 3, deployedVersion: 2 },

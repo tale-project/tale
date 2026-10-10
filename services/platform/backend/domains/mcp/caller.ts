@@ -16,6 +16,7 @@
 import type { Context } from 'hono';
 
 import { requestIdOf } from '../../error-reporting.ts';
+import { mcpOrigin, type WriteOrigin } from '../../lib/write-origin.ts';
 import {
   restApiKeyId,
   type RestCredential,
@@ -57,4 +58,19 @@ export function callerFromRest(c: Context<RestEnv>): McpCaller {
     },
     ...(requestId !== undefined ? { requestId } : {}),
   };
+}
+
+/**
+ * Who the caller's writes are, through which door: the key holder through
+ * their key (`api-key:<userId>`), over MCP, with the client the request
+ * named. The engine store records it on what a definition write changes, and
+ * the tool call's request channel is opened from it, so the audit rows of
+ * the call and the version it saves name the same key and client.
+ */
+export function callerOrigin(caller: McpCaller): WriteOrigin {
+  return mcpOrigin({
+    userId: caller.userId,
+    apiKeyId: caller.credential.apiKeyId,
+    clientName: caller.clientName,
+  });
 }

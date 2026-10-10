@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import type { AuditLogActorType } from '../audit_logs/types.ts';
 
@@ -58,7 +59,8 @@ export async function auditDefinitionWrite(
   tx: TransactionSql,
   args: {
     organizationId: string;
-    actor: string;
+    /** Who made the write, through which door (`write-origin.ts`). */
+    origin: WriteOrigin;
     action: AutomationDefinitionAction;
     name: string;
     /** The version the write is about, when it is about one: the row then
@@ -71,7 +73,7 @@ export async function auditDefinitionWrite(
 ): Promise<void> {
   await createAuditLog(tx, {
     organizationId: args.organizationId,
-    ...auditActor(args.actor),
+    ...auditActor(args.origin.actor),
     action: args.action,
     category: 'workflow',
     resourceType: 'automation',

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { readableProjectIds } from './project-visibility.ts';
@@ -257,7 +258,7 @@ export async function checkAutomationProjectVisibility(
 
   const engine = pgAutomationStore(sql, {
     organizationId: orgId,
-    actor: member.userId,
+    origin: appOrigin(member.userId),
   });
   const engineRuns = await engine.listRuns?.({ name: names.mixed });
   const engineHidden = await engine.getRun?.(hiddenRun);
@@ -496,7 +497,7 @@ export async function checkAutomationProjectVisibility(
     organizationId: orgId,
     name: names.mixed,
     projectIds: [],
-    actor: member.userId,
+    origin: appOrigin(member.userId),
     visibleProjectIds: memberView,
   });
   const kept = await sql<{ projectId: string }[]>`
@@ -507,7 +508,7 @@ export async function checkAutomationProjectVisibility(
     organizationId: orgId,
     name: names.unbound,
     projectIds: [hidden],
-    actor: member.userId,
+    origin: appOrigin(member.userId),
     visibleProjectIds: memberView,
   }).then(
     () => 'saved',
