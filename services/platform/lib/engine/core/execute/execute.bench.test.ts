@@ -701,6 +701,46 @@ describe('a run’s time limit and its caller’s stop', () => {
       onPing = undefined;
     }
   });
+
+  it('keeps what a called automation did before it failed', async () => {
+    const store = memoryStore();
+    store.save('child', {
+      version: 1,
+      name: 'child',
+      nodes: [
+        { id: 'first', type: 'ping.send', input: {} },
+        {
+          id: 'boom',
+          type: 'transform',
+          input: { sent: '{{ nodes.first.output }}' },
+          code: "throw new Error('the export is empty');",
+        },
+      ],
+      output: '{{ nodes.boom.output }}',
+    });
+    const d = doc(
+      [
+        {
+          id: 'call',
+          type: 'subautomation',
+          automation: 'child',
+          onError: 'continue',
+        },
+        { id: 'after', type: 'transform', code: 'return 1;' },
+      ],
+      { output: '{{ nodes.after.output }}' },
+    );
+    const result = await execute(d, { mode: 'mock', store });
+    expect(result.trace.map((e) => [e.node, e.status])).toEqual([
+      ['call', 'error'],
+      ['after', 'ok'],
+    ]);
+    // The write it made before failing happened: the caller lists it, as
+    // the durable runtime does and as it lists a stopped one's.
+    expect(result.effects.map((e) => [e.node, e.connector])).toEqual([
+      ['call/first', 'ping.send'],
+    ]);
+  });
 });
 
 describe('what a recorded run keeps of its bench', () => {
