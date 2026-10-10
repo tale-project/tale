@@ -1043,16 +1043,12 @@ async function mintTurnServing(
     serving: {
       kind: 'subscription',
       secret,
-      baseUrl:
-        (credential.authMethod === 'subscription-broker'
-          ? credential.endpointUrl
-          : undefined) ?? resolved.apiBaseUrl,
+      baseUrl: credential.endpointUrl ?? resolved.apiBaseUrl,
       bridgeToken,
       ...(credential.targetEnvVar !== undefined
         ? { targetEnvVar: credential.targetEnvVar }
         : {}),
-      ...(credential.authMethod === 'subscription-broker' &&
-      credential.accountId !== undefined
+      ...(credential.accountId !== undefined
         ? { accountId: credential.accountId }
         : {}),
     },

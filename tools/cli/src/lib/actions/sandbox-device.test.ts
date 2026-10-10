@@ -230,6 +230,15 @@ describe('tale sandbox connect', () => {
       ),
     ).rejects.toThrow(/development build/);
     expect(rec.streamed).toHaveLength(0);
+    expect(
+      rec.requests.map((request) => `${request.method} ${request.url}`),
+    ).toEqual([
+      'POST http://localhost:3000/api/sandbox-devices/join',
+      'DELETE http://localhost:3000/api/sandbox-devices/self',
+    ]);
+    expect(
+      await readSandboxDeviceConfig(sandboxDeviceConfigPath(deps.home())),
+    ).toBeNull();
     const local = await makeDeps({ serverVersion: 'dev' });
     await connectSandboxDevice(
       {

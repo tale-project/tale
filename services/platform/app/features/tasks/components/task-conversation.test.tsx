@@ -5,11 +5,12 @@ import {
   screen,
   type RenderOptions,
 } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { useSyncExternalStore } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TaskActivityRow } from '../utils/task-timeline';
+import type { TaskActivityRow, TaskAgentRunRow } from '../utils/task-timeline';
 import { TaskConversation } from './task-conversation';
 
 /** The app shell provides tooltips; a comment's icon actions carry one. */
@@ -29,8 +30,15 @@ const data: {
   }>;
   hasEarlier: boolean;
   activity: TaskActivityRow[];
+  runs: TaskAgentRunRow[];
   loadEarlier: ReturnType<typeof vi.fn>;
-} = { comments: [], hasEarlier: false, activity: [], loadEarlier: vi.fn() };
+} = {
+  comments: [],
+  hasEarlier: false,
+  activity: [],
+  runs: [],
+  loadEarlier: vi.fn(),
+};
 
 const discussionListeners = new Set<() => void>();
 
@@ -55,7 +63,7 @@ vi.mock('../hooks/queries', () => ({
     loadEarlier: data.loadEarlier,
   }),
   useTaskActivity: () => ({ activity: data.activity }),
-  useTaskAgentRuns: () => ({ runs: [] }),
+  useTaskAgentRuns: () => ({ runs: data.runs }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -76,7 +84,10 @@ vi.mock('../hooks/use-actor-directory', () => ({
     }),
     resolveAssigneeId: (id: string) => id,
     resolveActorPreview: () => null,
-    resolveAgentRunPreview: () => null,
+    resolveAgentRunPreview: (run: { agentSlug: string }) => ({
+      kind: 'agent',
+      name: run.agentSlug,
+    }),
     resolveWorkflowRunPreview: () => null,
   }),
 }));
@@ -122,6 +133,7 @@ beforeEach(() => {
   data.comments = [];
   data.hasEarlier = false;
   data.activity = [];
+  data.runs = [];
   data.loadEarlier.mockClear();
 });
 
@@ -222,6 +234,69 @@ describe('TaskConversation', () => {
     renderConversation();
     expect(screen.queryByText(/activity\.commentAdded/)).toBeNull();
     expect(screen.getByText('Looks good')).toBeInTheDocument();
+  });
+
+  it('keeps an agent run visible outside the generic updates fold', () => {
+    data.activity = [
+      activity('a1', 'status.changed', NOON - 3000, 'in_progress'),
+      activity('a2', 'assignee.changed', NOON - 2000, 'agent-1'),
+      activity('a3', 'priority.changed', NOON - 1000, 'p1'),
+    ];
+    data.runs = [
+      {
+        runId: 'run-1',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'settled',
+        startedAt: NOON - 4000,
+        costCents: 0,
+      },
+    ];
+
+    renderConversation();
+
+    expect(screen.getByText('timeline.runLabel')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /timeline\.updates/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('batches consecutive agent runs into one expandable time range', async () => {
+    const user = userEvent.setup();
+    data.runs = [
+      {
+        runId: 'run-1',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'settled',
+        startedAt: NOON - 3000,
+        costCents: 0,
+      },
+      {
+        runId: 'run-2',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'failed',
+        startedAt: NOON - 2000,
+        costCents: 0,
+      },
+      {
+        runId: 'run-3',
+        agentSlug: 'agent-1',
+        trigger: 'auto_retry',
+        status: 'settled',
+        startedAt: NOON - 1000,
+        costCents: 0,
+      },
+    ];
+
+    renderConversation();
+
+    const batch = screen.getByRole('button', { name: /timeline\.agentRuns/ });
+    expect(batch).toHaveTextContent('Sep 23, 2026');
+    expect(screen.queryByText('timeline.runLabel')).toBeNull();
+    await user.click(batch);
+    expect(screen.getAllByText('timeline.runLabel')).toHaveLength(3);
   });
 
   it('opens each day under its own date pill', () => {

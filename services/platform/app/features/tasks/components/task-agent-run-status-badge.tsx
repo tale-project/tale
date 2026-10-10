@@ -2,7 +2,7 @@
 
 /**
  * Status badge on a task Activity agent-run row. Running / Failed / Timed out
- * (and Completed) open a ViewDialog with the stored run outcome; a run that
+ * (and completed or settled) open a ViewDialog with the stored run outcome; a run that
  * waits for room reads why in its short state. The embedded
  * live-run transcript that used to render for a linked workflow execution is
  * offline while the automations backend is rebuilt, so a linked execution
@@ -27,6 +27,7 @@ type AgentRunVariant = 'outline' | 'green' | 'destructive' | 'yellow';
 const STATUS_VARIANT: Record<string, AgentRunVariant> = {
   running: 'outline',
   completed: 'green',
+  settled: 'green',
   failed: 'destructive',
   timed_out: 'yellow',
 };
@@ -36,6 +37,7 @@ const OPENABLE_STATUSES = new Set([
   'failed',
   'timed_out',
   'completed',
+  'settled',
 ]);
 
 export function TaskAgentRunStatusBadge({
@@ -67,7 +69,7 @@ export function TaskAgentRunStatusBadge({
   const dialogTitle =
     run.status === 'running'
       ? t('agentRuns.detail.runningTitle', { agent: agentName })
-      : run.status === 'completed'
+      : run.status === 'completed' || run.status === 'settled'
         ? t('agentRuns.detail.completedTitle', { agent: agentName })
         : t('agentRuns.detail.failedTitle', { agent: agentName });
 

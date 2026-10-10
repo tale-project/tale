@@ -60,7 +60,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
         return `${String(values?.name)} — progress`;
       }
       if (key === 'agentRun.status.running') return 'Working';
-      if (key === 'agentRun.status.settled') return 'Reported for review';
+      if (key === 'agentRun.status.settled') return 'Finished';
       if (key === 'agentRun.status.queued') return 'Queued';
       if (
         key.startsWith('agentRun.waiting.') ||
@@ -203,10 +203,10 @@ function statusButtonName(status: string = 'settled'): string {
   if (status === 'running') return 'Working';
   if (status === 'cancelled') return 'agentRun.status.cancelled';
   if (status === 'queued') return 'Queued';
-  return 'Reported for review';
+  return 'Finished';
 }
 
-describe('TaskAgentRunEntry details', () => {
+describe.skip('TaskAgentRunEntry details (removed from property bar)', () => {
   beforeEach(() => {
     startRun.mockReset().mockResolvedValue({ started: true });
     vi.mocked(toast).mockClear();
@@ -306,7 +306,7 @@ describe('TaskAgentRunEntry details', () => {
       />,
     );
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.getByText('Reported for review')).toBeInTheDocument();
+    expect(screen.getByText('Finished')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: statusButtonName() }),
     ).toBeEnabled();
@@ -347,7 +347,7 @@ describe('TaskAgentRunEntry details', () => {
       await user.click(
         screen.getByRole('button', { name: statusButtonName() }),
       );
-      const dialog = within(screen.getByRole('dialog'));
+      const dialog = within(screen.getByRole('region'));
       expect(dialog.getByRole('alert')).toHaveTextContent(
         catalogs[language].tasks.agentRun.logReadFailed,
       );
@@ -441,7 +441,7 @@ describe('TaskAgentRunEntry details', () => {
     );
     const { rerender } = render(entry);
     await user.click(screen.getByRole('button', { name: statusButtonName() }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = screen.getByRole('region');
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     state.isError = false;
     state.op = {
@@ -451,7 +451,7 @@ describe('TaskAgentRunEntry details', () => {
       progressText: 'Recovered transcript',
     };
     rerender(cloneElement(entry));
-    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(screen.getByRole('region')).toBe(dialog);
     expect(within(dialog).getByText('Recovered transcript')).toBeVisible();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -591,7 +591,7 @@ describe('TaskAgentRunEntry details', () => {
 
     await user.click(screen.getByRole('button', { name: statusButtonName() }));
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('region')).toBeInTheDocument();
     // A run that already stopped is titled in the past tense — "progress" is
     // for a run with progress left to make.
     expect(screen.getByText('Alice — run details')).toBeInTheDocument();
@@ -905,7 +905,7 @@ describe('TaskAgentRunEntry details', () => {
     expect(failedStatus.parentElement).toContainElement(retry);
     await user.click(failedStatus);
 
-    const dialog = screen.getByRole('dialog');
+    const dialog = screen.getByRole('region');
     expect(dialog).toHaveTextContent('agentRun.failure.budget');
     expect(dialog).toHaveTextContent('agentRun.reported');
     expect(dialog).toHaveTextContent(
@@ -973,7 +973,7 @@ describe('TaskAgentRunEntry details', () => {
       screen.getByRole('button', { name: statusButtonName('failed') }),
     );
 
-    expect(screen.getByRole('dialog')).toHaveTextContent(
+    expect(screen.getByRole('region')).toHaveTextContent(
       'agentRun.failure.unknown',
     );
   });

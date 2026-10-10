@@ -238,6 +238,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   their trigger and cost; archiving toasts `tasks.archive.success` and removes
   the card from the default views; restoring (`tasks.archive.restoreSuccess`)
   returns it — both persisted across reload.
+- [ ] `TASK-F86` · **Batch consecutive agent runs** — Open a task with several
+  agent runs started consecutively on the same day → the conversation shows
+  one expandable **N agent runs** row (`tasks.timeline.agentRuns`) with the
+  first-to-last time range instead of one row per run; open it → each run and
+  its **View** control remains available, and close it → the compact summary
+  returns. A run separated by a comment or another activity remains its own
+  row, and runs on another day stay under that day's divider.
 - [ ] `TASK-F51` · **History names what a change left** — On a task you can
   edit that has no due date, set **Due date** to 1 October 2026 and clear it
   with its ✕ (`common.datePicker.clear`); assign a member and choose

@@ -230,7 +230,7 @@ describe('TaskConversation — who may change a comment', () => {
     thread({ currentUserId: 'user_2', canWork: true, isAdmin: true });
     expect(
       screen.getAllByRole('button', { name: 'actions.delete' }),
-    ).not.toHaveLength(0);
+    ).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'actions.edit' })).toBeNull();
   });
 });

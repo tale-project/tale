@@ -231,6 +231,22 @@ export async function connectSandboxDevice(
 
   const version = options.imageTag ?? joined.serverVersion;
   const hasImages = options.images?.sandbox !== undefined;
+  if (!isReleaseVersion(version) && !hasImages) {
+    try {
+      await leaveSandboxDevice(serverUrl, joined.deviceSecret, deps.fetch);
+    } catch (cleanupError) {
+      logger.warn(
+        `Could not revoke the development device registration: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+      );
+    }
+    throw preconditionError(
+      `The server runs a development build (${version || 'unknown'}), which publishes no images to follow.`,
+      [
+        'tale sandbox update --image-tag <release>',
+        'or run a released Tale server, then: tale sandbox update',
+      ],
+    );
+  }
   const config = buildSandboxDeviceConfig(joined, {
     stateDir: home,
     maxSessions,
@@ -246,16 +262,6 @@ export async function connectSandboxDevice(
       : {}),
   });
   await writeSandboxDeviceConfig(config, sandboxDeviceConfigPath(home));
-
-  if (!isReleaseVersion(version) && !hasImages) {
-    throw preconditionError(
-      `The server runs a development build (${version || 'unknown'}), which publishes no images to follow.`,
-      [
-        'tale sandbox update --image-tag <release>',
-        'or run a released Tale server, then: tale sandbox update',
-      ],
-    );
-  }
 
   logger.step(
     `Starting the sandbox device (Tale ${version}). The first start downloads the sandbox images, which can take a few minutes…`,

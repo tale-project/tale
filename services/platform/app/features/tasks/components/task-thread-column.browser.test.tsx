@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
+import { userEvent } from 'vitest/browser';
 
 import { cleanup, render, screen } from '@/tests/utils/render';
 
@@ -72,5 +73,14 @@ describe('TaskThreadColumn (real layout)', () => {
     expect(composer.getBoundingClientRect().top).toBeGreaterThanOrEqual(
       scroller.getBoundingClientRect().bottom,
     );
+  });
+
+  it('lets an upward wheel leave the newest end of the reversed scrollport', async () => {
+    const scroller = renderColumn(40);
+    expect(scroller.scrollTop).toBe(0);
+
+    await userEvent.wheel(scroller, { delta: { y: -160 } });
+
+    expect(scroller.scrollTop).toBeLessThan(0);
   });
 });

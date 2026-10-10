@@ -45,7 +45,7 @@ export function readReserveTurnBudgetResult(
       record.allowed === true &&
       typeof record.budgetCents === 'number' &&
       Number.isFinite(record.budgetCents) &&
-      record.budgetCents > 0
+      record.budgetCents >= 0
     ) {
       return { allowed: true, budgetCents: record.budgetCents };
     }
