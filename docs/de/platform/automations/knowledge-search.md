@@ -21,6 +21,12 @@ nodes:
     prompt: 'Answer {{ input.question }} from these passages only, and say so when they do not answer it: {{ nodes.related.output.hits }}'
 ```
 
+<Frame caption="Der Suchschritt im Editor: Seine Anfrage liest die Frage des Laufs, und er gibt seine Treffer an einen späteren Schritt weiter.">
+
+![Der Tab Editor von Answer launch questions, live, mit No problems: Start, Related und End auf dem Canvas, Related ausgewählt, ein Schritt Knowledge · Search knowledge, der eine Liste von Treffern zurückgibt. Neben dem Canvas enthält sein Input limit 3, eine query, die die Frage der Laufeingabe liest, und corpus documents.](/images/platform/automation-knowledge-search-step.webp)
+
+</Frame>
+
 | Eingabe  | Was sie enthält                                                                        |
 | -------- | -------------------------------------------------------------------------------------- |
 | `query`  | Wonach gesucht wird, in Worten, bis zu 2.000 Zeichen.                                  |
@@ -42,6 +48,12 @@ Der Schritt gibt `{ hits }` zurück, die beste zuerst. Kein Treffer heißt, dass
 | `similarity` | Wie nah die Bedeutung der Passage an der Anfrage liegt, näher an 1, je näher, wenn die Bedeutungssuche sie gefunden hat. |
 
 Eine Suche behält jeden Treffer, den sie einordnet, so schwach er auch ist. Um schwache Treffer auszulassen, vergleiche `similarity` in einem späteren Schritt.
+
+<Frame caption="Ein Live-Lauf in Website relaunch: Der Schritt hat die Frage des Laufs gelesen, die Dokumente durchsucht und drei Treffer zurückgegeben.">
+
+![Die Seite eines erfolgreichen Live-Laufs von Answer launch questions mit ausgewähltem Schritt Related. Sein Tab Last run sagt, dass der Schritt knowledge.search ausgeführt und die question der Laufeingabe gelesen hat, What happens on launch day?, dass er limit 3, diese query und corpus documents erhalten und hits zurückgegeben hat, eine Liste mit 3 Einträgen.](/images/platform/automation-knowledge-search-run.webp)
+
+</Frame>
 
 ## Was eine Suche liest
 

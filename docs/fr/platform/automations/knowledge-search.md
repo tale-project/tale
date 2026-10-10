@@ -21,6 +21,12 @@ nodes:
     prompt: 'Answer {{ input.question }} from these passages only, and say so when they do not answer it: {{ nodes.related.output.hits }}'
 ```
 
+<Frame caption="L’étape de recherche dans l’éditeur : sa requête lit la question de l’exécution, et elle transmet ses résultats à une étape suivante.">
+
+![L’onglet Editor de Answer launch questions, en direct, avec No problems : Start, Related et End sur le canevas, avec Related sélectionnée, une étape Knowledge · Search knowledge qui renvoie une liste de résultats. À côté du canevas, son Input contient limit 3, une query qui lit la question de l’entrée de l’exécution, et corpus documents.](/images/platform/automation-knowledge-search-step.webp)
+
+</Frame>
+
 | Entrée   | Ce qu’elle contient                                                                   |
 | -------- | ------------------------------------------------------------------------------------- |
 | `query`  | Ce qu’il faut chercher, en mots, jusqu’à 2 000 caractères.                            |
@@ -42,6 +48,12 @@ L’étape renvoie `{ hits }`, le meilleur en premier. Aucun résultat signifie 
 | `similarity` | À quel point le sens du passage est proche de la requête, plus proche de 1 quand il est plus proche, quand la recherche par le sens l’a trouvé. |
 
 Une recherche garde chaque résultat qu’elle classe, aussi faible soit-il. Pour écarter les correspondances faibles, compare `similarity` dans une étape suivante.
+
+<Frame caption="Une exécution en direct dans Website relaunch : l’étape a lu la question de l’exécution, cherché dans les documents et renvoyé trois résultats.">
+
+![La page d’une exécution réussie en direct de Answer launch questions, avec l’étape Related sélectionnée. Son onglet Last run indique que l’étape a exécuté knowledge.search et lu la question de l’entrée de l’exécution, What happens on launch day?, qu’elle a reçu limit 3, cette query et corpus documents, et renvoyé hits, une liste de 3 éléments.](/images/platform/automation-knowledge-search-run.webp)
+
+</Frame>
 
 ## Ce qu’une recherche lit
 

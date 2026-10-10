@@ -21,6 +21,12 @@ nodes:
     prompt: 'Answer {{ input.question }} from these passages only, and say so when they do not answer it: {{ nodes.related.output.hits }}'
 ```
 
+<Frame caption="The search step in the editor: its query reads the run's question, and it hands its hits to a later step.">
+
+![The Editor tab of Answer launch questions, live, with No problems: Start, Related and End on the canvas, Related selected as a Knowledge · Search knowledge step that returns a list of hits. Beside the canvas, its Input holds limit 3, a query that reads the question of the run's input, and corpus documents.](/images/platform/automation-knowledge-search-step.webp)
+
+</Frame>
+
 | Input    | What it holds                                                                 |
 | -------- | ----------------------------------------------------------------------------- |
 | `query`  | What to search for, in words, up to 2,000 characters.                         |
@@ -42,6 +48,12 @@ The step returns `{ hits }`, best first. No hit means nothing matched, and the s
 | `similarity` | How close the passage's meaning is to the query, closer to 1 when closer, when the meaning search found it. |
 
 A search keeps every hit it ranks, however weak. To leave weak matches out, compare `similarity` in a later step.
+
+<Frame caption="A live run in Website relaunch: the step read the run's question, searched the documents and returned three hits.">
+
+![The page of a succeeded live run of Answer launch questions with the Related step selected. Its Last run tab says the step ran knowledge.search and read the question of the run input, What happens on launch day?, received limit 3, that query and corpus documents, and returned hits, a list of 3 items.](/images/platform/automation-knowledge-search-run.webp)
+
+</Frame>
 
 ## What a search reads
 
