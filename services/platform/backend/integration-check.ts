@@ -51,6 +51,7 @@ import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.t
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { checkPasswordConfirmationThrottle } from './auth/password-confirmations.integration.ts';
 import { checkStaleSessionReauthentication } from './auth/reauthenticate.integration.ts';
+import { checkSessionTrustFieldsAreServerOnly } from './auth/session-trust-fields.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
@@ -64464,6 +64465,23 @@ async function main(): Promise<void> {
               baseUrl,
               authCtx.orgId,
               'reauth',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
+        'checkSessionTrustFieldsAreServerOnly',
+        async () =>
+          checkSessionTrustFieldsAreServerOnly(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'trust-fields',
               'member',
             ),
             record,
