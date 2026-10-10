@@ -16,7 +16,6 @@ import {
   type CredentialLike,
   type CredentialVendor,
 } from './adapter';
-import { CredentialEditDialog } from './credential-edit-dialog';
 import { ReplaceSecretDialog } from './replace-secret-dialog';
 
 const DIALOGS = ['edit', 'replace', 'delete'] as const;
@@ -49,6 +48,7 @@ export function CredentialRowActions<
   vendor,
   siblingCount,
   adapter,
+  onEdit,
 }: {
   organizationId: string;
   credential: Cred;
@@ -56,6 +56,7 @@ export function CredentialRowActions<
   /** How many OTHER credentials the organization holds on this vendor. */
   siblingCount: number;
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
+  onEdit: () => void;
 }) {
   const { t } = useT('settings');
   const { toast } = useToast();
@@ -174,7 +175,7 @@ export function CredentialRowActions<
       key: 'edit',
       label: t('credentials.edit'),
       icon: Pencil,
-      onClick: () => dialogs.setOpen.edit(true),
+      onClick: onEdit,
       visible: vendor !== null,
       disabled: busy,
     },
@@ -199,16 +200,6 @@ export function CredentialRowActions<
         contentWidth="w-max min-w-[14rem]"
       />
 
-      {vendor !== null && (
-        <CredentialEditDialog
-          organizationId={organizationId}
-          credential={credential}
-          vendor={vendor}
-          adapter={adapter}
-          open={dialogs.isOpen.edit}
-          onOpenChange={dialogs.setOpen.edit}
-        />
-      )}
       {replaceable && (
         <ReplaceSecretDialog
           organizationId={organizationId}

@@ -25,6 +25,7 @@ import {
   type CredentialVendor,
 } from './adapter';
 import { CredentialAddDialog } from './credential-add-dialog';
+import { CredentialEditDialog } from './credential-edit-dialog';
 import { CredentialRowActions } from './credential-row-actions';
 
 /** The per-surface copy the shared table cannot name for itself. */
@@ -117,6 +118,13 @@ export function CredentialTable<
 }) {
   const { t } = useT('settings');
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<{
+    credential: Cred;
+    vendor: V;
+  } | null>(null);
+  const editingDeleted =
+    editing !== null &&
+    !credentials.some((c) => c.id === editing.credential.id);
 
   const vendorsByKey = useMemo(
     () => new Map(vendors.map((vendor) => [vendor.key, vendor])),
@@ -317,6 +325,14 @@ export function CredentialTable<
               vendor={row.original.vendor}
               siblingCount={row.original.siblingCount}
               adapter={adapter}
+              onEdit={() => {
+                if (row.original.vendor !== null) {
+                  setEditing({
+                    credential: row.original.credential,
+                    vendor: row.original.vendor,
+                  });
+                }
+              }}
             />
           </HStack>
         ),
@@ -364,6 +380,20 @@ export function CredentialTable<
         }}
         {...list.tableProps}
       />
+
+      {editing !== null && (
+        <CredentialEditDialog
+          organizationId={organizationId}
+          credential={editing.credential}
+          vendor={editing.vendor}
+          adapter={adapter}
+          open
+          deleted={editingDeleted}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+        />
+      )}
 
       {/* Mounted only while open: the picker holds draft secret material, and a
           closed dialog has no business keeping it in memory. */}
