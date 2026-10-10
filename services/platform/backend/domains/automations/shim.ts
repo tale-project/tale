@@ -349,13 +349,19 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         // JSON of its data, so the run's failure detail printed a raw
         // `{"code":…}` blob (2026-09-26 evaluation, D-09).
         // A refusal that knows its cause in the run record's words (the
-        // HTTP connector's statuses and blocked hosts) keeps it.
+        // HTTP connector's statuses and blocked hosts) keeps it. A usage
+        // limit stays `budget_exceeded`, as an llm step's does: it may
+        // have room at the next occurrence, where `connector_error` counts
+        // toward pausing a schedule that fails every time.
         if (error instanceof ConnectorError) {
+          const cause = failureCauseOf(error);
           throw new NodeFailure(
-            'connector_error',
+            cause?.reason === 'BUDGET_EXCEEDED'
+              ? 'budget_exceeded'
+              : 'connector_error',
             error.message,
             error.hint,
-            failureCauseOf(error),
+            cause,
           );
         }
         throw error;

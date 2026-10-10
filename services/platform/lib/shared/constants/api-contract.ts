@@ -631,5 +631,13 @@
  * headers, and `CREDENTIAL_UNKNOWN` (a warning) for a connector step that
  * names a credential its connector does not hold in service. The rate-limit
  * catalog gains `automation:http`, 120 calls a minute per organization.
+ *
+ * 3.32.0 — 2026-10-10: a `knowledge.search` connector node type searches the
+ * organization's knowledge from an automation and returns ranked passages,
+ * reading what the run may read (its project's documents, its automation's
+ * bound projects', or the hub's) and spending under the run's subject.
+ * `StepFailure.reason` gains `KNOWLEDGE_NOT_CONFIGURED` and
+ * `KNOWLEDGE_UNAVAILABLE`, and `BUDGET_EXCEEDED` for a step a usage limit
+ * refused — an `llm` step's refusal, which read `UNKNOWN`, now says so.
  */
-export const API_CONTRACT_VERSION = '3.31.0';
+export const API_CONTRACT_VERSION = '3.32.0';

@@ -302,6 +302,16 @@ runtime:
       explanation: Les automatisations d’une organisation peuvent faire un nombre limité d’appels HTTP.
       cause: Les automatisations de ton organisation ont fait plus de {perMinute} appels HTTP en une minute, ou {atOnce} à la fois.
       fix: Relance plus tard, ou appelle l’API pour moins d’éléments à la fois.
+    KNOWLEDGE_NOT_CONFIGURED:
+      title: La recherche dans les connaissances n’est pas configurée
+      explanation: Chercher dans les connaissances de l’organisation demande un modèle d’embedding, et aucun n’est configuré.
+      cause: L’organisation n’a pas de modèle d’embedding.
+      fix: Demande à un administrateur d’en choisir un dans Paramètres › Résidence des données, puis relance.
+    KNOWLEDGE_UNAVAILABLE:
+      title: La recherche dans les connaissances a échoué
+      explanation: Le fournisseur d’embedding n’a pas pu transformer la requête en recherche, donc rien n’a été cherché.
+      cause: Le fournisseur du modèle d’embedding de l’organisation a refusé l’appel ou a échoué.
+      fix: Relance ; si cela se reproduit, un administrateur peut vérifier le modèle d’embedding dans Paramètres › Résidence des données. Les détails techniques disent ce qui a échoué.
     LLM_OUTPUT_INVALID:
       title: La réponse du modèle ne correspondait pas
       explanation: L’étape a demandé au modèle une réponse structurée, et la réponse ne correspondait pas au schéma de sortie.
@@ -347,6 +357,11 @@ runtime:
       explanation: Une exécution ne peut effectuer qu’un nombre limité d’exécutions d’étapes, chaque élément et chaque passage compris. Celle-ci l’a atteint.
       cause: L’exécution a atteint {limit} exécutions d’étapes.
       fix: Répartis le travail sur plusieurs automatisations, ou traite moins d’éléments.
+    BUDGET_EXCEEDED:
+      title: Une limite d’utilisation a arrêté l’étape
+      explanation: Ce que l’étape dépense compte dans les limites qui s’appliquent à son exécution, et l’une d’elles n’a plus de marge.
+      cause: Une limite d’utilisation a refusé l’étape avant qu’elle ne dépense quoi que ce soit.
+      fix: Relance une fois la limite réinitialisée, ou demande à un administrateur de l’augmenter. Les détails techniques nomment la limite.
     EFFECT_IN_DOUBT_FAILED:
       title: Arrêtée sur une écriture interrompue
       explanation: L’exécution a été interrompue pendant un envoi vers un service, et une personne a choisi de la faire échouer.
