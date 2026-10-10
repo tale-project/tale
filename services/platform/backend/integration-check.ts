@@ -89,6 +89,7 @@ import { checkMentionHandles } from './domains/collab/mention-handles.integratio
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
+import { checkAutomationMessages } from './domains/connectors/notify.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
@@ -65029,6 +65030,10 @@ async function main(): Promise<void> {
       [
         'checkTaskNotificationAccess',
         () => checkTaskNotificationAccess(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAutomationMessages',
+        () => checkAutomationMessages(sql, authCtx, record),
       ],
       [
         'checkTaskSourceThread',
