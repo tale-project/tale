@@ -22,6 +22,14 @@ import type { McpCaller } from '../caller.ts';
 export interface SettingsContext {
   readonly sql: Sql;
   readonly caller: McpCaller;
+  /** The call a change is planned in: every change it names, and this
+   * one's place among them. Changes of one kind apply in the call's order,
+   * so a kind whose writer checks what its other resources hold reads here
+   * what the changes before this one leave them holding. */
+  readonly call?: {
+    readonly changes: readonly SettingsChange[];
+    readonly index: number;
+  };
 }
 
 /** One resource as its kind's native read answers it. */

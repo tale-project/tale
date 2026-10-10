@@ -10,6 +10,7 @@ import {
   identityOf,
   pageOf,
   parseSettingsConfig,
+  type SettingsActor,
   settingsActor,
   SettingsRefusalError,
 } from '../mcp/settings/kit.ts';
@@ -22,12 +23,15 @@ import type {
 import { followEmbeddingCredential } from './embedding-follow.ts';
 import {
   assertCredentialAdmin,
+  assertCredentialEdit,
   assertCredentialEndpointUrl,
   createCredential,
   credentialDependents,
   type CredentialListItem,
   deleteCredential,
+  editLeavesResolver,
   listCredentials,
+  newCredentialStanding,
   updateCredential,
 } from './service.ts';
 
@@ -137,6 +141,102 @@ function servingOf(config: unknown): unknown {
   ];
 }
 
+/** The provider and the name a credential change names, or null when it
+ * names none a credential can carry. Never throws: the change itself is
+ * refused for its id where it is planned. */
+function addressed(
+  change: SettingsChange,
+): { providerSlug: string; name: string } | null {
+  if (
+    change.op === 'set' &&
+    isRecord(change.config) &&
+    typeof change.config.providerSlug === 'string' &&
+    typeof change.config.name === 'string'
+  ) {
+    return {
+      providerSlug: change.config.providerSlug,
+      name: change.config.name.trim(),
+    };
+  }
+  const id = change.id ?? '';
+  const slash = id.indexOf('/');
+  const encoded = id.slice(slash + 1);
+  if (slash <= 0 || encoded === '' || /%(?![0-9A-Fa-f]{2})/.test(encoded)) {
+    return null;
+  }
+  return {
+    providerSlug: id.slice(0, slash),
+    name: decodeURIComponent(encoded),
+  };
+}
+
+/**
+ * The credentials of a provider as the changes before this one in its call
+ * leave them: a removed one gone, one set to be no default no longer the
+ * default. Changes of one kind apply in the call's order.
+ */
+function standingBefore(
+  ctx: SettingsContext,
+  rows: readonly CredentialListItem[],
+  providerSlug: string,
+): CredentialListItem[] {
+  const removed = new Set<string>();
+  const undefaulted = new Set<string>();
+  for (const earlier of ctx.call?.changes.slice(0, ctx.call.index) ?? []) {
+    if (earlier.kind !== 'provider-credential') continue;
+    const at = addressed(earlier);
+    if (at === null || at.providerSlug !== providerSlug) continue;
+    if (earlier.op === 'delete') removed.add(at.name);
+    else if (isRecord(earlier.config) && earlier.config.isDefault === false) {
+      undefaulted.add(at.name);
+    }
+  }
+  return rows
+    .filter((row) => !removed.has(row.name))
+    .map((row) =>
+      undefaulted.has(row.name) ? { ...row, isDefault: false } : row,
+    );
+}
+
+/**
+ * Refuse, reading only, what the writer refuses of an environment
+ * credential's status and default: a disabled default, a second default,
+ * and — for a stored one — disabling, or taking the default from, what the
+ * embedding model resolves.
+ */
+async function assertWritable(
+  ctx: SettingsContext,
+  scope: SettingsActor,
+  after: ReturnType<typeof providerEnvironmentCredentialSchema.parse>,
+): Promise<void> {
+  const rows = standingBefore(
+    ctx,
+    await listCredentials(ctx.sql, scope, after.providerSlug),
+    after.providerSlug,
+  );
+  const row = rows.find((entry) => entry.name === after.name);
+  if (row === undefined) {
+    newCredentialStanding(rows, after);
+    return;
+  }
+  const patch = {
+    envName: after.envName,
+    endpointUrl: after.endpointUrl,
+    modelAllowlist: after.modelAllowlist,
+    status: after.status,
+    isDefault: after.isDefault,
+  };
+  const { usedBy } = editLeavesResolver(row, patch)
+    ? await credentialDependents(ctx.sql, scope, row.id)
+    : { usedBy: [] };
+  assertCredentialEdit(row, patch, {
+    usedBy,
+    otherDefaults: rows.filter(
+      (entry) => entry.isDefault && entry.id !== row.id,
+    ).length,
+  });
+}
+
 export const providerCredentialSettings: SettingsKindHandler = {
   kind: 'provider-credential',
   access: async ({ caller }) => {
@@ -203,6 +303,12 @@ export const providerCredentialSettings: SettingsKindHandler = {
     if (after.endpointUrl !== null) {
       assertCredentialEndpointUrl(after.endpointUrl);
     }
+    const unchanged =
+      current !== null &&
+      configurationHash(after) === configurationHash(current.config);
+    // The writer's own checks of the provider's defaults, against what the
+    // changes before this one in the call leave its credentials holding.
+    if (!unchanged) await assertWritable(ctx, scope, after);
     const effects: SettingsEffect[] = [];
     // A new active default, or a credential that serves differently now.
     const changesServing =
@@ -211,13 +317,7 @@ export const providerCredentialSettings: SettingsKindHandler = {
         : configurationHash(servingOf(after)) !==
           configurationHash(servingOf(current.config));
     if (changesServing) effects.push('changes-serving-account');
-    return {
-      after,
-      unchanged:
-        current !== null &&
-        configurationHash(after) === configurationHash(current.config),
-      effects,
-    };
+    return { after, unchanged, effects };
   },
   apply: async (ctx, change, expectedHash) => {
     const scope = await settingsActor(ctx);

@@ -337,7 +337,11 @@ export async function prepareChanges(
   const prepared: PreparedChange[] = [];
   const seen = new Set<string>();
   for (const [index, change] of changes.entries()) {
-    const outcome = await planOne(ctx, registry, change);
+    const outcome = await planOne(
+      { ...ctx, call: { changes, index } },
+      registry,
+      change,
+    );
     const { key } = outcome.planned;
     const twice = seen.has(key);
     seen.add(key);

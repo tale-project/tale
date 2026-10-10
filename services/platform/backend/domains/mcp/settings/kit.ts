@@ -270,17 +270,21 @@ export interface SettingsActor {
   readonly role: string;
 }
 
-const EMAILS = new WeakMap<SettingsContext, Promise<string | undefined>>();
+const EMAILS = new WeakMap<
+  SettingsContext['caller'],
+  Promise<string | undefined>
+>();
 
-/** The caller's sign-in address, read once per call: the writers record it
- * on their audit rows, and the deployment's editors are listed by it. */
+/** The caller's sign-in address, read once per request — every change a
+ * call plans shares it: the writers record it on their audit rows, and the
+ * deployment's editors are listed by it. */
 export function callerEmail(ctx: SettingsContext): Promise<string | undefined> {
-  let email = EMAILS.get(ctx);
+  let email = EMAILS.get(ctx.caller);
   if (email === undefined) {
     email = ctx.sql<{ email: string | null }[]>`
       SELECT "email" FROM "user" WHERE "id" = ${ctx.caller.userId} LIMIT 1
     `.then((rows) => rows[0]?.email ?? undefined);
-    EMAILS.set(ctx, email);
+    EMAILS.set(ctx.caller, email);
   }
   return email;
 }

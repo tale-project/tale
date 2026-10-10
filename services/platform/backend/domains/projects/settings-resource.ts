@@ -5,6 +5,7 @@ import {
   managedAgentToolsSchema,
   managedProjectInstructionsSchema,
 } from '@tale/shared/schemas/managed-configuration';
+import type { SettingsEffect } from '@tale/shared/schemas/settings-kinds';
 import { configurationHash } from '@tale/shared/utils/configuration-hash';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -27,6 +28,7 @@ import type {
 import {
   assertProjectActive,
   assertWritable,
+  checkAgentModelConfiguration,
   getProjectAgent,
   getProjectAuthContext,
   listProjectAgents,
@@ -173,6 +175,18 @@ interface ManagedKind {
     auth: ProjectAuthContext,
     parts: readonly string[],
   ): Promise<void>;
+  /** The checks the native writer makes of what a change asks for,
+   * reading only, so a change it would refuse is refused before anything
+   * in the call is applied. */
+  check?(
+    sql: Sql,
+    auth: ProjectAuthContext,
+    parts: readonly string[],
+    after: unknown,
+  ): Promise<void>;
+  /** What a change does beyond replacing a value, from what is stored and
+   * what it asks for. */
+  effects?(current: unknown, after: unknown): readonly SettingsEffect[];
   /** The native writer, given the config a plan took. */
   write(
     tx: TransactionSql,
@@ -222,12 +236,18 @@ function managedKind(spec: ManagedKind): SettingsKindHandler {
     plan: async (ctx, change, current) => {
       const id = idOf(change);
       const after = parseSettingsConfig(spec.schema, change.config, spec.what);
-      await spec.gate(ctx.sql, await projectAuthOf(ctx), partsOf(id));
+      const auth = await projectAuthOf(ctx);
+      await spec.gate(ctx.sql, auth, partsOf(id));
+      const unchanged =
+        current !== null &&
+        configurationHash(after) === configurationHash(current.config);
+      // A change that writes nothing meets no writer.
+      if (!unchanged) await spec.check?.(ctx.sql, auth, partsOf(id), after);
       return {
         after,
-        unchanged:
-          current !== null &&
-          configurationHash(after) === configurationHash(current.config),
+        unchanged,
+        effects:
+          current === null ? [] : (spec.effects?.(current.config, after) ?? []),
       };
     },
     apply: async (ctx, change, expectedHash) => {
@@ -373,6 +393,17 @@ export const agentToolsSettings = managedKind({
   listPage: agentListPage(readAgentTools),
 });
 
+/** What serves an agent's runs: its runtime, its model and their provider. */
+function servingOf(config: unknown): unknown {
+  return isRecord(config)
+    ? [
+        config.harness ?? null,
+        config.model ?? null,
+        config.modelProvider ?? null,
+      ]
+    : null;
+}
+
 export const agentModelSettings = managedKind({
   kind: 'agent-model',
   idFields: ['projectId', 'agentId'],
@@ -381,6 +412,22 @@ export const agentModelSettings = managedKind({
   schema: managedAgentModelSchema,
   read: readAgentModel,
   gate: gateAgent,
+  check: async (sql, auth, [projectId = '', agentId = ''], after) => {
+    const agent = await getProjectAgent(sql, auth, projectId, agentId);
+    if (agent === null) return;
+    await checkAgentModelConfiguration(
+      sql,
+      auth,
+      agent,
+      managedAgentModelSchema.parse(after),
+    );
+  },
+  // Another runtime, model or provider serves the agent's next runs.
+  effects: (current, after) =>
+    configurationHash(servingOf(current)) ===
+    configurationHash(servingOf(after))
+      ? []
+      : ['changes-serving-account'],
   write: (tx, auth, config, expectedHash) =>
     updateAgentModelConfiguration(
       tx,

@@ -13,7 +13,9 @@ import { configurationHash } from '@tale/shared/utils/configuration-hash';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { agents, projects } = vi.hoisted(() => ({
+const { agents, projects, uncallable } = vi.hoisted(() => ({
+  /** Models the organization cannot call, as its serving listing says. */
+  uncallable: new Set<string>(),
   projects: new Map<
     string,
     { instructions: string; archived: boolean; editable: boolean }
@@ -68,6 +70,16 @@ vi.mock('./service.ts', async (original) => {
     }
     return found;
   };
+  /** The model check the writer makes: a model the organization cannot
+   * call is refused, as the serving listing refuses it. */
+  const checkModel = (config: { model: string }) => {
+    if (uncallable.has(config.model)) {
+      throw new actual.ProjectError(
+        'PROJECT_AGENT_MODEL_INVALID',
+        `Model "${config.model}" is not available to this organization.`,
+      );
+    }
+  };
   const cas = (current: unknown, expected: string) => {
     if (configurationHash(current) !== expected) {
       throw new ConfigurationError(
@@ -78,6 +90,12 @@ vi.mock('./service.ts', async (original) => {
   };
   return {
     ...actual,
+    checkAgentModelConfiguration: async (
+      _sql: unknown,
+      _auth: unknown,
+      _agent: unknown,
+      config: { model: string },
+    ) => checkModel(config),
     getProjectAuthContext: async (
       _sql: unknown,
       member: { organizationId: string; userId: string; role: string },
@@ -237,6 +255,7 @@ vi.mock('./service.ts', async (original) => {
           },
           expected,
         );
+        checkModel(config);
         agents.set(`${config.projectId}/${config.agentId}`, {
           ...entry,
           harness: config.harness,
@@ -323,6 +342,7 @@ function agent(
 beforeEach(() => {
   projects.clear();
   agents.clear();
+  uncallable.clear();
   vi.clearAllMocks();
 });
 
@@ -582,5 +602,67 @@ describe('changing project settings', () => {
     ]);
     expect(plan.changes[0]?.refusal?.code).toBe('PROJECT_AGENT_MANAGED');
     expect(updateAgentModelConfiguration).not.toHaveBeenCalled();
+  });
+});
+
+describe('what the agent model writer refuses, planned before anything is applied [MCP-R11]', () => {
+  const before = {
+    projectId: 'p-1',
+    agentId: 'a-1',
+    harness: 'claude-code',
+    model: 'model-a',
+    modelProvider: 'provider-a',
+  };
+
+  it('refuses a model the organization cannot call, and applies nothing else of the call', async () => {
+    project('p-1');
+    agent('p-1/a-1');
+    uncallable.add('model-x');
+    const changes = [
+      {
+        kind: 'project-instructions' as const,
+        op: 'set' as const,
+        config: { projectId: 'p-1', instructions: 'Answer in one line.' },
+      },
+      {
+        kind: 'agent-model' as const,
+        op: 'set' as const,
+        config: { ...before, model: 'model-x' },
+      },
+    ];
+    const plan = await planSettings(contextOf('editor'), registry, changes);
+    expect(plan.changes[1]?.refusal).toMatchObject({
+      code: 'PROJECT_AGENT_MODEL_INVALID',
+    });
+    const instructions = projects.get('p-1')?.instructions;
+    const answer = await applySettings(contextOf('editor'), registry, changes, {
+      'project-instructions/p-1': configurationHash({
+        projectId: 'p-1',
+        instructions,
+      }),
+      'agent-model/p-1/a-1': configurationHash(before),
+    });
+    expect(answer).toMatchObject({
+      code: 'PROJECT_AGENT_MODEL_INVALID',
+      applied: [],
+    });
+    expect(projects.get('p-1')?.instructions).toBe(instructions);
+  });
+
+  it('names a change of the model as one that changes what serves the agent', async () => {
+    project('p-1');
+    agent('p-1/a-1');
+    const plan = await planSettings(contextOf('editor'), registry, [
+      {
+        kind: 'agent-model',
+        op: 'set',
+        config: { ...before, modelProvider: 'provider-b' },
+      },
+    ]);
+    expect(plan.changes[0]).toMatchObject({
+      action: 'update',
+      effects: ['changes-serving-account'],
+      risk: 'high',
+    });
   });
 });
