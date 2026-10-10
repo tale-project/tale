@@ -174,7 +174,7 @@ blank wizard scaffold:
   template: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   code: n/a
   condition: '{"nodes":{"added":0,"removed":0,"changed":1}}'
-  data: n/a
+  data: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   add node: '{"nodes":{"added":1,"removed":0,"changed":0}}'
   remove node: '{"nodes":{"added":0,"removed":1,"changed":0}}'
   rename node: '{"nodes":{"added":0,"removed":0,"changed":0,"renamed":1}}'
@@ -189,7 +189,7 @@ blank wizard scaffold, equipped:
   template: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   code: n/a
   condition: '{"nodes":{"added":0,"removed":0,"changed":1}}'
-  data: n/a
+  data: '{"nodes":{"added":0,"removed":0,"changed":1}}'
   add node: '{"nodes":{"added":1,"removed":0,"changed":0}}'
   remove node: '{"nodes":{"added":0,"removed":1,"changed":0}}'
   rename node: '{"nodes":{"added":0,"removed":0,"changed":0,"renamed":1}}'
