@@ -10,7 +10,7 @@
  * and every API equally accepts the equivalent JSON object.
  */
 
-import type { NodeRunRecord } from './record/types';
+import type { NodeRunRecord, StepFailure } from './record/types';
 
 export type Json =
   | null
@@ -114,17 +114,92 @@ export interface NodeDef {
   automation?: string;
 }
 
-/** A first-class acceptance test stored with the automation. */
+/**
+ * A first-class acceptance test stored with the automation: an input, the
+ * calls it stands in for, and what the run must do.
+ *
+ * A stand-in replaces a node's CALL, never the node: the skip rules apply as
+ * written, the node's input is still resolved and its effect recorded, and
+ * only then does the simulated output (or failure) take the place of what
+ * the connector, model, agent, called automation or code would have
+ * answered. Stand-ins name top-level nodes only, and apply to mock runs.
+ */
 export interface AutomationTest {
   name: string;
+  /** What the test is about, for people; never interpreted. */
+  description?: string;
   input: Json;
-  expect?: {
-    output?: unknown;
-    /** Each listed effect must occur; `input` is compared deeply when
-     * given. */
-    effects?: Array<{ connector: string; input?: unknown }>;
-  };
+  /** Node id → the output that node returns in this test instead of
+   * calling. For a forEach node, a list: item i returns entry i. */
+  mocks?: Record<string, Json>;
+  /** Node id → the error that node fails with in this test instead of
+   * calling; its onError applies. */
+  failures?: Record<string, string>;
+  expect?: TestExpectation;
 }
+
+/** What happened to a node in a run, as a test expects it. `failed`: it
+ * failed and the run went on (`onError: continue`). */
+export type ExpectedNodeState = 'ran' | 'skipped' | 'failed';
+
+/** One effect a test expects — or, with `absent`, expects not to happen. */
+export interface ExpectedEffect {
+  connector: string;
+  /** Only an effect of this node; a subautomation's inner effects read
+   * `<node>/<inner>`. */
+  node?: string;
+  /** The effect's input equals this exactly. */
+  input?: unknown;
+  /** The effect's input contains this, the way `outputIncludes` compares. */
+  inputIncludes?: unknown;
+  /** No such effect occurs. */
+  absent?: true;
+}
+
+/** What a run must do for its test to pass. Every expectation given is
+ * judged; a run that ends otherwise than expected fails the test. */
+export interface TestExpectation {
+  /** The run's output equals this exactly. */
+  output?: unknown;
+  /** The run's output contains this: every listed key matches, recursively;
+   * lists compare position by position and must have the same length;
+   * unlisted keys are not checked. */
+  outputIncludes?: unknown;
+  /** Each entry must occur — or, with `absent: true`, must not occur. */
+  effects?: ExpectedEffect[];
+  /** What happened to these nodes. */
+  nodes?: Record<string, ExpectedNodeState>;
+  /** The run must fail — at this node when it is named, with an error that
+   * contains this message (any case) when it is given. Excludes `output`
+   * and `outputIncludes`. */
+  failure?: { node?: string; message?: string };
+}
+
+/**
+ * The bench a run uses: a test's stand-ins, plus a narrower scope for a
+ * step test. The scope (`upTo`, `only`, `item`) is for a run executed in
+ * one call; a stored run takes a test's stand-ins only. Every bench applies
+ * to mock runs only.
+ */
+export interface RunBench {
+  mocks?: Record<string, Json>;
+  failures?: Record<string, string>;
+  /** Run only what this node needs, then stop: the run's output is this
+   * node's output. */
+  upTo?: string;
+  /** Run this node alone on pinned data: every node it reads must be in
+   * `mocks`, and is not evaluated. */
+  only?: string;
+  /** With `only` on a forEach node: run this item alone (0-based). */
+  item?: number;
+  /** The test this bench came from. */
+  test?: { name: string; index?: number };
+}
+
+/** How a bench stood in for a node: its call returned a simulated output,
+ * it was pinned data, its call failed as the test said, or the step test
+ * left it out. */
+export type BenchMark = 'mocked' | 'pinned' | 'failed' | 'left-out';
 
 export interface Automation {
   /** Document schema version; v1 documents declare `version: 1`. */
@@ -215,6 +290,11 @@ export interface NodeTrace {
   note?: string;
   error?: string;
   ms?: number;
+  /** How a bench stood in for the node, when one did. */
+  bench?: BenchMark;
+  /** Run alone on pinned data (`only`), the node ran although its `when`
+   * read false. */
+  whenWouldSkip?: true;
 }
 
 /** An external side effect (message sent, record written, model called…) in
@@ -254,6 +334,10 @@ export interface RunError {
   nodeId?: string;
   message: string;
   hint?: string;
+  /** Why the step — or the document output — failed, as a reason a reader
+   * explains in their own language; absent for a run refused before its
+   * steps (its input) or stopped between them. */
+  failure?: StepFailure;
 }
 
 export interface RunResult {
@@ -266,4 +350,14 @@ export interface RunResult {
   /** What the run did at each unit of work, when the caller passed a
    * recorder that keeps one (`ExecuteOptions.recorder`). */
   record?: NodeRunRecord[];
+  /** A step test's scope: the run's output is this node's (this item's)
+   * output, and the document output was not evaluated. */
+  focus?: { node: string; kind: 'upTo' | 'only'; item?: number };
+  /** The run stopped between steps: it ran out of time, or its caller
+   * cancelled it. */
+  stoppedBy?: 'time_limit' | 'cancelled';
+  /** Nodes the bench stood in for whose stand-in the run never used: it
+   * skipped them, left them out or never got to them, or they ran over no
+   * items. */
+  unusedMocks?: string[];
 }

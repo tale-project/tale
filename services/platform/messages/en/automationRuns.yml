@@ -302,6 +302,11 @@ runtime:
       explanation: The run was interrupted while sending to a service, and a person chose to fail it.
       cause: A person chose to fail the run here, because the write may already have reached its service.
       fix: Check the service for the write, then run again if it's missing.
+    SIMULATED_FAILURE:
+      title: The test made this step fail
+      explanation: The test made this step fail on purpose, to check what happens next.
+      cause: '{messageLabel, select, none {The test failed it without a message.} other {The test failed it with {messageLabel}.}}'
+      fix: To run the step as written in this test, remove it from the test's simulated failures.
     UNKNOWN:
       title: The step failed
       explanation: Tale couldn't tell why. The technical details have the engine's own words.

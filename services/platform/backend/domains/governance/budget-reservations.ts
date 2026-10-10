@@ -46,8 +46,8 @@ export function budgetAdmissionQueueKey(organizationId: string): string {
  * snapshot at its first statement, so an admission committed in between
  * would be invisible to it: the bump turns that into a 40001 at this upsert,
  * marked with the queue key so `transactSerializable` retries holding the
- * key as a session lock from before its BEGIN — the audit chain head's
- * pattern. Take it before the locks of the rows the admission goes on to
+ * key as a session lock from before its BEGIN — a task comment's pattern
+ * (`queuedOnTask`). Take it before the locks of the rows the admission goes on to
  * write (a thread's claim), so every admission acquires them in one order.
  */
 export async function lockBudgetAdmission(

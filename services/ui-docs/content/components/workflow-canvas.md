@@ -12,6 +12,7 @@ import { FlowStepList } from '@tale/ui/flow/flow-step-list';
 import { FlowLegend } from '@tale/ui/flow/flow-legend';
 import { FlowNodeStatusBadge } from '@tale/ui/flow/node-status';
 import { layoutFlowGraph, flowNodeSize } from '@tale/ui/flow/layout';
+import { diffHighlight, mergeFlowGraphs } from '@tale/ui/flow/diff';
 ```
 
 ## Draw a workflow
@@ -107,6 +108,40 @@ Pass a run as `overlay` (where each node ended) or `playback` (a moment of a rep
 
 Pass `paths` and `highlight` to bring one path, one branch or a set of nodes forward and step back from the rest. See [Workflow paths](/docs/components/workflow-paths).
 
+## Compare two graphs
+
+<Demo name="flow/diff" />
+
+`mergeFlowGraphs(before, after, changed)` draws two versions of a workflow as one graph: every node of the newer version, and each node only the older one had, right after the node it followed there. Pass the graph it answers to the canvas, and the overlay it answers as `diff`. In this excerpt, `v4` and `v5` are the two versions' graphs and `changes` holds your words for what changed in each node:
+
+```tsx
+const { graph, diff } = mergeFlowGraphs(v4, v5, (id) => changes[id]);
+
+<WorkflowCanvas
+  graph={graph}
+  diff={diff}
+  aria-label="Changes from v4 to v5"
+  layoutKey="tickets:v4..v5"
+/>;
+```
+
+The canvas only knows the two graphs' shapes; whether a node's prompt or model changed is for your app to work out. `changed(id)` answers, for a node, `{ kind, summary }`: `kind` is `changed`, `renamed`, `added` or `removed`, and `summary` your words, such as "Model changed". Leave a node out when nothing changed. A node only one version has is added or removed without your answer, and a node whose kind changed under the same id, such as a step that became a condition, reads as changed. For a rename, answer `{ kind: 'renamed', renamedFrom: 'Answer', beforeId: 'answer' }`: the old name in words and the node's id in the older version. The canvas then draws one box, and the lines the old id had count as its own.
+
+Each box says what became of it, and keeps its size, so the layout does not change for the marks:
+
+- An added box has a green frame and an **Added** badge.
+- A removed box has a red frame, a hatched surface, its title struck through, and a **Removed** badge.
+- A changed box has an amber frame and a **Changed** badge; its foot says your `summary`.
+- A renamed box has an amber frame and a **Renamed** badge; its foot says its old name, such as "Was Answer".
+
+A condition shows its badge in its pill, and your words in its tooltip. A frame only one version has takes its colour and its badge.
+
+Two lines are the same line when they join the same two nodes and are of the same kind; a line that changed its kind reads as one removed and one added. A line only the newer version draws is green with a plus at its middle, and one only the older version drew is red with a minus; a Yes or No line carries the sign in its own pill, such as "− Yes". Every other line is drawn in the plain line colour, Yes and No included, so no green or amber reads as a change. A pointer resting on a changed line reads "New connection" or "Removed connection". An older line that would close a loop, such as between two nodes that swapped places, is left out, and so is an older frame the merged graph cannot draw; the nodes still say what changed.
+
+The canvas adds lines to the legend for its marks. Each box is named with its change, such as "Classify (Changed)", and described with your words. The List view shows each row's badge, keeps a removed row where it stood, and says a condition's change on the step it guards. `diff` takes the place of a run: if you also pass `overlay`, `playback` or `compare`, the canvas shows the two versions and warns in development.
+
+To show one version's own graph with what changed brought forward, pass `diffHighlight(graph, diff)` as `highlight`: the boxes that changed are ringed and their lines stand out, and nothing else steps back. The demo's **v4** and **v5** do this.
+
 ## Use the keyboard
 
 The chart is one Tab stop: the selected node, else the node focused last, else Start. From there:
@@ -149,6 +184,7 @@ Viewport moves ease out over the duration tokens: zoom 150 ms, reveal 200 ms, re
 | `controlsId` | `string` | — | The panel a node opens. |
 | `overlay` | `FlowRunOverlay` | — | A run without time: where each node ended. |
 | `playback` | `{ timeline, t }` | — | A run at moment `t`; wins over `overlay`. |
+| `diff` | `FlowDiffOverlay` | — | Two versions on one chart, from `mergeFlowGraphs`; wins over `overlay`, `playback` and `compare`. |
 | `focusFailure` | `boolean` | `true` | Brings a failed run's way to its failure forward. |
 | `paths` | `FlowPath[]` | — | Lets a pointer on a condition or a Yes/No label highlight its paths. |
 | `highlight` / `onHighlightChange` | `FlowHighlight \| null` | — | Your highlight wins over the canvas's own; the callback reports the canvas's own. |

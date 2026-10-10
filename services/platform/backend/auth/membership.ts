@@ -49,9 +49,8 @@ export class MembershipError extends Error {
 
 /**
  * All org memberships of a user (disabled rows included — callers filter),
- * in a STABLE order (by organization id): the sign-in audit walks this list
- * taking one audit-chain lock per organization inside one transaction, and
- * every walker must take them in the same order or two of them deadlock.
+ * in a STABLE order (by organization id), so every walker (the sign-in
+ * audit writes one row per organization) visits them the same way.
  */
 export async function getUserOrganizations(
   sql: Sql | TransactionSql,

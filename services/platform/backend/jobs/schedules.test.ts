@@ -15,7 +15,7 @@ function timeOf(name: string): { hour: number; minute: number } {
 
 describe('the daily governance schedules stay spaced', () => {
   const releases = timeOf('governance.effect_hold_releases');
-  const verify = timeOf('audit.integrity_check');
+  const verify = timeOf('audit.chain_check');
   const sweep = timeOf('governance.retention_cleanup');
 
   test('releases run before the sweep that frees their data', () => {

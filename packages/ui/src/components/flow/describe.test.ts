@@ -6,6 +6,7 @@ import {
   flowListFormat,
   type FlowTranslate,
 } from './describe';
+import { mergeFlowGraphs } from './diff/diff';
 import { flowStateFromOverlay } from './playback/derive-state';
 import {
   branchFlowGraph,
@@ -172,5 +173,61 @@ describe('describeFlowGraph', () => {
     expect(said.explanations.get('__gate:urgent')).toEqual([
       'compare.side(label=compare.b, state=urgent of Classify (true) is true, so Urgent ran)',
     ]);
+  });
+});
+
+describe('describeFlowGraph comparing two versions', () => {
+  const before = branchFlowGraph();
+  const after = branchFlowGraph();
+  const { graph, diff } = mergeFlowGraphs(before, after, (id) => {
+    if (id === 'classify')
+      return { kind: 'changed', summary: 'Prompt and model changed' };
+    if (id === 'merge')
+      return { kind: 'renamed', renamedFrom: 'Combine', beforeId: 'merge' };
+    if (id === '__gate:urgent')
+      return { kind: 'changed', summary: 'Now reads the priority' };
+    return undefined;
+  });
+  const said = describeFlowGraph(graph, {
+    t,
+    tIssues: t,
+    list: flowListFormat('en'),
+    diff,
+    // Two versions take the place of a run.
+    run: flowStateFromOverlay(graph, branchRunOverlay()),
+  });
+
+  it('names each box with its change and puts the host’s words on its strip', () => {
+    expect(said.names.get('classify')).toBe(
+      'node.rowWithDetail(label=Classify, detail=diff.nodeState(kind=changed))',
+    );
+    expect(said.strips.get('classify')).toBe('Prompt and model changed');
+    expect(said.descriptions.get('classify')).toMatch(
+      /^node\.position\(index=3, count=13\)\. Prompt and model changed\./,
+    );
+    // A box the change leaves alone says what it reads, as without one.
+    expect(said.names.get('fetch')).toBe('Fetch');
+    expect(said.strips.get('fetch')).toBe(
+      'list.reads(list=run input (ticket))',
+    );
+  });
+
+  it('says a renamed box’s old name, and a changed condition on the step it guards', () => {
+    expect(said.names.get('merge')).toBe(
+      'node.rowWithDetail(label=Merge, detail=diff.nodeState(kind=renamed))',
+    );
+    expect(said.strips.get('merge')).toBe('diff.wasNamed(from=Combine)');
+    expect(said.names.get('__gate:urgent')).toBe(
+      'node.rowWithDetail(label=gate.name(node=Urgent, condition=urgent of Classify is true), detail=diff.nodeState(kind=changed))',
+    );
+    expect(said.lines.get('urgent')).toContain(
+      'node.rowWithDetail(label=gate.name(node=Urgent, condition=urgent of Classify is true), detail=diff.nodeState(kind=changed))',
+    );
+    // A condition has no strip: a pointer reads the host's words in its
+    // tooltip, and the List view on the step it guards.
+    expect([...said.explanations]).toEqual([
+      ['__gate:urgent', ['Now reads the priority']],
+    ]);
+    expect(said.lines.get('urgent')).toContain('Now reads the priority');
   });
 });

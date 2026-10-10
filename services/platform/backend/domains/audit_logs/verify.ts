@@ -24,6 +24,11 @@ import type { AuditLogRow } from './types.ts';
  * receipt; a scrubbed row with NO matching receipt counts into
  * `unsignedScrubCount` (the 0.5 stand-in for the 0.4 signed-checkpoint
  * mismatch: flag-without-receipt is exactly what a forgery would look like).
+ *
+ * Order: rows sealed before chain positions existed (`chain_seq` NULL) come
+ * first, in the (ts, id) order they were chained in; every row the sealer
+ * chained follows in `chain_seq` order. A row not sealed yet is no break —
+ * it is counted as awaiting its seal and the walk passes it by.
  */
 export interface VerifyChainResult {
   valid: boolean;
@@ -33,7 +38,12 @@ export interface VerifyChainResult {
   lastVerifiedTimestamp?: number;
   lastVerifiedId?: string;
   lastVerifiedHash?: string;
+  /** Position of the last verified row; absent while the walk is still in
+   * the rows sealed before positions existed. */
+  lastVerifiedSeq?: string;
   unsignedScrubCount: number;
+  /** Rows written and not sealed yet, and when the oldest was written. */
+  awaitingSeal: { count: number; oldestTimestamp?: number };
   firstBrokenAt?: {
     logId: string;
     timestamp: number;
@@ -57,8 +67,11 @@ const VERIFY_COLUMNS = `
   request_id AS "requestId", ts::float8 AS "timestamp", status,
   error_message AS "errorMessage", metadata,
   integrity_hash AS "integrityHash", previous_hash AS "previousHash",
-  pii_scrubbed AS "piiScrubbed"
+  chain_seq::text AS "chainSeq", pii_scrubbed AS "piiScrubbed"
 `;
+
+/** Rows a resume may have to skip past at its anchor's timestamp. */
+const SAME_TS_SLACK = 50;
 
 export async function verifyAuditChain(
   sql: Sql,
@@ -67,6 +80,9 @@ export async function verifyAuditChain(
     maxEntries?: number;
     fromTimestamp?: number;
     afterId?: string;
+    /** The anchor's chain position, once the walk has passed the rows
+     * sealed before positions existed. */
+    afterSeq?: string;
     previousExpectedHash?: string;
     /** Rows with `ts` below this may have been reaped by the org's retention
      * sweep (its current cutoff). A resume anchor (`afterId` at
@@ -78,38 +94,68 @@ export async function verifyAuditChain(
   const maxEntries = Math.min(Math.max(1, args.maxEntries ?? 1000), 5000);
   const fromTs = args.fromTimestamp ?? null;
   const afterId = args.afterId ?? null;
+  const afterSeq = args.afterSeq ?? null;
+  // A missing anchor that was old enough for the sweep to have reaped it (a
+  // job outage longer than the window, or a backlog that outpaced the daily
+  // page) re-anchors on the first survivor: its successors' linkage still
+  // proves the chain from there on, and holding the walk to the reaped row's
+  // hash would report retention as tampering — a false verdict a broken pass
+  // never advances past.
+  const reaped =
+    args.reapedBefore !== undefined &&
+    fromTs !== null &&
+    fromTs < args.reapedBefore;
 
-  const rows = await sql<AuditLogRow[]>`
-    SELECT ${sql.unsafe(VERIFY_COLUMNS)} FROM app.audit_logs
-    WHERE org_id = ${organizationId}
-      AND (${fromTs}::bigint IS NULL OR ts >= ${fromTs})
-    ORDER BY ts ASC, id ASC
-    LIMIT ${maxEntries + 50}
-  `;
-  // Exact resume: rows up to and INCLUDING afterId are skipped, so
-  // same-timestamp siblings the `>=` re-returned still get verified.
-  let startIndex = 0;
+  const positioned = (afterPosition: string | null, limit: number) =>
+    sql<AuditLogRow[]>`
+      SELECT ${sql.unsafe(VERIFY_COLUMNS)} FROM app.audit_logs
+      WHERE org_id = ${organizationId} AND chain_seq IS NOT NULL
+        AND (${afterPosition}::bigint IS NULL OR chain_seq >= ${afterPosition}::bigint)
+      ORDER BY chain_seq ASC
+      LIMIT ${limit}
+    `;
+
+  let rows: AuditLogRow[];
   let reanchored = false;
-  if (afterId !== null) {
-    const idx = rows.findIndex((row) => row.id === afterId);
-    if (idx !== -1) {
-      startIndex = idx + 1;
-    } else if (
-      args.reapedBefore !== undefined &&
-      fromTs !== null &&
-      fromTs < args.reapedBefore
+  if (afterSeq !== null) {
+    // The anchor is read with the rest, to tell it present from missing.
+    const read = await positioned(afterSeq, maxEntries + 2);
+    if (read[0]?.chainSeq === afterSeq) {
+      rows = read.slice(1);
+    } else {
+      rows = read;
+      reanchored = afterId !== null && reaped;
+    }
+  } else {
+    const legacy = await sql<AuditLogRow[]>`
+      SELECT ${sql.unsafe(VERIFY_COLUMNS)} FROM app.audit_logs
+      WHERE org_id = ${organizationId} AND chain_seq IS NULL
+        AND integrity_hash IS NOT NULL
+        AND (${fromTs}::bigint IS NULL OR ts >= ${fromTs})
+      ORDER BY ts ASC, id ASC
+      LIMIT ${maxEntries + SAME_TS_SLACK}
+    `;
+    // Exact resume: rows up to and INCLUDING afterId are skipped, so
+    // same-timestamp siblings the `>=` re-returned still get verified.
+    let startIndex = 0;
+    if (afterId !== null) {
+      const idx = legacy.findIndex((row) => row.id === afterId);
+      if (idx !== -1) startIndex = idx + 1;
+      else reanchored = reaped;
+    }
+    rows = legacy.slice(startIndex);
+    // Past the rows sealed before positions existed, the chain goes on in
+    // the sealer's order.
+    if (
+      rows.length <= maxEntries &&
+      legacy.length < maxEntries + SAME_TS_SLACK
     ) {
-      // The anchor row is gone and was old enough for the sweep to have
-      // reaped it (a job outage longer than the window, or a backlog that
-      // outpaced the daily page). Its successors' linkage still proves the
-      // chain from the first survivor on; holding the walk to the reaped
-      // row's hash would report retention as tampering — a false verdict a
-      // broken pass never advances past.
-      reanchored = true;
+      rows = rows.concat(await positioned(null, maxEntries + 1 - rows.length));
     }
   }
-  const walk = rows.slice(startIndex, startIndex + maxEntries);
-  const truncated = rows.length - startIndex > maxEntries;
+  const walk = rows.slice(0, maxEntries);
+  const truncated = rows.length > maxEntries;
+  const awaitingSeal = await countAwaitingSeal(sql, organizationId);
 
   const scrubbedIds = walk
     .filter((row) => row.piiScrubbed === true)
@@ -146,14 +192,9 @@ export async function verifyAuditChain(
         verifiedCount,
         checkpointsVerified: 0,
         truncated,
-        ...(lastVerified !== undefined
-          ? {
-              lastVerifiedTimestamp: lastVerified.timestamp,
-              lastVerifiedId: lastVerified.id,
-              lastVerifiedHash: lastVerified.integrityHash,
-            }
-          : {}),
+        ...verifiedThrough(lastVerified),
         unsignedScrubCount,
+        awaitingSeal,
         firstBrokenAt: {
           logId: row.id,
           timestamp: row.timestamp,
@@ -177,19 +218,14 @@ export async function verifyAuditChain(
           verifiedCount,
           checkpointsVerified: 0,
           truncated,
-          ...(lastVerified !== undefined
-            ? {
-                lastVerifiedTimestamp: lastVerified.timestamp,
-                lastVerifiedId: lastVerified.id,
-                lastVerifiedHash: lastVerified.integrityHash,
-              }
-            : {}),
+          ...verifiedThrough(lastVerified),
           unsignedScrubCount,
+          awaitingSeal,
           firstBrokenAt: {
             logId: row.id,
             timestamp: row.timestamp,
             expected: recomputed,
-            actual: row.integrityHash,
+            actual: row.integrityHash ?? '',
           },
           ...reanchorFlag,
         };
@@ -205,15 +241,49 @@ export async function verifyAuditChain(
     verifiedCount,
     checkpointsVerified: 0,
     truncated,
-    ...(lastVerified !== undefined
-      ? {
-          lastVerifiedTimestamp: lastVerified.timestamp,
-          lastVerifiedId: lastVerified.id,
-          lastVerifiedHash: lastVerified.integrityHash,
-        }
-      : {}),
+    ...verifiedThrough(lastVerified),
     unsignedScrubCount,
+    awaitingSeal,
     ...reanchorFlag,
+  };
+}
+
+/** The resume fields of the last row a walk verified. */
+function verifiedThrough(
+  row: AuditLogRow | undefined,
+): Pick<
+  VerifyChainResult,
+  | 'lastVerifiedTimestamp'
+  | 'lastVerifiedId'
+  | 'lastVerifiedHash'
+  | 'lastVerifiedSeq'
+> {
+  if (row === undefined) return {};
+  return {
+    lastVerifiedTimestamp: row.timestamp,
+    lastVerifiedId: row.id,
+    ...(row.integrityHash !== null
+      ? { lastVerifiedHash: row.integrityHash }
+      : {}),
+    ...(row.chainSeq !== null ? { lastVerifiedSeq: row.chainSeq } : {}),
+  };
+}
+
+/** Rows written and not sealed yet: no break, but counted, so a sealer that
+ * stopped shows. */
+async function countAwaitingSeal(
+  sql: Sql,
+  organizationId: string,
+): Promise<VerifyChainResult['awaitingSeal']> {
+  const rows = await sql<{ count: number; oldest: number | null }[]>`
+    SELECT count(*)::int AS count, min(ts)::float8 AS oldest
+    FROM app.audit_logs
+    WHERE org_id = ${organizationId} AND integrity_hash IS NULL
+  `;
+  const row = rows[0];
+  return {
+    count: row?.count ?? 0,
+    ...(row?.oldest != null ? { oldestTimestamp: row.oldest } : {}),
   };
 }
 
@@ -283,6 +353,8 @@ export interface ScheduledIntegrityRun {
   /** The resume anchor had been reaped by retention and the walk
    * re-anchored on the first surviving row (see `verifyAuditChain`). */
   reanchored?: boolean;
+  /** Rows not sealed yet (see `VerifyChainResult.awaitingSeal`). */
+  awaitingSeal: VerifyChainResult['awaitingSeal'];
 }
 
 /**
@@ -302,12 +374,14 @@ export async function runScheduledIntegrityCheck(
       lastVerifiedTs: number | null;
       lastVerifiedId: string | null;
       lastVerifiedHash: string | null;
+      lastVerifiedSeq: string | null;
       lastAlertedFingerprint: string | null;
     }[]
   >`
     SELECT last_verified_ts::float8 AS "lastVerifiedTs",
            last_verified_id AS "lastVerifiedId",
            last_verified_hash AS "lastVerifiedHash",
+           last_verified_seq::text AS "lastVerifiedSeq",
            last_alerted_fingerprint AS "lastAlertedFingerprint"
     FROM app.audit_integrity_progress WHERE org_id = ${organizationId}
   `;
@@ -326,6 +400,9 @@ export async function runScheduledIntegrityCheck(
       : {}),
     ...(resume?.lastVerifiedId != null
       ? { afterId: resume.lastVerifiedId }
+      : {}),
+    ...(resume?.lastVerifiedSeq != null
+      ? { afterSeq: resume.lastVerifiedSeq }
       : {}),
     ...(resume?.lastVerifiedHash != null
       ? { previousExpectedHash: resume.lastVerifiedHash }
@@ -391,6 +468,7 @@ export async function runScheduledIntegrityCheck(
       verified: result.verifiedCount,
       broken: true,
       alerted,
+      awaitingSeal: result.awaitingSeal,
       ...reanchorFlag,
     };
   }
@@ -398,13 +476,14 @@ export async function runScheduledIntegrityCheck(
   await sql`
     INSERT INTO app.audit_integrity_progress (
       org_id, last_verified_ts, last_verified_id, last_verified_hash,
-      head_reached, updated_at_ms, last_alerted_fingerprint,
-      last_alerted_at_ms
+      last_verified_seq, head_reached, updated_at_ms,
+      last_alerted_fingerprint, last_alerted_at_ms
     ) VALUES (
       ${organizationId},
       ${result.lastVerifiedTimestamp ?? null},
       ${result.lastVerifiedId ?? null},
       ${result.lastVerifiedHash ?? null},
+      ${result.lastVerifiedSeq ?? null}::bigint,
       ${!result.truncated}, ${now}, NULL, NULL
     )
     ON CONFLICT (org_id) DO UPDATE SET
@@ -418,12 +497,21 @@ export async function runScheduledIntegrityCheck(
         EXCLUDED.last_verified_hash,
         app.audit_integrity_progress.last_verified_hash
       ),
+      last_verified_seq = COALESCE(
+        EXCLUDED.last_verified_seq,
+        app.audit_integrity_progress.last_verified_seq
+      ),
       head_reached = EXCLUDED.head_reached,
       updated_at_ms = ${now},
       last_alerted_fingerprint = NULL,
       last_alerted_at_ms = NULL
   `;
-  return { verified: result.verifiedCount, broken: false, ...reanchorFlag };
+  return {
+    verified: result.verifiedCount,
+    broken: false,
+    awaitingSeal: result.awaitingSeal,
+    ...reanchorFlag,
+  };
 }
 
 /** Every org with at least one audit row — the scheduled job's fleet. */

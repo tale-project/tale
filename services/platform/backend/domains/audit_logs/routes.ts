@@ -20,6 +20,7 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listBlockCounters } from '../login_attempts/service.ts';
 import {
   buildAuditExport,
+  sealAuditChainNow,
   getActivitySummary,
   getAuditLogById,
   listAuditLogs,
@@ -174,10 +175,17 @@ export function createAuditLogRoutes(deps: {
         maxEntries: z.number().int().min(1).max(5_000).optional(),
         fromTimestamp: epochMsSchema.optional(),
         afterId: z.string().optional(),
+        afterSeq: z
+          .string()
+          .regex(/^[1-9]\d{0,18}$/)
+          .optional(),
         previousExpectedHash: z.string().optional(),
       })
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) return invalidBodyResponse(c, body.error);
+    // Whatever is waiting for its seal is chained first, so the check
+    // covers everything written up to the click.
+    await sealAuditChainNow(deps.sql, c.get('orgId'));
     return c.json(await verifyAuditChain(deps.sql, c.get('orgId'), body.data));
   });
 
@@ -213,6 +221,8 @@ export function createAuditLogRoutes(deps: {
           ),
         )
       : undefined;
+    // An export carries each row's seal: chain what is waiting first.
+    await sealAuditChainNow(deps.sql, c.get('orgId'));
     const built = await buildAuditExport(deps.sql, c.get('orgId'), {
       format: body.data.format,
       ...(cleanFilter !== undefined ? { filter: cleanFilter } : {}),

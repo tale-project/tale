@@ -96,18 +96,21 @@ describe('engine purity', () => {
 
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
-    // periscopic scopes, the zimmerframe walker, is-reference), the shared
-    // safe YAML loader, type guards, name grammar, stable serializer, JSON
-    // bounding, the secret-key list and the credential detector are
-    // runtime-neutral, and so is `@tale/ui`'s data core (summaries, shapes,
-    // diffs, pointers, hashes), whose own guard
-    // (`packages/ui/src/data/pure.test.ts`) holds it to imports of itself;
-    // everything else outside the engine tree is a layering violation.
+    // periscopic scopes, the zimmerframe walker, is-reference), jsdiff's line
+    // diff (the unified patch between two versions), the shared safe YAML
+    // loader, type guards, name grammar, stable serializer, JSON bounding,
+    // the secret-key list and the credential detector are runtime-neutral,
+    // and so is `@tale/ui`'s data core (summaries, shapes, diffs, pointers,
+    // hashes), whose own guard (`packages/ui/src/data/pure.test.ts`) holds it
+    // to imports of itself, and its line diff (`code-diff/compute`, the one
+    // unified patch), which its test holds to jsdiff alone; everything else
+    // outside the engine tree is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
       '@tale/shared/utils/stable-stringify',
       '@tale/shared/automation-replay',
+      '@tale/ui/code-diff/compute',
       '@tale/ui/data/hash',
       '@tale/ui/data/infer-schema',
       '@tale/ui/data/json-pointer',
@@ -115,6 +118,7 @@ describe('engine purity', () => {
       '@tale/ui/data/value-diff',
       '@tale/ui/data/value-summary',
       'acorn',
+      'diff',
       'estree',
       'is-reference',
       'periscopic',
@@ -150,15 +154,24 @@ describe('engine purity', () => {
   });
 
   it('the analysis layers stay browser-safe: they never reach Ajv', () => {
-    // The editor runs the parser, typing and analysis layers in the browser,
-    // where the Content-Security-Policy forbids the code generation Ajv
-    // compiles schemas with. Ajv-based checks live in `validate/` only, so
-    // nothing these layers import — directly or through another engine
+    // The editor runs the parser, typing and analysis layers — and the
+    // document diff, which rings what another window changed — in the
+    // browser, where the Content-Security-Policy forbids the code generation
+    // Ajv compiles schemas with. Ajv-based checks live in `validate/` only,
+    // so nothing these layers import — directly or through another engine
     // module — may load it.
-    const browserSafe = ['syntax', 'typing', 'analysis']
+    const browserSafe = ['syntax', 'typing', 'analysis', 'diff']
       .map((d) => path.join(ENGINE_ROOT, 'core', d))
       .filter((d) => existsSync(d))
       .flatMap((d) => sourceFiles(d));
+    // A test's bench is planned, its expectations compared and a run that
+    // was never stored read in the editor as well.
+    browserSafe.push(
+      path.join(ENGINE_ROOT, 'core', 'execute', 'bench.ts'),
+      path.join(ENGINE_ROOT, 'core', 'record', 'transient.ts'),
+      path.join(ENGINE_ROOT, 'core', 'test-limits.ts'),
+      path.join(ENGINE_ROOT, 'api', 'expect.ts'),
+    );
     expect(browserSafe.length).toBeGreaterThan(0);
     const resolveModule = (from: string, spec: string): string | null => {
       const target = path.resolve(path.dirname(from), spec);

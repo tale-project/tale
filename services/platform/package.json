@@ -67,6 +67,7 @@
     "chokidar": "5.0.0",
     "class-variance-authority": "0.7.1",
     "dayjs": "1.11.20",
+    "diff": "8.0.4",
     "dompurify": "3.4.16",
     "eventsource-parser": "4.1.1",
     "fast-xml-parser": "5.8.0",

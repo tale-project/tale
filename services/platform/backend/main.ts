@@ -11,6 +11,10 @@ import {
 } from './core/knowledge/pool.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import {
+  startAuditSealer,
+  type AuditSealer,
+} from './domains/audit_logs/sealer.ts';
 import { releaseOwnedRunLeases } from './domains/automations/store.ts';
 import { isBackendDraining } from './domains/control/service.ts';
 import {
@@ -137,6 +141,7 @@ async function main(): Promise<void> {
     );
     reportError(error, { tags: { 'tale.lane': 'boot' } });
   }
+  let auditSealer: AuditSealer | null = null;
   if (env.ROLE !== 'api') {
     // The corpus pool caps how many indexing jobs commit a slice at once; a
     // worker allowed more concurrent jobs than that queues on it. Said here,
@@ -161,6 +166,7 @@ async function main(): Promise<void> {
     });
     await registerSchedules(boss);
     await sweepRunsAtBoot(sql);
+    auditSealer = startAuditSealer(sql);
   }
 
   // The deployment-default BLOB store. S3 is the only blob backend, so an
@@ -237,6 +243,8 @@ async function main(): Promise<void> {
     console.log(
       `[backend] ${signal} received — shutting down (drain ${drainMs} ms)`,
     );
+    // The round in flight finishes; what it leaves the next worker seals.
+    await auditSealer?.stop();
     await runShutdownSequence(signal, {
       role: env.ROLE,
       drainMs,

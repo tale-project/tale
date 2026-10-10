@@ -139,6 +139,10 @@ const SCAN_REQUESTER = z.object({
   apiKeyId: z.string().min(1).optional(),
 });
 
+/** How long an audit row may wait for its seal before the nightly check
+ * says no worker is sealing. */
+const UNSEALED_ALARM_MS = 10 * 60_000;
+
 const orgScaffoldSchema = z.object({
   orgSlug: z.string().min(1),
   cleanFirst: z.boolean().optional(),
@@ -847,7 +851,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'audit.integrity_check': async () => {
+    'audit.chain_check': async () => {
       const { listAuditedOrgIds, runScheduledIntegrityCheck } =
         await import('../domains/audit_logs/verify.ts');
       const orgIds = await listAuditedOrgIds(deps.sql);
@@ -857,6 +861,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         try {
           const result = await runScheduledIntegrityCheck(deps.sql, orgId);
           if (result.broken) broken += 1;
+          // The sealer chains a row within seconds; one waiting longer
+          // means no worker is sealing.
+          const oldest = result.awaitingSeal.oldestTimestamp;
+          if (oldest !== undefined && Date.now() - oldest > UNSEALED_ALARM_MS) {
+            console.error(
+              `[audit-integrity] org ${orgId}: ${result.awaitingSeal.count} audit row(s) unsealed, the oldest since ${new Date(oldest).toISOString()}`,
+            );
+          }
         } catch (error) {
           console.error(`[audit-integrity] org ${orgId} walk failed:`, error);
         }

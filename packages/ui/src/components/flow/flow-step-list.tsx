@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
+import { ChangeKindBadge } from '../data-display/change-list';
 import type { IssueCounts } from '../feedback/issue-summary';
 import {
   flowCompareFaces,
@@ -32,6 +33,7 @@ import {
   flowStepIssues,
   type FlowWords,
 } from './describe';
+import type { FlowDiffKind, FlowDiffOverlay } from './diff/diff';
 import {
   FlowNodeIssueMarker,
   flowNodeIssueFrameClass,
@@ -61,6 +63,13 @@ export interface FlowStepListProps {
   /** Two runs compared, in place of a run: each row says how its node went
    *  in each, and where they differ. */
   compare?: FlowCompareOverlay | null;
+  /**
+   * Two versions compared (the union graph from `mergeFlowGraphs`), in
+   * place of a run: each row carries its change's badge and says what
+   * became of its node; a removed row stays where it stood. Wins over
+   * `compare` and `run`.
+   */
+  diff?: FlowDiffOverlay | null;
   /** A highlight: rows outside it step back and say why. */
   highlight?: FlowHighlight | null;
   /** The node a failed run stopped at, in focus. */
@@ -111,8 +120,10 @@ function iconOf(node: FlowNode) {
  * With a run, each row carries its node's state glyph and says how it went
  * first, then why (the run's explanation, a condition's decision folded
  * into the node it guards); with two runs compared, a glyph per run and a
- * "Differs" glyph where they differ. With a highlight, a row outside it is
- * dashed and says why.
+ * "Differs" glyph where they differ; with two versions compared, the
+ * change's badge (a removed node's title struck through) and its words, a
+ * condition's change said on the step it guards. With a highlight, a row
+ * outside it is dashed and says why.
  */
 export function FlowStepList({
   graph,
@@ -121,8 +132,9 @@ export function FlowStepList({
   onSelect,
   issues,
   controlsId,
-  run = null,
-  compare = null,
+  run: runProp = null,
+  compare: compareProp = null,
+  diff = null,
   highlight = null,
   stoppedAt = null,
   className,
@@ -132,6 +144,9 @@ export function FlowStepList({
   const { i18n } = useTranslation();
   const locale = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const baseId = useId();
+  // Two versions compared take the place of a run and of two runs.
+  const run = diff === null ? runProp : null;
+  const compare = diff === null ? compareProp : null;
   const quietRest = highlight !== null && highlight.quietRest !== false;
   const reasons = useMemo(() => {
     if (!quietRest || highlight?.reasons === undefined) return undefined;
@@ -149,10 +164,11 @@ export function FlowStepList({
         issues,
         run,
         compare,
+        diff,
         stoppedAt,
         reasons,
       }),
-    [graph, t, tIssues, locale, issues, run, compare, stoppedAt, reasons],
+    [graph, t, tIssues, locale, issues, run, compare, diff, stoppedAt, reasons],
   );
   const compared = useMemo(
     () =>
@@ -224,6 +240,7 @@ export function FlowStepList({
       tabbable={tabStop === node.id}
       counts={stepIssues.get(node.id) ?? NO_ISSUES}
       state={run?.nodes[node.id]?.state ?? 'idle'}
+      change={diff?.nodes[node.id]?.kind}
       compared={
         compared === null
           ? null
@@ -274,6 +291,7 @@ function FlowListRow({
   tabbable,
   counts,
   state,
+  change,
   compared,
   quiet,
   controlsId,
@@ -288,6 +306,8 @@ function FlowListRow({
   tabbable: boolean;
   counts: IssueCounts;
   state: FlowNodeState;
+  /** Two versions compared: what became of the node. */
+  change: FlowDiffKind | undefined;
   /** Two runs compared: their names and this node's two sides. */
   compared: {
     labels: { a: string; b: string };
@@ -318,6 +338,7 @@ function FlowListRow({
         onKeyDown={onKeyDown}
         onFocus={onFocus}
         data-flow-quiet={quiet || undefined}
+        data-flow-diff={change}
         className={cn(
           'hover:bg-muted/60 flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left',
           quiet && FLOW_NODE_DASHED,
@@ -339,7 +360,12 @@ function FlowListRow({
           <Icon aria-hidden="true" className="size-3.5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">
+          <span
+            className={cn(
+              'block truncate text-sm font-medium',
+              change === 'removed' && 'line-through decoration-2',
+            )}
+          >
             {words.titles.get(node.id)}
           </span>
           {node.kind === 'step' && node.typeLabel && (
@@ -357,6 +383,7 @@ function FlowListRow({
         ) : (
           <ComparedGlyphs labels={compared.labels} face={compared.face} />
         )}
+        {change !== undefined && <ChangeKindBadge kind={change} />}
       </button>
       {lines.length > 0 && (
         <span

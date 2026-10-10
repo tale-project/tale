@@ -49,7 +49,7 @@ Les exports respectent le filtre de catégorie et contiennent au maximum 10 000 
 
 ## Rétention et intégrité
 
-Choisis **Vérifier maintenant** dans la section d’intégrité de la chaîne pour contrôler la chaîne d’audit stockée. Le panneau affiche son statut et la dernière vérification automatique. Si une rupture est signalée, conserve ses détails et examine-la avec l’opérateur avant de t’appuyer sur cette partie de l’historique.
+Choisis **Vérifier maintenant** dans la section d’intégrité de la chaîne pour contrôler la chaîne d’audit stockée. Les nouvelles entrées rejoignent la chaîne quelques secondes après leur enregistrement. Le panneau affiche son statut et la dernière vérification automatique. Si une rupture est signalée, conserve ses détails et examine-la avec l’opérateur avant de t’appuyer sur cette partie de l’historique.
 
 Une vérification réussie couvre les enregistrements conservés qu’elle a examinés. Elle n’établit pas une origine de l’historique signée de façon indépendante. Le [guide d’intégrité pour l’exploitation](/fr/self-hosted/operate/security/audit-log-integrity) décrit les contrôles et leurs limites.
 

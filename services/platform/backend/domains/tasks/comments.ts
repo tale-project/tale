@@ -1,5 +1,4 @@
 import {
-  isSerializationFailure,
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
 } from '@tale/shared/db/serializable';
@@ -23,7 +22,7 @@ import type { CommentEventComment } from '../../core/tasks/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -106,6 +105,13 @@ export function taskCommentQueueKey(taskId: string): string {
   return `task-comment:${taskId}`;
 }
 
+/** Retry-queue key for an organization's comment writes (see
+ * `queuedCommentWrite`): every comment write holds it shared, a queued retry
+ * exclusively. */
+export function orgCommentQueueKey(organizationId: string): string {
+  return `task-comments:${organizationId}`;
+}
+
 /**
  * The transaction-level lock every comment write takes FIRST. A transaction
  * that writes the task row for another reason and then comments (the
@@ -127,20 +133,16 @@ export async function lockTaskCommentQueue(
  * next message slot — so serializable writers that overlap all lose but the
  * first, and a plain retry loses again whenever another commits first: the
  * storm `withRetry`'s five attempts cannot outlast. Two pieces make a retry
- * deterministic instead (the audit chain head's `lockChainHead` is the
- * twin): the transaction-level advisory lock on the task's queue key, taken
- * before the write's first read, queues this transaction behind a retry that
- * holds the same key as a session lock from before its BEGIN (see
- * `transactSerializable`); and a 40001/40P01 raised anywhere in `work` is
- * marked with the key, which is what makes the caller's next attempt take
- * that session lock first. The audit write inside `work` marks a loss at the
- * org's chain head with its own key; marks nest, so that retry queues on the
- * task AND the chain head, in that order (the retry-queue note in
- * `@tale/shared/db/serializable`). Under contention on this task's rows a
- * writer wastes at most one attempt. Plain READ COMMITTED callers pay only
- * the lock, which orders the task's comments and marks nothing. A comment
- * write adds the chain head's key whatever it lost on
- * (`queuedCommentWrite`).
+ * deterministic instead: the transaction-level advisory lock on the task's
+ * queue key, taken before the write's first read, queues this transaction
+ * behind a retry that holds the same key as a session lock from before its
+ * BEGIN (see `transactSerializable`); and a 40001/40P01 raised anywhere in
+ * `work` is marked with the key, which is what makes the caller's next
+ * attempt take that session lock first. Under contention on this task's rows
+ * a writer wastes at most one attempt. Plain READ COMMITTED callers pay only
+ * the lock, which orders the task's comments and marks nothing. The audit
+ * row a comment writes takes no lock and meets no other writer: the chain is
+ * sealed off the write path.
  */
 export async function queuedOnTask<T>(
   tx: TransactionSql,
@@ -169,13 +171,18 @@ interface AddTaskCommentArgs {
 }
 
 /**
- * A comment write, queued on its task (`queuedOnTask`), that ends on the
- * org's audit chain head. A loss anywhere in it queues the retry on the head
- * too. A loss before the head (a read/write dependency on the org's other
- * comment writes, which serializable isolation reports wherever it finds
- * one) used to carry the task's key alone, so the retry lost again at the
- * head: a burst of commenters across one org's tasks spent up to three
- * attempts a writer, and now and then one ran out of attempts.
+ * A comment write, queued on its task (`queuedOnTask`) and, more lightly, on
+ * its organization. Comment writes on two tasks share no row, yet
+ * serializable isolation still reports the read/write dependencies its
+ * page-level predicate locks see between them (an index page one reads and
+ * the other inserts into) and aborts one. Marked with its task's key alone,
+ * the loser retried beside every other writer and could lose again. So every
+ * comment write holds the organization's comment key SHARED, after its
+ * task's — two of them never wait for each other — and a loss is marked with
+ * that key too. The queued retry holds it exclusively from before its BEGIN:
+ * it waits for the comment writes already running, runs while later ones
+ * wait, and a writer loses to the organization's other comment writes at
+ * most once.
  */
 function queuedCommentWrite<T>(
   tx: TransactionSql,
@@ -183,20 +190,21 @@ function queuedCommentWrite<T>(
   taskId: string,
   work: () => Promise<T>,
 ): Promise<T> {
+  const orgKey = orgCommentQueueKey(organizationId);
   return queuedOnTask(tx, taskId, async () => {
     try {
+      await tx`
+        SELECT pg_advisory_xact_lock_shared(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${orgKey}))
+      `;
       return await work();
     } catch (error) {
-      if (isSerializationFailure(error)) {
-        throw markRetryQueueKey(error, auditChainQueueKey(organizationId));
-      }
-      throw error;
+      throw markRetryQueueKey(error, orgKey);
     }
   });
 }
 
 /** Append one comment (message + lockstep meta + count + activity + audit),
- * queued on its task and the org's audit chain (`queuedCommentWrite`).
+ * queued on its task and its organization (`queuedCommentWrite`).
  * `bodyByLocale` is the same text written natively per language (the
  * workflow `task.comment` native and the automated date nudge carry it);
  * the reader picks their locale and falls back to `body`. */
@@ -725,7 +733,7 @@ export async function editTaskComment(
   });
 }
 
-/** Delete one comment, queued on its task and the org's audit chain
+/** Delete one comment, queued on its task and its organization
  * (`queuedCommentWrite`): the count it decrements is the same hot row every
  * append bumps. */
 export async function deleteTaskComment(
