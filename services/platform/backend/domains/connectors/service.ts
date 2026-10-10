@@ -41,6 +41,7 @@ import {
   listUntriagedConversations,
   recordConversationTriage,
 } from '../conversations/triage.ts';
+import { withAutomationOrigin } from '../events/origin.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
 import { recordConnectorUsage } from '../governance/service.ts';
 import {
@@ -338,8 +339,22 @@ export interface RunConnectorArgs {
 /**
  * Invoke one connector action — the platform's single door. Coded refusals
  * surface as {@link ConnectorError}; callers branch on `code`.
+ *
+ * A step of an automation run acts as that run: the events its natives
+ * raise, and those of every domain service they call, name the run as their
+ * origin, so the event triggers can keep a run from starting its own
+ * automation again (`events/origin.ts`).
  */
 export async function runConnectorAction(
+  sql: Sql,
+  args: RunConnectorArgs,
+): Promise<ConnectorDispatchResult> {
+  return args.caller.kind === 'workflow'
+    ? withAutomationOrigin(args.caller.runId, () => invokeConnector(sql, args))
+    : invokeConnector(sql, args);
+}
+
+async function invokeConnector(
   sql: Sql,
   args: RunConnectorArgs,
 ): Promise<ConnectorDispatchResult> {

@@ -10,6 +10,7 @@ import {
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
 import { auditChainQueueKey } from '../audit_logs/service.ts';
+import type { EventOrigin } from '../events/origin.ts';
 import { AutomationError, beginRunInTx } from './store.ts';
 import { createWebhookRoutes, dispatchAutomationEvent } from './triggers.ts';
 
@@ -150,6 +151,7 @@ async function webhook(
   };
   const sql = Object.assign(tag, {
     unsafe: (text: string) => text,
+    json: (value: unknown) => value,
     begin: async (
       transactionOptions: string | ((tx: unknown) => Promise<unknown>),
       callback?: (tx: unknown) => Promise<unknown>,
@@ -626,6 +628,7 @@ describe('webhook door budgets', () => {
  * waited on while waiting on the chain the landing run held.
  */
 describe('dispatchAutomationEvent stamps', () => {
+  const PLATFORM: EventOrigin = { kind: 'platform' };
   const eventTx = (
     triggers: {
       id: string;
@@ -635,8 +638,14 @@ describe('dispatchAutomationEvent stamps', () => {
     }[] = [{ id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' }],
     /** What the conditional disable of orphaned bindings gets back. */
     retired: { organizationId: string; name: string }[] = [],
+    /** The run an automation-raised event names, as the loop rule reads
+     * it; absent, the run cannot be read. */
+    raising?: { name: string; startedBy: string; via: string | null },
+    /** The projects the listening automations are installed in. */
+    installs: { name: string; projectId: string }[] = [],
   ) => {
     const queries: { text: string; values: unknown[] }[] = [];
+    const savepoints = { opened: 0, rolledBack: 0 };
     const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?').replace(/\s+/g, ' ').trim();
       queries.push({ text, values });
@@ -644,12 +653,30 @@ describe('dispatchAutomationEvent stamps', () => {
       if (text.includes('FROM app.automation_triggers')) {
         return triggers.map((trigger) => ({ orgMissing: false, ...trigger }));
       }
+      if (text.includes('FROM app.automation_runs')) {
+        return raising === undefined ? [] : [raising];
+      }
+      if (text.includes('FROM app.automation_project_bindings')) {
+        return installs;
+      }
       return [];
     };
-    return {
-      tx: Object.assign(tag, { unsafe: (text: string) => text }),
-      queries,
-    };
+    // A savepoint hands its work the same handle and, when the work
+    // rejects, rolls back to it and rethrows — the transaction stays usable.
+    const tx = Object.assign(tag, {
+      unsafe: (text: string) => text,
+      json: (value: unknown) => value,
+      savepoint: async (fn: (sp: unknown) => Promise<unknown>) => {
+        savepoints.opened += 1;
+        try {
+          return await fn(tx);
+        } catch (error) {
+          savepoints.rolledBack += 1;
+          throw error;
+        }
+      },
+    });
+    return { tx, queries, savepoints };
   };
 
   it('stamps the fire with the run id when a run started', async () => {
@@ -664,7 +691,7 @@ describe('dispatchAutomationEvent stamps', () => {
         organizationId: 'org-1',
         event: 'contact.created',
         payload: { id: 'c-1' },
-        origin: 'platform',
+        origin: PLATFORM,
       },
     );
     expect(outcome).toEqual({ started: ['run-e'], refused: false });
@@ -700,7 +727,7 @@ describe('dispatchAutomationEvent stamps', () => {
     vi.mocked(beginRunInTx).mockResolvedValueOnce(null);
     const outcome = await dispatchAutomationEvent(
       tx as unknown as TransactionSql,
-      { organizationId: 'org-1', event: 'contact.created', origin: 'platform' },
+      { organizationId: 'org-1', event: 'contact.created', origin: PLATFORM },
     );
     expect(outcome).toEqual({ started: [], refused: false });
     const stamps = queries.filter((q) =>
@@ -708,11 +735,14 @@ describe('dispatchAutomationEvent stamps', () => {
     );
     expect(stamps).toHaveLength(1);
     expect(stamps[0]?.text).toContain(
-      'SET last_skipped_at_ms = ?, last_skip_reason = ?',
+      'SET last_skipped_at_ms = ?, last_skip_reason = ?, last_skip_detail = ?',
     );
+    // The detail names the event's moment, the instant it skipped.
+    const at = stamps[0]?.values[0];
     expect(stamps[0]?.values).toEqual([
       expect.any(Number),
       'not_deployed',
+      JSON.stringify({ reason: 'not_deployed', occurrence: at }),
       'trigger-e',
     ]);
   });
@@ -728,7 +758,7 @@ describe('dispatchAutomationEvent stamps', () => {
     await dispatchAutomationEvent(tx as unknown as TransactionSql, {
       organizationId: 'org-1',
       event: 'contact.created',
-      origin: 'platform',
+      origin: PLATFORM,
     });
     const texts = queries.map((q) => q.text);
     const locks = queries.filter((q) =>
@@ -756,7 +786,7 @@ describe('dispatchAutomationEvent stamps', () => {
     const { tx, queries } = eventTx([]);
     const outcome = await dispatchAutomationEvent(
       tx as unknown as TransactionSql,
-      { organizationId: 'org-1', event: 'contact.created', origin: 'platform' },
+      { organizationId: 'org-1', event: 'contact.created', origin: PLATFORM },
     );
     expect(outcome).toEqual({ started: [], refused: false });
     expect(queries).toHaveLength(1);
@@ -790,7 +820,7 @@ describe('dispatchAutomationEvent stamps', () => {
         organizationId: 'org-gone',
         event: 'conversation.message_received',
         payload: { conversationId: 'c-1' },
-        origin: 'platform',
+        origin: PLATFORM,
       },
     );
 
@@ -844,7 +874,7 @@ describe('dispatchAutomationEvent stamps', () => {
       {
         organizationId: 'org-gone',
         event: 'contact.created',
-        origin: 'platform',
+        origin: PLATFORM,
       },
     );
     expect(outcome).toEqual({ started: [], refused: true });
@@ -855,20 +885,345 @@ describe('dispatchAutomationEvent stamps', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('fires nothing and stamps nothing for an event an automation raised [AUTO-R12]', async () => {
+  const fromRun = (runId: string): EventOrigin => ({
+    kind: 'automation',
+    runId,
+  });
+
+  it('starts other automations from an event a schedule-started run raised, never its own [AUTO-R12]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const { tx, queries } = eventTx();
+    const { tx, queries } = eventTx(
+      [
+        { id: 'trigger-own', organizationId: 'org-1', name: 'mail/sync' },
+        { id: 'trigger-other', organizationId: 'org-1', name: 'mail/triage' },
+      ],
+      [],
+      {
+        name: 'mail/sync',
+        startedBy: 'trigger:trigger-sched',
+        via: 'schedule',
+      },
+    );
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({
+      runId: 'run-triage',
+      version: 1,
+    });
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'conversation.message_received',
+        origin: fromRun('run-sync'),
+      },
+    );
+    expect(outcome).toEqual({ started: ['run-triage'], refused: false });
+    expect(vi.mocked(beginRunInTx)).toHaveBeenCalledOnce();
+    expect(vi.mocked(beginRunInTx)).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ name: 'mail/triage' }),
+    );
+    // The raising run is read in the producer's transaction, by its id.
+    const read = queries.find((q) =>
+      q.text.includes('FROM app.automation_runs'),
+    );
+    expect(read?.values).toEqual(['run-sync', 'org-1']);
+    // Its own automation's binding is left as it was: no stamp of either kind.
+    expect(
+      queries.filter(
+        (q) =>
+          q.text.startsWith('UPDATE app.automation_triggers') &&
+          q.values.includes('trigger-own'),
+      ),
+    ).toHaveLength(0);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[automations] event "conversation.message_received" raised by run run-sync does not start its own automation mail/sync (loop safety)',
+    ]);
+  });
+
+  it('starts other automations from an event a person’s run raised [AUTO-R12]', async () => {
+    const { tx } = eventTx(
+      [{ id: 'trigger-other', organizationId: 'org-1', name: 'crm/welcome' }],
+      [],
+      // A run started by hand with an event-shaped input is not event-started.
+      { name: 'crm/import', startedBy: 'user:u-1', via: 'event' },
+    );
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({
+      runId: 'run-welcome',
+      version: 2,
+    });
     const outcome = await dispatchAutomationEvent(
       tx as unknown as TransactionSql,
       {
         organizationId: 'org-1',
         event: 'contact.created',
-        origin: 'automation',
+        origin: fromRun('run-import'),
+      },
+    );
+    expect(outcome).toEqual({ started: ['run-welcome'], refused: false });
+  });
+
+  it('starts nothing from an event an event-started run raised [AUTO-R12]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { tx, queries } = eventTx(
+      [{ id: 'trigger-other', organizationId: 'org-1', name: 'crm/welcome' }],
+      [],
+      { name: 'mail/triage', startedBy: 'trigger:trigger-e', via: 'event' },
+    );
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'contact.created',
+        origin: fromRun('run-triage'),
       },
     );
     expect(outcome).toEqual({ started: [], refused: true });
-    expect(queries).toHaveLength(0);
     expect(beginRunInTx).not.toHaveBeenCalled();
-    warn.mockRestore();
+    // Nothing is stamped and no audit chain is taken.
+    expect(
+      queries.filter(
+        (q) =>
+          q.text.startsWith('UPDATE') ||
+          q.text.includes('pg_advisory_xact_lock'),
+      ),
+    ).toHaveLength(0);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[automations] event "contact.created" raised by run run-triage (mail/triage), itself started by an event, starts no automation (loop safety)',
+    ]);
+  });
+
+  it('starts nothing from an event whose raising run cannot be read [AUTO-R12]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { tx } = eventTx();
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'contact.created',
+        origin: fromRun('run-gone'),
+      },
+    );
+    expect(outcome).toEqual({ started: [], refused: true });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(String(warn.mock.calls[0]?.[0])).toContain(
+      'raised by run run-gone, which could not be read, starts no automation',
+    );
+  });
+
+  it('reads no run when no trigger listens for the event', async () => {
+    const { tx, queries } = eventTx([]);
+    await dispatchAutomationEvent(tx as unknown as TransactionSql, {
+      organizationId: 'org-1',
+      event: 'contact.created',
+      origin: fromRun('run-1'),
+    });
+    expect(queries).toHaveLength(1);
+  });
+
+  // --- project scope and isolation -----------------------------------
+
+  const taskCreated = (projectId: string) => ({
+    taskId: 'task-1',
+    projectId,
+    actorType: 'user',
+    actorId: 'u-1',
+  });
+
+  it('starts the automations installed in the event’s project or nowhere, in that project [AUTO-R35]', async () => {
+    const { tx, queries } = eventTx(
+      [
+        { id: 't-org', organizationId: 'org-1', name: 'ops/org-wide' },
+        { id: 't-billing', organizationId: 'org-1', name: 'ops/billing' },
+        { id: 't-sales', organizationId: 'org-1', name: 'ops/sales' },
+      ],
+      [],
+      undefined,
+      [
+        { name: 'ops/billing', projectId: 'p-billing' },
+        { name: 'ops/billing', projectId: 'p-other' },
+        { name: 'ops/sales', projectId: 'p-sales' },
+      ],
+    );
+    vi.mocked(beginRunInTx)
+      .mockResolvedValueOnce({ runId: 'run-org', version: 1 })
+      .mockResolvedValueOnce({ runId: 'run-billing', version: 1 });
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'task.created',
+        payload: taskCreated('p-billing'),
+        origin: PLATFORM,
+      },
+    );
+    expect(outcome).toEqual({
+      started: ['run-org', 'run-billing'],
+      refused: false,
+    });
+    const starts = vi.mocked(beginRunInTx).mock.calls.map(([, call]) => ({
+      name: call.name,
+      projectId: call.projectId,
+    }));
+    // Sales is installed elsewhere only: it does not hear a Billing event.
+    expect(starts).toEqual([
+      { name: 'ops/org-wide', projectId: 'p-billing' },
+      { name: 'ops/billing', projectId: 'p-billing' },
+    ]);
+    // The installations are read once, for every listening automation.
+    const reads = queries.filter((q) =>
+      q.text.includes('FROM app.automation_project_bindings'),
+    );
+    expect(reads).toHaveLength(1);
+    expect(reads[0]?.values).toEqual([
+      'org-1',
+      ['ops/org-wide', 'ops/billing', 'ops/sales'],
+    ]);
+    // Nothing is stamped on the trigger that did not hear the event.
+    expect(
+      queries.filter(
+        (q) =>
+          q.text.startsWith('UPDATE app.automation_triggers') &&
+          q.values.includes('t-sales'),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('names a sole installation for an event of no project, and none for several [AUTO-R35]', async () => {
+    const { tx } = eventTx(
+      [
+        { id: 't-one', organizationId: 'org-1', name: 'crm/one' },
+        { id: 't-two', organizationId: 'org-1', name: 'crm/two' },
+      ],
+      [],
+      undefined,
+      [
+        { name: 'crm/one', projectId: 'p-1' },
+        { name: 'crm/two', projectId: 'p-1' },
+        { name: 'crm/two', projectId: 'p-2' },
+      ],
+    );
+    vi.mocked(beginRunInTx)
+      .mockResolvedValueOnce({ runId: 'run-one', version: 1 })
+      .mockResolvedValueOnce({ runId: 'run-two', version: 1 });
+    await dispatchAutomationEvent(tx as unknown as TransactionSql, {
+      organizationId: 'org-1',
+      event: 'contact.created',
+      payload: { contactId: 'c-1' },
+      origin: PLATFORM,
+    });
+    const calls = vi.mocked(beginRunInTx).mock.calls.map(([, call]) => call);
+    expect(calls[0]?.projectId).toBe('p-1');
+    expect(calls[1]).not.toHaveProperty('projectId');
+  });
+
+  it('stamps start_refused on a trigger whose project is archived, and starts nothing there [AUTO-R8]', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { tx, queries, savepoints } = eventTx(
+      [{ id: 't-billing', organizationId: 'org-1', name: 'ops/billing' }],
+      [],
+      undefined,
+      [{ name: 'ops/billing', projectId: 'p-archived' }],
+    );
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError(
+        'PROJECT_ARCHIVED',
+        'The project is archived — restore it before starting a run in it.',
+        403,
+      ),
+    );
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'comment.created',
+        payload: {
+          comment: {
+            body: 'Hi',
+            projectId: 'p-archived',
+            taskId: 'task-1',
+            mentions: [],
+          },
+        },
+        origin: PLATFORM,
+      },
+    );
+    expect(outcome).toEqual({ started: [], refused: false });
+    expect(vi.mocked(beginRunInTx).mock.calls[0]?.[1].projectId).toBe(
+      'p-archived',
+    );
+    expect(savepoints).toEqual({ opened: 1, rolledBack: 1 });
+    const stamp = queries.find((q) =>
+      q.text.includes('SET last_skipped_at_ms'),
+    );
+    expect(stamp?.values[1]).toBe('start_refused');
+    expect(JSON.parse(String(stamp?.values[2]))).toMatchObject({
+      reason: 'start_refused',
+      code: 'PROJECT_ARCHIVED',
+      version: null,
+    });
+    expect(stamp?.values[3]).toBe('t-billing');
+  });
+
+  it('keeps the other listeners’ runs when one trigger’s start is refused [AUTO-R35]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { tx, queries, savepoints } = eventTx([
+      { id: 't-strict', organizationId: 'org-1', name: 'crm/strict' },
+      { id: 't-open', organizationId: 'org-1', name: 'crm/open' },
+    ]);
+    vi.mocked(beginRunInTx)
+      .mockRejectedValueOnce(
+        new AutomationError(
+          'AUTOMATION_INPUT_INVALID',
+          'Run input does not match the automation inputs schema: "owner" is required',
+          400,
+          { issues: [{ path: '', message: 'is required' }], version: 4 },
+        ),
+      )
+      .mockResolvedValueOnce({ runId: 'run-open', version: 2 });
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'contact.created',
+        payload: { contactId: 'c-1' },
+        origin: PLATFORM,
+      },
+    );
+    expect(outcome).toEqual({ started: ['run-open'], refused: false });
+    expect(savepoints).toEqual({ opened: 2, rolledBack: 1 });
+    const stamps = queries.filter((q) =>
+      q.text.startsWith('UPDATE app.automation_triggers'),
+    );
+    expect(stamps.map((q) => q.values.at(-1))).toEqual(['t-strict', 't-open']);
+    expect(JSON.parse(String(stamps[0]?.values[2]))).toMatchObject({
+      reason: 'start_refused',
+      code: 'AUTOMATION_INPUT_INVALID',
+      version: 4,
+    });
+    expect(stamps[1]?.text).toContain('SET last_fired_at_ms');
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[automations] event "contact.created": 1 trigger(s) could not start a run: crm/strict (AUTOMATION_INPUT_INVALID)',
+    ]);
+  });
+
+  it('lets a fault of the database roll the whole dispatch back', async () => {
+    const { tx } = eventTx([
+      { id: 't-a', organizationId: 'org-1', name: 'crm/a' },
+      { id: 't-b', organizationId: 'org-1', name: 'crm/b' },
+    ]);
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      Object.assign(new Error('could not serialize access'), {
+        code: '40001',
+      }),
+    );
+    await expect(
+      dispatchAutomationEvent(tx as unknown as TransactionSql, {
+        organizationId: 'org-1',
+        event: 'contact.created',
+        payload: { contactId: 'c-1' },
+        origin: PLATFORM,
+      }),
+    ).rejects.toThrow('could not serialize access');
+    expect(beginRunInTx).toHaveBeenCalledOnce();
   });
 });

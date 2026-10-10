@@ -1,5 +1,9 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { replayRequestSchema } from '@tale/shared/schemas/automation-replay';
+import {
+  type TriggerWrite,
+  triggerWriteSchema,
+} from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -58,6 +62,7 @@ import {
   setTrigger,
   toRunDetail,
   toRunSummary,
+  triggerBodyRefusal,
   unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
@@ -75,6 +80,8 @@ import {
   domainErrorResponse,
   formatKeysetCursor,
   hasDeveloperCapability,
+  houseIssueMessage,
+  invalidBodyResponse,
   invalidQueryResponse,
   loadRestProject,
   mintCursor,
@@ -84,6 +91,7 @@ import {
   parseBody,
   queryFilter,
   readIdempotencyKey,
+  readJsonBody,
   readKeysetCursor,
   readPageLimit,
   readQuery,
@@ -281,50 +289,41 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       version: z.number().int().min(1).optional(),
     })
     .strict();
-  // One shape per kind, each strict: a key of another kind (`cron` on a
-  // webhook) is refused as the unknown key it is, named under `data.issues`
-  // — it used to be stored and read back as a webhook that also ran on a
-  // schedule. The kind's own presence rules (a schedule needs a cron, an
-  // event an event the platform raises) stay the store's, so those refusals
-  // keep their `AUTOMATION_TRIGGER_INVALID` sentence.
-  const triggerBody = z.discriminatedUnion(
-    'kind',
-    [
-      z
-        .object({
-          kind: z.literal('schedule'),
-          cron: z.string().max(200).optional(),
-          timezone: z.string().max(100).optional(),
-          enabled: z.boolean().optional(),
-        })
-        .strict(),
-      z
-        .object({
-          kind: z.literal('webhook'),
-          enabled: z.boolean().optional(),
-          rotateToken: z.boolean().optional(),
-        })
-        .strict(),
-      z
-        .object({
-          kind: z.literal('event'),
-          event: z.string().max(200).optional(),
-          enabled: z.boolean().optional(),
-        })
-        .strict(),
-    ],
-    {
-      // The union's own issue is the discriminator's: absent reads as
-      // required, anything else as the closed set of kinds — the house
-      // phrases, not zod's "no matching discriminator".
+  /**
+   * The trigger body: the shared contract (`triggerWriteSchema`), one strict
+   * shape per kind. A key of another kind (`cron` on a webhook) is refused
+   * as the unknown key it is, named under `data.issues` — it used to be
+   * stored and read back as a webhook that also ran on a schedule. A rule
+   * of the trigger (a schedule with neither a repeat rule nor a cron, a
+   * blank zone, a fixed input naming a trigger field) answers the store's
+   * own `AUTOMATION_TRIGGER_INVALID`, each problem coded, as do the rules
+   * only the store can judge (a cron that cannot be read, an event the
+   * platform never raises).
+   */
+  const triggerBody = async (
+    c: Context<RestEnv>,
+  ): Promise<TriggerWrite | Response> => {
+    const body = await readJsonBody(c);
+    const parsed = triggerWriteSchema.safeParse(body, {
+      reportInput: true,
       error: (issue) => {
-        if (issue.code !== 'invalid_union') return undefined;
-        return isRecord(issue.input) && issue.input.kind === undefined
-          ? 'is required'
-          : 'must be one of "schedule", "webhook", "event"';
+        // The union's own issue is the discriminator's: absent reads as
+        // required, anything else as the closed set of kinds — the house
+        // phrases, not zod's "no matching discriminator".
+        if (issue.code === 'invalid_union') {
+          return isRecord(issue.input) && issue.input.kind === undefined
+            ? 'is required'
+            : 'must be one of "schedule", "webhook", "event"';
+        }
+        return houseIssueMessage(issue);
       },
-    },
-  );
+    });
+    if (parsed.success) return parsed.data;
+    const refusal = triggerBodyRefusal(parsed.error, body);
+    return refusal === null
+      ? invalidBodyResponse(c, parsed.error)
+      : domainErrorResponse(c, refusal);
+  };
 
   /** Whether any version of the automation exists in this org — the
    * trigger and run doors answer 404 for a name nobody saved, never a
@@ -470,7 +469,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * order) and then skips every occurrence as `not_deployed` until a
    * version is deployed — the 200 used to say nothing about it. */
   app.put('/automations/:name/triggers', async (c) => {
-    const body = await parseBody(c, triggerBody);
+    const body = await triggerBody(c);
     if (body instanceof Response) return body;
     try {
       requireDeveloper(c);

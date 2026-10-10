@@ -50,7 +50,7 @@ vi.mock('./dispatch-store.ts', () => ({
     get: async () => null,
     list: async () => [],
     deployedVersion: async () => null,
-    triggerKinds: async () => [],
+    triggerInput: async () => null,
     save: io.save,
   }),
 }));

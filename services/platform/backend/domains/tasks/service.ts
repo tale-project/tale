@@ -1175,11 +1175,12 @@ async function settleTaskStatusChange(
   }
   // The platform event is the HUMAN doors' — every gesture a person makes
   // on the board or in the sheet fires the org's `task.status_changed`
-  // triggers alike. The agent lane stays event-less on purpose: dispatch
-  // cannot yet tell a run's own flips apart from a person's (nothing
-  // passes `dispatchAutomationEvent` its 'automation' origin), so an
-  // automation reacting to the event by moving the card would re-trigger
-  // itself. That plumbing is the precondition for turning it on.
+  // triggers alike. The agent lane stays event-less on purpose, and the
+  // event's description in the trigger editor says so ("an agent's own
+  // moves don't count"). A run's own flips could now be told apart (the
+  // run's doors pass the event its origin, `events/origin.ts`), but a
+  // project agent's moves are not a run's, so turning the lane on is a
+  // product decision of its own, not a missing seam.
   if (args.actorType === 'user') {
     await emitEvent(tx, {
       organizationId: task.organizationId,

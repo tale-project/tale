@@ -3,7 +3,7 @@ title: Mitgelieferte Automatisierungen
 description: Wähle einen mitgelieferten Mail-, GitHub- oder GlitchTip-Workflow, prüfe Eingaben und Verbindungen und erfahre vor dem Deployment, was er liest oder schreibt.
 ---
 
-Tale enthält zehn Automatisierungspakete: drei für die Postfach-Synchronisierung, drei für Zusammenfassungen, zwei für die GitHub-Prüfung sowie Issue-Importe für GitHub und GlitchTip. Jedes beginnt mit Version 1 und **Nicht live**. Die Issue-Importer laufen manuell; die anderen Pakete enthalten Zeitpläne. Prüfe Eingaben, Modell, Verbindungen und Schreibvorgänge, bevor ein Inhaber, Admin oder Entwickler eine Version live schaltet.
+Tale enthält zehn Automatisierungspakete: drei für die Postfach-Synchronisierung, drei für Zusammenfassungen, zwei für die GitHub-Prüfung sowie Issue-Importe für GitHub und GlitchTip. Jedes beginnt mit Version 1 und **Nicht live**. Die Issue-Importer laufen manuell; die anderen Pakete enthalten Zeitpläne, die anfangs ausgeschaltet sind: Nachdem du eine Version live geschaltet hast, bietet der Editor **Trigger einschalten** an. Prüfe Eingaben, Modell, Verbindungen und Schreibvorgänge, bevor ein Inhaber, Admin oder Entwickler eine Version live schaltet.
 
 <Frame caption="Der Automatisierungskatalog zeigt Paketnamen, Versionszahlen und Live-Status.">
 
@@ -87,7 +87,7 @@ Beide Workflows benötigen `owner` und `repo`. Gib beim **Testlauf** unter **Ein
 
 <Note>
 
-Die mitgelieferten GitHub-Zeitpläne liefern weder `owner` noch `repo`. Das Live-Schalten allein macht diese geplanten Läufe deshalb nicht ausführbar. Ein Zeitplan sendet nur `trigger` und `firedAt`; die erforderliche Repository-Eingabe fehlt damit, und der Start wird abgelehnt. Starte manuell mit den benötigten Eingaben oder passe Schema und Repository-Konfiguration an, bevor du geplante Läufe aktivierst. Ein abgelehnter geplanter Start erscheint am [Trigger](/de/platform/automations/triggers) als `start_refused`.
+Die mitgelieferten GitHub-Zeitpläne brauchen `owner` und `repo`, ein Zeitplan sendet aber nur `trigger` und `firedAt`. Nachdem du eine Version live geschaltet hast, bietet der Editor deshalb **Trigger prüfen** an, statt den Zeitplan einzuschalten. Öffne im Tab **Allgemein** den Bereich **Feste Eingabe hinzufügen**, wähle **Die 2 fehlenden Felder ergänzen**, ersetze die Platzhalter durch Inhaber und Namen deines Repositorys, schalte **Aktiv** ein und speichere. Jeder geplante Lauf erhält dann diese Werte. Lehnt der Workflow einen Start trotzdem ab, erscheint das am [Trigger](/de/platform/automations/triggers#einen-ausgebliebenen-start-untersuchen) als **Ausgelassen: Die Eingabe des Laufs wurde abgelehnt**.
 
 </Note>
 

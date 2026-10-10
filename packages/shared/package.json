@@ -8,6 +8,7 @@
     "./automation-name": "./src/automation-name.ts",
     "./automation-replay": "./src/automation-replay.ts",
     "./task-limits": "./src/task-limits.ts",
+    "./time-zone": "./src/time-zone.ts",
     "./db/retry": "./src/db/retry.ts",
     "./db/migration-files": "./src/db/migration-files.ts",
     "./db/serializable": "./src/db/serializable.ts",
@@ -46,6 +47,7 @@
     "./schemas/task-review-batch": "./src/schemas/task-review-batch.ts",
     "./schemas/schedule-rule": "./src/schemas/schedule-rule.ts",
     "./schemas/automation-replay": "./src/schemas/automation-replay.ts",
+    "./schemas/automation-trigger": "./src/schemas/automation-trigger.ts",
     "./monitoring/privacy": "./src/monitoring/privacy.ts"
   },
   "scripts": {

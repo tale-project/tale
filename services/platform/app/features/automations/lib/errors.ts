@@ -80,6 +80,42 @@ export function automationErrorIssues(
   return { errors, warnings };
 }
 
+/** One problem a refused trigger save named (`AUTOMATION_TRIGGER_INVALID`). */
+export interface TriggerRefusalIssue {
+  path: string;
+  code: string;
+  message: string;
+}
+
+/**
+ * The problems a refused trigger save names under `data.issues`, or
+ * undefined when the refusal carries none in that shape.
+ */
+export function automationTriggerIssues(
+  error: unknown,
+): TriggerRefusalIssue[] | undefined {
+  const issues = errorData(error)?.issues;
+  if (!Array.isArray(issues)) return undefined;
+  const read = issues.flatMap((issue: unknown): TriggerRefusalIssue[] => {
+    if (typeof issue !== 'object' || issue === null || !('code' in issue)) {
+      return [];
+    }
+    const { code } = issue;
+    const path = 'path' in issue ? issue.path : undefined;
+    const message = 'message' in issue ? issue.message : undefined;
+    return typeof code === 'string'
+      ? [
+          {
+            path: typeof path === 'string' ? path : '',
+            code,
+            message: typeof message === 'string' ? message : '',
+          },
+        ]
+      : [];
+  });
+  return read.length === 0 ? undefined : read;
+}
+
 /** The machine code the store attached, for branching on a refusal kind. */
 export function automationErrorCode(error: unknown): string | undefined {
   const code = errorData(error)?.code;

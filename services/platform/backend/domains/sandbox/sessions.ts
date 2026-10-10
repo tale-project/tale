@@ -710,6 +710,30 @@ export async function getSessionTokenByHash(
   return row;
 }
 
+/**
+ * The automation run a session works for: the run behind a `workflow_run`
+ * session (its owner is `${runId}` or the step-scoped `${runId}:<suffix>`),
+ * or null for any other owner. The newest row of the session id answers,
+ * as the tool door's own binding resolution reads it.
+ */
+export async function workflowRunOfSession(
+  sql: Sql,
+  organizationId: string,
+  sessionId: string,
+): Promise<string | null> {
+  const rows = await sql<{ ownerType: string; runId: string }[]>`
+    SELECT owner_type AS "ownerType", split_part(owner_id, ':', 1) AS "runId"
+    FROM app.sandbox_sessions
+    WHERE session_id = ${sessionId} AND org_id = ${organizationId}
+    ORDER BY created_at_ms DESC
+    LIMIT 1
+  `;
+  const row = rows[0];
+  return row?.ownerType === 'workflow_run' && row.runId !== ''
+    ? row.runId
+    : null;
+}
+
 // --- op rows ----------------------------------------------------------------
 
 export interface SessionOpRow {

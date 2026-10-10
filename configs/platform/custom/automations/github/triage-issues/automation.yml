@@ -12,8 +12,16 @@ requires:
   connectors:
     - github
 triggers:
+  # Off until a person names the repository: the workflow requires `owner`
+  # and `repo`, which a schedule never sends, so they go in the trigger's
+  # fixed input before it is turned on.
   - kind: schedule
-    cron: 0 7 * * *
+    enabled: false
+    repeat:
+      frequency: daily
+      interval: 1
+      times:
+        - '07:00'
     timezone: UTC
 i18n:
   de:

@@ -5,10 +5,13 @@
  * in `lib/mcp/docs/` cannot import.
  */
 
+import {
+  CRON_DEFAULT_ZONE,
+  SCHEDULE_ON_TIME_GRACE_MS,
+} from '../../../lib/automations/schedule/occurrences.ts';
 import { triggersReference } from '../../../lib/mcp/docs/triggers.ts';
 import { validationReference } from '../../../lib/mcp/docs/validation.ts';
 import { buildTaleSkill } from '../../../lib/mcp/skill.ts';
-import { MAX_CATCHUP_MS } from '../../core/automations/cron.ts';
 import { PERMANENT_FAILURES_BEFORE_PAUSE } from '../../core/automations/failure.ts';
 import {
   BODY_LANE_WINDOW_MS,
@@ -16,12 +19,11 @@ import {
   HEADER_LANE_WINDOW_MS,
   MAX_WEBHOOK_BODY_BYTES,
 } from '../../core/automations/webhook_delivery.ts';
-import { DEFAULT_TIMEZONE } from '../automations/triggers.ts';
 
 /** The numbers the triggers reference states, from where they are decided. */
 const TRIGGER_FACTS = {
-  defaultTimezone: DEFAULT_TIMEZONE,
-  catchUpMs: MAX_CATCHUP_MS,
+  defaultTimezone: CRON_DEFAULT_ZONE,
+  onTimeGraceMs: SCHEDULE_ON_TIME_GRACE_MS,
   pauseAfterFailures: PERMANENT_FAILURES_BEFORE_PAUSE,
   webhookBodyBytes: MAX_WEBHOOK_BODY_BYTES,
   deliveryIdHeaders: DELIVERY_ID_HEADERS,

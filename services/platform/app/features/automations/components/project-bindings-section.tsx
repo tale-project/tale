@@ -19,6 +19,7 @@ import { useSetAutomationProjects } from '../hooks/mutations';
 import { useAutomationProjects } from '../hooks/queries';
 import { PROJECTS_DIRTY_KEY } from '../lib/dirty-keys';
 import { automationErrorMessage } from '../lib/errors';
+import { AUTOMATION_PROJECTS_FIELD_ID } from '../lib/field-ids';
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** What the General tab's strip lights its unsaved dot for. */
@@ -190,6 +191,7 @@ export function ProjectBindingsSection({
           </Text>
         ) : (
           <MultiSelect
+            id={AUTOMATION_PROJECTS_FIELD_ID}
             value={selection}
             onValueChange={setSelection}
             options={options}

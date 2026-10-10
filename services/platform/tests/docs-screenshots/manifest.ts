@@ -48,7 +48,9 @@ import {
   DEMO_SKILLS,
   DEMO_SSO_EXAMPLE,
   DEMO_TEST_RUN,
+  DEMO_TRIGGER_SKIP,
   DEMO_WEBDAV_RETIRED_LABEL,
+  DEMO_WEBHOOK,
   MOCK_PROVIDER_DISPLAY_NAME,
   MOCK_PROVIDER_SLUG,
 } from './demo-content';
@@ -416,6 +418,132 @@ async function showTriageAutomationExamples(page: Page): Promise<void> {
   }
   // Four matching examples plus the table's column-heading row.
   await expect(page.getByRole('row')).toHaveCount(5);
+}
+
+/** The pack whose General tab the schedule picker shots open: its stored
+ * rule (every 6 hours, UTC) is no preset, so its custom row is checked. */
+const PICKER_AUTOMATION = 'gmail-triage-inbox';
+
+/** The General tab's Trigger section. */
+const triggerSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('automations.trigger.title'),
+    exact: true,
+  });
+
+/** The schedule picker's button, once it names the stored schedule — the
+ * form paints before the trigger query answers. */
+const schedulePicker = (page: Page): Locator =>
+  page.getByRole('button', {
+    name: new RegExp(
+      `^${escapeRegExp(t('automations.trigger.schedule.label'))}: \\S`,
+    ),
+  });
+
+/** The schedule picker's popover. */
+const schedulePopover = (page: Page): Locator =>
+  page.getByRole('dialog', {
+    name: t('automations.trigger.schedule.label'),
+    exact: true,
+  });
+
+/** Open the schedule picker on its presets. */
+async function openSchedulePicker(page: Page): Promise<Locator> {
+  const picker = schedulePicker(page);
+  await expect(picker).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await picker.click();
+  const popover = schedulePopover(page);
+  await expect(
+    popover.getByRole('group', { name: t('recurrence.presets'), exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  return popover;
+}
+
+/** One of the picker's custom views, from its row on the presets. The row
+ * of the stored rule's kind also names that rule. */
+async function openCustomView(
+  page: Page,
+  view: 'recurrence.customTimes' | 'recurrence.customInterval',
+): Promise<Locator> {
+  const popover = await openSchedulePicker(page);
+  await popover.getByRole('button', { name: labelStart(t(view)) }).click();
+  await expect(
+    popover.getByRole('button', { name: t('recurrence.back'), exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  return popover;
+}
+
+/** The interface language the page renders in. */
+async function pageLocale(page: Page): Promise<string> {
+  return (await page.locator('html').getAttribute('lang')) ?? 'en';
+}
+
+/** The locale's long name of a weekday (0 is Sunday), as the picker's day
+ * chips are named. 2024-01-07 was a Sunday. */
+function weekdayName(day: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'long',
+    timeZone: 'UTC',
+  }).format(Date.UTC(2024, 0, 7 + day));
+}
+
+/** Leave exactly Monday to Friday pressed among the picker's day chips:
+ * the five on first, so the group never drops to none. */
+async function pickWorkweek(popover: Locator, locale: string): Promise<void> {
+  const chip = (day: number) =>
+    popover.getByRole('button', {
+      name: weekdayName(day, locale),
+      exact: true,
+    });
+  for (const day of [1, 2, 3, 4, 5]) {
+    if ((await chip(day).getAttribute('aria-pressed')) !== 'true') {
+      await chip(day).click();
+    }
+    await expect(chip(day)).toHaveAttribute('aria-pressed', 'true');
+  }
+  for (const day of [6, 0]) {
+    if ((await chip(day).getAttribute('aria-pressed')) === 'true') {
+      await chip(day).click();
+    }
+    await expect(chip(day)).toHaveAttribute('aria-pressed', 'false');
+  }
+}
+
+/** The row of the Custom times list for its 1-based position. */
+const timeRow = (popover: Locator, index: number): Locator =>
+  popover.getByRole('group', {
+    name: t('recurrence.editor.timeName').replace('{index}', String(index)),
+    exact: true,
+  });
+
+/** Type a time of day into a time field as a reader does: the hour, the
+ * minutes, and on a 12-hour clock the period's letter. */
+async function typeTime(
+  field: Locator,
+  hour: number,
+  minute: number,
+): Promise<void> {
+  const period = field.getByRole('spinbutton', {
+    name: t('timeField.dayPeriod'),
+    exact: true,
+  });
+  const twelve = (await period.count()) > 0;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const shown = twelve ? ((hour + 11) % 12) + 1 : hour;
+  await field
+    .getByRole('spinbutton', { name: t('timeField.hours'), exact: true })
+    .click();
+  await field
+    .page()
+    .keyboard.type(
+      `${pad(shown)}${pad(minute)}${twelve ? (hour < 12 ? 'a' : 'p') : ''}`,
+    );
+  await expect(
+    field.getByRole('spinbutton', {
+      name: t('timeField.minutes'),
+      exact: true,
+    }),
+  ).toHaveValue(pad(minute));
 }
 
 /** The Editor's canvas once its layout has landed: the chart is busy while
@@ -1683,27 +1811,172 @@ export const SHOTS: readonly Shot[] = [
     viewport: { width: 390, height: 844 },
   },
   {
-    // An automation's General tab — its trigger (the pack's schedule: cron,
-    // timezone, enabled) above the projects it is bound to. The form paints
-    // before the trigger query answers, so gate on the cron field holding
-    // the pack's expression. The tab is short; trim the empty frame below.
+    // An automation's General tab — its trigger (the pack's repeat rule,
+    // every 6 hours, with its zone, missed-runs setting and next runs) above
+    // the projects it is bound to. The form paints before the trigger query
+    // answers, so gate on the schedule picker naming the pack's rule. The
+    // section is tall.
     name: 'automation-general-trigger',
     section: 'platform',
-    route: '/dashboard/:orgId/automations/gmail-triage-inbox/general',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    readyWhen: schedulePicker,
+    viewport: { width: 1440, height: 900 },
+  },
+  {
+    // The schedule picker open on its presets: every 15 minutes to monthly,
+    // the stored rule's custom row checked with its sentence, and the next
+    // three runs under them. Nothing is saved.
+    name: 'automation-trigger-schedule-presets',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    prepare: async (page) => {
+      await openSchedulePicker(page);
+    },
     readyWhen: (page) =>
-      page.getByRole('textbox', {
-        name: t('automations.trigger.cronLabel'),
+      schedulePopover(page).getByRole('list', {
+        name: t('recurrence.nextRuns'),
         exact: true,
       }),
+  },
+  {
+    // Custom times: weekdays at 9:00 and 17:30, built as a reader does —
+    // the Week unit, the five day chips, a typed time and an added one —
+    // with the next runs they give. A draft only: the popover is never
+    // saved, so the stored schedule is untouched.
+    name: 'automation-trigger-schedule-custom-times',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
     prepare: async (page) => {
+      const popover = await openCustomView(page, 'recurrence.customTimes');
+      await popover
+        .getByRole('radio', {
+          name: t('recurrence.editor.units.weekly'),
+          exact: true,
+        })
+        .click();
+      await pickWorkweek(popover, await pageLocale(page));
+      await typeTime(timeRow(popover, 1), 9, 0);
+      await popover
+        .getByRole('button', {
+          name: t('recurrence.editor.addTime'),
+          exact: true,
+        })
+        .click();
+      await typeTime(timeRow(popover, 2), 17, 30);
+    },
+    readyWhen: (page) =>
+      timeRow(schedulePopover(page), 2).getByRole('spinbutton', {
+        name: t('timeField.minutes'),
+        exact: true,
+      }),
+  },
+  {
+    // Custom interval: every 15 minutes on weekdays, only between 8:00 and
+    // 18:00 (the hours the checkbox starts with), with the line naming the
+    // day's first and last run. A draft only, like the shot above.
+    name: 'automation-trigger-schedule-interval',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    prepare: async (page) => {
+      const popover = await openCustomView(page, 'recurrence.customInterval');
+      await popover.getByRole('combobox').click();
+      // "15 minutes", "15 Minuten": the step leads its option's name.
+      await page.getByRole('option', { name: /^15\s/ }).click();
+      await pickWorkweek(popover, await pageLocale(page));
+      await popover
+        .getByRole('checkbox', {
+          name: t('recurrence.editor.onlyBetween'),
+          exact: true,
+        })
+        .check();
+    },
+    readyWhen: (page) =>
+      schedulePopover(page).getByText(
+        labelStart(labelPrefix('recurrence.editor.windowHint.sameDay')),
+      ),
+  },
+  {
+    // A start the trigger could not make, and why: the pull-request review
+    // pack switched on without the repository its inputs require (seeded),
+    // so its schedule's last start was refused. The notice names the
+    // version, offers Add the missing fields and the editor, and its
+    // Technical details are open on the code and the missing fields.
+    name: 'automation-trigger-skip-reason',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TRIGGER_SKIP.automation}/general`,
+    prepare: async (page) => {
+      const section = triggerSection(page);
       await expect(
-        page.getByRole('textbox', {
-          name: t('automations.trigger.cronLabel'),
+        section.getByText(t('automations.trigger.skip.inputRefused.title'), {
           exact: true,
         }),
-      ).not.toHaveValue('', { timeout: TIMEOUT.FIRST_PAINT });
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await section
+        .getByText(t('automations.trigger.skip.technicalDetails'), {
+          exact: true,
+        })
+        .click();
     },
-    viewport: { width: 1440, height: 640 },
+    readyWhen: (page) =>
+      triggerSection(page).getByText('AUTOMATION_INPUT_INVALID', {
+        exact: true,
+      }),
+    capture: triggerSection,
+    viewport: { width: 1440, height: 900 },
+  },
+  {
+    // A webhook installed in two projects (seeded): one URL per project with
+    // the token masked, the test request reading the URL from the sender's
+    // environment, and the recent deliveries, each recognised by its
+    // Idempotency-Key. The rig's origin becomes a customer's.
+    name: 'automation-trigger-webhook',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_WEBHOOK.automation}/general`,
+    readyWhen: (page) =>
+      triggerSection(page)
+        .getByRole('list', {
+          name: t('automations.trigger.webhook.deliveries.title'),
+          exact: true,
+        })
+        .getByRole('listitem')
+        .nth(DEMO_WEBHOOK.deliveries.length - 1),
+    sanitize: replaceRigNames,
+    capture: triggerSection,
+    viewport: { width: 1440, height: 900 },
+  },
+  {
+    // The event list of a Platform event trigger, open: the events grouped
+    // by what they concern, each with its name, id and when it is raised.
+    // The trigger type changes in the form only; nothing is saved.
+    name: 'automation-trigger-event',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    prepare: async (page) => {
+      await expect(schedulePicker(page)).toBeVisible({
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      await page
+        .getByRole('combobox', {
+          name: labelStart(t('automations.trigger.kindLabel')),
+        })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('automations.trigger.kinds.event'),
+          exact: true,
+        })
+        .click();
+      // The event field is a button that opens a searchable list.
+      await page
+        .getByRole('button', {
+          name: labelStart(t('automations.trigger.eventLabel')),
+        })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('option', {
+        name: labelStart(t('automations.trigger.events.taskCreated.label')),
+      }),
   },
   {
     // The Test run dialog: the run input as JSON in the code editor, and the

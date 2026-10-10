@@ -38,6 +38,16 @@ there is nothing to add.
 - **Example**: The folder of shipped automations is unreadable on a server → provisioning
   reports the catalog as unreadable.
 
+### PROVN-R7 · A shipped automation's trigger is added switched off, and only once
+
+The trigger a shipped automation comes with is added when the organization has none for it,
+switched off unless the automation says it starts on. Nothing is deployed yet, so it could
+start no run; deploying a version offers to turn it on. A trigger the organization already
+has, its own or an earlier one, is left as it is.
+
+- **Example**: A new organization gets the Gmail sync automation → its five-minute schedule is
+  there and off. Ada deploys a version → the editor offers to turn the schedule on.
+
 ## Starter content
 
 ### PROVN-R5 · Starter content is added only to an organization that has no project
@@ -59,8 +69,6 @@ Creating them notifies no one and starts no agent.
 
 - **The configuration files an organization starts with**: agents, skills, models and
   policies copied from the shipped catalog (`domains/organizations/scaffold.ts`).
-- **The trigger a shipped automation comes with**, and that it is set only when the
-  organization has none for it (`service.ts`).
 - **Refreshing how a shipped automation is presented** (its name and description as shown)
   without touching its behaviour.
 - **Re-provisioning every organization, and the factory reset**: see the control spec.

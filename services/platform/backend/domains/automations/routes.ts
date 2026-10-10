@@ -1,5 +1,6 @@
 import { REPLAY_KINDS } from '@tale/shared/automation-replay';
 import { appReplayRequestSchema } from '@tale/shared/schemas/automation-replay';
+import { triggerWriteSchema } from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -77,6 +78,7 @@ import {
   listAutomationsForApp,
   listRuns,
   listRunsPage,
+  listTriggerRuns,
   listTriggers,
   listVersions,
   saveVersion,
@@ -84,6 +86,7 @@ import {
   setTrigger,
   toRunDetail,
   toRunSummary,
+  triggerBodyRefusal,
   versionRow,
   deployedVersion,
   bindingProjectIds,
@@ -144,35 +147,6 @@ const validateSchema = z.object({
     .max(2)
     .optional(),
 });
-
-// One strict shape per kind, the REST door's twin: the editor sends only
-// the kind's own fields, and a key of another kind (or an unknown one) is
-// refused instead of stored — the store guards the same rule for callers
-// that reach it without a schema (`assertTriggerValid`).
-const triggerSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('schedule'),
-      cron: z.string().max(200).optional(),
-      timezone: z.string().max(100).optional(),
-      enabled: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('webhook'),
-      enabled: z.boolean().optional(),
-      rotateToken: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('event'),
-      event: z.string().max(200).optional(),
-      enabled: z.boolean().optional(),
-    })
-    .strict(),
-]);
 
 const projectsSchema = z.object({
   projectIds: z.array(z.string().min(1)).max(100),
@@ -1248,12 +1222,20 @@ export function createAutomationRoutes(deps: {
     }
   });
 
+  // The shared trigger contract, the REST door's twin: one strict shape
+  // per kind, so a key of another kind (or an unknown one) is refused
+  // instead of stored. A rule of the trigger answers the store's own coded
+  // refusal, which the editor words per field.
   app.post('/:name{.+}/trigger', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
-    const body = triggerSchema.safeParse(await c.req.json());
+    const raw: unknown = await c.req.json();
+    const body = triggerWriteSchema.safeParse(raw);
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      const refusal = triggerBodyRefusal(body.error, raw);
+      return refusal === null
+        ? invalidBodyResponse(c, body.error)
+        : handleError(c, refusal);
     }
     try {
       return c.json(
@@ -1373,6 +1355,24 @@ export function createAutomationRoutes(deps: {
         c.get('orgId'),
         nameFrom(c, 'versions'),
       ),
+    });
+  });
+
+  // The runs the bound trigger started, newest first, with the webhook
+  // delivery lane of each while its ledger row lives — the trigger panel's
+  // recent deliveries. A run in a project the member cannot read is left
+  // out, as on every run read.
+  app.get('/:name{.+}/trigger/runs', async (c) => {
+    const limit = Number(c.req.query('limit') ?? Number.NaN);
+    return c.json({
+      runs: await listTriggerRuns(deps.sql, c.get('orgId'), {
+        name: nameFrom(c, 'trigger/runs'),
+        ...(Number.isFinite(limit) ? { limit } : {}),
+        visibleProjectIds: await readableProjectIds(
+          deps.sql,
+          await projectAuth(c),
+        ),
+      }),
     });
   });
 

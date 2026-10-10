@@ -10,9 +10,11 @@ import { nodeTypes, registerNodeType } from '../engine/core/slots';
 import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { compileSchema } from '../engine/core/validate/schema';
+import { triggerInputWarnings } from '../engine/core/validate/trigger-input';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import type { AutomationPack } from './packs';
 import { loadAutomationPacks } from './packs';
+import { triggerInputSample } from './trigger-input';
 
 const REPO = path.join(
   path.dirname(new URL(import.meta.url).pathname),
@@ -249,9 +251,9 @@ describe('the three sync-emails packs stay one document', () => {
  *
  * The assertion is deliberately narrow. A pack may still refuse its own
  * schedule over a REQUIRED input the schedule cannot supply — the GitHub
- * packs want `owner`/`repo`, and that is an authoring choice this test
- * leaves alone. Being closed against the wrapper is not a choice; it is the
- * pack forbidding the only start its own trigger can perform.
+ * packs want `owner`/`repo` — as long as it ships that trigger off, which
+ * the guard below holds. Being closed against the wrapper is not a choice;
+ * it is the pack forbidding the only start its own trigger can perform.
  */
 describe('a scheduled pack accepts the trigger wrapper', () => {
   const scheduled = packs.filter((pack) =>
@@ -278,6 +280,81 @@ describe('a scheduled pack accepts the trigger wrapper', () => {
       expect(closedAgainst).toEqual([]);
     });
   }
+});
+
+/**
+ * What a pack's trigger hands its runs, checked the way a save and a deploy
+ * check it (`triggerInputWarnings` over `triggerInputSample`): a pack trigger
+ * either starts runs its own inputs take, or it ships switched off and every
+ * problem is a required top-level field its schema declares — exactly what a
+ * person fills in as the trigger's fixed input before turning it on, which
+ * the editor's "Add the missing fields" does. Anything else would be a seeded
+ * trigger that can never start a run.
+ */
+describe('a pack trigger starts runs its inputs take, or ships off', () => {
+  const declared = packs.flatMap((pack) =>
+    (pack.manifest.triggers ?? []).map((trigger) => ({ pack, trigger })),
+  );
+
+  it('the catalog still ships triggers to check', () => {
+    expect(declared.length).toBeGreaterThan(0);
+  });
+
+  for (const { pack, trigger } of declared) {
+    it(`${pack.slug}'s ${trigger.kind} trigger`, () => {
+      const sample = triggerInputSample(trigger, Date.parse('2026-10-09'));
+      expect(sample).not.toBeNull();
+      if (sample === null) return;
+      const inputs = pack.automation.inputs;
+      const check = inputs === undefined ? null : compileSchema(inputs);
+      const warnings = triggerInputWarnings(check, sample);
+      // A fixed input is plain data: a pack never ships a template in it.
+      expect(warnings.map((warning) => warning.code)).not.toContain(
+        'TRIGGER_INPUT_NOT_TEMPLATED',
+      );
+      if (warnings.length === 0) return;
+      expect(trigger.enabled).toBe(false);
+      const properties = inputs?.properties;
+      const declaredFields =
+        typeof properties === 'object' && properties !== null
+          ? Object.keys(properties)
+          : [];
+      const problems = (check?.errors ?? []).map((error) => ({
+        keyword: error.keyword,
+        at: error.instancePath,
+        field: String(Reflect.get(error.params, 'missingProperty')),
+      }));
+      for (const problem of problems) {
+        expect(problem).toMatchObject({ keyword: 'required', at: '' });
+        expect(declaredFields).toContain(problem.field);
+      }
+    });
+  }
+
+  it('ships the GitHub schedules off, naming the repository to fill in', () => {
+    for (const slug of [
+      'github/triage-issues',
+      'github/review-pull-requests',
+    ]) {
+      const pack = packs.find((candidate) => candidate.slug === slug);
+      const trigger = pack?.manifest.triggers?.[0];
+      expect(trigger?.enabled).toBe(false);
+      const sample =
+        trigger === undefined
+          ? null
+          : triggerInputSample(trigger, Date.parse('2026-10-09'));
+      const inputs = pack?.automation.inputs;
+      expect(sample).not.toBeNull();
+      expect(inputs).toBeDefined();
+      if (sample === null || inputs === undefined) return;
+      const [warning] = triggerInputWarnings(compileSchema(inputs), sample);
+      expect(warning?.code).toBe('TRIGGER_INPUT_MISMATCH');
+      expect(warning?.params).toMatchObject({
+        kind: 'schedule',
+        missing: ['owner', 'repo'],
+      });
+    }
+  });
 });
 
 describe('issue synchronization stays inside the engine execution ceiling', () => {
