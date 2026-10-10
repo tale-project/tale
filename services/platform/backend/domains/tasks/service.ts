@@ -1372,15 +1372,23 @@ export interface CreateTaskArgs {
   sourceThreadId?: string;
 }
 
+/** What only the platform's own writers set on a new task. */
+export interface CreateTaskOptions {
+  /** Internal managed provisioning only; no generic task input exposes IDs. */
+  readonly taskId?: string;
+  /** Who the task says created it when it is not the person `auth` names:
+   * an automation (`app`, by its name) or the workflow engine (`agent`). */
+  readonly creator?: { readonly id: string; readonly type: 'app' | 'agent' };
+}
+
 export async function createTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: CreateTaskArgs,
-  /** Internal managed provisioning only; no generic task input exposes IDs. */
-  identity?: { taskId: string },
+  options: CreateTaskOptions = {},
 ): Promise<string> {
   const explicitId =
-    identity === undefined ? undefined : z.uuid().parse(identity.taskId);
+    options.taskId === undefined ? undefined : z.uuid().parse(options.taskId);
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertTaskCreatable(project, auth);
 
@@ -1486,7 +1494,8 @@ export async function createTask(
       ${startArrivedStamp(args.startDate ?? null, now)},
       ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
-      ${auth.userId}, 'user', ${now}, ${now}, ${now},
+      ${options.creator?.id ?? auth.userId},
+      ${options.creator?.type ?? 'user'}, ${now}, ${now}, ${now},
       ${TERMINAL_STATUSES.has(status) ? now : null},
       ${args.sourceThreadId ?? null}, ${explicitId ?? tx`DEFAULT`}
     )
