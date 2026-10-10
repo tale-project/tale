@@ -23,6 +23,12 @@ auth:
       - https://www.googleapis.com/auth/gmail.modify
 actions:
   - name: list_messages
+    title: List messages
+    i18n:
+      de:
+        title: Nachrichten auflisten
+      fr:
+        title: Lister les messages
     description: List message and thread IDs from the mailbox, optionally filtered by a Gmail search query or labels. Draft messages are excluded.
     effects: read
     input:
@@ -58,6 +64,12 @@ actions:
         return { messages: j.messages || [], nextPageToken: j.nextPageToken || '' };
     exampleInput: { q: 'is:unread', maxResults: 25 }
   - name: get_message
+    title: Get message
+    i18n:
+      de:
+        title: Nachricht abrufen
+      fr:
+        title: Récupérer un message
     description: Fetch a single email message by ID with full headers, body, and attachment metadata. Optionally download and store all attachments.
     effects: read
     input:
@@ -108,6 +120,12 @@ actions:
         return { message, attachments };
     exampleInput: { messageId: '18c1a2b3c4d5e6f7', format: 'full' }
   - name: get_attachments
+    title: Download attachments
+    i18n:
+      de:
+        title: Anhänge herunterladen
+      fr:
+        title: Télécharger les pièces jointes
     description: Download every file attachment on a message and store each one. Returns a fileId and URL per attachment.
     effects: read
     input:
@@ -149,6 +167,12 @@ actions:
         return { attachments };
     exampleInput: { messageId: '18c1a2b3c4d5e6f7' }
   - name: search_messages
+    title: Search messages
+    i18n:
+      de:
+        title: Nachrichten durchsuchen
+      fr:
+        title: Rechercher des messages
     description: Search messages using Gmail query syntax and return the matching message and thread IDs.
     effects: read
     input:
@@ -179,6 +203,12 @@ actions:
         return { messages: j.messages || [], nextPageToken: j.nextPageToken || '' };
     exampleInput: { query: 'subject:invoice has:attachment', maxResults: 25 }
   - name: send_message
+    title: Send email
+    i18n:
+      de:
+        title: E-Mail senden
+      fr:
+        title: Envoyer un e-mail
     description: Compose and send an email message via Gmail. Supports replying into a thread and sending with file attachments.
     effects: write
     input:
@@ -275,6 +305,12 @@ actions:
         body: 'This is a test message.',
       }
   - name: get_profile
+    title: Get mailbox address
+    i18n:
+      de:
+        title: Adresse des Postfachs abrufen
+      fr:
+        title: Récupérer l’adresse de la boîte mail
     description: The address of the connected mailbox (the account the credential authorizes), as the mail sync reads it to tell the mailbox's own mail from a customer's.
     effects: read
     input:
@@ -292,6 +328,12 @@ actions:
         return { emailAddress: String(j.emailAddress || '') };
     exampleInput: {}
   - name: list_labels
+    title: List labels
+    i18n:
+      de:
+        title: Labels auflisten
+      fr:
+        title: Lister les libellés
     description: List all labels in the mailbox, including system labels (INBOX, SENT, etc.) and user-created labels.
     effects: read
     input:
@@ -309,6 +351,12 @@ actions:
         return { labels: j.labels || [] };
     exampleInput: {}
   - name: get_thread
+    title: Get thread
+    i18n:
+      de:
+        title: E-Mail-Verlauf abrufen
+      fr:
+        title: Récupérer un fil de discussion
     description: Fetch a complete email thread (conversation) with all of its messages.
     effects: read
     input:
@@ -333,6 +381,12 @@ actions:
         return { thread: r.json() };
     exampleInput: { threadId: '18c1a2b3c4d5e6f7' }
   - name: list_drafts
+    title: List drafts
+    i18n:
+      de:
+        title: Entwürfe auflisten
+      fr:
+        title: Lister les brouillons
     description: List draft messages in the mailbox.
     effects: read
     input:
@@ -359,6 +413,12 @@ actions:
         return { drafts: j.drafts || [], nextPageToken: j.nextPageToken || '' };
     exampleInput: { maxResults: 25 }
   - name: get_attachment
+    title: Download attachment
+    i18n:
+      de:
+        title: Anhang herunterladen
+      fr:
+        title: Télécharger une pièce jointe
     description: Download a single email attachment by message ID and attachment ID, storing it through file storage.
     effects: read
     input:

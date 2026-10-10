@@ -197,7 +197,6 @@ common:
     somethingWentWrong: Something went wrong. Try again.
     tryAgain: Try again
   flow:
-    aiEditor: AI editor
     resetView: Reset view
     zoomIn: Zoom in
     zoomOut: Zoom out
@@ -436,6 +435,338 @@ issues:
   technicalDetails: Technical details
   learnMore: Learn more
   goTo: Go to
+
+codeEditor:
+  roleDescription: code editor
+  loading: Loading the editor…
+  keyboardHint: Tab indents. To leave the editor, press Esc, then Tab.
+  submitHint: 'Shortcut {shortcut}: {action}.'
+  legend:
+    leave: Esc, then Tab to leave
+    submit: '{shortcut}: {action}'
+  leaveArmed: Press Tab to move on.
+  tabFocusOn: Tab now moves focus.
+  tabFocusOff: Tab now indents.
+  expand: Expand editor
+  collapse: Back to the field
+  loadFailed: 'The editor didn''t load. You can keep editing here as plain text.'
+  retry: 'Try the editor again'
+  diagnostics:
+    atCursor: '{severity} on line {line}: {message}'
+    severity:
+      error: Error
+      warning: Warning
+      info: Note
+    fixAvailable: 'Fix available: press {shortcut}.'
+    fixApplied: 'Applied: {label}'
+    fixMenu: Fixes
+    lineItem: 'Line {line}: {message}'
+    more: '{count, plural, one {and # more problem} other {and # more problems}}'
+  syntax:
+    json: This isn't valid JSON here.
+    yaml: This isn't valid YAML here.
+    javascript: This can't be read as JavaScript here. Look for a missing bracket, quote or comma.
+    unterminatedTemplate: "This '{{' has no closing '}}'."
+  typeInfo:
+    label: Type
+    announce: '{title}: {type}'
+    optional: optional
+    sample: 'Last run: {value}'
+  phrases:
+    controlCharacter: Control character
+    close: Close
+    selectionDeleted: Selection deleted
+    foldedCode: folded code
+    unfold: unfold
+    to: to
+    foldedLines: Folded lines
+    unfoldedLines: Unfolded lines
+    foldLine: Fold line
+    unfoldLine: Unfold line
+    completions: Completions
+    find: Find
+    replaceField: Replace
+    next: Next
+    previous: Previous
+    all: All
+    matchCase: Match case
+    regexp: Regex
+    byWord: Whole word
+    replace: Replace
+    replaceAll: Replace all
+    goToLine: Go to line
+    go: Go
+    currentMatch: current match
+    onLine: on line
+    replacedMatches: Replaced $ matches
+    replacedMatchOnLine: Replaced a match on line $
+
+schemaTree:
+  label: Fields
+  kinds:
+    string: text
+    number: a number
+    integer: a whole number
+    boolean: true or false
+    object: an object
+    'null': empty
+    any: anything
+    array: list of {item}
+  kindsPlural:
+    string: texts
+    number: numbers
+    integer: whole numbers
+    boolean: true/false values
+    object: objects
+    array: lists
+    any: values
+  oneOf: one of {values}
+  required: required
+  optional: optional
+  maybeEmpty: may be empty
+  more: '{count, plural, one {# more field} other {# more fields}}'
+  asTypeScript: Show as TypeScript
+  inItems: '{total, plural, one {in {count} of # item} other {in {count} of # items}}'
+  mark:
+    added: not in the expected shape
+    removed: expected, but not there
+    typeChanged: not the expected kind
+    optional: not always there
+
+valueTree:
+  label: Value
+  name: '{key}, {value}'
+  markedName: '{mark}: {name}'
+  keyboardHelp: Arrow keys move and open. Type a field name to jump to it.
+  summary:
+    list: '{count, plural, =0 {an empty list} one {a list of # item} other {a list of # items}}'
+    object: '{count, plural, =0 {an empty object} one {an object with # field} other {an object with # fields}}'
+    longText: '{count, plural, one {a text of # character} other {a text of # characters}}'
+    quote: '"{text}"'
+    'true': 'true'
+    'false': 'false'
+    'null': empty
+    missing: missing
+    redacted: a hidden secret
+    elided: '{size} not kept'
+  showAllText: Show all {count} characters
+  showMore: Show {count} more
+  elided:
+    string: '{count, plural, one {+# character not kept} other {+# characters not kept}}'
+    items: '{count, plural, one {+# item not kept} other {+# items not kept}}'
+    depth: Deeper levels not kept
+    whole: Too large to keep ({size})
+  redacted: Hidden secret
+  redactedHint: Tale hides secrets in recorded values.
+  missing: '{key}: missing'
+  copyValue: Copy value
+  copyPath: Copy path
+  copied: Copied
+  mark:
+    added: Added
+    removed: Removed
+    changed: Changed from {before}
+    changedPlain: Changed
+    typeChanged: Type changed from {before}
+    typeChangedPlain: Type changed
+
+dataView:
+  values: Values
+  shape: Shape
+  modeLabel: Show as
+  copy: Copy JSON
+  download: Download JSON
+  fullScreen: Open full screen
+  closeFullScreen: Close full screen
+  expected:
+    matches: Matches the expected shape
+    differs: '{count, plural, one {Differs from the expected shape in # field} other {Differs from the expected shape in # fields}}'
+    compare: Compare
+  empty: Nothing recorded
+  size: '{size} recorded'
+
+dataDiff:
+  none: No changes
+  count:
+    added: '{count, plural, one {# added} other {# added}}'
+    removed: '{count, plural, one {# removed} other {# removed}}'
+    changed: '{count, plural, one {# changed} other {# changed}}'
+    typeChanged: '{count, plural, one {# changed type} other {# changed type}}'
+    reordered: '{count, plural, one {# reordered} other {# reordered}}'
+    unknown: '{count, plural, one {# not compared} other {# not compared}}'
+  row:
+    added: 'Added {path}: {after}'
+    removed: 'Removed {path} (was {before})'
+    changed: '{path} changed from {before} to {after}'
+    typeChanged: '{path} changed from {beforeKind} to {afterKind}: {after}'
+    reordered: '{path}: the same items in a different order'
+    unknown: "{path}: not compared, part of it wasn't kept"
+  shape:
+    added: '{path} appeared ({kind})'
+    removed: '{path} disappeared'
+    typeChanged: '{path}: {beforeKind} became {afterKind}'
+    optional: '{path} is no longer always there'
+    required: '{path} is now always there'
+  layout:
+    label: Layout
+    list: List
+    split: Side by side
+  before: Before
+  after: After
+  unrelated: They don't share a structure, so there's nothing to compare field by field.
+  wholeValue: the whole value
+  showValue: Show value
+  hideValue: Hide value
+  unchanged: '{count, plural, one {# unchanged field} other {# unchanged fields}}'
+  more: '{count, plural, one {# more change} other {# more changes}}'
+
+codeDiff:
+  added: Added
+  removed: Removed
+  unchanged: Unchanged
+  lineIn: Line in {label}
+  change: Change
+  text: Text
+  showUnchanged: '{count, plural, one {Show # unchanged line} other {Show # unchanged lines}}'
+  hideUnchanged: '{count, plural, one {Hide # unchanged line} other {Hide # unchanged lines}}'
+  hunk: '{count, plural, one {Line {from} in {label}} other {Lines {from}–{to} in {label}}}'
+  next: Next change
+  previous: Previous change
+  position: Change {index} of {count}
+  changes: '{count, plural, one {# change} other {# changes}}'
+  layout:
+    label: Layout
+    unified: Unified
+    split: Side by side
+  copyPatch: Copy patch
+  copied: Copied
+  identical: No differences
+  loading: Loading the comparison…
+  loadFailed: The comparison didn't load.
+  showRemaining: '{count, plural, one {Show the remaining change} other {Show the remaining # changes}}'
+
+changeList:
+  kind:
+    added: Added
+    removed: Removed
+    changed: Changed
+    renamed: Renamed
+  count:
+    added: '{count, plural, one {# added} other {# added}}'
+    removed: '{count, plural, one {# removed} other {# removed}}'
+    changed: '{count, plural, one {# changed} other {# changed}}'
+    renamed: '{count, plural, one {# renamed} other {# renamed}}'
+  before: Before
+  after: After
+  empty: No changes
+
+flow:
+  canvas:
+    roleDescription: flow chart
+    keyboardHelp: Use the arrow keys to follow the connections between nodes, Home and End to jump to Start and End, and Enter to open a node.
+    arranging: Arranging the nodes…
+    arrangeFailed: Couldn't arrange the nodes, so they're shown in one column.
+    touchHint: Use two fingers to move the chart
+  controls:
+    showList: Show as list
+    showChart: Show as chart
+    legend: Legend
+  legend:
+    title: How to read the chart
+  node:
+    entry: Start
+    exit: End
+    triggers: Starts
+    inputs: Input
+    outputs: Returns
+    outcomes: Ends
+    noInput: No input
+    noOutput: Returns nothing
+    more: +{count} more
+    unreachable: Never runs
+    position: Node {index} of {count}
+    section: '{heading}: {items}'
+    rowWithDetail: '{label} ({detail})'
+  gate:
+    onlyIf: Only if
+    ifElse: If
+    name: 'Condition for {node}: {condition}'
+    branches: Yes leads to {yes}, No leads to {no}
+  branch:
+    'yes': 'Yes'
+    'no': 'No'
+  group:
+    items: '{done} of {total, plural, one {# item} other {# items}}'
+    pass: Pass {pass} of {max}
+  relation:
+    comesFrom: Comes from {list}
+    leadsTo: Leads to {list}
+    onlyIf: Runs only if {condition}
+    otherwise: Runs when the condition of {node} is false
+  state:
+    pending: Not reached yet
+    running: Running
+    waiting: Waiting
+    succeeded: Succeeded
+    failed: Failed
+    skipped: Skipped
+    stopped: Stopped here
+    notRun: Not run
+    reused: Reused
+    decidedYes: Condition was true
+    decidedNo: Condition was false
+    failedHere: The run stopped here
+  list:
+    label: Nodes
+    reads: Reads {list}
+    empty: No nodes yet
+  paths:
+    showAll: Show all
+  playback:
+    label: Run timeline
+    play: Play
+    pause: Pause
+    previous: Previous event
+    next: Next event
+    speed: Playback speed
+    position: '{elapsed} of {total}'
+    valueText: '{position} — {events}'
+    live: Live
+    followLive: Follow live
+  timeline:
+    label: Steps
+    empty: No steps yet
+    keyboardHelp: Use the up and down arrow keys to move between steps, the right and left arrow keys to show or hide a step's items, and Enter to go to a step.
+    columns:
+      step: Step
+      duration: Duration
+    showItems: Show items
+    hideItems: Hide items
+    loadingItems: Loading items…
+    showAll: Show all {count}
+    item: Item {index}
+    pass: Pass {index}
+    itemOf: Item {index} of {total}
+    passOf: Pass {index} of {total}
+  compare:
+    a: A
+    b: B
+    side: '{label}: {state}'
+    differs: Differs
+    only: Only in {label}
+    absent: Not in {label}'s version
+    legend:
+      differs: 'Ring: differs between the runs'
+      onlyOne: 'Label on a line: only one run went this way'
+  diff:
+    nodeState: '{kind, select, added {Added} removed {Removed} renamed {Renamed} other {Changed}}'
+    wasNamed: Was {from}
+    edgeAdded: New connection
+    edgeRemoved: Removed connection
+    legend:
+      added: Added in the newer version
+      removed: Removed in the newer version
+      changed: Changed or renamed
 mentions:
   listboxLabel: Mention someone
   empty: No matches

@@ -39,8 +39,10 @@ const EXPECTED_SLUGS = [
   'glitchtip',
   'gmail',
   'google-drive',
+  'http',
   'imap-smtp',
   'jev',
+  'knowledge',
   'outlook',
   'sandbox',
   'shopify',
@@ -147,6 +149,16 @@ describe('shipped connector catalog', () => {
     expect(fields.security?.default).toBe('tls');
     expect(fields.smtpPort?.default).toBe(465);
     expect(fields.imapPort?.default).toBe(993);
+    expect(fields.smtpPort).toMatchObject({
+      integer: true,
+      min: 1,
+      max: 65535,
+    });
+    expect(fields.imapPort).toMatchObject({
+      integer: true,
+      min: 1,
+      max: 65535,
+    });
   });
 
   // ctx.http carries at most 5 MiB of response and Gmail sends attachment

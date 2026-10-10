@@ -11,6 +11,11 @@
 # tokens are free, so a decision costs a fraction of the chat call it replaces.
 name: jev
 displayName: Jev decisions
+i18n:
+  de:
+    displayName: Jev-Entscheidungen
+  fr:
+    displayName: Décisions Jev
 description: >-
   Ask typed questions about a piece of state and get back calibrated answers —
   a choice from a fixed set, a score against ordered levels, or the probability
@@ -25,6 +30,12 @@ auth:
   - method: api-key
 actions:
   - name: decide
+    title: Make a decision
+    i18n:
+      de:
+        title: Entscheidung treffen
+      fr:
+        title: Prendre une décision
     description: >-
       Judge one piece of state against named questions, all answered in a
       single pass. Use it to gate an action — whether to send, escalate, or

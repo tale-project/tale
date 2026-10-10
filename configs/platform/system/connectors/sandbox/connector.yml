@@ -6,6 +6,11 @@
 # so there is no credential and nothing to connect.
 name: sandbox
 displayName: Sandbox scripts
+i18n:
+  de:
+    displayName: Sandbox-Skripte
+  fr:
+    displayName: Scripts de sandbox
 description: >-
   Run a deterministic script from a skill bundle in the organization's
   sandbox: staged input folders in, harvested output files and a parsed
@@ -16,6 +21,12 @@ auth:
   - method: platform
 actions:
   - name: run_script
+    title: Run script
+    i18n:
+      de:
+        title: Skript ausführen
+      fr:
+        title: Exécuter un script
     description: >-
       Run one script that ships inside an org skill bundle, inside the
       automation run's sandbox session. The bundle is staged at

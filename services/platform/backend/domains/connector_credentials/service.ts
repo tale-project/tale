@@ -283,10 +283,19 @@ function normalizeConfig(
     }
     if (field.type === 'number') {
       const n = typeof value === 'number' ? value : Number(value);
-      if (!Number.isFinite(n)) {
+      if (
+        !Number.isFinite(n) ||
+        (field.integer === true && !Number.isInteger(n)) ||
+        (field.min !== undefined && n < field.min) ||
+        (field.max !== undefined && n > field.max)
+      ) {
+        const range =
+          field.min !== undefined && field.max !== undefined
+            ? ` between ${field.min} and ${field.max}`
+            : '';
         throw new ConnectorCredentialError(
           'CREDENTIAL_CONFIG_INVALID',
-          `"${field.label}" must be a number.`,
+          `"${field.label}" must be a number${range}.`,
         );
       }
       out[field.key] = n;
@@ -1490,6 +1499,28 @@ export async function listConnectedConnectorSlugs(
     ORDER BY connector_slug ASC
   `;
   return rows.map((row) => row.connectorSlug);
+}
+
+/** The organization's credentials in service, by connector — what a
+ * connector step's `credential` may name. Ids and names only, never a
+ * secret. */
+export async function listCredentialsInService(
+  sql: Sql,
+  organizationId: string,
+): Promise<Map<string, Array<{ id: string; name: string }>>> {
+  const rows = await sql<{ connectorSlug: string; id: string; name: string }[]>`
+    SELECT connector_slug AS "connectorSlug", id, name
+    FROM app.connector_credentials
+    WHERE org_id = ${organizationId} AND status = 'active'
+    ORDER BY connector_slug ASC, name ASC
+  `;
+  const byConnector = new Map<string, Array<{ id: string; name: string }>>();
+  for (const row of rows) {
+    const held = byConnector.get(row.connectorSlug) ?? [];
+    held.push({ id: row.id, name: row.name });
+    byConnector.set(row.connectorSlug, held);
+  }
+  return byConnector;
 }
 
 /** Advance a credential's mail-sync watermarks (the sync pass's cursor). */

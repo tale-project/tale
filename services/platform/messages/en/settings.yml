@@ -78,6 +78,10 @@ mcpEndpoint:
       title: Discovery
       description: Look up what an automation may name — models, agent
         runtimes, skills, connectors, secret names, projects and events.
+    settings:
+      title: Settings
+      description: Read, plan and change the settings your role allows.
+        Secrets are always entered in Tale.
     capability:
       title: Capabilities & knowledge
       description: This organization's own surface — search what it can do,
@@ -381,6 +385,7 @@ connectors:
     in workflows and supported platform tools.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Enter an integer port from 1 to 65535.
   catalog:
     emptyBody: >-
       This deployment ships no connector files. Check that the config root
@@ -440,6 +445,10 @@ connectors:
     statusOrg: Organization app
     statusEnv: Deployment app
     statusNone: Not configured
+    statusUnavailable: Status unavailable
+    statusLoadFailed:
+      Couldn't check whether the Knowledge import apps are set up. You can
+      configure them once the check works.
     orgClientId: 'Client ID: {clientId}'
     configure: Configure
     remove: Remove
@@ -1101,6 +1110,7 @@ logs:
       entries}} — no tampering detected.'
     truncatedNote: 'Only the first {count} entries were checked. Ask your deployment operator to verify the remaining range.'
     unsignedScrubNote: '{count, plural, one {# scrubbed entry has no matching erasure request} other {# scrubbed entries have no matching erasure request}}. Review the erasure records before relying on this history.'
+    awaitingSealNote: '{count, plural, one {# entry was written moments ago and is not in the chain yet} other {# entries were written moments ago and are not in the chain yet}}. Check again in a few seconds to include them.'
     brokenTitle: Chain integrity broken
     brokenBody:
       The hash chain does not match at the entry below. Preserve this
@@ -1264,6 +1274,8 @@ logs:
       folder.deleted: Folder deleted
       knowledge_entry.created: Knowledge entry created
       knowledge_entry.updated: Knowledge entry updated
+      knowledge_embedding.saved: Embedding model saved
+      knowledge_embedding.removed: Embedding model removed
       branding.updated: Branding updated
       branding.image_uploaded: Branding image uploaded
       branding.image_deleted: Branding image removed
@@ -1362,6 +1374,7 @@ logs:
       automation.run.failed: Automation run failed
       automation.run.cancelled: Automation run stopped
       automation.run.deleted: Automation run deleted
+      automation.run.replayed: Automation run started again
       automation.run.in_doubt_resolved: Interrupted automation step decided
       automation.version.saved: Automation version saved
       automation.deployed: Automation deployed
@@ -1410,6 +1423,8 @@ logs:
       project.deleted: Project deleted
       policy.created: Policy created
       policy.updated: Policy updated
+      governance_policy.created: Policy created
+      governance_policy.updated: Policy updated
       policy.retention_bounds_proposal_applied: Retention bounds proposal applied
       policy.retention_bounds_initial_applied: Retention bounds initially applied
       retention.run_completed: Retention run completed
@@ -1477,6 +1492,7 @@ logs:
       document: Document
       folder: Folder
       knowledge_entry: Knowledge entry
+      knowledge_embedding: Embedding model
       agent: Agent
       workflow: Automation
       workflow_run: Automation run

@@ -1,17 +1,20 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Sql } from 'postgres';
 
+import { withRunnerTenant } from '../../lib/engine/runners/tenant.ts';
 import {
   defineAbilityFor,
   type AppAction,
   type AppSubject,
 } from '../../lib/permissions/ability.ts';
+import { trustedRoleHolds } from '../domains/trusted_headers/service.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
   MembershipError,
   requireOrganizationMembership,
   type OrganizationMember,
 } from './membership.ts';
+import { authRequestCache } from './request-cache.ts';
 import type { AuthEnv } from './session.ts';
 
 export interface OrgEnv {
@@ -53,10 +56,17 @@ export function requireOrgMember<E extends OrgEnv>(
       );
     }
     try {
+      const userId = c.get('sessionBundle').user.id;
+      // The process's cache answers memberships it read a moment ago
+      // (`request-cache.ts`); without one, the table does.
+      const cache = authRequestCache();
       const { member, organizationIds } = await requireOrganizationMembership(
         sql,
         orgId,
-        c.get('sessionBundle').user.id,
+        userId,
+        cache === null
+          ? undefined
+          : async (read) => cache.memberships(userId, read),
       );
       // A trusted-headers session carries the role the proxy asserted, bound
       // to the ONE organization whose key minted it (`trustedOrganizationId`):
@@ -73,14 +83,17 @@ export function requireOrgMember<E extends OrgEnv>(
         trustedOrg === orgId
           ? trustedRaw.toLowerCase().trim()
           : undefined;
+      // ...and only while the organization still lets a proxy assert that
+      // role: a role no proxy could have stamped is no override.
+      const overridden =
+        trustedRole !== undefined &&
+        trustedRole !== '' &&
+        member.role !== 'owner' &&
+        (await trustedRoleHolds(sql, orgId, trustedRole));
       c.set('orgId', orgId);
       c.set(
         'orgMember',
-        trustedRole !== undefined &&
-          trustedRole !== '' &&
-          member.role !== 'owner'
-          ? { ...member, role: trustedRole }
-          : member,
+        overridden ? { ...member, role: trustedRole } : member,
       );
       // Server-side org 2FA enforcement: a 'blocked' decision (policy enforced,
       // user not enrolled, past grace) must actually WITHHOLD authority here —
@@ -89,11 +102,15 @@ export function requireOrgMember<E extends OrgEnv>(
       // path stays open: Better Auth's /api/auth/two-factor/* endpoints are
       // handled before this middleware, and /api/app/two-factor/status is
       // session-scoped (no org gate), so a blocked user can still enrol.
-      const enforcement = await evaluateTwoFactorEnforcement(
-        sql,
-        c.get('sessionBundle').user.id,
-        { organizationIds },
+      // The session's user row already says whether two-factor is on.
+      const twoFactorEnabled: unknown = Reflect.get(
+        c.get('sessionBundle').user,
+        'twoFactorEnabled',
       );
+      const enforcement = await evaluateTwoFactorEnforcement(sql, userId, {
+        organizationIds,
+        ...(typeof twoFactorEnabled === 'boolean' ? { twoFactorEnabled } : {}),
+      });
       if (enforcement.decision === 'blocked') {
         return c.json(
           {
@@ -113,7 +130,9 @@ export function requireOrgMember<E extends OrgEnv>(
       }
       throw error;
     }
-    return next();
+    // Automation code the request evaluates queues as its organization's,
+    // so the runner serves organizations in turn (`runners/tenant.ts`).
+    return withRunnerTenant(orgId, next);
   };
 }
 

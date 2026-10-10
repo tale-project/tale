@@ -10,10 +10,11 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 
+import { resourceId } from '@tale/shared/config/platform-resources';
+
+import { platformConfigurationFixture } from '../../../../../packages/shared/src/config/platform-resources.fixture';
 import { CliError, ExitCode } from '../../utils/fail';
 import * as logger from '../../utils/logger';
-import { platformConfigurationFixture } from '../config/platform-fixture';
-import { resourceId } from '../config/platform-model';
 import { sha256, valueHash, loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { commandFixture } from '../config/releases/tests/command-fixture';

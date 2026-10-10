@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DOC_EXAMPLE } from '@/lib/engine/api/docs';
 
-import { readDocument, readPositions } from './document';
+import { readDocument } from './document';
 
 /**
  * A stored document arrives as `v.any()`. These tests pin the narrowing to the
@@ -29,7 +29,7 @@ describe('readDocument', () => {
     expect(readDocument({})).toEqual({ name: '', nodes: [] });
   });
 
-  it('drops a node that cannot be drawn instead of rendering a blank box', () => {
+  it('keeps a node without a type at its index, and drops one without an id', () => {
     const automation = readDocument({
       name: 'partial',
       nodes: [
@@ -39,7 +39,22 @@ describe('readDocument', () => {
         'nonsense',
       ],
     });
-    expect(automation?.nodes.map((node) => node.id)).toEqual(['ok']);
+    expect(automation?.nodes).toEqual([
+      { id: 'ok', type: 'transform', code: 'return 1;' },
+      { id: 'no_type', type: '' },
+    ]);
+  });
+
+  it('keeps every key it does not narrow, as written', () => {
+    const node = {
+      id: 'post',
+      type: 'slack.post_message',
+      credential: 'slack-ops',
+      input: { channel: '#ops' },
+      futureKey: { nested: [1, 2] },
+    };
+    const automation = readDocument({ name: 'a', nodes: [node] });
+    expect(automation?.nodes[0]).toEqual(node);
   });
 
   it('keeps only the control-flow values the engine would accept', () => {
@@ -98,20 +113,5 @@ describe('readDocument', () => {
       type: 'agent',
       skills: ['docx', 'pdf'],
     });
-  });
-});
-
-describe('readPositions', () => {
-  it('reads hand-placed positions from the canvas metadata', () => {
-    const automation = readDocument({
-      name: 'a',
-      nodes: [{ id: 'n', type: 'transform', code: 'return 1;' }],
-      ui: { positions: { n: { x: 10, y: 20 }, bad: { x: 'left' } } },
-    });
-    expect(readPositions(automation)).toEqual({ n: { x: 10, y: 20 } });
-  });
-
-  it('reads no positions from a document that placed none', () => {
-    expect(readPositions(readDocument(DOC_EXAMPLE.automation))).toEqual({});
   });
 });

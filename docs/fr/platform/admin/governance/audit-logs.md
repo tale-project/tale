@@ -26,8 +26,8 @@ L’onglet actif et la catégorie figurent dans l’URL : tu peux enregistrer la
 | --- | --- |
 | Horodatage | Quand Tale a enregistré l’action. |
 | Action | L’opération tentée ou terminée. Certaines actions récentes apparaissent sous leur nom technique. |
-| Utilisateur | La personne ou l’acteur système responsable. Une modification faite avec la clé API d’une personne, par l’API REST ou un agent de code, a le **Type d'acteur** API, et ses **Métadonnées** nomment l’identifiant de la clé (`apiKeyId`), pour que tu saches quelle clé révoquer. |
-| Source et client | Uniquement pour une action qu’un agent de code a effectuée par l’[endpoint MCP](/fr/develop/mcp-endpoint). **Source** affiche Agent de code, et **Client** nomme l’application de l’agent quand elle se nomme à chaque appel, comme le font les applications en révision MCP 2026-07-28 ; une application en révision antérieure ne se nomme qu’à la connexion, et ses événements n’affichent donc pas de **Client**. **Utilisateur** est la personne dont l’agent a utilisé la clé API. |
+| Utilisateur | La personne ou l’acteur système responsable. Pour une écriture faite avec une clé API, Utilisateur désigne la personne qui a créé la clé et le type d’acteur est API. Si la clé agit pour un membre, les Métadonnées conservent son identifiant dans `keyAttribution.subjectUserId`. Les exports JSON gardent aussi l’identifiant de la clé (`apiKeyId`) ; le CSV ne contient ni la clé ni les métadonnées du membre. |
+| Source et client | Uniquement pour une action qu’un agent de code a effectuée par l’[endpoint MCP](/fr/develop/mcp-endpoint). **Source** affiche Agent de code, et **Client** nomme l’application de l’agent quand elle se nomme à chaque appel, comme le font les applications en révision MCP 2026-07-28 ; une application en révision antérieure ne se nomme qu’à la connexion, et ses événements n’affichent donc pas de **Client**. **Utilisateur** désigne la personne qui a créé la clé ; le membre pour lequel elle agit figure dans les Métadonnées. |
 | Ressource et cible | Le type d’élément et l’enregistrement concerné. |
 | Catégorie | Le groupe utilisé par le filtre. |
 | Statut | Réussite, échec ou refus. |
@@ -49,7 +49,7 @@ Les exports respectent le filtre de catégorie et contiennent au maximum 10 000 
 
 ## Rétention et intégrité
 
-Choisis **Vérifier maintenant** dans la section d’intégrité de la chaîne pour contrôler la chaîne d’audit stockée. Le panneau affiche son statut et la dernière vérification automatique. Si une rupture est signalée, conserve ses détails et examine-la avec l’opérateur avant de t’appuyer sur cette partie de l’historique.
+Choisis **Vérifier maintenant** dans la section d’intégrité de la chaîne pour contrôler la chaîne d’audit stockée. Les nouvelles entrées rejoignent la chaîne quelques secondes après leur enregistrement. Le panneau affiche son statut et la dernière vérification automatique. Si une rupture est signalée, conserve ses détails et examine-la avec l’opérateur avant de t’appuyer sur cette partie de l’historique.
 
 Une vérification réussie couvre les enregistrements conservés qu’elle a examinés. Elle n’établit pas une origine de l’historique signée de façon indépendante. Le [guide d’intégrité pour l’exploitation](/fr/self-hosted/operate/security/audit-log-integrity) décrit les contrôles et leurs limites.
 

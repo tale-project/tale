@@ -25,6 +25,8 @@ auth:
   - method: api-key
 ```
 
+A connector named with ordinary words, such as `task` (Tasks), also declares `i18n.de.displayName` and `i18n.fr.displayName`. A connector named after a product, such as Tavily, keeps its name in every language.
+
 ### Set the destination boundary
 
 | Field | Meaning |
@@ -32,7 +34,7 @@ auth:
 | `endpointMode: fixed` | Default. Live HTTP calls use fixed vendor URLs; `allowedHosts` contains exact hosts |
 | `endpointMode: per-credential` | Each credential supplies an HTTPS `endpointUrl`; actions read its origin as `ctx.endpoint`, without a trailing slash |
 | `allowedHosts` in per-credential mode | Host suffixes: `atlassian.net` allows its subdomains |
-| `configFields` | Non-secret per-credential values such as server host, port, region, or API version |
+| `configFields` | Non-secret per-credential values such as server host, port, region, or API version; a field's `label` and `description` take `i18n.de` and `i18n.fr` overrides for the credential form |
 
 Confluence, GlitchTip and Shopify use per-credential origins. Keep secrets out of `configFields`; use the encrypted credential payload. For JavaScript actions, `ctx.http` enforces the declared HTTP destination boundary. Native backends, such as mailbox protocols, implement their own transport checks; an HTTP allowlist alone does not describe their whole security boundary.
 
@@ -47,6 +49,7 @@ Adding a connector is a source contribution. The runtime reads the platform cata
 | Field | Contract for the author and caller |
 | --- | --- |
 | `name`, `description` | Stable snake_case action name and an explanation of when to use it |
+| `title`, `i18n` | The action in words for people: a short English `title` in sentence case, without the connector's name ("List issues"), plus `i18n.de.title` and `i18n.fr.title` (and `de-CH` where the Swiss spelling differs). The automation canvas shows a node as "GitHub · List issues" in the reader's language; a shipped action without all three fails the catalog's tests |
 | `input` | Object JSON Schema, validated before execution; describe fields and mark required ones |
 | `output` | TypeScript-style signature describing the result; this is documentation, not a runtime output validator |
 | `effects` | `read` or `write`; writes pass through approval policy |

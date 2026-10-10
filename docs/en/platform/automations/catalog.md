@@ -21,7 +21,7 @@ The **Create automation** menu offers two routes:
 
 | Choice | Use it when | What happens next |
 | --- | --- | --- |
-| **Blank (trigger + agent)** | You want to configure the workflow yourself. | Set the name, model, instructions and equipment, then choose when it runs. Creation opens the editor for further changes. |
+| **Blank (trigger + agent)** | You want to configure the workflow yourself. | Set the name, model, instructions and equipment, then choose when it runs. **Deploy v1 now** (on by default) puts the first version live at once; otherwise it stays a draft you deploy from the editor. The agent receives what the trigger sends as its input. Creation opens the editor for further changes. |
 | **Upload package** | You already have a workflow file or a reusable pack. | Tale validates the files and saves a draft version. |
 
 Shipped automations are already installed when the organization is created. They still need configuration and a deployed version before automatic use. Follow [the workflow editor](/platform/automations/editor) to test inputs, inspect results and deploy deliberately.

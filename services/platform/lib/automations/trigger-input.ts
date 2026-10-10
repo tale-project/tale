@@ -1,78 +1,40 @@
 /**
- * The input a trigger hands the run it starts, built in one place: the
- * schedule scan, the event dispatch and the webhook door start runs with
- * it, and the trigger editor previews it and starts "Run now" with it, so
- * what a person is shown is what a run receives.
+ * The input a trigger hands the run it starts. The builder itself is the
+ * engine's (`triggerRunInput` in `lib/engine/core/slots.ts`): the schedule
+ * scan, the event dispatch and the webhook door start runs with it, the
+ * validator checks it, and the trigger editor previews it and starts "Run
+ * now" with it, so what a person is shown is what a run receives. This
+ * module adds what the host knows about each kind before a run: the sample
+ * facts it would start with, and what of them a check before a run may
+ * hold against the trigger.
  *
  * A trigger may carry a fixed input — values every run gets. The trigger's
  * own fields (`trigger`, `firedAt`, `event`, `payload`) are set over it, so
- * a fixed input can never pretend to be a different trigger. Without a
- * fixed input the object is exactly the one each door built by hand before:
- * the same keys in the same order, an event's absent payload included.
+ * a fixed input can never pretend to be a different trigger.
  *
- * Pure: no clock, no I/O, and Ajv only as a type — the app bundles it.
+ * Pure: no clock, no I/O — the app bundles it.
  */
 
-import type { ErrorObject } from 'ajv';
-
+import {
+  type TriggerFacts,
+  type TriggerInputSample,
+  type TriggerKind,
+  triggerRunInput,
+} from '../engine/core/slots.ts';
 import {
   EVENT_PAYLOAD_EXAMPLES,
   type EventType,
+  isEmittedEventType,
 } from '../shared/event-types.ts';
 
-/** The fields a trigger sets itself; a fixed input may not name them. */
-export const TRIGGER_WRAPPER_KEYS = [
-  'trigger',
-  'firedAt',
-  'event',
-  'payload',
-] as const;
-
-export type TriggerKind = 'schedule' | 'webhook' | 'event';
-
-/** What a trigger knows when it starts a run. */
-export type TriggerFacts =
-  | { kind: 'schedule'; firedAt: number }
-  | { kind: 'webhook'; payload: unknown }
-  | { kind: 'event'; event: EventType; payload: unknown };
+export { TRIGGER_WRAPPER_KEYS } from '@tale/shared/schemas/automation-trigger';
+export { type TriggerFacts, type TriggerKind, triggerRunInput };
 
 /** The payload a sample webhook delivery carries, here and in the
  * editor's preview, its curl example and Run now. */
 export const SAMPLE_WEBHOOK_PAYLOAD: Readonly<Record<string, unknown>> = {
   example: true,
 };
-
-/**
- * The one input a trigger hands its run: the fixed input, with the
- * trigger's own fields over it. `firedAt` is the occurrence a schedule
- * started for, not the moment it ran.
- */
-export function triggerRunInput(
-  facts: TriggerFacts,
-  staticInput?: Readonly<Record<string, unknown>> | null,
-): Record<string, unknown> {
-  let wrapper: Record<string, unknown>;
-  switch (facts.kind) {
-    case 'schedule':
-      wrapper = { trigger: 'schedule', firedAt: facts.firedAt };
-      break;
-    case 'event':
-      wrapper = {
-        trigger: 'event',
-        event: facts.event,
-        payload: facts.payload,
-      };
-      break;
-    case 'webhook':
-      wrapper = { trigger: 'webhook', payload: facts.payload };
-      break;
-    default: {
-      const exhaustive: never = facts;
-      return exhaustive;
-    }
-  }
-  return staticInput ? { ...staticInput, ...wrapper } : wrapper;
-}
 
 /**
  * The facts a trigger of `kind` would start a run with, before it has:
@@ -105,32 +67,42 @@ export function sampleTriggerFacts(
   }
 }
 
-/** A compiled inputs check, shaped like Ajv's `ValidateFunction`. */
-export interface InputsCheck {
-  (input: unknown): boolean;
-  errors?: ErrorObject[] | null;
+function isTriggerKind(value: string): value is TriggerKind {
+  return value === 'schedule' || value === 'webhook' || value === 'event';
 }
 
 /**
- * What an automation's compiled `inputs` check refuses in the input this
- * trigger would hand it, as Ajv's problems (describe them for a reader with
- * `describeSchemaErrors`). A webhook's body is unknown until a delivery
- * comes, so a problem inside `payload` is not held against it; a problem
- * at the top — a required field the fixed input lacks, a `payload` the
- * inputs do not take — is. An event's payload is known, so nothing is
- * dropped.
+ * What a trigger would start a run with, for a check before any run — the
+ * store's answer to the validator's `triggerInput` seam, and what a save and
+ * a deploy check against the version that runs. A webhook's body is unknown
+ * until a delivery comes, so a problem inside `payload` is not held against
+ * it; a problem at the top — a required field the fixed input lacks, a
+ * `payload` the inputs do not take — is. An event's payload is known, so
+ * nothing is set aside. Null for a kind the host does not start, or an event
+ * trigger that names no event the platform raises.
  */
-export function triggerInputIssues(
-  check: InputsCheck,
-  facts: TriggerFacts,
-  staticInput?: Readonly<Record<string, unknown>> | null,
-): ErrorObject[] {
-  if (check(triggerRunInput(facts, staticInput))) return [];
-  const errors = check.errors ?? [];
-  if (facts.kind !== 'webhook') return [...errors];
-  return errors.filter(
-    (error) =>
-      error.instancePath !== '/payload' &&
-      !error.instancePath.startsWith('/payload/'),
-  );
+export function triggerInputSample(
+  trigger: {
+    kind: string;
+    event?: string | null;
+    input?: Readonly<Record<string, unknown>> | null;
+  },
+  now: number,
+): TriggerInputSample | null {
+  if (!isTriggerKind(trigger.kind)) return null;
+  const event =
+    trigger.event !== undefined &&
+    trigger.event !== null &&
+    isEmittedEventType(trigger.event)
+      ? trigger.event
+      : null;
+  const facts = sampleTriggerFacts(trigger.kind, { now, event });
+  if (facts === null) return null;
+  const fixedInput = trigger.input ?? null;
+  return {
+    kind: trigger.kind,
+    input: triggerRunInput(facts, fixedInput),
+    ignorePointers: trigger.kind === 'webhook' ? ['/payload'] : [],
+    fixedInput,
+  };
 }

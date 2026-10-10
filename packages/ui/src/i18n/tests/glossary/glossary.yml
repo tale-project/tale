@@ -343,6 +343,75 @@ terms:
     de: Automatisierungen
     fr: Automatisations
     _note: Plural — the hub view. Matches UI label `navigation.automations`.
+  - key: feature_automationNode
+    category: feature
+    en: Node
+    fr: Nœud
+    _lintExclude:
+      fr: true
+    _note: 'One step of an automation, on the canvas and in every message about
+      it (`automations.canvas.*`, `automationIssues.*`). EN lowercase in prose
+      (node); DE the loanword `die Node`, plural `die Nodes`, never `Knoten` in
+      the automation pages and catalogs; FR `le nœud`, so French state words
+      that agree with it are masculine (ignoré, réussi). The run timeline still
+      says step / Schritt / étape. Not enforced in FR because `Node` there is
+      also the Node.js runtime.'
+  - key: feature_automationPath
+    category: feature
+    en: Path
+    de: Pfad
+    fr: Chemin
+    _lintExclude:
+      de: true
+      fr: true
+    _note: 'One way a successful run can go through an automation''s conditions
+      (`automations.paths.*`, "Possible paths"). DE `der Pfad`, FR `le chemin`.
+      Not enforced: German keeps `Path-Style`, the S3 addressing term, and the
+      marketing site''s French code samples call Python''s `Path`.'
+  - key: feature_automationSource
+    category: feature
+    en: Source
+    de: Quelltext
+    _lintExclude:
+      de: true
+    _note: 'The read-only YAML view of an automation (`automations.canvas.view.source`).
+      DE `der Quelltext`; FR keeps `la source`. Not enforced in DE, where
+      `Open Source` stays English.'
+  - key: feature_codingAgent
+    category: feature
+    en: Coding agent
+    de: Coding-Agent
+    fr: Agent de code
+    _note: 'A tool such as Claude Code, Codex or Cursor that changes
+      automations through the MCP server (`automations.codingAgent.*`). DE
+      `der Coding-Agent`, plural `die Coding-Agents`; FR `l’agent de code`.
+      Distinct from an `agent` node, which works during a run.'
+  - key: feature_automationStart
+    category: feature
+    en: Start
+    fr: Début
+    _note: 'The box at the top of the automation canvas: what starts a run and
+      what it receives (`flow.node.entry`, `automations.editor.start.title`).
+      DE keeps `Start`.'
+  - key: feature_automationEnd
+    category: feature
+    en: End
+    de: Ende
+    fr: Fin
+    _lintExclude:
+      de: true
+    _note: 'The box at the bottom of the automation canvas: what a run returns
+      and how it ends (`flow.node.exit`, `automations.editor.end.title`). Not
+      enforced in DE, where `End-Session` names an OAuth endpoint; the End key
+      is `Ende` in German too.'
+  - key: feature_condition
+    category: feature
+    en: Condition
+    de: Bedingung
+    fr: Condition
+    _note: 'A node''s `when`, drawn as a pill above it in words
+      (`automations.canvas.legend.gate`, `flow.gate.*`); its branches answer
+      Yes / Ja / Oui and No / Nein / Non.'
   - key: feature_connector
     category: feature
     en: Connector
@@ -518,6 +587,23 @@ terms:
     _note:
       Streaming text-to-speech for assistant replies. Matches the shipped UI
       label.
+  - key: feature_valueShape
+    category: feature
+    en: Shape
+    de: Struktur
+    fr: Structure
+    _note:
+      The fields a value has and the kind each holds, read from the value or
+      expected of it (the data view's Values / Shape switch). Not Form or
+      Schema in DE; not Forme in FR.
+  - key: feature_structuralDiff
+    category: feature
+    en: Changes
+    de: Änderungen
+    fr: Modifications
+    _note:
+      What changed between two values, field by field (a data diff). One
+      sentence per change; the counts read added, removed, changed.
   - key: tech_textToSpeech
     category: translateBucket
     en: Text-to-speech

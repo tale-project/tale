@@ -500,7 +500,9 @@ const turnEndSchema = z.object({
     .optional(),
   isError: z.boolean().optional(),
   apiErrorStatus: z.number().optional(),
-  providerErrorKind: z.literal('model_capacity').optional(),
+  providerErrorKind: z
+    .enum(['model_capacity', 'subscription_access_disabled'])
+    .optional(),
 });
 const turnCheckpointSchema = z.object({
   version: z.literal(1),
@@ -1136,7 +1138,7 @@ const OUT_OF_MEMORY_CODES: ReadonlySet<string> = new Set([
 /** The reason a turn settles failed with when its sandbox ran out of
  * memory. */
 export const OUT_OF_MEMORY_TURN_REASON =
-  "The agent's sandbox ran out of memory: the kernel's OOM killer ended the agent. A retry follows after a pause; if it keeps happening, the agent sessions need a larger memory limit (SANDBOX_AGENT_MEMORY).";
+  "The agent's sandbox ran out of memory: the kernel's OOM killer ended the agent. If it keeps happening, the agent sessions need a larger memory limit (SANDBOX_AGENT_MEMORY).";
 
 /** The reason a turn settles failed with when the sandbox ended its harness
  * as stalled. */

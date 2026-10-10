@@ -56,7 +56,7 @@ beforeEach(() => {
   vi.mocked(runAutomationTests).mockResolvedValue({
     passed: 1,
     failed: 0,
-    results: [{ name: 'ok', pass: true }],
+    results: [{ name: 'ok', pass: true, index: 0, ms: 1 }],
   });
 });
 
@@ -211,7 +211,7 @@ describe('test_automation of a saved version', () => {
     vi.mocked(runAutomationTests).mockResolvedValueOnce({
       passed: 0,
       failed: 1,
-      results: [{ name: 'fails', pass: false }],
+      results: [{ name: 'fails', pass: false, index: 0, ms: 1 }],
     });
     const recordTestVerdict = vi.fn(async () => {});
     const result = await dispatch(

@@ -17,6 +17,12 @@ auth:
   - method: api-key
 actions:
   - name: list_products
+    title: List products
+    i18n:
+      de:
+        title: Produkte auflisten
+      fr:
+        title: Lister les produits
     description: List products in the store, newest first, with cursor pagination.
     effects: read
     input:
@@ -80,6 +86,12 @@ actions:
         return { products: r.json().products || [], nextPageInfo: m ? m[1] : '' };
     exampleInput: { limit: 50, status: 'active' }
   - name: get_product
+    title: Get product
+    i18n:
+      de:
+        title: Produkt abrufen
+      fr:
+        title: Récupérer un produit
     description: Get a single product by ID, including its variants and images.
     effects: read
     input:
@@ -114,6 +126,12 @@ actions:
         return { product: r.json().product };
     exampleInput: { resourceId: '8123456789012' }
   - name: list_customers
+    title: List customers
+    i18n:
+      de:
+        title: Kunden auflisten
+      fr:
+        title: Lister les clients
     description: List customers of the store with cursor pagination.
     effects: read
     input:
@@ -172,6 +190,12 @@ actions:
         return { customers: r.json().customers || [], nextPageInfo: m ? m[1] : '' };
     exampleInput: { limit: 50 }
   - name: get_customer
+    title: Get customer
+    i18n:
+      de:
+        title: Kunden abrufen
+      fr:
+        title: Récupérer un client
     description: Get a single customer by ID, including contact details and order totals.
     effects: read
     input:
@@ -207,6 +231,12 @@ actions:
         return { customer: r.json().customer };
     exampleInput: { resourceId: '7123456789012' }
   - name: list_orders
+    title: List orders
+    i18n:
+      de:
+        title: Bestellungen auflisten
+      fr:
+        title: Lister les commandes
     description: List orders in the store with cursor pagination.
     effects: read
     input:
@@ -270,6 +300,12 @@ actions:
         return { orders: r.json().orders || [], nextPageInfo: m ? m[1] : '' };
     exampleInput: { limit: 50, status: 'any' }
   - name: get_order
+    title: Get order
+    i18n:
+      de:
+        title: Bestellung abrufen
+      fr:
+        title: Récupérer une commande
     description: Get a single order by ID, including its line items and totals.
     effects: read
     input:
@@ -305,6 +341,12 @@ actions:
         return { order: r.json().order };
     exampleInput: { resourceId: '5123456789012' }
   - name: count_products
+    title: Count products
+    i18n:
+      de:
+        title: Produkte zählen
+      fr:
+        title: Compter les produits
     description: Get the total number of products in the store.
     effects: read
     input:
@@ -324,6 +366,12 @@ actions:
         if (!r.status || r.status >= 400) throw new Error(`Shopify count_products failed (${r.status}): ${r.text()}`);
         return { count: r.json().count || 0 };
   - name: count_customers
+    title: Count customers
+    i18n:
+      de:
+        title: Kunden zählen
+      fr:
+        title: Compter les clients
     description: Get the total number of customers in the store.
     effects: read
     input:
@@ -343,6 +391,12 @@ actions:
         if (!r.status || r.status >= 400) throw new Error(`Shopify count_customers failed (${r.status}): ${r.text()}`);
         return { count: r.json().count || 0 };
   - name: count_orders
+    title: Count orders
+    i18n:
+      de:
+        title: Bestellungen zählen
+      fr:
+        title: Compter les commandes
     description: Get the total number of orders in the store.
     effects: read
     input:

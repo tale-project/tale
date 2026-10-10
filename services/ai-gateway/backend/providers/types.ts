@@ -243,7 +243,9 @@ export class ProviderError extends Error {
       | 'refresh_failed'
       | 'refresh_rejected'
       | 'identity_failed'
-      | 'usage_failed',
+      | 'usage_failed'
+      /** The provider rejected this exact access-token generation. */
+      | 'access_token_rejected',
     message: string,
     options?: { cause?: unknown },
   ) {

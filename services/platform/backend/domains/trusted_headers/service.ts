@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { roleRank } from '../../../lib/shared/role-rank.ts';
 import {
   TRUSTED_HEADER_KEYS_PER_ORG_MAX,
   trustedHeaderAssertableRoleSchema,
@@ -305,6 +306,41 @@ export interface ResolvedTrustedHeaderKey {
   /** The organization's switch — a live key of a paused organization resolves, and is then refused. */
   enabled: boolean;
   maxAssertedRole: TrustedHeaderAssertableRole;
+}
+
+/**
+ * Whether the organization lets a proxy assert `role` right now: trusted
+ * headers switched on, a key that is not revoked, and a role the door could
+ * have stamped — one the proxy may assert at all (never `owner`) and no
+ * higher than the organization's ceiling. The org gate applies a session's
+ * trusted role only then, so a role no proxy could have asserted — written
+ * by anything but the door, or left over from before a pause, a revocation
+ * or a lowered ceiling — gives way to the member's own.
+ */
+export async function trustedRoleHolds(
+  sql: Sql,
+  organizationId: string,
+  role: string,
+): Promise<boolean> {
+  const asserted = trustedHeaderAssertableRoleSchema.safeParse(role);
+  if (!asserted.success) return false;
+  const rows = await sql<
+    { enabled: boolean; maxAssertedRole: string; hasKey: boolean }[]
+  >`
+    SELECT s.enabled, s.max_asserted_role AS "maxAssertedRole",
+           EXISTS (
+             SELECT 1 FROM app.trusted_header_keys k
+             WHERE k.org_id = s.org_id AND k.revoked_at_ms IS NULL
+           ) AS "hasKey"
+    FROM app.trusted_header_settings s
+    WHERE s.org_id = ${organizationId}
+  `;
+  const row = rows[0];
+  if (row === undefined || !row.enabled || !row.hasKey) return false;
+  return (
+    roleRank(asserted.data) <=
+    roleRank(parseMaxAssertedRole(row.maxAssertedRole))
+  );
 }
 
 /**

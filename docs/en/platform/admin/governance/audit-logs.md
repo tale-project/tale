@@ -26,8 +26,8 @@ The active tab and category are reflected in the URL, so you can bookmark the vi
 | --- | --- |
 | Timestamp | When Tale recorded the action. |
 | Action | The operation that was attempted or completed. Some newer actions appear by their technical name. |
-| User | The person or system actor responsible for the action. A change made with a person's API key, through the REST API or a coding agent, has **Actor type** API, and its **Metadata** names the key's id (`apiKeyId`), so you know which key to revoke. |
-| Source and client | Only on an action a coding agent took through the [MCP endpoint](/develop/mcp-endpoint). **Source** shows Coding agent, and **Client** names the agent's app when the app names itself on every call, as apps on MCP revision 2026-07-28 do; an app on an earlier revision names itself only when it connects, so its events show no **Client**. **User** is the person whose API key the agent used. |
+| User | The person or system actor responsible. For a write made with an API key, User names the key’s maker and Actor type is API. If the key acts for a member, Metadata keeps that member’s ID in `keyAttribution.subjectUserId`. JSON exports also retain the key ID (`apiKeyId`); CSV omits key and subject metadata. |
+| Source and client | Only on an action a coding agent took through the [MCP endpoint](/develop/mcp-endpoint). **Source** shows Coding agent, and **Client** names the agent's app when the app names itself on every call, as apps on MCP revision 2026-07-28 do; an app on an earlier revision names itself only when it connects, so its events show no **Client**. **User** names the key’s maker; the member it acts for is recorded in Metadata. |
 | Resource and target | The kind of item and the particular record affected. |
 | Category | The grouping used by the filter. |
 | Status | Success, failure, or denied. |
@@ -49,7 +49,7 @@ Exports honor the category filter and contain at most 10,000 rows, newest first.
 
 ## Retention and integrity
 
-Use **Verify now** in **Chain integrity** to check the stored audit chain. The panel shows its status and the latest automated check. If a check reports a break, preserve the reported details and investigate with the deployment operator before relying on that segment of history.
+Use **Verify now** in **Chain integrity** to check the stored audit chain. New entries join the chain within seconds of being recorded. The panel shows its status and the latest automated check. If a check reports a break, preserve the reported details and investigate with the deployment operator before relying on that segment of history.
 
 A successful check covers the retained records it examined; it does not establish an independently signed origin for the history. The [operator integrity guide](/self-hosted/operate/security/audit-log-integrity) explains the checks and their limits.
 

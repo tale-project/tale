@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import type { TaskDoc } from '../lib/display';
 import { TaskModal } from './task-modal';
@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   ownedBy: null as Record<string, unknown> | null,
   candidateReads: 0,
   runs: [] as Record<string, unknown>[],
+  update: vi.fn(async () => undefined),
 }));
 
 const baseTask = {
@@ -87,7 +88,7 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   },
 }));
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
-  useBackendMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useBackendMutation: () => ({ mutateAsync: state.update, isPending: false }),
 }));
 vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -157,15 +158,20 @@ vi.mock('./task-dependencies', () => ({ TaskDependencies: () => null }));
 
 function openTask(task: Record<string, unknown>) {
   state.task = task;
-  return render(
+  const modal = (open: boolean) => (
     <TaskModal
-      open
+      open={open}
       onOpenChange={vi.fn()}
       organizationId="org-1"
       projectId="project-1"
       taskId={baseTask._id}
-    />,
+    />
   );
+  const rendered = render(modal(true));
+  return {
+    ...rendered,
+    setOpen: (open: boolean) => rendered.rerender(modal(open)),
+  };
 }
 
 function openCreate() {
@@ -180,6 +186,7 @@ function openCreate() {
 }
 
 beforeEach(() => {
+  state.update.mockClear();
   state.task = null;
   state.access = { canEdit: false, canCreate: true };
   state.ancestors = [];
@@ -188,6 +195,128 @@ beforeEach(() => {
   state.ownedBy = null;
   state.candidateReads = 0;
   state.runs = [];
+});
+
+describe('TaskModal — inline title IME composition', () => {
+  it.each(['Enter', 'blur'])(
+    'cancels a dirty title before synchronous blur, then allows %s to save',
+    async (commitWith) => {
+      state.access = { canEdit: true, canCreate: true };
+      openTask(baseTask);
+      const field = await screen.findByRole('textbox', { name: 'Title' });
+      field.focus();
+      fireEvent.change(field, { target: { value: 'Do not save this title' } });
+      // Native blur runs from the actual key handler before React applies its
+      // queued draft reset. A separately fired blur would miss that race.
+      fireEvent.keyDown(field, { key: 'Escape' });
+      expect(state.update).not.toHaveBeenCalled();
+      expect(field).toHaveValue(baseTask.title);
+      expect(field).not.toHaveFocus();
+
+      field.focus();
+      fireEvent.change(field, { target: { value: 'A later edit' } });
+      if (commitWith === 'Enter') fireEvent.keyDown(field, { key: 'Enter' });
+      else field.blur();
+      expect(state.update).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ title: 'A later edit' }),
+      );
+    },
+  );
+
+  it.each([false, true])(
+    'accepts Enter after closing a composing title (mobile=%s)',
+    async (mobile) => {
+      const originalMatchMedia = window.matchMedia;
+      window.matchMedia = (query) => ({
+        matches: mobile && query === '(max-width: 767px)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(() => false),
+      });
+      try {
+        state.access = { canEdit: true, canCreate: true };
+        const { setOpen } = openTask(baseTask);
+        const field = await screen.findByRole('textbox', { name: 'Title' });
+        fireEvent.compositionStart(field);
+        fireEvent.change(field, { target: { value: 'にほん' } });
+        setOpen(false);
+        if (mobile) expect(field).toBeInTheDocument();
+        else expect(field).not.toBeInTheDocument();
+        setOpen(true);
+        const reopened = await screen.findByRole('textbox', { name: 'Title' });
+        expect(state.update).not.toHaveBeenCalled();
+        reopened.focus();
+        fireEvent.change(reopened, { target: { value: '日本' } });
+        fireEvent.keyDown(reopened, { key: 'Enter' });
+        expect(state.update).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({ title: '日本' }),
+        );
+      } finally {
+        window.matchMedia = originalMatchMedia;
+      }
+    },
+  );
+
+  it.each(['mirror', 'native', 'Safari'])(
+    'does not blur or save a composing title (%s)',
+    async (signal) => {
+      state.access = { canEdit: true, canCreate: true };
+      openTask(baseTask);
+      const field = await screen.findByRole('textbox', { name: 'Title' });
+      field.focus();
+      fireEvent.compositionStart(field);
+      fireEvent.change(field, { target: { value: 'にほん' } });
+      if (signal !== 'mirror') fireEvent.compositionEnd(field);
+      const flags = {
+        isComposing: signal === 'native',
+        keyCode: signal === 'Safari' ? 229 : 13,
+      };
+      expect(fireEvent.keyDown(field, { key: 'Enter', ...flags })).toBe(true);
+      fireEvent.keyDown(field, { key: 'Escape', ...flags });
+      expect(field).toHaveFocus();
+      expect(field).toHaveValue('にほん');
+      expect(state.update).not.toHaveBeenCalled();
+      fireEvent.compositionEnd(field);
+      fireEvent.change(field, { target: { value: '日本' } });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      expect(state.update).toHaveBeenCalledTimes(1);
+      expect(state.update).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '日本' }),
+      );
+      expect(field).not.toHaveFocus();
+    },
+  );
+
+  it.each([false, true])(
+    'keeps ordinary Enter (shift=%s) committing once on blur',
+    async (shiftKey) => {
+      state.access = { canEdit: true, canCreate: true };
+      openTask(baseTask);
+      const field = await screen.findByRole('textbox', { name: 'Title' });
+      field.focus();
+      fireEvent.change(field, { target: { value: 'New title' } });
+      fireEvent.keyDown(field, { key: 'Enter', shiftKey });
+      expect(state.update).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ title: 'New title' }),
+      );
+    },
+  );
+
+  it('still saves a title when focus leaves during composition', async () => {
+    state.access = { canEdit: true, canCreate: true };
+    openTask(baseTask);
+    const field = await screen.findByRole('textbox', { name: 'Title' });
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: 'にほん' } });
+    fireEvent.blur(field);
+    expect(state.update).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ title: 'にほん' }),
+    );
+  });
 });
 
 describe('TaskModal — a member works their own task', () => {

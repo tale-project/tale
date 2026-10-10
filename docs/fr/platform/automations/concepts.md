@@ -42,17 +42,17 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-Le bloc `ui` conserve la disposition du canvas. Déplacer un nœud modifie sa position, sans changer son exécution.
+Tale dispose le canevas à partir des références entre les nœuds : personne ne place un nœud à la main. Un bloc `ui` contient des métadonnées libres que Tale conserve telles quelles et ignore.
 
 ### Les liaisons se déduisent, elles ne se déclarent pas
 
-Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canvas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi une flèche, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
+Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canevas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi un trait, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
 
 Les templates utilisent une seule grammaire `{{ }}` d’expressions JavaScript sur `input`, `nodes.<id>.output` et, à l’intérieur d’un nœud qui itère, `item` et `index`.
 
 ### Le contrôle du flux vit sur le nœud
 
-Brancher et répéter sont des champs du nœud plutôt que des types d’étape à part. Le canvas les montre donc comme des badges sur la boîte qu’ils concernent.
+Brancher et répéter sont des champs du nœud plutôt que des types d’étape à part. Le canevas dessine chacun d’eux là où il agit : un `when` devient une condition au-dessus de son nœud, une alternative `elseOf` part de cette condition comme sa branche **Non**, `forEach` et `repeatUntil` placent le nœud dans un cadre, et `onError: continue` lui ajoute une puce.
 
 | Champ                        | Ce qu’il fait                                                                                 |
 | ---------------------------- | --------------------------------------------------------------------------------------------- |
@@ -70,15 +70,25 @@ Quatre types sont intégrés, et chaque action de connector comme chaque capacit
 
 **`llm`** appelle un modèle de langage avec un prompt en template. `model` est obligatoire et toujours explicite — une automatisation n’en choisit jamais un à ta place (l’Auto du composer est une affaire de chat, et de chat seulement). La sortie est `{text}`, ou l’objet à la forme du schéma quand le nœud déclare un `outputSchema`. Chaque appel d’une exécution réelle est un usage de l’exécution : il est vérifié par rapport aux [limites de budget](/fr/platform/admin/governance/policies-and-limits) avant d’être fait, et un appel refusé par une limite fait échouer le nœud avec `budget_exceeded`, ce qui arrête l’exécution, sauf si son `onError` vaut `continue`. Avant l’appel au fournisseur, chaque tentative réserve le coût estimé du prompt et le budget maximal de réponse dans tous les projets retenus pour cette tentative. Le modèle doit disposer de tarifs dans le catalogue. L’usage déclaré remplace la réservation à la fin de l’appel. Si un délai dépassé, une connexion interrompue ou l’absence de données d’usage laisse le coût inconnu, la réservation reste en place jusqu’à l’échéance de la requête, puis son montant estimé est comptabilisé ; il s’agit d’une estimation, pas d’une facture du fournisseur. Modifier les associations aux projets pendant l’appel ne déplace pas sa consommation.
 
-**`agent`** exécute un tour d’un agent de code (Claude Code, Codex et les autres environnements d’agent) dans la sandbox. Il lit les `files` mis en place, utilise des `skills`, des `connectors` relayés, des `tools` de plateforme accordés et des `secrets` injectés, et renvoie `{text, files, status}` ; `model` est obligatoire. Si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images), il peut aussi créer des images, qui reviennent parmi ses `files`. Prends `llm` quand une complétion unique suffit, et `agent` seulement quand l’étape a besoin d’outils, de fichiers ou de plusieurs tours — un nœud agent en service s’exécute comme un tour asynchrone, il siège donc au niveau supérieur plutôt que dans une `subautomation` et n’itère pas avec `forEach`.
+**`agent`** exécute un tour d’un agent de code (Claude Code, Codex et les autres environnements d’agent) dans la sandbox. Il lit les `files` mis en place, utilise des `skills`, des `connectors` relayés, des `tools` de plateforme accordés et des `secrets` injectés, et renvoie `{text, files, status}` ; `model` est obligatoire. L’`input` résolue du nœud parvient à l’agent en JSON dans `/agent/workspace/input.json`, un fichier que ses instructions désignent. Lors d’une exécution réelle, le nœud échoue avant le démarrage de l’agent si ce JSON dépasse 1 Mio, ou si ses `files` contiennent aussi une entrée nommée `input.json`. Si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images), il peut aussi créer des images, qui reviennent parmi ses `files`. Prends `llm` quand une complétion unique suffit, et `agent` seulement quand l’étape a besoin d’outils, de fichiers ou de plusieurs tours — un nœud agent en service s’exécute comme un tour asynchrone, il siège donc au niveau supérieur plutôt que dans une `subautomation` et n’itère pas avec `forEach`.
 
 **`subautomation`** exécute une autre automatisation enregistrée comme un seul nœud ; son champ `automation` nomme `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
+
+**`http.get`** et **`http.send`** appellent n’importe quelle API HTTPS qui n’a pas son propre connector, avec des identifiants enregistrés ou sans. Voir [Appeler une API depuis une automatisation](/fr/platform/automations/http).
+
+**`knowledge.search`** cherche dans tes documents et tes sites indexés et renvoie les passages qui correspondent le mieux à une requête, pour une étape suivante. La recherche lit ce que son exécution peut lire. Voir [Chercher dans tes connaissances depuis une automatisation](/fr/platform/automations/knowledge-search).
 
 ### Sortie structurée et non structurée
 
 Une sortie **structurée** possède des champs nommés, accessibles avec `nodes.<id>.output.<field>`. Une sortie **non structurée** contient du texte libre. Référence-la avec `nodes.<id>.output.text` dans une expression textuelle ; ne la traite pas comme un objet possédant d’autres champs.
 
 Un outil sans schéma de sortie produit une sortie non structurée. Pour transformer son texte en données structurées utilisables par les étapes suivantes, ajoute un nœud `llm` avec un `outputSchema`. En cas d’erreur, la validation indique la référence incorrecte et les champs ou contextes autorisés. Corrige-la avant d’enregistrer à nouveau.
+
+## Les chemins qu’une exécution peut prendre {#paths}
+
+Chaque condition, et chaque nœud qui peut échouer pendant que l’exécution continue, ouvre deux possibilités à une exécution. Tale essaie chaque combinaison et garde les différentes façons dont une exécution réussie peut se dérouler ; chacune est un chemin. Un chemin nomme les conditions qui le décident, comme les nœuds qui s’exécutent, ceux qui sont ignorés et ceux qui échouent pendant que l’exécution continue, ainsi que les nœuds qui s’exécutent sur ce chemin. Un nœud qui s’exécute sur chaque chemin s’exécute toujours ; un nœud qui ne s’exécute sur aucun ne peut jamais s’exécuter, et Tale le signale par un avertissement.
+
+Tale liste jusqu’à 32 chemins et compte les autres. Au-delà de 12 conditions et échecs tolérés, les combinaisons sont trop nombreuses pour être parcourues : Tale ne liste alors aucun chemin, mais indique toujours, pour chaque nœud, quand il s’exécute. Tale nomme aussi les nœuds dont l’échec termine l’exécution et ce qui peut faire échouer chacun d’eux. L’éditeur montre les chemins sur le canevas, comme le décrit [Suivre les chemins possibles](/fr/platform/automations/editor#paths) ; un client du [point d’accès MCP](/fr/develop/mcp-endpoint) lit les mêmes chemins dans `analysis.paths`.
 
 ## Ce que Tale vérifie avant une exécution {#checks}
 
@@ -123,9 +133,13 @@ Un nœud `subautomation` est vérifié par rapport à la version qu’une exécu
 
 ### Ce que l’organisation possède {#checks-organization}
 
-Tale compare aussi un nœud `agent` avec ton organisation. Il avertit quand le nœud demande un skill qu’aucune exécution de l’automatisation ne peut utiliser, un connector que personne n’a connecté, un secret que personne n’a enregistré, ou un environnement d’agent que ce déploiement ne peut pas exécuter. Un nœud qui exécute une action d’un connector que personne n’a connecté reçoit le même avertissement, tout comme un déclencheur d’événement qui attend un événement que Tale n’émet pas. À l’exécution, un skill ou un environnement d’agent manquant fait échouer le nœud, un nœud privé de son connector ne peut pas atteindre l’application, et un secret manquant est simplement absent.
+Tale compare aussi un nœud `agent` avec ton organisation. Il avertit quand le nœud demande un skill qu’aucune exécution de l’automatisation ne peut utiliser, un connector que personne n’a connecté, un secret que personne n’a enregistré, ou un environnement d’agent que ce déploiement ne peut pas exécuter. Un nœud qui exécute une action d’un connector que personne n’a connecté reçoit le même avertissement, tout comme un déclencheur d’événement qui attend un événement que Tale n’émet pas. À l’exécution, un skill ou un environnement d’agent manquant fait échouer le nœud, un nœud privé de son connector ne peut pas atteindre l’application, et un secret manquant est simplement absent. Un nœud de connector qui nomme des identifiants que son connector n’a pas en service reçoit aussi un avertissement ; une exécution en direct échoue à ce nœud.
 
 Ces vérifications restent des avertissements, car ton organisation peut changer d’ici l’exécution : connecte le connector ou ajoute le skill, et la vérification suivante ne le signale plus. Seuls les rôles Propriétaire, Admin et Développeur sont informés des secrets, car eux seuls voient quels secrets existent.
+
+### Étapes HTTP {#checks-http}
+
+Un nœud `http.get` ou `http.send` sans identifiants reçoit un avertissement pour une adresse `http://` simple, que son exécution refuserait. Des identifiants écrits dans son adresse, comme un jeton dans un paramètre de requête, et un en-tête `Authorization` ou `Cookie` défini par le nœud sont des erreurs : enregistre plutôt les identifiants dans **Paramètres › Connectors** et indique-les dans le champ `credential` du nœud. Voir [Appeler une API depuis une automatisation](/fr/platform/automations/http).
 
 ### Tests {#checks-tests}
 
@@ -151,7 +165,7 @@ Une exécution réelle nécessite une version en service. Tu peux tester un brou
 
 ## Ce qui lance une exécution
 
-Tu peux tester manuellement une version enregistrée ou exécuter en réel la version en service. Pour un démarrage automatique, configure l’un des trois déclencheurs : une planification avec expression cron et fuseau IANA, une URL de webhook protégée par un jeton, ou un événement nommé de la plateforme.
+Tu peux tester manuellement une version enregistrée ou exécuter en réel la version en service. Pour un démarrage automatique, configure l’un des trois déclencheurs : une planification qui se répète à des heures précises ou à intervalles dans son fuseau horaire, une URL de webhook protégée par un jeton, ou un événement nommé de la plateforme. Chacun peut ajouter une entrée fixe que reçoit chaque exécution.
 
 Le déclencheur appartient au nom de l’automatisation. Mettre une autre version en service conserve sa configuration et l’URL du webhook, mais les démarrages suivants utilisent la nouvelle version. Désactive le déclencheur pour suspendre les démarrages automatiques. [Déclencheurs de workflow](/fr/platform/automations/triggers) explique les horaires, l’authentification et les données fournies par chaque type.
 

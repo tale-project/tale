@@ -21,6 +21,8 @@ limits:
   usageUnavailable: Kontingentbelegung nicht verfügbar
   # Unter dem Limit der Agenten-Worker: die Läufe, die ein höheres Limit sofort starten würde.
   waitingForWorkers: '{count, plural, one {# Agentenlauf wartet auf einen freien Worker.} other {# Agentenläufe warten auf einen freien Worker.}}'
+  usageLoadFailed: Kontingentbelegung konnte nicht geladen werden
+  usageRetry: Erneut versuchen
   invalidSessions: Gib eine ganze Zahl zwischen 1 und 500 ein.
   total: Sitzungen deiner Organisation insgesamt
   totalValue: '{total} / {maxSessions}'

@@ -920,6 +920,28 @@ describe('mailbox configuration', () => {
     expect(config.sentMailbox).toBe('INBOX.Sent');
   });
 
+  it.each([
+    ['imapPort', 0],
+    ['imapPort', 65536],
+    ['imapPort', 1.5],
+    ['smtpPort', 0],
+    ['smtpPort', 65536],
+    ['smtpPort', 1.5],
+  ])('rejects an invalid explicit %s value', (key, value) => {
+    expect(() =>
+      mailboxConfigFromCredential(
+        context({
+          config: {
+            imapHost: 'imap.example.com',
+            smtpHost: 'smtp.example.com',
+            [key]: value,
+          },
+        }),
+        'send',
+      ),
+    ).toThrow(/port/i);
+  });
+
   it('lets well-known ports override a mismatched security setting', () => {
     // The connector declares one `security` for both servers, and the catalog
     // once defaulted smtpPort to 587 while security stayed `tls` — implicit

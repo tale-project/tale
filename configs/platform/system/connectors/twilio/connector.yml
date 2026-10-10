@@ -16,6 +16,12 @@ auth:
   - method: basic
 actions:
   - name: send_sms
+    title: Send SMS
+    i18n:
+      de:
+        title: SMS senden
+      fr:
+        title: Envoyer un SMS
     description: Send an SMS message via Twilio.
     effects: write
     input:
@@ -52,6 +58,12 @@ actions:
         body: 'Your order has shipped.',
       }
   - name: list_messages
+    title: List SMS messages
+    i18n:
+      de:
+        title: SMS auflisten
+      fr:
+        title: Lister les SMS
     description: List SMS messages, optionally filtered by number or send date.
     effects: read
     input:
@@ -96,6 +108,12 @@ actions:
         return { messages: j.messages || [], next_page_uri: j.next_page_uri || null };
     exampleInput: { to: '+15551234567', pageSize: 20 }
   - name: get_message
+    title: Get SMS message
+    i18n:
+      de:
+        title: SMS abrufen
+      fr:
+        title: Récupérer un SMS
     description: Get one SMS message by its SID.
     effects: read
     input:
@@ -118,6 +136,12 @@ actions:
         return { message: r.json() };
     exampleInput: { messageSid: 'SM1234567890abcdef1234567890abcdef' }
   - name: list_calls
+    title: List calls
+    i18n:
+      de:
+        title: Anrufe auflisten
+      fr:
+        title: Lister les appels
     description: List voice calls, optionally filtered by number or status.
     effects: read
     input:
@@ -161,6 +185,12 @@ actions:
         return { calls: j.calls || [], next_page_uri: j.next_page_uri || null };
     exampleInput: { status: 'completed', pageSize: 20 }
   - name: make_call
+    title: Start call
+    i18n:
+      de:
+        title: Anruf starten
+      fr:
+        title: Lancer un appel
     description: Start an outbound voice call via Twilio.
     effects: write
     input:
@@ -201,6 +231,12 @@ actions:
         url: 'https://example.com/twiml/greeting.xml',
       }
   - name: get_account
+    title: Get account
+    i18n:
+      de:
+        title: Konto abrufen
+      fr:
+        title: Récupérer le compte
     description: Get the Twilio account the credential belongs to.
     effects: read
     input:
@@ -219,6 +255,12 @@ actions:
         return { account: r.json() };
     exampleInput: {}
   - name: list_phone_numbers
+    title: List phone numbers
+    i18n:
+      de:
+        title: Telefonnummern auflisten
+      fr:
+        title: Lister les numéros de téléphone
     description: List the incoming phone numbers the Twilio account owns.
     effects: read
     input:

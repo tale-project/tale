@@ -35,12 +35,13 @@ facet**
   seeded FROM the URL, not bound to it: the facet is multi-select, so the moment
   the operator touches the facet (or clears filters) the param is removed from
   the URL and the facet takes over.
-- The catalog ships 19 connector definitions
-  (`configs/platform/system/connectors/`), but the four **platform-auth**
-  connectors (conversation, document, sandbox, task) never reach the client —
-  the listing drops them, so the add-dialog picker offers **15** vendors:
-  confluence, discord, github, glitchtip, gmail, google-drive, imap-smtp, jev
-  (**Jev decisions**), outlook, shopify, slack, tavily, teams, twilio, webdav.
+- The catalog ships 21 connector definitions
+  (`configs/platform/system/connectors/`), but the five **platform-auth**
+  connectors (conversation, document, knowledge, sandbox, task) never reach the
+  client — the listing drops them, so the add-dialog
+  picker offers **16** vendors: confluence, discord, github, glitchtip, gmail,
+  google-drive, http, imap-smtp, jev (**Jev decisions**), outlook, shopify,
+  slack, tavily, teams, twilio, webdav.
 - Both legacy MCP routes redirect in **one hop** to `…/settings/connectors`.
   The MCP **endpoint** section (the platform's own inbound MCP surface) renders
   on `/dashboard/{org}/settings/api/mcp`.
@@ -100,7 +101,7 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the way in — never a bare empty grid.
 - [ ] `CONN-F3` · **Catalog picker (step 1)** — **Add credential** → A dialog
   titled **Add credential** (`settings.credentials.catalog.title`) with its
-  own search (`settings.connectors.searchPlaceholder`). 15 vendors in one list
+  own search (`settings.connectors.searchPlaceholder`). 16 vendors in one list
   (each row: icon, name, tags + action count meta
   `settings.connectors.card.actionCount`); configured vendors carry a
   **Configured** badge (`settings.credentials.catalog.configured`). The
@@ -138,7 +139,8 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   render: **IMAP server** (required), **IMAP port** (placeholder `993`),
   **SMTP server** (required), **SMTP port** (placeholder `465`), **Connection
   security** select (`tls` / `starttls`), **Sent folder** (placeholder
-  `Sent`). Submit is gated on the two required hosts; ports/security/folder
+  `Sent`). **Add credential** is gated on the two required hosts and any
+  entered port being an integer from 1 through 65535; ports/security/folder
   may stay blank (server applies the declared defaults).
 - [ ] `CONN-F8` · **Split SMTP auth (imap-smtp)** — In CONN-F7's form: toggle
   **Use a separate SMTP provider**
@@ -272,10 +274,14 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   closing with typed material — an edited name included — prompts
   `common.discardChangesConfirm` before discarding.
 - [ ] `CONN-B2` · **Non-numeric port** — imap-smtp form: type `abc` into
-  **IMAP port**, complete the rest, submit → The server refuses and the dialog
-  shows its structured message inline (`"IMAP port" must be a number.`) — the
-  client keeps number fields as strings and never silently coerces a
-  half-typed value.
+  **IMAP port** and complete the rest → **Add credential** stays disabled,
+  no create request is sent, and the field shows
+  `settings.connectors.invalidPort` inline (EN: `Enter an integer port from
+  1 to 65535.`), associated with the input's invalid state. Correct it to
+  `1993` → the error clears and Add enables; `0`, `1.5` and `65536` keep it
+  disabled. **SMTP port** behaves the same. Clearing either port leaves it
+  absent so the server applies its declared default, rather than silently
+  replacing an explicitly invalid value.
 - [ ] `CONN-B3` · **Endpoint shape refused** — Confluence: enter a non-https
   or path-carrying Instance URL and submit → The create is refused with the
   server's own message shown inline (the endpoint must be an https origin, no

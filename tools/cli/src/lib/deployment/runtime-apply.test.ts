@@ -945,6 +945,30 @@ describePosix('managed source-Compose runtime adoption', () => {
     expect(mutations(docker)).toEqual([]);
   });
 
+  test('refuses an engine that cannot pull the images before any change', async () => {
+    const { fixture, docker } = await create(true);
+    const execute: typeof docker.execute = async (command, args, options) => {
+      if (args[0] === 'version')
+        return {
+          success: true,
+          stdout: JSON.stringify({
+            Version: '20.10.24',
+            Components: [{ Name: 'Engine', Version: '20.10.24' }],
+          }),
+          stderr: '',
+          exitCode: 0,
+        };
+      return docker.execute(command, args, options);
+    };
+    await expect(
+      applyRuntime(fixture.options, {
+        ...docker.dependencies(),
+        exec: execute,
+      }),
+    ).rejects.toThrow('older than 24.0');
+    expect(mutations(docker)).toEqual([]);
+  });
+
   test('holds unexpected managed file changes instead of overwriting them', async () => {
     const { fixture, docker, apply } = await create(true);
     await apply();

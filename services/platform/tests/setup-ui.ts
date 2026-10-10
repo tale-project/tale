@@ -6,6 +6,11 @@ afterEach(() => {
   cleanup();
 });
 
+// jsdom has no layout, so CodeMirror cannot be driven here: every jsdom
+// suite edits code fields through a text box with the editor's contract.
+// The real editor is proven in Chromium (`*.browser.test.tsx`).
+vi.mock('@tale/ui/code-editor', () => import('./utils/code-editor-stand-in'));
+
 // Mock ResizeObserver as a proper class constructor
 class MockResizeObserver {
   observe = vi.fn();

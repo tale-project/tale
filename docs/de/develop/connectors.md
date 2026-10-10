@@ -25,6 +25,8 @@ auth:
   - method: api-key
 ```
 
+Ein Connector, dessen Name aus gewöhnlichen Wörtern besteht, etwa `task` (Tasks), deklariert zusätzlich `i18n.de.displayName` und `i18n.fr.displayName`. Ein Connector, der nach einem Produkt heißt, etwa Tavily, behält seinen Namen in jeder Sprache.
+
 ### Erlaubte Ziele festlegen
 
 | Feld | Bedeutung |
@@ -32,7 +34,7 @@ auth:
 | `endpointMode: fixed` | Standard. Live-HTTP-Aufrufe verwenden feste Anbieter-URLs; `allowedHosts` enthält genaue Hostnamen |
 | `endpointMode: per-credential` | Jeder Zugang enthält eine HTTPS-`endpointUrl`; Aktionen lesen den Ursprung ohne abschließenden Schrägstrich über `ctx.endpoint` |
 | `allowedHosts` bei per-credential | Hostsuffixe: `atlassian.net` erlaubt seine Subdomains |
-| `configFields` | Nicht geheime Angaben je Zugang, etwa Serverhost, Port, Region oder API-Version |
+| `configFields` | Nicht geheime Angaben je Zugang, etwa Serverhost, Port, Region oder API-Version; `label` und `description` eines Felds nehmen für das Formular der Zugangsdaten Übersetzungen unter `i18n.de` und `i18n.fr` |
 
 Confluence, GlitchTip und Shopify verwenden Ursprünge je Zugang. Geheimnisse gehören nicht in `configFields`, sondern in die verschlüsselten Zugangsdaten. Bei JavaScript-Aktionen setzt `ctx.http` die erlaubten HTTP-Ziele durch. Native Backends, etwa für Mailprotokolle, prüfen ihren Transport selbst; eine HTTP-Freigabeliste beschreibt nicht ihre gesamte Sicherheitsgrenze.
 
@@ -47,6 +49,7 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 | Feld | Vertrag für Autor und Aufrufer |
 | --- | --- |
 | `name`, `description` | Stabiler Aktionsname in snake_case und eine Erklärung zum Einsatzzweck |
+| `title`, `i18n` | Die Aktion in Worten für Menschen: ein kurzer englischer `title`, nur am Anfang großgeschrieben und ohne den Namen des Connectors („List issues“), dazu `i18n.de.title` und `i18n.fr.title` (und `de-CH`, wo die Schweizer Schreibung abweicht, etwa beim ß). Der Automatisierungs-Canvas zeigt eine Node als „GitHub · Issues auflisten“ in der Sprache der Lesenden; fehlt einer mitgelieferten Aktion einer der drei, schlagen die Tests des Katalogs fehl |
 | `input` | Objekt-JSON-Schema, vor der Ausführung validiert; Felder beschreiben und Pflichtfelder markieren |
 | `output` | Ergebnissignatur im TypeScript-Stil; Dokumentation, keine Laufzeitvalidierung der Ausgabe |
 | `effects` | `read` oder `write`; Schreibaktionen durchlaufen die Genehmigungsrichtlinie |

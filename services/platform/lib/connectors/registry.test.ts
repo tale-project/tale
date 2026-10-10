@@ -26,7 +26,7 @@ beforeAll(() => {
 
 describe('connector registry', () => {
   it('registers every shipped action as a node type', () => {
-    expect(loaded.connectors).toHaveLength(19);
+    expect(loaded.connectors).toHaveLength(21);
     const actionCount = loaded.connectors.reduce(
       (n, c) => n + c.actions.length,
       0,
@@ -36,6 +36,8 @@ describe('connector registry', () => {
     expect(loaded.nodeTypes).toContain('github.create_issue');
     expect(loaded.nodeTypes).toContain('tavily.search');
     expect(loaded.nodeTypes).toContain('sandbox.run_script');
+    // The organization's knowledge, searched as the run.
+    expect(loaded.nodeTypes).toContain('knowledge.search');
     // Platform capabilities are connectors too — the mail packs call this one.
     expect(loaded.nodeTypes).toContain('conversation.sync_mailbox');
     expect(loaded.nodeTypes).toContain('conversation.list_mailbox_messages');
@@ -55,6 +57,19 @@ describe('connector registry', () => {
     expect(def?.connector?.outputSignature).toContain('number');
   });
 
+  it('carries the connector and the localized title for display, nothing the engine reads', () => {
+    const display = nodeTypes().get(nodeTypeFor('github', 'list_issues'))
+      ?.connector?.display;
+    expect(display).toEqual({
+      connector: 'github',
+      title: 'List issues',
+      i18n: {
+        de: { title: 'Issues auflisten' },
+        fr: { title: 'Lister les issues' },
+      },
+    });
+  });
+
   it('marks write actions as effectful and read actions as not', () => {
     expect(
       nodeTypes().get(nodeTypeFor('github', 'create_issue'))?.connector
@@ -63,6 +78,35 @@ describe('connector registry', () => {
     expect(
       nodeTypes().get(nodeTypeFor('tavily', 'search'))?.connector?.hasEffect,
     ).toBe(false);
+  });
+
+  it('lets a step name a credential only where its connector signs in with one', async () => {
+    const fields = (connector: string, action: string) =>
+      nodeTypes().get(nodeTypeFor(connector, action))?.allowedFields;
+    expect(fields('github', 'create_issue')).toContain('credential');
+    expect(fields('http', 'get')).toContain('credential');
+    // A platform capability acts as the organization, with nothing to sign in.
+    expect(fields('knowledge', 'search')).toEqual(['input']);
+    expect(fields('task', 'get')).toEqual(['input']);
+    const { errors } = await validate({
+      version: 1,
+      name: 'triage',
+      nodes: [
+        {
+          id: 'card',
+          type: 'task.get',
+          credential: 'Ops bot',
+          input: { taskId: 'task_1' },
+        },
+      ],
+      output: '{{ nodes.card.output }}',
+    });
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: 'NODE_UNKNOWN_FIELD',
+        params: expect.objectContaining({ field: 'credential' }),
+      }),
+    ]);
   });
 
   it('refuses a connector whose name disagrees with its directory', () => {

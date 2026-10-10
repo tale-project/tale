@@ -4,6 +4,11 @@
 # in one place. `platform` auth — nothing to connect.
 name: conversation
 displayName: Conversations
+i18n:
+  de:
+    displayName: Konversationen
+  fr:
+    displayName: Conversations
 description: >-
   Pull mailbox traffic into the org Inbox and expose a one-shot sync and a
   multi-credential inbox list for scheduled mail packs.
@@ -14,6 +19,12 @@ auth:
   - method: platform
 actions:
   - name: sync_mailbox
+    title: Sync mailboxes
+    i18n:
+      de:
+        title: Postfächer synchronisieren
+      fr:
+        title: Synchroniser les boîtes mail
     description: >-
       List new messages from every active credential on the named mail
       connector, fetch each body, and ingest them into conversations (inbound
@@ -50,6 +61,12 @@ actions:
       impl: conversation.sync_mailbox
     exampleInput: { connectorSlug: 'imap-smtp', limit: 25 }
   - name: list_mailbox_messages
+    title: List mailbox messages
+    i18n:
+      de:
+        title: Nachrichten der Postfächer auflisten
+      fr:
+        title: Lister les messages des boîtes mail
     description: >-
       List the newest inbox messages from every active credential on the named
       mail connector — what triage digests over. IMAP UIDs are scoped per
@@ -87,6 +104,12 @@ actions:
       impl: conversation.list_mailbox_messages
     exampleInput: { connectorSlug: 'imap-smtp', limit: 25 }
   - name: list_untriaged
+    title: List untriaged conversations
+    i18n:
+      de:
+        title: Nicht triagierte Konversationen auflisten
+      fr:
+        title: Lister les conversations à trier
     description: >-
       List the open Inbox conversations of one mail connector that are waiting
       on the team — the newest message is the customer's — and that no triage
@@ -128,6 +151,12 @@ actions:
       impl: conversation.list_untriaged
     exampleInput: { connectorSlug: 'gmail', limit: 25 }
   - name: record_triage
+    title: Record triage
+    i18n:
+      de:
+        title: Triage festhalten
+      fr:
+        title: Enregistrer le triage
     description: >-
       Record a triage pass on Inbox conversations: the verdict is stamped on
       each conversation, and its priority is set where no person has set one.
@@ -180,6 +209,12 @@ actions:
           ],
       }
   - name: ingest_emails
+    title: Import received emails
+    i18n:
+      de:
+        title: Empfangene E-Mails importieren
+      fr:
+        title: Importer les e-mails reçus
     description: Ingest already-fetched inbound emails into conversations.
     effects: write
     input:
@@ -222,6 +257,12 @@ actions:
           ],
       }
   - name: ingest_sent_emails
+    title: Import sent emails
+    i18n:
+      de:
+        title: Gesendete E-Mails importieren
+      fr:
+        title: Importer les e-mails envoyés
     description: Ingest already-fetched Sent-folder emails into conversations.
     effects: write
     input:
@@ -265,6 +306,12 @@ actions:
           ],
       }
   - name: draft_reply
+    title: Draft reply
+    i18n:
+      de:
+        title: Antwortentwurf erstellen
+      fr:
+        title: Rédiger un brouillon de réponse
     description: >-
       Propose a reply on a conversation and leave it for a person. The draft
       appears in the Inbox as a pending message; sending it is a human act, and
@@ -301,6 +348,12 @@ actions:
         body: 'Yes, we still have it in stock. Would you like us to hold one?',
       }
   - name: query_sync_cursor
+    title: Get last sync time
+    i18n:
+      de:
+        title: Zeitpunkt der letzten Synchronisierung abrufen
+      fr:
+        title: Récupérer l’heure de la dernière synchronisation
     description: The latest synced message timestamp for a mailbox direction.
     effects: read
     input:

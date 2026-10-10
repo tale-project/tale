@@ -5,12 +5,12 @@
  * otherwise answer a redelivery or a key replay with a run that is gone,
  * audited and hinted; a run still in flight is refused (the stepper needs
  * its row); a run that is not there answers `deleted: false`. The delete
- * clears the trigger that names the run (`ON DELETE SET NULL`), so the
- * organization's audit chain is taken between the run's own row and that
- * delete — the order a landing run takes them in (`trigger-failures.ts`).
+ * clears the trigger that names the run (`ON DELETE SET NULL`), so it comes
+ * after the run's own row lock — the order a landing run takes them in
+ * (`trigger-failures.ts`) — and no advisory lock sits between them: the
+ * audit row takes none, the chain being sealed off the write path.
  */
 
-import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -93,7 +93,7 @@ describe('deleteRunInTx', () => {
     },
   );
 
-  it('takes the audit chain after the run’s own row and before the delete that clears its trigger', async () => {
+  it('locks the run’s own row before the delete that clears its trigger, and takes no advisory lock', async () => {
     const { tx, statements } = fakeRun({ status: 'failed' });
     vi.mocked(createAuditLog).mockImplementationOnce(async () => {
       statements.push({ text: 'createAuditLog', values: [] });
@@ -107,21 +107,23 @@ describe('deleteRunInTx', () => {
         text.includes('FROM app.automation_runs') &&
         text.includes('FOR UPDATE'),
     );
-    const chain = at((text) => text.includes('pg_advisory_xact_lock'));
     const firstDelete = at((text) => text.startsWith('DELETE FROM'));
     const runDelete = at((text) =>
       text.startsWith('DELETE FROM app.automation_runs'),
     );
     const audit = at((text) => text === 'createAuditLog');
-    expect(statements[chain]?.values).toEqual([
-      RETRY_QUEUE_LOCK_CLASS,
-      auditChainQueueKey('org-1'),
-    ]);
     expect(runRow).toBeGreaterThan(-1);
-    expect(chain).toBeGreaterThan(runRow);
-    expect(firstDelete).toBeGreaterThan(chain);
-    expect(runDelete).toBeGreaterThan(chain);
+    expect(firstDelete).toBeGreaterThan(runRow);
+    expect(runDelete).toBeGreaterThan(runRow);
     expect(audit).toBeGreaterThan(runDelete);
+    // Nothing between the run row and its delete: no advisory lock at all,
+    // and no statement names the organization's audit chain key.
+    expect(
+      statements.some((s) => s.text.includes('pg_advisory_xact_lock')),
+    ).toBe(false);
+    expect(
+      statements.some((s) => s.values.includes(auditChainQueueKey('org-1'))),
+    ).toBe(false);
   });
 
   it.each(['queued', 'running', 'waiting'])(

@@ -21,12 +21,8 @@ import type { AuditLogCategory } from './types.ts';
 type Db = Sql | TransactionSql;
 
 /**
- * Every organization the user is a member of, in a STABLE order (by id).
- * Writers walk this list taking each organization's audit-chain lock in
- * turn, inside one transaction: two people who share two organizations,
- * each signing in or minting a key at the same moment, would otherwise lock
- * the two chains in whatever order the planner returned the rows — and
- * deadlock. One order for everyone makes the cycle impossible.
+ * Every organization the user is a member of, in a stable order (by id), so
+ * a user-scoped event writes its rows in the same order every time.
  */
 export async function userOrgIds(db: Db, userId: string): Promise<string[]> {
   const rows = await db<{ organizationId: string }[]>`

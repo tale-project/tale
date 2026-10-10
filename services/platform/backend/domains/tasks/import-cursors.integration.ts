@@ -130,9 +130,12 @@ export async function checkImportCursorContinuation(
     output: Record<string, unknown> | null;
   }> => {
     const before = await automationRuns();
+    // The claim moves back, and so does the instant the scan next finds the
+    // schedule due, which a save or a fire set ahead.
     await sql`
       UPDATE app.automation_triggers
-      SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL
+      SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL,
+          next_due_at_ms = ${Date.now() - 60_000}
       WHERE org_id = ${orgId} AND name = ${name}
     `;
     await scanScheduledTriggers(sql);

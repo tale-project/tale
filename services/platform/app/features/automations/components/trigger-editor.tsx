@@ -9,101 +9,63 @@ import {
   useRegisterGroupedEditor,
   type EditorController,
 } from '@tale/ui/editor';
-import { Field } from '@tale/ui/field';
-import { InlineCode } from '@tale/ui/inline-code';
-import { Input } from '@tale/ui/input';
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@tale/ui/searchable-select';
-import { Select } from '@tale/ui/select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
-import { Link } from '@tanstack/react-router';
-import { KeyRound, Plus, Trash2 } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
-import { PERMANENT_FAILURES_BEFORE_PAUSE } from '@/backend/core/automations/failure';
-import { automationSlugToParam } from '@/lib/automations/slug';
+import type { Issue } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
-import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
+import { localTimeZone } from '@/lib/shared/zoned-time';
 
 import {
   useDeleteAutomationTrigger,
   useSetAutomationTrigger,
 } from '../hooks/mutations';
-import { useAutomationTriggers } from '../hooks/queries';
-import { useCronPreview } from '../hooks/use-cron-preview';
-import { listTimezoneOptions } from '../lib/cron-preview';
+import {
+  useAutomationProjects,
+  useAutomationTriggers,
+  useDeployedAutomation,
+} from '../hooks/queries';
+import { useTriggerDraft } from '../hooks/use-trigger-draft';
+import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { TRIGGER_DIRTY_KEY } from '../lib/dirty-keys';
+import { readDocument } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
+import {
+  AUTOMATION_PROJECTS_FIELD_ID,
+  AUTOMATION_TRIGGER_SECTION_ID,
+} from '../lib/field-ids';
+import {
+  sameAsStored,
+  toTriggerBody,
+  triggerDraftIssue,
+} from '../lib/trigger-draft';
+import { triggerRefusalText } from '../lib/trigger-issue-text';
+import {
+  TriggerFixedInput,
+  type TriggerFixedInputHandle,
+} from './trigger-fixed-input';
+import { TriggerForm } from './trigger-form';
+import { TriggerHealth } from './trigger-health';
+import { TriggerInputPreview } from './trigger-input-preview';
+import type { TriggerPlace } from './trigger-links';
+import { TriggerRunNow } from './trigger-run-now';
+import { TriggerWebhookPanel } from './trigger-webhook-panel';
 
-const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
-type TriggerKind = (typeof TRIGGER_KINDS)[number];
+const NO_WARNINGS: readonly Issue[] = [];
 
-function isTriggerKind(value: string): value is TriggerKind {
-  return (TRIGGER_KINDS as readonly string[]).includes(value);
-}
-
-type StoredTrigger = NonNullable<
-  ReturnType<typeof useAutomationTriggers>['data']
->[number];
-
-/** The fields the form edits, as a binding holds them. */
-interface TriggerFields {
-  kind: string;
-  cron: string;
-  timezone: string;
-  event: string;
-  enabled: boolean;
-}
-
-/** The empty form a new binding starts from. */
-const NO_TRIGGER: TriggerFields = {
-  kind: 'schedule',
-  cron: '',
-  timezone: 'UTC',
-  event: '',
-  enabled: false,
-};
-
-function triggerFields(row: StoredTrigger | undefined): TriggerFields {
-  if (row === undefined) return NO_TRIGGER;
-  return {
-    kind: row.kind,
-    cron: row.cron ?? '',
-    timezone: row.timezone ?? 'UTC',
-    event: row.event ?? '',
-    enabled: row.enabled,
-  };
-}
-
-/** `sent` with each field it left as `loaded` moved on to `incoming`. */
-function keepSentEdits(
-  loaded: TriggerFields,
-  sent: TriggerFields,
-  incoming: TriggerFields,
-): TriggerFields {
-  const pick = <K extends keyof TriggerFields>(key: K): TriggerFields[K] =>
-    sent[key] === loaded[key] ? incoming[key] : sent[key];
-  return {
-    kind: pick('kind'),
-    cron: pick('cron'),
-    timezone: pick('timezone'),
-    event: pick('event'),
-    enabled: pick('enabled'),
-  };
+/** Move focus to the control with `id`, when it is on the page. */
+function focusField(id: string): void {
+  const field = document.getElementById(id);
+  if (field === null) return;
+  field.scrollIntoView({ block: 'nearest' });
+  field.focus();
 }
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
@@ -150,32 +112,69 @@ export function TriggerEditor({
   projectId?: string | undefined;
 }) {
   const { t } = useT('automations');
-  const { formatDate } = useFormatDate();
-  // The public webhook endpoint. External callers POST here; the token is the
-  // last path segment and is shown only once (stored as a hash), so a revisit
-  // shows a `<token>` placeholder and points to Rotate. The origin the operator
-  // is browsing IS the deployment origin (dev proxies /api/* to the backend), so it
-  // is the base of the URL an external caller uses.
+  const { t: tRecurrence } = useT('recurrence');
+  const { i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
+  // The origin the operator is browsing IS the deployment origin (dev
+  // proxies /api/* to the backend), so it is the base of the webhook URL an
+  // external caller uses.
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
-  const webhookUrl = (token: string): string =>
-    `${origin}/api/automations/webhook/${token}`;
-  const cronId = useId();
-  const eventId = useId();
+  // A new trigger reads its schedule in the reader's own zone.
+  const [viewerZone] = useState(localTimeZone);
 
   const triggersQuery = useAutomationTriggers(organizationId, name);
   const setTrigger = useSetAutomationTrigger();
   const deleteTrigger = useDeleteAutomationTrigger();
 
   const stored = triggersQuery.data?.[0];
+  // What the trigger is checked against: the deployed version's inputs.
+  const deployedQuery = useDeployedAutomation(
+    organizationId,
+    name,
+    deployedVersion,
+  );
+  const inputsSchema = useMemo(
+    () => readDocument(deployedQuery.data?.document)?.inputs,
+    [deployedQuery.data?.document],
+  );
+  // The projects the automation is installed in, by name: where a run it
+  // starts acts.
+  const boundQuery = useAutomationProjects(organizationId, name);
+  const { projects } = useProjects(organizationId);
+  const boundProjects = useMemo(() => {
+    const ids = new Set((boundQuery.data ?? []).map(String));
+    return projects.filter((project) => ids.has(project._id));
+  }, [boundQuery.data, projects]);
+  const place: TriggerPlace = { organizationId, projectId, name };
+  // A trigger names no project: a sole installation is where its runs act,
+  // and otherwise they act organization-wide.
+  const [soleProject] = boundProjects.length === 1 ? boundProjects : [];
+  // Which projects' events reach an event trigger: none bound is the
+  // organization's; while the bindings, or the names of bound projects,
+  // are not read yet (or name only archived ones), the field says nothing
+  // rather than something wrong.
+  const boundCount = boundQuery.data?.length;
+  const installedIn = useMemo(
+    () =>
+      boundCount === undefined
+        ? undefined
+        : boundCount === 0
+          ? []
+          : boundProjects.length > 0
+            ? boundProjects.map((project) => project.name)
+            : undefined,
+    [boundCount, boundProjects],
+  );
+  const runScopeText =
+    soleProject === undefined
+      ? t('detail.runScope.confirmOrgWide')
+      : t('detail.runScope.confirmProject', { project: soleProject.name });
+  const scheduleFieldId = useId();
+  const fixedInputRef = useRef<TriggerFixedInputHandle>(null);
+  // What the last save answered about the input the trigger sends.
+  const [saveWarnings, setSaveWarnings] =
+    useState<readonly Issue[]>(NO_WARNINGS);
 
-  const [kind, setKind] = useState<TriggerKind>('schedule');
-  const [cron, setCron] = useState('');
-  const [timezone, setTimezone] = useState('UTC');
-  const [eventName, setEventName] = useState('');
-  // A NEW binding starts OFF: the docs say to keep Enabled off while
-  // preparing, and a binding that armed itself the moment a cron was typed
-  // started runs nobody had asked for yet.
-  const [enabled, setEnabled] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [mintedToken, setMintedToken] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -187,205 +186,76 @@ export function TriggerEditor({
   const [confirmRotate, setConfirmRotate] = useState(false);
   // Whether the author opened the form for a binding that does not exist
   // yet — without one the section says "no trigger" instead of drawing an
-  // empty schedule that looks armed.
+  // empty schedule that looks armed. A new binding starts OFF: nothing
+  // starts runs before the author has looked at it.
   const [adding, setAdding] = useState(false);
 
-  // The fields as the form last loaded them (or saved them): what tells an
-  // edit from a field the author left alone.
-  const loadedRef = useRef<TriggerFields>(NO_TRIGGER);
-  // While a save is out, the fields it sent: a field changed since then is
-  // an edit too, even one changed back to its loaded value.
-  const sentRef = useRef<TriggerFields | null>(null);
-
-  /**
-   * Put a binding (none: the empty form) into the fields. With `keepEdits`,
-   * a field the author changed — since the form last loaded, or since the
-   * save in flight sent it — keeps the edit, and only the fields left alone
-   * take the binding's values: a row another session saved, or a save's
-   * own row, must not erase a draft in progress.
-   */
-  const applyStored = useCallback(
-    (row: StoredTrigger | undefined, keepEdits = false) => {
-      const loaded = loadedRef.current;
-      const sent = sentRef.current ?? loaded;
-      const next = triggerFields(row);
-      loadedRef.current = next;
-      // A field the save in flight left as loaded follows the row from now
-      // on, as the form does.
-      if (sentRef.current !== null) {
-        sentRef.current = keepSentEdits(loaded, sentRef.current, next);
-      }
-      const take = <T,>(
-        current: T,
-        wasLoaded: unknown,
-        wasSent: unknown,
-        incoming: T,
-      ): T =>
-        keepEdits && (current !== wasLoaded || current !== wasSent)
-          ? current
-          : incoming;
-      setAdding(false);
-      const nextKind = next.kind;
-      if (isTriggerKind(nextKind)) {
-        setKind((current) => take(current, loaded.kind, sent.kind, nextKind));
-      }
-      setCron((current) => take(current, loaded.cron, sent.cron, next.cron));
-      setTimezone((current) =>
-        take(current, loaded.timezone, sent.timezone, next.timezone),
-      );
-      setEventName((current) =>
-        take(current, loaded.event, sent.event, next.event),
-      );
-      setEnabled((current) =>
-        take(current, loaded.enabled, sent.enabled, next.enabled),
-      );
-    },
-    [],
+  const { draft, update, applyStored, persist } = useTriggerDraft(
+    stored,
+    viewerZone,
+    () => setAdding(false),
   );
-
-  // Load the stored binding into the form whenever it changes under us —
-  // the row is the truth; local state only carries unsaved edits, which
-  // the load keeps. Keyed on the fields the form edits, not on the row
-  // object: a refetch that only moves `lastFiredAt` (the trigger just
-  // fired) loads nothing.
   const storedRef = useRef(stored);
   storedRef.current = stored;
-  const storedFields =
-    stored === undefined ? null : JSON.stringify(triggerFields(stored));
-  const storedFieldsRef = useRef(storedFields);
-  storedFieldsRef.current = storedFields;
-  useEffect(() => {
-    if (storedFields === null) return;
-    applyStored(storedRef.current, true);
-  }, [storedFields, applyStored]);
 
-  const dirty = useMemo(() => {
-    if (stored === undefined) {
-      return (
-        cron !== '' ||
-        (timezone !== '' && timezone !== 'UTC') ||
-        eventName !== '' ||
-        kind !== 'schedule' ||
-        enabled
-      );
-    }
-    return (
-      kind !== stored.kind ||
-      cron !== (stored.cron ?? '') ||
-      timezone !== (stored.timezone ?? 'UTC') ||
-      eventName !== (stored.event ?? '') ||
-      enabled !== stored.enabled
-    );
-  }, [stored, kind, cron, timezone, eventName, enabled]);
+  // Opening the form for a new binding is the edit; otherwise the draft is
+  // dirty when saving it would send something other than what is stored.
+  const dirty = stored === undefined ? adding : !sameAsStored(draft, stored);
+  const issue = triggerDraftIssue(draft);
+  const inputCheck = useTriggerInputCheck({
+    draft,
+    stored: stored ?? null,
+    inputsSchema,
+    deployed: deployedVersion !== undefined && deployedQuery.data != null,
+    clean: !dirty,
+    saveWarnings,
+  });
 
-  const timezoneOptions = useMemo<SearchableSelectOption[]>(
-    () =>
-      listTimezoneOptions(timezone).map((zone) => ({
-        value: zone,
-        label: zone,
-      })),
-    [timezone],
-  );
-
-  // The validator's verdict and the words under the field — shared with
-  // the blank-automation wizard, so both surfaces refuse the same crons.
-  const {
-    preview: cronPreview,
-    description: cronNextDescription,
-    invalidText: cronInvalidText,
-    pattern: cronPattern,
-  } = useCronPreview(cron, timezone, kind === 'schedule');
-
-  // What the schedule will actually do: nothing while the switch is off,
-  // nothing until a version is deployed (the occurrence it WOULD take is
-  // still named, so the author knows what arming means), the next run else.
-  const cronDescription = useMemo(() => {
-    if (kind !== 'schedule' || cronPreview.kind !== 'ok') {
-      return cronNextDescription;
-    }
-    const lead = cronPattern === undefined ? '' : `${cronPattern} · `;
-    if (!enabled) return `${lead}${t('trigger.paused')}`;
-    if (deployedVersion === undefined) {
-      return `${lead}${t('trigger.notDeployed', {
-        at: formatDate(cronPreview.nextAt, 'long'),
-      })}`;
-    }
-    return cronNextDescription;
-  }, [
-    kind,
-    cronPreview,
-    cronNextDescription,
-    cronPattern,
-    enabled,
-    deployedVersion,
-    t,
-    formatDate,
-  ]);
-
-  /** Write the form as the binding; a webhook's fresh token is shown once. */
-  const persist = async (rotateToken?: boolean): Promise<void> => {
+  /** Write the draft as the binding; a webhook's fresh token is shown once. */
+  const persistTrigger = (rotateToken?: boolean): Promise<void> => {
     setRefusal(null);
     setMintedToken(null);
-    const sent: TriggerFields = {
-      kind,
-      cron,
-      timezone,
-      event: eventName,
-      enabled,
-    };
-    const storedFieldsBefore = storedFieldsRef.current;
-    sentRef.current = sent;
-    try {
+    return persist(async (sent) => {
       const result = await setTrigger.mutateAsync({
         organizationId,
         name,
-        trigger: {
-          kind,
-          ...(kind === 'schedule' && cron !== '' && { cron }),
-          ...(kind === 'schedule' && timezone !== '' && { timezone }),
-          ...(kind === 'event' && eventName !== '' && { event: eventName }),
-          enabled,
-        },
+        trigger: toTriggerBody(sent, storedRef.current ?? null),
         ...(rotateToken === true && { rotateToken: true }),
       });
-      // The store holds the form as sent: a field still as sent takes the
-      // row it answers with, which drops what the kind leaves out (a
-      // webhook keeps no cron), while an edit made during the save stays.
-      loadedRef.current = sentRef.current ?? sent;
+      setSaveWarnings(result.warnings ?? NO_WARNINGS);
       if (result.token !== undefined) setMintedToken(result.token);
       // The server names the live URL this bind stopped answering on — say
       // so, since nothing on the page shows the old URL any more.
       if (result.revoked === 'webhook') {
         toast({ title: t('trigger.revokedToast') });
       }
-    } finally {
-      sentRef.current = null;
-      // A row that arrived while the save was out loaded against the form
-      // as it stood before; load it again against what the store holds now.
-      if (
-        storedFieldsRef.current !== null &&
-        storedFieldsRef.current !== storedFieldsBefore
-      ) {
-        applyStored(storedRef.current, true);
-      }
-    }
+    });
   };
 
   // The group keeps the controller it registered until one of its status
   // flags changes, so save and discard read the latest form through refs.
-  const persistRef = useRef(persist);
-  persistRef.current = persist;
+  const persistRef = useRef(persistTrigger);
+  persistRef.current = persistTrigger;
+  const refusalTextRef = useRef((error: unknown) =>
+    triggerRefusalText(error, { t, tRecurrence, locale }),
+  );
+  refusalTextRef.current = (error: unknown) =>
+    triggerRefusalText(error, { t, tRecurrence, locale });
 
-  const blocked = kind === 'schedule' && cronPreview.kind === 'invalid';
-  const canRotate = kind === 'webhook' && stored?.hasToken === true;
+  // A draft the store would refuse is the one thing the browser can hold
+  // back before the store does; Save waits until it reads.
+  const blocked = issue !== null;
   const canRemove = stored !== undefined;
+  // A read that failed shows no form at all: an empty form would look like
+  // an automation without a trigger, or an armed one.
+  const loadFailed = triggersQuery.isError && stored === undefined;
   // The form draws for a stored binding, or once the author asked to add one.
-  const showForm = stored !== undefined || (canEdit && adding);
+  const showForm = stored !== undefined || (canEdit && adding && !loadFailed);
 
   // Whether saving as things stand would revoke a live webhook URL: a
   // token-bearing webhook binding, being replaced by another kind.
   const revokesWebhook =
-    stored?.kind === 'webhook' && stored.hasToken && kind !== 'webhook';
+    stored?.kind === 'webhook' && stored.hasToken && draft.kind !== 'webhook';
   const revokesWebhookRef = useRef(revokesWebhook);
   revokesWebhookRef.current = revokesWebhook;
 
@@ -420,8 +290,6 @@ export function TriggerEditor({
     () => ({
       isDirty: dirty,
       isSaving: setTrigger.isPending,
-      // A cron that cannot be read is the one thing the browser can refuse
-      // before the store does; Save waits until it parses.
       isValid: !blocked,
       isLoading: triggersQuery.isPending,
       dirtyKeys: dirty ? TRIGGER_DIRTY_KEYS : NO_DIRTY_KEYS,
@@ -430,9 +298,10 @@ export function TriggerEditor({
         try {
           await persistRef.current();
         } catch (error) {
-          // The store's refusal names the problem and the fix; the cluster
-          // raises it as the save's one failure toast.
-          throw new Error(automationErrorMessage(error), { cause: error });
+          // The store's refusal names the problem and the fix — each coded
+          // problem in its field's words; the cluster raises it as the
+          // save's one failure toast.
+          throw new Error(refusalTextRef.current(error), { cause: error });
         }
       },
       reset: () => {
@@ -456,6 +325,10 @@ export function TriggerEditor({
   return (
     <Skeletonize loading={triggersQuery.isPending} label={t('trigger.title')}>
       <SettingsSection
+        id={AUTOMATION_TRIGGER_SECTION_ID}
+        // A link to the section lands below the tab strip, which stays
+        // pinned unless the viewport is short.
+        className="short-viewport:scroll-mt-4 scroll-mt-32"
         title={t('trigger.title')}
         description={t('trigger.description')}
         {...(canEdit &&
@@ -475,24 +348,39 @@ export function TriggerEditor({
             ),
           })}
       >
-        {stored?.lastFiredAt != null && (
-          <Text as="p" variant="muted" className="text-xs">
-            {t('trigger.lastFired', {
-              at: formatDate(new Date(stored.lastFiredAt), 'long'),
-            })}
-          </Text>
-        )}
-
         {stored !== undefined && (
-          <TriggerFailureNotice
-            organizationId={organizationId}
-            projectId={projectId}
-            name={name}
+          <TriggerHealth
+            place={place}
             trigger={stored}
+            actions={{
+              editSchedule: () => focusField(scheduleFieldId),
+              editProjects: () => focusField(AUTOMATION_PROJECTS_FIELD_ID),
+              ...(canEdit &&
+                inputCheck.missing.length > 0 && {
+                  fillMissing: {
+                    count: inputCheck.missing.length,
+                    run: () => fixedInputRef.current?.fillMissing(),
+                  },
+                }),
+            }}
           />
         )}
 
-        {!showForm && !triggersQuery.isPending && (
+        {loadFailed && (
+          <Alert variant="destructive" description={t('trigger.loadFailed')}>
+            <div className="pt-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void triggersQuery.refetch()}
+              >
+                {t('trigger.retry')}
+              </Button>
+            </div>
+          </Alert>
+        )}
+
+        {!showForm && !loadFailed && !triggersQuery.isPending && (
           <div className="flex flex-col items-start gap-2">
             <Text as="p" variant="muted" className="text-sm">
               {t('trigger.none')}
@@ -516,131 +404,74 @@ export function TriggerEditor({
           <Alert variant="destructive" description={refusal} />
         )}
 
-        {mintedToken !== null && (
-          <Alert
-            variant="warning"
-            icon={KeyRound}
-            title={t('trigger.tokenTitle')}
-            description={
-              <span className="flex flex-col gap-1">
-                <span>{t('trigger.webhookHowto')}</span>
-                <InlineCode className="break-all select-all">
-                  curl -X POST {webhookUrl(mintedToken)}
-                </InlineCode>
-                <span>{t('trigger.tokenHint')}</span>
-              </span>
-            }
-          />
-        )}
-
         {showForm && (
           <div className="flex flex-col gap-4">
             <SettingsToggleRow
               label={t('trigger.enabledLabel')}
-              checked={enabled}
-              onCheckedChange={setEnabled}
+              checked={draft.enabled}
+              onCheckedChange={(enabled) => update({ enabled })}
               disabled={!canEdit}
             />
-            <Select
-              label={t('trigger.kindLabel')}
-              options={TRIGGER_KINDS.map((value) => ({
-                value,
-                label: t(`trigger.kinds.${value}`),
-              }))}
-              value={kind}
-              onValueChange={(value) => {
-                if (isTriggerKind(value)) setKind(value);
+            <TriggerForm
+              surface="panel"
+              draft={draft}
+              stored={stored ?? null}
+              canEdit={canEdit}
+              viewerZone={viewerZone}
+              runState={{
+                clean: !dirty,
+                deployed: deployedVersion !== undefined,
+                nextRunAt: stored?.nextRunAt ?? null,
               }}
-              disabled={!canEdit}
-              className="min-w-0"
-            />
-            {kind === 'schedule' && (
-              <>
-                <Field
-                  label={t('trigger.cronLabel')}
-                  htmlFor={cronId}
-                  description={
-                    cronPreview.kind === 'invalid' ? undefined : cronDescription
-                  }
-                  error={cronInvalidText}
-                >
-                  <Input
-                    id={cronId}
-                    value={cron}
-                    placeholder="0 */6 * * *"
-                    readOnly={!canEdit}
-                    onChange={(event) => setCron(event.target.value)}
-                    className="font-mono"
+              onChange={update}
+              scheduleFieldId={scheduleFieldId}
+              installedIn={installedIn}
+              after={
+                <>
+                  <TriggerFixedInput
+                    ref={fixedInputRef}
+                    value={draft.input}
+                    onChange={(input) => update({ input })}
+                    canEdit={canEdit}
+                    missing={inputCheck.missing}
                   />
-                </Field>
-                <SearchableSelect
-                  label={t('trigger.timezoneLabel')}
-                  options={timezoneOptions}
-                  value={timezone || null}
-                  onValueChange={setTimezone}
-                  disabled={!canEdit}
-                  searchPlaceholder={t('trigger.timezoneSearch')}
-                  emptyText={t('trigger.timezoneEmpty')}
-                  placeholder="UTC"
-                />
-              </>
-            )}
-            {kind === 'event' && (
-              <Field label={t('trigger.eventLabel')} htmlFor={eventId}>
-                <Select
-                  id={eventId}
-                  placeholder={t('trigger.eventPlaceholder')}
-                  disabled={!canEdit}
-                  options={EMITTED_EVENT_TYPES.map((value) => ({
-                    value,
-                    label: value,
-                  }))}
-                  value={eventName}
-                  onValueChange={(value) => {
-                    // Radix fires a spurious '' on unmount — never un-pick.
-                    if (value !== '') setEventName(value);
+                  <TriggerInputPreview
+                    surface="panel"
+                    kind={draft.kind}
+                    check={inputCheck}
+                    version={deployedVersion}
+                    place={place}
+                    {...(canEdit && {
+                      action: (
+                        <TriggerRunNow
+                          place={place}
+                          stored={stored ?? null}
+                          deployedVersion={deployedVersion}
+                          inputsSchema={inputsSchema}
+                          dirty={dirty}
+                          scopeText={runScopeText}
+                        />
+                      ),
+                    })}
+                  />
+                </>
+              }
+              webhookDetails={
+                <TriggerWebhookPanel
+                  place={place}
+                  origin={origin}
+                  projects={boundProjects}
+                  mintedToken={mintedToken}
+                  hasToken={stored?.kind === 'webhook' && stored.hasToken}
+                  storedWebhook={stored?.kind === 'webhook'}
+                  canEdit={canEdit}
+                  rotating={setTrigger.isPending}
+                  onRotate={() => {
+                    setConfirmRotate(true);
                   }}
                 />
-              </Field>
-            )}
-            {kind === 'webhook' && (
-              <div className="flex flex-col gap-1">
-                <Text as="span" variant="muted" className="text-xs font-medium">
-                  {t('trigger.webhookEndpointLabel')}
-                </Text>
-                <InlineCode className="break-all select-all">
-                  curl -X POST {webhookUrl(mintedToken ?? '<token>')}
-                </InlineCode>
-                <Text as="span" variant="muted" className="text-xs">
-                  {t('trigger.webhookHowto')}{' '}
-                  {stored?.hasToken === true
-                    ? t('trigger.hasToken')
-                    : t('trigger.noToken')}
-                </Text>
-                <Text as="span" variant="muted" className="text-xs">
-                  {t('trigger.webhookProjectHint')}
-                </Text>
-                <InlineCode className="break-all select-all">
-                  curl -X POST{' '}
-                  {`${origin}/api/projects/<projectId>/automations/webhook/${mintedToken ?? '<token>'}`}
-                </InlineCode>
-                {canEdit && canRotate && (
-                  <div className="pt-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      icon={KeyRound}
-                      isLoading={setTrigger.isPending}
-                      onClick={() => {
-                        setConfirmRotate(true);
-                      }}
-                    >
-                      {t('trigger.rotate')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
+              }
+            />
           </div>
         )}
 
@@ -671,7 +502,7 @@ export function TriggerEditor({
             // Rotating writes the form as it stands, like a save, and shows
             // the new URL once.
             persistRef.current(true).catch((error: unknown) => {
-              setRefusal(automationErrorMessage(error));
+              setRefusal(refusalTextRef.current(error));
             });
           }}
         />
@@ -705,105 +536,5 @@ export function TriggerEditor({
         />
       </SettingsSection>
     </Skeletonize>
-  );
-}
-
-/**
- * What the binding's failure streak says (`trigger-failures.ts`): a schedule
- * its failures paused — a standing banner until someone saves the trigger —
- * or runs failing in a row that will pause a schedule, each with the last
- * failure's code and a way into its run. Silent while the streak is empty.
- */
-function TriggerFailureNotice({
-  organizationId,
-  projectId,
-  name,
-  trigger,
-}: {
-  organizationId: string;
-  projectId: string | undefined;
-  name: string;
-  trigger: StoredTrigger;
-}) {
-  const { t } = useT('automations');
-  const { formatDate } = useFormatDate();
-  const count = trigger.consecutiveFailures ?? 0;
-  const paused =
-    !trigger.enabled && trigger.lastSkipReason === 'paused_after_failures';
-  if (!paused && count === 0) return null;
-
-  const lastFailure =
-    trigger.lastFailedAt != null && trigger.lastFailureCode != null ? (
-      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span>
-          {t('trigger.failures.last', {
-            at: formatDate(new Date(trigger.lastFailedAt), 'long'),
-          })}
-        </span>
-        <InlineCode>{trigger.lastFailureCode}</InlineCode>
-        {trigger.lastFailedRunId != null && (
-          <Link
-            // The run opens where the section is shown: under the project
-            // when the tab is, as the run list's rows open it.
-            {...(projectId
-              ? {
-                  to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId' as const,
-                  params: {
-                    id: organizationId,
-                    projectId,
-                    automationSlug: automationSlugToParam(name),
-                    runId: trigger.lastFailedRunId,
-                  },
-                }
-              : {
-                  to: '/dashboard/$id/automations/$automationSlug/runs/$runId' as const,
-                  params: {
-                    id: organizationId,
-                    automationSlug: automationSlugToParam(name),
-                    runId: trigger.lastFailedRunId,
-                  },
-                })}
-            className="text-foreground focus-visible:ring-ring rounded-sm underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
-          >
-            {t('trigger.failures.viewRun')}
-          </Link>
-        )}
-      </span>
-    ) : null;
-
-  if (paused) {
-    return (
-      <Alert
-        variant="warning"
-        // A standing state, not an event: announcing it on every visit to
-        // the tab would repeat what the page already shows.
-        live="off"
-        title={t('trigger.failures.pausedTitle')}
-        description={
-          <span className="flex flex-col gap-1">
-            <span>{t('trigger.failures.pausedBody', { count })}</span>
-            {lastFailure}
-          </span>
-        }
-      />
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <Text as="p" variant="muted" className="text-xs">
-        {t('trigger.failures.streak', { count })}
-        {trigger.kind === 'schedule' &&
-          trigger.enabled &&
-          ` ${t('trigger.failures.streakSchedule', {
-            limit: PERMANENT_FAILURES_BEFORE_PAUSE,
-          })}`}
-      </Text>
-      {lastFailure !== null && (
-        <Text as="div" variant="muted" className="text-xs">
-          {lastFailure}
-        </Text>
-      )}
-    </div>
   );
 }

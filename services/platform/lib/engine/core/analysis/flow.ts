@@ -30,9 +30,16 @@
  * (`truncated`) and the facts fall back to the document's structure: a sound
  * over-approximation that may call a node skippable or reachable when no
  * actual run makes it so, and never the reverse.
+ *
+ * A run that happened is placed among the paths by what it recorded:
+ * `assignmentFromRun` reads the atoms a run answered from its record (or,
+ * for a run recorded before records were kept, from its trace), and
+ * `pathIdOf` names the path those answers lead along.
  */
 
 import { refsOf, topoSort } from '../execute/controlflow';
+import { failedAndContinued } from '../record/skip-chain';
+import type { NodeRunRecord } from '../record/types';
 import { foldConstant } from '../syntax/constant';
 import { parseExpressionIn } from '../syntax/parse';
 import {
@@ -40,7 +47,7 @@ import {
   exprSegments,
   tokenizeTemplate,
 } from '../syntax/tokens';
-import type { NodeDef } from '../types';
+import type { NodeDef, NodeTrace } from '../types';
 
 /** Why a node produced no output — the reasons a run records. */
 export type SkipReason = 'when' | 'else' | 'upstream' | 'error';
@@ -641,4 +648,137 @@ function flowFacts(model: FlowModel): FlowFacts {
 export function analyzeFlow(nodes: readonly NodeDef[]): FlowFacts | null {
   const model = flowModel(nodes);
   return model === null ? null : flowFacts(model);
+}
+
+/** What a node did on a run, as its record or trace tells. */
+type RunOutcome = 'ran' | 'started' | SkipReason;
+
+/** What a node's own record says happened to it. */
+function recordedOutcome(record: NodeRunRecord): RunOutcome | undefined {
+  if (failedAndContinued(record)) return 'error';
+  switch (record.status) {
+    case 'ok':
+      return 'ran';
+    case 'failed':
+      return 'error';
+    case 'running':
+    case 'waiting':
+      return 'started';
+    case 'skipped':
+      return record.skip?.reason;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * What a trace entry says happened to its node, from the status and the
+ * note both executors write; `other` for anything else (a node not run, a
+ * note this reader does not know).
+ */
+export function traceOutcome(entry: NodeTrace): 'ran' | SkipReason | 'other' {
+  if (entry.status === 'ok') return 'ran';
+  if (entry.status === 'error') return 'error';
+  if (entry.status !== 'skipped') return 'other';
+  const note = entry.note ?? '';
+  if (note.startsWith('skipped: when=')) return 'when';
+  if (note.startsWith('skipped: elseOf')) return 'else';
+  if (note.startsWith('skipped: reads from')) return 'upstream';
+  return 'other';
+}
+
+/**
+ * The value of each free atom a run answered: a node's `when` from its
+ * recorded decision, else from whether the node got past its condition; a
+ * tolerated failure from whether the node failed. The record answers first;
+ * a node it says nothing about is read from the trace (a run recorded
+ * before records were kept, or a gap in one). An atom of a node the run did
+ * not reach — or has not reached yet — is left out, as are fixed atoms. A
+ * condition that failed to evaluate failed its step, which the model knows
+ * as a step that got past its condition and then failed — the record and
+ * the trace read it alike.
+ *
+ * `record` holds a run's stored rows; only each top-level node's own row is
+ * read.
+ */
+export function assignmentFromRun(
+  model: FlowModel,
+  account: {
+    record?: readonly NodeRunRecord[];
+    trace?: readonly NodeTrace[];
+  },
+): Record<string, boolean> {
+  const rows = new Map<string, NodeRunRecord>();
+  for (const record of account.record ?? []) {
+    if (record.key.item < 0 && record.key.pass < 0) {
+      rows.set(record.key.path, record);
+    }
+  }
+  const traced = new Map<string, NodeTrace>();
+  for (const entry of account.trace ?? []) traced.set(entry.node, entry);
+  const answer = (atom: FlowAtom): boolean | undefined => {
+    const row = rows.get(atom.nodeId);
+    if (row !== undefined) {
+      if (atom.kind === 'when') {
+        const decided = row.decisions.findLast((d) => d.kind === 'when');
+        if (decided !== undefined) return decided.result;
+        // A condition that failed to evaluate failed its step: the model
+        // knows that only as a step that got past its condition and failed,
+        // as the trace reads it too.
+      }
+      const answered = answerOf(atom, recordedOutcome(row));
+      if (answered !== undefined) return answered;
+    }
+    const entry = traced.get(atom.nodeId);
+    if (entry === undefined) return undefined;
+    const outcome = traceOutcome(entry);
+    return answerOf(atom, outcome === 'other' ? undefined : outcome);
+  };
+  const assignment: Record<string, boolean> = {};
+  for (const atom of model.atoms) {
+    if (atom.fixed === true) continue;
+    const value = answer(atom);
+    if (value !== undefined) assignment[atom.id] = value;
+  }
+  return assignment;
+}
+
+/** An atom's value from what its node did, if that answers it. */
+function answerOf(
+  atom: FlowAtom,
+  outcome: RunOutcome | undefined,
+): boolean | undefined {
+  if (atom.kind === 'when') {
+    if (outcome === 'when') return false;
+    if (outcome === 'ran' || outcome === 'error' || outcome === 'started') {
+      return true;
+    }
+    return undefined;
+  }
+  if (outcome === 'ran') return false;
+  if (outcome === 'error') return true;
+  return undefined;
+}
+
+/**
+ * The id of the path a run took, given the atoms it answered: the id
+ * `possiblePaths` gives that path (`when:triage=0|fail:propose=1`). The id
+ * ends at the first atom the run consulted without answering — a run that
+ * ended early or is still going names the start of a path, which no
+ * complete path shares unless it took no further decision.
+ */
+export function pathIdOf(
+  model: FlowModel,
+  assignment: Readonly<Record<string, boolean>>,
+): string {
+  const consulted = simulate(model, assignment).assignment;
+  const parts: string[] = [];
+  // Atoms are consulted in model order, so the first unanswered one is
+  // where the run's own answers end.
+  for (const atom of model.atoms) {
+    if (!Object.hasOwn(consulted, atom.id)) continue;
+    if (!Object.hasOwn(assignment, atom.id)) break;
+    parts.push(`${atom.id}=${assignment[atom.id] ? 1 : 0}`);
+  }
+  return parts.join('|');
 }

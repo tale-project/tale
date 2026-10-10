@@ -2,6 +2,8 @@ title: Notifications
 ariaUnread: Non lu
 emptyCaughtUpTitle: Tout est à jour
 emptyCaughtUpDescription: Nous vous préviendrons dès qu'il y aura du nouveau.
+emptyOlderUnreadTitle: Tu as des notifications non lues plus anciennes
+emptyOlderUnreadDescription: Charge plus de notifications pour les voir.
 emptyAllTitle: Aucune notification pour l'instant
 emptyAllDescription: Les alertes et mises à jour système apparaîtront ici à
   mesure qu'elles arriveront.

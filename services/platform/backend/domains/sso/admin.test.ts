@@ -21,7 +21,7 @@ const { validateConfig } = vi.hoisted(() => ({
   validateConfig: vi.fn().mockResolvedValue({ valid: true }),
 }));
 
-// The save's audit row needs a real chain head; the write itself is not what
+// The save's audit row needs a real database; the write itself is not what
 // these cases pin.
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn().mockResolvedValue(undefined),

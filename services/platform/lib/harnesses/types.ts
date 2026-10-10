@@ -314,9 +314,9 @@ export type HarnessEvent =
        * surfaces one. Absent for mid-stream failures. Lets a caller decide
        * whether to rotate credentials / retry. */
       apiErrorStatus?: number;
-      /** A semantic provider failure from the harness's terminal error
-       * channel, independent of any HTTP status or credential fault. */
-      providerErrorKind?: 'model_capacity';
+      /** A semantic failure from the harness's terminal provider channel.
+       * Account feedback also requires its matching HTTP status. */
+      providerErrorKind?: 'model_capacity' | 'subscription_access_disabled';
     }
   | { type: 'error'; message: string; raw?: unknown }
   /** A queued user message was injected into the RUNNING turn by the

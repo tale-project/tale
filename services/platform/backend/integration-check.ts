@@ -51,6 +51,8 @@ import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.t
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { checkPasswordConfirmationThrottle } from './auth/password-confirmations.integration.ts';
 import { checkStaleSessionReauthentication } from './auth/reauthenticate.integration.ts';
+import { checkAuthRequestCache } from './auth/request-cache.integration.ts';
+import { checkSessionTrustFieldsAreServerOnly } from './auth/session-trust-fields.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
@@ -72,10 +74,13 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkEventScopeAndIsolation } from './domains/automations/event-scope.integration.ts';
 import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
 import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
 import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
+import { checkAutomationNodeRuns } from './domains/automations/node-runs.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
+import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-github-schedules.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
@@ -165,6 +170,7 @@ import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.i
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkTaskSearchPriority } from './domains/tasks/search-priority.integration.ts';
 import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
 import { checkStandingRoleWakeScenarios } from './domains/tasks/standing-role-wake-scenarios.integration.ts';
 import { checkStandingRoleWake } from './domains/tasks/standing-role-wake.integration.ts';
@@ -312,15 +318,14 @@ async function checkSerializableRetry(sql: Sql): Promise<void> {
 }
 
 /**
- * The audit chain-head storm (compliance-x1): every audited write of an org
- * bumps one head row, so serializable appenders that overlap all lose at the
- * head lock except the first, and a plain retry loses again whenever another
- * appender commits first. With the retry queue (`markRetryQueueKey` +
- * `pg_advisory_xact_lock` in `lockChainHead`) every appender commits, the
- * chain stays linear and the head names the last row.
+ * A burst of audited writes in one org (compliance-x1). Writers used to meet
+ * at the org's chain head, lose there under SERIALIZABLE and retry; now each
+ * writes its row unsealed, so every one commits on its first attempt, and
+ * the sealer chains them all — the head naming the last row it sealed.
  */
 async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
-  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
   const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
   const orgId = `itest-chain-${randomUUID().slice(0, 8)}`;
   const appenders = 8;
@@ -329,8 +334,7 @@ async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
     Array.from({ length: appenders }, (_, index) =>
       transactSerializable(sql, async (tx) => {
         attempts += 1;
-        // Fix the snapshot first, then let every appender overlap: each
-        // one's head read is now stale for all but the first committer.
+        // Fix the snapshot first, then let every appender overlap.
         await tx`SELECT 1`;
         await sleep(50);
         return createAuditLog(tx, {
@@ -351,26 +355,199 @@ async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
     SELECT count(*)::text AS count FROM app.audit_logs WHERE org_id = ${orgId}
   `;
   const committed = Number(rows[0]?.count ?? '0');
+  const sealed = await sealAuditChainNow(sql, orgId);
   const verified = await verifyAuditChain(sql, orgId);
-  const heads = await sql<{ lastHash: string }[]>`
-    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
-    WHERE org_id = ${orgId}
+  const heads = await sql<{ lastHash: string; lastSeq: string }[]>`
+    SELECT last_hash AS "lastHash", last_seq::text AS "lastSeq"
+    FROM app.audit_chain_heads WHERE org_id = ${orgId}
   `;
   const latest = await sql<{ integrityHash: string }[]>`
     SELECT integrity_hash AS "integrityHash" FROM app.audit_logs
-    WHERE org_id = ${orgId} ORDER BY ts DESC LIMIT 1
+    WHERE org_id = ${orgId} ORDER BY chain_seq DESC LIMIT 1
   `;
   const headNamesLatest =
     heads[0]?.lastHash !== undefined &&
-    heads[0].lastHash === latest[0]?.integrityHash;
+    heads[0].lastHash === latest[0]?.integrityHash &&
+    heads[0].lastSeq === String(appenders);
   record(
-    'audit chain: a burst of serializable appenders for one org all commit',
+    'audit chain: a burst of audited writes in one org all commit at once, and the sealer chains them',
     failures.length === 0 &&
       committed === appenders &&
+      attempts === appenders &&
+      sealed === appenders &&
       verified.valid &&
-      headNamesLatest &&
-      attempts > appenders,
-    `committed=${committed}/${appenders} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${verified.valid} headNamesLatest=${headNamesLatest} attempts=${attempts} (>${appenders} proves the head lock was lost at least once and the retry landed)`,
+      verified.verifiedCount === appenders &&
+      headNamesLatest,
+    `committed=${committed}/${appenders} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} attempts=${attempts} (want ${appenders}: nobody waits on a chain head) sealed=${sealed} chainValid=${verified.valid} verified=${verified.verifiedCount} headNamesLatest=${headNamesLatest}`,
+  );
+}
+
+/** One audit row for the sealing lanes below. */
+function chainProbe(orgId: string, resourceId: string) {
+  return {
+    organizationId: orgId,
+    actorId: 'itest',
+    actorType: 'system' as const,
+    action: 'itest.chain_order',
+    category: 'admin' as const,
+    resourceType: 'itest',
+    resourceId,
+    status: 'success' as const,
+  };
+}
+
+/**
+ * A transaction that commits late is sealed after a row written later: the
+ * chain's order is the order of sealing, the row keeps the time its event
+ * happened, and the chain verifies.
+ */
+async function checkAuditChainLateCommit(sql: Sql): Promise<void> {
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-late-${randomUUID().slice(0, 8)}`;
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const slow = sql.begin(async (tx) => {
+    await createAuditLog(tx, chainProbe(orgId, 'written-first'));
+    await held;
+  });
+  await sleep(50);
+  await sql.begin((tx) =>
+    createAuditLog(tx, chainProbe(orgId, 'committed-first')),
+  );
+  const firstPass = await sealAuditChainNow(sql, orgId);
+  release();
+  await slow;
+  const secondPass = await sealAuditChainNow(sql, orgId);
+  const rows = await sql<
+    { resourceId: string; ts: number; chainSeq: string }[]
+  >`
+    SELECT resource_id AS "resourceId", ts::float8 AS ts,
+           chain_seq::text AS "chainSeq"
+    FROM app.audit_logs WHERE org_id = ${orgId} ORDER BY chain_seq ASC
+  `;
+  const verified = await verifyAuditChain(sql, orgId);
+  const [first, second] = rows;
+  record(
+    'audit chain: a late-committing entry is sealed after a later one, keeps its time, and verifies',
+    firstPass === 1 &&
+      secondPass === 1 &&
+      first?.resourceId === 'committed-first' &&
+      second?.resourceId === 'written-first' &&
+      second.ts < first.ts &&
+      verified.valid &&
+      verified.verifiedCount === 2,
+    `passes=${firstPass}/${secondPass} order=${rows.map((r) => `${r.chainSeq}:${r.resourceId}@${r.ts}`).join(',')} valid=${verified.valid} verified=${verified.verifiedCount}`,
+  );
+}
+
+/**
+ * During a rolling deploy an image from before sealing moved off the write
+ * path still appends inline — chain key, head row, hash, sealed INSERT. The
+ * trigger gives that row the next position from the head it holds, so the
+ * chain stays one order with the rows the sealer chains around it.
+ */
+async function checkAuditChainInlineAppendDuringRoll(sql: Sql): Promise<void> {
+  const { createAuditLog, lockAuditChain, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const { buildAuditRecordHashInput, toStoredAuditRecord } =
+    await import('./domains/audit_logs/hash-input.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-roll-${randomUUID().slice(0, 8)}`;
+  await sql.begin((tx) => createAuditLog(tx, chainProbe(orgId, 'before')));
+  await sealAuditChainNow(sql, orgId);
+  // The older image's append, statement for statement.
+  await sql.begin(async (tx) => {
+    await lockAuditChain(tx, orgId);
+    const heads = await tx<{ lastHash: string; lastTs: number }[]>`
+      SELECT last_hash AS "lastHash", last_ts::float8 AS "lastTs"
+      FROM app.audit_chain_heads WHERE org_id = ${orgId} FOR UPDATE
+    `;
+    const head = heads[0] ?? { lastHash: '', lastTs: 0 };
+    const timestamp = Math.max(Date.now(), head.lastTs + 1);
+    const stored = toStoredAuditRecord({
+      ...chainProbe(orgId, 'inline'),
+      changedFields: [],
+      timestamp,
+    });
+    const hash = await computeAuditHash(
+      head.lastHash,
+      buildAuditRecordHashInput(stored),
+    );
+    await tx`
+      INSERT INTO app.audit_logs (
+        org_id, actor_id, actor_type, action, category, resource_type,
+        resource_id, ts, status, integrity_hash, previous_hash
+      ) VALUES (
+        ${orgId}, ${stored.actorId}, ${stored.actorType}, ${stored.action},
+        ${stored.category}, ${stored.resourceType}, ${stored.resourceId ?? null},
+        ${timestamp}, ${stored.status}, ${hash},
+        ${head.lastHash === '' ? null : head.lastHash}
+      )
+    `;
+    await tx`
+      UPDATE app.audit_chain_heads SET last_hash = ${hash}, last_ts = ${timestamp}
+      WHERE org_id = ${orgId}
+    `;
+  });
+  await sql.begin((tx) => createAuditLog(tx, chainProbe(orgId, 'after')));
+  await sealAuditChainNow(sql, orgId);
+  const rows = await sql<{ resourceId: string; chainSeq: string | null }[]>`
+    SELECT resource_id AS "resourceId", chain_seq::text AS "chainSeq"
+    FROM app.audit_logs WHERE org_id = ${orgId} ORDER BY chain_seq ASC
+  `;
+  const verified = await verifyAuditChain(sql, orgId);
+  const order = rows.map((r) => `${r.chainSeq}:${r.resourceId}`).join(',');
+  record(
+    "audit chain: an older image's inline append during a roll takes its position from the head",
+    order === '1:before,2:inline,3:after' &&
+      verified.valid &&
+      verified.verifiedCount === 3,
+    `order=${order} (want 1:before,2:inline,3:after) valid=${verified.valid} verified=${verified.verifiedCount}`,
+  );
+}
+
+/**
+ * Every worker runs a sealer; two that reach one org at once never chain a
+ * row twice or fork the chain — the chain key lets one in, the other comes
+ * back next round.
+ */
+async function checkAuditChainRacingSealers(sql: Sql): Promise<void> {
+  const { createAuditLog, sealAuditChain, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-race-${randomUUID().slice(0, 8)}`;
+  const rowsWritten = 40;
+  await sql.begin(async (tx) => {
+    for (let index = 0; index < rowsWritten; index += 1) {
+      await createAuditLog(tx, chainProbe(orgId, String(index)));
+    }
+  });
+  const passes = await Promise.all(
+    Array.from({ length: 4 }, () => sealAuditChain(sql, orgId, { batch: 15 })),
+  );
+  const rest = await sealAuditChainNow(sql, orgId);
+  const positions = await sql<
+    { count: string; distinct: string; max: string }[]
+  >`
+    SELECT count(*)::text AS count, count(DISTINCT chain_seq)::text AS distinct,
+           max(chain_seq)::text AS max
+    FROM app.audit_logs WHERE org_id = ${orgId}
+  `;
+  const verified = await verifyAuditChain(sql, orgId);
+  const sealedTotal = passes.reduce((sum, n) => sum + n, 0) + rest;
+  const shape = positions[0];
+  record(
+    'audit chain: sealers racing on one org chain every row exactly once',
+    sealedTotal === rowsWritten &&
+      shape?.distinct === String(rowsWritten) &&
+      shape.max === String(rowsWritten) &&
+      verified.valid &&
+      verified.verifiedCount === rowsWritten,
+    `passes=${passes.join('+')}+${rest} (want ${rowsWritten} in all) positions=${shape?.distinct}/${shape?.count} max=${shape?.max} valid=${verified.valid}`,
   );
 }
 
@@ -7201,11 +7378,13 @@ async function checkTaskCommentBurst(
 
 /**
  * A burst of serializable commenters on DIFFERENT tasks of one org: the task
- * keys never collide, so every one of them meets the others at the org's
- * audit chain head and all but the first lose there. The loss is marked with
- * the chain-head key inside the task's queue, and the marks nest, so each
- * retry holds the task key AND the chain-head key from before its BEGIN —
- * a retry queued on the task key alone would lose at the head again.
+ * keys never collide, and the audit rows they write meet no chain head any
+ * more (the chain is sealed off the write path). Serializable isolation can
+ * still abort one of two writers over an index page both touch; the loser's
+ * retry holds the org's comment key exclusively while the first attempts
+ * hold it shared (`queuedCommentWrite`), so every one lands, none loses more
+ * than once, and the sealer then chains their rows into a chain that
+ * verifies.
  */
 async function checkTaskCommentCrossTaskBurst(
   sql: Sql,
@@ -7262,15 +7441,16 @@ async function checkTaskCommentCrossTaskBurst(
     WHERE project_id = ${projectId}
   `;
   const landed = counts.filter((row) => row.commentCount === 1).length;
+  const { sealAuditChainNow } = await import('./domains/audit_logs/service.ts');
+  await sealAuditChainNow(sql, orgId);
   const chain = await verifyAuditChain(sql, orgId);
   record(
     "tasks: a burst of serializable commenters across one org's tasks all land",
     failures.length === 0 &&
       landed === COMMENTERS &&
       chain.valid &&
-      attempts > COMMENTERS &&
       attempts <= COMMENTERS * 2,
-    `landed=${landed}/${COMMENTERS} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${chain.valid} attempts=${attempts} (want >${COMMENTERS} — losers at the chain head retried — and ≤${COMMENTERS * 2}: each lost at most once, queued on task + chain head)`,
+    `landed=${landed}/${COMMENTERS} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${chain.valid} attempts=${attempts} (want ≤${COMMENTERS * 2}: nobody lost more than once; ${COMMENTERS} means nobody lost at all)`,
   );
 }
 
@@ -13037,7 +13217,8 @@ async function checkAutomations(
     );
 
     // Schedule DELIVERY: retarget the trigger to a minute cron, backdate its
-    // fire stamp, and let the scan (the per-minute job's body) fire it.
+    // fire stamp and its next instant (a save counts from the save, 0170),
+    // and let the scan (the per-minute job's body) fire it.
     await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
       kind: 'schedule',
       cron: '* * * * *',
@@ -13045,7 +13226,8 @@ async function checkAutomations(
     });
     await sql`
       UPDATE app.automation_triggers
-      SET last_fired_at_ms = ${Date.now() - 120_000}
+      SET last_fired_at_ms = ${Date.now() - 120_000},
+          next_due_at_ms = ${Date.now() - 60_000}
       WHERE org_id = ${orgId} AND name = 'ops/greet'
     `;
     const triggersModule = await import('./domains/automations/triggers.ts');
@@ -14448,10 +14630,13 @@ async function checkAutomationTriggerDelivery(
   // Both stamps: the scan's cursor is the later of the claim and the fire
   // (0096), so backdating one alone would leave a claimed occurrence in
   // the way.
+  // So does the instant the schedule is next due (0170): a save sets it
+  // ahead of the save, so the scan would otherwise wait for the next minute.
   const backdateStamp = (): Promise<unknown> => sql`
     UPDATE app.automation_triggers
     SET last_fired_at_ms = ${Date.now() - 120_000},
-        last_due_at_ms = ${Date.now() - 120_000}
+        last_due_at_ms = ${Date.now() - 120_000},
+        next_due_at_ms = ${Date.now() - 60_000}
     WHERE org_id = ${orgId} AND name = ${name}
   `;
 
@@ -14529,10 +14714,21 @@ async function checkAutomationTriggerDelivery(
     triggersModule.scanScheduledTriggers(sql),
   ]);
   const firedByOverlap = (await triggerRuns()) - runsBeforeOverlap;
+  const afterOverlap = await sql<
+    { lastFiredAt: number | null; nextDueAt: number | null }[]
+  >`
+    SELECT last_fired_at_ms::float8 AS "lastFiredAt",
+           next_due_at_ms::float8 AS "nextDueAt"
+    FROM app.automation_triggers
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const overlapRow = afterOverlap[0];
   record(
     'overlapping schedule scans fire one occurrence exactly once',
-    firedByOverlap === 1,
-    `three concurrent scans over one due trigger fired ${firedByOverlap} runs (want 1)`,
+    firedByOverlap === 1 &&
+      overlapRow?.lastFiredAt !== null &&
+      overlapRow?.nextDueAt === (overlapRow?.lastFiredAt ?? 0) + 60_000,
+    `three concurrent scans over one due trigger fired ${firedByOverlap} runs (want 1); next instant ${overlapRow?.nextDueAt} (want the fired minute ${overlapRow?.lastFiredAt} + 60 s)`,
   );
 
   // ---- #3a: fairness — 205 enabled schedules platform-wide; ONE scan must
@@ -14583,6 +14779,328 @@ async function checkAutomationTriggerDelivery(
       fairScan.undeployed === 205,
     `fire stamps=${stamped[0]?.fired} (want 0), not_deployed skips=${skipStamps[0]?.count}/205, scan.undeployed=${fairScan.undeployed}`,
   );
+
+  // ---- 0170: the next-due instant, the compat trigger and the catch-up.
+  // Each probe arranges the fence's own row; the scan reads every row, and
+  // its decisions about the fence's are what is checked.
+  interface FenceRow {
+    id: string;
+    cron: string | null;
+    timezone: string | null;
+    nextDueAt: number | null;
+    lastDueAt: number | null;
+    lastFiredAt: number | null;
+    lastSkipReason: string | null;
+    lastSkipDetail: unknown;
+    updatedAt: number;
+  }
+  const fenceRow = async (): Promise<FenceRow | undefined> =>
+    (
+      await sql<FenceRow[]>`
+        SELECT id, cron, timezone,
+               next_due_at_ms::float8 AS "nextDueAt",
+               last_due_at_ms::float8 AS "lastDueAt",
+               last_fired_at_ms::float8 AS "lastFiredAt",
+               last_skip_reason AS "lastSkipReason",
+               last_skip_detail AS "lastSkipDetail",
+               updated_at_ms::float8 AS "updatedAt"
+        FROM app.automation_triggers
+        WHERE org_id = ${orgId} AND name = ${name}
+      `
+    )[0];
+
+  // Probe 1 — a row the previous image inserted (no instant) is picked up
+  // by the uncomputed walk, fires its due occurrence once, and gets its
+  // next instant; a second scan at the same moment starts nothing more.
+  await sql`DELETE FROM app.automation_triggers WHERE org_id = ${orgId} AND name = ${name}`;
+  const oldWay = Date.now() - 120_000;
+  await sql`
+    INSERT INTO app.automation_triggers (
+      org_id, name, kind, cron, timezone, enabled,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${name}, 'schedule', '* * * * *', 'UTC', true,
+      'itest', ${oldWay}, ${oldWay}
+    )
+  `;
+  const oldWayAt = Date.now();
+  const runsBeforeOldWay = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql, { now: oldWayAt });
+  await triggersModule.scanScheduledTriggers(sql, { now: oldWayAt });
+  const firedOldWay = (await triggerRuns()) - runsBeforeOldWay;
+  const afterOldWay = await fenceRow();
+  record(
+    'a schedule the previous image inserted gets its instant, fires once, and moves on',
+    firedOldWay === 1 &&
+      afterOldWay?.lastFiredAt === Math.floor(oldWayAt / 60_000) * 60_000 &&
+      afterOldWay.nextDueAt === afterOldWay.lastFiredAt + 60_000,
+    `runs=${firedOldWay} (want 1), fired=${afterOldWay?.lastFiredAt} next=${afterOldWay?.nextDueAt} (want fired + 60 s)`,
+  );
+
+  // Probe 2 — the previous image saves a new cron the old way: the 0170
+  // trigger drops the instant, and the next scan computes it from the save.
+  await sql`
+    UPDATE app.automation_triggers SET cron = '*/5 * * * *'
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const afterOldSave = await fenceRow();
+  await triggersModule.scanScheduledTriggers(sql);
+  const recomputed = await fenceRow();
+  record(
+    'an old-image cron edit drops the next instant, and the scan recomputes it for the new cron',
+    afterOldSave?.nextDueAt === null &&
+      (recomputed?.nextDueAt ?? 0) > Date.now() - 60_000 &&
+      (recomputed?.nextDueAt ?? 1) % (5 * 60_000) === 0,
+    `after the old save next=${afterOldSave?.nextDueAt} (want null), after the scan next=${recomputed?.nextDueAt} (want a coming five-minute mark)`,
+  );
+
+  // Probe 4 — catch-up, through the real store and run insert. An hourly
+  // schedule whose latest occurrence is half an hour old (so it is late
+  // under either policy) and whose instant is backdated two hours further:
+  // `latest` starts that occurrence once and counts the two before it;
+  // `skip` starts nothing and counts all three.
+  const minute = (new Date().getUTCMinutes() + 30) % 60;
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: { kind: 'schedule', cron: `${minute} * * * *`, timezone: 'UTC' },
+    actor: 'itest',
+  });
+  const hour = 60 * 60_000;
+  const latestAt = (() => {
+    const now = Date.now();
+    const top = Math.floor(now / hour) * hour + minute * 60_000;
+    return top <= now ? top : top - hour;
+  })();
+  const backdateCatchUp = (): Promise<unknown> => sql`
+    UPDATE app.automation_triggers
+    SET next_due_at_ms = ${latestAt - 2 * hour},
+        last_due_at_ms = ${latestAt - 3 * hour},
+        last_fired_at_ms = ${latestAt - 3 * hour}
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  await backdateCatchUp();
+  const runsBeforeLatest = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql);
+  const firedLatest = (await triggerRuns()) - runsBeforeLatest;
+  const afterLatest = await fenceRow();
+  await sql`
+    UPDATE app.automation_triggers SET catch_up = 'skip'
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  await backdateCatchUp();
+  const runsBeforeSkip = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql);
+  const firedSkip = (await triggerRuns()) - runsBeforeSkip;
+  const afterSkip = await fenceRow();
+  const missedOf = (row: FenceRow | undefined) =>
+    z
+      .object({
+        reason: z.literal('missed_occurrences'),
+        missed: z.object({ count: z.number(), policy: z.string() }),
+        firedLatest: z.boolean(),
+      })
+      .safeParse(row?.lastSkipDetail);
+  const latestDetail = missedOf(afterLatest);
+  const skipDetail = missedOf(afterSkip);
+  record(
+    'a schedule back from an outage starts its latest occurrence once and counts the rest; skip starts none',
+    firedLatest === 1 &&
+      afterLatest?.lastFiredAt === latestAt &&
+      afterLatest.nextDueAt === latestAt + hour &&
+      latestDetail.success &&
+      latestDetail.data.missed.count === 2 &&
+      latestDetail.data.firedLatest &&
+      firedSkip === 0 &&
+      afterSkip?.lastSkipReason === 'missed_occurrences' &&
+      skipDetail.success &&
+      skipDetail.data.missed.count === 3 &&
+      skipDetail.data.missed.policy === 'skip' &&
+      !skipDetail.data.firedLatest,
+    `latest: runs=${firedLatest} (want 1) fired=${afterLatest?.lastFiredAt === latestAt} next=${afterLatest?.nextDueAt === latestAt + hour} detail=${JSON.stringify(afterLatest?.lastSkipDetail)}; skip: runs=${firedSkip} (want 0) detail=${JSON.stringify(afterSkip?.lastSkipDetail)}`,
+  );
+
+  // Probe 5 — daylight saving: "every day at 02:30" in Zurich, saved the
+  // day before the spring-forward, starts at 03:30 local (01:30Z), the
+  // time 02:30 moves to when the clock skips it. The scan's clock is the
+  // test seam; nothing else is due that early.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: {
+      kind: 'schedule',
+      repeat: { frequency: 'daily', interval: 1, times: ['02:30'] },
+      timezone: 'Europe/Zurich',
+      startDate: '2026-01-01',
+    },
+    actor: 'itest',
+  });
+  await sql`
+    UPDATE app.automation_triggers
+    SET next_due_at_ms = NULL, last_due_at_ms = NULL, last_fired_at_ms = NULL,
+        updated_at_ms = ${Date.parse('2026-03-28T12:00:00Z')}
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const runsBeforeDst = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql, {
+    now: Date.parse('2026-03-29T01:30:30Z'),
+  });
+  const firedDst = (await triggerRuns()) - runsBeforeDst;
+  const afterDst = await fenceRow();
+  record(
+    'a Zurich 02:30 rule starts at 03:30 on the spring-forward day, once',
+    firedDst === 1 &&
+      afterDst?.lastFiredAt === Date.parse('2026-03-29T01:30:00Z') &&
+      afterDst.nextDueAt === Date.parse('2026-03-30T00:30:00Z'),
+    `runs=${firedDst} (want 1), fired=${afterDst?.lastFiredAt === null ? 'none' : new Date(afterDst?.lastFiredAt ?? 0).toISOString()} (want 2026-03-29T01:30Z), next=${afterDst?.nextDueAt === null ? 'none' : new Date(afterDst?.nextDueAt ?? 0).toISOString()} (want 2026-03-30T00:30Z)`,
+  );
+
+  // Probe 6 — 0170's zone trim on rows planted before it: a blank zone and
+  // a padded one, both parked as unusable. Re-applying the file (it is
+  // idempotent) trims them, lifts the parking, and the scan claims them —
+  // in UTC — instead of stamping them unusable again.
+  const migrationsDir0170 = new URL('./db/migrations/', import.meta.url);
+  const { readdir: readMigrations } = await import('node:fs/promises');
+  const scheduleFile = (await readMigrations(migrationsDir0170)).find((file) =>
+    file.startsWith('0170_'),
+  );
+  const parked = Date.now() - 600_000;
+  const blankZones = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_triggers (
+      org_id, name, kind, cron, timezone, enabled, last_skip_reason,
+      last_skipped_at_ms, created_by, created_at_ms, updated_at_ms
+    ) VALUES
+      (${orgId}, 'zone/blank', 'schedule', '* * * * *', '', true,
+       'unusable_cron', ${parked}, 'itest', ${parked - 1000}, ${parked - 1000}),
+      (${orgId}, 'zone/padded', 'schedule', '* * * * *', ' UTC ', true,
+       'unusable_cron', ${parked}, 'itest', ${parked - 1000}, ${parked - 1000})
+    RETURNING id
+  `;
+  if (scheduleFile !== undefined) {
+    const ddl = await readFile(
+      new URL(scheduleFile, migrationsDir0170),
+      'utf8',
+    );
+    await sql.begin(async (tx) => {
+      await tx.unsafe(ddl);
+    });
+  }
+  // The trim resumes each schedule from now (the parked time is not made
+  // up): a scan at the same moment computes its next minute and claims
+  // nothing yet; a scan a minute later claims it — in UTC, with no
+  // deployment to run, so as not_deployed.
+  const resumedAt = Date.now();
+  const firstPass = await triggersModule.scanScheduledTriggers(sql, {
+    now: resumedAt,
+  });
+  await triggersModule.scanScheduledTriggers(sql, {
+    now: resumedAt + 61_000,
+  });
+  const zones = await sql<
+    {
+      name: string;
+      timezone: string | null;
+      lastSkipReason: string | null;
+      lastDueAt: number | null;
+    }[]
+  >`
+    SELECT name, timezone, last_skip_reason AS "lastSkipReason",
+           last_due_at_ms::float8 AS "lastDueAt"
+    FROM app.automation_triggers
+    WHERE id = ANY(${blankZones.map((row) => row.id)}::text[])
+    ORDER BY name
+  `;
+  await sql`
+    DELETE FROM app.automation_triggers
+    WHERE id = ANY(${blankZones.map((row) => row.id)}::text[])
+  `;
+  record(
+    'migration 0170 trims a blank or padded zone, and the scan claims the schedule in UTC',
+    scheduleFile !== undefined &&
+      zones.length === 2 &&
+      zones[0]?.timezone === null &&
+      zones[1]?.timezone === 'UTC' &&
+      zones.every(
+        (zone) =>
+          zone.lastSkipReason === 'not_deployed' && (zone.lastDueAt ?? 0) > 0,
+      ),
+    `file=${scheduleFile ?? 'missing'}, first pass undeployed=${firstPass.undeployed}, rows=${JSON.stringify(zones)} (want zones null and "UTC", each claimed as not_deployed a minute after the trim)`,
+  );
+
+  // Probe 7 — the due walk reads the partial index, not the table. On the
+  // harness's handful of rows the planner may prefer any index plus a sort,
+  // so sorting is ruled out as well: the plan must take the walk's order
+  // from an index, and only the partial index gives it.
+  const plan = await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    await tx`SET LOCAL enable_sort = off`;
+    return tx<{ 'QUERY PLAN': string }[]>`
+      EXPLAIN SELECT id, next_due_at_ms::float8 AS "nextDueAt"
+      FROM app.automation_triggers
+      WHERE kind = 'schedule' AND enabled AND next_due_at_ms IS NOT NULL
+        AND next_due_at_ms <= ${Date.now()}
+        AND (${true}::boolean
+             OR (next_due_at_ms, id) > (${0}::bigint, ${''}::text))
+      ORDER BY next_due_at_ms, id
+      LIMIT 200
+    `;
+  });
+  const planText = plan.map((row) => row['QUERY PLAN']).join('\n');
+  record(
+    'the due walk of the schedule scan uses the automation_triggers_next_due index',
+    planText.includes('automation_triggers_next_due'),
+    planText,
+  );
+
+  // 0172 — a fixed input rides into the run under the trigger's own
+  // fields, and the bind stores it; the column refuses a non-object.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: {
+      kind: 'schedule',
+      cron: '* * * * *',
+      timezone: 'UTC',
+      input: { fence: 'fixed' },
+    },
+    actor: 'itest',
+  });
+  await backdateStamp();
+  await triggersModule.scanScheduledTriggers(sql);
+  const fixedRun = await sql<{ input: unknown }[]>`
+    SELECT r.input FROM app.automation_runs r
+    JOIN app.automation_triggers t ON r.id = t.last_run_id
+    WHERE t.org_id = ${orgId} AND t.name = ${name}
+  `;
+  const fixedInput = z
+    .object({ fence: z.literal('fixed'), trigger: z.literal('schedule') })
+    .safeParse(store.decodeRunInput(fixedRun[0]?.input));
+  const refusedColumn = await sql
+    .begin(async (tx) => {
+      await tx`
+        UPDATE app.automation_triggers SET run_input = '[1, 2]'::jsonb
+        WHERE org_id = ${orgId} AND name = ${name}
+      `;
+      return 'stored';
+    })
+    .catch((error: unknown) =>
+      error instanceof Error && /check constraint/i.test(error.message)
+        ? 'refused'
+        : `failed: ${String(error)}`,
+    );
+  record(
+    'a schedule hands its run the fixed input under its own fields, and the column holds only an object',
+    fixedInput.success && refusedColumn === 'refused',
+    `run input=${JSON.stringify(fixedRun[0]?.input)} (want fence: "fixed" beside trigger: "schedule"), an array → ${refusedColumn} (want refused)`,
+  );
+
+  // Back to the fence's minute schedule for the webhook probes below.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
+    actor: 'itest',
+  });
 
   // ---- #2: webhook redelivery is idempotent — a vendor's delivery id, or a
   // byte-identical body inside the window, answers with the run it already
@@ -14653,6 +15171,78 @@ async function checkAutomationTriggerDelivery(
       b3.runId !== b1.runId &&
       hookRuns === 4,
     `same delivery id → ${h1.status}/${h2.status} dup=${h2.duplicate} same-run=${h2.runId === h1.runId}; new id → ${h3.status} dup=${h3.duplicate}; same body → ${b1.status}/${b2.status} dup=${b2.duplicate} same-run=${b2.runId === b1.runId}; new body → ${b3.status} dup=${b3.duplicate}; runs started=${hookRuns} (want 4)`,
+  );
+
+  // The runs the trigger started, as the trigger panel lists its recent
+  // deliveries: the four new runs first, newest first, each with the lane
+  // the door recognised its delivery by (the GitHub header, or the body),
+  // and the schedule runs the same binding started before as lane-less.
+  const listedRuns = await fetch(
+    `${base}/api/app/automations/${name}/trigger/runs?orgId=${orgId}&limit=10`,
+    { headers: { cookie } },
+  );
+  const triggerRunList = z
+    .object({
+      runs: z.array(
+        z.object({
+          runId: z.string(),
+          startedAt: z.number(),
+          deliverySource: z.enum(['header', 'body']).nullable(),
+          header: z.string().nullable(),
+        }),
+      ),
+    })
+    .safeParse(await listedRuns.json());
+  const listed = triggerRunList.success ? triggerRunList.data.runs : [];
+  const laneOf = (runId: string): string => {
+    const row = listed.find((candidate) => candidate.runId === runId);
+    return row === undefined
+      ? 'missing'
+      : `${row.deliverySource ?? 'none'}${row.header === null ? '' : `:${row.header}`}`;
+  };
+  const newestFirst = listed.every(
+    (row, index) =>
+      index === 0 || (listed[index - 1]?.startedAt ?? 0) >= row.startedAt,
+  );
+  const newest = new Set(listed.slice(0, 4).map((row) => row.runId));
+  // The read's plan, through the store's own query: with sequential scans
+  // priced out, it reaches the runs by an index — no further index needed.
+  let triggerRunsPlan: { 'QUERY PLAN': string }[] = [];
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    const explain = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const prefixed = Object.assign(
+        [`EXPLAIN ${strings[0] ?? ''}`, ...strings.slice(1)],
+        { raw: [`EXPLAIN ${strings.raw[0] ?? ''}`, ...strings.raw.slice(1)] },
+      );
+      return tx<{ 'QUERY PLAN': string }[]>(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
+        prefixed as unknown as TemplateStringsArray,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store's own parameters, passed through
+        ...(values as never[]),
+      ).then((rows) => {
+        triggerRunsPlan = [...rows];
+        return [];
+      });
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an EXPLAIN-prefixing tag standing in for the store's sql
+    await store.listTriggerRuns(explain as unknown as Sql, orgId, { name });
+  });
+  const triggerRunsPlanText = triggerRunsPlan
+    .map((row) => row['QUERY PLAN'])
+    .join('\n');
+  record(
+    'the trigger lists the runs it started, newest first, with each delivery’s lane, by index',
+    listedRuns.status === 200 &&
+      newestFirst &&
+      [h1.runId, h3.runId, b1.runId, b3.runId].every((id) => newest.has(id)) &&
+      laneOf(h1.runId) === 'header:x-github-delivery' &&
+      laneOf(h3.runId) === 'header:x-github-delivery' &&
+      laneOf(b1.runId) === 'body' &&
+      laneOf(b3.runId) === 'body' &&
+      listed.slice(4).every((row) => row.deliverySource === null) &&
+      !/Seq Scan on automation_runs/.test(triggerRunsPlanText),
+    `status=${listedRuns.status}, newest-first=${newestFirst}, lanes h1=${laneOf(h1.runId)} h3=${laneOf(h3.runId)} b1=${laneOf(b1.runId)} b3=${laneOf(b3.runId)} (want header:x-github-delivery ×2, body ×2), older=${JSON.stringify(listed.slice(4).map((row) => row.deliverySource))} (want null), plan:\n${triggerRunsPlanText}`,
   );
 
   // The 256 KB cap counts BYTES: 150k two-byte characters (300 KB) is over
@@ -33296,7 +33886,8 @@ async function checkSsoAdminSurface(
 
 /**
  * Org provisioning on a THROWAWAY org: the shipped default automation packs
- * seed once (version 1, trigger bound, presentation stored), a re-run skips
+ * seed once (version 1, trigger bound switched off as the pack's repeat rule,
+ * presentation stored), a re-run skips
  * everything, a tombstoned pack stays deleted, and the starter content
  * seeds a Getting-started project with example tasks only while the org has
  * no project.
@@ -33304,6 +33895,7 @@ async function checkSsoAdminSurface(
 async function checkProvisioning(sql: Sql): Promise<void> {
   const { seedDefaultAutomationPacks, seedStarterContent } =
     await import('./domains/provisioning/service.ts');
+  const { isRecord } = await import('../lib/utils/type-utils.ts');
   // The harness's builtin catalog is a hermetic EMPTY dir — plant one REAL
   // shipped pack (copied from the repo catalog) so the seeder has something
   // to provision.
@@ -33346,6 +33938,38 @@ async function checkProvisioning(sql: Sql): Promise<void> {
     SELECT count(*)::text AS count FROM app.automation_triggers
     WHERE org_id = ${orgId}
   `;
+  // PROVN-R7: the shipped trigger is bound switched off, and the pack's
+  // repeat rule is stored as a rule, not as a cron expression.
+  const seededTriggers = await sql<
+    {
+      name: string;
+      enabled: boolean;
+      cron: string | null;
+      repeat: unknown;
+      nextDueAt: string | null;
+    }[]
+  >`
+    SELECT name, enabled, cron, schedule_rule -> 'repeat' AS repeat,
+           next_due_at_ms::text AS "nextDueAt"
+    FROM app.automation_triggers
+    WHERE org_id = ${orgId}
+  `;
+  const syncTrigger = seededTriggers.find(
+    (row) => row.name === 'imap-smtp-sync-emails',
+  );
+  record(
+    'org provisioning binds a shipped trigger switched off, as the pack’s repeat rule [PROVN-R7]',
+    seededTriggers.length >= 1 &&
+      seededTriggers.every((row) => !row.enabled && row.nextDueAt === null) &&
+      syncTrigger !== undefined &&
+      syncTrigger.cron === null &&
+      // jsonb keeps its own key order, so the rule is compared by field.
+      isRecord(syncTrigger.repeat) &&
+      syncTrigger.repeat.frequency === 'minutely' &&
+      syncTrigger.repeat.interval === 5 &&
+      Object.keys(syncTrigger.repeat).length === 2,
+    `seeded=${seededTriggers.map((row) => `${row.name}:${row.enabled ? 'on' : 'off'}/next=${row.nextDueAt ?? 'none'}`).join('|')} (want every one off, none due), sync cron=${syncTrigger?.cron ?? 'null'} repeat=${JSON.stringify(syncTrigger?.repeat ?? null)} (want null / minutely 5)`,
+  );
 
   // Idempotency: the second run provisions nothing and duplicates nothing.
   const again = await seedDefaultAutomationPacks(sql, orgId);
@@ -46072,11 +46696,12 @@ async function checkLoginThrottleAndAuditChain(
   );
 
   // The chain: failure rows + a lockout row + a success row, hash-linked.
-  // Rows and head come from ONE snapshot: an audit write commits its row
-  // and the head together, but a job of another lane (or this lane's own
-  // lockout bell) appending a row between two autocommit reads leaves the
-  // head one row ahead of the tail just read — seen as `chain=true,
-  // head=false` on an otherwise intact chain.
+  // The sealer chains them first. Rows and head then come from ONE
+  // snapshot: a sealing pass commits its rows and the head together, but a
+  // pass between two autocommit reads would leave the head ahead of the
+  // tail just read — seen as `chain=true, head=false` on an intact chain.
+  const { sealAuditChainNow } = await import('./domains/audit_logs/service.ts');
+  await sealAuditChainNow(sql, orgId);
   const { rows, headRows } = await sql.begin(
     'isolation level repeatable read read only',
     async (tx) => {
@@ -46093,10 +46718,10 @@ async function checkLoginThrottleAndAuditChain(
            ts::float8 AS "timestamp", status,
            error_message AS "errorMessage", metadata,
            integrity_hash AS "integrityHash", previous_hash AS "previousHash",
-           pii_scrubbed AS "piiScrubbed"
+           chain_seq::text AS "chainSeq", pii_scrubbed AS "piiScrubbed"
     FROM app.audit_logs
-    WHERE org_id = ${orgId}
-    ORDER BY ts ASC
+    WHERE org_id = ${orgId} AND integrity_hash IS NOT NULL
+    ORDER BY chain_seq ASC NULLS FIRST, ts ASC, id ASC
   `;
       const heads = await tx<{ lastHash: string }[]>`
     SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
@@ -46130,7 +46755,7 @@ async function checkLoginThrottleAndAuditChain(
         break;
       }
     }
-    previousHash = row.integrityHash;
+    previousHash = row.integrityHash ?? '';
   }
   const headOk = headRows[0]?.lastHash === rows[rows.length - 1]?.integrityHash;
   record(
@@ -51036,17 +51661,30 @@ async function checkRetention(
       )
     `;
   }
-  await sql`
-    INSERT INTO app.audit_logs (
-      org_id, actor_id, actor_type, action, category, resource_type,
-      resource_id, status, ts, integrity_hash, previous_hash
-    ) VALUES
-      (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
-       'rt-a1', 'success', ${now - 400 * 24 * 3_600_000}, 'fake-a1', ''),
-      (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
-       'rt-a2', 'success', ${now - 400 * 24 * 3_600_000 + 1}, 'fake-a2',
-       'fake-a1')
-  `;
+  // The oldest prefix is sealed the way rows written before the chain had
+  // positions are (`chain_seq` NULL), which the chain walks first, in `ts`
+  // order. A row inserted already sealed would take the head's next
+  // position instead (migration 0194's trigger), after every row the
+  // organization has; written unsealed and sealed in the same transaction,
+  // the sealer never sees them pending.
+  await sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO app.audit_logs (
+        org_id, actor_id, actor_type, action, category, resource_type,
+        resource_id, status, ts
+      ) VALUES
+        (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
+         'rt-a1', 'success', ${now - 400 * 24 * 3_600_000}),
+        (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
+         'rt-a2', 'success', ${now - 400 * 24 * 3_600_000 + 1})
+    `;
+    await tx`
+      UPDATE app.audit_logs SET
+        integrity_hash = 'fake-' || substr(resource_id, 4),
+        previous_hash = CASE resource_id WHEN 'rt-a1' THEN '' ELSE 'fake-a1' END
+      WHERE org_id = ${orgId} AND actor_id = 'rt-ancient'
+    `;
+  });
   // The sandbox provenance ledgers ride the same audit window: one aged and
   // one fresh row per table, the aged pair must go and the fresh pair stay.
   await sql`
@@ -53473,7 +54111,8 @@ async function checkAuditSurface(
     `;
     headReached = status[0]?.headReached ?? false;
   }
-  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
   await sql.begin((tx) =>
     createAuditLog(tx, {
       organizationId: orgId,
@@ -53485,6 +54124,8 @@ async function checkAuditSurface(
       status: 'success',
     }),
   );
+  // The worker's sealer chains the probe within seconds; here, now.
+  await sealAuditChainNow(sql, orgId);
   const probeRows = await sql<{ id: string; action: string }[]>`
     SELECT id, action FROM app.audit_logs
     WHERE org_id = ${orgId} AND action = 'itest.integrity_probe'
@@ -53655,6 +54296,7 @@ async function checkAuditSurface(
       status: 'success',
     }),
   );
+  await sealAuditChainNow(sql, orgId);
   const bellProbeRows = await sql<{ id: string }[]>`
     SELECT id FROM app.audit_logs
     WHERE org_id = ${orgId} AND action = 'itest.bell_probe'
@@ -53744,6 +54386,10 @@ async function checkAuditSurface(
       last_verified_ts = ${(auditCutoff ?? Date.now()) - 24 * 3_600_000},
       last_verified_id = 'itest-reaped-anchor',
       last_verified_hash = 'itest-reaped-hash',
+      last_verified_seq = (
+        SELECT coalesce(min(chain_seq), 1) - 1 FROM app.audit_logs
+        WHERE org_id = ${orgId}
+      ),
       head_reached = false
     WHERE org_id = ${orgId}
   `;
@@ -53755,6 +54401,10 @@ async function checkAuditSurface(
       last_verified_ts = ${firstRowTs - 1},
       last_verified_id = 'itest-vanished-anchor',
       last_verified_hash = 'itest-vanished-hash',
+      last_verified_seq = (
+        SELECT coalesce(min(chain_seq), 1) - 1 FROM app.audit_logs
+        WHERE org_id = ${orgId}
+      ),
       head_reached = false
     WHERE org_id = ${orgId}
   `;
@@ -63659,6 +64309,9 @@ async function main(): Promise<void> {
   try {
     await checkSerializableRetry(sql);
     await checkAuditChainConcurrentAppenders(sql);
+    await checkAuditChainLateCommit(sql);
+    await checkAuditChainInlineAppendDuringRoll(sql);
+    await checkAuditChainRacingSealers(sql);
     await checkTransactionalEnqueue(sql);
     await checkLegacyAutomationProtocol(databaseUrl, record);
     await checkLegacyAgentFlow(databaseUrl, record);
@@ -64022,6 +64675,40 @@ async function main(): Promise<void> {
           ),
       ],
       [
+        'checkSessionTrustFieldsAreServerOnly',
+        async () =>
+          checkSessionTrustFieldsAreServerOnly(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'trust-fields',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
+        'checkAuthRequestCache',
+        async () =>
+          checkAuthRequestCache(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'auth-cache',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
         'checkChatDeferredAuto',
         () =>
           checkChatDeferredAuto(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
@@ -64068,6 +64755,10 @@ async function main(): Promise<void> {
         () => checkTriggerPauseAfterFailures(sql, authCtx, record),
       ],
       [
+        'checkAutomationNodeRuns',
+        () => checkAutomationNodeRuns(sql, authCtx, record),
+      ],
+      [
         'checkDeletedOrgSchedules',
         () => checkDeletedOrgSchedules(sql, authCtx, record),
       ],
@@ -64078,6 +64769,14 @@ async function main(): Promise<void> {
       [
         'checkTriggerStreakLockOrder',
         () => checkTriggerStreakLockOrder(sql, authCtx, record),
+      ],
+      [
+        'checkEventScopeAndIsolation',
+        () => checkEventScopeAndIsolation(sql, authCtx, record),
+      ],
+      [
+        'checkSeededGithubSchedulesOff',
+        () => checkSeededGithubSchedulesOff(sql, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
@@ -64097,6 +64796,14 @@ async function main(): Promise<void> {
       [
         'checkMcpEras',
         () => checkMcpEras(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpSettingsConfig',
+        async () => {
+          const { checkMcpSettingsConfig } =
+            await import('./domains/mcp/settings.integration.ts');
+          await checkMcpSettingsConfig(sql, baseUrl, record);
+        },
       ],
       [
         'checkRetiredBuilderRoute',
@@ -64437,6 +65144,10 @@ async function main(): Promise<void> {
       [
         'checkArchivedTaskWrites',
         () => checkArchivedTaskWrites(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskSearchPriority',
+        () => checkTaskSearchPriority(sql, authCtx, record),
       ],
       [
         'checkAgentTaskReadTools',

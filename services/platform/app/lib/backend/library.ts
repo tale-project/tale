@@ -13,6 +13,7 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch, backendUrl } from './api-client';
+import { projectCapabilityCatalogKey } from './query-keys';
 
 type SkillListingResult = ReturnsOf<'skills/actions:listSkills'>;
 type SkillDocumentResult = ReturnsOf<'skills/actions:getSkill'>;
@@ -111,8 +112,19 @@ function isNotFound(error: unknown): boolean {
   );
 }
 
+const invalidateCapabilities: NonNullable<WriteAdapter['invalidate']> = (
+  client,
+  args,
+  ctx,
+) => {
+  void client.invalidateQueries({
+    queryKey: projectCapabilityCatalogKey(requireOrg(args, ctx)),
+  });
+};
+
 export const libraryWriteAdapters: Record<string, WriteAdapter> = {
   'skills/actions:saveSkill': {
+    invalidate: invalidateCapabilities,
     run: (args, ctx) =>
       backendFetch<{ skill: SaveSkillResult }>(
         `/skills/${encodeURIComponent(stringArg(args, 'slug'))}`,
@@ -139,6 +151,7 @@ export const libraryWriteAdapters: Record<string, WriteAdapter> = {
       ).then((body) => body.skill),
   },
   'skills/actions:deleteSkill': {
+    invalidate: invalidateCapabilities,
     run: (args, ctx) =>
       backendFetch<{ deleted: boolean }>(
         `/skills/${encodeURIComponent(stringArg(args, 'slug'))}`,
@@ -159,6 +172,7 @@ export const libraryWriteAdapters: Record<string, WriteAdapter> = {
     run: () => Promise.resolve(null),
   },
   'skills/actions:uploadSkillBundle': {
+    invalidate: invalidateCapabilities,
     run: (args, ctx) =>
       backendFetch<UploadSkillBundleResult>('/skills/upload', {
         orgId: requireOrg(args, ctx),

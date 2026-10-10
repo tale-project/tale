@@ -17,6 +17,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   canEditContact,
   canEmailContact,
+  getContactAddressLines,
   getContactLocaleLabel,
   getContactSourceLabel,
 } from '../lib/contact-data';
@@ -50,6 +51,10 @@ export function ContactViewDialog({
   const ability = useAbility();
   const canEdit = canEditContact(ability, contact);
   const notAvailable = tCommon('labels.notAvailable');
+  const addressLines = useMemo(
+    () => getContactAddressLines(contact.address),
+    [contact.address],
+  );
 
   const facts = useMemo<StatGridItem[]>(
     () => [
@@ -87,28 +92,15 @@ export function ContactViewDialog({
           <Text>{formatDate(new Date(contact._creationTime), 'long')}</Text>
         ),
       },
-      ...(contact.address
+      ...(addressLines.length > 0
         ? [
             {
               label: tCommon('labels.address'),
               value: (
                 <Stack gap={0}>
-                  {contact.address.street && (
-                    <Text>{contact.address.street}</Text>
-                  )}
-                  {(contact.address.city || contact.address.state) && (
-                    <Text>
-                      {[contact.address.city, contact.address.state]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </Text>
-                  )}
-                  {contact.address.postalCode && (
-                    <Text>{contact.address.postalCode}</Text>
-                  )}
-                  {contact.address.country && (
-                    <Text>{contact.address.country}</Text>
-                  )}
+                  {addressLines.map((line, index) => (
+                    <Text key={index}>{line}</Text>
+                  ))}
                 </Stack>
               ),
               colSpan: 2 as const,
@@ -146,7 +138,7 @@ export function ContactViewDialog({
           ]
         : []),
     ],
-    [contact, tCommon, tContacts, formatDate, notAvailable],
+    [contact, addressLines, tCommon, tContacts, formatDate, notAvailable],
   );
 
   return (

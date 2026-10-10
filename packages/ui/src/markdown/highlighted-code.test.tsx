@@ -86,7 +86,7 @@ describe('HighlightedCode viewport work', () => {
       <HighlightedCode code={'warm\n'} language="js" />,
     );
     expect(container.querySelector('code span')).toHaveTextContent('warm');
-    expect(peekHighlightedCode).toHaveBeenCalledWith('warm', 'js', 'light');
+    expect(peekHighlightedCode).toHaveBeenCalledWith('warm', 'js');
     await setVisible(true);
     expect(highlightCode).not.toHaveBeenCalled();
   });
@@ -116,7 +116,7 @@ describe('HighlightedCode viewport work', () => {
     expect(container.querySelector('code span')).toBeNull();
     expect(highlightCode).toHaveBeenCalledOnce();
     await setVisible(true);
-    expect(highlightCode).toHaveBeenLastCalledWith('new', 'js', 'light');
+    expect(highlightCode).toHaveBeenLastCalledWith('new', 'js');
     expect(highlightCode).toHaveBeenCalledTimes(2);
   });
 
@@ -129,21 +129,22 @@ describe('HighlightedCode viewport work', () => {
     rerender(<HighlightedCode code="value" language="py" />);
     expect(container.querySelector('code span')).toBeNull();
     await setVisible(true);
-    expect(highlightCode).toHaveBeenLastCalledWith('value', 'py', 'light');
+    expect(highlightCode).toHaveBeenLastCalledWith('value', 'py');
     expect(highlightCode).toHaveBeenCalledTimes(2);
   });
 
-  it('invalidates cached decoration for a different theme', async () => {
+  // The highlight colours through the `--code-*` variables, which the theme
+  // switches; tokenizing again on a theme switch flashed plain text.
+  it('keeps its highlight across a theme switch', async () => {
     const { container, rerender } = render(
       <HighlightedCode code="value" language="js" className="light" />,
     );
     await setVisible(true);
-    await setVisible(false);
     theme.value = 'dark';
     rerender(<HighlightedCode code="value" language="js" className="dark" />);
-    expect(container.querySelector('code span')).toBeNull();
+    expect(container.querySelector('code span')).not.toBeNull();
+    await setVisible(false);
     await setVisible(true);
-    expect(highlightCode).toHaveBeenLastCalledWith('value', 'js', 'dark');
-    expect(highlightCode).toHaveBeenCalledTimes(2);
+    expect(highlightCode).toHaveBeenCalledOnce();
   });
 });

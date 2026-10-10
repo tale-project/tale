@@ -28,7 +28,8 @@ export const CODES = {
   NODES_TOO_MANY: 'at most 40 nodes per automation',
   SECRET_IN_DOCUMENT:
     'credentials never live in documents; secrets are injected at runtime',
-  TESTS_INVALID: 'tests must be [{name, input, expect?}]',
+  TESTS_INVALID:
+    'tests must be [{name, description?, input, mocks?, failures?, expect?}]',
 
   // Node level.
   NODE_NOT_OBJECT: 'each node is an object',
@@ -94,10 +95,18 @@ export const CODES = {
 
   // Connector contracts.
   CONNECTOR_INPUT_INVALID: 'connector inputs must match their JSON Schema',
+  HTTP_URL_NOT_HTTPS:
+    'an HTTP step without a credential calls public hosts over https',
+  HTTP_SECRET_IN_URL:
+    "an HTTP step's address carries no credential; a stored credential signs the request",
+  HTTP_HEADER_RESERVED:
+    'Authorization and Cookie come from the credential, never from the step',
   SUBAUTOMATION_INPUT_INVALID:
     "a subautomation's input matches the inputs schema of the automation it calls",
   TRIGGER_INPUT_MISMATCH:
     "the inputs schema accepts the input the automation's triggers start runs with",
+  TRIGGER_INPUT_NOT_TEMPLATED:
+    "a trigger's fixed input is plain data; a template in it is never evaluated",
 
   // Tests.
   TESTS_INPUT_INVALID: 'a test input matches the inputs schema',
@@ -105,6 +114,22 @@ export const CODES = {
     'a test expects only effects a node of the automation performs',
   TESTS_EXPECT_TYPE:
     'a test expects output values of the types the automation returns',
+  TESTS_TOO_MANY: 'an automation carries at most 50 tests',
+  TESTS_UNKNOWN_FIELD:
+    'a test has only name, description, input, mocks, failures and expect, and an effect it expects only connector, node, input, inputIncludes and absent',
+  TESTS_NAME_DUPLICATE: 'every test has its own name',
+  TESTS_MOCK_UNKNOWN_NODE:
+    "a test simulates only the outputs and failures of the automation's nodes",
+  TESTS_MOCK_CONFLICT:
+    'a test simulates either an output or a failure for a node, not both',
+  TESTS_MOCK_NOT_LIST:
+    'a simulated output of a node that runs once per item is a list, one entry per item',
+  TESTS_MOCK_TYPE: 'a simulated output has the shape the node really returns',
+  TESTS_EXPECT_NODE_UNKNOWN: "a test names only the automation's nodes",
+  TESTS_EXPECT_PATH_IMPOSSIBLE:
+    'a test expects of its nodes what some run of the automation does',
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE:
+    'a test expects the run to fail only at a node whose failure stops it',
 
   // Models.
   LLM_MODEL_UNAVAILABLE:
@@ -115,6 +140,8 @@ export const CODES = {
     "an agent step's skills should be skills a run of the automation can reach",
   CONNECTOR_NOT_CONNECTED:
     'a connector a step uses should be one the organization connected',
+  CREDENTIAL_UNKNOWN:
+    "the credential a connector step names should be one of its connector's credentials in service",
   SECRET_UNKNOWN:
     "an agent step's secrets should be secrets the organization stored",
   HARNESS_UNKNOWN:
@@ -190,7 +217,13 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['kind'],
     technical: ['kind'],
   },
-  TESTS_INVALID: { level: 'error', family: 'test', params: ['test?', 'keys?'] },
+  // `part` names what of a test is malformed (`mocks`, `effectInput`, …);
+  // absent for a test that is not written as one, or unknown expect keys.
+  TESTS_INVALID: {
+    level: 'error',
+    family: 'test',
+    params: ['test?', 'keys?', 'part?'],
+  },
   NODE_NOT_OBJECT: { level: 'error', family: 'node', params: ['index'] },
   NODE_ID_INVALID: { level: 'error', family: 'node', params: ['index', 'id?'] },
   NODE_ID_DUPLICATE: {
@@ -429,6 +462,21 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['node', 'type', 'property', 'keyword', 'suggestion?', 'detail'],
     technical: ['detail'],
   },
+  HTTP_URL_NOT_HTTPS: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'type'],
+  },
+  HTTP_SECRET_IN_URL: {
+    level: 'error',
+    family: 'contract',
+    params: ['node', 'type', 'place'],
+  },
+  HTTP_HEADER_RESERVED: {
+    level: 'error',
+    family: 'contract',
+    params: ['node', 'type', 'header'],
+  },
   SUBAUTOMATION_INPUT_INVALID: {
     level: 'warning',
     family: 'contract',
@@ -441,6 +489,11 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['kind', 'missing', 'problems'],
     technical: ['problems'],
   },
+  TRIGGER_INPUT_NOT_TEMPLATED: {
+    level: 'warning',
+    family: 'contract',
+    params: ['paths'],
+  },
   TESTS_INPUT_INVALID: {
     level: 'warning',
     family: 'test',
@@ -452,10 +505,73 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'test',
     params: ['test', 'name', 'connector', 'suggestion?', 'possible'],
   },
+  // `property`: the place in the output as the message writes it after
+  // `output` (`.rows[0]`, `[1].id`), empty for the output itself.
   TESTS_EXPECT_TYPE: {
     level: 'warning',
     family: 'test',
     params: ['test', 'name', 'property', 'expected', 'actual'],
+  },
+  TESTS_TOO_MANY: {
+    level: 'error',
+    family: 'test',
+    params: ['count', 'max'],
+  },
+  // `effect`: the place of the expected effect the field is in, absent for
+  // a field of the test itself.
+  TESTS_UNKNOWN_FIELD: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'field', 'effect?', 'suggestion?'],
+  },
+  TESTS_NAME_DUPLICATE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'firstIndex'],
+  },
+  // `field` is `mocks` or `failures`; `nodes` lists the automation's own.
+  TESTS_MOCK_UNKNOWN_NODE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'field', 'node', 'suggestion?', 'nodes'],
+  },
+  TESTS_MOCK_CONFLICT: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node'],
+  },
+  // `kind` is the kind of value the stand-in is (`object`, `string`, …).
+  TESTS_MOCK_NOT_LIST: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'kind'],
+  },
+  // `expected` is what the node returns there, `actual` what the test
+  // gives, each as a type; `property` is written as for TESTS_EXPECT_TYPE.
+  TESTS_MOCK_TYPE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'property', 'expected', 'actual'],
+  },
+  TESTS_EXPECT_NODE_UNKNOWN: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'suggestion?'],
+  },
+  // `reason`: never-together (`a` and `b` never both run), cannot-fail,
+  // always-runs or never-runs (each about `node`); `via`: the node whose
+  // simulated failure rules the states out, where the automation without
+  // the test's failures would give them.
+  TESTS_EXPECT_PATH_IMPOSSIBLE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'reason', 'node?', 'a?', 'b?', 'via?'],
+  },
+  // `cause`: continues (the node has onError: continue) or unreachable.
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'cause'],
   },
   LLM_MODEL_UNAVAILABLE: {
     level: 'warning',
@@ -472,6 +588,11 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     level: 'warning',
     family: 'contract',
     params: ['node', 'connector', 'catalogued', 'suggestion?'],
+  },
+  CREDENTIAL_UNKNOWN: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'connector', 'credential', 'suggestion?'],
   },
   SECRET_UNKNOWN: {
     level: 'warning',

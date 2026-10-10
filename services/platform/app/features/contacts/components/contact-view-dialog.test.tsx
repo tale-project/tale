@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
+import { engagementPaginatedAdapters } from '@/app/lib/backend/engagement';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -95,6 +97,149 @@ describe('ContactViewDialog', () => {
 
     expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.queryByText('en')).not.toBeInTheDocument();
+  });
+
+  // --- Address (#3625) -------------------------------------------------------
+  // `address` is a free-form object on the door: any JSON under any key is a
+  // valid stored address, so the details must read it, never trust a field to
+  // be a string.
+  describe('address', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /** The contact as the API reads it back, handed to the dialog through the
+     *  contacts table's real page adapter. */
+    async function apiContact(address: unknown): Promise<ContactDoc> {
+      vi.spyOn(window, 'fetch').mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 'contact-1',
+                organizationId: 'org-1',
+                name: 'John Doe',
+                email: 'john@example.com',
+                phone: null,
+                externalId: null,
+                source: 'api_import',
+                locale: 'en',
+                address,
+                tags: [],
+                metadata: null,
+                notes: null,
+                lifecycleStatus: 'active',
+                createdAt: 1_789_383_600_000,
+                updatedAt: 1_789_383_600_000,
+              },
+            ],
+            nextCursor: null,
+          }),
+        ),
+      );
+      const adapter = engagementPaginatedAdapters[
+        'contacts/queries:listContactsPaginated'
+      ]?.({}, { organizationId: 'org-1' });
+      const result = await adapter?.fetchPage(null, 20);
+      return result?.page[0] as ContactDoc;
+    }
+
+    /** The lines the Address fact shows, or null when there is no such fact. */
+    function addressLines(dialog: HTMLElement): (string | null)[] | null {
+      const label = within(dialog).queryByText('Address', {
+        selector: 'dt span',
+      });
+      const value = label?.closest('div')?.querySelector('dd');
+      if (!value) return null;
+      return Array.from(
+        value.querySelectorAll('p'),
+        (line) => line.textContent,
+      );
+    }
+
+    async function renderApiContact(address: unknown) {
+      render(
+        <ContactViewDialog
+          isOpen
+          onClose={vi.fn()}
+          contact={await apiContact(address)}
+        />,
+      );
+      return screen.getByRole('dialog', { name: 'Contact details' });
+    }
+
+    it('shows a nested street as its words and keeps the other details readable', async () => {
+      const dialog = await renderApiContact({
+        street: { line1: 'One Test Street' },
+        country: 'Switzerland',
+      });
+
+      expect(addressLines(dialog)).toEqual(['One Test Street', 'Switzerland']);
+      expect(
+        within(dialog).getByRole('heading', { name: 'John Doe' }),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByText('john@example.com')).toBeInTheDocument();
+      expect(within(dialog).getByText('contact-1')).toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows a flat address line by line', async () => {
+      const dialog = await renderApiContact({
+        street: 'One Test Street',
+        city: 'Zurich',
+        state: 'ZH',
+        postalCode: '8001',
+        country: 'Switzerland',
+      });
+
+      expect(addressLines(dialog)).toEqual([
+        'One Test Street',
+        'Zurich, ZH',
+        '8001',
+        'Switzerland',
+      ]);
+    });
+
+    it('reads lists, numbers and deeper nesting under any field', async () => {
+      const dialog = await renderApiContact({
+        street: ['One Test Street', { unit: 'Apt 4' }],
+        city: { name: 'Zurich' },
+        state: { code: 'ZH', meta: { verified: true } },
+        postalCode: 8001,
+        country: { name: 'Switzerland', iso: ['CH'] },
+      });
+
+      expect(addressLines(dialog)).toEqual([
+        'One Test Street, Apt 4',
+        'Zurich, ZH',
+        '8001',
+        'Switzerland, CH',
+      ]);
+    });
+
+    it('leaves out a field with no words to show', async () => {
+      const dialog = await renderApiContact({
+        street: { line1: '   ' },
+        city: null,
+        state: true,
+        postalCode: [],
+        country: 'Switzerland',
+      });
+
+      expect(addressLines(dialog)).toEqual(['Switzerland']);
+    });
+
+    it('shows no Address fact when none of its fields has words', async () => {
+      const dialog = await renderApiContact({
+        line1: 'One Test Street',
+        street: {},
+      });
+
+      expect(addressLines(dialog)).toBeNull();
+      expect(within(dialog).getByText('john@example.com')).toBeInTheDocument();
+    });
   });
 
   // --- Edit / New email header actions (#2639) ------------------------------
@@ -213,6 +358,16 @@ describe('ContactViewDialog', () => {
         },
         tags: ['supplier', 'preferred'],
         notes: 'Reliable contact with fast responses',
+      });
+      await checkAccessibility(container);
+    });
+
+    it('passes axe audit with a nested address (#3625)', async () => {
+      const { container } = renderDialog({
+        address: {
+          street: { line1: 'One Test Street', line2: 'Apt 4' },
+          country: 'Switzerland',
+        },
       });
       await checkAccessibility(container);
     });

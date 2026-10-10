@@ -66,10 +66,15 @@ export interface ConnectorCredentialsContract {
         description?: string;
         default?: string | number | boolean;
         enum?: string[];
+        integer?: boolean;
+        min?: number;
+        max?: number;
         required: boolean;
         type: 'string' | 'number' | 'boolean';
         key: string;
         label: string;
+        /** Per-locale label and description, resolved by the form's locale. */
+        i18n?: Record<string, { label?: string; description?: string }>;
       }>;
       authMethods: Array<'oauth2' | 'api-key' | 'bearer' | 'basic'>;
       actionCount: number;

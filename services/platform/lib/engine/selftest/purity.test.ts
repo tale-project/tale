@@ -13,8 +13,8 @@ import { describe, expect, it } from 'vitest';
  * flows through the slots. The backends under `runners/` are the ONE
  * sanctioned exception — `node-vm.ts` exists to wrap `node:vm` and to
  * supervise the child process (`node-vm-child.ts`) it evaluates in; test
- * files and the test-support modules under `selftest/` are host code and
- * exempt.
+ * and bench files and the test-support modules under `selftest/` are host
+ * code and exempt.
  */
 
 const ENGINE_ROOT = path.join(
@@ -22,13 +22,28 @@ const ENGINE_ROOT = path.join(
   '..',
 );
 
+/** The platform workspace, which sanctioned modules are named from. */
+const PLATFORM_ROOT = path.resolve(ENGINE_ROOT, '..', '..');
+
 const PURE_DIRS = ['core', 'api'];
 const PURE_SHARED_HELPERS = [
   path.resolve(
     ENGINE_ROOT,
     '../../../../packages/shared/src/automation-name.ts',
   ),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/automation-replay.ts',
+  ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/secret-scan.ts'),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/utils/stable-stringify.ts',
+  ),
+  path.resolve(ENGINE_ROOT, '../shared/utils/bound-json.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/utils/storable-text.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/audit-redaction.ts'),
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -36,7 +51,11 @@ function sourceFiles(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(full));
-    else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) {
+    else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.includes('.test.') &&
+      !entry.name.includes('.bench.')
+    ) {
       out.push(full);
     }
   }
@@ -77,14 +96,29 @@ describe('engine purity', () => {
 
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
-    // periscopic scopes, the zimmerframe walker, is-reference), the shared
-    // safe YAML loader, type guards, name grammar and stable serializer are
-    // runtime-neutral; everything else outside the engine tree is a layering
-    // violation.
+    // periscopic scopes, the zimmerframe walker, is-reference), jsdiff's line
+    // diff (the unified patch between two versions), the shared safe YAML
+    // loader, type guards, name grammar, stable serializer, JSON bounding,
+    // the secret-key list and the credential detector are runtime-neutral,
+    // and so is `@tale/ui`'s data core (summaries, shapes, diffs, pointers,
+    // hashes), whose own guard (`packages/ui/src/data/pure.test.ts`) holds it
+    // to imports of itself, and its line diff (`code-diff/compute`, the one
+    // unified patch), which its test holds to jsdiff alone; everything else
+    // outside the engine tree is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/shared/utils/stable-stringify',
+      '@tale/shared/automation-replay',
+      '@tale/ui/code-diff/compute',
+      '@tale/ui/data/hash',
+      '@tale/ui/data/infer-schema',
+      '@tale/ui/data/json-pointer',
+      '@tale/ui/data/stable-stringify',
+      '@tale/ui/data/value-diff',
+      '@tale/ui/data/value-summary',
       'acorn',
+      'diff',
       'estree',
       'is-reference',
       'periscopic',
@@ -94,14 +128,22 @@ describe('engine purity', () => {
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
+      path.join('lib', 'shared', 'secret-scan'),
+      path.join('lib', 'shared', 'utils', 'bound-json'),
+      path.join('lib', 'shared', 'utils', 'storable-text'),
+      path.join('lib', 'shared', 'audit-redaction'),
     ];
     const offenders: string[] = [];
     for (const f of files) {
       for (const s of importsOf(f)) {
         if (s.startsWith('.')) {
-          const resolved = path.resolve(path.dirname(f), s);
-          const insideEngine = resolved.startsWith(ENGINE_ROOT);
-          const sanctioned = allowedModules.some((m) => resolved.endsWith(m));
+          const resolved = path
+            .resolve(path.dirname(f), s)
+            .replace(/\.ts$/, '');
+          const insideEngine = resolved.startsWith(ENGINE_ROOT + path.sep);
+          const sanctioned = allowedModules.some(
+            (m) => resolved === path.join(PLATFORM_ROOT, m),
+          );
           if (!insideEngine && !sanctioned) offenders.push(`${f} → ${s}`);
         } else if (!allowedPackages.has(s)) {
           offenders.push(`${f} → ${s}`);
@@ -112,15 +154,24 @@ describe('engine purity', () => {
   });
 
   it('the analysis layers stay browser-safe: they never reach Ajv', () => {
-    // The editor runs the parser, typing and analysis layers in the browser,
-    // where the Content-Security-Policy forbids the code generation Ajv
-    // compiles schemas with. Ajv-based checks live in `validate/` only, so
-    // nothing these layers import — directly or through another engine
+    // The editor runs the parser, typing and analysis layers — and the
+    // document diff, which rings what another window changed — in the
+    // browser, where the Content-Security-Policy forbids the code generation
+    // Ajv compiles schemas with. Ajv-based checks live in `validate/` only,
+    // so nothing these layers import — directly or through another engine
     // module — may load it.
-    const browserSafe = ['syntax', 'typing', 'analysis']
+    const browserSafe = ['syntax', 'typing', 'analysis', 'diff']
       .map((d) => path.join(ENGINE_ROOT, 'core', d))
       .filter((d) => existsSync(d))
       .flatMap((d) => sourceFiles(d));
+    // A test's bench is planned, its expectations compared and a run that
+    // was never stored read in the editor as well.
+    browserSafe.push(
+      path.join(ENGINE_ROOT, 'core', 'execute', 'bench.ts'),
+      path.join(ENGINE_ROOT, 'core', 'record', 'transient.ts'),
+      path.join(ENGINE_ROOT, 'core', 'test-limits.ts'),
+      path.join(ENGINE_ROOT, 'api', 'expect.ts'),
+    );
     expect(browserSafe.length).toBeGreaterThan(0);
     const resolveModule = (from: string, spec: string): string | null => {
       const target = path.resolve(path.dirname(from), spec);
@@ -189,11 +240,13 @@ describe('engine purity', () => {
       ]),
     );
     // The supervisor forks and talks to its child; the child wraps node:vm;
-    // the sandbox-exec backend reaches nothing on the host at all.
+    // the pool's tenant rides on the host's async context; the sandbox-exec
+    // backend reaches nothing on the host at all.
     expect(nodeImportsByFile).toEqual({
       'node-vm-child.ts': ['node:vm'],
       'node-vm.ts': ['node:child_process', 'node:net', 'node:url', 'node:vm'],
       'sandbox-exec.ts': [],
+      'tenant.ts': ['node:async_hooks'],
     });
   });
 });

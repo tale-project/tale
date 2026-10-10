@@ -15,16 +15,19 @@ A token bucket refills continuously up to its burst capacity. A short batch can 
 | --- | --- | --- | --- |
 | General `/api/v1` traffic, including MCP and the model endpoints | 120/minute | 200 | Key holder |
 | Run starts, model-message sends, task starts and MCP executions | 20/minute | 40 | Key holder |
+| Settings changes over MCP (`apply_settings`) | 30/minute | 60 | Key holder |
 | Project upload handoff and file binding | 240/minute | 300 | Key holder |
 | Failed API-key authentication | 20/minute | 40 | Source IP |
 | Webhook deliveries before token validation | 120/minute | 240 | Sender address |
 | Deliveries to a verified webhook trigger | 20/minute | 40 | Trigger |
 
+Automation HTTP steps draw from a budget of their own, per organization: 120 calls a minute across the deployment, and 10 at once on one server. See [Call an API from an automation](/platform/automations/http).
+
 REST execution and upload requests also consume the general budget. For example, a project file needs an upload-handoff request and a file-bind request; each counts against both the general and upload budgets. The larger upload bucket does not allow a user to bypass the general limit.
 
 Execution includes project and non-project automation starts, thread-message sends and explicit task starts. Task intake also consumes the execution budget when `runWorkflowSlug` is supplied. A starting-work request is charged once its body and headers have passed the endpoint's own checks — a `400 INVALID_BODY` or `INVALID_HEADER` spends nothing — and before anything is looked up, so a `404` for a thread, task or automation you cannot see costs a token, as does a `409` the state answers. Some mutations, such as task comments and folder changes, have additional domain budgets shared with the app.
 
-MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. An MCP tool that executes an automation (`run_automation`, `test_automation`, `deploy_automation`, `run_deployed`, `start_run` and `invoke_capability`) also uses one execution once the key holder's role allows the call, and so does `answer_run_ask`, whose answer resumes a waiting run as the REST answer does. When that budget is spent, the call is answered with a tool result whose `code` is `RATE_LIMITED` and whose `data.retryAfterMs` names the wait, not with an HTTP `429`. Reads, validation and saving use no execution. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
+MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. An MCP tool that executes an automation (`run_automation`, `test_automation`, `deploy_automation`, `run_deployed`, `start_run` and `invoke_capability`) also uses one execution once the key holder's role allows the call, and so does `answer_run_ask`, whose answer resumes a waiting run as the REST answer does. When that budget is spent, the call is answered with a tool result whose `code` is `RATE_LIMITED` and whose `data.retryAfterMs` names the wait, not with an HTTP `429`. Reads, validation and saving use no execution. A settings change (`apply_settings`) uses one unit of its own settings budget the same way and is answered with `RATE_LIMITED` once that budget is spent; reading and planning settings use none. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
 
 Calls to the [model endpoints](/develop/api-reference#model-endpoints) under `/api/v1/openai` and `/api/v1/anthropic` count against the general budget only, one request each, streamed or not; what a call may spend is capped separately by budget rules. A person, and each API key, may also have eight of these calls running at once: a ninth answers `429` with `code` `MODEL_API_CONCURRENCY_EXCEEDED` and `Retry-After: 2`.
 

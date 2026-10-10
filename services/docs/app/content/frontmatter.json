@@ -105,6 +105,14 @@
       "i18nLintExclude": ""
     }
   },
+  "de:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Einstellungen über MCP",
+      "description": "Lass einen Coding-Agenten die Einstellungen von Tale über den MCP-Endpunkt lesen und ändern — im Rahmen der Rolle der Person, deren API-Schlüssel er nutzt."
+    }
+  },
   "de:develop/overview": {
     "slug": "develop/overview",
     "locale": "de",
@@ -497,7 +505,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Der Workflow-Editor",
-      "description": "Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück."
+      "description": "Lies eine Automatisierung im Canvas, folge ihren möglichen Pfaden, ändere Felder einer Node, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück."
     }
   },
   "de:platform/automations/execution-logs": {
@@ -505,7 +513,23 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungsläufe prüfen und Fehler beheben",
-      "description": "Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte Schreibvorgänge und entscheide über Stopp, Korrektur oder Neustart."
+      "description": "Erfahre, warum ein Lauf fehlschlug oder ein Schritt übersprungen wurde, was jeder Schritt gelesen und zurückgegeben hat, spiel den Lauf ab und führe ihn erneut, ab einem Schritt oder im Vergleich mit einem anderen Lauf aus."
+    }
+  },
+  "de:platform/automations/http": {
+    "slug": "platform/automations/http",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Eine API aus einer Automatisierung aufrufen",
+      "description": "Lies mit den Schritten http.get und http.send aus jeder HTTPS-API oder sende an sie, mit gespeicherten Zugangsdaten oder ohne, und erfahre, was Tale ablehnt."
+    }
+  },
+  "de:platform/automations/knowledge-search": {
+    "slug": "platform/automations/knowledge-search",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Dein Wissen aus einer Automatisierung durchsuchen",
+      "description": "Finde mit dem Schritt knowledge.search die Passagen deiner Dokumente und indexierten Websites, die zu einer Frage passen, verwende sie in einem späteren Schritt und erfahre, was eine Suche lesen darf."
     }
   },
   "de:platform/automations/triggers": {
@@ -513,7 +537,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungen automatisch starten",
-      "description": "Richte Zeitpläne, Webhooks und Plattform-Ereignisse ein, prüfe die Eingaben und finde die Ursache ausbleibender Starts."
+      "description": "Starte eine Automatisierung nach Zeitplan, per Webhook oder bei einem Plattform-Ereignis, prüfe, was jeder Lauf erhält, und finde heraus, warum ein Start ausgelassen wurde."
     }
   },
   "de:platform/chat/arena-mode": {
@@ -1257,6 +1281,14 @@
       "i18nLintExclude": ""
     }
   },
+  "en:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Settings over MCP",
+      "description": "Let a coding agent read and change Tale settings through the MCP endpoint, within the role of the person whose API key it uses."
+    }
+  },
   "en:develop/overview": {
     "slug": "develop/overview",
     "locale": "en",
@@ -1649,7 +1681,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "The workflow editor",
-      "description": "Inspect and edit nodes, supply test input, save a version, and deploy or roll back an automation."
+      "description": "Read an automation on its canvas, follow its possible paths, edit node fields, save a version, and deploy or roll back."
     }
   },
   "en:platform/automations/execution-logs": {
@@ -1657,7 +1689,23 @@
     "locale": "en",
     "frontmatter": {
       "title": "Read automation runs and recover from failures",
-      "description": "Trace a run from its status to the failing node, inspect recorded writes and decide whether to stop, fix or retry."
+      "description": "See why a run failed or a step was skipped, what each step read and returned, play the run back, and run it again, from a step, or side by side with another run."
+    }
+  },
+  "en:platform/automations/http": {
+    "slug": "platform/automations/http",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Call an API from an automation",
+      "description": "Read from or send to any HTTPS API with the http.get and http.send steps, with a stored credential or without one, and know what Tale refuses."
+    }
+  },
+  "en:platform/automations/knowledge-search": {
+    "slug": "platform/automations/knowledge-search",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Search your knowledge from an automation",
+      "description": "Find the passages of your documents and indexed websites that match a question with the knowledge.search step, use them in a later step, and know what a search may read."
     }
   },
   "en:platform/automations/triggers": {
@@ -1665,7 +1713,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Start automations automatically",
-      "description": "Configure schedules, webhooks and platform events, match their input shape and diagnose missed starts."
+      "description": "Run an automation on a schedule, from a webhook or on a platform event, check what each run receives, and find out why a start was skipped."
     }
   },
   "en:platform/chat/arena-mode": {
@@ -2409,6 +2457,14 @@
       "i18nLintExclude": ""
     }
   },
+  "fr:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Paramètres par MCP",
+      "description": "Laisse un agent de code lire et modifier les paramètres de Tale par le point d’accès MCP, dans les limites du rôle de la personne dont il utilise la clé API."
+    }
+  },
   "fr:develop/overview": {
     "slug": "develop/overview",
     "locale": "fr",
@@ -2801,7 +2857,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "L’éditeur de workflow",
-      "description": "Examine et modifie les nœuds, fournis les données de test, puis enregistre, déploie ou rétablis une version."
+      "description": "Lis une automatisation sur son canevas, suis ses chemins possibles, modifie les champs d’un nœud, enregistre une version, puis déploie-la ou rétablis-en une autre."
     }
   },
   "fr:platform/automations/execution-logs": {
@@ -2809,7 +2865,23 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Examiner les exécutions et corriger les échecs",
-      "description": "Repère le nœud concerné, vérifie les écritures enregistrées et décide s’il faut arrêter, corriger ou relancer."
+      "description": "Comprends pourquoi une exécution a échoué ou une étape a été ignorée, ce que chaque étape a lu et renvoyé, rejoue l’exécution et relance-la, à partir d’une étape ou à côté d’une autre exécution."
+    }
+  },
+  "fr:platform/automations/http": {
+    "slug": "platform/automations/http",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Appeler une API depuis une automatisation",
+      "description": "Lis depuis n’importe quelle API HTTPS ou envoie-lui des données avec les étapes http.get et http.send, avec des identifiants enregistrés ou sans, et sache ce que Tale refuse."
+    }
+  },
+  "fr:platform/automations/knowledge-search": {
+    "slug": "platform/automations/knowledge-search",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Chercher dans tes connaissances depuis une automatisation",
+      "description": "Trouve avec l’étape knowledge.search les passages de tes documents et de tes sites indexés qui répondent à une question, utilise-les dans une étape suivante, et sache ce qu’une recherche peut lire."
     }
   },
   "fr:platform/automations/triggers": {
@@ -2817,7 +2889,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrer les automatisations automatiquement",
-      "description": "Configure horaires, webhooks et événements, adapte les données d’entrée et identifie les démarrages manqués."
+      "description": "Lance une automatisation selon une planification, depuis un webhook ou sur un événement de la plateforme, vérifie ce que reçoit chaque exécution et comprends pourquoi un démarrage a été ignoré."
     }
   },
   "fr:platform/chat/arena-mode": {

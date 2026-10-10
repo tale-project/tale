@@ -30,14 +30,42 @@ interface LabelProps extends ComponentPropsWithoutRef<
   info?: ReactNode;
 }
 
+/**
+ * Elements a `<label for>` focuses by itself. Any other target — a code
+ * editor's contenteditable text — gets focus from the label's click handler.
+ */
+const LABELABLE = new Set([
+  'BUTTON',
+  'INPUT',
+  'METER',
+  'OUTPUT',
+  'PROGRESS',
+  'SELECT',
+  'TEXTAREA',
+]);
+
+function focusUnlabelableTarget(htmlFor: string | undefined): boolean {
+  if (htmlFor === undefined || typeof document === 'undefined') return false;
+  const target = document.getElementById(htmlFor);
+  if (target === null || LABELABLE.has(target.tagName)) return false;
+  target.focus();
+  return document.activeElement === target;
+}
+
 export const Label = forwardRef<
   ComponentRef<typeof LabelPrimitive.Root>,
   LabelProps
->(({ className, required, error, info, children, ...props }, ref) => {
+>(({ className, required, error, info, children, onClick, ...props }, ref) => {
   const { t } = useT('common');
   const labelEl = (
     <LabelPrimitive.Root
       ref={ref}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented && focusUnlabelableTarget(props.htmlFor)) {
+          event.preventDefault();
+        }
+      }}
       className={cn(
         'text-foreground text-xs leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70 md:text-sm',
         error && 'text-destructive',

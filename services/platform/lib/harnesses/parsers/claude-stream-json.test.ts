@@ -11,6 +11,76 @@ import { collectEvents, readFixture } from '../test-helpers';
 import { createParser } from './claude-stream-json';
 
 describe('claude-stream-json parser', () => {
+  const disabledSubscription =
+    'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access';
+
+  it.each(['claude-code', 'claude-code-compact'] as const)(
+    '%s identifies the terminal subscription-access refusal',
+    (harness) => {
+      const events = collectEvents(
+        createParser(harness),
+        [
+          JSON.stringify({
+            type: 'result',
+            subtype: 'success',
+            is_error: true,
+            api_error_status: 403,
+            result: disabledSubscription,
+          }),
+        ].join('\n'),
+      );
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'turn-ended',
+          isError: true,
+          apiErrorStatus: 403,
+          providerErrorKind: 'subscription_access_disabled',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    { result: disabledSubscription, is_error: false, api_error_status: 403 },
+    { result: disabledSubscription, is_error: true, api_error_status: 401 },
+    { result: 'Forbidden', is_error: true, api_error_status: 403 },
+    {
+      result: `The provider said: ${disabledSubscription}`,
+      is_error: true,
+      api_error_status: 403,
+    },
+    { result: disabledSubscription, is_error: true, api_error_status: null },
+  ])(
+    'does not infer subscription access from other result envelopes: %j',
+    (result) => {
+      const events = collectEvents(
+        createParser('claude-code'),
+        JSON.stringify({
+          type: 'result',
+          subtype: 'success',
+          ...result,
+        }),
+      );
+      for (const event of events)
+        expect(event).not.toHaveProperty('providerErrorKind');
+    },
+  );
+
+  it('does not classify a Qwen terminal error as a Claude entitlement refusal', () => {
+    const events = collectEvents(
+      createParser('qwen-code'),
+      JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        is_error: true,
+        api_error_status: 403,
+        result: disabledSubscription,
+      }),
+    );
+    for (const event of events)
+      expect(event).not.toHaveProperty('providerErrorKind');
+  });
+
   it('normalizes the issue-to-pr stream (usage deduped by message id)', () => {
     const events = collectEvents(
       createParser('claude-code'),

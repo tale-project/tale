@@ -83,6 +83,10 @@ mcpEndpoint:
       description: Consulter ce qu'une automatisation peut nommer — modèles,
         environnements d'agent, skills, connectors, noms de secrets, projets
         et événements.
+    settings:
+      title: Paramètres
+      description: Lire, planifier et modifier les paramètres que ton rôle
+        autorise. Les secrets se saisissent toujours dans Tale.
     capability:
       title: Capacités & connaissances
       description: La surface propre à l'organisation — chercher ce qu'elle
@@ -406,6 +410,7 @@ connectors:
     des connectors dans les workflows et les outils compatibles de la plateforme.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Saisis un port entier compris entre 1 et 65535.
   catalog:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
@@ -471,6 +476,10 @@ connectors:
     statusOrg: App de l'organisation
     statusEnv: App du déploiement
     statusNone: Non configurée
+    statusUnavailable: Statut indisponible
+    statusLoadFailed:
+      Impossible de vérifier si les apps de l'import de connaissances sont
+      configurées. Tu pourras les configurer dès que la vérification aboutira.
     orgClientId: 'ID client : {clientId}'
     configure: Configurer
     remove: Retirer
@@ -1187,6 +1196,7 @@ logs:
       vérifiées}} — aucune altération détectée.'
     truncatedNote: 'Seules les {count} premières entrées ont été vérifiées. Demande à l’opérateur de ton installation de vérifier la suite.'
     unsignedScrubNote: '{count, plural, one {# entrée effacée n’a pas de demande d’effacement correspondante} other {# entrées effacées n’ont pas de demande d’effacement correspondante}}. Examine les demandes d’effacement avant de te fier à cet historique.'
+    awaitingSealNote: '{count, plural, one {# entrée vient d’être écrite et n’est pas encore dans la chaîne} other {# entrées viennent d’être écrites et ne sont pas encore dans la chaîne}}. Relance la vérification dans quelques secondes pour les inclure.'
     brokenTitle: Intégrité de la chaîne rompue
     brokenBody: La chaîne de hachage ne correspond pas à l'entrée ci-dessous.
       Conserve cette preuve avant toute modification.
@@ -1351,6 +1361,8 @@ logs:
       folder.deleted: Dossier supprimé
       knowledge_entry.created: Entrée de connaissances créée
       knowledge_entry.updated: Entrée de connaissances mise à jour
+      knowledge_embedding.saved: Modèle d’embedding enregistré
+      knowledge_embedding.removed: Modèle d’embedding supprimé
       branding.updated: Branding mis à jour
       branding.image_uploaded: Image de branding chargée
       branding.image_deleted: Image de branding retirée
@@ -1449,6 +1461,7 @@ logs:
       automation.run.failed: Exécution d'automatisation en échec
       automation.run.cancelled: Exécution d'automatisation arrêtée
       automation.run.deleted: Exécution d'automatisation supprimée
+      automation.run.replayed: Exécution d'automatisation relancée
       automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
       automation.version.saved: Version d’automatisation enregistrée
       automation.deployed: Automatisation mise en service
@@ -1497,6 +1510,8 @@ logs:
       project.deleted: Projet supprimé
       policy.created: Politique créée
       policy.updated: Politique mise à jour
+      governance_policy.created: Politique créée
+      governance_policy.updated: Politique mise à jour
       policy.retention_bounds_proposal_applied: Proposition de bornes de rétention appliquée
       policy.retention_bounds_initial_applied: Bornes de rétention initialement appliquées
       retention.run_completed: Cycle de rétention terminé
@@ -1564,6 +1579,7 @@ logs:
       document: Document
       folder: Dossier
       knowledge_entry: Entrée de connaissances
+      knowledge_embedding: Modèle d’embedding
       agent: Agent
       workflow: Automatisation
       workflow_run: Exécution d'automatisation

@@ -16,9 +16,10 @@
 
 import type { ErrorObject } from 'ajv';
 
+import { credentialKind } from '../../../shared/secret-scan';
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
-import { nodeTypes, scheduleTriggerInput, type ConnectorLike } from '../slots';
+import { nodeTypes, type ConnectorLike } from '../slots';
 import { pointerFromAjv, pointerTokens, ptr } from '../syntax/pointer';
 import type { ExprSource } from '../syntax/sources';
 import { exprSegments, tokenizeTemplate } from '../syntax/tokens';
@@ -30,6 +31,7 @@ import type { ValidationContext } from './context';
 import { compileSchema, describeSchemaErrors } from './schema';
 import { closestName } from './similar';
 import { analyzable } from './syntax-check';
+import { type InputsCheck, triggerInputWarnings } from './trigger-input';
 
 /** ajv keywords that judge a VALUE — unknowable where the value is still a
  * template; structural keywords (required, additionalProperties) stay. */
@@ -139,6 +141,107 @@ function checkConnectorInput(
   }
 }
 
+/** The HTTP connector's node types, and the headers only its credential
+ * may set. */
+const HTTP_NODE_TYPES = new Set(['http.get', 'http.send']);
+const HTTP_RESERVED_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+]);
+
+/** A value written out, not worked out at run time. */
+function literal(value: unknown): string | undefined {
+  return typeof value === 'string' && !value.includes('{{') ? value : undefined;
+}
+
+/** Where a written-out URL carries a credential: its password, or a query
+ * parameter whose value looks like one. A URL whose text is a known shape
+ * already fails as a secret in the document, and a `query` value sits under
+ * its own name, where that check reads it too. */
+function secretPlaceInUrl(url: string): string | undefined {
+  if (credentialKind(url) !== undefined) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.password !== '') return 'password';
+  for (const [name, value] of parsed.searchParams) {
+    if (credentialKind(value, name) !== undefined) return name;
+  }
+  return undefined;
+}
+
+/**
+ * What a look at an HTTP step's written-out input can tell before a run: an
+ * address a call without a credential would send in the clear, a secret
+ * written into the address, and a header only a credential may set. A
+ * templated value is the run's to judge.
+ */
+function checkHttpInput(
+  n: NodeDef,
+  base: string,
+  input: Record<string, unknown>,
+  issues: Issue[],
+): void {
+  const credentialed =
+    typeof n.credential === 'string' && n.credential.trim() !== '';
+  const url = literal(input.url)?.trim();
+  if (url !== undefined) {
+    if (!credentialed && /^http:\/\//i.test(url)) {
+      issues.push(
+        warn(
+          'HTTP_URL_NOT_HTTPS',
+          `node "${n.id}" (${n.type}): the URL is plain http, which a call without a credential refuses for a public host`,
+          {
+            nodeId: n.id,
+            path: '/url',
+            hint: 'use the https:// address',
+            at: { pointer: `${base}/url` },
+            params: { node: n.id, type: n.type },
+          },
+        ),
+      );
+    }
+    const place = secretPlaceInUrl(url);
+    if (place !== undefined) {
+      issues.push(
+        err(
+          'HTTP_SECRET_IN_URL',
+          `node "${n.id}" (${n.type}): the URL carries a credential in "${place}"`,
+          {
+            nodeId: n.id,
+            path: '/url',
+            hint: "store the credential in Settings → Connectors and name it in the step's credential field",
+            at: { pointer: `${base}/url` },
+            params: { node: n.id, type: n.type, place },
+          },
+        ),
+      );
+    }
+  }
+  if (isRecord(input.headers)) {
+    for (const name of Object.keys(input.headers)) {
+      if (!HTTP_RESERVED_HEADERS.has(name.toLowerCase())) continue;
+      issues.push(
+        err(
+          'HTTP_HEADER_RESERVED',
+          `node "${n.id}" (${n.type}): the step sets the ${name} header, which only a credential sets`,
+          {
+            nodeId: n.id,
+            path: `/headers/${name}`,
+            hint: "remove the header and name a credential in the step's credential field",
+            at: { pointer: `${base}/headers${ptr(name)}`, subject: 'key' },
+            params: { node: n.id, type: n.type, header: name },
+          },
+        ),
+      );
+    }
+  }
+}
+
 function additionalProperty(e: ErrorObject): string | undefined {
   if (e.keyword !== 'additionalProperties') return undefined;
   const name: unknown = e.params.additionalProperty;
@@ -230,6 +333,9 @@ export async function validateContracts(
 
     if (def?.connector && isRecord(n.input)) {
       checkConnectorInput(n, `${base}/input`, n.input, def.connector, issues);
+    }
+    if (HTTP_NODE_TYPES.has(n.type) && isRecord(n.input)) {
+      checkHttpInput(n, `${base}/input`, n.input, issues);
     }
 
     // A model nobody serves fails the node on the first live run, and the
@@ -465,19 +571,21 @@ export async function validateContracts(
 }
 
 /**
- * What the automation's own triggers start runs with, against its inputs
- * schema: a run checks its input before any node runs, so a schedule whose
- * input the schema refuses never starts a run — every occurrence is
- * refused. Only the schedule's input is known ahead (webhook and event runs
- * carry a payload). A warning: triggers change without a new version.
+ * What the automation's own trigger starts runs with, against its inputs
+ * schema, and its fixed input for a template: a run checks its input
+ * before any node runs, so a trigger whose input the schema refuses never
+ * starts a run — every start is refused. The host says what the trigger
+ * sends, as far as it knows ahead (a webhook's body it does not). Warnings:
+ * triggers change without a new version.
  */
 async function checkTriggerInput(ctx: ValidationContext): Promise<void> {
   const { doc, store, issues } = ctx;
-  if (store?.triggerKinds === undefined) return;
-  if (!isRecord(doc.inputs) || typeof doc.name !== 'string') return;
-  let kinds: ReadonlyArray<string>;
+  if (store?.triggerInput === undefined || typeof doc.name !== 'string') {
+    return;
+  }
+  let sample;
   try {
-    kinds = await store.triggerKinds(doc.name);
+    sample = await store.triggerInput(doc.name);
   } catch (e) {
     console.warn(
       '[engine] skipping the trigger input check (store lookup failed):',
@@ -485,38 +593,20 @@ async function checkTriggerInput(ctx: ValidationContext): Promise<void> {
     );
     return;
   }
-  if (!kinds.includes('schedule')) return;
-  let check;
-  try {
-    check = compileSchema(doc.inputs);
-  } catch (e) {
-    // INPUTS_SCHEMA_INVALID reports it; there is nothing to check against.
-    console.warn(
-      '[engine] skipping the trigger input check (the inputs schema does not compile):',
-      e instanceof Error ? e.message : e,
-    );
-    return;
+  if (sample === null) return;
+  let check: InputsCheck | null = null;
+  if (isRecord(doc.inputs)) {
+    try {
+      check = compileSchema(doc.inputs);
+    } catch (e) {
+      // INPUTS_SCHEMA_INVALID reports it; there is nothing to check against.
+      console.warn(
+        '[engine] skipping the trigger input check (the inputs schema does not compile):',
+        e instanceof Error ? e.message : e,
+      );
+    }
   }
-  if (check(scheduleTriggerInput(Date.now()))) return;
-  const errors = check.errors ?? [];
-  const described = describeSchemaErrors(errors);
-  const missing = described
-    .filter((_, i) => errors[i]?.keyword === 'required')
-    .map((d) => d.path);
-  const problems = described.map((d) =>
-    d.path === '' ? d.message : `${d.path} ${d.message}`,
-  );
-  issues.push(
-    warn(
-      'TRIGGER_INPUT_MISMATCH',
-      `the schedule trigger starts runs with {trigger, firedAt}, which the inputs schema refuses: ${problems.join('; ')} — every scheduled run is refused`,
-      {
-        hint: 'a schedule passes only trigger and firedAt: declare both in the inputs schema and make every other input optional, or start this automation from a webhook, an event or the API',
-        at: { pointer: '/inputs' },
-        params: { kind: 'schedule', missing, problems },
-      },
-    ),
-  );
+  issues.push(...triggerInputWarnings(check, sample));
 }
 
 /**

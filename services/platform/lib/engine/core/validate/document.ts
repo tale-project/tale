@@ -11,12 +11,17 @@
 
 import type { ValidateFunction } from 'ajv';
 
+import { findSecrets } from '../../../shared/secret-scan';
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
 import { ptr } from '../syntax/pointer';
 import type { Issue } from '../types';
 import { AUTOMATION_NAME_RULE, isValidAutomationName } from './name';
-import { compileSchema, describeSchemaErrors } from './schema';
+import {
+  compileSchema,
+  describeSchemaErrors,
+  inputRefusalMessage,
+} from './schema';
 
 const TOP_FIELDS = [
   'version',
@@ -28,22 +33,6 @@ const TOP_FIELDS = [
   'tests',
   'ui',
 ];
-
-const SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bsk-[A-Za-z0-9_-]{16,}/, 'API key (sk-…)'],
-  [/\bAKIA[0-9A-Z]{12,}/, 'AWS access key'],
-  [/\bxox[bap]-[A-Za-z0-9-]{10,}/, 'Slack token'],
-  [/\bghp_[A-Za-z0-9]{20,}/, 'GitHub token'],
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'private key material'],
-  [/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/, 'bearer token'],
-];
-
-/** Key names that mark their value as a credential when it looks opaque. */
-const CREDENTIAL_KEY_RE =
-  /^(?:api[_-]?key|apikey|secret|token|access[_-]?key|password|passwd|authorization|auth[_-]?token)$/i;
-
-/** A long single opaque word — no spaces, no template braces. */
-const OPAQUE_VALUE_RE = /^[A-Za-z0-9+/=_.-]{16,}$/;
 
 export function validateDocument(
   doc: Record<string, unknown>,
@@ -142,7 +131,7 @@ export function validateDocument(
 /** The run-input check a test's input meets first; null when there is
  * none to meet (no inputs schema, or one that does not compile — that is
  * INPUTS_SCHEMA_INVALID's). */
-function inputCheck(inputs: unknown): ValidateFunction | null {
+export function inputCheck(inputs: unknown): ValidateFunction | null {
   if (!isRecord(inputs)) return null;
   try {
     return compileSchema(inputs);
@@ -154,6 +143,38 @@ function inputCheck(inputs: unknown): ValidateFunction | null {
     return null;
   }
 }
+
+/** What `expect` may hold. */
+const EXPECT_FIELDS = [
+  'output',
+  'outputIncludes',
+  'effects',
+  'nodes',
+  'failure',
+] as const;
+
+/** The states `expect.nodes` names. */
+const NODE_STATES: ReadonlySet<unknown> = new Set(['ran', 'skipped', 'failed']);
+
+/** The longest message a simulated failure may carry. */
+const MAX_FAILURE_MESSAGE = 2000;
+
+/** The grammar a malformed test is pointed to. */
+const TEST_GRAMMAR =
+  'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}';
+
+/** Which part of a test is malformed — what a localized sentence names. */
+type TestPart =
+  | 'description'
+  | 'mocks'
+  | 'failures'
+  | 'effects'
+  | 'effect'
+  | 'effectInput'
+  | 'effectAbsent'
+  | 'nodes'
+  | 'failure'
+  | 'failureWithOutput';
 
 function validateTests(tests: unknown, inputs: unknown, issues: Issue[]): void {
   if (!Array.isArray(tests)) {
@@ -188,10 +209,16 @@ function validateTests(tests: unknown, inputs: unknown, issues: Issue[]): void {
       continue;
     }
     if (check === undefined) check = inputCheck(inputs);
-    if (check !== null) checkTestInput(i, t.name, t.input, check, issues);
+    if (check !== null) {
+      const refused = testInputRefusal(i, t.name, t.input, check);
+      if (refused !== null) issues.push(refused.issue);
+    }
+    validateStandIns(i, t, issues);
     if (t.expect === undefined) continue;
     const keys = isRecord(t.expect) ? Object.keys(t.expect) : [];
-    const bad = keys.filter((k) => k !== 'output' && k !== 'effects');
+    const bad = keys.filter(
+      (k) => !(EXPECT_FIELDS as readonly string[]).includes(k),
+    );
     if (!isRecord(t.expect) || bad.length > 0) {
       issues.push(
         err(
@@ -199,10 +226,186 @@ function validateTests(tests: unknown, inputs: unknown, issues: Issue[]): void {
           `tests[${i}].expect has unknown key(s): ${bad.join(', ') || JSON.stringify(t.expect)}`,
           {
             path: `tests[${i}].expect`,
-            hint: 'expect supports {output?, effects?: [{connector, input?}]}',
+            hint: 'expect supports {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}',
             at: { pointer: ptr('tests', i, 'expect') },
             params: { test: i, keys: bad },
           },
+        ),
+      );
+    }
+    if (isRecord(t.expect)) validateExpect(i, t.expect, issues);
+  }
+}
+
+/** One malformed part of test `index`, at `pointer`. */
+function malformed(
+  index: number,
+  part: TestPart,
+  message: string,
+  pointer: string,
+): Issue {
+  return err('TESTS_INVALID', message, {
+    path: `tests[${index}]`,
+    hint: TEST_GRAMMAR,
+    at: { pointer },
+    params: { test: index, part },
+  });
+}
+
+/** A test's description and its stand-ins: text, and maps from node ids to
+ * outputs and to failure messages. */
+function validateStandIns(
+  i: number,
+  t: Record<string, unknown>,
+  issues: Issue[],
+): void {
+  if (t.description !== undefined && typeof t.description !== 'string') {
+    issues.push(
+      malformed(
+        i,
+        'description',
+        `tests[${i}].description must be text`,
+        ptr('tests', i, 'description'),
+      ),
+    );
+  }
+  if (t.mocks !== undefined && !isRecord(t.mocks)) {
+    issues.push(
+      malformed(
+        i,
+        'mocks',
+        `tests[${i}].mocks must map node ids to the output each returns in this test`,
+        ptr('tests', i, 'mocks'),
+      ),
+    );
+  }
+  if (t.failures !== undefined) {
+    const entry = isRecord(t.failures)
+      ? Object.entries(t.failures).find(
+          ([, message]) =>
+            typeof message !== 'string' || message.length > MAX_FAILURE_MESSAGE,
+        )
+      : undefined;
+    if (!isRecord(t.failures) || entry !== undefined) {
+      issues.push(
+        malformed(
+          i,
+          'failures',
+          `tests[${i}].failures must map node ids to error messages, each text of at most ${MAX_FAILURE_MESSAGE} characters`,
+          entry === undefined
+            ? ptr('tests', i, 'failures')
+            : ptr('tests', i, 'failures', entry[0]),
+        ),
+      );
+    }
+  }
+}
+
+/** The parts of `expect` beside its keys: effect entries, node states and
+ * the expected failure. */
+function validateExpect(
+  i: number,
+  expect: Record<string, unknown>,
+  issues: Issue[],
+): void {
+  if (expect.effects !== undefined) {
+    if (!Array.isArray(expect.effects)) {
+      issues.push(
+        malformed(
+          i,
+          'effects',
+          `tests[${i}].expect.effects must be a list of {connector, node?, input?, inputIncludes?, absent?}`,
+          ptr('tests', i, 'expect', 'effects'),
+        ),
+      );
+    } else {
+      for (const [j, effect] of expect.effects.entries()) {
+        const at = ptr('tests', i, 'expect', 'effects', j);
+        if (
+          !isRecord(effect) ||
+          typeof effect.connector !== 'string' ||
+          (effect.node !== undefined && typeof effect.node !== 'string')
+        ) {
+          issues.push(
+            malformed(
+              i,
+              'effect',
+              `tests[${i}].expect.effects[${j}] must name its connector: {connector: string, node?: string, …}`,
+              at,
+            ),
+          );
+        } else if (
+          effect.input !== undefined &&
+          effect.inputIncludes !== undefined
+        ) {
+          issues.push(
+            malformed(
+              i,
+              'effectInput',
+              `tests[${i}].expect.effects[${j}] gives both input and inputIncludes — compare its input exactly or by inclusion, not both`,
+              at,
+            ),
+          );
+        } else if (effect.absent !== undefined && effect.absent !== true) {
+          issues.push(
+            malformed(
+              i,
+              'effectAbsent',
+              `tests[${i}].expect.effects[${j}].absent must be true when it is given`,
+              `${at}/absent`,
+            ),
+          );
+        }
+      }
+    }
+  }
+  if (expect.nodes !== undefined) {
+    const entry = isRecord(expect.nodes)
+      ? Object.entries(expect.nodes).find(
+          ([, state]) => !NODE_STATES.has(state),
+        )
+      : undefined;
+    if (!isRecord(expect.nodes) || entry !== undefined) {
+      issues.push(
+        malformed(
+          i,
+          'nodes',
+          `tests[${i}].expect.nodes must map node ids to ran, skipped or failed`,
+          entry === undefined
+            ? ptr('tests', i, 'expect', 'nodes')
+            : ptr('tests', i, 'expect', 'nodes', entry[0]),
+        ),
+      );
+    }
+  }
+  if (expect.failure !== undefined) {
+    const failure = expect.failure;
+    const fits =
+      isRecord(failure) &&
+      Object.keys(failure).every((k) => k === 'node' || k === 'message') &&
+      (failure.node === undefined || typeof failure.node === 'string') &&
+      (failure.message === undefined || typeof failure.message === 'string');
+    const at = ptr('tests', i, 'expect', 'failure');
+    if (!fits) {
+      issues.push(
+        malformed(
+          i,
+          'failure',
+          `tests[${i}].expect.failure must be {node?: string, message?: string}`,
+          at,
+        ),
+      );
+    }
+    const output = (['output', 'outputIncludes'] as const).filter(
+      (k) => expect[k] !== undefined,
+    );
+    if (output.length > 0) {
+      issues.push(
+        malformed(
+          i,
+          'failureWithOutput',
+          `tests[${i}].expect has failure and ${output.join(' and ')} — a run that must fail has no output to compare`,
+          at,
         ),
       );
     }
@@ -212,16 +415,16 @@ function validateTests(tests: unknown, inputs: unknown, issues: Issue[]): void {
 /**
  * A test's input against the inputs schema: a run checks its input before
  * any node runs, so an input the schema refuses fails the test before it
- * tests anything.
+ * tests anything. Answers the issue that says so and the words the run
+ * refuses the input with; null when the input fits.
  */
-function checkTestInput(
+export function testInputRefusal(
   index: number,
   name: string,
   input: unknown,
   check: ValidateFunction,
-  issues: Issue[],
-): void {
-  if (check(input)) return;
+): { issue: Issue; runMessage: string } | null {
+  if (check(input)) return null;
   const errors = check.errors ?? [];
   const described = describeSchemaErrors(errors);
   const missing = described
@@ -230,8 +433,8 @@ function checkTestInput(
   const problems = described.map((d) =>
     d.path === '' ? d.message : `${d.path} ${d.message}`,
   );
-  issues.push(
-    warn(
+  return {
+    issue: warn(
       'TESTS_INPUT_INVALID',
       `tests[${index}] "${name}": input does not match the inputs schema: ${problems.join('; ')}`,
       {
@@ -240,58 +443,12 @@ function checkTestInput(
         params: { test: index, name, missing, problems },
       },
     ),
-  );
+    runMessage: inputRefusalMessage(errors),
+  };
 }
 
 function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
-  const hits: Array<{ path: string; pointer: string; label: string }> = [];
-
-  const scanString = (
-    value: string,
-    path: string,
-    pointer: string,
-    key?: string,
-  ): void => {
-    for (const [re, label] of SECRET_PATTERNS) {
-      if (re.test(value)) {
-        hits.push({ path, pointer, label });
-        return;
-      }
-    }
-    if (
-      key !== undefined &&
-      CREDENTIAL_KEY_RE.test(key) &&
-      OPAQUE_VALUE_RE.test(value)
-    ) {
-      hits.push({
-        path,
-        pointer,
-        label: `credential-looking value under "${key}"`,
-      });
-    }
-  };
-
-  const walk = (
-    value: unknown,
-    path: string,
-    pointer: string,
-    key?: string,
-  ): void => {
-    if (typeof value === 'string') {
-      scanString(value, path, pointer, key);
-    } else if (Array.isArray(value)) {
-      for (const [i, item] of value.entries()) {
-        walk(item, `${path}[${i}]`, pointer + ptr(i));
-      }
-    } else if (isRecord(value)) {
-      for (const [k, item] of Object.entries(value)) {
-        walk(item, path === '' ? k : `${path}.${k}`, pointer + ptr(k), k);
-      }
-    }
-  };
-  walk(doc, '', '');
-
-  for (const { path, pointer, label } of hits.slice(0, 5)) {
+  for (const { path, pointer, label } of findSecrets(doc).slice(0, 5)) {
     issues.push(
       err(
         'SECRET_IN_DOCUMENT',

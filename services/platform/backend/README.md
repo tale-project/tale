@@ -58,6 +58,7 @@ can fail before the application starts.
 | `AGENT_START_SLOTS` | Agent turn starts one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 8 (1–256) |
 | `AGENT_DRIVE_SLOTS` | Live agent turns' drive windows one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 16 (1–256); a worker drains about 2.5× this many live turns per lane before their windows wait past the recovery horizon |
 | `AUTOMATION_ORG_CONCURRENCY` | Automation steps one organization runs at once across every worker, default `8` (0–256, `0` = no limit); counted by pg-boss per job group (`queueGroupConcurrency`), so workers fetching at the same instant can briefly pass it by one or two |
+| `AUTOMATION_RUNNER_PROCESSES` | Runner processes one backend process evaluates automation code in (1–16); unset, `2` for the api and one per core but one (at most `4`) for a worker. Each starts only while the others are busy; one beyond the first stops after five idle minutes (`backend/lib/code-runner.ts`) |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SHUTDOWN_DRAIN_MS` | How long a stopping process waits for its jobs, default `15000` for `api` and `90000` for `worker` and `all` (1000–600000); keep the container's stop grace at least 15 seconds above it |
 | `SENTRY_DSN` | Optional error reporting |

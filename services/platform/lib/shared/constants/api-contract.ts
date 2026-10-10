@@ -537,5 +537,119 @@
  * recorded with the call and on the versions and audit rows it writes.
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
+ *
+ * 3.28.0 — 2026-10-09: a schedule trigger runs on a repeat rule
+ * (`repeat`, the `ScheduleRule` schema, from `startDate` in `timezone`) or
+ * on a cron expression, and says what it does with occurrences it missed
+ * (`catchUp`: `latest` or `skip`); every trigger kind takes a fixed `input`
+ * that each run it starts receives under the trigger's own fields. The
+ * `PUT …/triggers` body is the shared trigger contract, and a rule it
+ * breaks answers `AUTOMATION_TRIGGER_INVALID` with each problem coded
+ * under `data.issues`; its 200 adds `nextRunAt` and `warnings`
+ * (`TRIGGER_INPUT_MISMATCH`, `TRIGGER_INPUT_NOT_TEMPLATED`). `Trigger`
+ * reads `repeat`, `startDate`, `catchUp`, `input`, `nextRunAt` and
+ * `lastSkipDetail`, and `lastSkipReason` gains `missed_occurrences`; the
+ * listing's `trigger` adds `nextRunAt`. Newly refused, as fixes: a blank
+ * `timezone` (it saved and never fired) and `cron` together with `repeat`.
+ * The MCP `set_trigger` takes the same trigger as its `trigger` argument,
+ * and `deploy_automation` answers the bound `trigger` (`kind`, `enabled`,
+ * `nextRunAt`, `warnings`) beside `previousVersion`; the triggers reference
+ * (`get_docs {topic: "triggers"}`) states repeat rules, catch-up and the
+ * fixed input. Additive otherwise.
+ *
+ * 3.29.0 — 2026-10-09: a run reads step by step. `GET …/runs/{runId}/record`
+ * answers the run's record (`RunRecord`): every step in the order it runs,
+ * with its status, times, attempts, the decisions that ran or skipped it
+ * (each condition explained with the values it read, `ExplainNode`), why it
+ * produced no output followed back to the cause (`skip.chain`), why it
+ * failed (`StepFailure`, a `reason` from a fixed list with its `params`),
+ * glimpses of its values, the run's events a reader may see, the path it
+ * took and, with `include=travels`, the data that travelled between steps;
+ * `since` answers only what changed after a `cursor`. `…/record/node`
+ * reads one step — or one of its items or passes — whole (`RunNode`: its
+ * stored values with every cut and withheld place, where its templates'
+ * text landed, what it read, how its output differs from its input, its
+ * ledger call); `…/record/items` pages a step's items and passes
+ * (`RunUnitPage`, keyset); `…/compare/{otherRunId}` compares two runs of
+ * one automation (`RunDiff`). Each has its project twin and reads the run
+ * as `GET …/runs/{runId}` does. New codes: `NODE_RUN_NOT_FOUND` (404) and
+ * `RUN_COMPARE_MISMATCH` (400). A run's `effects` carry the `item` and
+ * `pass` they were made for. A run runs again: `POST …/runs/{runId}/replay`
+ * (`ReplayRequest`: `again`, `edited` with `input`, or `from` a step, a
+ * `version` and a `mode`) answers 202 `ReplayStarted` and honours
+ * `Idempotency-Key`; `GET …/replay` answers its `ReplayPlan` without
+ * starting it. A fork reuses the steps the run finished outside the step
+ * and what it feeds; the new run's `Run.replayOf` names the run it
+ * replays. New codes: `REPLAY_RUN_NOT_FINISHED`, `REPLAY_NODE_UNKNOWN`,
+ * `REPLAY_GRAPH_CHANGED`, `REPLAY_MODE_MISMATCH`,
+ * `REPLAY_PROGRESS_UNREADABLE`, `REPLAY_INPUT_UNAVAILABLE`. The MCP
+ * `get_run` takes `include` (`["record"]`, `["travels"]`) and answers
+ * `record` beside `run`; new read tools `get_run_node` and `compare_runs`
+ * answer the same unit and comparison, and `replay_run` runs a run again
+ * (`dryRun` answers the plan). Additive otherwise.
+ *
+ * 3.30.0 — 2026-10-10: the MCP endpoint reads, plans and changes the
+ * organization's settings, in a new `settings` group. `get_settings`
+ * answers, without `kinds`, the catalog of setting kinds (what each is, its
+ * `ops` and `acts`, `baseRisk`, the Settings pages it covers, whether this
+ * deployment serves it and what the caller's role may do) and, with
+ * `kinds`, each resource the caller may read with its `key`, `config` and
+ * native `hash`, a secret reading as `{masked: true, preview}`.
+ * `plan_settings` answers each change's `action`, `currentHash`, `diff`,
+ * `effects` and `risk`, or its `refusal`, and writes nothing.
+ * `apply_settings` is compare-and-set: `expected` names every changed
+ * resource's hash (null for one it creates); a refused change or a resource
+ * that moved applies nothing (`SETTINGS_STALE` with `data.currentHash`);
+ * changes run in a fixed order across kinds and the first failure stops the
+ * rest, the answer naming what was `applied`, what `failed` and what was
+ * `skipped`. It asks the person before every call and draws from a new
+ * `rest:settings` budget (30 a minute, 60 at once). No argument may carry a
+ * secret (`SECRET_ARGUMENT_REFUSED`); further codes `SETTINGS_KIND_UNAVAILABLE`,
+ * `SETTINGS_NOT_FOUND` and `SETTINGS_DUPLICATE`. The kinds served are the
+ * organization's own providers and their environment credentials, its
+ * policies, embedding model and branding, the deployment's settings, and a
+ * project's instructions and its agents' instructions and tools and a
+ * task's description, each through the writer its Settings page uses.
+ * `get_docs` takes the topic `settings` (also `tale://docs/settings`): every
+ * kind with its config's fields, the effects of a plan and every refusal.
+ * The server instructions and the Tale skill name the settings loop. No
+ * REST operation changes.
+ *
+ * 3.31.0 — 2026-10-10: two connector node types call any HTTPS API from the
+ * new `http` connector: `http.get` reads and `http.send` writes, behind
+ * approval like every write. A credential of the connector holds the API's
+ * base URL and signs the request; a step without one reaches public HTTPS
+ * hosts only. A connector step's `credential` now names the stored
+ * credential it acts as (it was accepted and ignored), and a connector whose
+ * credential is optional runs a step that names none without any.
+ * `StepFailure.reason` gains the HTTP connector's causes: `HTTP_STATUS`,
+ * `HTTP_TIMEOUT`, `HTTP_UNREACHABLE`, `HTTP_BLOCKED_HOST`, `HTTP_OFF_ORIGIN`,
+ * `HTTP_URL_INVALID`, `HTTP_HEADER_RESERVED`, `HTTP_TOO_LARGE`,
+ * `HTTP_NOT_JSON` and `HTTP_RATE_LIMITED`. Validation answers four more
+ * codes: `HTTP_URL_NOT_HTTPS` (a warning), `HTTP_SECRET_IN_URL` and
+ * `HTTP_HEADER_RESERVED` (errors) for an HTTP step's written-out address and
+ * headers, and `CREDENTIAL_UNKNOWN` (a warning) for a connector step that
+ * names a credential its connector does not hold in service. The rate-limit
+ * catalog gains `automation:http`, 120 calls a minute per organization.
+ *
+ * 3.32.0 — 2026-10-10: a `knowledge.search` connector node type searches the
+ * organization's knowledge from an automation and returns ranked passages,
+ * reading what the run may read (its project's documents, its automation's
+ * bound projects', or the hub's) and spending under the run's subject.
+ * `StepFailure.reason` gains `KNOWLEDGE_NOT_CONFIGURED` and
+ * `KNOWLEDGE_UNAVAILABLE`, and `BUDGET_EXCEEDED` for a step a usage limit
+ * refused — an `llm` step's refusal, which read `UNKNOWN`, now says so. A
+ * step of a platform connector (`task`, `document`, `conversation`,
+ * `sandbox`, `knowledge`) takes no `credential`, which it ignored:
+ * validation answers `NODE_UNKNOWN_FIELD` for one.
+ *
+ * 3.33.0 — 2026-10-10: `Run.failureCode` gains `connector_unavailable`, for a
+ * connector whose service did not answer, answered too slowly, was busy or
+ * failed on its own side (a 429 or a 5xx): it neither counts toward a
+ * schedule's pause nor resets the count, where `connector_error` counted. A
+ * live connector failure that names no cause is now classified by the
+ * status the service answered (`CONNECTOR_AUTH`, `CONNECTOR_NOT_FOUND`,
+ * `CONNECTOR_RATE_LIMITED`, `CONNECTOR_UNREACHABLE`, `CONNECTOR_FAILED`),
+ * as a test run's always was; it read `UNKNOWN`.
  */
-export const API_CONTRACT_VERSION = '3.27.0';
+export const API_CONTRACT_VERSION = '3.33.0';

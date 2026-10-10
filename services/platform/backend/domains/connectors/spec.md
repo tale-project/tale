@@ -143,6 +143,96 @@ file store.
   fifth is refused as busy; a listing still paging after its minute is cut off at its next
   request, and a Gmail attachment the agent reads is not saved to the organization's files.
 
+## Calling any HTTPS API
+
+The HTTP connector lets an automation step call an outside API it has no connector for:
+`http.get` reads and `http.send` writes, behind an approval like every write. A credential of
+the connector holds the API's base URL and signs the call with a bearer token, an API key in a
+header, or a user name and password.
+
+### CONN-R15 · A call without a credential carries none, and reaches public HTTPS hosts only
+
+A step that names no credential is never signed with the organization's default one. It may
+call a public address over HTTPS, and never a private network address or a cloud metadata
+address.
+
+- **Example**: Ada's step reads `https://status.example.com/api` without a credential → the
+  call goes out unsigned. Her step on `http://169.254.169.254/latest` is refused before any
+  request leaves (`HTTP_BLOCKED_HOST`).
+
+### CONN-R16 · A credentialed call stays under its credential's base URL, redirects included
+
+A path is placed under the base URL; a full address must start with it, with the same scheme,
+host and port. A redirect may not leave the base's host, and an answer whose redirects ended
+outside the base is refused (`HTTP_OFF_ORIGIN`).
+
+- **Example**: The credential Shop API holds `https://api.shop.example/v2`. Noah's step reads
+  `/orders` → `https://api.shop.example/v2/orders`. His step on `/../admin` is refused before
+  any request leaves.
+
+### CONN-R17 · Only the credential signs an HTTP call, and nothing handed back carries it
+
+A step may not set `Authorization`, `Cookie` or the API key header (`HTTP_HEADER_RESERVED`).
+The answer keeps an allowlist of headers, and every value of the credential is replaced with
+`[redacted]` wherever the answer or a failure would carry it.
+
+- **Example**: An API echoes the request's bearer token in its body → the step's output and
+  the run's record read `[redacted]` where the token was.
+
+### CONN-R18 · An organization's HTTP calls are bounded
+
+An organization's steps make at most 120 HTTP calls a minute across the deployment and 10 at
+once in one server process; a call over the minute's budget is refused, and one over the
+number at once waits for a slot as long as its own timeout allows (`HTTP_RATE_LIMITED`).
+
+- **Example**: A step loops over 500 orders, calling the API for each → the 121st call within
+  the minute fails, saying the organization made too many HTTP calls.
+
+### CONN-R19 · A connector step acts as the credential it names
+
+A step's `credential` names the stored credential by id or by name, whatever its case. A step
+that names none acts as the organization's default credential for the connector — or, where
+the connector's credential is optional, as none (`CONN-R15`).
+
+- **Example**: Mia's automation has two GitHub credentials, Release bot and Triage bot. Her
+  step names `release bot` → the call is made as Release bot.
+
+## Searching the organization's knowledge
+
+The Knowledge connector lets an automation step search the organization's documents and its
+indexed web pages: `knowledge.search` returns the passages that match a query best, for a
+later step to use. It changes nothing.
+
+### CONN-R20 · A knowledge search searches as its automation run, and only as one
+
+Which run a search belongs to comes from the call itself, never from the step's input. A call
+that is not a step of an automation run — a person's, the system's — is refused before
+anything is searched.
+
+- **Example**: Ada's step searches for "refund window" in her automation's run → the search
+  runs as that run. A call naming no run is refused (`CALLER_UNKNOWN`).
+
+### CONN-R21 · A refused knowledge search says why
+
+A search with no embedding model to use fails with `KNOWLEDGE_NOT_CONFIGURED`, one the
+embedding provider refused or failed with `KNOWLEDGE_UNAVAILABLE`, and one a usage limit
+refused with `BUDGET_EXCEEDED` — a refusal the run counts as a limit, not as a connector that
+always fails.
+
+- **Example**: The organization has no embedding model → Noah's run fails at its search step,
+  saying knowledge search isn't set up and where an administrator chooses a model.
+
+### CONN-R22 · A knowledge search reads what its run may read, and spends as the run
+
+A run in a project reads that project's documents; a run of an automation bound to projects,
+started for the whole organization, reads those projects'; an automation bound to none reads
+only the documents every member shares. Never a team library the run is not given, and never
+a conversation's uploads or mail. Embedding the query counts toward the limits that bind the
+run, as an `llm` step's call does.
+
+- **Example**: Mia's automation runs in the project Website relaunch → its search finds the
+  project's files and the shared documents, and never a file of Customer onboarding portal.
+
 ## Not yet
 
 - **The catalog of connectors**, what each can do, and which need an approval before they

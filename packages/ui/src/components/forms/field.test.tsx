@@ -136,6 +136,39 @@ describe('Field', () => {
     });
   });
 
+  // A contenteditable control (a code editor) is not labelable: `<label
+  // for>` names nothing, so Field points `aria-labelledby` at its label.
+  describe('controls named by aria-labelledby', () => {
+    function Editable(props: Record<string, unknown>) {
+      return <div role="textbox" tabIndex={0} {...props} />;
+    }
+    const Named = Object.assign(Editable, {
+      fieldLabelling: 'labelledby' as const,
+    });
+
+    it('names the control by its label', () => {
+      const { getByRole } = render(
+        <Field label="Code" htmlFor="code">
+          <Named id="code" aria-labelledby="extra" />
+        </Field>,
+      );
+      expect(getByRole('textbox', { name: 'Code' })).toBeInTheDocument();
+      const labelledBy =
+        getByRole('textbox').getAttribute('aria-labelledby') ?? '';
+      expect(labelledBy.split(' ')[0]).toBe('extra');
+    });
+
+    it('leaves an ordinary control to <label for>', () => {
+      const { getByRole } = render(
+        <Field label="Email" htmlFor="email">
+          <Input id="email" />
+        </Field>,
+      );
+      expect(getByRole('textbox')).not.toHaveAttribute('aria-labelledby');
+      expect(getByRole('textbox', { name: 'Email' })).toBeInTheDocument();
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit with label + description', async () => {
       const { container } = render(

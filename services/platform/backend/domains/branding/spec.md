@@ -3,8 +3,19 @@
 > **Prefix** `BRAND-` · **Docs** [`admin/branding`](../../../../../docs/en/platform/admin/branding.md)
 
 An organization can carry its own logo, browser-tab icons and accent color. These rules cover
-what can be uploaded as an image and what a save records. Who can change the branding and who
-can read it are not covered; see Not yet.
+who can change the branding, what can be uploaded as an image and what a save records. Who can
+read it is not covered; see Not yet.
+
+## Who can change it
+
+### BRAND-R5 · Only owners and admins can change the branding
+
+Reading the stored branding for editing, saving it and uploading or deleting its images take the
+owner or admin role. Anyone else is refused (`ORG_FORBIDDEN`) with the sentence naming the
+capability their role lacks, before anything is read or saved.
+
+- **Example**: Noah is a developer. He saves a new accent color → refused, and the branding stays
+  as it was; Ada, an admin, saves the same color → it is saved.
 
 ## What can be uploaded
 
@@ -46,8 +57,6 @@ The entry lists the fields that were added, removed or changed.
 
 ## Not yet
 
-- **Who can change the branding**: owners and admins, as the user docs say. No test holds it
-  yet (`routes.ts`).
 - **Who can read the branding**: it is readable without signing in, because the sign-in page
   shows it. No test holds it yet (`routes.ts`).
 - **Limits on an image's size and type**, and the icon derived from a logo when none is

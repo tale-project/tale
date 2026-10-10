@@ -16,6 +16,7 @@
  */
 
 import { registerNativeImpl } from '../dispatcher';
+import { httpNatives, type HttpNativeDeps } from './http';
 import {
   imapSmtpNatives,
   nodeMailTransport,
@@ -32,6 +33,10 @@ import {
   platformDocumentNatives,
   type WorkflowDocumentStore,
 } from './platform-documents';
+import {
+  knowledgeNatives,
+  type WorkflowKnowledgeSearch,
+} from './platform-knowledge';
 import { platformTaskNatives, type WorkflowTaskStore } from './platform-tasks';
 import {
   sandboxScriptNatives,
@@ -81,6 +86,11 @@ export {
   type WorkflowDocumentStore,
   type WorkflowFolderFile,
 } from './platform-documents';
+export {
+  type KnowledgeRunHit,
+  type KnowledgeRunRefusal,
+  type WorkflowKnowledgeSearch,
+} from './platform-knowledge';
 
 /**
  * What the natives need from the platform.
@@ -101,12 +111,18 @@ export interface NativeConnectorDeps {
   readonly tasks: WorkflowTaskStore;
   readonly documents: WorkflowDocumentStore;
   readonly conversations: WorkflowConversationStore;
+  /** The knowledge domain's search, as an automation run — same rationale:
+   * what a run reads and whose spend it is come from the run itself. */
+  readonly knowledge: WorkflowKnowledgeSearch;
   /** Outbound mail attachment bytes, by org-scoped blob ref — required for
    * the same reason: the mail native must never read a file or a URL a
    * caller names, so the org's blob store is its only source of bytes. */
   readonly mailAttachments: MailAttachmentResolver;
   readonly mailTransport?: MailTransport;
   readonly mailConfig?: MailboxConfigResolver;
+  /** The HTTP connector's lane and outbound client. A host leaves the
+   * budget out only where nothing outside a test calls an API. */
+  readonly http?: HttpNativeDeps;
 }
 
 /** The impl ids the shipped native actions declare — the contract this
@@ -127,9 +143,12 @@ export const NATIVE_IMPL_IDS = [
   'glitchtip.get_import_issue',
   'glitchtip.list_import_issues',
   'glitchtip.refresh_import_issues',
+  'http.get',
+  'http.send',
   'imap-smtp.list_messages',
   'imap-smtp.get_message',
   'imap-smtp.send',
+  'knowledge.search',
   'sandbox.run_script',
   'task.comment',
   'task.get',
@@ -160,11 +179,13 @@ export function registerNativeConnectors(
 ): () => void {
   const impls = {
     ...issueImportNatives(),
+    ...httpNatives(deps.http ?? {}),
     ...imapSmtpNatives({
       transport: deps.mailTransport ?? nodeMailTransport(),
       resolveAttachment: deps.mailAttachments,
       ...(deps.mailConfig !== undefined && { resolveConfig: deps.mailConfig }),
     }),
+    ...knowledgeNatives(deps.knowledge),
     ...platformConversationNatives(deps.conversations),
     ...platformDocumentNatives(deps.documents),
     ...platformTaskNatives(deps.tasks),

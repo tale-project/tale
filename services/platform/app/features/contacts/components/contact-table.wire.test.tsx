@@ -6,20 +6,41 @@
  * are stubbed as in `contact-table.test.tsx`.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  defaultParseSearch,
+  defaultStringifySearch,
+} from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
+import { i18n } from '@/lib/i18n/i18n';
+import { CONTACT_SOURCES } from '@/lib/shared/contact-sources';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 import {
   syntheticBackend,
   type SyntheticBackend,
 } from '@/tests/utils/synthetic-backend';
 
+import { getContactSourceLabel } from '../lib/contact-data';
 import { ContactsTable } from './contact-table';
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+const { navigate } = vi.hoisted(() => ({
+  navigate:
+    vi.fn<
+      (args: {
+        to: string;
+        params: { id: string };
+        search: (
+          prev: Record<string, string>,
+        ) => Record<string, string | undefined>;
+      }) => void
+    >(),
+}));
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => navigate,
 }));
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true, cannot: () => false }),
@@ -71,6 +92,10 @@ const directory = [
   wireContact('Audit fr', 'fr', 'manual_import'),
   wireContact('Audit fr-CH', 'fr-CH', 'manual_import'),
   wireContact('Upload en', 'en', 'file_upload'),
+  wireContact('API en', 'en', 'api_import'),
+  wireContact('Conversation en', 'en', 'conversation'),
+  wireContact('Shopify en', 'en', 'shopify'),
+  wireContact('Webhook en', 'en', 'webhook'),
 ];
 
 /** The contacts door as the list reaches it: each facet its address names
@@ -93,6 +118,7 @@ let backend: SyntheticBackend;
 beforeEach(() => {
   // The adapters resolve the active organization from the page's address.
   window.history.pushState({}, '', `/dashboard/${ORG}/contacts`);
+  navigate.mockReset();
   backend = syntheticBackend();
   backend.on(/^GET \/api\/app\/contacts\/count\?/, () =>
     Response.json({ count: directory.length }),
@@ -118,6 +144,8 @@ function renderTable(props: { source?: string; locale?: string } = {}) {
     </QueryClientProvider>,
   );
   return {
+    user: view.user,
+    unmount: view.unmount,
     rerender: (next: { source?: string; locale?: string }) =>
       view.rerender(
         <QueryClientProvider client={client}>
@@ -145,6 +173,66 @@ const listReads = () =>
   backend.calls.filter((call) => call.startsWith('GET /api/app/contacts?'));
 
 describe('the Contacts facets over the real list read', () => {
+  it('offers the complete supported Source catalog with the existing labels', async () => {
+    const { user } = renderTable();
+    await waitFor(() => expect(listedNames()).toHaveLength(directory.length));
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: 'Source' }));
+    expect(screen.getAllByRole('radio')).toHaveLength(CONTACT_SOURCES.length);
+    for (const source of CONTACT_SOURCES) {
+      const label = getContactSourceLabel(
+        source,
+        (key) => i18n.t(key, { ns: 'contacts' }),
+        source,
+      );
+      expect(screen.getByRole('radio', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it.each([
+    ['shopify', 'Shopify', 'Shopify en'],
+    ['webhook', 'Webhook', 'Webhook en'],
+    ['manual_import', 'Manual', 'Audit en'],
+    ['file_upload', 'Upload', 'Upload en'],
+    ['api_import', 'API', 'API en'],
+    ['conversation', 'Conversation', 'Conversation en'],
+  ])(
+    'selects %s and restores its filtered rows from the URL',
+    async (source, label, name) => {
+      const view = renderTable({ locale: 'en' });
+      await waitFor(() => expect(listedNames()).toContain(name));
+      await view.user.click(screen.getByRole('button', { name: 'Filter' }));
+      await view.user.click(screen.getByRole('button', { name: 'Source' }));
+      await view.user.click(screen.getByRole('radio', { name: label }));
+      expect(navigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '/dashboard/$id/contacts',
+          params: { id: ORG },
+          search: expect.any(Function),
+        }),
+      );
+      const navigation = navigate.mock.lastCall?.[0];
+      if (!navigation) throw new Error('Expected source navigation');
+      const nextSearch = navigation.search({ locale: 'en', query: 'kept' });
+      expect(nextSearch).toEqual({ locale: 'en', query: 'kept', source });
+      const url = `/dashboard/${ORG}/contacts${defaultStringifySearch(nextSearch)}`;
+      window.history.pushState({}, '', url);
+      const restored = z
+        .object({ source: z.string(), locale: z.string() })
+        .parse(defaultParseSearch(window.location.search));
+      expect(restored.source).toBe(source);
+      view.unmount();
+      renderTable({
+        source: restored.source,
+        locale: restored.locale,
+      });
+      await waitFor(() => expect(listedNames()).toEqual([name]));
+      expect(listReads().at(-1)).toBe(
+        `GET /api/app/contacts?limit=20&source=${source}&locale=en&orgId=${ORG}`,
+      );
+    },
+  );
+
   // #3618: the Locale facet showed as active while the list asked for, cached
   // and rendered every contact.
   it('lists only the French contacts under the French Locale', async () => {
@@ -160,7 +248,7 @@ describe('the Contacts facets over the real list read', () => {
 
   it('reads the list again when the Locale changes, and back', async () => {
     const view = renderTable();
-    await waitFor(() => expect(listedNames()).toHaveLength(4));
+    await waitFor(() => expect(listedNames()).toHaveLength(directory.length));
 
     view.rerender({ locale: 'fr' });
     await waitFor(() =>
@@ -168,7 +256,7 @@ describe('the Contacts facets over the real list read', () => {
     );
 
     view.rerender({});
-    await waitFor(() => expect(listedNames()).toHaveLength(4));
+    await waitFor(() => expect(listedNames()).toHaveLength(directory.length));
     expect(listReads().slice(0, 2)).toEqual([
       `GET /api/app/contacts?limit=20&orgId=${ORG}`,
       `GET /api/app/contacts?limit=20&locale=fr&orgId=${ORG}`,

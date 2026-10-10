@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import { QuestionFlow } from './question-flow';
 
@@ -51,6 +51,60 @@ const MULTI: QuestionSet = {
 };
 
 describe('QuestionFlow', () => {
+  it.each(['mirror', 'native', 'Safari'])(
+    'does not advance a composing answer (%s)',
+    async (signal) => {
+      const onSubmit = vi.fn();
+      const { user } = render(<QuestionFlow set={THREE} onSubmit={onSubmit} />);
+      await user.click(screen.getByRole('radio', { name: /Other/ }));
+      const field = screen.getByRole('textbox');
+      fireEvent.compositionStart(field);
+      fireEvent.change(field, { target: { value: 'にほん' } });
+      if (signal !== 'mirror') fireEvent.compositionEnd(field);
+      expect(
+        fireEvent.keyDown(field, {
+          key: 'Enter',
+          isComposing: signal === 'native',
+          keyCode: signal === 'Safari' ? 229 : 13,
+        }),
+      ).toBe(true);
+      expect(
+        screen.queryByText('Who is the recipient?'),
+      ).not.toBeInTheDocument();
+      expect(field).toHaveValue('にほん');
+      expect(onSubmit).not.toHaveBeenCalled();
+      fireEvent.compositionEnd(field);
+      fireEvent.change(field, { target: { value: '日本' } });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      expect(screen.getByText('Who is the recipient?')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Back' }));
+      expect(screen.getByRole('textbox')).toHaveValue('日本');
+    },
+  );
+
+  it('submits a final answer once after composition, leaving Shift+Enter and blur alone', async () => {
+    const onSubmit = vi.fn();
+    const { user } = render(<QuestionFlow set={ONE} onSubmit={onSubmit} />);
+    await user.click(screen.getByRole('radio', { name: /Other/ }));
+    const field = screen.getByRole('textbox');
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: 'にほん' } });
+    fireEvent.keyDown(field, { key: 'Enter', isComposing: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(field);
+    fireEvent.change(field, { target: { value: '日本' } });
+    expect(fireEvent.keyDown(field, { key: 'Enter', shiftKey: true })).toBe(
+      true,
+    );
+    fireEvent.keyDown(field, { key: 'Escape' });
+    fireEvent.blur(field);
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith([
+      { questionId: 'tone', selected: [], freeText: '日本' },
+    ]);
+  });
+
   it('shows only the current question, never the whole set', () => {
     render(<QuestionFlow set={THREE} onSubmit={vi.fn()} />);
     expect(

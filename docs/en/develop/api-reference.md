@@ -574,7 +574,7 @@ Responses always carry the real name (`"name": "billing/dunning"`); the `__` for
 
 ### Read the version that will run
 
-`GET /api/v1/automations` lists each automation with its `latestVersion`, `deployedVersion` and `projectIds` — the projects it is installed in, which the run routes below require — plus what a launcher needs without a second call: its `description`, the `inputs` schema a run must match (the deployed version's, else the newest saved one's) and its `trigger` — kind, switch and health: `lastFiredAt`, `lastSkippedAt` and `lastSkipReason`, the same stamps `GET .../triggers` reads, so one listing call finds every binding that is enabled and not firing — or `null` when none is bound.
+`GET /api/v1/automations` lists each automation with its `latestVersion`, `deployedVersion` and `projectIds` — the projects it is installed in, which the run routes below require — plus what a launcher needs without a second call: its `description`, the `inputs` schema a run must match (the deployed version's, else the newest saved one's) and its `trigger` — kind, switch, `nextRunAt` and health: `lastFiredAt`, `lastSkippedAt` and `lastSkipReason`, the same stamps `GET .../triggers` reads, so one listing call finds every binding that is enabled and not firing — or `null` when none is bound.
 
 An automation installed only in projects the key holder cannot read is left out of the list, and `GET /api/v1/automations/{name}`, its versions and its triggers answer **404** `AUTOMATION_NOT_FOUND` for it, as for one that does not exist; an automation installed nowhere is the whole organization's.
 
@@ -599,9 +599,33 @@ curl -sS --compressed -X PUT "https://your-host.example.com/api/v1/automations/b
 
 ### Choose the trigger kind
 
-`kind` is `schedule` (with a five-field `cron` and an optional IANA `timezone`), `webhook` (the response carries the URL's `token` once — the [Webhooks page](/develop/webhooks) covers that endpoint) or `event`. A trigger that could never fire is refused with **400** `AUTOMATION_TRIGGER_INVALID` and a sentence naming the fix: a cron that matches nothing (including a day no named month has, `0 0 30 2 *`), a time zone that is not an IANA zone, an event the platform does not raise.
+`kind` is `schedule`, `webhook` (the response carries the URL's `token` once — the [Webhooks page](/develop/webhooks) covers that endpoint) or `event`. A schedule runs on a repeat rule or on a cron expression, never both (contract 3.24.0):
 
-Each kind takes its own keys — `cron` and `timezone` only with `schedule`, `event` only with `event`, `rotateToken` only with `webhook` — and a key that belongs to another kind is refused as an unknown key (**400** `INVALID_BODY`, naming it under `data.issues`), so a webhook trigger can never read back as one that also runs on a schedule. An event trigger binds one of the events the platform raises today, and the run's input is `{ "trigger": "event", "event": "<name>", "payload": <the event's data> }`:
+- `repeat` is a `ScheduleRule`, the rule the app's schedule picker writes. A `daily`, `weekly`, `monthly` or `yearly` rule runs at one to twelve local `times`, written `HH:MM`; a `minutely` or `hourly` rule starts every few minutes or hours, at `minute` past the hour for `hourly`, optionally only on some weekdays and between two times (`window`). It needs a `timezone`. `startDate`, a `YYYY-MM-DD` day in that zone, is the first day it may run and the day "every 2 weeks" counts from; left out, it is today, so send back the one `GET .../triggers` reads to keep a rule in step.
+- `cron` is a five-field expression, read in `timezone`, or in UTC without one.
+
+```json
+{
+  "kind": "schedule",
+  "repeat": {
+    "frequency": "weekly",
+    "interval": 1,
+    "weekdays": [1, 2, 3, 4, 5],
+    "times": ["09:00", "17:30"]
+  },
+  "timezone": "Europe/Zurich",
+  "catchUp": "latest",
+  "input": { "region": "emea" }
+}
+```
+
+Weekdays count from 0 for Sunday. A local time the clock skips starts once, moved forward by the gap, and one it repeats starts once, at its first occurrence; a `minutely` or `hourly` rule, like a cron whose minute or hour starts with `*`, keeps its real-time spacing instead. `catchUp` decides what a schedule does with occurrences it missed while the platform was not running: `latest`, the default, starts the most recent one once, however late; `skip` starts it only when it is at most ten minutes late. Either way the others are counted, not run.
+
+Every kind also takes `enabled` (left out, it is `true`) and `input`, a fixed input: a JSON object of at most 16 KiB that every run the trigger starts receives, with the trigger's own `trigger`, `firedAt`, `event` and `payload` set over it — it cannot name them. It is plain data; a template in it arrives as text. The `PUT` replaces the whole trigger, so a field it leaves out is reset.
+
+A trigger that breaks a rule or could never fire is refused with **400** `AUTOMATION_TRIGGER_INVALID`, each problem under `data.issues` as `{ "path", "code", "message" }`: neither `repeat` nor `cron`, or both (`schedule.cron_or_repeat`); a cron that matches nothing, including a day no named month has (`0 0 30 2 *`); a time not written `HH:MM`, more than twelve times, an interval the rule does not offer, a day the month never has, or a window in which no start ever falls; a blank time zone or one that is not an IANA zone; a fixed input that is not an object, names one of the trigger's own fields or is larger than 16 KiB; an event the platform does not raise.
+
+Each kind takes its own keys — `cron`, `repeat`, `startDate`, `timezone` and `catchUp` only with `schedule`, `event` only with `event`, `rotateToken` only with `webhook`, `enabled` and `input` with any — and a key that belongs to another kind is refused as an unknown key (**400** `INVALID_BODY`, naming it under `data.issues`), so a webhook trigger can never read back as one that also runs on a schedule. An event trigger binds one of the events the platform raises today, and the run's input is `{ "trigger": "event", "event": "<name>", "payload": <the event's data> }` beside any fixed input:
 
 | Event                                                   | Raised when                                                                                                             |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -618,13 +642,13 @@ A comment event's `comment` carries `body` as stored, with each mention as a men
 
 ### Check trigger health and pause safely
 
-`GET .../triggers` reads the binding back — as `triggers`, a list of at most one, the one plural in the family — with its health: `lastFiredAt` is the last time this binding **started a run** — `lastRunId` names it, and both stay `null` until it has — while `lastSkippedAt` and `lastSkipReason` record the last time it came due and started nothing: `not_deployed` (nothing is deployed — deploy a version), `unusable_cron` (the expression or zone could not be read; the scheduler leaves the binding alone until it is edited), `start_refused` (the deployed version's `inputs` schema refused the run's input) or `paused_after_failures` (a schedule that turned itself off after repeated failures — see below). A webhook delivery the deployed `inputs` schema refuses is a different case: it is answered **400** `AUTOMATION_INPUT_INVALID` to the sender and starts nothing, and it moves none of these stamps — the binding did not come due, so a webhook whose every delivery is refused reads the same as one that has never been called. Verify deliveries from the sender's side.
+`GET .../triggers` reads the binding back — as `triggers`, a list of at most one, the one plural in the family — with what it was saved with (`repeat` and `startDate` or `cron`, `timezone`, `catchUp`, `input`), its next start (`nextRunAt`, `null` while it is switched off or for a webhook or an event) and its health: `lastFiredAt` is the last time this binding **started a run** — `lastRunId` names it, and both stay `null` until it has — while `lastSkippedAt` and `lastSkipReason` record the last time it came due, or an event arrived, and started nothing: `not_deployed` (nothing is deployed — deploy a version), `unusable_cron` (the schedule or its zone could not be read; the scheduler leaves the binding alone until it is edited), `start_refused` (the start was refused — the deployed version's `inputs` schema refused the run's input, or the run's project could not take it, such as an archived project for an event; `lastSkipDetail.code` says which), `missed_occurrences` (occurrences came due while the platform was not running, as `catchUp` describes) or `paused_after_failures` (a schedule that turned itself off after repeated failures — see below). `lastSkipDetail` holds the facts behind the reason: the `occurrence` it was about, a refusal's `code`, the `version` that refused it, its `message` and `issues`, and `missed` — `count` (up to 1,000, `capped` past it), `firstAt`, `lastAt` and the `policy` — when occurrences were missed. A pause after failures has no detail; its facts are the failure fields below. A webhook delivery the deployed `inputs` schema refuses is a different case: it is answered **400** `AUTOMATION_INPUT_INVALID` to the sender and starts nothing, and it moves none of these stamps — the binding did not come due, so a webhook whose every delivery is refused reads the same as one that has never been called. Verify deliveries from the sender's side.
 
 A binding is alive when `lastFiredAt` keeps pace with its cadence; one whose `lastSkippedAt` is the newer stamp is coming due and not running, and the reason says what to fix. A rebind to another kind starts every stamp afresh. `enabled: false` pauses a trigger without losing it; `DELETE .../triggers` removes it — and, for a webhook, revokes the URL. So does binding another kind over a live webhook: the `PUT` still returns **200**, with `"revoked": "webhook"` beside the name, and the old URL is gone for good — a later webhook bind mints a different token.
 
 A schedule whose runs keep failing pauses itself. `consecutiveFailures` counts the runs this binding started that failed in a row with a `failureCode` the next occurrence would repeat — `node_error`, `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`, `credit_exhausted` or `model_not_found` — and `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of them. A success sets the count back to `0`, and any other failure neither counts nor resets it. A schedule that has paused itself (`enabled: false` with `lastSkipReason: "paused_after_failures"`) is the exception: it keeps the count that paused it, even when a run still in flight at the pause succeeds afterwards, and only a `PUT` clears it. When a schedule's count reaches five, the platform sets `enabled: false` and `lastSkipReason: "paused_after_failures"`, writes an `automation.trigger.paused` audit row, and notifies the organization's Owners and Admins. Fix the automation, then `PUT` the trigger with `enabled: true`. Every `PUT` resets the count and clears that reason, and one that omits `enabled` turns the trigger back on, since `enabled` defaults to `true`. Webhook and event bindings keep the count but are never paused (contract 3.1.0).
 
-The `PUT` also returns `deployed`: binding before deploying is accepted, and a trigger bound to an automation with no deployed version starts nothing — every occurrence is skipped as `not_deployed`, which the row's `trigger` on `GET /api/v1/automations` shows — until a version is deployed.
+The `PUT` also returns `deployed`: binding before deploying is accepted, and a trigger bound to an automation with no deployed version starts nothing — every occurrence is skipped as `not_deployed`, which the row's `trigger` on `GET /api/v1/automations` shows — until a version is deployed. A schedule's answer adds `nextRunAt`. When a version is deployed, the answer adds `warnings` for what that version would make of the trigger's input; the trigger is saved either way. `TRIGGER_INPUT_MISMATCH` means its `inputs` schema refuses what the trigger hands a run, naming the required fields it lacks under `params.missing` (a webhook's body is not judged), and `TRIGGER_INPUT_NOT_TEMPLATED` means the fixed input holds a template, which arrives as text.
 
 ## Start a run, then poll it
 
@@ -655,7 +679,7 @@ A run a trigger started (`startedBy: "trigger:<id>"`) also carries `startedVia` 
 
 | Failure family | Examples and next action |
 | --- | --- |
-| Automation engine | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt`: inspect the failed node and its trace. Correct the input or definition; if a person rejected an operation, address their reason before requesting another run. |
+| Automation engine | `node_error`, `connector_error`, `connector_unavailable`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt`: inspect the failed node and its trace. Correct the input or definition; if a person rejected an operation, address their reason before requesting another run. |
 | Model provider | Codes such as `credit_exhausted` or `rate_limited`: resolve the provider condition before another attempt. |
 | Agent execution | Codes such as `harness_error`, `session_gone`, or `deadline`: inspect the agent’s detail and limits. The complete enum is in OpenAPI. |
 | Budget limit | `budget_exceeded`: a budget limit refused an agent turn or an `llm` step’s call, or an agent turn used up the allowance it started with. Read `detail`, then wait until the limit resets or ask an administrator to raise it. |
@@ -683,6 +707,42 @@ The project in the URL is the context for the run's task and document tools. An 
 Listings answer summaries — identity, scope, status and timing, each row naming the run as `id` and, under the name the start answered, `runId`, one value under both names — newest first as `{ "runs": [...], "isDone": ..., "continueCursor": ... }`: add `?status=failed` (one or more statuses, comma-separated) to narrow them, `?include=input,output` (also `trace`, `effects`, `checkpoints`) to inline the full-row fields a summary leaves out — an inlining page reads at most 25 rows, is bounded at 8 MiB of them, and ends early, `isDone: false`, when the next row would not fit — and pass `continueCursor` back as `?cursor=` until `isDone`.
 
 `GET /api/v1/runs` is the cross-cutting view: every run the key holder can see, organization runs and the runs of visible projects alike, each row naming its `projectId`. For an automation with no bindings, `POST /api/v1/automations/{name}/runs` starts a non-project run; a bound automation returns **409** there. `GET /api/v1/automations/{name}/runs` and `/api/v1/runs/{runId}` expose only non-project runs. A project run requires its project URL for reading, cancellation and deletion. `DELETE /api/v1/projects/{id}/runs/{runId}` (or `/api/v1/runs/{runId}`) removes a finished run — stored input and output included — under the developer capability; a run still in flight returns **409** `RUN_ACTIVE`, so cancel it first.
+
+### Read a run step by step
+
+`GET /api/v1/runs/{runId}/record` (or the project form) answers the run's record: every step in the order it runs — the run input as `__start`, the version's steps, the document output as `__end` — with its status, times and attempts, the decisions that ran or skipped it (each condition explained with the values it read), why it produced no output, followed back to the cause, why it failed (a `reason` from a fixed list, with the `params` it is worded with), and glimpses of what it received and returned. The values themselves stay out of the record: read one step whole at `…/record/node?node=<path>`, and add `item` or `pass` for one of its items or passes. `…/record/items?node=<path>` pages a step's items and passes; `status=failed` keeps the ones that failed. `…/compare/{otherRunId}` compares two runs of the same automation step by step and names the first step where they went different ways; runs of different automations return **400** `RUN_COMPARE_MISMATCH`. Each read takes the same access as reading the run, and secrets are withheld everywhere.
+
+To follow a run while it works, pass the record's `cursor` back as `since`: the answer then carries only the steps written since and the events since — merge steps by `path` and events by `id`. A record stays under 512 KiB and one step under 256 KiB; `truncated` says what was left out to fit. These reads need API contract 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "format": 1, "nodes": [{ "path": "__start", "status": "succeeded", … },
+#   { "path": "triage", "status": "skipped", "skip": { "reason": "when", … },
+#     "decisions": [{ "kind": "when", "result": false, "explanation": [ … ] }] }, …],
+#   "cursor": 1758210000000 }
+```
+
+### Run a run again
+
+`POST /api/v1/runs/{runId}/replay` (or the project form) starts a new run of the same automation, in the run's own scope: with the run's input (`"kind": "again"`), with an `input` you send (`"edited"`), or from one step (`"from"` with `from`). A replay from a step reuses the steps the run finished outside that step and what it feeds — their results and their record, never their effects — and runs the rest; the new run's `replayOf` names the run it replays. `version` picks the version (`same` by default, or `deployed`, `latest`, a number) and `mode` the mode (the run's own by default). A live replay needs the developer capability and the deployed version, and a replay from a step of a mock run stays mock (**409** `REPLAY_MODE_MISMATCH`).
+
+A step that writes runs again and writes again, under a new request key, so services that ignore repeated requests won't treat it as a repeat. Plan first: `GET …/replay` with the same request in the query answers what it reuses, what runs again, what each step does outside Tale, and `writesAgain`, the writes that go out a second time — or the `refusal` it would meet: the run has not finished (`REPLAY_RUN_NOT_FINISHED`), the version to run changed what a reused step computes (`REPLAY_GRAPH_CHANGED`, with the steps), no such step (`REPLAY_NODE_UNKNOWN`), or the run kept no input (`REPLAY_INPUT_UNAVAILABLE`). Send `Idempotency-Key` to make the replay safe to retry. These doors need API contract 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/replay?kind=from&from=send" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "reuse": [{ "nodeId": "fetch", "status": "ok" }], "rerun": [{ "nodeId": "send", "effect": "write", … }],
+#   "writesAgain": 1, … }
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/runs/<runId>/replay" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: fix-4711" \
+  -d '{ "kind": "from", "from": "send" }'
+# → 202 { "runId": "...", "version": 3, "mode": "live", "kind": "from", "reused": 1 }
+```
 
 ## Act for a member: answer a run’s question, decide a task’s review
 

@@ -60,6 +60,18 @@ const envSchema = z.object({
     .max(256)
     .default(8),
   /**
+   * Most runner processes this process evaluates automation code in
+   * (`backend/lib/code-runner.ts`); unset, two for the api and one per core
+   * but one, at most four, for a worker. Each starts only when the others
+   * are busy, and one beyond the first stops after five idle minutes.
+   */
+  AUTOMATION_RUNNER_PROCESSES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(16)
+    .optional(),
+  /**
    * How long a stopping process waits for its jobs before it fails what is
    * left (`shutdown-sequence.ts`); unset, 15 s for the api and 90 s for a
    * worker. Keep the container's stop grace at least 15 s above it.

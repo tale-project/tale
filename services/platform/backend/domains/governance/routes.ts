@@ -1,22 +1,10 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
-import {
-  DEFAULT_SANDBOX_QUOTA,
-  dsarGovernanceConfigSchema,
-  isFilePolicyType,
-  isPolicyReadableByMember,
-  POLICY_SCHEMAS,
-  sandboxQuotaConfigSchema,
-  sandboxQuotaTotal,
-  sandboxWorkspacesConfigSchema,
-  standardAgentConfigSchema,
-} from '@tale/shared/schemas/governance';
+import { dsarGovernanceConfigSchema } from '@tale/shared/schemas/governance';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
 import { mayCreateApiKeys } from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
@@ -34,16 +22,11 @@ import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
 import { projectChatAccess } from '../chat/threads.ts';
 import { ContactError } from '../contacts/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
 import { listModelApiModels } from '../model_api/models.ts';
-import { eligibleProjectAgentHarnesses } from '../projects/service.ts';
-import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
-import { recordUnusedWorkspaceRule } from '../sandbox/unused-rule.ts';
 import {
   describeRuleApiKeys,
   holdsApiKeys,
@@ -63,6 +46,12 @@ import {
   revokeCompetence,
 } from './competence.ts';
 import { testModerationProvider } from './moderation.ts';
+import {
+  assertGovernancePolicyReadable,
+  GovernancePolicyError,
+  readGovernancePolicySnapshotFor,
+  saveGovernancePolicy,
+} from './policy-writer.ts';
 import {
   cancelPendingDsarPolicyChange,
   getDsarPolicyForUi,
@@ -84,17 +73,11 @@ import { getOrgUsageMetricsPg } from './usage-metrics.ts';
 
 /**
  * /api/app/governance — the governance SETTINGS core: policy file
- * reads/writes (history-snapshotted yaml, the 0.4 `saveGovernancePolicy`
- * semantics), the caller's resolved feature flags, budget status and budget
- * usage, the model-access filter, and the admin Trash listing/restore.
+ * reads/writes (history-snapshotted yaml, through the policy writer in
+ * `policy-writer.ts`, which holds who may read and change each policy), the
+ * caller's resolved feature flags, budget status and budget usage, the
+ * model-access filter, and the admin Trash listing/restore.
  */
-
-/** Types with dedicated write actions (bounds / grace flows) — never
- * writable through the generic save door. */
-const SPECIAL_WRITE_POLICY_TYPES: ReadonlySet<string> = new Set([
-  'retention_policy',
-  'dsar_governance',
-]);
 
 export function createGovernanceRoutes(deps: {
   sql: Sql;
@@ -111,221 +94,84 @@ export function createGovernanceRoutes(deps: {
     return appErrorHandler(error, c);
   });
 
+  /** A policy refusal as the door answers it: the code and status, with
+   * the sentence and data the refusal carries on the wire. */
+  const policyErrorResponse = (c: Context<OrgEnv>, error: unknown) => {
+    if (error instanceof GovernancePolicyError) {
+      return c.json(
+        {
+          error: error.code,
+          ...(error.answersMessage ? { message: error.message } : {}),
+          ...(error.data !== undefined ? { data: error.data } : {}),
+        },
+        error.status,
+      );
+    }
+    throw error;
+  };
+
   app.get('/policies/:policyType', async (c) => {
-    const policyType = c.req.param('policyType');
-    if (!isFilePolicyType(policyType)) {
-      return c.json({ error: 'UNKNOWN_POLICY_TYPE' }, 400);
-    }
-    if (
-      !isPolicyReadableByMember(policyType) &&
-      !isAdmin(c.get('orgMember').role)
-    ) {
-      return c.json({ error: 'FORBIDDEN' }, 403);
-    }
-    if (c.req.query('includeHash') === '1') {
-      const orgSlug = await resolveOrgSlug(deps.sql, c.get('orgId'), {
-        fresh: true,
-      });
-      if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-      const { readGovernancePolicySnapshot } =
-        await import('../../lib/governance-policy-write');
-      const snapshot = await readGovernancePolicySnapshot(orgSlug, policyType);
+    const member = {
+      organizationId: c.get('orgId'),
+      role: c.get('orgMember').role,
+    };
+    try {
+      if (c.req.query('includeHash') === '1') {
+        return c.json(
+          await readGovernancePolicySnapshotFor(
+            deps.sql,
+            member,
+            c.req.param('policyType'),
+          ),
+        );
+      }
+      const policyType = assertGovernancePolicyReadable(
+        member.role,
+        c.req.param('policyType'),
+      );
+      const config = await readGovernancePolicyForOrg(
+        deps.sql,
+        member.organizationId,
+        policyType,
+        policyType === 'transcription_model' ||
+          policyType === 'image_generation' ||
+          policyType === 'standard_agent'
+          ? { strict: true }
+          : {},
+      );
       return c.json({
-        policy:
-          snapshot.config === null
-            ? null
-            : { key: policyType, config: snapshot.config },
-        hash: snapshot.hash,
+        policy: config === null ? null : { key: policyType, config },
       });
+    } catch (error) {
+      return policyErrorResponse(c, error);
     }
-    const config = await readGovernancePolicyForOrg(
-      deps.sql,
-      c.get('orgId'),
-      policyType,
-      policyType === 'transcription_model' ||
-        policyType === 'image_generation' ||
-        policyType === 'standard_agent'
-        ? { strict: true }
-        : {},
-    );
-    return c.json({
-      policy: config === null ? null : { key: policyType, config },
-    });
   });
 
   app.post('/policies/:policyType', async (c) => {
-    const policyType = c.req.param('policyType');
-    if (!isFilePolicyType(policyType)) {
-      return c.json({ error: 'UNKNOWN_POLICY_TYPE' }, 400);
-    }
-    if (SPECIAL_WRITE_POLICY_TYPES.has(policyType)) {
-      return c.json(
-        {
-          error: 'use_special_action',
-          message: `${policyType} has a dedicated write door.`,
-        },
-        400,
-      );
-    }
-    if (!isAdmin(c.get('orgMember').role)) {
-      return c.json({ error: 'FORBIDDEN' }, 403);
-    }
     const body: unknown = await c.req.json().catch(() => null);
-    const precondition = expectedConfigurationHashSchema
-      .optional()
-      .safeParse(
-        body !== null && typeof body === 'object' && 'expectedHash' in body
-          ? body.expectedHash
-          : undefined,
-      );
-    if (!precondition.success)
-      return c.json({ error: 'INVALID_CONFIG_PRECONDITION' }, 400);
-    const parsed = POLICY_SCHEMAS[policyType].safeParse(
-      body !== null && typeof body === 'object' && 'config' in body
-        ? body.config
-        : body,
-    );
-    if (!parsed.success) {
-      return c.json(
+    const fields = body !== null && typeof body === 'object' ? body : null;
+    const user = c.get('sessionBundle').user;
+    try {
+      await saveGovernancePolicy(
+        deps.sql,
         {
-          error: 'validation',
-          message: `Invalid ${policyType} configuration: ${parsed.error.message}`,
+          organizationId: c.get('orgId'),
+          userId: user.id,
+          email: user.email,
+          role: c.get('orgMember').role,
         },
-        400,
+        c.req.param('policyType'),
+        {
+          config: fields !== null && 'config' in fields ? fields.config : body,
+          expectedHash:
+            fields !== null && 'expectedHash' in fields
+              ? fields.expectedHash
+              : undefined,
+        },
       );
+    } catch (error) {
+      return policyErrorResponse(c, error);
     }
-    if (policyType === 'standard_agent') {
-      // The runtime a project agent may run on is the managed lane's list,
-      // which only the platform knows; the shared schema cannot check it.
-      const { harness } = standardAgentConfigSchema.parse(parsed.data);
-      const harnesses = eligibleProjectAgentHarnesses();
-      if (harness !== undefined && !harnesses.includes(harness)) {
-        return c.json(
-          { error: 'STANDARD_AGENT_HARNESS_INVALID', data: { harnesses } },
-          400,
-        );
-      }
-    }
-    if (policyType === 'sandbox_quota') {
-      const total = sandboxQuotaTotal(
-        sandboxQuotaConfigSchema.parse(parsed.data),
-      );
-      // Read at save time; neither a client-supplied ceiling nor the UI's
-      // last snapshot can authorize a configuration against a changed host.
-      const limits = await getSandboxDeploymentLimits(c.get('orgId'));
-      if (limits.status === 'unavailable') {
-        // No readable ceiling: a total that does not grow is still saved.
-        // Lowering limits can never oversubscribe more than the saved
-        // configuration already does, and shedding load is the one edit an
-        // admin needs while the sandbox service is down; only raising the
-        // total needs the capacity.
-        const saved = sandboxQuotaConfigSchema.safeParse(
-          await readGovernancePolicyForOrg(
-            deps.sql,
-            c.get('orgId'),
-            'sandbox_quota',
-            { fresh: true },
-          ),
-        );
-        const savedTotal = sandboxQuotaTotal(
-          saved.success ? saved.data : DEFAULT_SANDBOX_QUOTA,
-        );
-        if (total > savedTotal) {
-          return c.json({ error: 'SANDBOX_CAPACITY_UNAVAILABLE' }, 503);
-        }
-      } else if (total > limits.maxSessions + (limits.deviceSessions ?? 0)) {
-        // The organization's connected devices add their own slots: a quota
-        // may use the deployment's capacity plus its own machines'.
-        return c.json(
-          {
-            error: 'SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT',
-            data: {
-              total,
-              maxSessions: limits.maxSessions,
-              ...(limits.deviceSessions
-                ? { deviceSessions: limits.deviceSessions }
-                : {}),
-            },
-          },
-          400,
-        );
-      }
-    }
-    const organizationId = c.get('orgId');
-    const orgSlug = await resolveOrgSlug(deps.sql, organizationId);
-    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    // The file as it IS, not the TTL cache's view of it: two admins saving
-    // inside the cache window must each audit the config they replaced.
-    const previous = await readGovernancePolicyForOrg(
-      deps.sql,
-      organizationId,
-      policyType,
-      { fresh: true },
-    );
-    const { writeGovernancePolicyFile } =
-      await import('../../lib/governance-policy-write.ts');
-    const session = c.get('sessionBundle');
-    await transactSerializable(deps.sql, async (tx) => {
-      await createAuditLog(tx, {
-        organizationId,
-        actorId: session.user.id,
-        actorEmail: session.user.email,
-        actorType: 'user',
-        action:
-          previous === null
-            ? 'governance_policy.created'
-            : 'governance_policy.updated',
-        category: 'security',
-        resourceType: 'governance_policy',
-        resourceId: policyType,
-        ...(previous !== null ? { previousState: { config: previous } } : {}),
-        newState: { config: parsed.data },
-        status: 'success',
-      });
-      await emitHintInTx(tx, {
-        orgId: organizationId,
-        entity: 'governance_policy',
-        entityId: policyType,
-      });
-      if (
-        policyType === 'model_access' ||
-        policyType === 'vision_model' ||
-        policyType === 'transcription_model' ||
-        policyType === 'image_generation'
-      ) {
-        // The serving catalog and resolved picks are provider-derived reads.
-        // Every open session must refresh them, not only the saving tab.
-        await emitHintInTx(tx, {
-          orgId: organizationId,
-          entity: PROVIDER_CREDENTIAL_HINT_ENTITY,
-          entityId: policyType,
-        });
-      }
-      if (policyType === 'sandbox_workspaces') {
-        // The unused-workspace rule takes effect with this save: a rule
-        // turned (back) on or a shorter window starts its full window now,
-        // not at the next hourly sweep.
-        await recordUnusedWorkspaceRule(
-          tx,
-          organizationId,
-          sandboxWorkspacesConfigSchema.parse(parsed.data),
-          Date.now(),
-        );
-      }
-      // The file LAST, inside the transaction: a write failure rolls the
-      // audit row back, and a transaction failure never leaves a policy in
-      // force that the tamper-evident chain knows nothing about.
-      if (precondition.data === undefined)
-        await writeGovernancePolicyFile(tx, orgSlug, policyType, parsed.data);
-      else
-        await writeGovernancePolicyFile(
-          tx,
-          orgSlug,
-          policyType,
-          parsed.data,
-          precondition.data,
-        );
-    });
     return c.json({ ok: true });
   });
 

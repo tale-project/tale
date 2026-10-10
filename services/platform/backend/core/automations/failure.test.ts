@@ -36,6 +36,9 @@ describe('isPermanentFailureCode [AUTO-R13]', () => {
     'rate_limited',
     'provider_unreachable',
     'provider_error',
+    // A connector's service that did not answer or was busy may well answer
+    // the next occurrence.
+    'connector_unavailable',
     'budget_exceeded',
     'approval_rejected',
     'execution_limit',

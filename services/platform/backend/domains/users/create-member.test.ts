@@ -77,14 +77,8 @@ function createRecordingSql(scenario: Scenario): {
     if (text.startsWith('INSERT INTO "member"')) {
       return [{ id: 'member-new' }];
     }
-    if (
-      text.startsWith('SELECT pg_advisory_xact_lock(') ||
-      text.startsWith('INSERT INTO app.audit_chain_heads')
-    ) {
+    if (text.startsWith('SELECT pg_advisory_xact_lock(')) {
       return [];
-    }
-    if (text.includes('FROM app.audit_chain_heads')) {
-      return [{ lastHash: '', lastTs: 0 }];
     }
     if (text.startsWith('INSERT INTO app.audit_logs')) {
       return [{ id: 'audit-1' }];
@@ -145,11 +139,9 @@ const isWrite = (statement: Statement): boolean =>
 const writeHead = (text: string): string | undefined =>
   /^((?:DELETE FROM|INSERT INTO|UPDATE) [\w."]+)/.exec(text)?.[1];
 
-const AUDIT_WRITES = [
-  'INSERT INTO app.audit_chain_heads',
-  'INSERT INTO app.audit_logs',
-  'UPDATE app.audit_chain_heads',
-];
+/** The audit writer's one statement: the row, unsealed (the worker's
+ * sealer chains it later). */
+const AUDIT_WRITES = ['INSERT INTO app.audit_logs'];
 
 /** The writes issued between BEGIN and COMMIT, in order. */
 function transactionWrites(statements: Statement[]): string[] {

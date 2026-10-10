@@ -730,8 +730,8 @@ async function recordCopyCreated(
   if (laneAnnounces(lane)) {
     const actor =
       lane.kind === 'close'
-        ? { actorType: 'user', actorId: lane.actorId }
-        : { actorType: 'system', actorId: SYSTEM_ACTOR.actorId };
+        ? { actorType: 'user' as const, actorId: lane.actorId }
+        : { actorType: 'system' as const, actorId: SYSTEM_ACTOR.actorId };
     await emitEvent(tx, {
       organizationId: source.organizationId,
       eventType: 'task.created',

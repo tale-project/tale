@@ -179,3 +179,22 @@ describe('boundCheckpointTrace', () => {
     );
   });
 });
+
+describe('a trace keeps no secret', () => {
+  it('withholds a secret before it bounds, so no cut leaves its tail', () => {
+    const token = `ghp_${'a'.repeat(5000)}`;
+    const bounded = boundNodeTrace({
+      node: 'call',
+      type: 'http.get',
+      status: 'ok',
+      input: { headers: { authorization: 'Bearer abc' }, note: token },
+      output: { password: 'hunter2', rows: 3 },
+    });
+    expect(bounded.input).toEqual({
+      headers: { authorization: null },
+      note: null,
+    });
+    expect(bounded.output).toEqual({ password: null, rows: 3 });
+    expect(JSON.stringify(bounded)).not.toContain('ghp_');
+  });
+});
