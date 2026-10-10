@@ -140,7 +140,8 @@ export interface TestResult {
   /** The test's place in the document's tests, from 0. */
   index: number;
   pass: boolean;
-  /** The first failure, in English — kept for clients that read it. */
+  /** The first failure, in English — kept whole, worded as this runner
+   * has always worded it, for clients that read it. */
   message?: string;
   failures?: TestFailure[];
   /** How long the test took. */
@@ -194,7 +195,7 @@ export interface TestRunOptions {
 const MISMATCHES_LISTED = 5;
 /** Effects an `effect_missing` failure names as performed. */
 const EFFECTS_LISTED = 20;
-/** The most of a failure's English a result keeps. */
+/** The most of the engine's English a typed failure keeps. */
 const MESSAGE_LENGTH = 4096;
 
 /** A test stopped by the suite, not by its own time limit. */
@@ -490,7 +491,7 @@ export async function runAutomationTests(
       index,
       pass: found.length === 0,
       ...(found.length > 0 && {
-        message: english(found[0]?.message ?? ''),
+        message: storableText(found[0]?.message ?? ''),
         failures: found.map((f) => f.failure),
       }),
       ms: Math.round((performance.now() - t0) * 10) / 10,

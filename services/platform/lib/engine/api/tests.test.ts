@@ -126,6 +126,31 @@ describe('runAutomationTests', () => {
     ]);
   });
 
+  it('keeps the whole message of a mismatch, however large, as it always has', async () => {
+    const said = 'x'.repeat(5000);
+    const echo: Automation = {
+      version: 1,
+      name: 'echo',
+      nodes: [
+        {
+          id: 'say',
+          type: 'transform',
+          input: { text: '{{ input.text }}' },
+          code: 'return input.text;',
+        },
+      ],
+      output: '{{ nodes.say.output }}',
+    };
+    const result = await judge(echo, {
+      name: 'long',
+      input: { text: said },
+      expect: { output: 'short' },
+    });
+    expect(result.message).toBe(
+      `output mismatch — expected "short" but got ${JSON.stringify(said)}`,
+    );
+  });
+
   it('reports missing effects naming the actual ones', async () => {
     const result = await judge(DOUBLER, {
       name: 'no such effect',
