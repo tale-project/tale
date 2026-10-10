@@ -19,6 +19,7 @@ Use a connector when Tale needs to read or change data in an external service. T
 | GlitchTip | Read a project's issues so the GlitchTip importer can turn them into tasks. | Token and an Instance URL. |
 | Gmail | Read, send and organize mail. | OAuth. |
 | Google Drive | Import files into knowledge. | OAuth. |
+| HTTP | Call any HTTPS API from an automation step; see [Call an API from an automation](/platform/automations/http). | Bearer token, API key or username and password, with a base URL — or none. |
 | IMAP / SMTP Mailbox | Read or send mail through a private mail service. | Username and password. |
 | Jev decisions | Answer typed questions about a workflow's data with calibrated probabilities, to decide whether to act. | API key (an OpenRouter key). |
 | Microsoft Outlook | Work with mail, calendars and contacts. | OAuth. |
@@ -49,7 +50,7 @@ Confluence, GlitchTip and Shopify require an **Instance URL** per credential. Us
 
 ## Choose which account an action uses
 
-An action uses the credential it explicitly names, or the connector’s default when no name is supplied. Only one credential per connector is the default. With no default, an unnamed call fails even if other credentials exist. Deleting the default makes the oldest remaining active credential of that connector the default; the delete confirmation names it first.
+An action uses the credential it explicitly names, or the connector’s default when no name is supplied. Only one credential per connector is the default. With no default, an unnamed call fails even if other credentials exist. Deleting the default makes the oldest remaining active credential of that connector the default; the delete confirmation names it first. An HTTP step is the exception: one that names no credential carries none, never the default.
 
 For example, two support mailboxes are two credential rows. Choose names that distinguish them and inspect a workflow’s resolved input before running it live. A default is a fallback for selection, not proof that every job should use that account. Mailbox operations designed to inspect all active accounts are a separate case.
 

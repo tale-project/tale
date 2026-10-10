@@ -1,6 +1,5 @@
 // @vitest-environment node
 
-import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +8,6 @@ import {
   hashWebhookToken,
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
-import { auditChainQueueKey } from '../audit_logs/service.ts';
 import type { EventOrigin } from '../events/origin.ts';
 import { AutomationError, beginRunInTx } from './store.ts';
 import { createWebhookRoutes, dispatchAutomationEvent } from './triggers.ts';
@@ -747,7 +745,7 @@ describe('dispatchAutomationEvent stamps', () => {
     ]);
   });
 
-  it('takes the audit chain before the first stamp, once per dispatch', async () => {
+  it('stamps its triggers in id order and takes no organization-wide lock', async () => {
     const { tx, queries } = eventTx([
       { id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' },
       { id: 'trigger-f', organizationId: 'org-1', name: 'crm/follow-up' },
@@ -761,28 +759,18 @@ describe('dispatchAutomationEvent stamps', () => {
       origin: PLATFORM,
     });
     const texts = queries.map((q) => q.text);
-    const locks = queries.filter((q) =>
-      q.text.includes('pg_advisory_xact_lock'),
+    // Two producers of one event stamp the same rows in the same order, so
+    // they never wait on each other in a cycle; nothing org-wide is held.
+    expect(texts[0]).toContain('ORDER BY t.id');
+    expect(queries.some((q) => q.text.includes('pg_advisory_xact_lock'))).toBe(
+      false,
     );
-    expect(locks).toHaveLength(1);
-    expect(locks[0]?.values).toEqual([
-      RETRY_QUEUE_LOCK_CLASS,
-      auditChainQueueKey('org-1'),
-    ]);
-    const lockedAt = texts.findIndex((text) =>
-      text.includes('pg_advisory_xact_lock'),
-    );
-    const firstStamp = texts.findIndex((text) =>
-      text.startsWith('UPDATE app.automation_triggers'),
-    );
-    expect(firstStamp).toBeGreaterThan(-1);
-    expect(lockedAt).toBeLessThan(firstStamp);
     expect(
       texts.filter((text) => text.startsWith('UPDATE app.automation_triggers')),
     ).toHaveLength(2);
   });
 
-  it('takes no audit chain when no trigger listens for the event', async () => {
+  it('reads only the listening triggers when none listens for the event', async () => {
     const { tx, queries } = eventTx([]);
     const outcome = await dispatchAutomationEvent(
       tx as unknown as TransactionSql,
@@ -828,8 +816,7 @@ describe('dispatchAutomationEvent stamps', () => {
     expect(beginRunInTx).not.toHaveBeenCalled();
     const texts = queries.map((q) => q.text);
     expect(texts[0]).toContain('AS "orgMissing"');
-    // Neither a fire nor a skip is stamped: the binding is switched off,
-    // after the audit chain like every other write to a trigger here.
+    // Neither a fire nor a skip is stamped: the binding is switched off.
     expect(
       texts.filter(
         (text) =>
@@ -840,11 +827,10 @@ describe('dispatchAutomationEvent stamps', () => {
     const retiredAt = texts.findIndex((text) =>
       text.includes('SET enabled = false'),
     );
-    const lockedAt = texts.findIndex((text) =>
-      text.includes('pg_advisory_xact_lock'),
+    expect(retiredAt).toBeGreaterThan(0);
+    expect(texts.some((text) => text.includes('pg_advisory_xact_lock'))).toBe(
+      false,
     );
-    expect(lockedAt).toBeGreaterThan(-1);
-    expect(retiredAt).toBeGreaterThan(lockedAt);
     const retire = queries[retiredAt];
     expect(retire?.values[0]).toEqual(['trigger-e', 'trigger-f']);
     expect(retire?.text).toContain('t.enabled = true');

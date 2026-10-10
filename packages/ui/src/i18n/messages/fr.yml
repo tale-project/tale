@@ -620,6 +620,46 @@ dataDiff:
   unchanged: '{count, plural, one {# champ inchangé} many {# champs inchangés} other {# champs inchangés}}'
   more: '{count, plural, one {# autre modification} many {# autres modifications} other {# autres modifications}}'
 
+codeDiff:
+  added: Ajout
+  removed: Suppression
+  unchanged: Inchangé
+  lineIn: Ligne dans {label}
+  change: Modification
+  text: Texte
+  showUnchanged: '{count, plural, one {Afficher # ligne inchangée} many {Afficher # lignes inchangées} other {Afficher # lignes inchangées}}'
+  hideUnchanged: '{count, plural, one {Masquer # ligne inchangée} many {Masquer # lignes inchangées} other {Masquer # lignes inchangées}}'
+  hunk: '{count, plural, one {Ligne {from} dans {label}} many {Lignes {from} à {to} dans {label}} other {Lignes {from} à {to} dans {label}}}'
+  next: Modification suivante
+  previous: Modification précédente
+  position: Modification {index} sur {count}
+  changes: '{count, plural, one {# modification} many {# modifications} other {# modifications}}'
+  layout:
+    label: Disposition
+    unified: Unifiée
+    split: Côte à côte
+  copyPatch: Copier le correctif
+  copied: Copié
+  identical: Aucune différence
+  loading: Chargement de la comparaison…
+  loadFailed: La comparaison n'a pas pu être chargée.
+  showRemaining: '{count, plural, one {Afficher la modification restante} many {Afficher les # modifications restantes} other {Afficher les # modifications restantes}}'
+
+changeList:
+  kind:
+    added: Ajouté
+    removed: Supprimé
+    changed: Modifié
+    renamed: Renommé
+  count:
+    added: '{count, plural, one {# ajouté} many {# ajoutés} other {# ajoutés}}'
+    removed: '{count, plural, one {# supprimé} many {# supprimés} other {# supprimés}}'
+    changed: '{count, plural, one {# modifié} many {# modifiés} other {# modifiés}}'
+    renamed: '{count, plural, one {# renommé} many {# renommés} other {# renommés}}'
+  before: Avant
+  after: Après
+  empty: Aucune modification
+
 flow:
   canvas:
     roleDescription: diagramme de flux
@@ -718,6 +758,15 @@ flow:
     legend:
       differs: 'Anneau : diffère entre les exécutions'
       onlyOne: 'Étiquette sur un trait : une seule exécution est passée par là'
+  diff:
+    nodeState: '{kind, select, added {Ajouté} removed {Supprimé} renamed {Renommé} other {Modifié}}'
+    wasNamed: 'Avant : {from}'
+    edgeAdded: Nouvelle connexion
+    edgeRemoved: Connexion supprimée
+    legend:
+      added: Ajouté dans la version la plus récente
+      removed: Supprimé dans la version la plus récente
+      changed: Modifié ou renommé
 mentions:
   listboxLabel: Mentionner quelqu’un
   empty: Aucun résultat

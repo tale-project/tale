@@ -80,18 +80,21 @@ const args = (overrides: Partial<Parameters<typeof saveVersion>[1]> = {}) => ({
 });
 
 describe('saveVersion', () => {
-  it('takes the audit chain, then the per-name advisory lock, before reading the version', async () => {
+  it('takes the per-name advisory lock first, before reading the version, and no organization-wide lock', async () => {
     const fake = fakeStore([1]);
     await saveVersion(fake.sql, args());
 
-    // The chain before the name: the order every definition writer takes
-    // them in, so two writers never wait on each other (`audit.ts`).
-    const [chain, lock, read] = fake.statements;
-    expect(chain?.text).toContain('pg_advisory_xact_lock');
-    expect(chain?.values).toEqual([expect.any(Number), 'audit-chain:org_1']);
+    // The name first, as every definition writer takes it (`audit.ts`); the
+    // audit row it writes takes no lock.
+    const [lock, read] = fake.statements;
     expect(lock?.text).toContain('pg_advisory_xact_lock');
     expect(lock?.values).toEqual(['org_1', 'ops/greet']);
     expect(read?.text).toContain('SELECT max(version)');
+    expect(
+      fake.statements.some((statement) =>
+        statement.values.includes('audit-chain:org_1'),
+      ),
+    ).toBe(false);
   });
 
   it('refuses a create-only save of an existing name with a coded 409 and writes nothing', async () => {
@@ -381,10 +384,10 @@ describe('saveVersion carry mode', () => {
     });
   });
 
-  it('takes chain, name, latest number, latest version, then inserts — in that order, in one transaction [MCP-R1]', async () => {
+  it('takes the name, latest number, latest version, then inserts — in that order, in one transaction [MCP-R1]', async () => {
     // Ben's save landing between the read of v5 and the insert would be
     // overwritten by a copy of v5's fields: every step runs under the
-    // name lock the second one takes.
+    // name lock the first one takes.
     const fake = carryStore(5);
     await saveVersion(fake.sql, carryArgs({}));
     const step = (statement: Statement): string => {
@@ -404,13 +407,7 @@ describe('saveVersion carry mode', () => {
     };
     expect(
       fake.statements.map(step).filter((name) => name !== 'other'),
-    ).toEqual([
-      'chain lock',
-      'name lock',
-      'latest',
-      'latest version',
-      'insert',
-    ]);
+    ).toEqual(['name lock', 'latest', 'latest version', 'insert']);
   });
 
   it("runs the door's own check under the name lock with the latest version, before anything is written", async () => {
@@ -421,9 +418,9 @@ describe('saveVersion carry mode', () => {
     });
     await saveVersion(fake.sql, carryArgs({ authorize }));
     expect(authorize).toHaveBeenCalledWith(expect.anything(), 5);
-    // After the chain, the name lock and the latest number — before the
-    // carried version is read or anything is inserted.
-    expect(seenAt).toEqual([3]);
+    // After the name lock and the latest number — before the carried
+    // version is read or anything is inserted.
+    expect(seenAt).toEqual([2]);
     const refused = carryStore(5);
     await expect(
       saveVersion(

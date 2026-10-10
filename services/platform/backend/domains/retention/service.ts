@@ -20,7 +20,7 @@ import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
-import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   indexedMessageRefsOf,
@@ -1473,16 +1473,11 @@ async function sweepAutomationRuns(
     await markAutomationWriterInTx(tx);
     // The delete clears a purged run from the trigger that names it
     // (`last_run_id`, `last_failed_run_id`: `ON DELETE SET NULL`), a write
-    // of that trigger row, so when a trigger names a run of the batch the
-    // organization's audit chain is taken before the delete — and after the
-    // runs' own rows — in the order a landing run takes them
-    // (`automations/trigger-failures.ts`). When none does, the delete writes
-    // no trigger row and the chain waits for the category's audit row:
-    // taken here, it would queue every audit writer of the organization
-    // behind a delete of up to a thousand runs. The batch is terminal and
-    // locked, and a trigger only ever names a run it is starting or one
-    // that is landing, so none can come to name one of these before the
-    // delete.
+    // of that trigger row after the runs' own rows — the order a landing
+    // run takes them in (`automations/trigger-failures.ts`). The batch is
+    // terminal and locked, and a trigger only ever names a run it is
+    // starting or one that is landing, so none can come to name one of
+    // these before the delete.
     const batch = await tx<{ id: string }[]>`
       SELECT id FROM app.automation_runs
       WHERE org_id = ${org.organizationId}
@@ -1493,14 +1488,6 @@ async function sweepAutomationRuns(
     `;
     if (batch.length === 0) return { deleted: 0 };
     const ids = batch.map((run) => run.id);
-    const named = await tx<{ named: number }[]>`
-      SELECT 1 AS named FROM app.automation_triggers
-      WHERE org_id = ${org.organizationId}
-        AND (last_run_id = ANY(${ids}::text[])
-          OR last_failed_run_id = ANY(${ids}::text[]))
-      LIMIT 1
-    `;
-    if (named.length > 0) await lockAuditChain(tx, org.organizationId);
     const rows = await tx<{ id: string }[]>`
       DELETE FROM app.automation_runs
       WHERE id = ANY(${ids}::text[])
@@ -1560,27 +1547,44 @@ async function sweepAuditLogs(
   // Refuse to delete the very table that records why the hold exists.
   if (holds.orgHeld) return;
   await destroyInTx(sql, trail, async (tx) => {
-    const candidates = await tx<
-      {
-        id: string;
-        actorId: string | null;
-        resourceType: string;
-        resourceId: string | null;
-        ts: number;
-        integrityHash: string;
-      }[]
-    >`
+    type Candidate = {
+      id: string;
+      actorId: string | null;
+      resourceType: string;
+      resourceId: string | null;
+      ts: number;
+      integrityHash: string;
+    };
+    // The prefix is taken in the CHAIN's order: the rows sealed before chain
+    // positions existed come first, in their (ts, id) order, then the
+    // sealer's order (`chain_seq`), which a late-committing row puts out of
+    // `ts` order. A row not sealed yet is never part of it.
+    const legacy = await tx<Candidate[]>`
       SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
              resource_id AS "resourceId", ts::float8 AS ts,
              integrity_hash AS "integrityHash"
       FROM app.audit_logs
-      WHERE org_id = ${org.organizationId} AND ts < ${cutoff}
+      WHERE org_id = ${org.organizationId} AND chain_seq IS NULL
+        AND integrity_hash IS NOT NULL
       ORDER BY ts ASC, id ASC
       LIMIT ${BATCH_LIMIT}
     `;
+    const candidates =
+      legacy.length > 0
+        ? legacy
+        : await tx<Candidate[]>`
+            SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
+                   resource_id AS "resourceId", ts::float8 AS ts,
+                   integrity_hash AS "integrityHash"
+            FROM app.audit_logs
+            WHERE org_id = ${org.organizationId} AND chain_seq IS NOT NULL
+            ORDER BY chain_seq ASC
+            LIMIT ${BATCH_LIMIT}
+          `;
     const prefix: string[] = [];
     let lastDeletedHash: string | null = null;
     for (const row of candidates) {
+      if (row.ts >= cutoff) break; // the window starts here — the prefix ends
       const heldActor =
         row.actorId !== null && holds.userMembershipIds.has(row.actorId);
       const heldSubject =

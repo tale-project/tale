@@ -330,6 +330,40 @@ export async function highlightCode(
   return result;
 }
 
+/**
+ * The language the highlighter will tokenize `lang` as: the grammar once it
+ * is loaded (a language outside the eager list loads on first use), else
+ * plain text when it cannot be loaded.
+ */
+async function loadedLanguage(
+  highlighter: HighlighterCore,
+  lang: string | undefined,
+): Promise<string> {
+  const resolvedLang = resolveLanguage(lang);
+  // Shiki's `text` grammar is a built-in no-highlight pass — there is no
+  // `shiki/langs/text.mjs` to load. Skip the load attempt entirely.
+  if (resolvedLang === 'text') return 'text';
+  if (highlighter.getLoadedLanguages().includes(resolvedLang))
+    return resolvedLang;
+  try {
+    await highlighter.loadLanguage(
+      // Vite analyses dynamic imports statically; the `@vite-ignore`
+      // comment must sit *inside* the `import()` call (not in front of
+      // it) for Vite to honour it, hence the awkward placement.
+      import(
+        /* @vite-ignore */ `shiki/langs/${resolvedLang}.mjs`
+      ) as Parameters<HighlighterCore['loadLanguage']>[0],
+    );
+    return resolvedLang;
+  } catch (err) {
+    console.warn(
+      `[shiki] language "${resolvedLang}" not loadable, falling back to plaintext:`,
+      err,
+    );
+    return 'text';
+  }
+}
+
 async function tokenize(
   code: string,
   lang: string | undefined,
@@ -341,68 +375,114 @@ async function tokenize(
     console.warn('[shiki] highlighter init failed:', err);
     return null;
   }
-
-  const resolvedTheme = SHIKI_THEME;
-  const resolvedLang = resolveLanguage(lang);
-
-  // Shiki's `text` grammar is a built-in no-highlight pass — there is no
-  // `shiki/langs/text.mjs` to load. Skip the load attempt entirely.
-  if (resolvedLang === 'text') {
-    try {
-      return {
-        html: highlighter.codeToHtml(code, {
-          lang: 'text',
-          theme: resolvedTheme,
-        }),
-        language: 'text',
-      };
-    } catch (err) {
-      console.warn('[shiki] codeToHtml failed for lang="text":', err);
-      return null;
-    }
-  }
-
-  const loaded = highlighter.getLoadedLanguages();
-  if (!loaded.includes(resolvedLang)) {
-    try {
-      await highlighter.loadLanguage(
-        // Vite analyses dynamic imports statically; the `@vite-ignore`
-        // comment must sit *inside* the `import()` call (not in front of
-        // it) for Vite to honour it, hence the awkward placement.
-        import(
-          /* @vite-ignore */ `shiki/langs/${resolvedLang}.mjs`
-        ) as Parameters<HighlighterCore['loadLanguage']>[0],
-      );
-    } catch (err) {
-      console.warn(
-        `[shiki] language "${resolvedLang}" not loadable, falling back to plaintext:`,
-        err,
-      );
-      try {
-        return {
-          html: highlighter.codeToHtml(code, {
-            lang: 'text',
-            theme: resolvedTheme,
-          }),
-          language: 'text',
-        };
-      } catch (htmlErr) {
-        console.warn('[shiki] plaintext fallback failed:', htmlErr);
-        return null;
-      }
-    }
-  }
-
+  const language = await loadedLanguage(highlighter, lang);
   try {
     return {
       html: highlighter.codeToHtml(code, {
-        lang: resolvedLang,
-        theme: resolvedTheme,
+        lang: language,
+        theme: SHIKI_THEME,
       }),
-      language: resolvedLang,
+      language,
     };
   } catch (err) {
-    console.warn(`[shiki] codeToHtml failed for lang="${resolvedLang}":`, err);
+    console.warn(`[shiki] codeToHtml failed for lang="${language}":`, err);
+    return null;
+  }
+}
+
+/** A highlighted run of one line: its text, its colour (`var(--code-…)`)
+ *  and Shiki's font style bits (1 italic, 2 bold, 4 underline). */
+export interface CodeToken {
+  content: string;
+  color?: string;
+  fontStyle?: number;
+}
+
+/** A text's tokens, line by line. */
+export type CodeTokenLines = readonly (readonly CodeToken[])[];
+
+/**
+ * The tokens of the texts tokenized lately, newest last, bounded by the
+ * text they hold, as {@link highlightCode}'s HTML is. A diff tokenizes each
+ * whole text once — a YAML block scalar highlights right only in its whole
+ * document — and maps the tokens back to the lines it shows.
+ */
+const tokenized = new Map<string, CodeTokenLines>();
+const tokenizedSizes = new Map<string, number>();
+let tokenizedChars = 0;
+
+function rememberTokens(key: string, lines: CodeTokenLines, size: number) {
+  const known = tokenizedSizes.get(key);
+  if (known !== undefined) {
+    tokenized.delete(key);
+    tokenizedChars -= known;
+  }
+  tokenized.set(key, lines);
+  tokenizedSizes.set(key, size);
+  tokenizedChars += size;
+  for (const [oldest] of tokenized) {
+    if (tokenizedChars <= HIGHLIGHTED_MAX_CHARS) break;
+    tokenized.delete(oldest);
+    tokenizedChars -= tokenizedSizes.get(oldest) ?? 0;
+    tokenizedSizes.delete(oldest);
+  }
+}
+
+/** The tokens {@link tokenizeCode} already made for this text, if it still
+ *  holds them — synchronous, so a text shown before renders highlighted
+ *  from its first frame. */
+export function peekCodeTokens(
+  code: string,
+  lang: string | undefined,
+): CodeTokenLines | null {
+  return tokenized.get(highlightKey(code, lang)) ?? null;
+}
+
+/**
+ * Tokenize `code` into highlighted runs per line, in the same colours as
+ * {@link highlightCode}'s HTML. Returns `null` past {@link MAX_SHIKI_BYTES}
+ * or when the highlighter fails; a language that cannot be loaded comes
+ * back as plain text.
+ */
+export async function tokenizeCode(
+  code: string,
+  lang: string | undefined,
+): Promise<CodeTokenLines | null> {
+  if (code.length > MAX_SHIKI_BYTES) return null;
+  const key = highlightKey(code, lang);
+  const known = tokenized.get(key);
+  if (known !== undefined) {
+    rememberTokens(key, known, code.length);
+    return known;
+  }
+  let highlighter: HighlighterCore;
+  try {
+    highlighter = await getHighlighter();
+  } catch (err) {
+    console.warn('[shiki] highlighter init failed:', err);
+    return null;
+  }
+  const language = await loadedLanguage(highlighter, lang);
+  try {
+    const { tokens } = highlighter.codeToTokens(code, {
+      lang: language,
+      theme: SHIKI_THEME,
+    });
+    const lines: CodeTokenLines = tokens.map((line) =>
+      line.map((token) => {
+        // Shiki's style is a bit set; -1 (not set) and 0 mean plain.
+        const fontStyle: number = token.fontStyle ?? 0;
+        return {
+          content: token.content,
+          ...(token.color === undefined ? {} : { color: token.color }),
+          ...(fontStyle > 0 ? { fontStyle } : {}),
+        };
+      }),
+    );
+    rememberTokens(key, lines, code.length);
+    return lines;
+  } catch (err) {
+    console.warn(`[shiki] codeToTokens failed for lang="${language}":`, err);
     return null;
   }
 }

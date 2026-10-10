@@ -38,6 +38,15 @@ export type RateLimitRule = TokenBucketRule | FixedWindowRule;
 /** The rules the platform's doors charge, grouped by tier. */
 export const RATE_LIMITS = {
   // TIER 2: external API calls
+  // An organization's automation steps calling outside APIs through the
+  // HTTP connector, across the deployment. How many run at once is the
+  // native's own per-process gate.
+  'automation:http': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 120,
+  },
   'external:onedrive-list': {
     kind: 'token bucket',
     rate: 100,

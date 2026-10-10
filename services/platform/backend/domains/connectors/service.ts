@@ -28,6 +28,7 @@ import {
 } from '../../core/conversations/sync_mailbox.ts';
 import { installCodeRunner } from '../../lib/code-runner.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { limitRate } from '../../lib/rate-limit.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
@@ -40,6 +41,7 @@ import {
 import { withAutomationOrigin } from '../events/origin.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
 import { recordConnectorUsage } from '../governance/service.ts';
+import { knowledgeSearchForRuns } from '../knowledge/automation-search.ts';
 import {
   resolveAutomationRunAttribution,
   type SessionOpAttribution,
@@ -292,10 +294,23 @@ function assembleConnectorHost(sql: Sql): void {
     tasks: pgTaskStore(sql),
     documents: pgDocumentStore(sql),
     conversations: pgConversationStore(sql),
+    // A search step searches as its run: the run's scope and its spend.
+    knowledge: knowledgeSearchForRuns(sql),
     // Outbound mail attachments read from the org's own blob store — the
     // files domain refuses a ref outside the org before any byte moves.
     mailAttachments: ({ organizationId, storageRef }) =>
       getOrgBlobBytes(sql, organizationId, storageRef),
+    // Every HTTP step's call draws from its organization's budget.
+    http: {
+      budget: {
+        charge: async (organizationId) =>
+          (
+            await limitRate(sql, 'automation:http', {
+              key: `org:${organizationId}`,
+            })
+          ).ok,
+      },
+    },
     ...(mailTransportOverride !== undefined
       ? { mailTransport: mailTransportOverride }
       : {}),

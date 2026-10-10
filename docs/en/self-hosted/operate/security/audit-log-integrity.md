@@ -18,6 +18,8 @@ The on-demand result and scheduled-check status are separate. Clicking **Verify 
 
 The current PostgreSQL backend checks the SHA-256 hash of each retained, unscrubbed audit entry and the links between entries. The first surviving row supplies the starting hash link. This detects many changes within the retained chain, but it is not an independently signed record of everything that ever existed.
 
+An entry joins the chain within seconds of being written. The backend stores the entry together with the change it records and leaves the hashing to a worker, which adds waiting entries in batches, in the order it reaches them. That order, not the event time, is the chain's order: an entry whose change committed late can follow entries with a later time. **Verify now** first adds the entries that are waiting; anything written while it runs is reported as not in the chain yet and is covered by the next check. If entries stay out of the chain for more than a few minutes, no worker is adding them: check that the worker is running. The daily check logs how many entries are waiting and since when.
+
 Retention can remove a prefix of the chain. The scheduled check can resume from its recorded progress; if retention legitimately removed its old anchor, it starts from the first surviving link. A missing anchor inside the retention window is not excused in this way.
 
 For rows scrubbed during personal-data erasure, the verifier checks linkage without recomputing the erased content. It also counts scrubbed rows without a matching erasure request. Investigate such a warning against the erasure records; the current backend does not verify HMAC-signed checkpoints or use an audit signing key to repair these findings.

@@ -20,6 +20,7 @@ import {
   type WebdavStore,
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
+  type WorkflowKnowledgeSearch,
   type WorkflowTaskStore,
 } from './index';
 
@@ -416,6 +417,23 @@ const documentStore: WorkflowDocumentStore = {
     Promise.resolve({ documentId: `doc_${name.length}`, action: 'created' }),
 };
 
+const knowledgeStore: WorkflowKnowledgeSearch = {
+  search: ({ query }) =>
+    Promise.resolve({
+      ok: true,
+      hits: [
+        {
+          text: `Refunds on annual plans: ${query}`,
+          title: 'Refund policy',
+          source: 'documents',
+          documentId: 'doc_refunds',
+          score: 0.031,
+          similarity: 0.78,
+        },
+      ],
+    }),
+};
+
 const conversationStore: WorkflowConversationStore = {
   ingestEmails: () =>
     Promise.resolve({
@@ -519,6 +537,7 @@ beforeEach(() => {
     tasks: taskStore,
     documents: documentStore,
     conversations: conversationStore,
+    knowledge: knowledgeStore,
     mailAttachments,
     mailTransport: transport,
     mailConfig: () => ({
@@ -564,6 +583,7 @@ describe('registration', () => {
       tasks: taskStore,
       documents: documentStore,
       conversations: conversationStore,
+      knowledge: knowledgeStore,
       mailAttachments,
       mailTransport: transport,
     });
@@ -616,6 +636,7 @@ describe('dispatching the shipped native actions', () => {
       tasks: taskStore,
       documents: documentStore,
       conversations: conversationStore,
+      knowledge: knowledgeStore,
       mailAttachments,
       mailTransport: transport,
     });
@@ -654,6 +675,7 @@ describe('dispatching the shipped native actions', () => {
         sandboxScripts: scriptRunner,
         documents: documentStore,
         conversations: conversationStore,
+        knowledge: knowledgeStore,
         mailAttachments,
         mailTransport: transport,
         tasks: {

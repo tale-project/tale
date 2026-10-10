@@ -473,6 +473,15 @@ describe('automationLlmCall and the run’s budgets', () => {
       message: expect.stringContaining(
         "This project's monthly cost limit is used up",
       ),
+      // The run page explains it as a usage limit, with the refusal's own
+      // sentence under the technical details.
+      failure: {
+        reason: 'BUDGET_EXCEEDED',
+        params: {
+          detail:
+            "Usage limit reached. This project's monthly cost limit is used up until 2026-11-01T00:00:00.000Z.",
+        },
+      },
     });
     expect(builderModel).not.toHaveBeenCalled();
     expect(bookings()).toEqual([]);

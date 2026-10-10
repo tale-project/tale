@@ -12,6 +12,7 @@ import { EMBEDDED_CONNECTORS } from '../../../generated/embedded-files';
 import { assertNativeManifest } from './compiler';
 import { sha256, stableJson } from './identity';
 import { insist, record, type LoadedRelease } from './model';
+import { ADVISORY_IMPORT_WARNINGS } from './warning-policy';
 
 /** Native parsing and compile-only syntax checks share the platform's code.
  * No client code executes and no connector dispatch, agent, or remote store is
@@ -46,7 +47,12 @@ export async function validateNativeRelease(
   assertNativeManifest(raw, automationPackManifestSchema.parse(raw));
   const checked = await validate(parse(pack.document.text));
   // Report stable issue codes and paths, never authored source or expressions.
-  const issues = [...checked.errors, ...checked.warnings];
+  const issues = [
+    ...checked.errors,
+    ...checked.warnings.filter(
+      (issue) => !ADVISORY_IMPORT_WARNINGS.has(issue.code),
+    ),
+  ];
   insist(
     issues.length === 0,
     `native workflow validation failed: ${issues.map((issue) => issue.code).join(', ')}`,

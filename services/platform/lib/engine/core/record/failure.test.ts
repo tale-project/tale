@@ -222,6 +222,38 @@ describe('reasonFamily', () => {
     expect(reasonFamily(reason)).toBe(family);
   });
 
+  it.each([
+    ['CONNECTOR_UNREACHABLE', undefined],
+    ['CONNECTOR_RATE_LIMITED', { status: 429 }],
+    ['HTTP_TIMEOUT', undefined],
+    ['HTTP_UNREACHABLE', undefined],
+    ['HTTP_RATE_LIMITED', undefined],
+    ['HTTP_STATUS', { status: 503 }],
+    ['HTTP_STATUS', { status: 429 }],
+    ['CONNECTOR_FAILED', { status: 502 }],
+  ])(
+    'a service that may answer next time is unavailable, not a failing connector: %s %j',
+    (reason, params) => {
+      expect(reasonFamily(reason, params)).toBe('connector_unavailable');
+    },
+  );
+
+  it.each([
+    ['HTTP_STATUS', { status: 404 }],
+    ['CONNECTOR_FAILED', { status: 400 }],
+    ['CONNECTOR_FAILED', undefined],
+    ['KNOWLEDGE_NOT_CONFIGURED', undefined],
+  ])(
+    'a refusal the next occurrence would repeat stays a connector failure: %s %j',
+    (reason, params) => {
+      expect(reasonFamily(reason, params)).toBe('connector_error');
+    },
+  );
+
+  it('keeps a usage limit a budget refusal', () => {
+    expect(reasonFamily('BUDGET_EXCEEDED')).toBe('budget_exceeded');
+  });
+
   it('names a family for every reason', () => {
     for (const reason of STEP_FAILURE_REASONS) {
       expect(reasonFamily(reason)).toMatch(/^[a-z_]+$/);

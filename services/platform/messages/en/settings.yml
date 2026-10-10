@@ -1110,6 +1110,7 @@ logs:
       entries}} — no tampering detected.'
     truncatedNote: 'Only the first {count} entries were checked. Ask your deployment operator to verify the remaining range.'
     unsignedScrubNote: '{count, plural, one {# scrubbed entry has no matching erasure request} other {# scrubbed entries have no matching erasure request}}. Review the erasure records before relying on this history.'
+    awaitingSealNote: '{count, plural, one {# entry was written moments ago and is not in the chain yet} other {# entries were written moments ago and are not in the chain yet}}. Check again in a few seconds to include them.'
     brokenTitle: Chain integrity broken
     brokenBody:
       The hash chain does not match at the entry below. Preserve this

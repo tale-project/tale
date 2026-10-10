@@ -162,6 +162,20 @@ const configFieldSchema = z
     max: z.number().finite().optional(),
     /** Applied when the field is absent; must match `type`. */
     default: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    /** Per-locale overrides of the label and description a form shows,
+     * same locale chain as an action's `title`: exact tag, then base
+     * language, then the authored English. */
+    i18n: z
+      .record(
+        z.string().regex(LOCALE_RE),
+        z
+          .object({
+            label: z.string().min(1).max(120).optional(),
+            description: z.string().max(2000).optional(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 
@@ -276,6 +290,13 @@ export const connectorSchema = z
             'platform auth stands alone — a connector is either the platform itself or it holds vendor credentials, never both',
         },
       ),
+    /**
+     * Whether a call must act as a stored credential. `optional` lets a node
+     * name none: the call then carries no credential at all — never the
+     * organization's default one — and its native backend decides what such
+     * a call may reach (the generic HTTP connector's public hosts).
+     */
+    credential: z.enum(['required', 'optional']).default('required'),
     actions: z
       .array(connectorActionSchema)
       .min(1)
@@ -283,5 +304,15 @@ export const connectorSchema = z
         message: 'action names must be unique per connector',
       }),
   })
-  .strict();
+  .strict()
+  .refine(
+    (connector) =>
+      connector.credential === 'required' ||
+      !connector.auth.some((method) => method.method === 'platform'),
+    {
+      message:
+        'a connector that is the platform itself holds no credential to make optional',
+      path: ['credential'],
+    },
+  );
 export type Connector = z.infer<typeof connectorSchema>;

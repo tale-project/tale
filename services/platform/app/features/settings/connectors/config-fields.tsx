@@ -5,6 +5,8 @@ import { Input } from '@tale/ui/input';
 import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 
+import { useLocalized } from '@/app/features/automations/components/settings-field-control';
+
 import { type CredentialExtraModule } from '../credentials/adapter';
 import { type ConnectorSummary } from './hooks/backend';
 
@@ -79,6 +81,7 @@ function ConnectorConfigFields({
   disabled?: boolean;
 }) {
   const { t } = useT('settings');
+  const localized = useLocalized();
   const fields = fieldsOf(vendor.summary);
   if (fields.length === 0) return null;
 
@@ -88,7 +91,9 @@ function ConnectorConfigFields({
 
   return (
     <>
-      {fields.map((field) => {
+      {fields.map((declared) => {
+        // The declaration's label and help in the reader's language.
+        const field = localized(declared);
         const current = value[field.key];
         const invalid = !isValidFieldValue(field, current);
         if (field.type === 'boolean') {

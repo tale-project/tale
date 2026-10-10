@@ -23,6 +23,7 @@ import {
   type Manifest,
   type RecordValue,
 } from './model';
+import { isAdvisoryImportWarning } from './warning-policy';
 
 const deploymentSchema = z.union([
   z.strictObject({
@@ -134,47 +135,6 @@ class ContentMismatch extends ConfigError {
     this.name = 'ContentMismatch';
   }
 }
-/**
- * Warning codes a native import may answer that do not stop a release. The
- * platform's static analysis reports them about the workflow's own logic —
- * a read of a node that may be skipped, a node that can never run, a value
- * of the wrong type — which the release's tests and review judge; they are
- * listed in the result. Every other warning (a skill the organization lacks,
- * a model no provider serves, one without a code) is deployment drift and
- * stops the release, as every warning did before the analysis existed.
- */
-const ADVISORY_IMPORT_WARNINGS: ReadonlySet<string> = new Set([
-  'CONDITION_CONSTANT',
-  'EXPR_UNKNOWN_NAME',
-  'MAYBE_NULL',
-  'OUTPUT_MAYBE_EMPTY',
-  'REF_UNKNOWN_FIELD',
-  'REPEAT_NEVER_TRUE',
-  'REPEAT_UNTIL_STATIC',
-  'SUBAUTOMATION_INPUT_INVALID',
-  'TEMPLATE_NULL_INTERPOLATION',
-  'TEMPLATE_UNTERMINATED',
-  'TESTS_EFFECT_UNKNOWN',
-  'TESTS_EXPECT_TYPE',
-  'TESTS_INPUT_INVALID',
-  'TRIGGER_INPUT_MISMATCH',
-  'TYPE_MISMATCH',
-  'UNCAUGHT_FAILURE',
-  'UNREACHABLE',
-]);
-
-/** A warning's code, from the `[CODE]` the import writes into it. */
-function warningCode(warning: unknown): string | undefined {
-  return typeof warning === 'string'
-    ? /\[([A-Z][A-Z0-9_]*)\]/.exec(warning)?.[1]
-    : undefined;
-}
-
-function isAdvisory(warning: unknown): warning is string {
-  const code = warningCode(warning);
-  return code !== undefined && ADVISORY_IMPORT_WARNINGS.has(code);
-}
-
 function content(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ContentMismatch(message);
 }
@@ -571,10 +531,12 @@ async function apply(
     );
     insist(
       uploaded.warnings !== undefined &&
-        uploaded.warnings.every((warning) => isAdvisory(warning)),
+        uploaded.warnings.every((warning) => isAdvisoryImportWarning(warning)),
       'native import returned warnings; review the Tale version before deploying',
     );
-    importWarnings = uploaded.warnings.filter((warning) => isAdvisory(warning));
+    importWarnings = uploaded.warnings.filter((warning) =>
+      isAdvisoryImportWarning(warning),
+    );
     insist(
       uploaded.skills?.length === 0,
       'workflow-only import must not write any skills',

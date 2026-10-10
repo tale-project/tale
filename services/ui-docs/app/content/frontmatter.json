@@ -13,6 +13,20 @@
       "description": "Choose an action style, name icon controls, and handle loading or unavailable actions without losing context."
     }
   },
+  "components/change-list": {
+    "slug": "components/change-list",
+    "frontmatter": {
+      "title": "Change list",
+      "description": "Say what changed between two versions in words — a badge for each kind of change, the counts, each field's before and after, and the changed items in sections that open to their details."
+    }
+  },
+  "components/code-diff": {
+    "slug": "components/code-diff",
+    "frontmatter": {
+      "title": "Code diff",
+      "description": "Compare two versions of a text line by line, with the changed words marked, folds for what stayed the same, a keyboard path from change to change and the patch to copy."
+    }
+  },
   "components/code-editor": {
     "slug": "components/code-editor",
     "frontmatter": {

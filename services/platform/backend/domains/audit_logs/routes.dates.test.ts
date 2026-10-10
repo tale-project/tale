@@ -19,6 +19,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 const {
   listAuditLogs,
   buildAuditExport,
+  sealAuditChainNow,
   verifyAuditChain,
   resolveOrgSlug,
   resolveObjectStore,
@@ -27,6 +28,7 @@ const {
 } = vi.hoisted(() => ({
   listAuditLogs: vi.fn(),
   buildAuditExport: vi.fn(),
+  sealAuditChainNow: vi.fn(),
   verifyAuditChain: vi.fn(),
   resolveOrgSlug: vi.fn(),
   resolveObjectStore: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   listAuditLogs,
   buildAuditExport,
+  sealAuditChainNow,
 }));
 vi.mock('./verify.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./verify.ts')>()),
@@ -171,5 +174,10 @@ describe('the audit log date filters hold to the epoch bound [AUDIT-R5]', () => 
     expect(verifyAuditChain).toHaveBeenCalledWith({}, 'o1', {
       fromTimestamp: EPOCH_MS_MAX,
     });
+    // What waits for its seal is chained before the walk reads.
+    expect(sealAuditChainNow).toHaveBeenCalledWith({}, 'o1');
+    expect(sealAuditChainNow.mock.invocationCallOrder[0]).toBeLessThan(
+      verifyAuditChain.mock.invocationCallOrder[0] ?? 0,
+    );
   });
 });

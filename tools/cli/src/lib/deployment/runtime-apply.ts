@@ -203,6 +203,59 @@ function pendingBytes(
   return files;
 }
 
+/** A protocol handoff can fail before Compose starts, after it has staged the
+ * next runtime files and retained the old recovery receipt. In that narrow
+ * state a verified protocol-1 bridge is safe to take over: the old files are
+ * still exactly the pending bytes, no cutover handoff exists, and neither
+ * backend writer is running the pending protocol-2 image. Anything else stays
+ * on the exact-bundle recovery path. */
+async function canTakeOverPreStartProtocolHandoff(
+  options: ApplyRuntimeOptions,
+  bundle: RuntimeBundle,
+  receipt: RuntimeReceipt,
+  containers: RuntimeContainer[],
+  dependencies: RuntimeDependencies,
+): Promise<boolean> {
+  if (
+    bundle.automationWriterProtocol !== 1 ||
+    receipt.revision === bundle.revision ||
+    !receipt.images.some((image) => image.automationWriterProtocol === 2) ||
+    existsSync(join(options.stateDirectory, '.tale', 'automation-cutover.json'))
+  )
+    return false;
+  if (
+    !installedFiles.every(
+      (file) => currentHash(targetPath(options, file)) === receipt.files[file],
+    )
+  )
+    return false;
+  const writers = containers.filter((container) => {
+    const service = container.Config.Labels?.['com.docker.compose.service'];
+    return service === 'backend-api' || service === 'backend-worker';
+  });
+  if (writers.length !== 2) return false;
+  for (const writer of writers) {
+    const service = writer.Config.Labels?.['com.docker.compose.service'];
+    const pending = receipt.images.find((image) =>
+      image.services.includes(service as (typeof RUNTIME_SERVICES)[number]),
+    );
+    if (!pending) return false;
+    const current = await inspectRuntimeImage(
+      writer.Config.Image,
+      pending.repository,
+      bundle.platform,
+      null,
+      dependencies,
+    );
+    if (
+      current.automationWriterProtocol !== 1 ||
+      current.digest === pending.digest
+    )
+      return false;
+  }
+  return true;
+}
+
 function validateOptions(options: ApplyRuntimeOptions): void {
   requireRuntime(
     isAbsolute(options.stateDirectory) &&
@@ -753,12 +806,7 @@ export async function applyRuntime(
       'Existing runtime receipt belongs to another instance.',
     );
   const inputSha256 = receiptInput(options);
-  if (receipt?.phase === 'pending')
-    requireRuntime(
-      receipt.bundleSha256 === identity && receipt.inputSha256 === inputSha256,
-      'A different runtime operation is pending; recover that exact operation first.',
-    );
-  if (receipt?.phase === 'pending') pendingBytes(options, receipt);
+  let pendingTakeover = false;
   const networkExists = await inspectSandboxNetwork(dependencies);
   const volumeResult = await runtimeCommand(
     ['volume', 'ls', '--format', '{{json .}}'],
@@ -781,6 +829,26 @@ export async function applyRuntime(
       : projectVolumeSet,
   );
   await assertFixedContainerNames(containers, compose, dependencies);
+  if (receipt?.phase === 'pending') {
+    const sameOperation =
+      receipt.bundleSha256 === identity && receipt.inputSha256 === inputSha256;
+    if (!sameOperation) {
+      pendingTakeover =
+        receipt.inputSha256 === inputSha256 &&
+        (await canTakeOverPreStartProtocolHandoff(
+          options,
+          bundle,
+          receipt,
+          containers,
+          dependencies,
+        ));
+      requireRuntime(
+        pendingTakeover,
+        'A different runtime operation is pending; recover that exact operation first.',
+      );
+    }
+    if (!pendingTakeover) pendingBytes(options, receipt);
+  }
   requireRuntime(
     projectVolumes.every(
       (name) =>
@@ -964,6 +1032,31 @@ export async function applyRuntime(
     '.env': Buffer.from(environment.environment),
     'secrets.env': Buffer.from(environment.secrets),
   };
+  if (pendingTakeover && receipt && !options.dryRun) {
+    const stage = randomUUID();
+    const stageDirectory = join(
+      options.stateDirectory,
+      '.tale',
+      `runtime-${stage}`,
+    );
+    mkdirSync(stageDirectory, { mode: 0o700 });
+    for (const file of installedFiles)
+      atomicRuntimeFile(join(stageDirectory, file), planned[file]);
+    receipt = receiptSchema.parse({
+      ...receipt,
+      phase: 'pending',
+      revision: bundle.revision,
+      bundleSha256: identity,
+      inputSha256,
+      stage,
+      files: Object.fromEntries(
+        installedFiles.map((file) => [file, hash(planned[file])]),
+      ),
+      regeneratedSecrets: environment.regeneratedSecrets,
+      images: bundle.images,
+    });
+    atomicRuntimeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+  }
   const changed =
     receipt?.phase !== 'ready' ||
     receipt.bundleSha256 !== identity ||

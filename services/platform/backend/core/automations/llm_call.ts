@@ -361,6 +361,7 @@ export function automationLlmCall(
         'budget_exceeded',
         `the llm call was refused: ${admission.reason}`,
         'wait until the limit resets, or ask an administrator to raise it',
+        { reason: 'BUDGET_EXCEEDED', params: { detail: admission.reason } },
       );
     const book = async (
       usage: Awaited<ReturnType<BuilderModel>>['usage'],

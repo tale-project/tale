@@ -1,0 +1,227 @@
+# Connector — call any HTTPS API from an automation, with or without a stored
+# credential. Both actions run on the platform's native HTTP module: every
+# request goes through the audited outbound client (pinned DNS, private and
+# metadata addresses refused, capped bodies), a credentialed call stays under
+# its credential's base URL, redirects included, and a call without a
+# credential reaches public HTTPS hosts only. The mocks are deterministic.
+name: http
+displayName: HTTP
+# A protocol, not a product: the name reads the same in every language.
+i18n:
+  de:
+    displayName: HTTP
+  fr:
+    displayName: HTTP
+description: >-
+  Call any HTTPS API: read with a GET, or send with POST, PUT, PATCH or DELETE.
+  A credential holds the API's base URL and how to sign in (a bearer token, an
+  API key in a header, or a username and password); a call without one reaches
+  public HTTPS hosts only.
+tags:
+  - Developer
+credential: optional
+configFields:
+  - key: baseUrl
+    label: Base URL
+    type: string
+    required: true
+    description: >-
+      The address every call with this credential stays under, such as
+      https://api.example.com/v2. A call may name a path below it, or a full
+      URL that starts with it.
+    i18n:
+      de:
+        label: 'Basis-URL'
+        description: 'Die Adresse, unter der jeder Aufruf mit diesen Zugangsdaten bleibt, etwa https://api.example.com/v2. Ein Aufruf kann einen Pfad darunter nennen oder eine vollständige URL, die mit ihr beginnt.'
+      fr:
+        label: 'URL de base'
+        description: 'L’adresse sous laquelle reste chaque appel avec ces identifiants, comme https://api.example.com/v2. Un appel peut nommer un chemin en dessous, ou une URL complète qui commence par elle.'
+  - key: apiKeyHeader
+    label: API key header
+    type: string
+    default: X-Api-Key
+    description: >-
+      The request header an API key is sent in. Used only by an API key
+      credential.
+    i18n:
+      de:
+        label: 'API-Key-Header'
+        description: 'Der Request-Header, in dem ein API-Key gesendet wird. Nur für Zugangsdaten mit API-Key verwendet.'
+      fr:
+        label: 'En-tête de la clé d’API'
+        description: 'L’en-tête de requête dans lequel une clé d’API est envoyée. Utilisé uniquement par des identifiants à clé d’API.'
+auth:
+  - method: bearer
+  - method: api-key
+  - method: basic
+actions:
+  - name: get
+    title: Get
+    i18n:
+      de:
+        title: Abrufen
+      fr:
+        title: Récupérer
+    description: >-
+      Read from an HTTPS API with a GET and return its status, its headers and
+      its body (JSON when the answer is JSON, else text). It changes nothing, so
+      it never asks for approval. Prefer it over an agent step when you know the
+      endpoint. With a credential, `url` may be a path under the credential's
+      base URL; without one, it must be a full public HTTPS URL. Never put
+      Authorization or Cookie in `headers`: a credential signs the request.
+    effects: read
+    input:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 4096,
+            description: 'A full HTTPS URL, or with a credential a path under its base URL such as /orders.',
+          }
+        query:
+          {
+            type: object,
+            additionalProperties: { type: [string, number, boolean] },
+            description: 'Query parameters added to the URL.',
+          }
+        headers:
+          {
+            type: object,
+            additionalProperties: { type: string },
+            description: 'Request headers, never Authorization, Cookie or the API key header.',
+          }
+        timeoutMs:
+          {
+            type: integer,
+            minimum: 1000,
+            maximum: 30000,
+            description: 'How long to wait for the whole answer, in milliseconds (default 15000).',
+          }
+        responseType:
+          {
+            type: string,
+            enum: [json, text],
+            description: 'Read the body as JSON or as text (default: by its content type).',
+          }
+        okStatuses:
+          {
+            type: array,
+            maxItems: 20,
+            items: { type: integer, minimum: 100, maximum: 599 },
+            description: 'Statuses outside 200–299 that do not fail the step, such as 404.',
+          }
+    output: '{ status: number, ok: boolean, headers: Record<string, string>, body: unknown }'
+    mock: |
+      return {
+        status: 200,
+        ok: true,
+        headers: { 'content-type': 'application/json' },
+        body: { mock: true, method: 'GET', url: input.url },
+      };
+    backend:
+      kind: native
+      impl: http.get
+    exampleInput:
+      { url: 'https://api.example.com/orders', query: { status: 'open' } }
+  - name: send
+    title: Send
+    i18n:
+      de:
+        title: Senden
+      fr:
+        title: Envoyer
+    description: >-
+      Send to an HTTPS API with POST, PUT, PATCH or DELETE and return its
+      status, its headers and its body. It changes data outside Tale, so a live
+      run asks a person first unless the organization's approval policy allows
+      it; a test run never sends. With a credential, `url` may be a path under
+      the credential's base URL; without one, it must be a full public HTTPS
+      URL. Never put Authorization or Cookie in `headers`: a credential signs
+      the request.
+    effects: write
+    input:
+      type: object
+      required: [url, method]
+      additionalProperties: false
+      properties:
+        url:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 4096,
+            description: 'A full HTTPS URL, or with a credential a path under its base URL such as /orders.',
+          }
+        method:
+          {
+            type: string,
+            enum: [POST, PUT, PATCH, DELETE],
+            description: 'The request method.',
+          }
+        body:
+          {
+            description: 'The request body: any JSON value, sent as JSON, or a string sent as it is with contentType.',
+          }
+        contentType:
+          {
+            type: string,
+            maxLength: 200,
+            description: 'The content type of a string body (default text/plain; a JSON body is always application/json).',
+          }
+        query:
+          {
+            type: object,
+            additionalProperties: { type: [string, number, boolean] },
+            description: 'Query parameters added to the URL.',
+          }
+        headers:
+          {
+            type: object,
+            additionalProperties: { type: string },
+            description: 'Request headers, never Authorization, Cookie or the API key header.',
+          }
+        timeoutMs:
+          {
+            type: integer,
+            minimum: 1000,
+            maximum: 30000,
+            description: 'How long to wait for the whole answer, in milliseconds (default 15000).',
+          }
+        responseType:
+          {
+            type: string,
+            enum: [json, text],
+            description: 'Read the body as JSON or as text (default: by its content type).',
+          }
+        okStatuses:
+          {
+            type: array,
+            maxItems: 20,
+            items: { type: integer, minimum: 100, maximum: 599 },
+            description: 'Statuses outside 200–299 that do not fail the step, such as 409.',
+          }
+    output: '{ status: number, ok: boolean, headers: Record<string, string>, body: unknown }'
+    mock: |
+      return {
+        status: 200,
+        ok: true,
+        headers: { 'content-type': 'application/json' },
+        body: {
+          mock: true,
+          method: input.method,
+          url: input.url,
+          body: input.body === undefined ? null : input.body,
+        },
+      };
+    backend:
+      kind: native
+      impl: http.send
+    exampleInput:
+      {
+        url: 'https://api.example.com/orders',
+        method: POST,
+        body: { item: 'A-1', quantity: 2 },
+      }

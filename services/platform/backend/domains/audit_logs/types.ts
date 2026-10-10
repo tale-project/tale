@@ -101,7 +101,12 @@ export interface AuditLogRow {
   status: string;
   errorMessage: string | null;
   metadata: Record<string, unknown> | null;
-  integrityHash: string;
+  /** Null until the sealer has chained the row (`sealAuditChain`). */
+  integrityHash: string | null;
   previousHash: string | null;
+  /** Position in the org's chain (bigint as text); null on a row sealed
+   * before positions existed, chained in (ts, id) order, and on a row not
+   * sealed yet. */
+  chainSeq: string | null;
   piiScrubbed: boolean | null;
 }

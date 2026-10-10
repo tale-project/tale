@@ -74,11 +74,12 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
+import { diffAutomationDocuments } from '@/lib/engine/core/diff/automation';
+import { changedNodeIds } from '@/lib/engine/core/diff/changes';
 import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { savedWarningsSchema } from '@/lib/shared/schemas/automation-issues';
-import { stableStringify } from '@/lib/shared/utils/stable-stringify';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import {
@@ -776,11 +777,11 @@ function AutomationEditorScope({
   const seenRef = useRef<{
     version: number | undefined;
     asked: number | undefined;
-    doc: Automation | null;
-  }>({ version: shownVersion, asked: version, doc: stored });
+    raw: RawDocument | null;
+  }>({ version: shownVersion, asked: version, raw: storedRaw });
   useEffect(() => {
     const seen = seenRef.current;
-    seenRef.current = { version: shownVersion, asked: version, doc: stored };
+    seenRef.current = { version: shownVersion, asked: version, raw: storedRaw };
     if (
       seen.version === undefined ||
       shownVersion === undefined ||
@@ -791,19 +792,15 @@ function AutomationEditorScope({
       savedHereRef.current === shownVersion ||
       draft !== null ||
       stored === null ||
-      seen.doc === null
+      storedRaw === null ||
+      seen.raw === null
     ) {
       return;
     }
-    const before = new Map(
-      seen.doc.nodes.map((node) => [node.id, stableStringify(node)]),
-    );
+    // The ring marks what the version history says this version changed:
+    // the nodes added, changed or renamed — `ui` aside.
     setCanvasChange({
-      ids: new Set(
-        stored.nodes
-          .filter((node) => before.get(node.id) !== stableStringify(node))
-          .map((node) => node.id),
-      ),
+      ids: changedNodeIds(diffAutomationDocuments(seen.raw, storedRaw)),
       key: shownVersion,
     });
     const said = [t('canvas.updated', { version: shownVersion })];
@@ -819,7 +816,7 @@ function AutomationEditorScope({
       text: said.join(' '),
       key: previous.key + 1,
     }));
-  }, [shownVersion, version, stored, draft, selectedId, t]);
+  }, [shownVersion, version, stored, storedRaw, draft, selectedId, t]);
   const newerVersion =
     draft !== null &&
     version === undefined &&

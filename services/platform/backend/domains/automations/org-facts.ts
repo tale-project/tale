@@ -7,8 +7,9 @@
  * - skills: what a run of the automation can stage — the organization's
  *   skills, plus the team skills of every project it is installed in;
  * - connectors: the shipped catalog, the ones holding an active credential,
- *   and the ones that need a credential at all (a platform capability
- *   never does);
+ *   the ones that need a credential at all (a platform capability never
+ *   does, nor one whose credential is optional), and each one's credentials
+ *   in service by id and name, which a step's `credential` may name;
  * - secrets: the names of the organization's agent secrets, only for a
  *   caller the secrets listing shows them to (owner, admin, developer) —
  *   anyone else's validation cannot tell, so it cannot probe for a name;
@@ -36,7 +37,10 @@ import { listSkillsForViewer } from '../../core/skills/file_actions.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listAgentSecrets } from '../agent_secrets/service.ts';
 import { listProjectSkillSlugs } from '../chat/composer.ts';
-import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
+import {
+  listConnectedConnectorSlugs,
+  listCredentialsInService,
+} from '../connector_credentials/service.ts';
 import { bindingProjectIds, listTriggers } from './store.ts';
 
 /** Who is validating: their role, and — when reads answer only what the
@@ -99,17 +103,25 @@ async function connectorFacts(
   organizationId: string,
 ): Promise<OrgFacts['connectors']> {
   const catalog = loadConnectorDefinitions();
+  const [connected, credentials] = await Promise.all([
+    listConnectedConnectorSlugs(sql, organizationId),
+    listCredentialsInService(sql, organizationId),
+  ]);
   return {
     catalogued: new Set(catalog.map((connector) => connector.name)),
-    connected: new Set(await listConnectedConnectorSlugs(sql, organizationId)),
+    connected: new Set(connected),
+    // A connector whose credential is optional runs a step that names none:
+    // having none connected is no finding.
     needsCredential: new Set(
       catalog
         .filter(
           (connector) =>
+            connector.credential !== 'optional' &&
             !connector.auth.some((method) => method.method === 'platform'),
         )
         .map((connector) => connector.name),
     ),
+    credentials,
   };
 }
 

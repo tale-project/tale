@@ -31,6 +31,8 @@
         "components/value-tree",
         "components/data-view",
         "components/data-diff",
+        "components/code-diff",
+        "components/change-list",
         "components/format-duration",
         "components/issue-list",
         "components/flow-node-issues",

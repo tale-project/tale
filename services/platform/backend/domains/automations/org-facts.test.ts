@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   listTriggers: vi.fn(),
   listAgentSecrets: vi.fn(),
   listConnectedConnectorSlugs: vi.fn(),
+  listCredentialsInService: vi.fn(),
   listProjectSkillSlugs: vi.fn(),
   listSkillsForViewer: vi.fn(),
   resolveOrgSlug: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('../agent_secrets/service.ts', () => ({
 }));
 vi.mock('../connector_credentials/service.ts', () => ({
   listConnectedConnectorSlugs: mocks.listConnectedConnectorSlugs,
+  listCredentialsInService: mocks.listCredentialsInService,
 }));
 vi.mock('../chat/composer.ts', () => ({
   listProjectSkillSlugs: mocks.listProjectSkillSlugs,
@@ -88,8 +90,13 @@ beforeEach(() => {
     { name: 'github', auth: [{ method: 'bearer' }] },
     { name: 'gmail', auth: [{ method: 'oauth2' }] },
     { name: 'task', auth: [{ method: 'platform' }] },
+    // Its credential is optional: a step may name none.
+    { name: 'http', auth: [{ method: 'bearer' }], credential: 'optional' },
   ]);
   mocks.listConnectedConnectorSlugs.mockResolvedValue(['github']);
+  mocks.listCredentialsInService.mockResolvedValue(
+    new Map([['github', [{ id: 'cred_gh', name: 'Release bot' }]]]),
+  );
   mocks.listAgentSecrets.mockResolvedValue([
     {
       name: 'SUPPORT_SIGNATURE',
@@ -112,9 +119,12 @@ describe('readOrgFacts', () => {
       new Set(['reply-style', 'hr-policy', 'sales-deck']),
     );
     expect(facts.connectors).toEqual({
-      catalogued: new Set(['github', 'gmail', 'task']),
+      catalogued: new Set(['github', 'gmail', 'task', 'http']),
       connected: new Set(['github']),
       needsCredential: new Set(['github', 'gmail']),
+      credentials: new Map([
+        ['github', [{ id: 'cred_gh', name: 'Release bot' }]],
+      ]),
     });
     expect(facts.secrets).toEqual(new Set(['SUPPORT_SIGNATURE']));
     expect(facts.harnesses?.has('claude-code')).toBe(true);

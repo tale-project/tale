@@ -77,14 +77,8 @@ function createRecordingTx(scenario: Scenario): {
     if (text.startsWith('DELETE FROM "passkey"')) {
       return scenario.passkeyDeleteReturns ?? [{ id: 'pk-1' }];
     }
-    if (
-      text.startsWith('SELECT pg_advisory_xact_lock(') ||
-      text.startsWith('INSERT INTO app.audit_chain_heads')
-    ) {
+    if (text.startsWith('SELECT pg_advisory_xact_lock(')) {
       return [];
-    }
-    if (text.includes('FROM app.audit_chain_heads')) {
-      return [{ lastHash: '', lastTs: 0 }];
     }
     if (text.startsWith('INSERT INTO app.audit_logs')) {
       if (scenario.auditFails) {
@@ -123,12 +117,9 @@ const isWrite = (statement: Statement): boolean =>
 const writeHead = (text: string): string | undefined =>
   /^((?:DELETE FROM|INSERT INTO|UPDATE) [\w."]+)/.exec(text)?.[1];
 
-/** The audit writer's own three statements, in order. */
-const AUDIT_WRITES = [
-  'INSERT INTO app.audit_chain_heads',
-  'INSERT INTO app.audit_logs',
-  'UPDATE app.audit_chain_heads',
-];
+/** The audit writer's one statement: the row, unsealed (the worker's
+ * sealer chains it later). */
+const AUDIT_WRITES = ['INSERT INTO app.audit_logs'];
 
 describe('revokePasskeyForMember', () => {
   it('deletes the passkey, the sessions and writes the audit row on the one tx [MEMBER-R8]', async () => {

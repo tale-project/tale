@@ -43,6 +43,18 @@ export const STEP_FAILURE_REASONS = [
   'CONNECTOR_RATE_LIMITED',
   'CONNECTOR_UNREACHABLE',
   'CONNECTOR_FAILED',
+  'HTTP_STATUS',
+  'HTTP_TIMEOUT',
+  'HTTP_UNREACHABLE',
+  'HTTP_BLOCKED_HOST',
+  'HTTP_OFF_ORIGIN',
+  'HTTP_URL_INVALID',
+  'HTTP_HEADER_RESERVED',
+  'HTTP_TOO_LARGE',
+  'HTTP_NOT_JSON',
+  'HTTP_RATE_LIMITED',
+  'KNOWLEDGE_NOT_CONFIGURED',
+  'KNOWLEDGE_UNAVAILABLE',
   'LLM_OUTPUT_INVALID',
   'LLM_PROVIDER',
   'AGENT_FAILED',
@@ -52,7 +64,9 @@ export const STEP_FAILURE_REASONS = [
   'SUBAUTOMATION_TOO_DEEP',
   'APPROVAL_REJECTED',
   'EXECUTION_LIMIT',
+  'BUDGET_EXCEEDED',
   'EFFECT_IN_DOUBT_FAILED',
+  'SIMULATED_FAILURE',
   'UNKNOWN',
 ] as const;
 
@@ -108,6 +122,27 @@ export const STEP_FAILURE_META: Readonly<
     optional: ['status'],
     technical: ['detail'],
   },
+  // The HTTP connector's own causes. `host` is the address's host only and
+  // `target` a URL without its query: a query may carry a value the author
+  // keeps to themselves.
+  HTTP_STATUS: {
+    params: ['status', 'method', 'host'],
+    technical: ['detail'],
+  },
+  HTTP_TIMEOUT: { params: ['method', 'host', 'limitMs'] },
+  HTTP_UNREACHABLE: { params: ['host'], technical: ['detail'] },
+  // `why`: private, metadata or plaintext.
+  HTTP_BLOCKED_HOST: { params: ['host', 'why'] },
+  HTTP_OFF_ORIGIN: { params: ['target', 'baseUrl'] },
+  // `why`: url, scheme, userinfo, path or base.
+  HTTP_URL_INVALID: { params: ['why'] },
+  HTTP_HEADER_RESERVED: { params: ['header'] },
+  HTTP_TOO_LARGE: { params: ['host'] },
+  HTTP_NOT_JSON: { params: ['host'], optional: ['contentType'] },
+  HTTP_RATE_LIMITED: { params: ['perMinute', 'atOnce'] },
+  KNOWLEDGE_NOT_CONFIGURED: NONE,
+  // The provider's or the platform's own words for what failed.
+  KNOWLEDGE_UNAVAILABLE: { params: [], technical: ['detail'] },
   LLM_OUTPUT_INVALID: { params: ['model'] },
   LLM_PROVIDER: { params: ['model', 'providerCode'] },
   AGENT_FAILED: { params: ['agentCode'], optional: ['harness', 'attempts'] },
@@ -117,19 +152,59 @@ export const STEP_FAILURE_META: Readonly<
   SUBAUTOMATION_TOO_DEEP: { params: ['max'] },
   APPROVAL_REJECTED: NONE,
   EXECUTION_LIMIT: { params: ['limit'] },
+  // The refusal's own sentence, which names the limit and when it resets.
+  BUDGET_EXCEEDED: { params: [], technical: ['detail'] },
   EFFECT_IN_DOUBT_FAILED: NONE,
+  // The message the test gives the failure, in its author's words; absent
+  // when the test gave none, or when it looked like a credential.
+  SIMULATED_FAILURE: { params: [], optional: ['message'] },
   // The error's own text, from whatever raised it.
   UNKNOWN: { params: [], technical: ['detail'] },
 };
 
+/** A connector's causes a later occurrence may well not meet: the service
+ * did not answer, answered too slowly, or was busy. */
+const TRANSIENT_CONNECTOR_REASONS: ReadonlySet<string> = new Set([
+  'CONNECTOR_UNREACHABLE',
+  'CONNECTOR_RATE_LIMITED',
+  'HTTP_TIMEOUT',
+  'HTTP_UNREACHABLE',
+  'HTTP_RATE_LIMITED',
+]);
+
+/** A status that says the service is busy or failing on its own side. */
+function busyStatus(params: FailureParams | undefined): boolean {
+  const status = params?.status;
+  return typeof status === 'number' && (status === 429 || status >= 500);
+}
+
 /**
  * The run-level family of a reason, for a run that has no runtime of its
- * own to name it (the in-process executor): the durable runtime names the
- * family itself, from the error it caught.
+ * own to name it (the in-process executor), and for a connector door that
+ * caught a refusal (the durable runtime's). A connector the next
+ * occurrence may well find answering again is `connector_unavailable`,
+ * never `connector_error`, which counts toward pausing a schedule.
  */
-export function reasonFamily(reason: string): string {
-  if (reason.startsWith('CONNECTOR_')) return 'connector_error';
+export function reasonFamily(reason: string, params?: FailureParams): string {
+  if (
+    TRANSIENT_CONNECTOR_REASONS.has(reason) ||
+    ((reason === 'HTTP_STATUS' || reason === 'CONNECTOR_FAILED') &&
+      busyStatus(params))
+  ) {
+    return 'connector_unavailable';
+  }
+  if (
+    reason.startsWith('CONNECTOR_') ||
+    reason.startsWith('HTTP_') ||
+    reason.startsWith('KNOWLEDGE_')
+  ) {
+    return 'connector_error';
+  }
   switch (reason) {
+    // A limit with no room left may have room at the next occurrence, so
+    // it is never a connector's permanent refusal.
+    case 'BUDGET_EXCEEDED':
+      return 'budget_exceeded';
     case 'LLM_OUTPUT_INVALID':
       return 'llm_output_invalid';
     case 'EXECUTION_LIMIT':

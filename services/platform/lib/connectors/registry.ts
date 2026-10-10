@@ -78,8 +78,11 @@ export function registerConnector(connector: Connector): string[] {
       description: action.description,
       // Control-flow fields are allowed on every node type; these are the
       // extras an action takes. `credential` names which stored credential to
-      // act as, defaulting to the org's default for the connector.
-      allowedFields: ['input', 'credential'],
+      // act as, defaulting to the org's default for the connector — never on
+      // a platform capability, which signs in as nobody and has none to name.
+      allowedFields: connector.auth.some((entry) => entry.method !== 'platform')
+        ? ['input', 'credential']
+        : ['input'],
       requiredFields: ['input'],
       connector: toConnector(connector, action),
     });

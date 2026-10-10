@@ -21,7 +21,9 @@ import type { WorkflowAgentFailureCode } from './agent_retry.ts';
  * Three families:
  * - the engine's own: `node_error` (a node's code, template, forEach or
  *   `output` expression failed, an authoring refusal), `connector_error`
- *   (a connector action refused or failed), `llm_output_invalid` (the
+ *   (a connector action refused or failed), `connector_unavailable` (its
+ *   service did not answer, answered too slowly, was busy, or failed on its
+ *   own side — which the next occurrence may not meet), `llm_output_invalid` (the
  *   model's reply did not satisfy the node's `outputSchema`),
  *   `approval_rejected`, `execution_limit` (the execution guard),
  *   `automation_deleted` (the automation vanished mid-flight),
@@ -39,6 +41,7 @@ import type { WorkflowAgentFailureCode } from './agent_retry.ts';
 const ENGINE_FAILURE_CODES = [
   'node_error',
   'connector_error',
+  'connector_unavailable',
   'llm_output_invalid',
   'approval_rejected',
   'execution_limit',

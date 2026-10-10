@@ -1,7 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { triggerRunInput } from '../../../lib/engine/core/slots.ts';
-import { tryLockAuditChain } from '../audit_logs/service.ts';
+import { tryLockProjectWork } from '../../lib/project-work-lock.ts';
 import { failedRunRetryPending } from '../tasks/agent-runs.ts';
 import {
   automatedStartWindow,
@@ -22,9 +22,10 @@ import { stampFired } from './triggers.ts';
  * through the ordinary admission (circuit and `retryAfter`), then claims or
  * waits for its own worker through the existing task turn job.
  *
- * Per pending row, in ONE transaction: the org's chain key (try-lock — a busy
- * organization is skipped for the minute, so the scan never stalls behind
- * one), then the wake row `FOR UPDATE SKIP LOCKED`, then — in order — the
+ * Per pending row, in ONE transaction: the project's work key
+ * (`lib/project-work-lock.ts`, try-lock — a busy project is skipped for the
+ * minute, so the scan never stalls behind one), then the wake row `FOR UPDATE
+ * SKIP LOCKED`, then — in order — the
  * previous occurrence's classification, the target's state, a live T
  * occurrence, the wait, the derived holds, and the fire. Every wait names
  * what makes the wake eligible again (`WakeOutcome`).
@@ -224,7 +225,7 @@ async function fireProjectWake(
   key: { organizationId: string; projectId: string },
   now: number,
 ): Promise<RowResult> {
-  if (!(await tryLockAuditChain(tx, key.organizationId))) return 'busy';
+  if (!(await tryLockProjectWork(tx, key.projectId))) return 'busy';
   const rows = await tx<WakeRow[]>`
     SELECT org_id AS "organizationId", project_id AS "projectId",
            trigger_id AS "triggerId",

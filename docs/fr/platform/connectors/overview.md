@@ -19,6 +19,7 @@ Utilise un connector lorsque Tale doit lire ou modifier les données d’un serv
 | GlitchTip | Lire les issues d’un projet pour que l’import GlitchTip en fasse des tâches. | Jeton et URL de l’instance. |
 | Gmail | Lire, envoyer et organiser le courrier. | OAuth. |
 | Google Drive | Importer des fichiers dans les connaissances. | OAuth. |
+| HTTP | Appeler n’importe quelle API HTTPS depuis une étape d’automatisation ; voir [Appeler une API depuis une automatisation](/fr/platform/automations/http). | Jeton Bearer, clé d’API ou nom d’utilisateur et mot de passe, avec une URL de base — ou aucun. |
 | IMAP / SMTP Mailbox | Lire ou envoyer du courrier via un service privé. | Nom d’utilisateur et mot de passe. |
 | Jev decisions | Répondre à des questions typées sur les données d’un workflow avec des probabilités calibrées, pour décider s’il faut agir. | Clé API (une clé OpenRouter). |
 | Microsoft Outlook | Travailler avec courrier, calendriers et contacts. | OAuth. |
@@ -49,7 +50,7 @@ Confluence, GlitchTip et Shopify demandent une **URL de l'instance** pour chaque
 
 ## Déterminer le compte utilisé
 
-Une action utilise les identifiants explicitement nommés, ou ceux par défaut du connector en l’absence de nom. Un seul compte par connector peut être défini comme compte par défaut. Sans compte par défaut, un appel sans nom échoue même si d’autres identifiants existent. Si tu supprimes le compte par défaut, les plus anciens identifiants actifs restants de ce connector deviennent le compte par défaut ; la confirmation de suppression les nomme d’abord.
+Une action utilise les identifiants explicitement nommés, ou ceux par défaut du connector en l’absence de nom. Un seul compte par connector peut être défini comme compte par défaut. Sans compte par défaut, un appel sans nom échoue même si d’autres identifiants existent. Si tu supprimes le compte par défaut, les plus anciens identifiants actifs restants de ce connector deviennent le compte par défaut ; la confirmation de suppression les nomme d’abord. Une étape HTTP fait exception : celle qui ne nomme aucun identifiant n’en porte aucun, jamais ceux par défaut.
 
 Deux boîtes support correspondent par exemple à deux lignes. Donne-leur des noms distincts et examine les données résolues du workflow avant une exécution réelle. Le compte par défaut est utilisé lorsque l’action ne nomme pas un autre compte. Les opérations de courrier conçues pour parcourir tous les comptes actifs constituent un cas séparé.
 

@@ -127,6 +127,39 @@ describe('evaluateTwoFactorEnforcement', () => {
     expect(await decide(account)).toMatchObject({ decision: 'ok' });
   });
 
+  it('takes the authenticator flag the caller already holds instead of reading the user [TFA-R2]', async () => {
+    organizations({
+      enforced: true,
+      gracePeriodDays: 0,
+      exemptSsoUsers: false,
+    });
+    const reads: string[] = [];
+    const db = accountDb({ authenticator: false });
+    const spy = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      reads.push(strings.join('?'));
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- forwards the template call to the stand-in
+      return (
+        db as unknown as (s: TemplateStringsArray, ...v: unknown[]) => unknown
+      )(strings, ...values);
+    }) as unknown as Sql;
+    expect(
+      await evaluateTwoFactorEnforcement(spy, 'user-1', {
+        organizationIds: ['org-0'],
+        twoFactorEnabled: true,
+      }),
+    ).toMatchObject({ decision: 'ok' });
+    expect(reads.some((text) => text.includes('FROM "user"'))).toBe(false);
+    // Off in the caller's row: the other factors are still looked for.
+    expect(
+      await evaluateTwoFactorEnforcement(spy, 'user-1', {
+        organizationIds: ['org-0'],
+        twoFactorEnabled: false,
+      }),
+    ).toMatchObject({ decision: 'blocked' });
+    expect(reads.some((text) => text.includes('FROM "user"'))).toBe(false);
+    expect(reads.some((text) => text.includes('FROM "passkey"'))).toBe(true);
+  });
+
   it('exempts an account that signs in only through SSO when the policy says so [TFA-R3]', async () => {
     organizations({ enforced: true, gracePeriodDays: 0, exemptSsoUsers: true });
     expect(await decide({ signIns: ['saml'] })).toMatchObject({

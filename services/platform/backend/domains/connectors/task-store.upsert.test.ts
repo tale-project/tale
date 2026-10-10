@@ -282,8 +282,8 @@ describe('task import authorization and reconciliation policy', () => {
 
   it('queues a batch before reading authorization and preserves nested retry marks', async () => {
     const failure = markRetryQueueKey(
-      Object.assign(new Error('concurrent audit write'), { code: '40001' }),
-      'audit-chain:org-1',
+      Object.assign(new Error('concurrent project write'), { code: '40001' }),
+      'project-work:project-1',
     );
     vi.mocked(upsertTaskByExternalRef).mockRejectedValueOnce(failure);
     vi.mocked(loadProjectOrThrow).mockImplementation(async () => {
@@ -308,7 +308,7 @@ describe('task import authorization and reconciliation policy', () => {
     });
     expect(retryQueueKeysOf(failure)).toEqual([
       'task-issue-import:org-1:project-1',
-      'audit-chain:org-1',
+      'project-work:project-1',
     ]);
     expect(tx).toHaveBeenCalledTimes(2);
   });

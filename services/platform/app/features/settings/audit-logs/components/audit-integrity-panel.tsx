@@ -145,6 +145,13 @@ export function AuditIntegrityPanel({
                 })}
               </span>
             )}
+            {result.awaitingSeal.count > 0 && (
+              <span>
+                {t('logs.integrity.awaitingSealNote', {
+                  count: result.awaitingSeal.count,
+                })}
+              </span>
+            )}
           </Stack>
         </Alert>
       )}

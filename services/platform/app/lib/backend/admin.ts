@@ -171,6 +171,9 @@ export const adminReadAdapters: Record<string, ReadAdapter> = {
             ...(typeof args.afterId === 'string'
               ? { afterId: args.afterId }
               : {}),
+            ...(typeof args.afterSeq === 'string'
+              ? { afterSeq: args.afterSeq }
+              : {}),
             ...(typeof args.previousExpectedHash === 'string'
               ? { previousExpectedHash: args.previousExpectedHash }
               : {}),

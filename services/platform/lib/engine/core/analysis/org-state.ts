@@ -168,6 +168,55 @@ function connectorIssue(
   );
 }
 
+/** The credential a step names. A run looks the name up as it is written,
+ * so a template in it is a name too. */
+function namedCredential(node: NodeDef): string | undefined {
+  const named =
+    typeof node.credential === 'string' ? node.credential.trim() : '';
+  return named === '' ? undefined : named;
+}
+
+/** A step that names a credential its connector does not hold in service:
+ * the run's lookup matches an id, or a name whatever its case. */
+function credentialIssue(
+  node: NodeDef,
+  base: string,
+  connector: string,
+  named: string,
+  credentials: NonNullable<NonNullable<OrgFacts['connectors']>['credentials']>,
+): Issue | null {
+  const held = credentials.get(connector) ?? [];
+  const needle = named.toLowerCase();
+  if (
+    held.some(
+      (credential) =>
+        credential.id === named || credential.name.toLowerCase() === needle,
+    )
+  ) {
+    return null;
+  }
+  const suggestion = closestName(
+    named,
+    held.map((credential) => credential.name),
+  );
+  return warn(
+    'CREDENTIAL_UNKNOWN',
+    `node "${node.id}": connector "${connector}" has no credential "${named}" in service — a live run fails at this step`,
+    {
+      nodeId: node.id,
+      path: 'credential',
+      hint: `a person adds or enables it in Settings › Connectors${didYouMean(suggestion)}`,
+      at: { pointer: `${base}/credential` },
+      params: {
+        node: node.id,
+        connector,
+        credential: named,
+        ...(suggestion !== undefined && { suggestion }),
+      },
+    },
+  );
+}
+
 function secretIssues(
   node: NodeDef,
   base: string,
@@ -272,7 +321,22 @@ export function orgStateIssues(input: OrgStateInput, facts: OrgFacts): Issue[] {
     // one the host registered; a prefix the catalog does not hold is some
     // other kind of registered type, and says nothing about connections.
     const connector = capabilityConnector(node);
+    const named = namedCredential(node);
     if (
+      connector !== undefined &&
+      named !== undefined &&
+      facts.connectors?.credentials !== undefined
+    ) {
+      // A step that names its credential is judged by that name.
+      const issue = credentialIssue(
+        node,
+        base,
+        connector,
+        named,
+        facts.connectors.credentials,
+      );
+      if (issue !== null) issues.push(issue);
+    } else if (
       connector !== undefined &&
       facts.connectors !== undefined &&
       facts.connectors.catalogued.has(connector)

@@ -15,7 +15,9 @@ import { scheduleMemberWorkspaceRetirement } from '../domains/sandbox/retirement
  * `teamMemberMirror`, inline sync, auth-hook resync, hourly reconciliation
  * cron): those existed only because Better Auth lived in a separate Convex
  * component and every membership read was a cross-component round-trip. In
- * 0.5 the tables are local Postgres — one indexed read, no cache, no drift.
+ * 0.5 the tables are local Postgres — one indexed read, no mirror, no drift.
+ * The org gate's read alone goes through the process's cache, which a
+ * trigger on the table invalidates (`request-cache.ts`).
  *
  * Better Auth quotes its identifiers (camelCase columns, singular table
  * names), hence the quoted `"member"`/`"userId"` style below.
@@ -49,9 +51,8 @@ export class MembershipError extends Error {
 
 /**
  * All org memberships of a user (disabled rows included — callers filter),
- * in a STABLE order (by organization id): the sign-in audit walks this list
- * taking one audit-chain lock per organization inside one transaction, and
- * every walker must take them in the same order or two of them deadlock.
+ * in a STABLE order (by organization id), so every walker (the sign-in
+ * audit writes one row per organization) visits them the same way.
  */
 export async function getUserOrganizations(
   sql: Sql | TransactionSql,
@@ -164,6 +165,11 @@ export async function requireOrganizationMembership(
   sql: Sql | TransactionSql,
   organizationId: string,
   userId: string,
+  /** How the user's member rows are read: by default straight from the
+   * table; the org gate passes the process's cache (`request-cache.ts`). */
+  through: (
+    read: () => Promise<OrganizationMember[]>,
+  ) => Promise<OrganizationMember[]> = async (read) => read(),
 ): Promise<{ member: OrganizationMember; organizationIds: string[] }> {
   if (!organizationId) {
     throw new MembershipError(
@@ -171,12 +177,12 @@ export async function requireOrganizationMembership(
       'ORG_ID_REQUIRED',
     );
   }
-  const rows = await sql<
-    { id: string; organizationId: string; userId: string; role: string }[]
-  >`
-    SELECT "id", "organizationId", "userId", "role" FROM "member"
-    WHERE "userId" = ${userId}
-  `;
+  const rows = await through(
+    async () => sql<OrganizationMember[]>`
+      SELECT "id", "organizationId", "userId", "role" FROM "member"
+      WHERE "userId" = ${userId}
+    `,
+  );
   const row = rows.find(
     (candidate) => candidate.organizationId === organizationId,
   );

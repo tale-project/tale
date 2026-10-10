@@ -179,17 +179,33 @@ export function parseYamlOrThrow(
   return result.data;
 }
 
+/** How {@link stringifyYaml} lays out text a person reads line by line. */
+export interface StringifyYamlOptions {
+  /** Fold a long string at this many columns; `0` never folds a line. The
+   * printer's default folds at 80. */
+  readonly lineWidth?: number;
+  /** Write every multi-line string as a literal block (`|`), its lines as
+   * they are, where the printer would otherwise pick a folded one. */
+  readonly literalBlocks?: boolean;
+}
+
 /**
  * Serialize plain JSON-shaped data to the canonical on-disk YAML form every
  * config writer shares: YAML 1.2 core schema, 2-space indent, no anchors or
  * tags, trailing newline. The output round-trips through {@link parseYaml}
  * losslessly (same library, same schema), so what a writer persists is
  * exactly what every reader — and the Zod schema behind it — gets back.
+ * The options change only how lines are laid out, never what they hold.
  */
-export function stringifyYaml(data: unknown): string {
+export function stringifyYaml(
+  data: unknown,
+  options: StringifyYamlOptions = {},
+): string {
   return stringify(data, {
     schema: 'core',
     indent: 2,
+    ...(options.lineWidth !== undefined && { lineWidth: options.lineWidth }),
+    ...(options.literalBlocks === true && { blockQuote: 'literal' as const }),
     // Serialize repeated object references as independent copies; emitting
     // `&anchor`/`*alias` pairs would make the on-disk form depend on object
     // identity inside the writer, which no schema can see.

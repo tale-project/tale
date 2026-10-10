@@ -19,6 +19,7 @@ Nutze einen Connector, wenn Tale Daten in einem externen Dienst lesen oder ände
 | GlitchTip | Issues eines Projekts lesen, damit der GlitchTip-Import daraus Aufgaben anlegt. | Token und eine Instanz-URL. |
 | Gmail | E-Mails lesen, senden und organisieren. | OAuth. |
 | Google Drive | Dateien ins Wissen importieren. | OAuth. |
+| HTTP | Jede HTTPS-API aus einem Automatisierungsschritt aufrufen; siehe [Eine API aus einer Automatisierung aufrufen](/de/platform/automations/http). | Bearer-Token, API-Key oder Benutzername und Passwort, mit einer Basis-URL — oder keine. |
 | IMAP / SMTP Mailbox | E-Mails über einen eigenen Maildienst lesen oder senden. | Benutzername und Passwort. |
 | Jev decisions | Typisierte Fragen zu den Daten eines Workflows mit kalibrierten Wahrscheinlichkeiten beantworten, damit der Workflow entscheiden kann, ob er handelt. | API-Schlüssel (ein OpenRouter-Schlüssel). |
 | Microsoft Outlook | Mit E-Mails, Kalendern und Kontakten arbeiten. | OAuth. |
@@ -49,7 +50,7 @@ Confluence, GlitchTip und Shopify brauchen pro Eintrag eine **Instanz-URL**. Ver
 
 ## Das Konto für eine Aktion bestimmen
 
-Eine Aktion verwendet den ausdrücklich genannten Eintrag oder, ohne Angabe, den Standard des Connectors. Nur ein Eintrag pro Connector kann Standard sein. Ohne Standard schlägt ein Aufruf ohne Namen fehl, selbst wenn andere Zugangsdaten vorhanden sind. Löschst du den Standard, wird der älteste verbleibende aktive Eintrag dieses Connectors zum Standard; die Löschbestätigung nennt ihn vorher.
+Eine Aktion verwendet den ausdrücklich genannten Eintrag oder, ohne Angabe, den Standard des Connectors. Nur ein Eintrag pro Connector kann Standard sein. Ohne Standard schlägt ein Aufruf ohne Namen fehl, selbst wenn andere Zugangsdaten vorhanden sind. Löschst du den Standard, wird der älteste verbleibende aktive Eintrag dieses Connectors zum Standard; die Löschbestätigung nennt ihn vorher. Ein HTTP-Schritt ist die Ausnahme: Einer, der keine Zugangsdaten nennt, trägt keine, nie den Standard.
 
 Zwei Support-Postfächer sind beispielsweise zwei Einträge. Vergib unterscheidbare Namen und prüfe die aufgelöste Eingabe eines Workflows vor dem Live-Lauf. Der Standard wird verwendet, wenn die Aktion keinen bestimmten Eintrag nennt. Postfachoperationen, die alle aktiven Konten auslesen, sind ein eigener Fall.
 

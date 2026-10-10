@@ -63,6 +63,18 @@ export function resetCompiledSchemaCacheForTests(): void {
   compiledByKey.clear();
 }
 
+/** The words a run refuses an input with, from the inputs schema's
+ * check — the same for a run and for a test whose input the run would
+ * refuse. */
+export function inputRefusalMessage(
+  errors: ErrorObject[] | null | undefined,
+): string {
+  const problems = (errors ?? [])
+    .map((e) => `input${e.instancePath} ${e.message}`)
+    .join('; ');
+  return `run input does not match the automation "inputs" schema: ${problems}`;
+}
+
 /** How many problems one refusal names — enough to fix an input in one
  * round trip, bounded so a hostile input cannot echo itself back at length. */
 const MAX_DESCRIBED_ERRORS = 20;

@@ -97,8 +97,10 @@ export interface RunRecordView {
   mode: 'mock' | 'live';
   startedAt: number;
   finishedAt?: number;
-  /** `trace`: recorded before rows were kept, read from the run's trace. */
-  source: 'record' | 'trace';
+  /** `trace`: recorded before rows were kept, read from the run's trace;
+   * `transient`: a run that was never stored (a test, a try of a draft, a
+   * step test), read from the record its recorder kept in memory. */
+  source: 'record' | 'trace' | 'transient';
   nodes: RecordedStep[];
   events: RunEventView[];
   eventsTotal: number;

@@ -165,6 +165,26 @@ describe('connectorSchema', () => {
     expect(confluence.endpointMode).toBe('per-credential');
   });
 
+  it('requires a credential unless the connector makes it optional', () => {
+    expect(connectorSchema.parse(GITHUB).credential).toBe('required');
+    expect(
+      connectorSchema.parse({
+        ...connectorSchema.parse(GITHUB),
+        credential: 'optional',
+      }).credential,
+    ).toBe('optional');
+  });
+
+  it('refuses an optional credential on a connector that is the platform itself', () => {
+    const platform = {
+      ...connectorSchema.parse(MAILBOX),
+      name: 'tasks',
+      auth: [{ method: 'platform' }],
+      credential: 'optional',
+    };
+    expect(connectorSchema.safeParse(platform).success).toBe(false);
+  });
+
   it('rejects an unknown endpointMode', () => {
     const github = connectorSchema.parse(GITHUB);
     expect(
@@ -261,6 +281,41 @@ describe('connectorSchema', () => {
         i18n: { de: { description: 'Ein Postfach' } },
       }).success,
     ).toBe(false);
+  });
+
+  it('accepts a per-locale label and description on a config field, and only those', () => {
+    const mailbox = connectorSchema.parse(MAILBOX);
+    const field = {
+      key: 'imapHost',
+      label: 'IMAP server',
+      type: 'string',
+      required: true,
+    };
+    const translated = connectorSchema.parse({
+      ...mailbox,
+      configFields: [
+        {
+          ...field,
+          i18n: {
+            de: { label: 'IMAP-Server', description: 'Hostname des Servers.' },
+            'de-CH': { label: 'IMAP-Server' },
+          },
+        },
+      ],
+    });
+    expect(translated.configFields[0]?.i18n?.de?.label).toBe('IMAP-Server');
+    for (const i18n of [
+      { german: { label: 'IMAP-Server' } },
+      { de: { placeholder: 'imap.example.com' } },
+      { de: { label: '' } },
+    ]) {
+      expect(
+        connectorSchema.safeParse({
+          ...mailbox,
+          configFields: [{ ...field, i18n }],
+        }).success,
+      ).toBe(false);
+    }
   });
 
   it('requires a mock on every action', () => {

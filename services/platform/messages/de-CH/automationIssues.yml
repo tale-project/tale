@@ -1,5 +1,10 @@
 quote: «{text}»
 codes:
+  CREDENTIAL_UNKNOWN:
+    cause: '{nodeLabel} nennt die Zugangsdaten «{credential}» von «{connector}», die es nicht gibt oder die deaktiviert sind.'
+    fix: '{suggestion, select, none {Füge sie unter Einstellungen › Connectors hinzu oder aktiviere sie, oder nenne andere Zugangsdaten.} other {Meintest du «{suggestion}»?}}'
+  HTTP_SECRET_IN_URL:
+    cause: '{place, select, password {Die Adresse von {nodeLabel} enthält ein Passwort.} other {Die Adresse von {nodeLabel} enthält Zugangsdaten in «{place}».}}'
   UNKNOWN_TOP_FIELD:
     cause: Das Dokument hat ein Feld «{field}».
   NAME_INVALID:
@@ -88,7 +93,7 @@ codes:
     cause: Der Test «{name}» erwartet «{connector}».{possibleCount, plural, =0 { Keine Node hier führt eine Aktion aus.} one { Die Nodes hier führen {possibleList} aus.} other { Die Nodes hier führen {possibleList} aus.}}
     fix: '{suggestion, select, none {Erwarte eine Aktion, die eine Node ausführt.} other {Meintest du «{suggestion}»?}}'
   TESTS_EXPECT_TYPE:
-    cause: Der Test «{name}» erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
+    cause: '{property, select, none {Der Test «{name}» erwartet als Ausgabe {expectedText}, aber die Automatisierung gibt {actualText} zurück.} other {Der Test «{name}» erwartet für output{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.}}'
   LLM_MODEL_UNAVAILABLE:
     cause: '{nodeLabel} verwendet «{model}», das kein verbundener Anbieter bereitstellt.'
   SKILL_UNKNOWN:
@@ -105,3 +110,22 @@ codes:
   EVENT_UNKNOWN:
     cause: 'Der Trigger wartet auf «{event}».'
     fix: '{suggestion, select, none {Wähle ein Ereignis aus der Liste.} other {Meintest du «{suggestion}»?}}'
+  TESTS_UNKNOWN_FIELD:
+    cause: 'Der Test «{name}» hat «{field}»{effect, select, none {} other { in einer erwarteten Aktion}}.'
+    fix: '{suggestion, select, none {{effect, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Entferne es. Eine erwartete Aktion hat connector, node, input, inputIncludes und absent.}}} other {Meintest du «{suggestion}»?}}'
+  TESTS_NAME_DUPLICATE:
+    cause: Test {testNumber} trägt den Namen «{name}», wie Test {firstPosition}.
+  TESTS_MOCK_UNKNOWN_NODE:
+    cause: Der Test «{name}» simuliert «{node}».
+    fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du «{suggestion}»?}}'
+  TESTS_MOCK_CONFLICT:
+    cause: Der Test «{name}» macht beides für {nodeLabel}.
+  TESTS_MOCK_NOT_LIST:
+    cause: Der Test «{name}» gibt {nodeLabel} {kindLabel}.
+  TESTS_MOCK_TYPE:
+    cause: '{property, select, none {Im Test «{name}» ist die simulierte Ausgabe {actualText}, aber {nodeLabel} gibt {expectedText} zurück.} other {Im Test «{name}» ist output{property} {actualText}, aber {nodeLabel} gibt dort {expectedText} zurück.}}'
+  TESTS_EXPECT_NODE_UNKNOWN:
+    cause: Der Test «{name}» nennt «{node}».
+    fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du «{suggestion}»?}}'
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE:
+    fix: '{cause, select, continues {Erwarte sie unter Nodes als «Schlägt fehl, der Lauf geht weiter».} other {Erwarte den Fehler bei einer Node, die läuft.}}'

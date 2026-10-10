@@ -58,6 +58,8 @@ interface ConnectorSummary {
     min?: number;
     max?: number;
     default?: string | number | boolean;
+    /** Per-locale label and description, resolved by the form's locale. */
+    i18n?: Record<string, { label?: string; description?: string }>;
   }>;
   actionCount: number;
   iconUrl?: string;
@@ -139,6 +141,7 @@ export function listConnectorSummaries(): ConnectorSummary[] {
         ...(field.min !== undefined && { min: field.min }),
         ...(field.max !== undefined && { max: field.max }),
         ...(field.default !== undefined && { default: field.default }),
+        ...(field.i18n !== undefined && { i18n: field.i18n }),
       })),
       actionCount: connector.actions.length,
     };

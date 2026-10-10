@@ -34,7 +34,7 @@ A connector named with ordinary words, such as `task` (Tasks), also declares `i1
 | `endpointMode: fixed` | Default. Live HTTP calls use fixed vendor URLs; `allowedHosts` contains exact hosts |
 | `endpointMode: per-credential` | Each credential supplies an HTTPS `endpointUrl`; actions read its origin as `ctx.endpoint`, without a trailing slash |
 | `allowedHosts` in per-credential mode | Host suffixes: `atlassian.net` allows its subdomains |
-| `configFields` | Non-secret per-credential values such as server host, port, region, or API version |
+| `configFields` | Non-secret per-credential values such as server host, port, region, or API version; a field's `label` and `description` take `i18n.de` and `i18n.fr` overrides for the credential form |
 
 Confluence, GlitchTip and Shopify use per-credential origins. Keep secrets out of `configFields`; use the encrypted credential payload. For JavaScript actions, `ctx.http` enforces the declared HTTP destination boundary. Native backends, such as mailbox protocols, implement their own transport checks; an HTTP allowlist alone does not describe their whole security boundary.
 

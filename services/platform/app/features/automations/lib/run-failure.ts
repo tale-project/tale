@@ -89,6 +89,7 @@ const DERIVED_BY_PARAM: Readonly<Record<string, readonly string[]>> = {
   harness: ['harnessLabel'],
   automation: ['automationLabel'],
   childPath: ['childLabel'],
+  message: ['messageLabel'],
 };
 
 function isStepFailureReason(reason: string): reason is StepFailureReason {
@@ -110,8 +111,9 @@ function derivedParamsOf(reason: StepFailureReason): readonly string[] {
 /**
  * The params each reason's `cause` and `fix` may use beside its own
  * `STEP_FAILURE_META` params: names prepared for reading. `fieldLabel`,
- * `keyLabel`, `nameLabel`, `actionLabel`, `propertyLabel` and
- * `automationLabel` are in the language's quotes; `sourceLabel` and
+ * `keyLabel`, `nameLabel`, `actionLabel`, `propertyLabel`,
+ * `automationLabel` and `messageLabel` (a test's own words for the failure
+ * it simulates) are in the language's quotes; `sourceLabel` and
  * `childLabel` name a step the way the canvas titles it, in quotes; `connectorLabel`,
  * `modelLabel` and `harnessLabel` are display names; `kindLabel` says what
  * kind of value it was ("a number"); `limit` words a time limit ("5
@@ -226,6 +228,8 @@ function derive(
       return { automationLabel: none ? 'none' : quote(t, text) };
     case 'childPath':
       return { childLabel: none ? 'none' : quote(t, nodeTitle(text)) };
+    case 'message':
+      return { messageLabel: none ? 'none' : quote(t, text) };
     default:
       return {};
   }

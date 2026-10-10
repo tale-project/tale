@@ -21,6 +21,8 @@ A token bucket refills continuously up to its burst capacity. A short batch can 
 | Webhook deliveries before token validation | 120/minute | 240 | Sender address |
 | Deliveries to a verified webhook trigger | 20/minute | 40 | Trigger |
 
+Automation HTTP steps draw from a budget of their own, per organization: 120 calls a minute across the deployment, and 10 at once on one server. See [Call an API from an automation](/platform/automations/http).
+
 REST execution and upload requests also consume the general budget. For example, a project file needs an upload-handoff request and a file-bind request; each counts against both the general and upload budgets. The larger upload bucket does not allow a user to bypass the general limit.
 
 Execution includes project and non-project automation starts, thread-message sends and explicit task starts. Task intake also consumes the execution budget when `runWorkflowSlug` is supplied. A starting-work request is charged once its body and headers have passed the endpoint's own checks — a `400 INVALID_BODY` or `INVALID_HEADER` spends nothing — and before anything is looked up, so a `404` for a thread, task or automation you cannot see costs a token, as does a `409` the state answers. Some mutations, such as task comments and folder changes, have additional domain budgets shared with the app.

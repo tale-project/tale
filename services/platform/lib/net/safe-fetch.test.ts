@@ -162,6 +162,24 @@ describe('lib/net/safe-fetch redirects', () => {
     expect(Object.keys(calls[1].headers)).toEqual(['Authorization']);
   });
 
+  it('drops a header the caller names as a credential on a hop to another port', async () => {
+    const { calls } = scriptFetch([
+      redirect(302, 'https://api.example.com:8443/elsewhere'),
+      ok(),
+    ]);
+    await safeFetch(`${ORIGIN}/things`, {
+      headers: { 'X-Shop-Key': 'k-secret', Accept: 'application/json' },
+      allowedHosts: ['api.example.com'],
+      sensitiveHeaders: ['X-Shop-Key'],
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.headers).toEqual({
+      'X-Shop-Key': 'k-secret',
+      Accept: 'application/json',
+    });
+    expect(calls[1]?.headers).toEqual({ Accept: 'application/json' });
+  });
+
   it('switches a 301/302 answered to a POST to GET', async () => {
     for (const status of [301, 302]) {
       const { calls, spy } = scriptFetch([

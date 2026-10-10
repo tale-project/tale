@@ -82,6 +82,7 @@ function rowFromStorage(stored: StoredAuditRecord): AuditLogRow {
     metadata: json(stored.metadata),
     integrityHash: 'not-part-of-the-input',
     previousHash: null,
+    chainSeq: null,
     piiScrubbed: null,
   };
 }

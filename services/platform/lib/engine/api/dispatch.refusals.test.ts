@@ -599,7 +599,7 @@ describe('save_automation records the save’s own test verdict', () => {
     vi.mocked(runAutomationTests).mockResolvedValueOnce({
       passed: 0,
       failed: 1,
-      results: [{ name: 'fails', pass: false }],
+      results: [{ name: 'fails', pass: false, index: 0, ms: 1 }],
     });
     const save = vi.fn(async () => ({ name: SAVED, version: 2 }));
     const result = await dispatch(

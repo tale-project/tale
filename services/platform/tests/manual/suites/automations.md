@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 172 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 180 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1277,6 +1277,55 @@ output:
       `/agent/workspace/input.json`, which holds the payload under `run`.
       Repeat with **Deploy v1 now** unchecked → v1 stays a draft and the same
       request starts nothing until you deploy it from the editor.
+- [ ] `AUTO-F123` · **Add an `http.get` step without a credential reading
+      `https://httpbin.org/json`, save and **Run live** a deployed version** →
+      the step succeeds; its output shows `status: 200`, `ok: true`, the JSON
+      `body`, and only the allowed answer headers (`content-type`, never
+      `set-cookie`). Change the URL to `http://httpbin.org/json` → the editor
+      warns `HTTP_URL_NOT_HTTPS` under the URL, and a live run fails with
+      `automationRuns.reasons.HTTP_BLOCKED_HOST` (plain HTTP).
+- [ ] `AUTO-F124` · **In Settings › Connectors add an HTTP credential "Echo"
+      (Bearer token `tok_manual_check_12345`, base URL
+      `https://httpbin.org/anything`), then run live an `http.get` step with
+      `credential: Echo` and `url: /orders`** → the call reaches
+      `https://httpbin.org/anything/orders`; the echoed body shows the
+      Authorization header as `Bearer [redacted]`, never the token, in the
+      output and in the run's record. Change the URL to
+      `https://httpbin.org/get` → the run fails with
+      `automationRuns.reasons.HTTP_OFF_ORIGIN` before any request leaves.
+- [ ] `AUTO-F125` · **Give an `http.send` step `method: POST`, a JSON
+      `body` and the header `Authorization: Bearer x`** → the editor refuses
+      the save with `HTTP_HEADER_RESERVED` on the header; remove it and run
+      live → the run waits for an approval like every write, and once
+      approved posts the body as `application/json`. A **Test run** never
+      sends: the step's output is the mock answer.
+- [ ] `AUTO-F126` · **Name a credential the connector does not have
+      (`credential: Shop APII` on an `http.get` step)** → the editor warns
+      `CREDENTIAL_UNKNOWN` under the field with "Did you mean "Shop API"?"
+      when a Shop API credential exists; a live run fails at the step
+      saying the credential was not found.
+- [ ] `AUTO-F127` · **In an automation bound to the project Website
+      relaunch, add a `knowledge.search` step with `query: launch checklist`
+      and `corpus: documents`, deploy and **Run live** in that project** → the
+      step's output lists `hits`, best first, each with `text`, `title`,
+      `source: documents` and `documentId`; a file of the project and a
+      document every member shares can appear, a file of another project
+      never does. With `limit: 1` → one hit. A **Test run** answers with the
+      mock's example passage.
+- [ ] `AUTO-F128` · **In an organization with no embedding model (Settings ›
+      Data residency), run live a `knowledge.search` step** → the run fails
+      at the step with `automationRuns.reasons.KNOWLEDGE_NOT_CONFIGURED`,
+      saying where an administrator chooses a model. Choose one, use up a
+      project's cost limit and run the step again in that project → it fails
+      with `automationRuns.reasons.BUDGET_EXCEEDED`, and the technical
+      details name the limit.
+- [ ] `AUTO-F129` · **Run live an `http.get` step on
+      `https://httpbin.org/status/503`, then on
+      `https://httpbin.org/status/404`** → the first run fails as
+      `automationRuns.runFailure.codes.connector_unavailable` (a service was
+      unavailable, run again later), the second as
+      `automationRuns.runFailure.codes.connector_error`; both steps explain
+      `automationRuns.reasons.HTTP_STATUS` with the status the API answered.
 
 ## Boundary & error tests
 
@@ -1419,6 +1468,17 @@ output:
 - [ ] `AUTO-B22` · **Open a comparison of a run with itself, and with a run
       of another automation** → `automationRuns.compare.same`, then
       `automationRuns.compare.notFound`; neither shows a table.
+
+- [ ] `AUTO-B23` · **History read failure and recovery** — Keep the automation
+      detail read successful and fail only its Runs request until retries are
+      exhausted; repeat for the Version history request → Each history shows
+      an announced error and keyboard-reachable **Try again**
+      (`common.errors.tryAgain`), never its successful empty-history message.
+      Restore the request and activate retry with Enter → Only that history
+      reloads, and focus moves to its heading, not the page body. A successful
+      empty response still shows `automations.runs.empty` or
+      `automations.versions.empty`. Repeat in EN/DE/FR and check the control's
+      visible focus and wrapping in the narrow layout.
 
 ## Run liveness — chaos recovery (backend, scripted)
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ParseResult, ParseYamlOptions } from './yaml';
-import { DEFAULT_MAX_YAML_BYTES, parseYaml, parseYamlOrThrow } from './yaml';
+import {
+  DEFAULT_MAX_YAML_BYTES,
+  parseYaml,
+  parseYamlOrThrow,
+  stringifyYaml,
+} from './yaml';
 
 /** Narrow a result to its failure branch so tests can assert on the message. */
 function unwrapError(result: ParseResult): string {
@@ -162,5 +167,30 @@ describe('parseYamlOrThrow', () => {
     expect(() => parseYamlOrThrow('a: 1\n---\nb: 2\n')).toThrow(
       /single document/,
     );
+  });
+});
+
+describe('stringifyYaml', () => {
+  const long = 'word '.repeat(25).trim();
+  const data = { prompt: `${long}\nsecond line`, line: long, same: { a: 1 } };
+
+  it('folds long lines and picks block styles by default', () => {
+    const text = stringifyYaml(data);
+    expect(text).toContain('prompt: >-\n');
+    expect(text).toMatch(/^line: (word ){14}word\n {2}word/m);
+    expect(parseYamlOrThrow(text)).toEqual(data);
+  });
+
+  it('keeps every line whole and multi-line strings literal on request', () => {
+    const text = stringifyYaml(data, { lineWidth: 0, literalBlocks: true });
+    expect(text).toContain(`prompt: |-\n  ${long}\n  second line\n`);
+    expect(text).toContain(`line: ${long}\n`);
+    expect(parseYamlOrThrow(text)).toEqual(data);
+  });
+
+  it('writes a repeated object out each time, never as an alias', () => {
+    const shared = { a: 1 };
+    const text = stringifyYaml({ x: shared, y: shared });
+    expect(text).toBe('x:\n  a: 1\ny:\n  a: 1\n');
   });
 });

@@ -47,43 +47,32 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * between them and pause it again for failures that were not in a row, and
  * must count a failure, or it could never pause again.
  *
- * Lock order — the organization's audit chain BEFORE any trigger row, in
- * every transaction that takes both:
+ * Lock order — a transaction that writes a trigger row takes it AFTER the
+ * rows it decides on, and an audit row takes no lock at all (the chain is
+ * sealed off the write path, `audit_logs/service.ts`):
  *
- * - `finishRun` writes the run's audit row first and keeps the streak after
- *   it; a pause audits again under the chain it already holds;
- * - an event dispatch (`dispatchAutomationEvent`, inside the producer's
- *   transaction) takes the chain (`lockAuditChain`) before it stamps a
- *   trigger, so a producer that emits before it audits (a comment edit's
- *   `comment.mentioned`, a conversation opened before its first message)
- *   holds the chain by then, like one that audited first (a task or a
- *   contact created);
- * - removing a run writes the row too: `last_run_id` and
+ * - `finishRun` holds its own run row, then writes the trigger's streak;
+ * - removing a run writes the trigger row too: `last_run_id` and
  *   `last_failed_run_id` are `ON DELETE SET NULL`, so the delete clears the
  *   trigger that names the run. The run door (`deleteRunInTx`) and the
- *   retention sweep lock the runs' own rows, then the chain, then delete —
- *   the order a landing run takes its row, the chain and the trigger in.
- *   The sweep takes the chain there only when a trigger names a run of its
- *   batch: otherwise its delete writes no trigger row, and holding the chain
- *   across a delete of up to a thousand runs would queue every audit writer
- *   of the organization behind it. Erasure removes only runs a person or a
- *   key started, which no trigger names;
- * - saving or removing a trigger, and deleting its automation, audit the
- *   change: each takes the chain first, then (a managed schedule, a delete)
- *   the automation's name, then the trigger row (`automations/audit.ts`);
- * - the schedule scan and the webhook door write the row and take no chain
- *   in that transaction.
+ *   retention sweep lock the runs' own rows, then delete — the run row
+ *   before the trigger row, as a landing run. Erasure removes only runs a
+ *   person or a key started, which no trigger names;
+ * - saving or removing a trigger, and deleting its automation, take the
+ *   automation's name first, then the trigger row (`automations/audit.ts`);
+ * - an event dispatch (`dispatchAutomationEvent`, inside the producer's
+ *   transaction) stamps its triggers in id order;
+ * - the schedule scan and the webhook door write the row alone.
  *
- * A landing run and a producer stamping the same event trigger, or a
- * removal of the run the trigger names, therefore queue on the chain
- * instead of each holding what the other waits for — a deadlock whose loser
- * was the producer's dispatch (swallowed by `emitEvent`'s savepoint: the
- * event's run silently never started), the streak (swallowed by its
- * savepoint below: the run went uncounted) or the landing run's audit row
- * (the terminal write rolled back, left to the sweep). The real-Postgres
- * lane `trigger-lock-order.integration.ts` holds both orders of producer,
- * both removals (the run door in the REST door's serializable transaction)
- * and a sweep whose batch no trigger names.
+ * No transaction holds a trigger row while it waits for a run row, so a
+ * landing run, a producer stamping its trigger and a removal of the run the
+ * trigger names never deadlock — a cycle whose loser used to be the
+ * producer's dispatch (swallowed by `emitEvent`'s savepoint: the event's
+ * run silently never started), the streak (swallowed by its savepoint
+ * below: the run went uncounted) or the landing run's terminal write. The
+ * real-Postgres lane `trigger-lock-order.integration.ts` holds both orders
+ * of producer, both removals (the run door in the REST door's serializable
+ * transaction) and a sweep.
  *
  * The bookkeeping rides a savepoint, like an event dispatch (`emitEvent`):
  * the run's own terminal write is the contract, and a fault here must never

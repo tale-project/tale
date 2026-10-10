@@ -178,6 +178,10 @@ export interface SafeFetchOptions {
    * and metadata addresses stay refused. A credential header on such a
    * request is a caller bug and throws. */
   credentialless?: boolean;
+  /** More header names that carry a credential, such as an API key header a
+   * caller named itself: dropped on a hop to another host or port, like
+   * `Authorization`. */
+  sensitiveHeaders?: readonly string[];
 }
 
 /** Headers a credentialless request must never carry. */
@@ -567,10 +571,13 @@ const CROSS_HOST_SENSITIVE_HEADERS: ReadonlySet<string> = new Set([
 
 function stripCrossHostSensitiveHeaders(
   headers: Record<string, string>,
+  extra: readonly string[] = [],
 ): Record<string, string> {
+  const named = new Set(extra.map((name) => name.toLowerCase()));
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
-    if (CROSS_HOST_SENSITIVE_HEADERS.has(name.toLowerCase())) continue;
+    const lower = name.toLowerCase();
+    if (CROSS_HOST_SENSITIVE_HEADERS.has(lower) || named.has(lower)) continue;
     out[name] = value;
   }
   return out;
@@ -756,7 +763,10 @@ async function fetchFollowingRedirects(
     // attacker who controls a redirect target on a second allowlisted
     // host can't harvest the upstream provider's bearer token.
     if (nextUrl.host.toLowerCase() !== new URL(currentUrl).host.toLowerCase()) {
-      currentHeaders = stripCrossHostSensitiveHeaders(currentHeaders);
+      currentHeaders = stripCrossHostSensitiveHeaders(
+        currentHeaders,
+        options.sensitiveHeaders,
+      );
     }
     if (redirectSwitchesToGet(response.status, currentMethod)) {
       currentMethod = 'GET';

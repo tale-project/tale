@@ -6,9 +6,11 @@ import { memo } from 'react';
 
 import { useT } from '../../../i18n/client';
 import { cn } from '../../../lib/cn';
+import { ChangeKindBadge } from '../../data-display/change-list';
 import { FLOW_EDGE_COLORS } from '../edge-palette';
 import { FlowNodeIssueMarker } from '../node-issue-marker';
 import type { FlowGateNode } from '../types';
+import { FLOW_DIFF_BADGE_MOTION } from './chrome';
 import { FlowNodeButton, useFlowRender } from './flow-render-context';
 import type { FlowNodeData } from './step-node';
 
@@ -20,7 +22,9 @@ import type { FlowNodeData } from './step-node';
  * full condition in a tooltip; a keyboard gets it in the name. In a run, a
  * chip at its end says how it decided — "Yes" with a check or "No" with a
  * dash, in the branch's colour. Two runs compared that decided alike share
- * that chip; runs that decided apart get one each, "A ✓ · B –".
+ * that chip; runs that decided apart get one each, "A ✓ · B –". Two
+ * versions compared put the change's badge there (a removed condition's
+ * words struck through); the pill keeps its width, the words give way.
  */
 export const FlowGateNodeView = memo(function FlowGateNodeView({
   data,
@@ -30,6 +34,7 @@ export const FlowGateNodeView = memo(function FlowGateNodeView({
   const { node, phase } = data;
   const Icon = node.mode === 'if-else' ? Split : Filter;
   const counts = issues.get(node.id);
+  const changed = looks.get(node.id)?.diff;
   const face = compare?.faces.get(node.id);
   const decidedA = face?.a?.decision;
   const decidedB = face?.b?.decision;
@@ -67,6 +72,7 @@ export const FlowGateNodeView = memo(function FlowGateNodeView({
         className={cn(
           'min-w-0 flex-1 truncate text-xs leading-4',
           node.conditionIsCode && 'font-mono',
+          changed === 'removed' && 'line-through decoration-2',
         )}
       >
         {node.condition}
@@ -134,6 +140,9 @@ export const FlowGateNodeView = memo(function FlowGateNodeView({
           )}
           {t(decision ? 'branch.yes' : 'branch.no')}
         </span>
+      )}
+      {changed !== undefined && (
+        <ChangeKindBadge kind={changed} className={FLOW_DIFF_BADGE_MOTION} />
       )}
     </FlowNodeButton>
   );

@@ -16,6 +16,7 @@
 
 import type { ErrorObject } from 'ajv';
 
+import { credentialKind } from '../../../shared/secret-scan';
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
 import { nodeTypes, type ConnectorLike } from '../slots';
@@ -140,6 +141,107 @@ function checkConnectorInput(
   }
 }
 
+/** The HTTP connector's node types, and the headers only its credential
+ * may set. */
+const HTTP_NODE_TYPES = new Set(['http.get', 'http.send']);
+const HTTP_RESERVED_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+]);
+
+/** A value written out, not worked out at run time. */
+function literal(value: unknown): string | undefined {
+  return typeof value === 'string' && !value.includes('{{') ? value : undefined;
+}
+
+/** Where a written-out URL carries a credential: its password, or a query
+ * parameter whose value looks like one. A URL whose text is a known shape
+ * already fails as a secret in the document, and a `query` value sits under
+ * its own name, where that check reads it too. */
+function secretPlaceInUrl(url: string): string | undefined {
+  if (credentialKind(url) !== undefined) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.password !== '') return 'password';
+  for (const [name, value] of parsed.searchParams) {
+    if (credentialKind(value, name) !== undefined) return name;
+  }
+  return undefined;
+}
+
+/**
+ * What a look at an HTTP step's written-out input can tell before a run: an
+ * address a call without a credential would send in the clear, a secret
+ * written into the address, and a header only a credential may set. A
+ * templated value is the run's to judge.
+ */
+function checkHttpInput(
+  n: NodeDef,
+  base: string,
+  input: Record<string, unknown>,
+  issues: Issue[],
+): void {
+  const credentialed =
+    typeof n.credential === 'string' && n.credential.trim() !== '';
+  const url = literal(input.url)?.trim();
+  if (url !== undefined) {
+    if (!credentialed && /^http:\/\//i.test(url)) {
+      issues.push(
+        warn(
+          'HTTP_URL_NOT_HTTPS',
+          `node "${n.id}" (${n.type}): the URL is plain http, which a call without a credential refuses for a public host`,
+          {
+            nodeId: n.id,
+            path: '/url',
+            hint: 'use the https:// address',
+            at: { pointer: `${base}/url` },
+            params: { node: n.id, type: n.type },
+          },
+        ),
+      );
+    }
+    const place = secretPlaceInUrl(url);
+    if (place !== undefined) {
+      issues.push(
+        err(
+          'HTTP_SECRET_IN_URL',
+          `node "${n.id}" (${n.type}): the URL carries a credential in "${place}"`,
+          {
+            nodeId: n.id,
+            path: '/url',
+            hint: "store the credential in Settings → Connectors and name it in the step's credential field",
+            at: { pointer: `${base}/url` },
+            params: { node: n.id, type: n.type, place },
+          },
+        ),
+      );
+    }
+  }
+  if (isRecord(input.headers)) {
+    for (const name of Object.keys(input.headers)) {
+      if (!HTTP_RESERVED_HEADERS.has(name.toLowerCase())) continue;
+      issues.push(
+        err(
+          'HTTP_HEADER_RESERVED',
+          `node "${n.id}" (${n.type}): the step sets the ${name} header, which only a credential sets`,
+          {
+            nodeId: n.id,
+            path: `/headers/${name}`,
+            hint: "remove the header and name a credential in the step's credential field",
+            at: { pointer: `${base}/headers${ptr(name)}`, subject: 'key' },
+            params: { node: n.id, type: n.type, header: name },
+          },
+        ),
+      );
+    }
+  }
+}
+
 function additionalProperty(e: ErrorObject): string | undefined {
   if (e.keyword !== 'additionalProperties') return undefined;
   const name: unknown = e.params.additionalProperty;
@@ -231,6 +333,9 @@ export async function validateContracts(
 
     if (def?.connector && isRecord(n.input)) {
       checkConnectorInput(n, `${base}/input`, n.input, def.connector, issues);
+    }
+    if (HTTP_NODE_TYPES.has(n.type) && isRecord(n.input)) {
+      checkHttpInput(n, `${base}/input`, n.input, issues);
     }
 
     // A model nobody serves fails the node on the first live run, and the

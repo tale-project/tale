@@ -317,6 +317,7 @@ export interface AuditLogsContract {
       maxEntries?: number;
       fromTimestamp?: number;
       afterId?: string;
+      afterSeq?: string;
       organizationId: string;
     };
     returns:
@@ -329,6 +330,8 @@ export interface AuditLogsContract {
           lastVerifiedTimestamp: undefined | number;
           lastVerifiedId: undefined | string;
           lastVerifiedHash: undefined | string;
+          lastVerifiedSeq?: string;
+          awaitingSeal: { count: number; oldestTimestamp?: number };
           firstBrokenAt: {
             logId: string;
             timestamp: number;
@@ -345,6 +348,8 @@ export interface AuditLogsContract {
           lastVerifiedTimestamp: undefined | number;
           lastVerifiedId: undefined | string;
           lastVerifiedHash: undefined | string;
+          lastVerifiedSeq?: string;
+          awaitingSeal: { count: number; oldestTimestamp?: number };
           firstBrokenAt?: undefined;
         };
   };

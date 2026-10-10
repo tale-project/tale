@@ -2,9 +2,9 @@
 
 /**
  * Every change to an automation's definition leaves an audit row, written in
- * the change's own transaction after the organization's audit chain is
- * locked — before the automation's name and before any trigger row, the
- * order every transaction that holds the chain takes them in. A row names
+ * the change's own transaction after the automation's name is locked — the
+ * name before any trigger row, and no organization-wide lock at all: the
+ * audit row takes none, the chain being sealed off the write path. A row names
  * versions, kinds and project ids, never a document, a webhook token or its
  * hash. A deploy and a delete can name the state they expect, and change
  * nothing when it moved.
@@ -59,8 +59,8 @@ function fakeSql(rules: Array<[string, unknown[], number?]> = []) {
   return { sql: sql as unknown as Sql, tx: sql as never, statements };
 }
 
-/** Where the organization's audit chain and the automation's name were
- * locked, and where the first row write happened. */
+/** Where the automation's name was locked, where the first advisory lock
+ * was taken, and whether anything took the organization's chain key. */
 function lockOrder(statements: Statement[], name: string) {
   const chain = statements.findIndex((s) =>
     s.values.includes('audit-chain:org_1'),
@@ -68,7 +68,10 @@ function lockOrder(statements: Statement[], name: string) {
   const nameLock = statements.findIndex(
     (s) => s.text.includes('pg_advisory_xact_lock') && s.values.includes(name),
   );
-  return { chain, nameLock };
+  const firstLock = statements.findIndex((s) =>
+    s.text.includes('pg_advisory_xact_lock'),
+  );
+  return { chain, nameLock, firstLock };
 }
 
 const VERSION_ROW = {
@@ -93,7 +96,7 @@ beforeEach(() => {
 });
 
 describe('deploy', () => {
-  it('audits what was live and what is live now, after the chain and the name [AUTO-R28]', async () => {
+  it('audits what was live and what is live now, after the name, with no organization-wide lock [AUTO-R28]', async () => {
     const fake = fakeSql([
       ['FROM app.automations WHERE org_id', [VERSION_ROW]],
       ['SELECT version FROM app.automation_deployments', [{ version: 1 }]],
@@ -110,9 +113,13 @@ describe('deploy', () => {
       previousVersion: 1,
       trigger: null,
     });
-    const { chain, nameLock } = lockOrder(fake.statements, 'ops/greet');
-    expect(chain).toBeGreaterThanOrEqual(0);
-    expect(nameLock).toBeGreaterThan(chain);
+    const { chain, nameLock, firstLock } = lockOrder(
+      fake.statements,
+      'ops/greet',
+    );
+    expect(chain).toBe(-1);
+    expect(nameLock).toBeGreaterThanOrEqual(0);
+    expect(firstLock).toBe(nameLock);
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
       actor: 'api-key:user_ada',
@@ -173,7 +180,7 @@ describe('deploy', () => {
 });
 
 describe('deleteAutomationCascade', () => {
-  it('audits the removal with how many versions went, after the chain and the name [AUTO-R28]', async () => {
+  it('audits the removal with how many versions went, after the name, with no organization-wide lock [AUTO-R28]', async () => {
     const fake = fakeSql([
       ['DELETE FROM app.automations', [], 4],
       ['DELETE FROM app.automation_deployments', [{ version: 3 }]],
@@ -185,9 +192,13 @@ describe('deleteAutomationCascade', () => {
         actor: 'user_ada',
       }),
     ).resolves.toEqual({ versions: 4 });
-    const { chain, nameLock } = lockOrder(fake.statements, 'ops/greet');
-    expect(chain).toBeGreaterThanOrEqual(0);
-    expect(nameLock).toBeGreaterThan(chain);
+    const { chain, nameLock, firstLock } = lockOrder(
+      fake.statements,
+      'ops/greet',
+    );
+    expect(chain).toBe(-1);
+    expect(nameLock).toBeGreaterThanOrEqual(0);
+    expect(firstLock).toBe(nameLock);
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
       actor: 'user_ada',
@@ -242,14 +253,13 @@ describe('triggers', () => {
       trigger: { kind: 'webhook', rotateToken: true },
       actor: 'user_ada',
     });
-    const chain = fake.statements.findIndex((s) =>
-      s.values.includes('audit-chain:org_1'),
-    );
+    const { chain, nameLock } = lockOrder(fake.statements, 'ops/greet');
     const rowLock = fake.statements.findIndex((s) =>
       s.text.includes('FOR UPDATE'),
     );
-    expect(chain).toBeGreaterThanOrEqual(0);
-    expect(rowLock).toBeGreaterThan(chain);
+    expect(chain).toBe(-1);
+    expect(nameLock).toBeGreaterThanOrEqual(0);
+    expect(rowLock).toBeGreaterThan(nameLock);
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
       actor: 'user_ada',
@@ -317,11 +327,11 @@ describe('triggers', () => {
       }),
     );
     const order = lockOrder(fake.statements, 'ops/greet');
-    expect(order.chain).toBeGreaterThanOrEqual(0);
-    expect(order.nameLock).toBeGreaterThan(order.chain);
+    expect(order.chain).toBe(-1);
+    expect(order.firstLock).toBe(order.nameLock);
   });
 
-  it('audits a removal with what was bound, after the chain [AUTO-R28]', async () => {
+  it('audits a removal with what was bound, after the name [AUTO-R28]', async () => {
     const fake = fakeSql([
       [
         'DELETE FROM app.automation_triggers',
@@ -341,7 +351,11 @@ describe('triggers', () => {
     await expect(
       deleteTrigger(fake.sql, 'org_1', 'ops/greet', 'user_ada'),
     ).resolves.toBe(true);
-    expect(fake.statements[0]?.values).toContain('audit-chain:org_1');
+    expect(lockOrder(fake.statements, 'ops/greet')).toMatchObject({
+      chain: -1,
+      firstLock: 0,
+      nameLock: 0,
+    });
     expect(auditDefinitionWrite).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org_1',
       actor: 'user_ada',
@@ -425,7 +439,11 @@ describe('installations', () => {
       projectIds: ['p-2'],
       actor: 'user_ada',
     });
-    expect(fake.statements[0]?.values).toContain('audit-chain:org_1');
+    expect(lockOrder(fake.statements, 'ops/greet')).toMatchObject({
+      chain: -1,
+      firstLock: 0,
+      nameLock: 0,
+    });
     expect(
       vi.mocked(auditDefinitionWrite).mock.calls.map(([, args]) => args.action),
     ).toEqual(['automation.project.unbound', 'automation.project.bound']);

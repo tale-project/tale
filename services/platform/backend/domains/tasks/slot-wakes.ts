@@ -1,8 +1,10 @@
-import { markRetryQueueKey } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { isStandingProjectAgentSession } from '../../core/sandbox/session_naming.ts';
-import { auditChainQueueKey, lockAuditChain } from '../audit_logs/service.ts';
+import {
+  lockProjectWork,
+  queueOnProjectWork,
+} from '../../lib/project-work-lock.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 /**
@@ -17,13 +19,12 @@ import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
  * pending row (`automations/wakes.ts`); only a manager turn that captured the
  * release at admission and then launched and settled covers it.
  *
- * Lock discipline: every write to the wake row holds the org's audit-chain
- * key (`lockAuditChain`). A terminal election already holds it through its
- * ledger entry, so the call re-enters; a retirement takes it after its run
- * row. Nobody therefore ever waits on a wake row. A serialization failure
+ * Lock discipline: every write to the wake row holds the project's work key
+ * (`lib/project-work-lock.ts`), the one a task write takes before the project
+ * row — after the run and task rows, in a terminal election as in a task
+ * write. Nobody therefore ever waits on a wake row. A serialization failure
  * raised by the wake statement is marked with that key alone, and the marks
- * the callers add (the completion's `task-comment:<taskId>`) prepend to it,
- * so a queued retry takes exactly the keys it takes today.
+ * the callers add (the completion's `task-comment:<taskId>`) prepend to it.
  */
 
 /** The first backoff step of a wake whose occurrence did not serve. */
@@ -148,18 +149,18 @@ async function startedByTarget(
   return rows.length > 0;
 }
 
-/** Run a wake-row statement under the chain key; a serialization failure is
- * marked with that key (callers' outer marks prepend to it). */
-async function underChainKey<T>(
+/** Run a wake-row statement under the project's work key; a serialization
+ * failure is marked with that key (callers' outer marks prepend to it). */
+async function underProjectWork<T>(
   tx: TransactionSql,
-  organizationId: string,
+  projectId: string,
   write: () => Promise<T>,
 ): Promise<T> {
-  await lockAuditChain(tx, organizationId);
+  await lockProjectWork(tx, projectId);
   try {
     return await write();
   } catch (error) {
-    throw markRetryQueueKey(error, auditChainQueueKey(organizationId));
+    throw queueOnProjectWork(error, projectId);
   }
 }
 
@@ -179,7 +180,7 @@ async function recordSelfRunEnd(
         : { status: 'failed', retryArmed: run.retryArmed },
   );
   if (write.kind === 'none') return;
-  await underChainKey(tx, run.organizationId, async () => {
+  await underProjectWork(tx, run.projectId, async () => {
     const rows = await tx<{ attempts: number }[]>`
       SELECT attempts FROM app.project_wakes
       WHERE org_id = ${run.organizationId} AND project_id = ${run.projectId}
@@ -296,7 +297,7 @@ export async function recordSlotReleaseInTx(
   ) {
     return;
   }
-  await underChainKey(tx, run.organizationId, async () => {
+  await underProjectWork(tx, run.projectId, async () => {
     await tx`
       INSERT INTO app.project_wakes AS w (
         org_id, project_id, trigger_id, signal_seq, pending_since_ms,

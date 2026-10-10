@@ -347,6 +347,13 @@ pending saves, failure recovery and the sequential control. The shared drain's
 synchronous reset is covered in `app/features/shared/files/use-file-upload.test.ts`.
 Live storage persistence and cross-session races remain manual.
 
+The history read-state regression in
+`app/features/automations/components/automation-history.test.tsx` owns failed
+Runs and Version history reads, retry invocation, unchanged successful empty
+responses, pending states, EN/DE/FR controls, alert semantics and focus handoff.
+`AUTO-B23` keeps live request recovery, visible focus and narrow-layout wrapping
+in the manual layer.
+
 Feedback analytics keeps summary metrics visible when the recent-feedback read
 fails, announces the unavailable list and offers Retry; successful empty lists
 retain their normal copy. `app/features/analytics/feedback/recent-feedback-table.test.tsx`
@@ -484,6 +491,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [conversations](../suites/conversations.md) | Opening a conversation uses the authoritative unread counter: delayed/backfilled and normal unread messages trigger the read mutation, already-read details do not write even with newer timestamps or no read marker, and refreshed unread state is read while the panel stays open. | ✅ component | `app/features/conversations/components/conversation-panel.test.tsx`; live cross-tab/device propagation remains manual |
 | [auth](../suites/auth.md) | Trusted headers: a key is minted once and only its hash stored, the door resolves the organization from the key, JIT-creates inside it with the clamped role, refuses strangers, paused organizations and revoked keys, and binds role + organization to the session; the card's switch, create and revoke flows | ✅ automated | `backend/domains/trusted_headers/service.test.ts`, `backend/domains/trusted_headers/routes.test.ts`, `backend/domains/sso/trusted-headers.test.ts`, `app/features/settings/trusted-headers/components/trusted-headers-section.test.tsx`, `app/features/settings/trusted-headers/components/embedding-section.test.tsx`, `lib/org-frame-ancestors.test.ts`, `server.test.ts` (frame ancestors), `backend/lib/http-hygiene.test.ts` (frameable variant), `backend/domains/sso/admin-routes.discovery.test.ts` (proxy probe), `backend/domains/sso/trusted-headers.mint.test.ts` (transparent sign-in on the app's own GET, hold cookie, no POST, no cross-site), `app/features/auth/login-proxy-handoff.test.tsx` (login page hands off, loop guard, hold + Continue, refusal shown in page, bfcache reload), `app/components/user-button.test.tsx` (no Log out for a proxied session), `app/hooks/use-session-idle-watchdog.test.tsx` (hold cookie on inactivity sign-out), `backend/integration-check.ts` (`checkTrustedHeaders`) |
 | [auth](../suites/auth.md) | A session's trusted-headers fields are the server's alone: Better Auth's unused `update-session` door is off and both fields refuse a request body; a session row carrying a role no proxy could assert now (Owner, above the ceiling, paused, no live key) gets the member's own seat; boot signed out, once, every session that carried a trusted role (`app.boot_repairs`) | ✅ unit + integration | `backend/auth/org.test.ts` (`a trusted-headers role on the session`), `backend/domains/trusted_headers/service.test.ts` (`trustedRoleHolds`), `backend/auth/session-trust-fields.integration.ts` |
+| [auth](../suites/auth.md) | Each API process answers sessions and memberships it resolved a moment ago, and a change reaches it within a second: boot installs triggers on `session`, `user` and `member` that write `app_realtime.auth_invalidations` for every change except a sliding refresh and the delete of an expired session; a process answers from memory only while it read that log in the last second and sees every trigger; a session stops answering when Better Auth's refresh falls due, a fill that raced a change is dropped, and a session is filed only under the one cookie Better Auth read that carries its token. `AUTH-F33` checks two real sessions across replicas | ✅ unit + integration | `backend/auth/request-cache.test.ts`, `backend/auth/session.test.ts` (`requireSession with the process auth cache`), `backend/auth/org.test.ts` (`the gate and the process auth cache`), `backend/db/auth-invalidation-triggers.test.ts`, `backend/domains/two_factor/service.enforcement.test.ts`, `backend/auth/request-cache.integration.ts` (`checkAuthRequestCache`) |
 | [automations](../suites/automations.md) | Organization and project creation menus expose blank/upload; retired goal-builder POST returns 404; shared App validation and MCP authoring remain available | ✅ automated | `app/features/automations/components/automations-list.test.tsx`, `backend/domains/automations/routes.authoring.test.ts`, `backend/domains/mcp/protocol.test.ts`, `backend/integration-check.ts` (`checkRetiredBuilderRoute`) |
 | [governance](../suites/governance.md) / [chat](../suites/chat.md) | Transcription Automatic/pin Save/Discard and reload; pinned refusal never falls back; provider credentials, compatible catalogs, permissions and non-secret status agree with real dictation and queued-audio serving | 🔶 backend + Chromium | `app/features/settings/governance/components/transcription-model-editor.test.tsx`, `transcription-model-editor.browser.test.tsx`, `backend/core/lib/providers/resolve_transcription_model.test.ts`, `backend/core/file_metadata/transcription_cache.test.ts`, `backend/domains/providers/config-routes.test.ts`, `backend/domains/governance/vision-policy-read.test.ts`, `lib/shared/providers/catalog_normalize.test.ts`, `backend/integration-check.ts` (`checkTranscription`); provider availability and responsive layout stay manual |
 | [governance](../suites/governance.md) / [chat](../suites/chat.md) | OpenRouter's dedicated STT catalog admits zero-context transcription models, respects credential allowlists and exact pins, reports catalog outages separately, and uses portable JSON with validated audio duration | 🔶 backend | `backend/core/lib/providers/openrouter_transcription.test.ts`, `backend/core/lib/providers/catalog_fetch.test.ts`, `backend/core/file_metadata/transcription_request.test.ts`, `lib/shared/providers/catalog_normalize.test.ts`; live provider availability and speech accuracy remain manual |
@@ -1189,6 +1197,28 @@ product write. Parent-driven close or organization replacement can still end the
 the write itself continues, and actual failures still report once from its own promise.
 The offline-paused case is automated. Browser focus, modal transitions and a genuinely
 stalled network connection remain manual observations.
+
+The HTTP connector's guarantees are automated in
+`lib/connectors/natives/http.test.ts`, as the connectors spec states them: a call without a
+credential carries none and reaches public HTTPS hosts only, a credentialed call stays under
+its base URL with its redirects, only the credential signs and nothing handed back carries it,
+and the organization's lane bounds the calls. A step acting as the credential it names is held
+by `backend/core/automations/stepper.credential.test.ts`, the editor's checks by the golden
+corpus. `AUTO-F123`–`AUTO-F126` keep the live calls against a real API, the editor's warnings
+in place and a send's approval in the manual layer.
+
+The knowledge search step's guarantees are automated in
+`lib/connectors/natives/platform-knowledge.test.ts` and
+`backend/domains/knowledge/automation-search.test.ts`: it searches only as an automation run,
+reads what the run's agent steps read (its project, its automation's bound projects, or the
+hub), spends as the run, and a refused search says why. `AUTO-F127` and `AUTO-F128` keep a
+live search over real documents and its failures on the run page in the manual layer.
+
+Which connector failures count toward pausing a schedule is automated: a service that did not
+answer, answered too slowly, was busy or failed on its own side is `connector_unavailable`
+(`lib/engine/core/record/failure.test.ts`, `backend/domains/automations/shim.connector-failure.test.ts`),
+and `backend/core/automations/failure.test.ts` keeps it out of the count. `AUTO-F129`
+keeps the run page's words for both codes against a real API in the manual layer.
 
 ## Moving a box here
 

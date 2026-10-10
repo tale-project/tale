@@ -1196,6 +1196,7 @@ logs:
       vérifiées}} — aucune altération détectée.'
     truncatedNote: 'Seules les {count} premières entrées ont été vérifiées. Demande à l’opérateur de ton installation de vérifier la suite.'
     unsignedScrubNote: '{count, plural, one {# entrée effacée n’a pas de demande d’effacement correspondante} other {# entrées effacées n’ont pas de demande d’effacement correspondante}}. Examine les demandes d’effacement avant de te fier à cet historique.'
+    awaitingSealNote: '{count, plural, one {# entrée vient d’être écrite et n’est pas encore dans la chaîne} other {# entrées viennent d’être écrites et ne sont pas encore dans la chaîne}}. Relance la vérification dans quelques secondes pour les inclure.'
     brokenTitle: Intégrité de la chaîne rompue
     brokenBody: La chaîne de hachage ne correspond pas à l'entrée ci-dessous.
       Conserve cette preuve avant toute modification.

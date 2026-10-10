@@ -158,16 +158,16 @@ describe('setTrigger', () => {
     const fake = fakeUpsert('fresh');
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
 
-    // The organization's audit chain first — the order every transaction
-    // holding the chain and a trigger row takes them in
-    // (`trigger-failures.ts`) — then the locked read of the row being
+    // The automation's name first — before the trigger row, the order every
+    // definition writer takes them in (`trigger-failures.ts`), with no
+    // organization-wide lock — then the locked read of the row being
     // replaced, then the ONE write — never a SELECT-then-INSERT that decides
     // existence in JavaScript. After the bind, only the read of the version
     // that runs, for the warnings.
-    expect(fake.sequence[0]?.values).toEqual([
-      expect.any(Number),
-      'audit-chain:org_1',
-    ]);
+    expect(fake.sequence[0]?.values).toEqual(['org_1', 'ops/greet']);
+    expect(
+      fake.sequence.some((entry) => entry.values.includes('audit-chain:org_1')),
+    ).toBe(false);
     expect(fake.statements).toHaveLength(3);
     const [read, statement, deployedRead] = fake.statements;
     expect(deployedRead?.text).toContain('FROM app.automation_deployments');
@@ -789,11 +789,8 @@ describe('setTrigger — one wake target per project, kept by the database (#454
   it('takes the automation name lock before the row it replaces', async () => {
     const fake = fakeWakeBind(null);
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
-    expect(fake.order.slice(0, 3)).toEqual([
-      'audit-lock',
-      'name-lock',
-      'trigger-row',
-    ]);
+    expect(fake.order.slice(0, 2)).toEqual(['name-lock', 'trigger-row']);
+    expect(fake.order).not.toContain('audit-lock');
   });
 
   it('leaves the bindings to the database: a claiming save writes no binding itself', async () => {
@@ -807,7 +804,6 @@ describe('setTrigger — one wake target per project, kept by the database (#454
       args({ kind: 'schedule', cron: '0 9 * * 1', wakeOnSlotFreed: true }),
     );
     expect(fake.order).toEqual([
-      'audit-lock',
       'name-lock',
       'trigger-row',
       'pre-check',

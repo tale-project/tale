@@ -629,6 +629,76 @@ output: '{{ nodes.digest.output }}'
 `,
 } as const;
 
+/**
+ * The HTTP page's demo: a credential for a shop's API (an API key sent in a
+ * header, under a base URL) and a small automation whose first step reads
+ * that API as the credential. The automation is only ever opened in the
+ * editor: `api.shop.example` sits under a reserved name that resolves
+ * nowhere, so a live run could never reach it.
+ */
+export const DEMO_HTTP = {
+  credential: 'Shop API',
+  baseUrl: 'https://api.shop.example/v2',
+  apiKey: 'shop-docs-demo-key',
+  automation: 'open-orders',
+  node: 'orders',
+  workflow: `version: 1
+name: open-orders
+description: Read the shop's open orders and count them.
+nodes:
+  - id: orders
+    type: http.get
+    credential: Shop API
+    input:
+      url: /orders
+      query:
+        status: open
+  - id: count
+    type: transform
+    input:
+      answer: '{{ nodes.orders.output.body }}'
+    code: |
+      const orders = Array.isArray(input.answer?.orders) ? input.answer.orders : [];
+      return { open: orders.length };
+output: '{{ nodes.count.output }}'
+`,
+} as const;
+
+/**
+ * The knowledge search page's demo: an automation installed in Website
+ * relaunch whose one step searches the organization's documents, deployed
+ * and run live once in that project — so its run shows real hits from the
+ * project's files and the shared documents, as the run may read them.
+ */
+export const DEMO_KNOWLEDGE_SEARCH = {
+  automation: 'launch-questions',
+  name: 'Answer launch questions',
+  node: 'related',
+  project: DEMO_PROJECTS[0].name,
+  input: { question: 'What happens on launch day?' },
+  document: {
+    version: 1,
+    name: 'launch-questions',
+    inputs: {
+      type: 'object',
+      required: ['question'],
+      properties: { question: { type: 'string' } },
+    },
+    nodes: [
+      {
+        id: 'related',
+        type: 'knowledge.search',
+        input: {
+          query: '{{ input.question }}',
+          corpus: 'documents',
+          limit: 3,
+        },
+      },
+    ],
+    output: '{{ nodes.related.output }}',
+  },
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

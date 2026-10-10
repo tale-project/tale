@@ -165,7 +165,15 @@ if (a[0] === 'exec') {
 }
 if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); done(); }
 if (a[0] === 'image' && a[1] === 'inspect') { const id = (s.imageIds ?? {})[a.at(-1)]; if (!id) fail('Error: No such image: ' + a.at(-1)); done(id); }
-if (a[0] === 'pull') { s.pulled = [...(s.pulled ?? []), a.at(-1)]; s.missingImages = (s.missingImages ?? []).filter((ref) => ref !== a.at(-1)); done(); }
+if (a[0] === 'pull') {
+  if (s.pullGate) {
+    writeFileSync(join(dir, 'pulling'), a.at(-1));
+    while (!existsSync(join(dir, 'release-pull'))) await Bun.sleep(5);
+  }
+  s.pulled = [...(s.pulled ?? []), a.at(-1)];
+  s.missingImages = (s.missingImages ?? []).filter((ref) => ref !== a.at(-1));
+  done();
+}
 if (a[0] === 'run') {
   const name = flag('--name');
   if ((s.missingImages ?? []).includes(a.at(-1)) && flag('--pull') === 'never') fail("Unable to find image '" + a.at(-1) + "' locally\ndocker: Error response from daemon: No such image: " + a.at(-1));
@@ -257,6 +265,8 @@ interface FakeState {
   pruneGate?: boolean;
   /** The container whose `docker rm` waits for a `release-rm` file. */
   rmGate?: string;
+  /** `docker pull` runs until a `release-pull` file appears. */
+  pullGate?: boolean;
   /** Images not on the host: a `run --pull never` of one fails. */
   missingImages?: string[];
   /** Images `docker pull` fetched, in order. */
@@ -447,9 +457,14 @@ beforeAll(async () => {
 beforeEach(async () => {
   resetBuildkitObservations();
   await Promise.all(
-    ['stopping', 'release-stop', 'pruning', 'release-prune'].map((name) =>
-      rm(join(root, name), { force: true }),
-    ),
+    [
+      'stopping',
+      'release-stop',
+      'pruning',
+      'release-prune',
+      'pulling',
+      'release-pull',
+    ].map((name) => rm(join(root, name), { force: true })),
   );
   await writeFile(join(root, 'calls.jsonl'), '');
 });
@@ -1494,29 +1509,66 @@ describe('organization build-cache lifecycle', () => {
       ...seed(org),
       containers: {},
       missingImages: [cfg.buildkitdMirrorImage],
+      pullGate: true,
     });
     const warn = spyOn(console, 'warn').mockImplementation(() => {});
     const log = spyOn(console, 'log').mockImplementation(() => {});
     try {
-      // The builder still comes up; its mirrors are unavailable this time.
+      // The builder comes up before the gated background pull can finish.
+      // All three mirrors report the missing image while that pull is under way.
       expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
       for (let i = 0; i < 400; i += 1) {
-        if (((await state()).pulled ?? []).length > 0) break;
+        if (
+          (await readFile(join(root, 'pulling'), 'utf8').catch(() => '')) ===
+          cfg.buildkitdMirrorImage
+        )
+          break;
         await Bun.sleep(5);
       }
-      // Three mirrors, one image, one pull.
-      expect((await state()).pulled).toEqual([cfg.buildkitdMirrorImage]);
-      const mirrorRuns = (await calls()).filter(
+      const commands = await calls();
+      expect(commands.filter((args) => args[0] === 'pull')).toEqual([
+        ['pull', cfg.buildkitdMirrorImage],
+      ]);
+      expect(await readFile(join(root, 'pulling'), 'utf8')).toBe(
+        cfg.buildkitdMirrorImage,
+      );
+      expect((await state()).pulled ?? []).toEqual([]);
+      const mirrorRuns = commands.filter(
         (args) => args[0] === 'run' && args.includes(cfg.buildkitdMirrorImage),
       );
-      expect(mirrorRuns.length).toBeGreaterThan(0);
+      expect(mirrorRuns).toHaveLength(MIRROR_REGISTRIES.length);
       expect(
         mirrorRuns.every((args) => args.join(' ').includes('--pull never')),
       ).toBe(true);
+      expect(
+        commands.find(
+          (args) => args[0] === 'run' && args.includes(cfg.buildkitdImage),
+        ),
+      ).toContain('TALE_BUILDKITD_MIRRORS=');
     } finally {
+      // Release even after an assertion fails so no background command leaks
+      // into the next test's fake daemon state.
+      await writeFile(join(root, 'release-pull'), '');
+      for (let i = 0; i < 400; i += 1) {
+        if (
+          log.mock.calls.some(
+            ([message]) =>
+              message ===
+              `[sandbox.buildkitd] pulled ${cfg.buildkitdMirrorImage}`,
+          )
+        )
+          break;
+        await Bun.sleep(5);
+      }
+      const completed = log.mock.calls.some(
+        ([message]) =>
+          message === `[sandbox.buildkitd] pulled ${cfg.buildkitdMirrorImage}`,
+      );
       warn.mockRestore();
       log.mockRestore();
+      expect(completed).toBe(true);
     }
+    expect((await state()).pulled).toEqual([cfg.buildkitdMirrorImage]);
   });
 
   test('a create arriving while idle mirrors go keeps the mirrors not yet removed', async () => {
