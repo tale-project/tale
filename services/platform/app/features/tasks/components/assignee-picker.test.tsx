@@ -227,6 +227,7 @@ describe('AssigneePicker', () => {
 
   it('hides an unavailable managed standard agent and shows the no-agent note', async () => {
     mockDirectoryAgents = [{ ...mockAgents[0], managed: true }];
+    mockCanAddAgents = false;
     mockStandardAgentAvailable = false;
     const { open } = renderPicker();
     await open();
@@ -239,6 +240,7 @@ describe('AssigneePicker', () => {
 
   it('keeps an available managed standard agent assignable', async () => {
     mockDirectoryAgents = [{ ...mockAgents[0], managed: true }];
+    mockCanAddAgents = true;
     mockStandardAgentAvailable = true;
     const { open } = renderPicker();
     await open();
