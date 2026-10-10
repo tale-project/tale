@@ -14,6 +14,7 @@ import {
   type SettingsKind,
 } from '@tale/shared/schemas/settings-kinds';
 
+import { declaredSettingsNames } from '../../../../lib/mcp/settings-schemas.ts';
 import { type McpRefusal, refusalFromThrown } from '../refusals.ts';
 import { unavailable } from './plan.ts';
 import {
@@ -93,7 +94,11 @@ export async function getSettings(
           id: item.id,
           key: settingsKey(kind, item.id),
           hash: item.hash,
-          config: maskSecrets(item.config, secretPaths),
+          config: maskSecrets(
+            item.config,
+            secretPaths,
+            declaredSettingsNames(kind, item.id),
+          ),
         });
       }
       nextCursor = page.nextCursor ?? nextCursor;

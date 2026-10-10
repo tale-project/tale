@@ -109,7 +109,7 @@ The settings reference that `get_docs` returns for the topic `settings` (also `t
 
 ## Secrets {#secrets}
 
-No secret goes into or comes out of a settings call. A stored secret reads as `{"masked": true, "preview": "…"}`, and so does any credential found elsewhere in a stored setting, such as a key someone pasted into a policy in Tale. Send that value back unchanged to keep what is stored there. A change that carries a secret is refused with `SECRET_ARGUMENT_REFUSED`, which names where the secret was found and never its value. A person enters a new secret in Tale.
+No secret goes into or comes out of a settings call. A stored secret reads as `{"masked": true, "preview": "…"}`, and so does anything else in a stored setting that Tale never shows in a run's record: a key someone pasted into a policy or an instruction, a key typed into a header whose name says it holds one, or a password in an address. A header that only names the stored secret, such as `Bearer {{secret}}`, reads as written. A key inside a longer text masks the whole text. Send a masked value back unchanged to keep what is stored there, or replace the whole value. A change that carries a secret is refused with `SECRET_ARGUMENT_REFUSED`, which names where the secret was found and never its value. A person enters a new secret in Tale.
 
 ## When a change is refused {#refusals}
 

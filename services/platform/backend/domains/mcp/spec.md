@@ -210,16 +210,18 @@ applied, what failed and what was skipped.
 
 ### MCP-R12 · No secret goes into or comes out of a settings call
 
-A stored secret reads as masked, with a short excerpt at most, and so does a credential found
-anywhere else in a stored setting — a key someone pasted into an instruction or a header in
-Tale. A change may send a masked value back to keep what is stored there, and nothing else in
-its place; a credential anywhere else in a change — a key pasted into a description — refuses
-the change, naming where it was found and never the value (`SECRET_ARGUMENT_REFUSED`). A person
-enters a new secret in Tale.
+A stored secret reads as masked, with a short excerpt at most, and so does anything else in a
+stored setting that a run's record never shows — a key someone pasted into an instruction, a key
+typed into a header whose name says it holds one, a password in an address. A header that only
+names the stored secret (`Bearer {{secret}}`) reads as written. A change may send a masked value
+back to keep what is stored there, and nothing else in its place; a credential anywhere else in a
+change — a key pasted into a description — refuses the change, naming where it was found and
+never the value (`SECRET_ARGUMENT_REFUSED`). A person enters a new secret in Tale.
 
-- **Example**: Ada's agent reads a provider whose key is stored → the key reads as masked; it
-  changes the address and sends the masked key back → the stored key is kept; it sends a key it
-  typed instead → refused, and the answer names the field, not the key.
+- **Example**: Ben typed a key into the moderation provider's `x-api-key` header in Tale. Ada's
+  agent reads the policy → the header reads as masked, and `Authorization: Bearer {{secret}}`
+  reads as written; it sends the read back → the key is kept; it types a key into another header
+  instead → refused, and the answer names the header, not the key.
 - **Example**: Ben once pasted an API key into the organization's system prompt in Tale. Ada's
   agent reads the policy → the prompt reads as masked; the agent changes another field and sends
   the masked prompt back → the prompt is kept as Ben wrote it.

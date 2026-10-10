@@ -15,6 +15,7 @@ import {
   type SettingsRisk,
 } from '@tale/shared/schemas/settings-kinds';
 
+import { declaredSettingsNames } from '../../../../lib/mcp/settings-schemas.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
 import { type McpRefusal, refusalFromThrown } from '../refusals.ts';
 import { diffConfigs, type SettingsDiffEntry } from './diff.ts';
@@ -227,7 +228,14 @@ async function planOne(
   if (handler === undefined || refusal !== undefined) {
     return refused(id, refusal ?? unavailable(change.kind));
   }
-  const secret = secretArgumentRefusal(change, descriptor.secretPaths);
+  // The member names the resource's schema declares: judged by their text
+  // alone, never taken for a secret by name.
+  const declared = declaredSettingsNames(change.kind, id);
+  const secret = secretArgumentRefusal(
+    change,
+    descriptor.secretPaths,
+    declared,
+  );
   if (secret !== null) return refused(id, secret);
   let current: SettingsResource | null;
   try {
@@ -245,6 +253,7 @@ async function planOne(
       change.config,
       current?.config ?? null,
       descriptor.secretPaths,
+      declared,
     );
     if ('refusal' in restored) {
       return refused(id, restored.refusal, currentHash);
@@ -274,7 +283,7 @@ async function planOne(
   const before =
     current === null
       ? null
-      : maskSecrets(current.config, descriptor.secretPaths);
+      : maskSecrets(current.config, descriptor.secretPaths, declared);
   const after =
     action === 'delete'
       ? null
@@ -285,6 +294,7 @@ async function planOne(
               : before
             : plan.after,
           descriptor.secretPaths,
+          declared,
         );
   // A created resource reads member by member; a removed one, whole.
   const { diff, truncated } =

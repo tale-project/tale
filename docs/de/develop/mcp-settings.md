@@ -109,7 +109,7 @@ Die Einstellungsreferenz, die `get_docs` für das Thema `settings` liefert (auch
 
 ## Secrets {#secrets}
 
-Kein Secret geht in einen Einstellungsaufruf hinein oder kommt aus ihm heraus. Ein gespeichertes Secret erscheint als `{"masked": true, "preview": "…"}`, ebenso alle Zugangsdaten, die irgendwo sonst in einer gespeicherten Einstellung stehen — etwa ein Schlüssel, den jemand in Tale in eine Richtlinie eingefügt hat. Schick diesen Wert unverändert zurück, um zu behalten, was dort gespeichert ist. Eine Änderung, die ein Secret enthält, wird mit `SECRET_ARGUMENT_REFUSED` abgelehnt; die Ablehnung nennt die Stelle, nie den Wert. Ein neues Secret gibt eine Person in Tale ein.
+Kein Secret geht in einen Einstellungsaufruf hinein oder kommt aus ihm heraus. Ein gespeichertes Secret erscheint als `{"masked": true, "preview": "…"}`, ebenso alles andere in einer gespeicherten Einstellung, was Tale auch in der Aufzeichnung eines Laufs nie zeigt: ein Schlüssel, den jemand in eine Richtlinie oder eine Anweisung eingefügt hat, ein Schlüssel in einem Header, dessen Name sagt, dass er einen enthält, oder ein Passwort in einer Adresse. Ein Header, der nur das gespeicherte Secret nennt, etwa `Bearer {{secret}}`, erscheint so, wie er gespeichert ist. Ein Schlüssel in einem längeren Text maskiert den ganzen Text. Schick einen maskierten Wert unverändert zurück, um zu behalten, was dort gespeichert ist, oder ersetze den ganzen Wert. Eine Änderung, die ein Secret enthält, wird mit `SECRET_ARGUMENT_REFUSED` abgelehnt; die Ablehnung nennt die Stelle, nie den Wert. Ein neues Secret gibt eine Person in Tale ein.
 
 ## Wenn eine Änderung abgelehnt wird {#refusals}
 

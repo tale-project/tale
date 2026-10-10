@@ -109,7 +109,7 @@ La référence des paramètres que `get_docs` renvoie pour le sujet `settings` (
 
 ## Secrets {#secrets}
 
-Aucun secret n’entre dans un appel de paramètres ni n’en sort. Un secret enregistré se lit `{"masked": true, "preview": "…"}`, de même que tout identifiant trouvé ailleurs dans un paramètre enregistré, par exemple une clé que quelqu’un a collée dans une politique dans Tale. Renvoie cette valeur telle quelle pour garder ce qui y est enregistré. Une modification qui contient un secret est refusée avec `SECRET_ARGUMENT_REFUSED`, qui indique où le secret a été trouvé, jamais sa valeur. Une personne saisit un nouveau secret dans Tale.
+Aucun secret n’entre dans un appel de paramètres ni n’en sort. Un secret enregistré se lit `{"masked": true, "preview": "…"}`, de même que tout ce qu’un paramètre enregistré contient et que Tale ne montre jamais dans l’enregistrement d’une exécution : une clé que quelqu’un a collée dans une politique ou une instruction, une clé saisie dans un en-tête dont le nom dit qu’il en contient une, ou un mot de passe dans une adresse. Un en-tête qui ne fait que nommer le secret enregistré, comme `Bearer {{secret}}`, se lit tel qu’il est enregistré. Une clé dans un texte plus long masque tout le texte. Renvoie une valeur masquée telle quelle pour garder ce qui y est enregistré, ou remplace toute la valeur. Une modification qui contient un secret est refusée avec `SECRET_ARGUMENT_REFUSED`, qui indique où le secret a été trouvé, jamais sa valeur. Une personne saisit un nouveau secret dans Tale.
 
 ## Quand une modification est refusée {#refusals}
 
