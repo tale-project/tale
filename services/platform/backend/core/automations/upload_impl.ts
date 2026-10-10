@@ -18,10 +18,8 @@ import {
 import { parse as parseYaml } from 'yaml';
 
 import { registerConnector } from '../../../lib/connectors/registry';
-import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import type { StoreAdapter } from '../../../lib/engine/core/slots';
 import { validate } from '../../../lib/engine/core/validate';
-import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing';
 import { parseSkillMd } from '../../../lib/skills/parse';
@@ -30,6 +28,7 @@ import {
   type UserSkillViewer,
 } from '../../../lib/skills/visibility';
 import { isRecord } from '../../../lib/utils/type-utils';
+import { installCodeRunner } from '../../lib/code-runner.ts';
 import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
 import type { ParsedBundle } from '../skills/bundle_zip';
 import {
@@ -235,7 +234,7 @@ async function validateDocument(
   document: unknown,
   store: StoreAdapter | undefined,
 ): Promise<string[]> {
-  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+  installCodeRunner();
   for (const connector of loadConnectorDefinitions()) {
     registerConnector(connector);
   }

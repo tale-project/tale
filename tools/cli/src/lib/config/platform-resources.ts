@@ -1,3 +1,10 @@
+import {
+  resourceConverged,
+  resourceId,
+  sameConfiguration,
+  sameEmbeddingModel,
+  type PlatformResource,
+} from '@tale/shared/config/platform-resources';
 import { brandingFormSchema } from '@tale/shared/schemas/branding';
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import { deploymentConfigSchema } from '@tale/shared/schemas/deployment';
@@ -18,13 +25,6 @@ import {
   writeManagedResource,
 } from './managed-resources';
 import type { PlatformConfigurationClient } from './platform-client';
-import {
-  resourceConverged,
-  resourceId,
-  sameConfiguration,
-  sameEmbeddingModel,
-  type PlatformResource,
-} from './platform-model';
 
 export interface ResourceObservation {
   config: unknown;

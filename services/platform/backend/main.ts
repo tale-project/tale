@@ -32,6 +32,7 @@ import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules, sweepRunsAtBoot } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import { configureCodeRunner } from './lib/code-runner.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -52,6 +53,10 @@ async function main(): Promise<void> {
     dsn: env.SENTRY_DSN,
     role: env.ROLE,
     tracesSampleRate: env.BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+  });
+  configureCodeRunner({
+    role: env.ROLE,
+    processes: env.AUTOMATION_RUNNER_PROCESSES,
   });
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);

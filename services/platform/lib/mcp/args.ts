@@ -1,6 +1,11 @@
 import { REPLAY_KINDS } from '@tale/shared/automation-replay';
 import { checkReplayRequest } from '@tale/shared/schemas/automation-replay';
 import { automationSettingsSchema } from '@tale/shared/schemas/automation-settings';
+import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
+import {
+  SETTINGS_KINDS,
+  settingsKindDescriptor,
+} from '@tale/shared/schemas/settings-kinds';
 import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import { z } from 'zod';
 
@@ -184,7 +189,7 @@ export const ENGINE_TOOL_ARGS = {
       .enum(MCP_DOC_TOPICS)
       .optional()
       .describe(
-        'Which reference: "authoring" (the default — the automation grammar and every method), "triggers" (what starts an automation, each kind\'s fields and the events), "validation" (how to read a validation result, and every issue code) or "skill" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.',
+        'Which reference: "authoring" (the default — the automation grammar and every method), "triggers" (what starts an automation, each kind\'s fields and the events), "validation" (how to read a validation result, and every issue code), "settings" (every kind of setting with its fields, the effects of a plan and every refusal) or "skill" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.',
       ),
   }),
   get_catalog: z.strictObject({
@@ -513,6 +518,95 @@ export const ENGINE_TOOL_ARGS = {
 const listingQuery = (description: string) =>
   nonBlank().max(200).optional().describe(description);
 
+/** A settings kind, as the shared descriptors name them. */
+const settingsKind = z
+  .enum(SETTINGS_KINDS.map((descriptor) => descriptor.kind))
+  .describe('The kind of setting; get_settings without kinds lists them.');
+
+/** A resource's id within its kind. */
+const settingsId = nonBlank().max(600);
+
+/**
+ * One settings change. Which operations and actions a kind takes is the
+ * kind's own (`settings-kinds.ts`), so a call that names one it does not
+ * take is refused with the others, before anything is read.
+ */
+const settingsChange = z
+  .strictObject({
+    kind: settingsKind,
+    id: settingsId
+      .optional()
+      .describe(
+        "The resource's id within its kind, as get_settings answers it. Left out for a kind with one resource.",
+      ),
+    op: z
+      .enum(['set', 'delete', 'act'])
+      .describe(
+        "set: replace the resource with config, creating it when absent; delete: remove it; act: run one of the kind's actions on it.",
+      ),
+    config: z
+      .unknown()
+      .optional()
+      .describe(
+        'With set: the whole config the resource should hold, as get_settings answers it. A secret stays the masked value it read, which keeps what is stored.',
+      ),
+    act: nonBlank()
+      .max(64)
+      .optional()
+      .describe("With act: the action, one of the kind's acts."),
+    args: z.unknown().optional().describe('With act: what the action takes.'),
+  })
+  .superRefine((change, ctx) => {
+    const { acts, ops } = settingsKindDescriptor(change.kind);
+    const issue = (path: string, code: string, message: string) =>
+      ctx.addIssue({ code: 'custom', path: [path], message, params: { code } });
+    if (change.op === 'act') {
+      if (acts.length === 0) {
+        issue(
+          'op',
+          'op_not_supported',
+          `${change.kind} takes ${ops.join(' or ')}`,
+        );
+      } else if (change.act === undefined) {
+        issue('act', 'required', 'is required with op "act"');
+      } else if (!acts.includes(change.act)) {
+        issue(
+          'act',
+          'act_unknown',
+          `is not an action of ${change.kind}: ${acts.join(', ')}`,
+        );
+      }
+    } else {
+      if (!ops.includes(change.op)) {
+        issue(
+          'op',
+          'op_not_supported',
+          `${change.kind} takes ${[...ops, ...(acts.length > 0 ? ['act'] : [])].join(' or ')}`,
+        );
+      }
+      if (change.act !== undefined) {
+        issue('act', 'not_allowed', 'is taken only with op "act"');
+      }
+      if (change.args !== undefined) {
+        issue('args', 'not_allowed', 'is taken only with op "act"');
+      }
+    }
+    if (change.op === 'set' && change.config === undefined) {
+      issue(
+        'config',
+        'required',
+        'is required with op "set": the whole config the resource should hold',
+      );
+    }
+    if (change.op !== 'set' && change.config !== undefined) {
+      issue('config', 'not_allowed', 'is taken only with op "set"');
+    }
+  });
+
+/** The changes of one plan or apply. */
+const settingsChanges = (description: string) =>
+  z.array(settingsChange).min(1).max(32).describe(description);
+
 /** The arguments of the platform tools — answered by the platform itself,
  * not the automation engine. */
 export const PLATFORM_TOOL_ARGS = {
@@ -566,6 +660,57 @@ export const PLATFORM_TOOL_ARGS = {
       .describe('Also archived projects (default false).'),
   }),
   list_events: z.strictObject({}),
+  get_settings: z
+    .strictObject({
+      kinds: z
+        .array(settingsKind)
+        .min(1)
+        .max(SETTINGS_KINDS.length)
+        .optional()
+        .describe(
+          'The kinds to read. Left out, the catalog: every kind, what it is and what your role may do with it.',
+        ),
+      ids: z
+        .array(settingsId)
+        .min(1)
+        .max(100)
+        .optional()
+        .describe('Only these resources, by id; with exactly one kind.'),
+      cursor: nonBlank()
+        .max(1000)
+        .optional()
+        .describe(
+          'The nextCursor a read of one kind answered, for its next page.',
+        ),
+    })
+    .superRefine((args, ctx) => {
+      if (
+        (args.ids !== undefined || args.cursor !== undefined) &&
+        args.kinds?.length !== 1
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['kinds'],
+          message: 'must name exactly one kind when ids or cursor is given',
+          params: { code: 'one_kind' },
+        });
+      }
+    }),
+  plan_settings: z.strictObject({
+    changes: settingsChanges(
+      'The changes to plan, at most 32: each names its kind, its resource (id) and its operation; set sends the whole config the resource should hold.',
+    ),
+  }),
+  apply_settings: z.strictObject({
+    changes: settingsChanges(
+      'The changes to make, at most 32 — the ones you planned and showed the person.',
+    ),
+    expected: z
+      .record(nonBlank().max(700), expectedConfigurationHashSchema)
+      .describe(
+        'The hash each changed resource had when you read it, by its key (kind/id, or the kind alone for a kind with one resource); null for one you create. If any resource changed since, nothing is applied.',
+      ),
+  }),
 } satisfies Record<string, z.ZodObject>;
 
 /** The arguments of the organization's capability tools. */

@@ -49,6 +49,7 @@ const GROUP_HEADINGS: Record<McpToolGroup, string> = {
   authoring: 'Authoring',
   management: 'Run & trigger management',
   discovery: 'Discovery',
+  settings: 'Settings',
   capability: 'Capabilities & knowledge',
 };
 

@@ -1,11 +1,13 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Sql } from 'postgres';
 
+import { withRunnerTenant } from '../../lib/engine/runners/tenant.ts';
 import {
   defineAbilityFor,
   type AppAction,
   type AppSubject,
 } from '../../lib/permissions/ability.ts';
+import { trustedRoleHolds } from '../domains/trusted_headers/service.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
   MembershipError,
@@ -73,14 +75,17 @@ export function requireOrgMember<E extends OrgEnv>(
         trustedOrg === orgId
           ? trustedRaw.toLowerCase().trim()
           : undefined;
+      // ...and only while the organization still lets a proxy assert that
+      // role: a role no proxy could have stamped is no override.
+      const overridden =
+        trustedRole !== undefined &&
+        trustedRole !== '' &&
+        member.role !== 'owner' &&
+        (await trustedRoleHolds(sql, orgId, trustedRole));
       c.set('orgId', orgId);
       c.set(
         'orgMember',
-        trustedRole !== undefined &&
-          trustedRole !== '' &&
-          member.role !== 'owner'
-          ? { ...member, role: trustedRole }
-          : member,
+        overridden ? { ...member, role: trustedRole } : member,
       );
       // Server-side org 2FA enforcement: a 'blocked' decision (policy enforced,
       // user not enrolled, past grace) must actually WITHHOLD authority here —
@@ -113,7 +118,9 @@ export function requireOrgMember<E extends OrgEnv>(
       }
       throw error;
     }
-    return next();
+    // Automation code the request evaluates queues as its organization's,
+    // so the runner serves organizations in turn (`runners/tenant.ts`).
+    return withRunnerTenant(orgId, next);
   };
 }
 

@@ -46,6 +46,7 @@ import {
   RunnerStopped,
 } from '../core/runner';
 import { probedExprSource, readProbedAnswer } from '../core/syntax/probe';
+import { currentRunnerTenant } from './tenant';
 
 /** Runner construction options — the backend's public shape. @public */
 export interface NodeVmRunnerOptions {
@@ -65,9 +66,28 @@ export interface NodeVmRunnerOptions {
    * generous because a kill also fails every other evaluation in flight.
    */
   killGraceMs?: number;
+  /**
+   * The most runner processes at once (default 1). The pool starts with
+   * one, adds another only when every process already holds `pipeline`
+   * evaluations, and retires a process beyond the first once it has been
+   * idle for `idleMs`.
+   */
+  processes?: number;
+  /**
+   * Evaluations handed to one process ahead of its answers (default 2). The
+   * rest wait in the host, in one queue per tenant (`tenant.ts`), served in
+   * turn — so a kill fails at most this many, and one organization's burst
+   * cannot crowd out another's work.
+   */
+  pipeline?: number;
+  /** How long a process beyond the first may sit without work before it is
+   * retired (default five minutes). */
+  idleMs?: number;
 }
 
 const DEFAULT_MAX_HEAP_MB = 512;
+const DEFAULT_PIPELINE = 2;
+const DEFAULT_IDLE_MS = 300_000;
 const DEFAULT_KILL_GRACE_MS = 1000;
 /** How much of the runner's stderr to keep for the death notice — V8's
  * fatal-OOM banner is the first few lines. */
@@ -187,6 +207,27 @@ class RunnerProcess {
     private readonly maxHeapMb: number,
     private readonly killGraceMs: number,
   ) {}
+
+  /** Evaluations handed to this process and not yet answered. */
+  get busy(): number {
+    return this.pending.size;
+  }
+
+  /** Stop an idle process: nothing is lost, and the next evaluation would
+   * start a fresh one. */
+  retire(): void {
+    if (this.pending.size > 0) return;
+    const child = this.child;
+    this.child = null;
+    this.ready = false;
+    if (
+      child !== null &&
+      child.exitCode === null &&
+      child.signalCode === null
+    ) {
+      child.kill('SIGKILL');
+    }
+  }
 
   evaluate(
     source: string,
@@ -409,6 +450,134 @@ class RunnerProcess {
   }
 }
 
+/** One evaluation waiting in the host for a process with room. */
+interface Job {
+  readonly source: string;
+  readonly async: boolean;
+  readonly scopeJson: string;
+  readonly limits: RunnerLimits;
+  readonly resolve: (valueJson: string | null) => void;
+  readonly reject: (error: Error) => void;
+}
+
+/**
+ * Up to `processes` runner processes, each exactly as one runner was before
+ * (its deaths, kills and re-dispatches its own). An evaluation goes to the
+ * process with the fewest in hand while one has room under `pipeline`;
+ * otherwise it waits in its tenant's queue, and the queues are served in
+ * turn as answers come back.
+ */
+class RunnerPool {
+  private readonly processes: RunnerProcess[] = [];
+  /** Waiting evaluations by tenant; the first entry is next in turn. */
+  private readonly queues = new Map<string, Job[]>();
+  private readonly idle = new Map<
+    RunnerProcess,
+    ReturnType<typeof setTimeout>
+  >();
+
+  constructor(
+    private readonly options: {
+      readonly maxHeapMb: number;
+      readonly killGraceMs: number;
+      readonly processes: number;
+      readonly pipeline: number;
+      readonly idleMs: number;
+    },
+  ) {}
+
+  evaluate(
+    source: string,
+    async: boolean,
+    scopeJson: string,
+    limits: RunnerLimits,
+  ): Promise<string | null> {
+    return new Promise<string | null>((resolve, reject) => {
+      const tenant = currentRunnerTenant();
+      const job: Job = { source, async, scopeJson, limits, resolve, reject };
+      const queue = this.queues.get(tenant);
+      if (queue === undefined) this.queues.set(tenant, [job]);
+      else queue.push(job);
+      this.dispatch();
+    });
+  }
+
+  /** How many processes the pool runs now. */
+  get size(): number {
+    return this.processes.length;
+  }
+
+  /** Hand waiting evaluations to processes with room, one tenant at a time. */
+  private dispatch(): void {
+    for (;;) {
+      const next = this.queues.entries().next();
+      if (next.done === true) return;
+      const target = this.room();
+      if (target === null) return;
+      const [tenant, queue] = next.value;
+      const job = queue.shift();
+      // The tenant moves to the back of the line, or leaves it when done.
+      this.queues.delete(tenant);
+      if (queue.length > 0) this.queues.set(tenant, queue);
+      if (job !== undefined) this.start(target, job);
+    }
+  }
+
+  /** The process with the fewest evaluations in hand (the first of equals)
+   * when it has room; a new one when every process is full and the pool may
+   * grow; otherwise none. */
+  private room(): RunnerProcess | null {
+    let best: RunnerProcess | null = null;
+    for (const process of this.processes) {
+      if (best === null || process.busy < best.busy) best = process;
+    }
+    if (best !== null && best.busy < this.options.pipeline) return best;
+    if (this.processes.length < this.options.processes) {
+      const added = new RunnerProcess(
+        this.options.maxHeapMb,
+        this.options.killGraceMs,
+      );
+      this.processes.push(added);
+      return added;
+    }
+    return null;
+  }
+
+  private start(process: RunnerProcess, job: Job): void {
+    const timer = this.idle.get(process);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.idle.delete(process);
+    }
+    void process
+      .evaluate(job.source, job.async, job.scopeJson, job.limits)
+      .then(job.resolve, (error: unknown) => {
+        job.reject(error instanceof Error ? error : new Error(String(error)));
+      })
+      .finally(() => {
+        // Its answer frees room: the next in turn goes, and an idle extra
+        // process starts its clock.
+        this.dispatch();
+        this.idleLater(process);
+      });
+  }
+
+  /** Retire a process beyond the first once it has been idle long enough. */
+  private idleLater(process: RunnerProcess): void {
+    if (process.busy > 0 || process === this.processes[0]) return;
+    if (this.idle.has(process)) return;
+    const timer = setTimeout(() => {
+      this.idle.delete(process);
+      if (process.busy > 0) return;
+      const at = this.processes.indexOf(process);
+      if (at > 0) this.processes.splice(at, 1);
+      process.retire();
+    }, this.options.idleMs);
+    timer.unref();
+    this.idle.set(process, timer);
+  }
+}
+
 function checkSource(source: string): string | null {
   try {
     // Compile-only: constructing the script parses the source; nothing runs.
@@ -420,12 +589,24 @@ function checkSource(source: string): string | null {
   }
 }
 
+/** The pool behind each runner this module made. */
+const pools = new WeakMap<CodeRunner, RunnerPool>();
+
+/** How many runner processes a node-vm runner holds now — for health
+ * reports and the pool's own tests; undefined for another backend. */
+export function runnerProcessCount(runner: CodeRunner): number | undefined {
+  return pools.get(runner)?.size;
+}
+
 export function nodeVmRunner(opts: NodeVmRunnerOptions = {}): CodeRunner {
-  const proc = new RunnerProcess(
-    opts.maxHeapMb ?? DEFAULT_MAX_HEAP_MB,
-    opts.killGraceMs ?? DEFAULT_KILL_GRACE_MS,
-  );
-  return {
+  const proc = new RunnerPool({
+    maxHeapMb: opts.maxHeapMb ?? DEFAULT_MAX_HEAP_MB,
+    killGraceMs: opts.killGraceMs ?? DEFAULT_KILL_GRACE_MS,
+    processes: Math.max(1, Math.floor(opts.processes ?? 1)),
+    pipeline: Math.max(1, Math.floor(opts.pipeline ?? DEFAULT_PIPELINE)),
+    idleMs: opts.idleMs ?? DEFAULT_IDLE_MS,
+  });
+  const runner: CodeRunner = {
     // async so every failure — including a scope that cannot serialize —
     // reaches callers as a rejection, exactly like a wire-separated backend.
     async evalExpr(expr, scope, limits) {
@@ -482,4 +663,6 @@ export function nodeVmRunner(opts: NodeVmRunnerOptions = {}): CodeRunner {
       return 'node-vm';
     },
   };
+  pools.set(runner, proc);
+  return runner;
 }

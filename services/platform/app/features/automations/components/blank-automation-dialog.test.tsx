@@ -65,15 +65,19 @@ vi.mock('@/app/features/projects/components/agent-secrets-field', () => ({
   AgentSecretsField: () => null,
 }));
 
-const { saveAutomation, setTrigger, navigate } = vi.hoisted(() => ({
-  saveAutomation: vi.fn().mockResolvedValue({ name: 'triage' }),
-  setTrigger: vi.fn().mockResolvedValue(undefined),
-  navigate: vi.fn(),
-}));
+const { saveAutomation, setTrigger, deployAutomation, navigate } = vi.hoisted(
+  () => ({
+    saveAutomation: vi.fn().mockResolvedValue({ name: 'triage', version: 1 }),
+    setTrigger: vi.fn().mockResolvedValue(undefined),
+    deployAutomation: vi.fn().mockResolvedValue({ name: 'triage', version: 1 }),
+    navigate: vi.fn(),
+  }),
+);
 
 vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => ({ mutateAsync: saveAutomation }),
   useSetAutomationTrigger: () => ({ mutateAsync: setTrigger }),
+  useDeployAutomation: () => ({ mutateAsync: deployAutomation }),
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -90,6 +94,7 @@ vi.mock('@/lib/shared/zoned-time', async (importOriginal) => ({
 beforeEach(() => {
   saveAutomation.mockClear();
   setTrigger.mockClear();
+  deployAutomation.mockClear();
   navigate.mockClear();
 });
 
@@ -217,6 +222,35 @@ describe(
           }),
         }),
       );
+    });
+
+    it('puts v1 live unless the author keeps it a draft', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      expect(
+        screen.getByRole('checkbox', { name: /Deploy v1 now/i }),
+      ).toBeChecked();
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(deployAutomation).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        name: 'triage',
+        version: 1,
+      });
+    });
+
+    it('keeps v1 a draft when Deploy v1 now is unchecked', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      await user.click(
+        screen.getByRole('checkbox', { name: /Deploy v1 now/i }),
+      );
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(saveAutomation).toHaveBeenCalledTimes(1);
+      expect(deployAutomation).not.toHaveBeenCalled();
     });
 
     it('arms the trigger only when Enable now is checked', async () => {

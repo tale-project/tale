@@ -587,5 +587,32 @@
  * `record` beside `run`; new read tools `get_run_node` and `compare_runs`
  * answer the same unit and comparison, and `replay_run` runs a run again
  * (`dryRun` answers the plan). Additive otherwise.
+ *
+ * 3.30.0 — 2026-10-10: the MCP endpoint reads, plans and changes the
+ * organization's settings, in a new `settings` group. `get_settings`
+ * answers, without `kinds`, the catalog of setting kinds (what each is, its
+ * `ops` and `acts`, `baseRisk`, the Settings pages it covers, whether this
+ * deployment serves it and what the caller's role may do) and, with
+ * `kinds`, each resource the caller may read with its `key`, `config` and
+ * native `hash`, a secret reading as `{masked: true, preview}`.
+ * `plan_settings` answers each change's `action`, `currentHash`, `diff`,
+ * `effects` and `risk`, or its `refusal`, and writes nothing.
+ * `apply_settings` is compare-and-set: `expected` names every changed
+ * resource's hash (null for one it creates); a refused change or a resource
+ * that moved applies nothing (`SETTINGS_STALE` with `data.currentHash`);
+ * changes run in a fixed order across kinds and the first failure stops the
+ * rest, the answer naming what was `applied`, what `failed` and what was
+ * `skipped`. It asks the person before every call and draws from a new
+ * `rest:settings` budget (30 a minute, 60 at once). No argument may carry a
+ * secret (`SECRET_ARGUMENT_REFUSED`); further codes `SETTINGS_KIND_UNAVAILABLE`,
+ * `SETTINGS_NOT_FOUND` and `SETTINGS_DUPLICATE`. The kinds served are the
+ * organization's own providers and their environment credentials, its
+ * policies, embedding model and branding, the deployment's settings, and a
+ * project's instructions and its agents' instructions and tools and a
+ * task's description, each through the writer its Settings page uses.
+ * `get_docs` takes the topic `settings` (also `tale://docs/settings`): every
+ * kind with its config's fields, the effects of a plan and every refusal.
+ * The server instructions and the Tale skill name the settings loop. No
+ * REST operation changes.
  */
-export const API_CONTRACT_VERSION = '3.29.0';
+export const API_CONTRACT_VERSION = '3.30.0';

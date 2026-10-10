@@ -10,11 +10,7 @@ import type { Sql } from 'postgres';
 
 import { loadConnectorCatalog } from '../../../lib/connectors/dispatcher.ts';
 import { dispatch } from '../../../lib/engine/api/dispatch.ts';
-import {
-  hasCodeRunner,
-  setCodeRunner,
-} from '../../../lib/engine/core/runner.ts';
-import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
+import { installCodeRunner } from '../../lib/code-runner.ts';
 import {
   pgAutomationStore,
   type PgStoreScope,
@@ -27,7 +23,7 @@ import type { McpHost } from './tools.ts';
 
 /** Install the engine seams one dispatch needs (cheap and idempotent). */
 function assembleEngineHost(): void {
-  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+  installCodeRunner();
   loadConnectorCatalog();
 }
 

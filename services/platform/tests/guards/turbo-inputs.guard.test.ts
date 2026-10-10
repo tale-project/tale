@@ -136,6 +136,10 @@ const OUTSIDE_READS = [
     readers: 'lib/engine/selftest/purity.test.ts scans the extracted grammar',
   },
   {
+    path: 'packages/shared/src/utils/stable-stringify.ts',
+    readers: 'lib/engine/selftest/purity.test.ts scans the stable serializer',
+  },
+  {
     // Not read as text: the suite runs the postgres.js these patches change
     // (the root `patchedDependencies`), so a patch edit alone must re-run it.
     path: 'patches',

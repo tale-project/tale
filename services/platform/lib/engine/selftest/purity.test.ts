@@ -13,8 +13,8 @@ import { describe, expect, it } from 'vitest';
  * flows through the slots. The backends under `runners/` are the ONE
  * sanctioned exception — `node-vm.ts` exists to wrap `node:vm` and to
  * supervise the child process (`node-vm-child.ts`) it evaluates in; test
- * files and the test-support modules under `selftest/` are host code and
- * exempt.
+ * and bench files and the test-support modules under `selftest/` are host
+ * code and exempt.
  */
 
 const ENGINE_ROOT = path.join(
@@ -36,6 +36,11 @@ const PURE_SHARED_HELPERS = [
     '../../../../packages/shared/src/automation-replay.ts',
   ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/secret-scan.ts'),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/utils/stable-stringify.ts',
+  ),
   path.resolve(ENGINE_ROOT, '../shared/utils/bound-json.ts'),
   path.resolve(ENGINE_ROOT, '../shared/utils/storable-text.ts'),
   path.resolve(ENGINE_ROOT, '../shared/audit-redaction.ts'),
@@ -46,7 +51,11 @@ function sourceFiles(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(full));
-    else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) {
+    else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.includes('.test.') &&
+      !entry.name.includes('.bench.')
+    ) {
       out.push(full);
     }
   }
@@ -89,16 +98,17 @@ describe('engine purity', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
     // periscopic scopes, the zimmerframe walker, is-reference), jsdiff's line
     // diff (the unified patch between two versions), the shared safe YAML
-    // loader, type guards, name grammar, stable serializer, JSON bounding and
-    // the secret-key list are runtime-neutral, and so is
-    // `@tale/ui`'s data core (summaries, shapes, diffs, pointers, hashes),
-    // whose own guard (`packages/ui/src/data/pure.test.ts`) holds it to
-    // imports of itself, and its line diff (`code-diff/compute`, the one
-    // unified patch), which its test holds to jsdiff alone; everything
-    // else outside the engine tree is a layering violation.
+    // loader, type guards, name grammar, stable serializer, JSON bounding,
+    // the secret-key list and the credential detector are runtime-neutral,
+    // and so is `@tale/ui`'s data core (summaries, shapes, diffs, pointers,
+    // hashes), whose own guard (`packages/ui/src/data/pure.test.ts`) holds it
+    // to imports of itself, and its line diff (`code-diff/compute`, the one
+    // unified patch), which its test holds to jsdiff alone; everything else
+    // outside the engine tree is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/shared/utils/stable-stringify',
       '@tale/shared/automation-replay',
       '@tale/ui/code-diff/compute',
       '@tale/ui/data/hash',
@@ -118,6 +128,7 @@ describe('engine purity', () => {
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
+      path.join('lib', 'shared', 'secret-scan'),
       path.join('lib', 'shared', 'utils', 'bound-json'),
       path.join('lib', 'shared', 'utils', 'storable-text'),
       path.join('lib', 'shared', 'audit-redaction'),
@@ -229,11 +240,13 @@ describe('engine purity', () => {
       ]),
     );
     // The supervisor forks and talks to its child; the child wraps node:vm;
-    // the sandbox-exec backend reaches nothing on the host at all.
+    // the pool's tenant rides on the host's async context; the sandbox-exec
+    // backend reaches nothing on the host at all.
     expect(nodeImportsByFile).toEqual({
       'node-vm-child.ts': ['node:vm'],
       'node-vm.ts': ['node:child_process', 'node:net', 'node:url', 'node:vm'],
       'sandbox-exec.ts': [],
+      'tenant.ts': ['node:async_hooks'],
     });
   });
 });

@@ -2,11 +2,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  credentialKind,
-  looksLikeCredential,
-  secretMemberName,
-} from './secret-patterns';
+import { credentialKind } from '../../shared/secret-scan';
+import { looksLikeCredential, secretMemberName } from './secret-patterns';
 
 describe('secretMemberName', () => {
   it.each([

@@ -267,6 +267,10 @@ describe('tools/list', () => {
     'list_agent_secrets',
     'list_projects',
     'list_events',
+    // The platform's settings tools — read, plan, apply.
+    'get_settings',
+    'plan_settings',
+    'apply_settings',
     // The platform capability tools — real schemas, a different backend.
     'search_capabilities',
     'invoke_capability',

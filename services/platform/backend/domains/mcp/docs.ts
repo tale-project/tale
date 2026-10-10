@@ -9,6 +9,7 @@ import {
   CRON_DEFAULT_ZONE,
   SCHEDULE_ON_TIME_GRACE_MS,
 } from '../../../lib/automations/schedule/occurrences.ts';
+import { settingsReference } from '../../../lib/mcp/docs/settings.ts';
 import { triggersReference } from '../../../lib/mcp/docs/triggers.ts';
 import { validationReference } from '../../../lib/mcp/docs/validation.ts';
 import { buildTaleSkill } from '../../../lib/mcp/skill.ts';
@@ -39,6 +40,8 @@ export function mcpDocs(topic: string): string | undefined {
       return triggersReference(TRIGGER_FACTS);
     case 'validation':
       return validationReference();
+    case 'settings':
+      return settingsReference();
     case 'skill':
       return buildTaleSkill();
     default:

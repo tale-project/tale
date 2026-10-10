@@ -81,6 +81,10 @@ mcpEndpoint:
       description: Nachsehen, was eine Automatisierung nennen darf — Modelle,
         Agent-Laufzeiten, Skills, Connectors, Namen von Secrets, Projekte
         und Ereignisse.
+    settings:
+      title: Einstellungen
+      description: Die Einstellungen lesen, planen und ändern, die deine Rolle
+        erlaubt. Secrets gibst du immer in Tale ein.
     capability:
       title: Capabilities & Wissen
       description: Die eigene Oberfläche der Organisation — durchsuchen, was
@@ -1326,6 +1330,8 @@ logs:
       folder.deleted: Ordner gelöscht
       knowledge_entry.created: Wissenseintrag erstellt
       knowledge_entry.updated: Wissenseintrag aktualisiert
+      knowledge_embedding.saved: Embedding-Modell gespeichert
+      knowledge_embedding.removed: Embedding-Modell entfernt
       branding.updated: Branding aktualisiert
       branding.image_uploaded: Branding-Bild hochgeladen
       branding.image_deleted: Branding-Bild entfernt
@@ -1473,6 +1479,8 @@ logs:
       project.deleted: Projekt gelöscht
       policy.created: Richtlinie erstellt
       policy.updated: Richtlinie aktualisiert
+      governance_policy.created: Richtlinie erstellt
+      governance_policy.updated: Richtlinie aktualisiert
       policy.retention_bounds_proposal_applied: Vorschlag zu Aufbewahrungsgrenzen angewendet
       policy.retention_bounds_initial_applied: Aufbewahrungsgrenzen erstmalig angewendet
       retention.run_completed: Aufbewahrungs-Run abgeschlossen
@@ -1540,6 +1548,7 @@ logs:
       document: Dokument
       folder: Ordner
       knowledge_entry: Wissenseintrag
+      knowledge_embedding: Embedding-Modell
       agent: Agent
       workflow: Automatisierung
       workflow_run: Automatisierungslauf

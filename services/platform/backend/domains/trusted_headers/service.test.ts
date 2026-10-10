@@ -13,6 +13,7 @@ import {
   setTrustedHeaderSettings,
   TRUSTED_HEADER_KEY_MARKER,
   TrustedHeadersError,
+  trustedRoleHolds,
 } from './service.ts';
 
 /**
@@ -366,5 +367,57 @@ describe('TrustedHeadersError', () => {
     expect(error.name).toBe('TrustedHeadersError');
     expect(error.message).toBe('why');
     expect(error.status).toBe(404);
+  });
+});
+
+describe('trustedRoleHolds — a session keeps a proxy role only while it could be asserted [THDR-R10]', () => {
+  const settings = (row: object | undefined) =>
+    fakeSql((text) =>
+      text.includes('FROM app.trusted_header_settings')
+        ? row === undefined
+          ? []
+          : [row]
+        : undefined,
+    );
+
+  it('never honours owner, and asks nothing for it', async () => {
+    const fake = settings({
+      enabled: true,
+      maxAssertedRole: 'admin',
+      hasKey: true,
+    });
+    await expect(trustedRoleHolds(fake.sql, 'org-1', 'owner')).resolves.toBe(
+      false,
+    );
+    expect(fake.queries).toHaveLength(0);
+  });
+
+  it('honours a role up to the ceiling while the switch is on and a key lives', async () => {
+    const fake = settings({
+      enabled: true,
+      maxAssertedRole: 'developer',
+      hasKey: true,
+    });
+    await expect(
+      trustedRoleHolds(fake.sql, 'org-1', 'developer'),
+    ).resolves.toBe(true);
+    await expect(trustedRoleHolds(fake.sql, 'org-1', 'editor')).resolves.toBe(
+      true,
+    );
+    await expect(trustedRoleHolds(fake.sql, 'org-1', 'admin')).resolves.toBe(
+      false,
+    );
+  });
+
+  it('honours nothing while paused, without a live key, or never set up', async () => {
+    for (const row of [
+      { enabled: false, maxAssertedRole: 'admin', hasKey: true },
+      { enabled: true, maxAssertedRole: 'admin', hasKey: false },
+      undefined,
+    ]) {
+      await expect(
+        trustedRoleHolds(settings(row).sql, 'org-1', 'member'),
+      ).resolves.toBe(false);
+    }
   });
 });
