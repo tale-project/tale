@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 171 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 172 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1268,6 +1268,15 @@ output:
       reads "staging input files failed: workspace/input.json (too_large)"
       — env-gated: mark **ENVIRONMENT** without a runnable harness and a
       model credential.
+- [ ] `AUTO-F122` · **Create a blank automation (Create automation › Blank)
+      with a webhook trigger, **Enable now** checked and **Deploy v1 now**
+      (`automations.blank.deployNow`) left on** → the automation opens with v1
+      live (the version selector reads `automations.versions.deployed`); send
+      the webhook's sample request with `{ "customer": "Ada" }` → a run starts,
+      and the agent's **Agent log** shows it reading
+      `/agent/workspace/input.json`, which holds the payload under `run`.
+      Repeat with **Deploy v1 now** unchecked → v1 stays a draft and the same
+      request starts nothing until you deploy it from the editor.
 
 ## Boundary & error tests
 

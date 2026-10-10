@@ -73,6 +73,9 @@ blank:
   openAutomation: Ouvrir l’automatisation
   enableNow: Activer maintenant
   enableNowHint: Décoché, le déclencheur reste en pause — rien ne démarre tant que tu ne l’actives pas depuis la carte Déclencheur.
+  deployNow: Mettre v1 en service maintenant
+  deployNowHint: v1 est mise en service tout de suite, et son déclencheur lance des exécutions tant qu’il est activé. Décoché, v1 reste un brouillon que tu mets en service depuis l’éditeur.
+  deployFailed: 'L’automatisation a été créée, mais v1 n’a pas pu être mise en service : {error}. Mets-la en service depuis l’éditeur.'
   triggerFailed: "L'automatisation a été créée, mais son trigger n'a pas pu
     être défini : {error}. Définis-le depuis la carte Trigger."
   cancel: Annuler

@@ -46,7 +46,11 @@ import {
 } from '@/lib/shared/harness-offer';
 import { localTimeZone } from '@/lib/shared/zoned-time';
 
-import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
+import {
+  useDeployAutomation,
+  useSaveAutomation,
+  useSetAutomationTrigger,
+} from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
 import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
@@ -126,6 +130,7 @@ export function BlankAutomationDialog({
     return project === undefined ? undefined : [project.name];
   }, [projectId, projects]);
   const { mutateAsync: saveAutomation } = useSaveAutomation();
+  const { mutateAsync: deployAutomation } = useDeployAutomation();
   const { mutateAsync: setTrigger } = useSetAutomationTrigger();
 
   const [step, setStep] = useState<0 | 1>(0);
@@ -155,6 +160,9 @@ export function BlankAutomationDialog({
   // The webhook token the create minted — the server shows it exactly once,
   // and this dialog is the only place that sees the mint, so it stays open
   // on a copy screen until the author has taken the URL.
+  // A saved version that never goes live never runs, whatever its trigger
+  // says: the wizard puts v1 live unless the author keeps it a draft.
+  const [deployNow, setDeployNow] = useState(true);
   const [minted, setMinted] = useState<{
     token: string;
     automationSlug: string;
@@ -172,6 +180,7 @@ export function BlankAutomationDialog({
     setNameError(undefined);
     setGeneratedSlug(fallbackSlug());
     setTriggerDraft(defaultTriggerDraft(viewerZone));
+    setDeployNow(true);
     setMinted(null);
   }, [open, viewerZone]);
 
@@ -312,6 +321,23 @@ export function BlankAutomationDialog({
           }),
           variant: 'destructive',
         });
+      }
+      if (deployNow) {
+        try {
+          await deployAutomation({
+            organizationId,
+            name: saved.name,
+            version: saved.version,
+          });
+        } catch (error) {
+          // The automation exists as a draft; the editor deploys it.
+          toast({
+            title: t('blank.deployFailed', {
+              error: automationErrorMessage(error),
+            }),
+            variant: 'destructive',
+          });
+        }
       }
       const automationSlug = automationSlugToParam(saved.name);
       if (trigger.kind === 'webhook' && token !== undefined) {
@@ -555,6 +581,13 @@ export function BlankAutomationDialog({
                 enabled: checked === true,
               }))
             }
+          />
+          <Checkbox
+            id="blank-automation-deploy-now"
+            label={t('blank.deployNow')}
+            description={t('blank.deployNowHint')}
+            checked={deployNow}
+            onCheckedChange={(checked) => setDeployNow(checked === true)}
           />
         </Stack>
       )}
