@@ -1218,6 +1218,11 @@ jobs:
             --output "${SERVICE}-trivy.sarif" "${SERVICE}-trivy.json"
 
       - name: Upload SARIF
+        # Merge-group refs are ephemeral and GitHub Code Scanning cannot attach
+        # a SARIF result to the temporary gh-readonly-queue branch. Keep the
+        # advisory upload best-effort for that event so it cannot block the
+        # merge queue when the scan itself succeeded.
+        continue-on-error: ${{ github.event_name == 'merge_group' }}
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
         if: always() && hashFiles(format('{0}-trivy.sarif', matrix.service)) != ''
         with:

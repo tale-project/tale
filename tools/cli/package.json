@@ -25,6 +25,7 @@
     "@noble/curves": "1.9.7",
     "@scure/base": "2.0.0",
     "@tale/shared": "workspace:*",
+    "@tale/ui": "workspace:*",
     "acorn": "8.18.0",
     "ajv": "8.20.0",
     "commander": "14.0.3",

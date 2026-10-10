@@ -1061,18 +1061,26 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
     ? 'Meta'
     : 'Control';
 
-  /** The open completion list, once it takes keys (CodeMirror ignores
-   *  them for its first 75 ms). */
-  async function listbox(): Promise<HTMLElement> {
-    const list = await screen.findByRole('listbox', {}, { timeout: 5000 });
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    return list;
-  }
-
   function optionLabels(list: HTMLElement): (string | null | undefined)[] {
     return [...list.querySelectorAll('[role="option"]')].map(
       (option) => option.querySelector('.cm-completionLabel')?.textContent,
     );
+  }
+
+  /** Read the current list on every retry: CodeMirror replaces the popup
+   * while an asynchronous completion provider resolves. */
+  async function completionOptions(
+    expected: string[],
+    container: HTMLElement = document.body,
+  ): Promise<HTMLElement> {
+    await vi.waitFor(
+      () => {
+        const list = within(container).getByRole('listbox');
+        expect(optionLabels(list)).toEqual(expected);
+      },
+      { timeout: 5000 },
+    );
+    return within(container).getByRole('listbox');
   }
 
   /** A box on the canvas by its graph id, clicked by a real pointer. */
@@ -1096,10 +1104,7 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
     );
     await userEvent.click(code);
     await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
-    const list = await listbox();
-    await vi.waitFor(() =>
-      expect(optionLabels(list)).toEqual(['pulls', 'diff']),
-    );
+    await completionOptions(['pulls', 'diff']);
     await userEvent.keyboard('{Escape}');
     await vi.waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
 
@@ -1138,8 +1143,7 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
     );
     await userEvent.click(code);
     await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
-    const list = await listbox();
-    await vi.waitFor(() => expect(optionLabels(list)).toEqual(['pulls']));
+    const list = await completionOptions(['pulls'], sheet);
     // The list sits inside the sheet.
     const sheetBox = sheet.getBoundingClientRect();
     expect(list.getBoundingClientRect().bottom).toBeLessThanOrEqual(
