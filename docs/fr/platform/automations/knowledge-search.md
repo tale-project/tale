@@ -1,5 +1,5 @@
 ---
-title: Chercher dans tes connaissances depuis une automatisation
+title: Chercher tes connaissances depuis une automatisation
 description: Trouve avec l’étape knowledge.search les passages de tes documents et de tes sites indexés qui répondent à une question, utilise-les dans une étape suivante, et sache ce qu’une recherche peut lire.
 ---
 
