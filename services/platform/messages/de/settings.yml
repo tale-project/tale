@@ -1479,6 +1479,8 @@ logs:
       project.deleted: Projekt gelöscht
       policy.created: Richtlinie erstellt
       policy.updated: Richtlinie aktualisiert
+      governance_policy.created: Richtlinie erstellt
+      governance_policy.updated: Richtlinie aktualisiert
       policy.retention_bounds_proposal_applied: Vorschlag zu Aufbewahrungsgrenzen angewendet
       policy.retention_bounds_initial_applied: Aufbewahrungsgrenzen erstmalig angewendet
       retention.run_completed: Aufbewahrungs-Run abgeschlossen

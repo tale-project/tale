@@ -20,6 +20,7 @@ const pauseMetadata = {
 function renderDetails(
   metadata: Record<string, unknown>,
   category: AuditLogDoc['category'] = 'ai',
+  action = 'automation.trigger.paused',
 ) {
   const log: AuditLogDoc = {
     _id: 'log-paused',
@@ -27,7 +28,7 @@ function renderDetails(
     organizationId: 'org-1',
     actorId: 'system',
     actorType: 'system',
-    action: 'automation.trigger.paused',
+    action,
     category,
     resourceType: 'automation_trigger',
     timestamp: 1_700_000_000_000,
@@ -52,6 +53,17 @@ function renderDetails(
     />,
   );
 }
+
+describe('AuditLogTable action labels', () => {
+  it.each([
+    ['governance_policy.created', 'Policy created'],
+    ['governance_policy.updated', 'Policy updated'],
+  ])('names a policy change (%s) in words', async (action, label) => {
+    renderDetails({}, 'security', action);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getAllByText(label).length).toBeGreaterThan(0);
+  });
+});
 
 describe('AuditLogTable metadata details', () => {
   it('shows the paused schedule failure context and run reference', async () => {
