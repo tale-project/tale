@@ -255,7 +255,7 @@ describe("a task's review context over MCP", () => {
   });
 
   it('adds one through its writer, compare-and-set on the hash read', async () => {
-    const change = {
+    const addition = {
       kind: 'task-review-context' as const,
       op: 'set' as const,
       config: context,
@@ -263,7 +263,7 @@ describe("a task's review context over MCP", () => {
     const answer = await applySettings(
       contextOf('editor'),
       registry,
-      [change],
+      [addition],
       {
         'task-review-context/p-1/t-1': configurationHash(null),
       },
@@ -280,7 +280,7 @@ describe("a task's review context over MCP", () => {
     const stale = await applySettings(
       contextOf('editor'),
       registry,
-      [{ ...change, config: { ...context, enabled: false } }],
+      [{ ...addition, config: { ...context, enabled: false } }],
       { 'task-review-context/p-1/t-1': configurationHash(null) },
     );
     expect(stale).toMatchObject({ code: 'SETTINGS_STALE', applied: [] });
