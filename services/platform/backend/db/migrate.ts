@@ -5,6 +5,7 @@ import { withRetry } from '@tale/shared/db/retry';
 import type { BetterAuthOptions } from 'better-auth';
 import postgres from 'postgres';
 
+import { installAuthInvalidationTriggers } from './auth-invalidation-triggers.ts';
 import { resolvePostgresConnection } from './ssl.ts';
 import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
 
@@ -398,6 +399,7 @@ async function migrateOnce(
       await defaultTeamMemberCount(sql);
       await verifyProvisionedAccounts(sql, log);
       await revokeClientWrittenTrustFields(sql, log);
+      await installAuthInvalidationTriggers(sql, log);
     }
     // The e-mail index builds concurrently, which must not happen under
     // this lock (see `indexUserEmailLower`).
