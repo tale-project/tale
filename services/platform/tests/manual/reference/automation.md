@@ -159,6 +159,12 @@ edits retain results; clearing the input and late responses after edits are
 covered by `app/features/websites/components/website-view-dialog.test.tsx`.
 Real-browser speech and visual transitions remain manual.
 
+Website details retains loaded rows after a failed Load more request and exposes
+a live error with Try again. Repeated failures retry the same offset; recovery
+appends each page once and resumes successful paging, covered by
+`app/features/websites/components/website-view-dialog.test.tsx`.
+Real-browser speech and visual transitions remain manual.
+
 Inbox source discovery distinguishes a failed read from successful empty
 discovery. Both automation and API-source failures retain the Inbox shell and
 conversation outlet with an accessible retry; retries retain the error while

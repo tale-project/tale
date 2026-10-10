@@ -1408,6 +1408,69 @@ describe('WebsiteViewDialog', () => {
     });
   });
 
+  it('retries a failed later page without gaps or duplicates and resumes paging', async () => {
+    const pageAt = (index: number): CrawlerPage => ({
+      url: `https://docs.example.com/${index}`,
+      title: null,
+      word_count: 10,
+      status: 'active',
+      content_hash: 'h',
+      last_crawled_at: '2026-09-14T11:11:00.000Z',
+      discovered_at: '2026-09-14T11:11:00.000Z',
+      chunks_count: 1,
+      indexed: true,
+      fail_count: 0,
+      last_error: null,
+      last_error_kind: null,
+      last_error_at: null,
+    });
+    const range = (from: number, to: number) =>
+      Array.from({ length: to - from }, (_, index) => pageAt(from + index));
+    pagesPayload.current = { offset: 0, hasMore: true, pages: range(0, 20) };
+    const fetchPages = useBackendAction('websites/actions:fetchPages').mutate;
+    vi.mocked(fetchPages).mockClear();
+    const { user, container } = render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+    );
+    await screen.findByRole('link', { name: 'https://docs.example.com/19' });
+    pagesPayload.current = null;
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    act(() => failAction.get('websites/actions:fetchPages')?.());
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load pages");
+    expect(
+      screen.getByRole('link', { name: 'https://docs.example.com/19' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Load more' }),
+    ).not.toBeInTheDocument();
+    await checkAccessibility(container);
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    act(() => failAction.get('websites/actions:fetchPages')?.());
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load pages");
+    expect(searchToast).toHaveBeenCalledTimes(2);
+    pagesRead.current = ({ offset, limit }) => ({
+      offset,
+      hasMore: offset + limit < 60,
+      pages: range(offset, Math.min(offset + limit, 60)),
+    });
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(
+      vi.mocked(fetchPages).mock.calls.map(([args]) => args.offset),
+    ).toEqual([0, 20, 20, 20, 40]);
+    for (let index = 0; index < 60; index += 1) {
+      expect(
+        screen.getAllByRole('link', {
+          name: `https://docs.example.com/${index}`,
+        }),
+      ).toHaveLength(1);
+    }
+    expect(
+      screen.queryByRole('button', { name: 'Load more' }),
+    ).not.toBeInTheDocument();
+  });
+
   // A "Load more" answer that arrived after a refresh answer was appended
   // again: the refresh had read the same rows, and they showed twice.
   it('drops a page read that a refresh has overtaken', async () => {
