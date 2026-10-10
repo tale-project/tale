@@ -25,6 +25,10 @@ bulkSend:
   messageLabel: Message
   messagePlaceholder: Type your reply...
   send: Send
+  refused: "{count, plural, one {# message wasn't sent} other {# messages weren't sent}}"
+  refusedRetry: "Only these conversations are still selected, and your message is kept. Send tries them again; the messages that went out aren't sent twice."
+  refusedEntry: '{name} — {reason}'
+  refusedMore: '{count, plural, one {# more conversation} other {# more conversations}}'
 compose:
   compose: Compose
   newEmail: New email

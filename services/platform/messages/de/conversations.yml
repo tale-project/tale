@@ -26,6 +26,10 @@ bulkSend:
   messageLabel: Nachricht
   messagePlaceholder: Antwort eingeben...
   send: Senden
+  refused: '{count, plural, one {# Nachricht wurde nicht gesendet} other {# Nachrichten wurden nicht gesendet}}'
+  refusedRetry: 'Nur diese Konversationen sind noch ausgewählt, und deine Nachricht bleibt erhalten. Senden versucht es bei ihnen erneut; bereits gesendete Nachrichten werden nicht doppelt gesendet.'
+  refusedEntry: '{name} — {reason}'
+  refusedMore: '{count, plural, one {# weitere Konversation} other {# weitere Konversationen}}'
 compose:
   compose: Verfassen
   newEmail: Neue E-Mail

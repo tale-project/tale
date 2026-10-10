@@ -197,3 +197,76 @@ it('preserves bulk API plaintext through the reply door while queueing escaped e
   expect(runConnectorAction).not.toHaveBeenCalled();
   client.clear();
 });
+
+it('queues a bulk reply to a mirrored conversation without an email address, and sends nothing to an email one without [#3912]', async () => {
+  const body = 'Use <price> & A&B\nThanks';
+  const { sql: apiSql } = fakeSql({
+    'FROM app.conversations c': [
+      { organizationId: 'org-1', channel: 'api', contactEmail: null },
+    ],
+  });
+  const replied: string[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const id = /\/conversations\/([^/?]+)\/reply/.exec(url)?.[1];
+    if (!id) throw new Error('Unexpected request');
+    if (typeof init?.body !== 'string') throw new Error('Expected JSON body');
+    const payload = JSON.parse(init.body) as {
+      content: string;
+      sourceMarkdown?: string;
+    };
+    replied.push(id);
+    const messageId = await replyToConversation(apiSql, {
+      ...payload,
+      conversationId: id,
+      organizationId: 'org-1',
+      actor: { userId: 'u1' },
+    });
+    return Response.json({ messageId });
+  });
+  const onComplete = vi.fn();
+  const client = new QueryClient();
+  const { result } = renderHook(
+    () =>
+      useBulkActions({
+        organizationId: 'org-1',
+        // As the Inbox projects them: a mirrored contact without an address
+        // reads blank, an email one reads the stand-in.
+        conversations: [
+          { id: 'api', _id: 'api', channel: 'api', contact: { email: '' } },
+          {
+            id: 'mail',
+            _id: 'mail',
+            channel: 'email',
+            contact: { email: 'unknown@example.com' },
+          },
+        ] as unknown as ConversationItem[],
+        selectionState: { type: 'all' },
+        onComplete,
+      }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
+  );
+
+  await act(async () => {
+    await result.current.handleSendMessages(body);
+  });
+
+  expect(replied).toEqual(['api']);
+  expect(queueApiReply).toHaveBeenCalledWith(
+    apiSql,
+    expect.objectContaining({ conversationId: 'api', body }),
+  );
+  expect(addJobInTx).not.toHaveBeenCalled();
+  expect(runConnectorAction).not.toHaveBeenCalled();
+  expect(onComplete).toHaveBeenCalledWith(['mail']);
+  client.clear();
+});

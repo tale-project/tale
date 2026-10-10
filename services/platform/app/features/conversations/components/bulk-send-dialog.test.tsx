@@ -23,6 +23,7 @@ describe('BulkSendDialog', () => {
       <BulkSendDialog
         selectedCount={3}
         isSending={false}
+        refused={[]}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -40,6 +41,7 @@ describe('BulkSendDialog', () => {
       <BulkSendDialog
         selectedCount={1}
         isSending={false}
+        refused={[]}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -57,6 +59,7 @@ describe('BulkSendDialog', () => {
       <BulkSendDialog
         selectedCount={1}
         isSending={false}
+        refused={[]}
         onConfirm={vi.fn()}
         onCancel={onCancel}
       />,
@@ -72,6 +75,7 @@ describe('BulkSendDialog', () => {
       <BulkSendDialog
         selectedCount={2}
         isSending={false}
+        refused={[]}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -95,6 +99,7 @@ describe('BulkSendDialog', () => {
       <BulkSendDialog
         selectedCount={1}
         isSending={false}
+        refused={[]}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,
@@ -113,6 +118,7 @@ describe('BulkSendDialog', () => {
       <BulkSendDialog
         selectedCount={1}
         isSending={true}
+        refused={[]}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -133,6 +139,7 @@ describe('BulkSendDialog', () => {
       <BulkSendDialog
         selectedCount={1}
         isSending={false}
+        refused={[]}
         onConfirm={vi.fn()}
         onCancel={onCancel}
       />,

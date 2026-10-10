@@ -27,6 +27,10 @@ bulkSend:
   messageLabel: Message
   messagePlaceholder: Saisis ta réponse...
   send: Envoyer
+  refused: "{count, plural, one {# message n'a pas été envoyé} other {# messages n'ont pas été envoyés}}"
+  refusedRetry: "Seules ces conversations restent sélectionnées, et ton message est conservé. Envoyer réessaie pour elles ; les messages déjà partis ne sont pas envoyés deux fois."
+  refusedEntry: '{name} — {reason}'
+  refusedMore: '{count, plural, one {# autre conversation} other {# autres conversations}}'
 compose:
   compose: Rédiger
   newEmail: Nouvel e-mail
