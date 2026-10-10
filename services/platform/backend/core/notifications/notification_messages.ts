@@ -414,11 +414,14 @@ export function renderActionableEmailContent(
   // pass saw no placeholders left, so external text (task titles, user names,
   // conversation subjects) landed raw in the email HTML, and a hostile param
   // containing a literal `{title}` was even substituted a second time.
+  // A line break in the body (an automation's message keeps its author's)
+  // stays one in the HTML lane, where whitespace would otherwise fold.
   const bodyTemplate = resolveInboxTemplate(locale, args.bodyKey);
-  const bodyHtml =
+  const bodyHtml = (
     bodyTemplate === undefined
       ? escapeHtml(args.bodyKey)
-      : interpolateTemplate(bodyTemplate, args.params, escapeHtml);
+      : interpolateTemplate(bodyTemplate, args.params, escapeHtml)
+  ).replaceAll('\n', '<br>');
   const ctaHtml = escapeHtml(cta);
   const footerHtml = escapeHtml(footer);
   const linkHtml = escapeHtml(args.deepLink);

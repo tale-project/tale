@@ -8,6 +8,8 @@ import {
   type WorkflowNotifyStore,
 } from '../../../lib/connectors/natives/platform-notify.ts';
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
+import { automationDisplayName } from '../../../lib/shared/schemas/automation_presentation.ts';
+import { getOrganizationDefaultLocale } from '../../../lib/shared/utils/get-organization-default-locale.ts';
 import { notifyAutomationMessage } from '../collab/service.ts';
 
 /**
@@ -15,6 +17,8 @@ import { notifyAutomationMessage } from '../collab/service.ts';
  * written to each one's bell through the collaboration domain's own writer
  * (`notifyAutomationMessage`), which owns the preference, the run's cap and
  * the retry.
+ *
+ * The frame names the automation as its listing does — never its slug.
  *
  * A recipient is a member of the organization by email (any case) or user
  * id — not one whose membership is disabled, and not an API key's own
@@ -27,9 +31,27 @@ export function pgNotifyStore(sql: Sql): WorkflowNotifyStore {
   return {
     notify: (args) =>
       sql.begin(async (tx) => {
-        const runs = await tx<{ name: string; startedBy: string }[]>`
-          SELECT name, started_by AS "startedBy" FROM app.automation_runs
-          WHERE org_id = ${args.organizationId} AND id = ${args.runId}
+        // The name the frame shows: the automation's declared name (the
+        // newest version that declares one, as its listing reads it) in
+        // the organization's language, which its emails are written in.
+        const runs = await tx<
+          {
+            name: string;
+            startedBy: string;
+            presentation: unknown;
+            organizationMetadata: unknown;
+          }[]
+        >`
+          SELECT r.name, r.started_by AS "startedBy",
+                 (SELECT a.presentation FROM app.automations a
+                  WHERE a.org_id = r.org_id AND a.name = r.name
+                    AND a.presentation IS NOT NULL
+                    AND jsonb_typeof(a.presentation) <> 'null'
+                  ORDER BY a.version DESC LIMIT 1) AS presentation,
+                 (SELECT o."metadata" FROM "organization" o
+                  WHERE o."id" = r.org_id) AS "organizationMetadata"
+          FROM app.automation_runs r
+          WHERE r.org_id = ${args.organizationId} AND r.id = ${args.runId}
           LIMIT 1
         `;
         const run = runs[0];
@@ -92,7 +114,11 @@ export function pgNotifyStore(sql: Sql): WorkflowNotifyStore {
           runId: args.runId,
           deliveryKey: args.idempotencyKey,
           userIds: [...recipients.keys()],
-          automation: run.name,
+          automation: automationDisplayName(
+            run.presentation,
+            run.name,
+            getOrganizationDefaultLocale(run.organizationMetadata),
+          ),
           title: args.title,
           ...(args.message !== undefined && { message: args.message }),
           ...(args.link !== undefined && { link: args.link }),

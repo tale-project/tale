@@ -10,6 +10,9 @@ vi.mock('../collab/service.ts', () => ({
 
 /** Who started the run, as `started_by` stores it; null when it is gone. */
 let startedBy: string | null;
+/** The automation's newest declared presentation, and the organization's. */
+let presentation: unknown;
+let organizationMetadata: unknown;
 /** The organization's addressable members: id → email. */
 const MEMBERS: Record<string, string> = {
   usr_ada: 'ada@example.com',
@@ -22,7 +25,16 @@ const tx = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
   statements.push({ text, values });
   if (text.includes('FROM app.automation_runs')) {
     return Promise.resolve(
-      startedBy === null ? [] : [{ name: 'reports/weekly', startedBy }],
+      startedBy === null
+        ? []
+        : [
+            {
+              name: 'reports/weekly',
+              startedBy,
+              presentation,
+              organizationMetadata,
+            },
+          ],
     );
   }
   if (text.includes('FROM "member" m JOIN "user" u')) {
@@ -57,6 +69,11 @@ beforeEach(() => {
     muted: args.userIds.filter((id) => id === 'usr_noah'),
   }));
   startedBy = 'user:usr_mia';
+  presentation = {
+    name: 'Weekly report',
+    i18n: { de: { name: 'Wochenbericht' } },
+  };
+  organizationMetadata = JSON.stringify({ defaultLocale: 'de' });
   statements.length = 0;
 });
 
@@ -80,7 +97,8 @@ describe('a message an automation step sends [CONN-R25]', () => {
       runId: 'run_7',
       deliveryKey: 'run_7/tell/0/0',
       userIds: ['usr_ada', 'usr_noah', 'usr_mia'],
-      automation: 'reports/weekly',
+      // Its declared name, in the organization's language.
+      automation: 'Wochenbericht',
       title: 'Weekly report ready',
       message: 'Revenue is up 4 %.',
       link: '/dashboard/org_1/documents',
@@ -122,6 +140,15 @@ describe('a message an automation step sends [CONN-R25]', () => {
       delivered: [{ to: 'ada@example.com', userId: 'usr_ada' }],
       skipped: [{ to: 'run-starter', reason: 'no_starter' }],
     });
+  });
+
+  it('names an automation that declares no name by its slug, read as a title', async () => {
+    presentation = null;
+    organizationMetadata = null;
+    await pgNotifyStore(sql).notify({ ...ask, to: ['ada@example.com'] });
+    expect(
+      vi.mocked(notifyAutomationMessage).mock.calls[0]?.[1].automation,
+    ).toBe('Weekly');
   });
 
   it('asks nobody when the run names no one but a starter it does not have', async () => {

@@ -66,14 +66,13 @@ actions:
           {
             type: string,
             maxLength: 2000,
-            description: 'The words below the title, as plain text.',
+            description: 'The words below the title, as plain text; left out when blank.',
           }
         link:
           {
             type: string,
-            minLength: 1,
             maxLength: 2000,
-            description: 'A page of the organization (a path starting /dashboard/) or an https address to open.',
+            description: 'A page of the organization (a path starting /dashboard/) or an https address to open; left out when blank.',
           }
     output: '{ delivered: Array<{ to: string, userId: string }>, skipped: Array<{ to: string, userId?: string, reason: "preference" | "no_starter" }> }'
     mock: |
