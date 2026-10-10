@@ -6,8 +6,10 @@ import { splitSiteUrlList } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
 import { externalDepError } from '../../utils/fail';
+import * as logger from '../../utils/logger';
 import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
+import { assertDockerEngineSupported } from '../docker/setup-checks';
 import { cutoverLegacyAutomation } from './automation-cutover';
 import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
 import {
@@ -724,6 +726,22 @@ export async function applyRuntime(
     destinationPlatform === bundle.platform,
     'Docker destination platform differs from the prepared runtime.',
   );
+  // An engine that cannot pull Tale's zstd-compressed images is refused
+  // before anything is pulled or written, as `tale deploy` refuses it.
+  // A version that cannot be read is no refusal: that engine passes.
+  await assertDockerEngineSupported(async (args) => {
+    try {
+      const result = await runtimeCommand(args, dependencies, {
+        allowFailure: true,
+      });
+      return result.success ? result.stdout : null;
+    } catch (error) {
+      logger.warn(
+        `The Docker Engine version could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+  });
   const sourceDirectory = join(options.stateDirectory, 'src');
   const receiptPath = join(options.stateDirectory, '.tale', 'runtime.json');
   let receipt = readReceipt(receiptPath);

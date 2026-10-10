@@ -14,7 +14,7 @@ Für deine erste Instanz nutze den [Schnellstart](/de/self-hosted/install/quicks
 Du brauchst:
 
 - Einen Rechner mit macOS, Linux oder Windows mit PowerShell.
-- Für lokale Container: Docker Engine 24.0 oder neuer mit Compose und einen laufenden Docker-Daemon. Die Schichten der Tale-Images sind mit zstd komprimiert, und Docker lädt solche Schichten ab Engine 23.0. `tale doctor` meldet eine ältere Engine; `tale dev` und `tale deploy` brechen dann ab, bevor sie Images herunterladen.
+- Für lokale Container: Docker Engine 24.0 oder neuer mit Compose und einen laufenden Docker-Daemon. Die Schichten der Tale-Images sind mit zstd komprimiert, und Docker lädt solche Schichten ab Engine 23.0. `tale doctor` meldet eine ältere Engine; `tale dev` und `tale deploy`, auch mit einem Bundle, brechen dann ab, bevor sie Images herunterladen.
 - Für einen entfernten Workspace: Zugriff auf dessen Docker-Daemon mit Docker Engine 24.0 oder neuer, üblicherweise über einen SSH-Docker-Kontext. Der Benutzer auf dem Zielhost muss Docker ausführen dürfen.
 
 Den mitgelieferten Objektspeicher gibt es derzeit nur als `linux/amd64`-Image. Auf ARM64-Hosts brauchen lokale Entwicklung und Workspace-Deployments deshalb eine funktionierende amd64-Emulation: Docker Desktop bringt sie mit; auf einem eigenständigen Linux-Docker-Host muss [QEMU auf dem Host registriert sein](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale wählt das amd64-Image aus, installiert aber keine Emulation. Verwaltete Bundles benötigen weiterhin native Images für ihre deklarierte Architektur. Ein verwaltetes ARM64-Deployment ist daher erst mit einem nativen Objektspeicher-Image möglich.
