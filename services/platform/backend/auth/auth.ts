@@ -1,4 +1,5 @@
 import { apiKey } from '@better-auth/api-key';
+import type { ClientMetadataResourceFetch } from '@better-auth/oauth-provider';
 import { passkey } from '@better-auth/passkey';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { DEFAULT_TRUSTED_PROXIES } from '@tale/shared/schemas/governance';
@@ -77,6 +78,8 @@ import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { emitHintInTx } from '../realtime/outbox.ts';
 import { ac, orgRoles } from './access.ts';
+import { agentOAuthOptionsFromEnv } from './agent-oauth-config.ts';
+import { agentClientDiscovery } from './agent-oauth.ts';
 import {
   API_KEY_BOUND_MESSAGE,
   API_KEY_CREATE_FORBIDDEN_MESSAGE,
@@ -147,6 +150,13 @@ export interface AuthConfig {
   additionalOrigins?: readonly string[];
   /** App query lane for hooks (throttle state, audit chain, jobs). */
   sql: Sql;
+  /**
+   * The transport a coding agent's client metadata document is fetched with
+   * (`agent-oauth.ts`). Left out, the pinned-address transport that refuses
+   * private networks; the integration lane hands in a stub that serves its
+   * own test client.
+   */
+  cimdFetch?: ClientMetadataResourceFetch;
 }
 
 const SIGN_IN_EMAIL_PATH = '/sign-in/email';
@@ -527,6 +537,8 @@ export function createAuth(config: AuthConfig) {
     ),
   ];
   const sql = config.sql;
+  /** How coding agents may sign in to the MCP endpoint (`TALE_MCP_*`). */
+  const agentOAuth = agentOAuthOptionsFromEnv();
 
   /** The organization slug hooks' view of `assertOrgSlugNotRetiring`: the
    * domain refusal becomes the plugin's 400 like the other slug guards. */
@@ -1249,7 +1261,16 @@ export function createAuth(config: AuthConfig) {
         jwks: { keyPairConfig: { alg: 'RS256' } },
         jwt: { issuer: oidcIssuer },
       }),
-      createOidcProvider(sql, siteUrl),
+      createOidcProvider(sql, siteUrl, {
+        dynamicRegistration: agentOAuth.dynamicRegistration,
+        clientDiscovery: agentClientDiscovery({
+          options: agentOAuth,
+          siteOrigins,
+          ...(config.cimdFetch === undefined
+            ? {}
+            : { fetchMetadataDocument: config.cimdFetch }),
+        }),
+      }),
       organization({
         ac,
         roles: orgRoles,

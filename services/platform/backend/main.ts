@@ -4,6 +4,10 @@ import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
+import {
+  configuredMcpResources,
+  seedMcpResources,
+} from './auth/agent-oauth.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import {
   startAuthRequestCache,
@@ -105,6 +109,11 @@ async function main(): Promise<void> {
     ...(auth ? { authOptions: auth.options } : {}),
     wait: databaseWait,
   });
+  if (auth !== null) {
+    // The MCP endpoint as the sign-in server's resource, on every address
+    // the deployment answers on — once the provider's tables exist.
+    await seedMcpResources(sql, configuredMcpResources());
+  }
 
   // Metrics collectors need the pool and read app tables, so they register
   // once per process AFTER the schema is known to exist.

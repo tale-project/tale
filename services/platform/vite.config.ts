@@ -32,7 +32,13 @@ const BACKEND_BASE = process.env.TALE_BACKEND_URL || 'http://127.0.0.1:3005';
 // scripts/dev.ts). `/dav` is here too: the protocol door lives on the api,
 // and Vite's SPA catch-all would otherwise answer PROPFIND with index.html.
 const backendProxy = {
-  '/.well-known/oauth-authorization-server/api/auth': {
+  // The sign-in server's and the MCP endpoint's metadata documents
+  // (RFC 8414, RFC 9728) live under the host root's well-known paths.
+  '/.well-known/oauth-authorization-server': {
+    target: BACKEND_BASE,
+    changeOrigin: true,
+  },
+  '/.well-known/oauth-protected-resource': {
     target: BACKEND_BASE,
     changeOrigin: true,
   },
