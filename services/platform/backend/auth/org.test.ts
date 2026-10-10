@@ -9,7 +9,11 @@ import {
   requireOrganizationMembership,
 } from './membership.ts';
 import { requireOrgMember, type OrgEnv } from './org.ts';
+import { authRequestCache } from './request-cache.ts';
 
+vi.mock('./request-cache.ts', () => ({
+  authRequestCache: vi.fn(() => null),
+}));
 vi.mock('./membership.ts', async (original) => ({
   ...(await original<typeof import('./membership.ts')>()),
   requireOrganizationMembership: vi.fn(),
@@ -151,5 +155,70 @@ describe("a request's automation code", () => {
     app.get('/me', (c) => c.json({ tenant: currentRunnerTenant() }));
     const response = await app.request('/me?orgId=org-a');
     expect(await response.json()).toEqual({ tenant: 'org-a' });
+  });
+});
+
+describe('the gate and the process auth cache', () => {
+  async function pass(user: Record<string, unknown>): Promise<number> {
+    vi.mocked(requireOrganizationMembership).mockResolvedValue({
+      member: {
+        id: 'member-a',
+        organizationId: 'org-a',
+        userId: 'user-a',
+        role: 'member',
+      },
+      organizationIds: ['org-a', 'org-b'],
+    });
+    vi.mocked(evaluateTwoFactorEnforcement).mockResolvedValue({
+      decision: 'ok',
+    } as never);
+    const app = new Hono<OrgEnv>();
+    app.use(async (c, next) => {
+      c.set('sessionBundle', {
+        user: { id: 'user-a', email: 'a@example.invalid', name: 'A', ...user },
+        session: { id: 'session-a' },
+      });
+      await next();
+    });
+    app.use(requireOrgMember({} as never));
+    app.get('/me', (c) => c.json({ ok: true }));
+    return (await app.request('/me?orgId=org-a')).status;
+  }
+
+  it('reads the memberships through the cache when the process runs one', async () => {
+    const memberships = vi.fn(
+      async (_userId: string, read: () => Promise<unknown>) => read(),
+    );
+    vi.mocked(authRequestCache).mockReturnValue({ memberships } as never);
+    expect(await pass({})).toBe(200);
+    const through = vi.mocked(requireOrganizationMembership).mock.calls[0]?.[3];
+    expect(typeof through).toBe('function');
+    const read = vi.fn(async () => []);
+    await through?.(read);
+    expect(memberships).toHaveBeenCalledWith('user-a', read);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the table as before when the process runs none', async () => {
+    vi.mocked(authRequestCache).mockReturnValue(null);
+    expect(await pass({})).toBe(200);
+    expect(vi.mocked(requireOrganizationMembership).mock.calls[0]?.[3]).toBe(
+      undefined,
+    );
+  });
+
+  it("hands the session user's two-factor flag on, so the check need not read the user", async () => {
+    expect(await pass({ twoFactorEnabled: true })).toBe(200);
+    expect(evaluateTwoFactorEnforcement).toHaveBeenLastCalledWith(
+      {},
+      'user-a',
+      { organizationIds: ['org-a', 'org-b'], twoFactorEnabled: true },
+    );
+    expect(await pass({})).toBe(200);
+    expect(evaluateTwoFactorEnforcement).toHaveBeenLastCalledWith(
+      {},
+      'user-a',
+      { organizationIds: ['org-a', 'org-b'] },
+    );
   });
 });
