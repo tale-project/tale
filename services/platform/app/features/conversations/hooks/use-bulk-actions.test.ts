@@ -18,7 +18,8 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
-const mockSendMessageViaConnector = vi.fn();
+const mockSendMessageViaConnector =
+  vi.fn<(args: { conversationId: string }) => Promise<unknown>>();
 /** Each status verb's `mutateAsync`, and the hooks that hand them out. */
 const verbs = vi.hoisted(() => ({
   archive: vi.fn(),
@@ -278,7 +279,9 @@ describe('useBulkActions handleSendMessages', () => {
         variant: 'default',
       }),
     );
+    // One went out, so only the two it could not address stay selected.
     expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith(['conv-2', 'conv-3']);
   });
 
   it('uses the destructive toast variant when every send fails', async () => {
@@ -305,7 +308,8 @@ describe('useBulkActions handleSendMessages', () => {
         variant: 'destructive',
       }),
     );
-    expect(onComplete).toHaveBeenCalledTimes(1);
+    // Nothing went out: the selection stays as it was, for another try.
+    expect(onComplete).not.toHaveBeenCalled();
   });
 
   it('tallies connector failures into the failed count', async () => {
@@ -431,6 +435,328 @@ describe('useBulkActions handleSendMessages', () => {
     });
 
     expect(mockSendMessageViaConnector).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * Who a bulk send reaches is the reply door's rule, shared with the single
+ * reply: a conversation mirrored over the REST API answers through its
+ * source and needs no address (#3912). A refusal keeps the dialog, the
+ * message and the refused conversations for another try, and a retry never
+ * reaches a conversation that already got the message (#3924).
+ */
+describe('useBulkActions bulk send recovery', () => {
+  interface Props {
+    conversations: ConversationItem[];
+    selectionState: SelectionState;
+  }
+
+  function setupSend(
+    conversations: ConversationItem[],
+    selectionState: SelectionState,
+  ) {
+    const onComplete = vi.fn();
+    const view = renderHook(
+      (props: Props) =>
+        useBulkActions({ organizationId: 'org-1', ...props, onComplete }),
+      { initialProps: { conversations, selectionState } },
+    );
+    act(() => {
+      view.result.current.openBulkSendDialog();
+    });
+    return { ...view, onComplete };
+  }
+
+  /** A conversation mirrored over the REST API: its row carries no address. */
+  function mirrored(id: string): ConversationItem {
+    return makeConversation(id, '', {
+      channel: 'api',
+      connectorName: 'crm',
+    } as Partial<ConversationItem>);
+  }
+
+  function refuse(...ids: string[]) {
+    mockSendMessageViaConnector.mockImplementation(
+      async ({ conversationId }: { conversationId: string }) => {
+        if (ids.includes(conversationId)) {
+          throw new AppError({
+            code: 'mailbox_paused',
+            message: `Mailbox of ${conversationId} is paused`,
+          });
+        }
+        return `message-${conversationId}`;
+      },
+    );
+  }
+
+  function sentTo() {
+    return mockSendMessageViaConnector.mock.calls.map(
+      ([args]) => args.conversationId,
+    );
+  }
+
+  it('sends to a mirrored conversation without an email address, as a single reply does [#3912]', async () => {
+    const { result, onComplete } = setupSend(
+      [
+        mirrored('conv-api'),
+        makeConversation('conv-mail', 'alice@example.com'),
+      ],
+      { type: 'all' },
+    );
+
+    await act(async () => {
+      await result.current.handleSendMessages('Use <price> & A&B\nThanks');
+    });
+
+    expect(sentTo()).toEqual(['conv-api', 'conv-mail']);
+    expect(mockSendMessageViaConnector).toHaveBeenCalledWith({
+      conversationId: 'conv-api',
+      organizationId: 'org-1',
+      content: '<p>Use &lt;price&gt; &amp; A&amp;B<br>Thanks</p>',
+      sourceMarkdown: 'Use <price> & A&B\nThanks',
+    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description:
+          'bulk.messagesSentDescription:{"successCount":2,"failedCount":0}',
+        variant: 'default',
+      }),
+    );
+    expect(result.current.bulkSendDialog.isOpen).toBe(false);
+    expect(onComplete).toHaveBeenCalledWith([]);
+  });
+
+  it('refuses only the email conversation it cannot address, beside a mirrored one [#3912]', async () => {
+    const { result, onComplete } = setupSend(
+      [
+        mirrored('conv-api'),
+        makeConversation('conv-none', UNKNOWN_CONTACT_EMAIL, {
+          contact: { id: 'cont-2', name: 'Bruno', email: '' },
+        } as Partial<ConversationItem>),
+      ],
+      { type: 'all' },
+    );
+
+    await act(async () => {
+      await result.current.handleSendMessages('Hello');
+    });
+
+    expect(sentTo()).toEqual(['conv-api']);
+    expect(result.current.bulkSendDialog.refused).toEqual([
+      { id: 'conv-none', name: 'Bruno', reason: 'panel.contactEmailNotFound' },
+    ]);
+    expect(onComplete).toHaveBeenCalledWith(['conv-none']);
+  });
+
+  it('keeps the dialog open over a partial refusal and selects only the refused conversation [#3924]', async () => {
+    refuse('conv-2');
+    const { result, onComplete } = setupSend(
+      [
+        makeConversation('conv-1', 'alice@example.com'),
+        makeConversation('conv-2', 'bob@example.com', {
+          contact: { id: 'cont-2', name: 'Bravo', email: 'bob@example.com' },
+        } as Partial<ConversationItem>),
+        makeConversation('conv-3', 'carol@example.com'),
+      ],
+      individualSelection(['conv-1', 'conv-2', 'conv-3']),
+    );
+
+    await act(async () => {
+      await result.current.handleSendMessages('Please review');
+    });
+
+    expect(sentTo()).toEqual(['conv-1', 'conv-2', 'conv-3']);
+    expect(mockToast).toHaveBeenCalledTimes(1);
+    expect(mockToast).toHaveBeenCalledWith({
+      title: 'bulk.messagesSent',
+      description: withReason(
+        'bulk.messagesSentDescription:{"successCount":2,"failedCount":1}',
+        'Mailbox of conv-2 is paused',
+      ),
+      variant: 'default',
+    });
+    expect(result.current.bulkSendDialog).toEqual({
+      isOpen: true,
+      isSending: false,
+      refused: [
+        { id: 'conv-2', name: 'Bravo', reason: 'Mailbox of conv-2 is paused' },
+      ],
+    });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith(['conv-2']);
+  });
+
+  it('keeps the dialog and the selection as they were when every send is refused [#3924]', async () => {
+    refuse('conv-1', 'conv-2');
+    const { result, onComplete } = setupSend(
+      [
+        makeConversation('conv-1', 'alice@example.com'),
+        makeConversation('conv-2', 'bob@example.com'),
+      ],
+      individualSelection(['conv-1', 'conv-2']),
+    );
+
+    await act(async () => {
+      await result.current.handleSendMessages('Please review');
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: withReason(
+          'bulk.messagesSentDescription:{"successCount":0,"failedCount":2}',
+          'Mailbox of conv-1 is paused',
+        ),
+        variant: 'destructive',
+      }),
+    );
+    expect(result.current.bulkSendDialog.isOpen).toBe(true);
+    expect(result.current.bulkSendDialog.refused.map(({ id }) => id)).toEqual([
+      'conv-1',
+      'conv-2',
+    ]);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('retries only the refused conversation, never one that already got the message [#3924]', async () => {
+    refuse('conv-2');
+    const rows = [
+      makeConversation('conv-1', 'alice@example.com'),
+      makeConversation('conv-2', 'bob@example.com'),
+    ];
+    const { result, rerender, onComplete } = setupSend(rows, { type: 'all' });
+    await act(async () => {
+      await result.current.handleSendMessages('Please review');
+    });
+    expect(onComplete).toHaveBeenLastCalledWith(['conv-2']);
+
+    // The list keeps what `onComplete` named selected (`selectOnly`).
+    rerender({
+      conversations: rows,
+      selectionState: individualSelection(['conv-2']),
+    });
+    refuse();
+    await act(async () => {
+      await result.current.handleSendMessages('Please review');
+    });
+
+    expect(sentTo()).toEqual(['conv-1', 'conv-2', 'conv-2']);
+    expect(result.current.bulkSendDialog.isOpen).toBe(false);
+    expect(onComplete).toHaveBeenLastCalledWith([]);
+  });
+
+  it('reaches a refused conversation on retry once a refreshed row gives it an address', async () => {
+    const { result, rerender, onComplete } = setupSend(
+      [makeConversation('conv-1', '')],
+      individualSelection(['conv-1']),
+    );
+    await act(async () => {
+      await result.current.handleSendMessages('Hello');
+    });
+    expect(sentTo()).toEqual([]);
+    expect(result.current.bulkSendDialog.isOpen).toBe(true);
+
+    rerender({
+      conversations: [makeConversation('conv-1', 'dana@example.com')],
+      selectionState: individualSelection(['conv-1']),
+    });
+    await act(async () => {
+      await result.current.handleSendMessages('Hello');
+    });
+
+    expect(sentTo()).toEqual(['conv-1']);
+    expect(result.current.bulkSendDialog.isOpen).toBe(false);
+    expect(onComplete).toHaveBeenCalledWith([]);
+  });
+
+  it('sends to the rows selected when Send was pressed, though a refresh lands while it sends', async () => {
+    let release = () => {};
+    mockSendMessageViaConnector.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          release = () => resolve('message');
+        }),
+    );
+    const rows = [makeConversation('conv-1', 'alice@example.com')];
+    const { result, rerender } = setupSend(rows, { type: 'all' });
+
+    let sending: Promise<void> = Promise.resolve();
+    act(() => {
+      sending = result.current.handleSendMessages('Hello');
+    });
+    expect(result.current.bulkSendDialog.isSending).toBe(true);
+    rerender({
+      conversations: [...rows, makeConversation('conv-new', 'eve@example.com')],
+      selectionState: { type: 'all' },
+    });
+    await act(async () => {
+      release();
+      await sending;
+    });
+
+    expect(sentTo()).toEqual(['conv-1']);
+    expect(result.current.bulkSendDialog.isOpen).toBe(false);
+  });
+
+  it('ignores a second Send while the first is still going out', async () => {
+    let release = () => {};
+    mockSendMessageViaConnector.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          release = () => resolve('message');
+        }),
+    );
+    const { result } = setupSend(
+      [makeConversation('conv-1', 'alice@example.com')],
+      { type: 'all' },
+    );
+
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.handleSendMessages('Hello');
+    });
+    await act(async () => {
+      await result.current.handleSendMessages('Hello');
+    });
+    await act(async () => {
+      release();
+      await first;
+    });
+
+    expect(sentTo()).toEqual(['conv-1']);
+  });
+
+  it('does not reopen a dialog closed while it sent when a send is refused', async () => {
+    let fail = () => {};
+    mockSendMessageViaConnector.mockImplementation(
+      ({ conversationId }: { conversationId: string }) =>
+        conversationId === 'conv-1'
+          ? Promise.resolve('message')
+          : new Promise<string>((_resolve, reject) => {
+              fail = () => reject(new AppError({ code: 'mailbox_paused' }));
+            }),
+    );
+    const { result, onComplete } = setupSend(
+      [
+        makeConversation('conv-1', 'alice@example.com'),
+        makeConversation('conv-2', 'bob@example.com'),
+      ],
+      { type: 'all' },
+    );
+
+    let sending: Promise<void> = Promise.resolve();
+    act(() => {
+      sending = result.current.handleSendMessages('Hello');
+    });
+    act(() => {
+      result.current.closeBulkSendDialog();
+    });
+    await act(async () => {
+      fail();
+      await sending;
+    });
+
+    expect(result.current.bulkSendDialog.isOpen).toBe(false);
+    expect(onComplete).toHaveBeenCalledWith(['conv-2']);
   });
 });
 

@@ -30,6 +30,7 @@ import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import { hasReplyRecipient } from '@/lib/shared/conversations/reply-recipient';
 
 import {
   useDeleteConversation,
@@ -315,11 +316,13 @@ export function ConversationPanel({
       );
     }
 
-    const contactEmail = conversation.contact.email;
-
+    // The door's own rule: a mirrored conversation replies through its
+    // source, any other needs its contact's address (#3912).
     if (
-      conversation.channel !== 'api' &&
-      (!contactEmail || contactEmail === 'unknown@example.com')
+      !hasReplyRecipient({
+        channel: conversation.channel,
+        contactEmail: conversation.contact.email,
+      })
     ) {
       console.error('No contact email found in conversation');
       throw new Error(tConversations('panel.contactEmailNotFound'));

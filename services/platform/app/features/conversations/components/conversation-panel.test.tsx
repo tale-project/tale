@@ -420,6 +420,61 @@ describe('ConversationPanel — undoing a reply', () => {
   });
 });
 
+/**
+ * A single reply reaches a conversation by the reply door's own rule, the one
+ * the bulk send shares (#3912): a conversation mirrored over the REST API
+ * replies through its source without an address; any other needs its
+ * contact's real address, and is refused before anything is sent.
+ */
+describe('ConversationPanel — who a single reply reaches', () => {
+  beforeEach(() => {
+    sendMessageViaConnector.mockClear();
+  });
+
+  function renderWithContact(channel: string, email: string) {
+    const base = conversationFixture('c1');
+    conversation = {
+      ...base,
+      channel,
+      contact: { ...base.contact, email },
+      messages: [],
+    };
+    render(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+  }
+
+  it('sends a reply to a mirrored conversation without an email address', async () => {
+    renderWithContact('api', '');
+    await screen.findByRole('region', { name: 'Composer' });
+
+    await editor?.onSave?.('<p>Hi</p>', undefined, 'Hi');
+
+    expect(sendMessageViaConnector).toHaveBeenCalledWith({
+      conversationId: 'c1',
+      organizationId: 'org1',
+      content: '<p>Hi</p>',
+      sourceMarkdown: 'Hi',
+    });
+  });
+
+  it.each(['', 'unknown@example.com'])(
+    'refuses an email conversation whose contact address is %j, sending nothing',
+    async (email) => {
+      renderWithContact('email', email);
+      await screen.findByRole('region', { name: 'Composer' });
+
+      await expect(
+        editor?.onSave?.('<p>Hi</p>', undefined, 'Hi'),
+      ).rejects.toThrow('Cannot send email: contact email not found');
+      expect(sendMessageViaConnector).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('ConversationPanel — marking an opened conversation read', () => {
   beforeEach(() => {
     vi.clearAllMocks();
