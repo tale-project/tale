@@ -112,7 +112,7 @@ describe('the connector action seam', () => {
 
   it('keeps a usage limit a budget refusal, never a connector one', async () => {
     const refusal = Object.assign(
-      new ConnectorError('BUDGET_EXCEEDED', 'Usage limit reached.', {
+      new ConnectorError('LIVE_BODY_FAILED', 'Usage limit reached.', {
         connector: 'knowledge',
         action: 'search',
       }),

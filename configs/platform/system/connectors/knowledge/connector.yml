@@ -1,0 +1,103 @@
+# Platform capability — the organization's knowledge search as an automation
+# step: the passages that match a query best, from its documents, its indexed
+# web pages, or both. Native-backed over the knowledge domain's own search,
+# AS THE RUN: what it reads (the run's project, its automation's bound
+# projects, or the hub) and whose spend the query's embedding is (the run's
+# subject, as an llm step's call) come from the run, never from the input.
+# `platform` auth — nothing to connect. The mock is deterministic.
+name: knowledge
+displayName: Knowledge
+i18n:
+  de:
+    displayName: Wissen
+  fr:
+    displayName: Connaissances
+description: >-
+  Search the organization's knowledge — its documents and its indexed web
+  pages — and return the passages that match best, for a later step to use.
+tags:
+  - Platform
+auth:
+  - method: platform
+actions:
+  - name: search
+    title: Search knowledge
+    i18n:
+      de:
+        title: Wissen durchsuchen
+      fr:
+        title: Rechercher dans les connaissances
+    description: >-
+      Search the organization's knowledge and return the passages that match
+      the query best, best first: each with its text, its document's title,
+      and where it came from. It reads what the run may read — the
+      documents of the run's project, of the projects its automation is bound
+      to, or else only the documents every member shares — plus the indexed
+      web pages. It changes nothing. Embedding the query counts toward the
+      run's usage limits, as an llm step's call does. Prefer it over an agent
+      step when one search is all the step needs.
+    effects: read
+    input:
+      type: object
+      required: [query]
+      additionalProperties: false
+      properties:
+        query:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 2000,
+            description: 'What to search for, in words.',
+          }
+        limit:
+          {
+            type: integer,
+            minimum: 1,
+            maximum: 20,
+            default: 5,
+            description: 'How many passages to return, 5 by default.',
+          }
+        corpus:
+          {
+            type: string,
+            enum: [documents, web, all],
+            default: all,
+            description: 'The documents, the indexed web pages (web), or both (all, the default).',
+          }
+        folder:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 1024,
+            description: 'Only documents in this folder and the folders below it, such as /Policies/.',
+          }
+    output: '{ hits: Array<{ text: string, title: string | null, source: "documents" | "web", documentId?: string, projectId?: string, url?: string, score: number, similarity?: number }> }'
+    mock: |
+      const hits = [
+        {
+          text: 'A passage that answers: ' + input.query,
+          title: 'Example document',
+          source: 'documents',
+          documentId: 'doc_mock_1',
+          score: 0.032,
+          similarity: 0.81,
+        },
+        {
+          text: 'A web page that mentions: ' + input.query,
+          title: 'Example page',
+          source: 'web',
+          url: 'https://www.example.com/help',
+          score: 0.016,
+        },
+      ];
+      const corpus = input.corpus ?? 'all';
+      return {
+        hits: hits
+          .filter((hit) => corpus === 'all' || hit.source === corpus)
+          .slice(0, input.limit ?? 5),
+      };
+    backend:
+      kind: native
+      impl: knowledge.search
+    exampleInput:
+      { query: 'How long do refunds on annual plans take?', corpus: documents }
