@@ -32,6 +32,12 @@ export type Mismatch = DiffChange;
 /** How many changes a comparison lists by default. */
 const DEFAULT_CAP = 20;
 
+/** How deep an `includes` comparison follows an expectation; past it, the
+ * rest of a value is compared whole, where a member the expectation leaves
+ * out counts as a difference. The shared diff's own default, 12, is a depth
+ * an expectation can reach (a nested API answer); this one is not. */
+const INCLUDES_MAX_DEPTH = 64;
+
 /** A value as the pass rule reads it: its JSON text, keys sorted, a member
  * holding `undefined` as `null`, and that text read back. */
 function asCompared(value: unknown): { text: string; value: unknown } {
@@ -40,7 +46,9 @@ function asCompared(value: unknown): { text: string; value: unknown } {
 }
 
 /** The changes between an expectation and a run's value, at most `cap` of
- * them, and how many there are in all. */
+ * them, and how many there are in all. A comparison that cannot be decided
+ * in full is never a pass: an `includes` comparison stopped at the most
+ * values one diff visits reads as one `unknown` change of the whole value. */
 export function mismatchesOf(
   mode: 'exact' | 'includes',
   expected: unknown,
@@ -53,28 +61,29 @@ export function mismatchesOf(
     mode,
     arrays: 'index',
     maxChanges: Math.max(1, cap),
+    ...(mode === 'includes' && { maxDepth: INCLUDES_MAX_DEPTH }),
   });
   const total = Object.entries(result.counts)
     .filter(([kind]) => kind !== 'unchanged')
     .reduce((sum, [, n]) => sum + n, 0);
   const changes = result.changes.slice(0, cap);
+  const whole = (kind: 'changed' | 'unknown') => ({
+    changes: [
+      { pointer: '', path: [], kind, before: before.value, after: after.value },
+    ],
+    total: Math.max(total, 1),
+  });
   // An exact comparison differs exactly when the pass rule's texts do. Where
   // the diff saw no difference between two texts that differ — past the most
   // values it visits, or in a member it read as one every object inherits
   // (`__proto__`) — the two differ as a whole.
   if (changes.length === 0 && mode === 'exact' && before.text !== after.text) {
-    return {
-      changes: [
-        {
-          pointer: '',
-          path: [],
-          kind: 'changed',
-          before: before.value,
-          after: after.value,
-        },
-      ],
-      total: Math.max(total, 1),
-    };
+    return whole('changed');
+  }
+  // Past the most values one diff visits, a difference may have gone
+  // unseen: whether the value includes the expectation is not known.
+  if (changes.length === 0 && mode === 'includes' && result.truncated) {
+    return whole('unknown');
   }
   return { changes, total: Math.max(total, changes.length) };
 }

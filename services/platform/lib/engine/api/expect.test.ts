@@ -175,6 +175,46 @@ describe('compareIncludes', () => {
     ).toEqual([['', 'changed']]);
   });
 
+  it('leaves out what the expectation leaves out however deep it lies', () => {
+    const nest = (depth: number, leaf: unknown): unknown => {
+      let value = leaf;
+      for (let i = 0; i < depth; i++) value = { k: value };
+      return value;
+    };
+    expect(
+      compareIncludes(nest(30, { a: 1 }), nest(30, { a: 1, extra: 2 })),
+    ).toEqual([]);
+    expect(
+      compareIncludes(nest(30, { a: 1 }), nest(30, { a: 2 })).map(
+        (c) => c.kind,
+      ),
+    ).toEqual(['changed']);
+  });
+
+  it('fails a comparison too large to finish rather than passing it', () => {
+    // Past the most values one diff visits a difference can go unseen: the
+    // comparison cannot say the run's value includes the expectation.
+    const rows = Array.from({ length: 100_005 }, () => 0);
+    const last = [...rows];
+    last[last.length - 1] = 1;
+    const items = Array.from({ length: 60_000 }, () => ({ a: 0 }));
+    const wider = items.map(() => ({ a: 0, b: 1 }));
+    for (const [expected, actual] of [
+      [{ rows }, { rows: last }],
+      [{ items }, { items: wider }],
+    ]) {
+      const found = mismatchesOf('includes', expected, actual, 5);
+      expect(found.total).toBe(1);
+      expect(found.changes.map((c) => [c.pointer, c.kind])).toEqual([
+        ['', 'unknown'],
+      ]);
+    }
+    // Two equal values are found equal whole, whatever their size.
+    expect(mismatchesOf('includes', { rows }, { rows: [...rows] }).total).toBe(
+      0,
+    );
+  });
+
   it('an expected null matches a member a template left undefined', () => {
     expect(compareIncludes({ summary: null }, { summary: undefined })).toEqual(
       [],
