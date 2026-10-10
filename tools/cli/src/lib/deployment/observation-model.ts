@@ -52,6 +52,7 @@ export const retainedReceiptSchema = z
     configVersion: z.string().min(1).max(100).optional(),
     artifactSha256: sha,
     automationVersion: z.number().int().positive().safe(),
+    deployment: z.object({ deploymentRef: gitSha }).optional(),
   })
   .refine((value) =>
     value.schemaVersion === 2
