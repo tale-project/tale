@@ -16,7 +16,9 @@
  *  - TESTS_MOCK_NOT_LIST — the stand-in of a node that runs once per item
  *    (forEach) is no list.
  *  - TESTS_MOCK_TYPE — a stand-in has a kind the node never returns there,
- *    so the nodes reading it may behave as no real run would.
+ *    so the nodes reading it may behave as no real run would. Members the
+ *    node's type does not list are no wrong shape: a real answer, and a
+ *    stand-in copied from one, carries more than the type names.
  *  - TESTS_EXPECT_NODE_UNKNOWN — what a test expects names a node the
  *    automation does not have.
  *  - TESTS_EXPECT_PATH_IMPOSSIBLE — no way a run can go (with the failures
@@ -140,6 +142,14 @@ interface ExpectMismatch {
   actual: string;
 }
 
+/** How a value a test gives is held to a shape. */
+interface MismatchRules {
+  /** Members a closed shape does not list are fine: the value of a real
+   * call (a service's whole answer) carries more than its type names, and
+   * only the kinds of the members it lists can be wrong. */
+  extraMembers: boolean;
+}
+
 /** The first place a value a test gives certainly differs in kind from a
  * shape; null when every place may match. */
 function expectMismatch(
@@ -147,6 +157,7 @@ function expectMismatch(
   shape: Shape,
   path: Array<string | number>,
   depth: number,
+  rules: MismatchRules,
 ): ExpectMismatch | null {
   if (value === null || value === undefined || depth > 8) return null;
   if (isUnknown(shape)) return null;
@@ -165,7 +176,7 @@ function expectMismatch(
   if (kind === 'array' && Array.isArray(value)) {
     const element = elementOf(shape);
     for (const [i, item] of value.entries()) {
-      const m = expectMismatch(item, element, [...path, i], depth + 1);
+      const m = expectMismatch(item, element, [...path, i], depth + 1, rules);
       if (m !== null) return m;
     }
     return null;
@@ -174,7 +185,7 @@ function expectMismatch(
     for (const [key, item] of Object.entries(value)) {
       const found = lookup(shape, key);
       if (found.kind === 'missing' && found.closed) {
-        if (item === null) continue;
+        if (item === null || rules.extraMembers) continue;
         return {
           path: [...path, key],
           expected: toTs(shapeOfValue(item)),
@@ -182,7 +193,13 @@ function expectMismatch(
         };
       }
       if (found.kind !== 'found') continue;
-      const m = expectMismatch(item, found.shape, [...path, key], depth + 1);
+      const m = expectMismatch(
+        item,
+        found.shape,
+        [...path, key],
+        depth + 1,
+        rules,
+      );
       if (m !== null) return m;
     }
   }
@@ -322,7 +339,9 @@ function standIns(cx: RuleContext, at: TestAt, out: Issue[]): void {
     }
     const shape = cx.types.nodes[node]?.output;
     if (shape === undefined) continue;
-    const m = expectMismatch(mock, shape, [], 0);
+    // A stand-in takes the place of a real answer, which may carry more
+    // than the type lists.
+    const m = expectMismatch(mock, shape, [], 0, { extraMembers: true });
     if (m === null) continue;
     const property = propertyOf(m.path);
     // The mock is the value the test gives; the node's type is what it
@@ -655,7 +674,9 @@ export function testRules(cx: RuleContext, out: Issue[]): void {
 
     for (const field of ['output', 'outputIncludes'] as const) {
       if (expect[field] === undefined) continue;
-      const m = expectMismatch(expect[field], cx.types.output, [], 0);
+      const m = expectMismatch(expect[field], cx.types.output, [], 0, {
+        extraMembers: false,
+      });
       if (m === null) continue;
       const property = propertyOf(m.path);
       out.push(

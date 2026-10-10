@@ -557,6 +557,47 @@ describe('stand-ins of the wrong shape', () => {
       ),
     ).toEqual([]);
   });
+
+  it('TESTS_MOCK_TYPE — a stand-in may carry more than the type lists, as a real answer does', async () => {
+    // A service answers more than a connector's signature names, and a
+    // stand-in copied from a real run carries all of it: only a member of
+    // another kind than the type says is a wrong shape.
+    const nodes: NodeDef[] = [
+      send,
+      { id: 'ask', type: 'llm', model: 'm', prompt: 'Hi' },
+      { id: 'calc', type: 'transform', code: 'return { count: 1 };' },
+    ];
+    expect(
+      await issues(
+        doc(nodes, [
+          {
+            name: 'real answers',
+            input: {},
+            mocks: {
+              send: { id: 'x', threadId: 't-1', labels: ['sent'] },
+              ask: { text: 'Hello', usage: { tokens: 3 } },
+              calc: { count: 2, note: 'from a run' },
+            },
+          },
+        ]),
+        'TESTS_MOCK_TYPE',
+      ),
+    ).toEqual([]);
+    const [issue] = await issues(
+      doc(nodes, [
+        {
+          name: 'a number for a text',
+          input: {},
+          mocks: { send: { id: 7, threadId: 't-1' } },
+        },
+      ]),
+      'TESTS_MOCK_TYPE',
+    );
+    expect(issue).toMatchObject({
+      at: { pointer: '/tests/0/mocks/send/id' },
+      params: { node: 'send', expected: 'string', actual: 'number' },
+    });
+  });
 });
 
 describe('TESTS_EXPECT_NODE_UNKNOWN', () => {
