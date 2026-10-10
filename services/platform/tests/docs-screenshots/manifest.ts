@@ -37,6 +37,7 @@ import {
   DEMO_HTTP,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_SEARCH,
+  DEMO_TASK_CREATE,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
   DEMO_ORG_NAME,
@@ -2184,6 +2185,24 @@ export const SHOTS: readonly Shot[] = [
       await page
         .locator(
           `[data-flow-node="${DEMO_KNOWLEDGE_SEARCH.node}"][data-flow-state="succeeded"]`,
+        )
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByText(t('automationRuns.data.returned'), { exact: true }),
+  },
+  {
+    // The seeded live run of the task creation demo in Customer onboarding
+    // portal, with its step selected: what the step received, and the task
+    // it returned — its id, number, title and the link that opens it.
+    name: 'automation-task-create-run',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TASK_CREATE.automation}/runs`,
+    prepare: async (page) => {
+      await runRow(page, 'success').click();
+      await page
+        .locator(
+          `[data-flow-node="${DEMO_TASK_CREATE.node}"][data-flow-state="succeeded"]`,
         )
         .click();
     },
