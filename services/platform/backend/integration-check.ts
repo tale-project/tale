@@ -51660,17 +51660,30 @@ async function checkRetention(
       )
     `;
   }
-  await sql`
-    INSERT INTO app.audit_logs (
-      org_id, actor_id, actor_type, action, category, resource_type,
-      resource_id, status, ts, integrity_hash, previous_hash
-    ) VALUES
-      (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
-       'rt-a1', 'success', ${now - 400 * 24 * 3_600_000}, 'fake-a1', ''),
-      (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
-       'rt-a2', 'success', ${now - 400 * 24 * 3_600_000 + 1}, 'fake-a2',
-       'fake-a1')
-  `;
+  // The oldest prefix is sealed the way rows written before the chain had
+  // positions are (`chain_seq` NULL), which the chain walks first, in `ts`
+  // order. A row inserted already sealed would take the head's next
+  // position instead (migration 0194's trigger), after every row the
+  // organization has; written unsealed and sealed in the same transaction,
+  // the sealer never sees them pending.
+  await sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO app.audit_logs (
+        org_id, actor_id, actor_type, action, category, resource_type,
+        resource_id, status, ts
+      ) VALUES
+        (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
+         'rt-a1', 'success', ${now - 400 * 24 * 3_600_000}),
+        (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
+         'rt-a2', 'success', ${now - 400 * 24 * 3_600_000 + 1})
+    `;
+    await tx`
+      UPDATE app.audit_logs SET
+        integrity_hash = 'fake-' || substr(resource_id, 4),
+        previous_hash = CASE resource_id WHEN 'rt-a1' THEN '' ELSE 'fake-a1' END
+      WHERE org_id = ${orgId} AND actor_id = 'rt-ancient'
+    `;
+  });
   // The sandbox provenance ledgers ride the same audit window: one aged and
   // one fresh row per table, the aged pair must go and the fresh pair stay.
   await sql`
