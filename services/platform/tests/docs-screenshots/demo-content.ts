@@ -540,6 +540,49 @@ export const DEMO_TEST_RUN = {
 } as const;
 
 /**
+ * The skip notice the triggers page shows: the shipped pull-request review
+ * pack, deployed and switched on without the repository its inputs
+ * require, so the start its schedule comes due for is refused and the
+ * trigger says why. Its own schedule is `schedule`; `primer` comes due
+ * within two minutes, so the seed need not wait half an hour for the first
+ * refusal.
+ */
+export const DEMO_TRIGGER_SKIP = {
+  automation: 'github-review-pull-requests',
+  schedule: { frequency: 'minutely', interval: 30 },
+  primer: { frequency: 'minutely', interval: 1 },
+} as const;
+
+/**
+ * The webhook the triggers page shows: an automation that records each
+ * incoming invoice, installed in two projects, with deliveries that
+ * started runs. Its one step is a transform, so a run needs no connector
+ * or model. Each delivery names itself with an `Idempotency-Key`.
+ */
+export const DEMO_WEBHOOK = {
+  automation: 'invoice-intake',
+  name: 'Record incoming invoices',
+  projects: [DEMO_PROJECTS[0].name, DEMO_PROJECTS[1].name],
+  document: {
+    version: 1,
+    name: 'invoice-intake',
+    nodes: [
+      {
+        id: 'record',
+        type: 'transform',
+        input: { invoiceId: '{{ input.payload.invoiceId }}' },
+        code: 'return { invoiceId: input.invoiceId, recorded: true };',
+      },
+    ],
+    output: '{{ nodes.record.output }}',
+  },
+  deliveries: [
+    { key: 'inv-2026-0142', body: { invoiceId: 'INV-2026-0142' } },
+    { key: 'inv-2026-0143', body: { invoiceId: 'INV-2026-0143' } },
+  ],
+} as const;
+
+/**
  * The failed run the docs show (the run page's failure focus): a TEST run of
  * a small demo automation, uploaded as a draft, that stops at Totals because
  * one of the week's invoices carries no amount. Transforms only — no

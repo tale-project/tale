@@ -64,6 +64,18 @@ spreadsheet shows it as text. Other text is exported as it is.
 - **Example**: Someone named a document `=HYPERLINK("http://evil/")`. An admin exports the log
   and opens it in a spreadsheet → the cell shows that text, and no link is created.
 
+## Attribution
+
+### AUDIT-R7 · A key-made entry names the key’s maker, its subject the member it acts for
+
+An entry written during an authenticated API-key request names the maker as its acting
+principal and records the verified key ID, the member the key acts for and the event's
+original actor in keyAttribution metadata. A session write keeps its own actor. Erasing either the maker or the member
+scrubs the entry's personal data while retaining its place in the log.
+
+- **Example**: Ada makes a key for Mia and a skill is edited through that key → the entry
+  names Ada and that key, and keeps Mia as its subject. Erasing Mia scrubs that entry too.
+
 ## Not yet
 
 - **Who can read, export and check the audit log**: owners and admins, as the user docs say.

@@ -695,6 +695,9 @@ async function scrubSubjectAuditLogs(
       pii_scrubbed = true
     WHERE org_id = ${organizationId} AND pii_scrubbed IS NOT true
       AND (actor_id = ${userId}
+           OR metadata->'keyAttribution'->>'makerUserId' = ${userId}
+           OR metadata->'keyAttribution'->>'subjectUserId' = ${userId}
+           OR metadata->'keyAttribution'->>'eventActorId' = ${userId}
            OR (resource_type = 'user' AND resource_id = ${userId}))
     RETURNING id
   `;

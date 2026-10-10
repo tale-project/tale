@@ -85,6 +85,7 @@ const LIST_PARAMS: ReadonlySet<string> = new Set([
   'missing',
   'names',
   'nodes',
+  'paths',
   'possible',
   'unknown',
 ]);
@@ -205,7 +206,7 @@ export function quote(t: IssueTranslate, text: string): string {
 }
 
 /** A node's name the way the canvas shows it, in the language's quotes. */
-export function nodeLabel(t: IssueTranslate, id: string): string {
+function nodeLabel(t: IssueTranslate, id: string): string {
   return quote(t, humanizeNodeId(id));
 }
 

@@ -633,6 +633,20 @@ function quoteValue(value: unknown): string {
   return typeof value === 'string' ? `"${value}"` : String(value);
 }
 
+/** The quoted values a discriminated union's tag may take, when `issue` is
+ * that union refusing a tag none of its shapes names; otherwise null. */
+function discriminatorValues(issue: z.core.$ZodRawIssue): string[] | null {
+  if (!('discriminator' in issue) || typeof issue.discriminator !== 'string')
+    return null;
+  const internals = issue.inst?._zod;
+  const values =
+    internals !== undefined && 'propValues' in internals
+      ? internals.propValues?.[issue.discriminator]
+      : undefined;
+  if (values === undefined) return null;
+  return [...values].map(quoteValue);
+}
+
 /**
  * The reason a schema refusal states, in the house voice, for every zod
  * issue a body or query can raise: "is required", "must be a string",
@@ -707,10 +721,18 @@ export function houseIssueMessage(
       }
     case 'not_multiple_of':
       return `must be a multiple of ${String(issue.divisor)}`;
-    case 'invalid_union':
-      return issue.input === undefined
-        ? 'is required'
-        : 'does not match any accepted shape';
+    case 'invalid_union': {
+      if (issue.input === undefined) return 'is required';
+      // A tagged union whose tag names no shape (`{kind: "hourly"}`): say
+      // which tags it takes, as a closed set's refusal does.
+      const tags = discriminatorValues(issue);
+      if (tags !== null && tags.length > 0) {
+        return tags.length === 1
+          ? `must be ${tags[0]}`
+          : `must be one of ${tags.join(', ')}`;
+      }
+      return 'does not match any accepted shape';
+    }
     default:
       // `unrecognized_keys` is spelled out per key by `schemaIssues`; a
       // `custom` refinement carries its own sentence.

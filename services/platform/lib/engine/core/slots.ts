@@ -315,12 +315,15 @@ export interface StoreAdapter {
     nodeType: 'llm' | 'agent',
   ): Promise<boolean | undefined>;
   /**
-   * The kinds of the ENABLED triggers that start runs of an automation —
-   * for the validator's `TRIGGER_INPUT_MISMATCH` warning, which checks the
-   * input such a trigger starts a run with against the `inputs` schema. A
-   * host without triggers leaves it out.
+   * What the automation's ENABLED trigger starts a run with, as far as the
+   * host knows it before a run — for the validator's
+   * `TRIGGER_INPUT_MISMATCH` and `TRIGGER_INPUT_NOT_TEMPLATED` warnings,
+   * which check that input against the `inputs` schema and the trigger's
+   * fixed input for templates. Null when nothing enabled starts it, or when
+   * the host cannot tell what it would send. A host without triggers leaves
+   * it out.
    */
-  triggerKinds?(name: string): Promise<ReadonlyArray<TriggerKind>>;
+  triggerInput?(name: string): Promise<TriggerInputSample | null>;
   /**
    * What the organization has of what a document names — for the
    * validator's org-state warnings (`SKILL_UNKNOWN`,
@@ -372,16 +375,70 @@ export interface OrgFacts {
 /** The ways a host starts a run on its own. */
 export type TriggerKind = 'schedule' | 'webhook' | 'event';
 
+/** What a trigger knows when it starts a run. */
+export type TriggerFacts =
+  | { kind: 'schedule'; firedAt: number }
+  | { kind: 'webhook'; payload: unknown }
+  | { kind: 'event'; event: string; payload: unknown };
+
 /**
- * The input a schedule trigger starts a run with — the one shape the host
- * fires and the validator checks, so the two cannot drift. Webhook and
- * event runs carry the delivery's payload, which a document cannot predict.
+ * The input a schedule trigger starts a run with, before its fixed input.
+ * `firedAt` is the occurrence the schedule started for, not the moment it
+ * ran.
  */
-export function scheduleTriggerInput(firedAt: number): {
+function scheduleTriggerInput(firedAt: number): {
   trigger: 'schedule';
   firedAt: number;
 } {
   return { trigger: 'schedule', firedAt };
+}
+
+/**
+ * The one input a trigger hands its run — what the host starts every
+ * trigger run with and the validator checks, so the two cannot drift. The
+ * trigger's fixed input, with the trigger's own fields (`trigger`,
+ * `firedAt`, `event`, `payload`) set over it, so a fixed input can never
+ * pretend to be a different trigger. Without a fixed input this is exactly
+ * the object each door built by hand before: the same keys in the same
+ * order, an event's absent payload included.
+ */
+export function triggerRunInput(
+  facts: TriggerFacts,
+  fixedInput?: Readonly<Record<string, unknown>> | null,
+): Record<string, unknown> {
+  let wrapper: Record<string, unknown>;
+  switch (facts.kind) {
+    case 'schedule':
+      wrapper = scheduleTriggerInput(facts.firedAt);
+      break;
+    case 'event':
+      wrapper = {
+        trigger: 'event',
+        event: facts.event,
+        payload: facts.payload,
+      };
+      break;
+    case 'webhook':
+      wrapper = { trigger: 'webhook', payload: facts.payload };
+      break;
+    default: {
+      const exhaustive: never = facts;
+      return exhaustive;
+    }
+  }
+  return fixedInput ? { ...fixedInput, ...wrapper } : wrapper;
+}
+
+/** What a trigger would start a run with, for a check before any run. */
+export interface TriggerInputSample {
+  kind: TriggerKind;
+  /** The run input, fixed input included. */
+  input: Record<string, unknown>;
+  /** JSON Pointers into `input` whose problems are not the trigger's to
+   * answer for: a webhook's body is unknown until a delivery comes. */
+  ignorePointers: readonly string[];
+  /** The fixed input the trigger adds to every run, or null. */
+  fixedInput: Readonly<Record<string, unknown>> | null;
 }
 
 // ---------------------------------------------------------------------- llm

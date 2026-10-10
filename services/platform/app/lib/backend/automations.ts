@@ -26,6 +26,7 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 type GetAutomationResult = ReturnsOf<'automations/queries:getAutomation'>;
 type ListVersionsResult = ReturnsOf<'automations/queries:listVersions'>;
 type ListTriggersResult = ReturnsOf<'automations/queries:listTriggers'>;
+type ListTriggerRunsResult = ReturnsOf<'automations/queries:listTriggerRuns'>;
 type ListRunsResult = ReturnsOf<'automations/queries:listRuns'>;
 type GetRunResult = ReturnsOf<'automations/queries:getRun'>;
 type PendingAskResult = ReturnsOf<'automations/human_asks:getPendingAskForRun'>;
@@ -138,6 +139,28 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
           `/automations/${namePath(name)}/triggers`,
           { orgId },
         ).then((body) => body.triggers),
+    };
+  },
+  // Keyed under the run entity, so a run the trigger starts, or a status it
+  // reaches, refreshes the list through the run hints.
+  'automations/queries:listTriggerRuns': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    const limit = typeof args.limit === 'number' ? args.limit : 10;
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'trigger',
+        name,
+        String(limit),
+      ),
+      queryFn: () =>
+        backendFetch<{ runs: ListTriggerRunsResult }>(
+          `/automations/${namePath(name)}/trigger/runs?limit=${limit}`,
+          { orgId },
+        ).then((body) => body.runs),
     };
   },
   'automations/queries:listAutomationProjects': (args, ctx) => {

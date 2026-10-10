@@ -54,6 +54,9 @@ interface ConnectorSummary {
     description?: string;
     required: boolean;
     enum?: string[];
+    integer?: boolean;
+    min?: number;
+    max?: number;
     default?: string | number | boolean;
   }>;
   actionCount: number;
@@ -132,6 +135,9 @@ export function listConnectorSummaries(): ConnectorSummary[] {
           description: field.description,
         }),
         ...(field.enum !== undefined && { enum: field.enum }),
+        ...(field.integer !== undefined && { integer: field.integer }),
+        ...(field.min !== undefined && { min: field.min }),
+        ...(field.max !== undefined && { max: field.max }),
         ...(field.default !== undefined && { default: field.default }),
       })),
       actionCount: connector.actions.length,

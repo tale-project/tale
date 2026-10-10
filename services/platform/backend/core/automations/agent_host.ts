@@ -2838,6 +2838,9 @@ async function continueOrSettle(
       ...(errored && ended?.apiErrorStatus !== undefined
         ? { apiErrorStatus: ended.apiErrorStatus }
         : {}),
+      ...(errored && ended?.providerErrorKind === 'subscription_access_disabled'
+        ? { providerErrorKind: ended.providerErrorKind }
+        : {}),
       text,
       files: [],
       ...(ended?.status !== undefined ? { status: ended.status } : {}),
@@ -2915,15 +2918,18 @@ async function settleWorkflowAgentTurn(
   // with it.
   await removeStagedSubscription(args.sessionId, args.harness);
 
-  // The broker account that served this exec, when one did: a 429 cools it
-  // down, and a 401 on it is the broker refreshing the account under the
+  // The broker account that served this exec, when one did: a 429 or typed
+  // subscription-access 403 cools it down. A 401 is the broker refreshing the
   // turn — the token the exec started with is revoked, the account holds a
   // fresh one. Named `credential_rotated`, the stepper re-kicks on a new vend
   // and resumes without spending the budget or burning the account.
   let failureCode = result.failureCode;
   if (
     result.errored &&
-    (result.apiErrorStatus === 429 || result.apiErrorStatus === 401)
+    (result.apiErrorStatus === 429 ||
+      result.apiErrorStatus === 401 ||
+      (result.apiErrorStatus === 403 &&
+        result.providerErrorKind === 'subscription_access_disabled'))
   ) {
     const state = await ctx.runQuery(
       internal.automations.queries.readAgentCursor,
@@ -2933,13 +2939,21 @@ async function settleWorkflowAgentTurn(
     const agent = state?.cursor?.agent;
     const brokerTokenHash =
       agent?.execId === args.execId ? agent.brokerTokenHash : undefined;
-    if (result.apiErrorStatus === 429 && brokerTokenHash) {
+    if (
+      brokerTokenHash &&
+      (result.apiErrorStatus === 429 ||
+        (result.apiErrorStatus === 403 &&
+          result.providerErrorKind === 'subscription_access_disabled'))
+    ) {
       await ctx.runMutation(
         internal.provider_credentials.mutations.recordBrokerFailureInternal,
         {
           organizationId: args.organizationId,
           brokerTokenHash,
           apiErrorStatus: result.apiErrorStatus,
+          ...(result.providerErrorKind !== undefined
+            ? { providerErrorKind: result.providerErrorKind }
+            : {}),
         },
       );
     }

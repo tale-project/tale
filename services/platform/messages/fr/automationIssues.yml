@@ -311,8 +311,13 @@ codes:
   TRIGGER_INPUT_MISMATCH:
     title: L’entrée du déclencheur est refusée
     explanation: Le déclencheur lance des exécutions avec une entrée que le schéma des entrées de l’automatisation n’accepte pas. Chaque exécution qu’il lance est donc refusée.
-    cause: '{kind, select, schedule {La planification} other {Le déclencheur}} {missingCount, plural, =0 {lance des exécutions avec une entrée que le schéma des entrées refuse.} one {lance des exécutions sans {missingList}.} many {lance des exécutions sans {missingList}.} other {lance des exécutions sans {missingList}.}}'
-    fix: Rends ces entrées facultatives, ou lance cette automatisation par un webhook, un événement ou l’API.
+    cause: '{kind, select, schedule {La planification} webhook {Le webhook} other {L’événement}} {missingCount, plural, =0 {lance des exécutions avec une entrée que le schéma des entrées refuse.} one {lance des exécutions sans {missingList}.} many {lance des exécutions sans {missingList}.} other {lance des exécutions sans {missingList}.}}'
+    fix: Donne au déclencheur une entrée fixe avec ces champs, ou rends-les facultatifs.
+  TRIGGER_INPUT_NOT_TEMPLATED:
+    title: L’entrée fixe n’est pas remplie
+    explanation: L’entrée fixe ne contient que des données. Un template qu’elle contient arrive comme texte et n’est jamais évalué.
+    cause: '{pathsList} {pathsCount, plural, one {contient} many {contiennent} other {contiennent}} un template.'
+    fix: Reprends plutôt les valeurs du champ payload avec un nœud transform.
   TESTS_INPUT_INVALID:
     title: L’entrée du test est refusée
     explanation: L’entrée du test ne correspond pas au schéma des entrées de l’automatisation. L’exécution la refuse donc, et le test ne peut pas réussir.

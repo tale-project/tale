@@ -10,13 +10,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { compileSchema } from '../engine/core/validate/schema.ts';
+import { triggerInputWarnings } from '../engine/core/validate/trigger-input.ts';
 import { EMITTED_EVENT_TYPES } from '../shared/event-types.ts';
 import {
   SAMPLE_WEBHOOK_PAYLOAD,
   sampleTriggerFacts,
   TRIGGER_WRAPPER_KEYS,
   type TriggerFacts,
-  triggerInputIssues,
+  triggerInputSample,
   triggerRunInput,
 } from './trigger-input.ts';
 
@@ -132,31 +133,73 @@ describe('sampleTriggerFacts', () => {
       const facts = sampleTriggerFacts('event', { now: FIRED_AT, event });
       expect(facts).not.toBeNull();
       if (facts === null) continue;
-      expect(triggerInputIssues(check, facts), event).toEqual([]);
+      expect(check(triggerRunInput(facts)), event).toBe(true);
     }
   });
 });
 
-describe('triggerInputIssues', () => {
+/** The params of the warnings a trigger's sample earns against `check`. */
+function warningsOf(
+  check: ReturnType<typeof compileSchema> | null,
+  trigger: Parameters<typeof triggerInputSample>[0],
+) {
+  const sample = triggerInputSample(trigger, FIRED_AT);
+  if (sample === null) throw new Error('no sample');
+  return triggerInputWarnings(check, sample).map(({ code, params, at }) => ({
+    code,
+    params,
+    at,
+  }));
+}
+
+describe('triggerInputSample and its warnings [AUTO-R36]', () => {
   const ownerRepo = compileSchema({
     type: 'object',
     required: ['owner', 'repo'],
     properties: { owner: { type: 'string' }, repo: { type: 'string' } },
   });
 
-  it('names the required fields a schedule does not send', () => {
-    const facts: TriggerFacts = { kind: 'schedule', firedAt: FIRED_AT };
+  it('samples what each kind sends, its fixed input under the trigger fields', () => {
     expect(
-      triggerInputIssues(ownerRepo, facts).map((error) => [
-        error.keyword,
-        error.params,
-      ]),
-    ).toEqual([
-      ['required', { missingProperty: 'owner' }],
-      ['required', { missingProperty: 'repo' }],
+      triggerInputSample(
+        { kind: 'schedule', input: { owner: 'tale', trigger: 'x' } },
+        FIRED_AT,
+      ),
+    ).toEqual({
+      kind: 'schedule',
+      input: { owner: 'tale', trigger: 'schedule', firedAt: FIRED_AT },
+      ignorePointers: [],
+      fixedInput: { owner: 'tale', trigger: 'x' },
+    });
+    expect(triggerInputSample({ kind: 'webhook' }, FIRED_AT)).toEqual({
+      kind: 'webhook',
+      input: { trigger: 'webhook', payload: { example: true } },
+      ignorePointers: ['/payload'],
+      fixedInput: null,
+    });
+    expect(
+      triggerInputSample({ kind: 'event', event: 'no.such.event' }, FIRED_AT),
+    ).toBeNull();
+    expect(triggerInputSample({ kind: 'api-key' }, FIRED_AT)).toBeNull();
+  });
+
+  it('names the fields Ada’s GitHub schedule lacks, and none once its fixed input has them', () => {
+    expect(warningsOf(ownerRepo, { kind: 'schedule' })).toEqual([
+      {
+        code: 'TRIGGER_INPUT_MISMATCH',
+        at: { pointer: '/inputs' },
+        params: {
+          kind: 'schedule',
+          missing: ['owner', 'repo'],
+          problems: ['owner is required', 'repo is required'],
+        },
+      },
     ]);
     expect(
-      triggerInputIssues(ownerRepo, facts, { owner: 'tale', repo: 'tale' }),
+      warningsOf(ownerRepo, {
+        kind: 'schedule',
+        input: { owner: 'tale', repo: 'tale' },
+      }),
     ).toEqual([]);
   });
 
@@ -174,11 +217,7 @@ describe('triggerInputIssues', () => {
         },
       },
     });
-    const webhook: TriggerFacts = {
-      kind: 'webhook',
-      payload: { example: true },
-    };
-    expect(triggerInputIssues(orders, webhook)).toEqual([]);
+    expect(warningsOf(orders, { kind: 'webhook' })).toEqual([]);
 
     const closed = compileSchema({
       type: 'object',
@@ -186,15 +225,19 @@ describe('triggerInputIssues', () => {
       properties: { trigger: { type: 'string' }, owner: { type: 'string' } },
       additionalProperties: false,
     });
-    expect(
-      triggerInputIssues(closed, webhook).map((error) => [
-        error.instancePath,
-        error.keyword,
-        error.params,
-      ]),
-    ).toEqual([
-      ['', 'required', { missingProperty: 'owner' }],
-      ['', 'additionalProperties', { additionalProperty: 'payload' }],
+    expect(warningsOf(closed, { kind: 'webhook' })).toEqual([
+      {
+        code: 'TRIGGER_INPUT_MISMATCH',
+        at: { pointer: '/inputs' },
+        params: {
+          kind: 'webhook',
+          missing: ['owner'],
+          problems: [
+            'owner is required',
+            'payload is not a field the inputs schema takes',
+          ],
+        },
+      },
     ]);
   });
 
@@ -205,16 +248,39 @@ describe('triggerInputIssues', () => {
         payload: { type: 'object', required: ['assigneeId'] },
       },
     });
-    const facts = sampleTriggerFacts('event', {
-      now: FIRED_AT,
-      event: 'task.created',
-    });
-    expect(facts).not.toBeNull();
-    if (facts === null) return;
     expect(
-      triggerInputIssues(needsAssignee, facts).map(
-        (error) => error.instancePath,
-      ),
-    ).toEqual(['/payload']);
+      warningsOf(needsAssignee, { kind: 'event', event: 'task.created' }),
+    ).toEqual([
+      {
+        code: 'TRIGGER_INPUT_MISMATCH',
+        at: { pointer: '/inputs' },
+        params: {
+          kind: 'event',
+          missing: ['payload.assigneeId'],
+          problems: ['payload.assigneeId is required'],
+        },
+      },
+    ]);
+  });
+
+  it('names a template in the fixed input, which is plain data — with or without an inputs schema', () => {
+    const templated = {
+      kind: 'webhook',
+      input: {
+        owner: '{{ payload.repository.owner }}',
+        labels: ['triage', '{{ payload.label }}'],
+        repo: 'tale',
+      },
+    };
+    expect(warningsOf(null, templated)).toEqual([
+      {
+        code: 'TRIGGER_INPUT_NOT_TEMPLATED',
+        at: { pointer: '/inputs' },
+        params: { paths: ['owner', 'labels.1'] },
+      },
+    ]);
+    expect(warningsOf(ownerRepo, templated).map((w) => w.code)).toEqual([
+      'TRIGGER_INPUT_NOT_TEMPLATED',
+    ]);
   });
 });

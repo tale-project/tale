@@ -1,8 +1,9 @@
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
+import { useImeComposition } from '../../hooks/use-ime-composition';
 import { cn } from '../../lib/cn';
 import { respectEscapeClaims } from './claims-escape';
 
@@ -56,15 +57,27 @@ export function Popover({
   'aria-labelledby': ariaLabelledby,
   'aria-label': ariaLabel,
 }: PopoverProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const { isComposing, compositionProps } = useImeComposition(
+    open ?? uncontrolledOpen,
+  );
+  const onEscapeKeyDown = respectEscapeClaims<KeyboardEvent>((event) => {
+    if (isComposing(event)) event.preventDefault();
+  });
   return (
     <PopoverPrimitive.Root
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        setUncontrolledOpen(next);
+        onOpenChange?.(next);
+      }}
       modal={modal}
     >
       <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          {...compositionProps}
+          onEscapeKeyDown={onEscapeKeyDown}
           align={align}
           side={side}
           sideOffset={sideOffset}
@@ -72,7 +85,6 @@ export function Popover({
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={onCloseAutoFocus}
           onInteractOutside={onInteractOutside}
-          onEscapeKeyDown={respectEscapeClaims()}
           aria-labelledby={ariaLabelledby}
           aria-label={ariaLabel}
           className={cn(CONTENT_CLASSES, contentClassName)}

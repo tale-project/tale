@@ -160,7 +160,7 @@ Pass `baseVersion`, the version your edit started from. When someone saved a new
 | `get_automation_metrics` | The organization's run figures for 7, 30 or 90 days (`periodDays`), live runs by default or mock ones: runs by outcome, success rate, average duration, a per-day series and the busiest automations, each against the window before. |
 | `list_triggers`  | What starts the automations (never the webhook secret).                                                        |
 | `delete_trigger` | Unbind an automation's trigger; its versions and run history stay.                                             |
-| `set_trigger`    | Bind what starts the automation (schedule/webhook/event). A webhook's `token` is answered once, here, and never again — store it; `deployed` says whether deliveries will run: a trigger bound to an automation with no deployed version is stored and fires nothing until one is deployed. |
+| `set_trigger`    | Bind what starts the automation: a schedule (a repeat rule or a cron expression, in a time zone), a webhook or a platform event, each with an optional fixed `input`. The call replaces the whole trigger, so send back the `startDate` and `input` that `list_triggers` reads to keep them. A webhook's `token` is answered once, here, and never again — store it; `deployed` says whether deliveries will run: a trigger bound to an automation with no deployed version is stored and fires nothing until one is deployed. `warnings` say what the deployed version would make of the trigger's input. |
 
 | Choose | When |
 | --- | --- |

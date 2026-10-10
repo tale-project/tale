@@ -50,6 +50,26 @@ const imapSmtp: ConnectorSummary = {
   configFields: [
     { key: 'imapHost', label: 'IMAP server', type: 'string', required: true },
     { key: 'smtpHost', label: 'SMTP server', type: 'string', required: true },
+    {
+      key: 'imapPort',
+      label: 'IMAP port',
+      type: 'number',
+      required: false,
+      integer: true,
+      min: 1,
+      max: 65535,
+      default: 993,
+    },
+    {
+      key: 'smtpPort',
+      label: 'SMTP port',
+      type: 'number',
+      required: false,
+      integer: true,
+      min: 1,
+      max: 65535,
+      default: 465,
+    },
   ],
   actionCount: 2,
 };
@@ -207,6 +227,64 @@ function ConsentWithExits({
 
 // Each test drives the whole wizard through a held request; on a loaded
 // runner that needs more than the default five seconds.
+describe(
+  'CredentialAddDialog mailbox port gating (CONN-B2)',
+  { timeout: 30_000 },
+  () => {
+    it.each(['IMAP port', 'SMTP port'])(
+      'sends no create for invalid %s, and lets the reader correct or clear it',
+      async (label) => {
+        const wizard = renderWizard();
+        const { user, dialog } = wizard;
+        await fillDuplicate(wizard);
+        const port = dialog.getByRole('textbox', {
+          name: new RegExp(`^${label}`),
+        });
+        const submit = dialog.getByRole('button', { name: 'Add credential' });
+        expect(submit).toBeEnabled();
+        for (const value of ['abc', '0', '1.5', '65536']) {
+          await user.clear(port);
+          await user.paste(value);
+          expect(submit).toBeDisabled();
+          expect(port).toHaveAttribute('aria-invalid', 'true');
+          expect(port).toHaveAccessibleDescription(
+            'Enter an integer port from 1 to 65535.',
+          );
+          await user.click(submit);
+          expect(held).toHaveLength(0);
+        }
+        await user.clear(port);
+        await user.paste(label === 'IMAP port' ? '1993' : '1587');
+        expect(submit).toBeEnabled();
+        expect(port).not.toHaveAttribute('aria-invalid', 'true');
+        await user.clear(port);
+        expect(submit).toBeEnabled();
+        await user.click(submit);
+        await waitFor(() => expect(held).toHaveLength(1));
+        const create = vi
+          .mocked(window.fetch)
+          .mock.calls.find(([, init]) => init?.method === 'POST');
+        expect(create?.[1]?.body).toBe(
+          JSON.stringify({
+            connectorSlug: 'imap-smtp',
+            authMethod: 'basic',
+            name: TAKEN,
+            secret: {
+              username: 'hello@example.com',
+              password: 'mailbox-secret',
+            },
+            config: {
+              imapHost: 'imap.example.com',
+              smtpHost: 'smtp.example.com',
+            },
+          }),
+        );
+        await refuseAsDuplicate();
+      },
+    );
+  },
+);
+
 describe(
   'CredentialAddDialog while a create is in flight (#3674)',
   { timeout: 30_000 },

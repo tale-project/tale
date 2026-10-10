@@ -1175,11 +1175,12 @@ async function settleTaskStatusChange(
   }
   // The platform event is the HUMAN doors' — every gesture a person makes
   // on the board or in the sheet fires the org's `task.status_changed`
-  // triggers alike. The agent lane stays event-less on purpose: dispatch
-  // cannot yet tell a run's own flips apart from a person's (nothing
-  // passes `dispatchAutomationEvent` its 'automation' origin), so an
-  // automation reacting to the event by moving the card would re-trigger
-  // itself. That plumbing is the precondition for turning it on.
+  // triggers alike. The agent lane stays event-less on purpose, and the
+  // event's description in the trigger editor says so ("an agent's own
+  // moves don't count"). A run's own flips could now be told apart (the
+  // run's doors pass the event its origin, `events/origin.ts`), but a
+  // project agent's moves are not a run's, so turning the lane on is a
+  // product decision of its own, not a missing seam.
   if (args.actorType === 'user') {
     await emitEvent(tx, {
       organizationId: task.organizationId,
@@ -4371,41 +4372,38 @@ export async function searchTasks(
     toHit(hit, hit.description ?? hit.title),
   );
 
-  if (results.length < SEARCH_MAX_RESULTS) {
-    const commentHits = await sql<(FieldHit & { body: string })[]>`
-      SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
-             t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
-             t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
-             t.archived_at_ms::float8 AS "archivedAt",
-             m.text AS body
-      FROM app.task_discussion_message_meta meta
-      JOIN app.messages m ON m.id = meta.message_id
-      JOIN app.tasks t ON t.id = meta.task_id
-      WHERE meta.org_id = ${auth.organizationId}
-        AND t.project_id = ANY(${projectIds})
-        AND ${commentSearchMatch(sql, patterns)}
-      ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
-               m.created_at_ms DESC
-      LIMIT ${SEARCH_MAX_RESULTS}
-    `;
-    names = await currentMentionNames(
-      sql,
-      auth.organizationId,
-      commentHits.map((hit) => searchSnippetSource(hit.body)),
-    );
-    for (const hit of commentHits) {
-      if (results.length >= SEARCH_MAX_RESULTS) break;
-      if (seen.has(hit.taskId)) continue;
-      seen.add(hit.taskId);
-      results.push(toHit(hit, hit.body));
-    }
-    results.sort(
-      (a, b) =>
-        Number(a.archived ?? false) - Number(b.archived ?? false) ||
-        b.updatedAt - a.updatedAt,
-    );
+  const commentHits = await sql<(FieldHit & { body: string })[]>`
+    SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
+           t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
+           t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
+           t.archived_at_ms::float8 AS "archivedAt",
+           m.text AS body
+    FROM app.task_discussion_message_meta meta
+    JOIN app.messages m ON m.id = meta.message_id
+    JOIN app.tasks t ON t.id = meta.task_id
+    WHERE meta.org_id = ${auth.organizationId}
+      AND t.project_id = ANY(${projectIds})
+      AND ${commentSearchMatch(sql, patterns)}
+    ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
+             m.created_at_ms DESC
+    LIMIT ${SEARCH_MAX_RESULTS}
+  `;
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    commentHits.map((hit) => searchSnippetSource(hit.body)),
+  );
+  for (const hit of commentHits) {
+    if (seen.has(hit.taskId)) continue;
+    seen.add(hit.taskId);
+    results.push(toHit(hit, hit.body));
   }
-  return results;
+  results.sort(
+    (a, b) =>
+      Number(a.archived ?? false) - Number(b.archived ?? false) ||
+      b.updatedAt - a.updatedAt,
+  );
+  return results.slice(0, SEARCH_MAX_RESULTS);
 }
 
 // ---------------------------------------------------------------------------

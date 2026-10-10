@@ -35,9 +35,22 @@ const imapSmtpFields: ConnectorSummary['configFields'] = [
     label: 'IMAP port',
     type: 'number',
     required: false,
+    integer: true,
+    min: 1,
+    max: 65535,
     default: 993,
   },
   { key: 'smtpHost', label: 'SMTP server', type: 'string', required: true },
+  {
+    key: 'smtpPort',
+    label: 'SMTP port',
+    type: 'number',
+    required: false,
+    integer: true,
+    min: 1,
+    max: 65535,
+    default: 465,
+  },
   {
     key: 'security',
     label: 'Connection security',
@@ -67,6 +80,62 @@ describe('connectorConfigExtras', () => {
       ),
     ).toBe(true);
   });
+
+  it('is incomplete when a bounded numeric field is invalid', () => {
+    const vendor = { summary: summary(imapSmtpFields) };
+    expect(
+      extras.isComplete?.(
+        {
+          imapHost: 'imap.example.com',
+          smtpHost: 'smtp.example.com',
+          imapPort: 65536,
+        },
+        vendor,
+      ),
+    ).toBe(false);
+    expect(
+      extras.isComplete?.(
+        {
+          imapHost: 'imap.example.com',
+          smtpHost: 'smtp.example.com',
+          imapPort: 1993,
+        },
+        vendor,
+      ),
+    ).toBe(true);
+  });
+
+  it.each(['imapPort', 'smtpPort'])(
+    'keeps %s invalid and its inline error accessible for CONN-B2',
+    (key) => {
+      const vendor = { summary: summary(imapSmtpFields) };
+      const Fields = extras.Fields;
+      if (Fields === null)
+        throw new Error('the mailbox config fields are missing');
+      const value = {
+        imapHost: '127.0.0.1',
+        smtpHost: '127.0.0.1',
+        [key]: 'abc',
+      };
+      for (const invalid of ['abc', '0', '1.5', '65536']) {
+        expect(extras.isComplete?.({ ...value, [key]: invalid }, vendor)).toBe(
+          false,
+        );
+      }
+      render(<Fields vendor={vendor} value={value} onChange={() => {}} />);
+      const input = screen.getByRole('textbox', {
+        name: key === 'imapPort' ? /^IMAP port/ : /^SMTP port/,
+      });
+      expect(input).toHaveValue('abc');
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      expect(input).toHaveAccessibleDescription(
+        'Enter an integer port from 1 to 65535.',
+      );
+      const error = screen.getByRole('alert');
+      expect(error).toHaveTextContent('Enter an integer port from 1 to 65535.');
+      expect(input.getAttribute('aria-errormessage')).toBe(error.id);
+    },
+  );
 
   it('treats whitespace as unsupplied, so a spacebar does not satisfy a required field', () => {
     const vendor = { summary: summary(imapSmtpFields) };

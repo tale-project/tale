@@ -24572,7 +24572,7 @@
       "put": {
         "tags": ["Automations"],
         "summary": "Bind what starts the automation",
-        "description": "Requires the developer capability. One trigger per automation: the PUT replaces whatever was bound, and binding another kind over a live webhook revokes its URL — the response says so (`revoked`). For a webhook trigger the plaintext token is returned ONCE in this response (and again only with `rotateToken: true`); the platform stores a hash. Each kind takes its own keys — `cron` and `timezone` only with `schedule`, `event` only with `event`, `rotateToken` only with `webhook`, `enabled` with any — and a key of another kind is refused like an unknown key (`INVALID_BODY`, named under `data.issues`). The 200 says whether the automation has a version to run (`deployed`): binding before deploying is accepted, and such a trigger skips every occurrence as `not_deployed` — visible on `GET /api/v1/automations` — until a version is deployed.",
+        "description": "Requires the developer capability. One trigger per automation: the PUT replaces whatever was bound, and binding another kind over a live webhook revokes its URL — the response says so (`revoked`). For a webhook trigger the plaintext token is returned ONCE in this response (and again only with `rotateToken: true`); the platform stores a hash. Each kind takes its own keys — `repeat`, `cron`, `startDate`, `timezone` and `catchUp` only with `schedule`, `event` only with `event`, `rotateToken` only with `webhook`, `enabled` and `input` with any — and a key of another kind is refused like an unknown key (`INVALID_BODY`, named under `data.issues`). A rule the trigger breaks (a schedule with neither a repeat rule nor a cron, or both; a time not written HH:MM; a blank or unknown zone; a fixed input naming a field the trigger sets) answers 400 `AUTOMATION_TRIGGER_INVALID` with each problem under `data.issues` (`{path, code, message}`). The PUT is a full replace: send back the `startDate` and `input` `GET …/triggers` reads to keep them. The 200 says whether the automation has a version to run (`deployed`): binding before deploying is accepted, and such a trigger skips every occurrence as `not_deployed` — visible on `GET /api/v1/automations` — until a version is deployed. It names a schedule’s next start (`nextRunAt`) and, in `warnings`, what the deployed version would make of what the trigger sends.",
         "operationId": "setAutomationTrigger",
         "security": [
           {
@@ -24614,47 +24614,112 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["kind"],
-                "additionalProperties": false,
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "enum": ["schedule", "webhook", "event"]
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["schedule"]
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Whether it starts runs. Omitted reads as true."
+                      },
+                      "input": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
+                      },
+                      "cron": {
+                        "description": "A five-field cron expression — the advanced form; give it or `repeat`, not both.",
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "repeat": {
+                        "$ref": "#/components/schemas/ScheduleRule"
+                      },
+                      "startDate": {
+                        "description": "The day a repeat rule starts on, in its time zone: no start comes before it, and \"every 2 weeks\" counts from it. Omitted means today. Send back the one you read to keep the rule in step.",
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "description": "The time zone the schedule reads in. Required with `repeat`; a cron expression without one reads in UTC.",
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "catchUp": {
+                        "type": "string",
+                        "enum": ["latest", "skip"],
+                        "description": "Missed occurrences: \"latest\" (the default) starts the most recent one once, however late; \"skip\" starts it only when it is at most 10 minutes late. Either way the others are counted, not run."
+                      }
+                    },
+                    "required": ["kind"],
+                    "additionalProperties": false
                   },
-                  "cron": {
-                    "type": "string",
-                    "description": "Only with `kind: schedule`: the five-field cron expression. One that can never fire — a field out of range, a day no named month has (`0 0 30 2 *`) — answers 400 `AUTOMATION_TRIGGER_INVALID`."
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["webhook"]
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Whether it starts runs. Omitted reads as true."
+                      },
+                      "input": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
+                      },
+                      "rotateToken": {
+                        "description": "Mint a new address; the one it replaces stops working at once.",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["kind"],
+                    "additionalProperties": false
                   },
-                  "timezone": {
-                    "type": "string",
-                    "description": "Only with `kind: schedule`: the IANA zone the cron is read in (UTC when absent)"
-                  },
-                  "event": {
-                    "type": "string",
-                    "enum": [
-                      "contact.created",
-                      "contact.updated",
-                      "contact.deleted",
-                      "conversation.created",
-                      "conversation.message_received",
-                      "project.created",
-                      "task.created",
-                      "task.status_changed",
-                      "comment.created",
-                      "comment.mentioned"
-                    ],
-                    "description": "Only with `kind: event`: the platform event that starts the automation — one of the events the platform raises. Any other name answers 400 `AUTOMATION_TRIGGER_INVALID`, naming this list."
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "rotateToken": {
-                    "type": "boolean",
-                    "description": "Only with `kind: webhook`: mint (and return) a fresh token"
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["event"]
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Whether it starts runs. Omitted reads as true."
+                      },
+                      "input": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
+                      },
+                      "event": {
+                        "description": "The platform event that starts the automation — one of the events the platform raises. Any other name answers 400 `AUTOMATION_TRIGGER_INVALID`, naming this list.",
+                        "type": "string",
+                        "maxLength": 200,
+                        "enum": [
+                          "contact.created",
+                          "contact.updated",
+                          "contact.deleted",
+                          "conversation.created",
+                          "conversation.message_received",
+                          "project.created",
+                          "task.created",
+                          "task.status_changed",
+                          "comment.created",
+                          "comment.mentioned"
+                        ]
+                      }
+                    },
+                    "required": ["kind"],
+                    "additionalProperties": false
                   }
-                }
+                ],
+                "description": "One strict shape per `kind`; a key of another kind is refused like an unknown key. A schedule runs on a repeat rule (`repeat`, read in `timezone`, which it requires, from `startDate`) or on a five-field `cron` (read in `timezone`, UTC when absent), never both. Any kind takes a fixed `input` (a JSON object of at most 16 KiB). The PUT replaces the trigger whole: an omitted `catchUp` reads as `latest`, an omitted `input` clears it, and an omitted `startDate` means today in `timezone` — send back the `startDate` and `input` `GET …/triggers` reads to keep them."
               }
             }
           }
@@ -24683,6 +24748,19 @@
                       "type": "string",
                       "enum": ["webhook"],
                       "description": "Present when this bind replaced a live webhook trigger with another kind: its URL stopped answering the moment the bind committed, and no later bind brings that token back. Absent on a first bind and on a re-bind of the same kind (which keeps the token)."
+                    },
+                    "nextRunAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Epoch milliseconds of a schedule’s next start, as `GET …/triggers` reads it; null while it is switched off or never comes due again. Absent for a webhook or an event.",
+                      "nullable": true
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TriggerWarning"
+                      },
+                      "description": "What the deployed version would make of what the trigger sends — the trigger is saved either way. Absent when nothing is wrong, and when no version is deployed."
                     }
                   }
                 }
@@ -24698,7 +24776,7 @@
             }
           },
           "400": {
-            "description": "Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that could never fire: a cron that matches nothing (including a day no named month has, `0 0 30 2 *`), a time zone that is not an IANA zone, an event the platform does not raise (`AUTOMATION_TRIGGER_INVALID`)",
+            "description": "Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that breaks a rule or could never fire (`AUTOMATION_TRIGGER_INVALID`, each problem under `data.issues` as `{path, code, message}`): neither a repeat rule nor a cron, or both; a repeat rule without a time zone, with a time not written HH:MM, more than 12 times, an interval it does not offer, a day the month never has, a window whose start equals its end or in which it never runs, or a start date that is no calendar day; a cron that matches nothing (including a day no named month has, `0 0 30 2 *`); a blank time zone or one that is not an IANA zone; a fixed input that is not an object, names a field the trigger sets, or is larger than 16 KiB; an event the platform does not raise",
             "content": {
               "application/json": {
                 "schema": {
@@ -46538,6 +46616,7 @@
             "required": [
               "kind",
               "enabled",
+              "nextRunAt",
               "lastFiredAt",
               "lastSkippedAt",
               "lastSkipReason"
@@ -46549,6 +46628,12 @@
               },
               "enabled": {
                 "type": "boolean"
+              },
+              "nextRunAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds of a schedule’s next start, as `GET …/triggers` reads it; null while it is switched off, and for a webhook or an event.",
+                "nullable": true
               },
               "lastFiredAt": {
                 "type": "integer",
@@ -46569,13 +46654,14 @@
                   "unusable_cron",
                   "start_refused",
                   "paused_after_failures",
+                  "missed_occurrences",
                   null
                 ],
                 "nullable": true,
-                "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule). `paused_after_failures`: the schedule turned itself off (`enabled: false`) after 5 runs in a row failed for a reason the next occurrence would repeat — fix the automation, then save the trigger with `enabled: true`. Saving the trigger clears this reason, whatever `enabled` it sets."
+                "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s repeat rule, cron expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the run could not start — the deployed version’s `inputs` schema refused the run’s input (`{…input, trigger, firedAt}` for a schedule; `AUTOMATION_INPUT_INVALID`), or its project could not start runs (`PROJECT_ARCHIVED` and the other project refusals); `lastSkipDetail.code` names which. `missed_occurrences`: the schedule came due while the platform was not running — `lastSkipDetail.missed` counts the occurrences it did not start, and `firedLatest` says whether it started the latest one late. `paused_after_failures`: the schedule turned itself off (`enabled: false`) after 5 runs in a row failed for a reason the next occurrence would repeat — fix the automation, then save the trigger with `enabled: true`. Saving the trigger clears this reason, whatever `enabled` it sets."
               }
             },
-            "description": "What starts the automation, if a trigger is bound: its kind, whether it is switched on, and its health — the same `lastFiredAt`, `lastSkippedAt` and `lastSkipReason` that `GET …/triggers` reads, so one listing call finds every binding that is enabled and not firing (a `lastSkipReason` of `not_deployed` beside a null `deployedVersion` is a trigger waiting for a deploy); null when none is bound. `GET …/triggers` has the rest — the cron, the event, `lastRunId`.",
+            "description": "What starts the automation, if a trigger is bound: its kind, whether it is switched on, when a schedule next runs, and its health — the same `nextRunAt`, `lastFiredAt`, `lastSkippedAt` and `lastSkipReason` that `GET …/triggers` reads, so one listing call finds every binding that is enabled and not firing (a `lastSkipReason` of `not_deployed` beside a null `deployedVersion` is a trigger waiting for a deploy); null when none is bound. `GET …/triggers` has the rest — the repeat rule or cron, the event, `lastRunId`, `lastSkipDetail`.",
             "nullable": true
           },
           "projectIds": {
@@ -46729,22 +46815,6 @@
       },
       "Trigger": {
         "type": "object",
-        "description": "The binding, and its health: `lastFiredAt` and `lastRunId` name the last run it started, `lastSkippedAt` and `lastSkipReason` the last time it came due and started nothing. A binding is alive when `lastFiredAt` keeps pace with its cadence; one whose `lastSkippedAt` is the newer stamp is coming due and not running — the reason says what to fix. `consecutiveFailures` counts the runs it started that failed in a row, and `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of them — a schedule that reaches the threshold pauses itself.",
-        "required": [
-          "id",
-          "name",
-          "kind",
-          "hasToken",
-          "enabled",
-          "lastFiredAt",
-          "lastRunId",
-          "lastSkippedAt",
-          "lastSkipReason",
-          "consecutiveFailures",
-          "lastFailedAt",
-          "lastFailureCode",
-          "lastFailedRunId"
-        ],
         "properties": {
           "id": {
             "type": "string",
@@ -46759,15 +46829,44 @@
           },
           "cron": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "A schedule’s five-field cron expression; null when it runs on a repeat rule, and for a webhook or an event."
+          },
+          "repeat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleRule"
+              }
+            ],
+            "nullable": true,
+            "description": "A schedule’s repeat rule — the shape the PUT takes; null when it runs on a cron expression, and for a webhook or an event."
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true,
+            "description": "The day the repeat rule starts on, `YYYY-MM-DD` in `timezone`: no start comes before it, and \"every 2 weeks\" counts from it. Send it back on a PUT to keep the rule in step; null without a repeat rule."
           },
           "timezone": {
             "type": "string",
+            "nullable": true,
+            "description": "The zone the schedule reads in, in its canonical spelling; null for a cron expression without one (read in UTC) and for a webhook or an event."
+          },
+          "catchUp": {
+            "type": "string",
+            "enum": ["latest", "skip", null],
+            "description": "What a schedule does with occurrences it missed while the platform was not running: `latest` starts the most recent one once, however late; `skip` starts it only when it is at most 10 minutes late. Null for a webhook or an event.",
             "nullable": true
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true,
+            "description": "The fixed input every run it starts receives, under the trigger’s own fields; null when it has none. Send it back on a PUT to keep it."
           },
           "event": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "The platform event that starts an event trigger; null for the other kinds."
           },
           "hasToken": {
             "type": "boolean",
@@ -46776,16 +46875,23 @@
           "enabled": {
             "type": "boolean"
           },
-          "lastRunId": {
-            "type": "string",
+          "nextRunAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8640000000000000,
             "nullable": true,
-            "description": "The run `lastFiredAt` started; null until one has, and again once that run is deleted."
+            "description": "Epoch milliseconds of a schedule’s next start — the earliest occurrence it has not handled yet; null while it is switched off, for a webhook or an event, and for a schedule that never comes due again."
           },
           "lastFiredAt": {
             "type": "integer",
             "minimum": 0,
             "description": "The last time this binding started a run (`GET …/triggers` names that run as `lastRunId`); null until it has. For a schedule this is the occurrence the run fired for (the minute the cron named); for a webhook or an event, the moment the delivery or the event was accepted. A rebind to another kind starts it afresh.",
             "nullable": true
+          },
+          "lastRunId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The run `lastFiredAt` started; null until one has, and again once that run is deleted."
           },
           "lastSkippedAt": {
             "type": "integer",
@@ -46800,10 +46906,20 @@
               "unusable_cron",
               "start_refused",
               "paused_after_failures",
+              "missed_occurrences",
               null
             ],
             "nullable": true,
-            "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule). `paused_after_failures`: the schedule turned itself off (`enabled: false`) after 5 runs in a row failed for a reason the next occurrence would repeat — fix the automation, then save the trigger with `enabled: true`. Saving the trigger clears this reason, whatever `enabled` it sets."
+            "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s repeat rule, cron expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the run could not start — the deployed version’s `inputs` schema refused the run’s input (`{…input, trigger, firedAt}` for a schedule; `AUTOMATION_INPUT_INVALID`), or its project could not start runs (`PROJECT_ARCHIVED` and the other project refusals); `lastSkipDetail.code` names which. `missed_occurrences`: the schedule came due while the platform was not running — `lastSkipDetail.missed` counts the occurrences it did not start, and `firedLatest` says whether it started the latest one late. `paused_after_failures`: the schedule turned itself off (`enabled: false`) after 5 runs in a row failed for a reason the next occurrence would repeat — fix the automation, then save the trigger with `enabled: true`. Saving the trigger clears this reason, whatever `enabled` it sets."
+          },
+          "lastSkipDetail": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TriggerSkipDetail"
+              }
+            ],
+            "nullable": true,
+            "description": "The facts behind `lastSkipReason`. Null with `paused_after_failures` (its facts are the failure fields) and for a skip recorded without them."
           },
           "consecutiveFailures": {
             "type": "integer",
@@ -46836,7 +46952,529 @@
             "nullable": true,
             "description": "That run — `GET …/runs/{runId}` has its failure sentence; null once the run is deleted."
           }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "cron",
+          "repeat",
+          "startDate",
+          "timezone",
+          "catchUp",
+          "input",
+          "event",
+          "hasToken",
+          "enabled",
+          "nextRunAt",
+          "lastFiredAt",
+          "lastRunId",
+          "lastSkippedAt",
+          "lastSkipReason",
+          "lastSkipDetail",
+          "consecutiveFailures",
+          "lastFailedAt",
+          "lastFailureCode",
+          "lastFailedRunId"
+        ],
+        "description": "The binding, and its health: `lastFiredAt` and `lastRunId` name the last run it started, `lastSkippedAt` and `lastSkipReason` (with `lastSkipDetail`) the last time it came due and started nothing. A schedule says what it runs on — `repeat` from `startDate`, or `cron` — in which `timezone`, what it does with missed occurrences (`catchUp`) and when it next runs (`nextRunAt`). A binding is alive when `lastFiredAt` keeps pace with its cadence; one whose `lastSkippedAt` is the newer stamp is coming due and not running — the reason says what to fix. `consecutiveFailures` counts the runs it started that failed in a row, and `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of them — a schedule that reaches the threshold pauses itself."
+      },
+      "TriggerWarning": {
+        "type": "object",
+        "required": ["level", "code", "message"],
+        "description": "A warning, never a refusal: the trigger is saved either way. TRIGGER_INPUT_MISMATCH: the deployed version’s `inputs` schema refuses the input the trigger hands a run (`params.kind`, `params.missing` — the required fields it lacks — and `params.problems`); a webhook’s body is not judged. TRIGGER_INPUT_NOT_TEMPLATED: the fixed input holds a template (`params.paths`), which arrives as text and is never evaluated.",
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": ["warning"]
+          },
+          "code": {
+            "type": "string",
+            "enum": ["TRIGGER_INPUT_MISMATCH", "TRIGGER_INPUT_NOT_TEMPLATED"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "at": {
+            "type": "object",
+            "properties": {
+              "pointer": {
+                "type": "string"
+              }
+            },
+            "description": "Where in the automation document: `/inputs`"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The facts the sentence names, by name"
+          }
         }
+      },
+      "TriggerSkipDetail": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["missed_occurrences"]
+              },
+              "missed": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991,
+                    "description": "How many occurrences were missed, up to 1,000."
+                  },
+                  "capped": {
+                    "type": "boolean",
+                    "description": "The count stopped at 1,000; more were missed."
+                  },
+                  "firstAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8640000000000000,
+                    "description": "Epoch milliseconds of the first missed occurrence"
+                  },
+                  "lastAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8640000000000000,
+                    "description": "Epoch milliseconds of the last missed occurrence"
+                  },
+                  "policy": {
+                    "type": "string",
+                    "enum": ["latest", "skip"],
+                    "description": "Missed occurrences: \"latest\" (the default) starts the most recent one once, however late; \"skip\" starts it only when it is at most 10 minutes late. Either way the others are counted, not run."
+                  }
+                },
+                "required": ["count", "capped", "firstAt", "lastAt", "policy"],
+                "additionalProperties": false,
+                "description": "The occurrences a schedule missed and did not run."
+              },
+              "firedLatest": {
+                "type": "boolean"
+              }
+            },
+            "required": ["reason", "missed", "firedLatest"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["not_deployed"]
+              },
+              "occurrence": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8640000000000000,
+                "description": "Epoch milliseconds of the occurrence or event it skipped"
+              },
+              "missed": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991,
+                    "description": "How many occurrences were missed, up to 1,000."
+                  },
+                  "capped": {
+                    "type": "boolean",
+                    "description": "The count stopped at 1,000; more were missed."
+                  },
+                  "firstAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8640000000000000,
+                    "description": "Epoch milliseconds of the first missed occurrence"
+                  },
+                  "lastAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8640000000000000,
+                    "description": "Epoch milliseconds of the last missed occurrence"
+                  },
+                  "policy": {
+                    "type": "string",
+                    "enum": ["latest", "skip"],
+                    "description": "Missed occurrences: \"latest\" (the default) starts the most recent one once, however late; \"skip\" starts it only when it is at most 10 minutes late. Either way the others are counted, not run."
+                  }
+                },
+                "required": ["count", "capped", "firstAt", "lastAt", "policy"],
+                "additionalProperties": false,
+                "description": "The occurrences a schedule missed and did not run."
+              }
+            },
+            "required": ["reason", "occurrence"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["start_refused"]
+              },
+              "occurrence": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8640000000000000,
+                "description": "Epoch milliseconds of the occurrence or event it skipped"
+              },
+              "code": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "issues": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path", "message"],
+                  "additionalProperties": false
+                }
+              },
+              "missed": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991,
+                    "description": "How many occurrences were missed, up to 1,000."
+                  },
+                  "capped": {
+                    "type": "boolean",
+                    "description": "The count stopped at 1,000; more were missed."
+                  },
+                  "firstAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8640000000000000,
+                    "description": "Epoch milliseconds of the first missed occurrence"
+                  },
+                  "lastAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8640000000000000,
+                    "description": "Epoch milliseconds of the last missed occurrence"
+                  },
+                  "policy": {
+                    "type": "string",
+                    "enum": ["latest", "skip"],
+                    "description": "Missed occurrences: \"latest\" (the default) starts the most recent one once, however late; \"skip\" starts it only when it is at most 10 minutes late. Either way the others are counted, not run."
+                  }
+                },
+                "required": ["count", "capped", "firstAt", "lastAt", "policy"],
+                "additionalProperties": false,
+                "description": "The occurrences a schedule missed and did not run."
+              }
+            },
+            "required": ["reason", "occurrence", "code", "version", "message"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["unusable_cron"]
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": ["reason", "message"],
+            "additionalProperties": false
+          }
+        ],
+        "description": "The facts behind a trigger’s `lastSkipReason`, by `reason` (which equals it): the `occurrence` a `not_deployed` or `start_refused` skip was for — the instant a schedule came due, or an event or delivery arrived; a refusal’s `code`, the `version` that refused (always set for `AUTOMATION_INPUT_INVALID`) and its `message` and `issues`; under `missed`, the occurrences a schedule missed while the platform was not running (`count`, `capped` when it stopped at 1,000, the `firstAt` and `lastAt` of them, the `policy` it applied) and whether it started the latest one late (`firedLatest`); an `unusable_cron` skip’s `message`."
+      },
+      "ScheduleRule": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "frequency": {
+                "type": "string",
+                "enum": ["minutely"]
+              },
+              "interval": {
+                "type": "number",
+                "enum": [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30],
+                "description": "Every how many minutes; divides 60."
+              },
+              "window": {
+                "type": "object",
+                "properties": {
+                  "weekdays": {
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                  },
+                  "hours": {
+                    "description": "Run only from `from` until before `to`, local time. A `to` earlier than `from` runs overnight into the next day; \"00:00\" runs until midnight. Omit to run all day.",
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                      },
+                      "to": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                      }
+                    },
+                    "required": ["from", "to"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["weekdays"],
+                "additionalProperties": false,
+                "description": "The weekdays and hours a grid schedule runs in."
+              }
+            },
+            "required": ["frequency", "interval"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frequency": {
+                "type": "string",
+                "enum": ["hourly"]
+              },
+              "interval": {
+                "type": "number",
+                "enum": [1, 2, 3, 4, 6, 8, 12],
+                "description": "Every how many hours; divides 24."
+              },
+              "minute": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 59,
+                "description": "The minute past the hour it starts at."
+              },
+              "window": {
+                "type": "object",
+                "properties": {
+                  "weekdays": {
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                  },
+                  "hours": {
+                    "description": "Run only from `from` until before `to`, local time. A `to` earlier than `from` runs overnight into the next day; \"00:00\" runs until midnight. Omit to run all day.",
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                      },
+                      "to": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                      }
+                    },
+                    "required": ["from", "to"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["weekdays"],
+                "additionalProperties": false,
+                "description": "The weekdays and hours a grid schedule runs in."
+              }
+            },
+            "required": ["frequency", "interval", "minute"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frequency": {
+                "type": "string",
+                "enum": ["daily"]
+              },
+              "interval": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99,
+                "description": "Every how many days, weeks, months or years."
+              },
+              "times": {
+                "minItems": 1,
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                },
+                "description": "The times of day it starts at, 1 to 12."
+              }
+            },
+            "required": ["frequency", "interval", "times"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frequency": {
+                "type": "string",
+                "enum": ["weekly"]
+              },
+              "interval": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99,
+                "description": "Every how many days, weeks, months or years."
+              },
+              "weekdays": {
+                "minItems": 1,
+                "maxItems": 7,
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6
+                },
+                "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+              },
+              "times": {
+                "minItems": 1,
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                },
+                "description": "The times of day it starts at, 1 to 12."
+              }
+            },
+            "required": ["frequency", "interval", "weekdays", "times"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frequency": {
+                "type": "string",
+                "enum": ["monthly"]
+              },
+              "interval": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99,
+                "description": "Every how many days, weeks, months or years."
+              },
+              "monthDay": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 31,
+                "description": "The day of the month, 1 to 31; a shorter month's last day stands in for a day it lacks."
+              },
+              "times": {
+                "minItems": 1,
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                },
+                "description": "The times of day it starts at, 1 to 12."
+              }
+            },
+            "required": ["frequency", "interval", "monthDay", "times"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frequency": {
+                "type": "string",
+                "enum": ["yearly"]
+              },
+              "interval": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99,
+                "description": "Every how many days, weeks, months or years."
+              },
+              "month": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12,
+                "description": "The month, 1 (January) to 12."
+              },
+              "monthDay": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 31,
+                "description": "The day of the month, 1 to 31; a shorter month's last day stands in for a day it lacks."
+              },
+              "times": {
+                "minItems": 1,
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                },
+                "description": "The times of day it starts at, 1 to 12."
+              }
+            },
+            "required": ["frequency", "interval", "month", "monthDay", "times"],
+            "additionalProperties": false
+          }
+        ],
+        "description": "When a schedule starts, read in its time zone. `minutely` and `hourly` step a grid from local midnight (`interval` divides the hour or the day), optionally only on some `weekdays` and between some `hours` (`to` before `from` runs overnight; \"00:00\" runs until midnight). `daily`, `weekly`, `monthly` and `yearly` name the days as a task’s repeat rule does (0 is Sunday … 6 is Saturday; weeks run Monday to Sunday; a shorter month uses its last day) and add `times`, 1 to 12 times of day as \"HH:MM\"; `interval` repeats every N of them, counted from `startDate`. Through a daylight-saving change, a time that does not exist that day moves forward by the gap, a time that occurs twice starts once at the first, and a grid keeps its pace in real time."
       },
       "LegacyRunQuarantine": {
         "type": "object",

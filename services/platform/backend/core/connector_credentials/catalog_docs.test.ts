@@ -88,6 +88,21 @@ const perCredential = shipped.filter(
 );
 
 describe('the connector docs describe the catalog the picker offers', () => {
+  it('serves both mailbox port bounds to the real settings catalog', () => {
+    const mailbox = shipped.find((connector) => connector.slug === 'imap-smtp');
+    expect(mailbox).toBeDefined();
+    for (const key of ['imapPort', 'smtpPort']) {
+      expect(
+        mailbox?.configFields.find((field) => field.key === key),
+      ).toMatchObject({
+        type: 'number',
+        integer: true,
+        min: 1,
+        max: 65535,
+      });
+    }
+  });
+
   it('lists a picker with GlitchTip and Jev decisions in it', () => {
     // A catalog that lost its files would pass the checks below vacuously.
     expect(shipped.map((connector) => connector.displayName)).toEqual(

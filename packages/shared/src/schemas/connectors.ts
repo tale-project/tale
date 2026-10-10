@@ -156,6 +156,10 @@ const configFieldSchema = z
     required: z.boolean().default(false),
     /** Closed set of accepted values, for a `string` field rendered as a select. */
     enum: z.array(z.string().min(1)).min(1).optional(),
+    /** Numeric constraints for number fields. */
+    integer: z.boolean().optional(),
+    min: z.number().finite().optional(),
+    max: z.number().finite().optional(),
     /** Applied when the field is absent; must match `type`. */
     default: z.union([z.string(), z.number(), z.boolean()]).optional(),
   })

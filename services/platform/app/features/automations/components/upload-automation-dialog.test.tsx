@@ -47,8 +47,47 @@ vi.mock('@/app/hooks/use-backend-client', () => ({
 // The success step's deploy button rides the shared mutation hook; the mock
 // hands the test control over the onSuccess/onError callbacks.
 const deployMutate = vi.fn();
+const setTriggerMutateAsync = vi.fn();
 vi.mock('../hooks/mutations', () => ({
   useDeployAutomation: () => ({ mutate: deployMutate, isPending: false }),
+  useSetAutomationTrigger: () => ({
+    mutateAsync: setTriggerMutateAsync,
+    isPending: false,
+  }),
+}));
+
+// The stored trigger the deploy notice turns on: a pack's webhook, off.
+vi.mock('../hooks/queries', () => ({
+  useAutomationTriggers: () => ({
+    data: [
+      {
+        id: 'trigger-1',
+        name: 'demo',
+        kind: 'webhook',
+        cron: null,
+        repeat: null,
+        startDate: null,
+        timezone: null,
+        catchUp: null,
+        input: null,
+        event: null,
+        hasToken: true,
+        enabled: false,
+        nextRunAt: null,
+        lastFiredAt: null,
+        lastRunId: null,
+        lastSkippedAt: null,
+        lastSkipReason: null,
+        lastSkipDetail: null,
+        consecutiveFailures: 0,
+        lastFailedAt: null,
+        lastFailureCode: null,
+        lastFailedRunId: null,
+      },
+    ],
+    isPending: false,
+    isError: false,
+  }),
 }));
 
 import { UploadAutomationDialog } from './upload-automation-dialog';
@@ -215,8 +254,8 @@ describe('UploadAutomationDialog', () => {
       skills: [],
     });
     deployMutate.mockImplementation(
-      (_vars: unknown, opts?: { onSuccess?: () => void }) =>
-        opts?.onSuccess?.(),
+      (_vars: unknown, opts?: { onSuccess?: (result: unknown) => void }) =>
+        opts?.onSuccess?.({ name: 'demo', version: 2, trigger: null }),
     );
     const onOpenChange = vi.fn();
     const { user } = await openDialogWith([WORKFLOW_FILE()], onOpenChange);
@@ -236,6 +275,63 @@ describe('UploadAutomationDialog', () => {
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
+  });
+
+  // A pack's trigger is created off: deployed, the dialog stays to say so
+  // and offer to turn it on, instead of closing on a version nothing starts.
+  it('stays after a deploy that left the trigger off, offering to turn it on', async () => {
+    uploadAction.mockResolvedValue({
+      ok: true,
+      name: 'demo',
+      version: 2,
+      warnings: [],
+      skills: [],
+    });
+    deployMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: (result: unknown) => void }) =>
+        opts?.onSuccess?.({
+          name: 'demo',
+          version: 2,
+          trigger: {
+            kind: 'webhook',
+            enabled: false,
+            nextRunAt: null,
+            warnings: [],
+          },
+        }),
+    );
+    setTriggerMutateAsync.mockResolvedValue({});
+    const onOpenChange = vi.fn();
+    const { user } = await openDialogWith([WORKFLOW_FILE()], onOpenChange);
+    await user.click(
+      screen.getByRole('button', { name: 'automations.upload.submit' }),
+    );
+    await user.click(await screen.findByTestId('deploy-uploaded-version'));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(toast).not.toHaveBeenCalled();
+    expect(screen.getByText('automations.upload.deployed')).toBeVisible();
+    const title = screen.getByRole('heading', {
+      name: 'automations.trigger.deployNotice.title',
+    });
+    // Deploy now left the footer with the focus; the notice holds it.
+    await waitFor(() => expect(title.closest('[tabindex="-1"]')).toHaveFocus());
+    await user.click(
+      screen.getByRole('button', {
+        name: 'automations.trigger.deployNotice.turnOn',
+      }),
+    );
+    expect(setTriggerMutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org_1',
+      name: 'demo',
+      trigger: { kind: 'webhook', enabled: true },
+    });
+    expect(
+      await screen.findByText('automations.trigger.deployNotice.turnedOn'),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.done' }),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('surfaces a deploy refusal inline and stays open', async () => {

@@ -157,7 +157,7 @@ Une exécution réelle nécessite une version en service. Tu peux tester un brou
 
 ## Ce qui lance une exécution
 
-Tu peux tester manuellement une version enregistrée ou exécuter en réel la version en service. Pour un démarrage automatique, configure l’un des trois déclencheurs : une planification avec expression cron et fuseau IANA, une URL de webhook protégée par un jeton, ou un événement nommé de la plateforme.
+Tu peux tester manuellement une version enregistrée ou exécuter en réel la version en service. Pour un démarrage automatique, configure l’un des trois déclencheurs : une planification qui se répète à des heures précises ou à intervalles dans son fuseau horaire, une URL de webhook protégée par un jeton, ou un événement nommé de la plateforme. Chacun peut ajouter une entrée fixe que reçoit chaque exécution.
 
 Le déclencheur appartient au nom de l’automatisation. Mettre une autre version en service conserve sa configuration et l’URL du webhook, mais les démarrages suivants utilisent la nouvelle version. Désactive le déclencheur pour suspendre les démarrages automatiques. [Déclencheurs de workflow](/fr/platform/automations/triggers) explique les horaires, l’authentification et les données fournies par chaque type.
 

@@ -5,12 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { dispatchAutomationEvent } from '../automations/triggers.ts';
 import { emitEvent } from './emit.ts';
+import { withAutomationOrigin } from './origin.ts';
 
 vi.mock('../automations/triggers.ts', () => ({
   dispatchAutomationEvent: vi.fn(),
 }));
 
 const dispatch = vi.mocked(dispatchAutomationEvent);
+
+const TASK_CREATED = {
+  taskId: 't-1',
+  projectId: 'p-1',
+  actorType: 'user',
+  actorId: 'u-1',
+} as const;
 
 /**
  * A `postgres` transaction stand-in that models the one thing this seam
@@ -59,7 +67,7 @@ describe('emitEvent', () => {
     await emitEvent(fake.tx, {
       organizationId: 'org-1',
       eventType: 'task.created',
-      eventData: { taskId: 't-1' },
+      eventData: TASK_CREATED,
     });
 
     expect(dispatch).toHaveBeenCalledOnce();
@@ -69,8 +77,8 @@ describe('emitEvent', () => {
     expect(dispatch.mock.calls[0]?.[1]).toEqual({
       organizationId: 'org-1',
       event: 'task.created',
-      payload: { taskId: 't-1' },
-      origin: 'platform',
+      payload: TASK_CREATED,
+      origin: { kind: 'platform' },
     });
     expect(fake.rolledBack).toBe(0);
   });
@@ -91,6 +99,7 @@ describe('emitEvent', () => {
       emitEvent(fake.tx, {
         organizationId: 'org-1',
         eventType: 'contact.created',
+        eventData: { contactId: 'c-1' },
       }),
     ).resolves.toBeUndefined();
 
@@ -103,13 +112,31 @@ describe('emitEvent', () => {
     );
   });
 
-  it('omits the payload key when the event carries no data', async () => {
+  it('names the automation run whose work raised the event [AUTO-R12]', async () => {
+    dispatch.mockResolvedValue({ started: [], refused: false });
+    const fake = fakeTx();
+    await withAutomationOrigin('run-9', () =>
+      emitEvent(fake.tx, {
+        organizationId: 'org-1',
+        eventType: 'task.created',
+        eventData: TASK_CREATED,
+      }),
+    );
+    expect(dispatch.mock.calls[0]?.[1]).toMatchObject({
+      origin: { kind: 'automation', runId: 'run-9' },
+    });
+  });
+
+  it('names the platform outside any run', async () => {
     dispatch.mockResolvedValue({ started: [], refused: false });
     const fake = fakeTx();
     await emitEvent(fake.tx, {
       organizationId: 'org-1',
       eventType: 'contact.deleted',
+      eventData: { contactId: 'c-1' },
     });
-    expect(dispatch.mock.calls[0]?.[1]).not.toHaveProperty('payload');
+    expect(dispatch.mock.calls[0]?.[1]).toMatchObject({
+      origin: { kind: 'platform' },
+    });
   });
 });

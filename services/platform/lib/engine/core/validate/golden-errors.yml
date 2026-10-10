@@ -1205,7 +1205,7 @@ trigger-input-mismatch:
   warnings:
     - code: TRIGGER_INPUT_MISMATCH
       message: 'the schedule trigger starts runs with {trigger, firedAt}, which the inputs schema refuses: city is required; trigger is not a field the inputs schema takes; firedAt is not a field the inputs schema takes — every scheduled run is refused'
-      hint: 'a schedule passes only trigger and firedAt: declare both in the inputs schema and make every other input optional, or start this automation from a webhook, an event or the API'
+      hint: 'a schedule passes trigger and firedAt, plus its fixed input: declare those in the inputs schema, and give the trigger a fixed input with every other field it needs or make those fields optional'
       at:
         pointer: /inputs
       params:
@@ -1216,6 +1216,17 @@ trigger-input-mismatch:
           - city is required
           - trigger is not a field the inputs schema takes
           - firedAt is not a field the inputs schema takes
+trigger-input-not-templated:
+  errors: []
+  warnings:
+    - code: TRIGGER_INPUT_NOT_TEMPLATED
+      message: the trigger's fixed input holds a template at owner; a fixed input is plain data, so the template arrives as text and is never evaluated
+      hint: map values from the payload with a transform node instead
+      at:
+        pointer: /inputs
+      params:
+        paths:
+          - owner
 tests-input-invalid:
   errors: []
   warnings:

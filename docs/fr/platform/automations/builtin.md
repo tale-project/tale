@@ -3,7 +3,7 @@ title: Automatisations livrées
 description: Choisis un workflow fourni pour les e-mails, GitHub ou GlitchTip, vérifie ses entrées et connexions et découvre ce qu’il lit ou écrit avant le déploiement.
 ---
 
-Tale fournit dix paquets d’automatisation : trois synchronisations de courrier, trois résumés de boîte de réception, deux workflows de revue GitHub et des imports d’issues GitHub et GlitchTip. Chacun commence en version 1 avec le statut **Pas en service**. Les imports d’issues s’exécutent manuellement ; les autres paquets incluent une planification. Examine les données attendues, le modèle, les connexions et les écritures avant qu’un Propriétaire, Admin ou Développeur mette une version en service.
+Tale fournit dix paquets d’automatisation : trois synchronisations de courrier, trois résumés de boîte de réception, deux workflows de revue GitHub et des imports d’issues GitHub et GlitchTip. Chacun commence en version 1 avec le statut **Pas en service**. Les imports d’issues s’exécutent manuellement ; les autres paquets incluent une planification, désactivée au départ : après la mise en service d’une version, l’éditeur propose **Activer le déclencheur**. Examine les données attendues, le modèle, les connexions et les écritures avant qu’un Propriétaire, Admin ou Développeur mette une version en service.
 
 <Frame caption="Le catalogue affiche les noms des paquets, le nombre de versions et leur état de mise en service.">
 
@@ -87,7 +87,7 @@ Les deux workflows exigent `owner` et `repo`. Dans **Essai**, renseigne **Donné
 
 <Note>
 
-Les planifications GitHub fournies ne transmettent ni `owner` ni `repo` : la mise en service seule ne suffit donc pas à rendre ces exécutions planifiées valides. Une planification n’envoie que `trigger` et `firedAt` : l’entrée de dépôt requise est donc absente et le démarrage est refusé. Lance le workflow manuellement avec les données requises, ou adapte le schéma et la configuration du dépôt avant d’activer les exécutions planifiées. Un démarrage planifié refusé apparaît comme `start_refused` sur le [déclencheur](/fr/platform/automations/triggers).
+Les planifications GitHub fournies ont besoin de `owner` et `repo`, alors qu’une planification n’envoie que `trigger` et `firedAt`. Après la mise en service d’une version, l’éditeur propose donc **Vérifier le déclencheur** au lieu d’activer la planification. Dans l’onglet **Général**, ouvre **Ajouter une entrée fixe**, choisis **Ajouter les 2 champs manquants**, remplace les valeurs provisoires par le propriétaire et le nom de ton dépôt, active **Actif** et enregistre. Chaque exécution planifiée reçoit alors ces valeurs. Un démarrage que le workflow refuse encore apparaît sur le [déclencheur](/fr/platform/automations/triggers#comprendre-labsence-de-demarrage) comme **Ignorée : l’entrée de l’exécution a été refusée**.
 
 </Note>
 

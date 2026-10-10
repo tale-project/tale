@@ -40,7 +40,7 @@ import { createRecorder, type NodeRunWrite } from '../core/record/recorder';
 import { recordBudget, redactTrace } from '../core/record/value';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
-import type { Automation, RunResult } from '../core/types';
+import type { Automation, Issue, RunResult } from '../core/types';
 import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
 import { searchCatalog } from './catalog-search';
@@ -249,11 +249,21 @@ export interface TriggerView {
   name: string;
   kind: string;
   cron?: string;
+  /** A schedule's repeat rule, in the host's shape (`ScheduleRule`). */
+  repeat?: Readonly<Record<string, unknown>>;
+  /** The day the repeat rule starts on, `YYYY-MM-DD` in its zone. */
+  startDate?: string;
   timezone?: string;
+  /** What a schedule does with occurrences it missed. */
+  catchUp?: 'latest' | 'skip';
+  /** The fixed input every run it starts receives. */
+  input?: Readonly<Record<string, unknown>>;
   event?: string;
   /** Whether a webhook token was ever minted, WITHOUT revealing it. */
   hasToken: boolean;
   enabled: boolean;
+  /** A schedule's next start; absent while it is off or not a schedule. */
+  nextRunAt?: number;
   /** The last time this binding started a run — `lastRunId` names it. */
   lastFiredAt?: number;
   lastRunId?: string;
@@ -262,6 +272,9 @@ export interface TriggerView {
    * paused itself, `paused_after_failures`. */
   lastSkippedAt?: number;
   lastSkipReason?: string;
+  /** The facts behind `lastSkipReason`, in the host's shape — the
+   * occurrence, a refusal's code and version, the occurrences missed. */
+  lastSkipDetail?: Readonly<Record<string, unknown>>;
   /** Permanent failures in a row among the runs it started since it was
    * last saved; a schedule pauses itself when they reach the threshold.
    * A host that keeps no streak (the selftest store) leaves it out. */
@@ -280,6 +293,11 @@ export interface TriggerView {
 export interface SetTriggerOutcome {
   revoked?: 'webhook';
   token?: string;
+  /** A schedule's next start; null while it is switched off. */
+  nextRunAt?: number | null;
+  /** What the deployed version would make of what the trigger sends — a
+   * warning never refuses the bind. */
+  warnings?: Issue[];
 }
 
 /**
@@ -1624,6 +1642,15 @@ export async function dispatch(
                 token: outcome.token,
                 note: `trigger recorded; the webhook token is shown once — list_triggers never returns it, and rotateToken: true mints a new one${deployed ? '' : '. The automation has no deployed version, so deliveries are refused until one is deployed'}`,
               }
+            : {}),
+          ...(outcome?.nextRunAt !== undefined
+            ? { nextRunAt: outcome.nextRunAt }
+            : {}),
+          // Saved either way; what the deployed version would refuse in
+          // every run the trigger starts, said now rather than at the first
+          // occurrence.
+          ...(outcome?.warnings !== undefined && outcome.warnings.length > 0
+            ? { warnings: outcome.warnings }
             : {}),
         };
       } catch (e) {

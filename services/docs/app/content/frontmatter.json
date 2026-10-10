@@ -513,7 +513,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungen automatisch starten",
-      "description": "Richte Zeitpläne, Webhooks und Plattform-Ereignisse ein, prüfe die Eingaben und finde die Ursache ausbleibender Starts."
+      "description": "Starte eine Automatisierung nach Zeitplan, per Webhook oder bei einem Plattform-Ereignis, prüfe, was jeder Lauf erhält, und finde heraus, warum ein Start ausgelassen wurde."
     }
   },
   "de:platform/chat/arena-mode": {
@@ -1665,7 +1665,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Start automations automatically",
-      "description": "Configure schedules, webhooks and platform events, match their input shape and diagnose missed starts."
+      "description": "Run an automation on a schedule, from a webhook or on a platform event, check what each run receives, and find out why a start was skipped."
     }
   },
   "en:platform/chat/arena-mode": {
@@ -2817,7 +2817,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrer les automatisations automatiquement",
-      "description": "Configure horaires, webhooks et événements, adapte les données d’entrée et identifie les démarrages manqués."
+      "description": "Lance une automatisation selon une planification, depuis un webhook ou sur un événement de la plateforme, vérifie ce que reçoit chaque exécution et comprends pourquoi un démarrage a été ignoré."
     }
   },
   "fr:platform/chat/arena-mode": {

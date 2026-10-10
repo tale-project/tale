@@ -147,6 +147,48 @@ describe('managed schedule slot-wake opt-in (#4540)', () => {
   );
 });
 
+describe('managed schedule declarations read as the platform stores them', () => {
+  const rule = {
+    projectId: 'project-a',
+    name: 'reports/weekly',
+    repeat: {
+      frequency: 'weekly',
+      interval: 1,
+      weekdays: [5, 1, 5],
+      times: ['17:00', '09:00'],
+    },
+    startDate: '2026-10-01',
+    timezone: 'utc',
+    enabled: true,
+  };
+
+  it('reads a repeat rule in its normal form, whatever order the file uses', () => {
+    expect(managedAutomationScheduleSchema.parse(rule)).toEqual({
+      ...rule,
+      repeat: {
+        frequency: 'weekly',
+        interval: 1,
+        weekdays: [1, 5],
+        times: ['09:00', '17:00'],
+      },
+    });
+  });
+
+  it('keeps the zone the way the declaration spells it', () => {
+    expect(managedAutomationScheduleSchema.parse(rule).timezone).toBe('utc');
+  });
+
+  it.each([' UTC', 'UTC ', '\tEurope/Zurich'])(
+    'refuses the zone %j, which no stored zone would ever equal',
+    (timezone) => {
+      expect(
+        managedAutomationScheduleSchema.safeParse({ ...rule, timezone })
+          .success,
+      ).toBe(false);
+    },
+  );
+});
+
 describe('managed agent model declarations', () => {
   const config = {
     projectId: 'project-a',

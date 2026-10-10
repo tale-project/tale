@@ -425,6 +425,7 @@
     "./use-focus-handoff": "./src/hooks/use-focus-handoff.ts",
     "./use-form": "./src/components/forms/use-form.ts",
     "./use-format-date": "./src/hooks/use-format-date.ts",
+    "./use-ime-composition": "./src/hooks/use-ime-composition.ts",
     "./use-infinite-scroll": "./src/hooks/use-infinite-scroll.ts",
     "./use-is-mac": "./src/hooks/use-is-mac.ts",
     "./use-is-mobile": "./src/hooks/use-is-mobile.ts",

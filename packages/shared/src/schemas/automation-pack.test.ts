@@ -48,8 +48,8 @@ describe('the shared manifest contract', () => {
     ).toBe(false);
   });
 
-  it('keeps trigger declarations strict without adding trigger-store rules', () => {
-    for (const kind of ['schedule', 'event', 'webhook']) {
+  it('declares triggers with the shared trigger contract, strictly', () => {
+    for (const kind of ['event', 'webhook']) {
       expect(automationTriggerSchema.parse({ kind })).toEqual({ kind });
     }
     const schedule = {
@@ -58,10 +58,22 @@ describe('the shared manifest contract', () => {
       timezone: 'Europe/Zurich',
     };
     expect(automationTriggerSchema.parse(schedule)).toEqual(schedule);
+    const rule = {
+      kind: 'schedule',
+      repeat: { frequency: 'minutely', interval: 5 },
+      timezone: 'UTC',
+      input: { owner: 'tale' },
+    };
+    expect(automationTriggerSchema.parse(rule)).toEqual(rule);
     for (const value of [
       { kind: 'api-key' },
       { kind: 'webhook', unknown: true },
       { kind: 'event', event: '' },
+      // A schedule names a repeat rule or a cron expression.
+      { kind: 'schedule' },
+      // The anchor is the install day; a pack mints no token to rotate.
+      { ...rule, startDate: '2026-10-08' },
+      { kind: 'webhook', rotateToken: true },
     ]) {
       expect(automationTriggerSchema.safeParse(value).success).toBe(false);
     }
