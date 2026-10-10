@@ -39,6 +39,7 @@ const EXPECTED_SLUGS = [
   'glitchtip',
   'gmail',
   'google-drive',
+  'http',
   'imap-smtp',
   'jev',
   'outlook',
