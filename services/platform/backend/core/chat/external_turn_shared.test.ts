@@ -215,6 +215,7 @@ const {
   classifyHarnessEnd,
   harnessOutputTail,
   isSpendRefusal,
+  removeStagedInstructions,
   removeStagedSubscription,
   spendRefusalReason,
 } = await import('./external_turn_shared');
@@ -1250,6 +1251,46 @@ describe('a staged subscription credential', () => {
     // A session that is gone took the credential with it: nothing to log.
     transport.deleteFailure = new SessionNotFoundError('sandbox');
     await removeStagedSubscription('sandbox', 'gemini');
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('an exec’s staged instructions', () => {
+  beforeEach(() => {
+    transport.sessionOps = [];
+    transport.deleteFailure = undefined;
+    transport.deleteSkips = [];
+  });
+
+  it('leave an OpenCode session under the exec’s own name', async () => {
+    await removeStagedInstructions('pa-scribe', 'opencode', 'exec-7');
+    expect(transport.sessionOps).toEqual([
+      'delete:.runtime/tale/instructions/exec-7.md',
+    ]);
+  });
+
+  it('are never looked for on a harness that passes its instructions another way', async () => {
+    await removeStagedInstructions('pa-scribe', 'claude-code', 'exec-7');
+    await removeStagedInstructions('pa-scribe', 'codex', 'exec-7');
+    await removeStagedInstructions('pa-scribe', 'not-a-harness', 'exec-7');
+    expect(transport.sessionOps).toEqual([]);
+  });
+
+  it('log a failed removal and never throw it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warn.mockClear();
+    transport.deleteSkips = [
+      { path: '.runtime/tale/instructions/exec-7.md', reason: 'EACCES' },
+    ];
+    await removeStagedInstructions('pa-scribe', 'opencode', 'exec-7');
+    transport.deleteSkips = [];
+    transport.deleteFailure = new Error('spawner unreachable');
+    await removeStagedInstructions('pa-scribe', 'opencode', 'exec-7');
+    expect(warn).toHaveBeenCalledTimes(2);
+
+    // A session that is gone took the file with it: nothing to log.
+    transport.deleteFailure = new SessionNotFoundError('pa-scribe');
+    await removeStagedInstructions('pa-scribe', 'opencode', 'exec-7');
     expect(warn).toHaveBeenCalledTimes(2);
   });
 });

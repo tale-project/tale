@@ -127,6 +127,16 @@ what is there, and the page shows the one thing you opened.
   "improve with AI" rewrite. Specs: `design-system.md` → _Conversations_.
 - **Knowledge** — its pages (Documents/Knowledge entries/Websites/Products/Contacts) as a tab strip
   under the header, each a `DataTable`. Specs: `design-system.md` → _Knowledge_.
+- **Automation canvas** — the layout engine places every box, nobody does: **Start** on top (what
+  starts a run, what it receives), **End** at the bottom (what it returns, how a run ends), each node
+  below the nodes it reads. A condition is a pill in words above its node, splitting into **Yes**
+  (left) and **No** (right) when the node has an alternative; a frame means for-each or repeat; a
+  solid line reads output, a dashed one only orders, a dotted one ends the run; a dashed box may not
+  run. One Tab stop with arrow keys, a List view as the text alternative, the Paths list to light up
+  a path. Build it from data with `@tale/ui/flow/workflow-canvas`; never draw a node by hand. Guides:
+  [`workflow-canvas.md`](../../services/ui-docs/content/components/workflow-canvas.md),
+  [`workflow-paths.md`](../../services/ui-docs/content/components/workflow-paths.md),
+  [`workflow-playback.md`](../../services/ui-docs/content/components/workflow-playback.md).
 - **Auth, settings, automations, agents, onboarding** — each has a `.pen` under `design/sources/platform/`.
 
 ## Interaction conventions (hold these everywhere)

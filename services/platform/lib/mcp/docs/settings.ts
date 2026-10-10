@@ -7,9 +7,11 @@ import {
 import { knowledgeEmbeddingWriteSchema } from '@tale/shared/schemas/knowledge';
 import {
   managedAgentInstructionsSchema,
+  managedAgentModelSchema,
   managedAgentToolsSchema,
   managedProjectInstructionsSchema,
   managedTaskInstructionsSchema,
+  managedTaskReviewContextSchema,
 } from '@tale/shared/schemas/managed-configuration';
 import {
   providerDefinitionSchema,
@@ -161,7 +163,9 @@ const CONFIG_SCHEMAS: Readonly<
   'project-instructions': managedProjectInstructionsSchema,
   'agent-instructions': managedAgentInstructionsSchema,
   'agent-tools': managedAgentToolsSchema,
+  'agent-model': managedAgentModelSchema,
   'task-instructions': managedTaskInstructionsSchema,
+  'task-review-context': managedTaskReviewContextSchema,
   deployment: deploymentConfigSchema,
 };
 

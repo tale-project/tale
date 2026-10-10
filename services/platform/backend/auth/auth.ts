@@ -34,6 +34,7 @@ import { organizationNameSchema } from '../../lib/shared/schemas/organizations.t
 import { getString, isRecord } from '../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
+import { authPoolMax } from '../db/sql.ts';
 import { resolvePostgresConnection } from '../db/ssl.ts';
 import {
   describeDatabaseError,
@@ -100,6 +101,7 @@ import {
   passwordConfirmationOf,
 } from './password-confirmations.ts';
 import { reauthenticate } from './reauthenticate.ts';
+import { sessionCookieCacheOption } from './session-cache.ts';
 import {
   openSignUpEnabled,
   SIGN_UP_CLOSED_MESSAGE,
@@ -429,7 +431,7 @@ function createAuthPool(
   const pool = new pg.Pool({
     connectionString: connection.url,
     ssl: connection.ssl,
-    max: 5,
+    max: authPoolMax(),
   });
   const warnDropped = (error: Error): void => {
     console.warn(
@@ -830,6 +832,10 @@ export function createAuth(config: AuthConfig) {
       // default lifetime with updateAge tightened so `updatedAt` tracks
       // activity for the per-org idle-revocation sweep.
       ...sessionIdleWindowSeconds(),
+      // Off unless SESSION_COOKIE_CACHE_SECONDS is set: a cached session
+      // skips the database on ordinary requests, at the price of revocation
+      // taking up to that long (`session-cache.ts`).
+      ...sessionCookieCacheOption(),
       // How long a sign-in keeps the session fresh enough to register a
       // passkey. Pinned (it is Better Auth's default) because the app reads
       // the same value to ask for the password before the server refuses.

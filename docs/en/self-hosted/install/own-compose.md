@@ -20,7 +20,7 @@ The packaged layout keeps `tale_app` and `tale_knowledge` in one Postgres servic
 
 ## Pin compatible images
 
-Set `VERSION` in Compose's `.env` to the Tale release you have reviewed and tested. Export that same value in your shell when running the separate runtime-image pull below. Keep Tale images on one release; the two upstream services have their own pinned versions.
+Set `VERSION` in Compose's `.env` to the Tale release you have reviewed and tested. Export that same value in your shell when running the separate runtime-image pull below. Keep Tale images on one release; the two upstream services have their own pinned versions. Tale's images have zstd-compressed layers, so the Docker host needs Docker Engine 24.0 or later.
 
 | Service | Image |
 | --- | --- |
@@ -167,6 +167,7 @@ Configure `BACKEND_UPSTREAM=backend-api:3005` on the proxy. For bundled file sto
 | Egress IPv6 | `sysctls` with `net.ipv6.conf.all.disable_ipv6: '1'` and `net.ipv6.conf.default.disable_ipv6: '1'`, as in the shipped stack. The egress firewall fails closed: it needs working IPv6 firewall support or IPv6 disabled for the default and every interface, and a container cannot write those sysctls itself through a read-only `/proc/sys`. Without them the proxy refuses to start on a kernel without the `ip6_tables` module; see [Sandbox infrastructure](/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Postgres shutdown | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` in the reference stack. |
 | Web, backend and spawner shutdown | Allow the stop grace: 45 seconds for the web tier, 30 for `backend-api`, 120 for `backend-worker` and 30 for the spawner. A stopping worker hands its automation runs on within it (`SHUTDOWN_DRAIN_MS`); coordinate other active work before stopping. |
+| Gateway shutdown | `stop_grace_period: 90s`. A stopping gateway takes no new model call, lets the calls in flight finish, streamed answers included, and saves its spend counters at the end only when that drain ends within 30 seconds of the stop. Docker's 10-second default cuts longer answers. |
 
 Keep `db-backup` if your database tooling writes to `/var/lib/postgresql/backup`; mounting it alone does not create a backup schedule. Older `convex-data` configuration volumes need a deliberate transfer into `config-data`, not deletion. Preserve the old copy until verified.
 

@@ -42,17 +42,17 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-The `ui` block stores canvas positions. Moving a node changes the layout, without changing its execution.
+Tale lays out the canvas from the references between nodes, so nobody places a node. A `ui` block is free metadata: Tale keeps it as written and ignores it.
 
 ### Edges are derived, not declared
 
-There is no edge list. One node reads another by referencing it — `{{ nodes.invoice.output.id }}` — and that reference _is_ the edge the canvas draws. Execution order is a topological sort over those derived edges, which is why deleting a reference also removes an arrow, and why two nodes that read each other are refused as a cycle.
+There is no edge list. One node reads another by referencing it — `{{ nodes.invoice.output.id }}` — and that reference _is_ the edge the canvas draws. Execution order is a topological sort over those derived edges, which is why deleting a reference also removes a line, and why two nodes that read each other are refused as a cycle.
 
 Templates use a single `{{ }}` JavaScript-expression grammar over `input`, `nodes.<id>.output`, and, inside an iterating node, `item` and `index`.
 
 ### Control flow rides on the node
 
-Branching and looping are fields on a node rather than separate step types, so the canvas shows them as badges on the box they affect.
+Branching and looping are fields on a node rather than separate step types. The canvas draws each one where it acts: a `when` becomes a condition above its node, an `elseOf` alternative hangs from that condition as its **No** branch, `forEach` and `repeatUntil` put the node in a frame, and `onError: continue` adds a chip to the node.
 
 | Field                        | What it does                                                             |
 | ---------------------------- | ------------------------------------------------------------------------ |
@@ -70,7 +70,7 @@ Four types are built in, and every connector action and platform native — know
 
 **`llm`** calls a language model with a templated prompt. `model` is required and always explicit — an automation never picks one on your behalf (the chat composer's Auto is a chat-only affordance). The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`. Each live call is usage of the run: it is checked against the [budget limits](/platform/admin/governance/policies-and-limits) before it is made, and a call a limit refuses fails the node with `budget_exceeded`, which halts the run unless its `onError` is `continue`. Before calling the provider, each attempt reserves the estimated prompt cost and the maximum reply allowance in every project admitted for that attempt. The model needs catalog pricing. Reported usage replaces the hold when the call finishes. If a timeout, lost connection or missing usage leaves the cost unknown, the hold remains until the request deadline and is then booked as the reserved estimate; this is an estimate, not a provider bill. Changing project bindings during the call does not move its spend.
 
-**`agent`** runs one turn of a coding agent (Claude Code, Codex, and the other agent runtimes) in the sandbox. It reads staged `files`, uses `skills`, brokered `connectors`, granted platform `tools`, and injected `secrets`, and returns `{text, files, status}`; `model` is required. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), it can also create images, which come back among its `files`. Reach for `llm` when a one-shot completion is enough, and for `agent` only when the step needs tools, files, or several turns — a live agent node runs as an asynchronous turn, so it sits at the top level rather than inside a `subautomation` and does not iterate with `forEach`.
+**`agent`** runs one turn of a coding agent (Claude Code, Codex, and the other agent runtimes) in the sandbox. It reads staged `files`, uses `skills`, brokered `connectors`, granted platform `tools`, and injected `secrets`, and returns `{text, files, status}`; `model` is required. Its `input` is resolved like any other node's and reaches the agent as JSON in `/agent/workspace/input.json`; the agent's instructions name that file. In a live run, the node fails before the agent starts when that JSON is larger than 1 MiB, or when its `files` also has an entry named `input.json`. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), it can also create images, which come back among its `files`. Reach for `llm` when a one-shot completion is enough, and for `agent` only when the step needs tools, files, or several turns — a live agent node runs as an asynchronous turn, so it sits at the top level rather than inside a `subautomation` and does not iterate with `forEach`.
 
 **`subautomation`** runs another saved automation as a single node, its `automation` field naming `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
 
@@ -80,11 +80,17 @@ A **structured** output has named fields that you can reference with `nodes.<id>
 
 A tool without an output schema is unstructured. To turn its text into structured data for later steps, use an `llm` node with an `outputSchema`. Validation errors identify the invalid reference and the fields or context that are allowed. Correct that reference before saving again.
 
+## Paths a run can take {#paths}
+
+Each condition, and each node that may fail while the run goes on, gives a run two ways to continue. Tale tries every combination of them and keeps the distinct ways a successful run can go; each one is a path. A path names the conditions that decide it, such as which nodes run, which are skipped and which fail while the run goes on, and the nodes that run on it. A node that runs on every path always runs; a node that runs on none can never run, and Tale warns about it.
+
+Tale lists up to 32 paths and counts the rest. With more than 12 conditions and tolerated failures, the combinations are too many to go through, so Tale lists no path; it still says for each node when it runs. Separately, Tale names the nodes whose failure ends the run and what can make each one fail. The editor shows the paths on the canvas, as [Follow the possible paths](/platform/automations/editor#paths) describes; a client of the [MCP endpoint](/develop/mcp-endpoint) reads the same paths from `analysis.paths`.
+
 ## What Tale checks before a run {#checks}
 
 Tale checks the whole document when you save it, when you deploy a version, and whenever a client calls `validate_automation`. An **error** describes a definite failure or code that exceeds the analysis limits, and it stops both saving and deploying. A **warning** points at something that can fail or does no useful work; it never stops a save or a deployment, so you decide whether to act on it. Each problem names its node and field and, inside a template, a condition, or code, the exact expression.
 
-To keep checks responsive, each expression and each `transform` body is limited to 8192 UTF-16 code units, 512 JavaScript tokens and 64 levels of syntax or syntax-tree nesting. Whitespace around a template expression does not count toward its size; whitespace in a transform body does. Plain text outside templates is not code. These limits can reject previously valid code: shorten it or split the work across nodes before saving or deploying again.
+To keep checks responsive, each expression is limited to 8192 UTF-16 code units and 512 JavaScript tokens. A `transform` body may contain up to 16384 code units and 4096 tokens. Both retain a limit of 64 levels of syntax or syntax-tree nesting. Whitespace around a template expression does not count toward its size; whitespace in a transform body does. Plain text outside templates is not code. These limits can reject previously valid code: shorten it or split the work across nodes before saving or deploying again.
 
 ### References and names {#checks-references}
 
@@ -151,7 +157,7 @@ A live run needs a deployed version. You can still test a saved draft with **Tes
 
 ## What starts a run
 
-Start a saved version manually in test mode, or run the deployed version live. For automatic starts, configure one of three trigger kinds: a schedule with a cron expression and IANA timezone, a webhook URL protected by a token, or a named platform event.
+Start a saved version manually in test mode, or run the deployed version live. For automatic starts, configure one of three trigger kinds: a schedule that repeats at times of day or at an interval in its time zone, a webhook URL protected by a token, or a named platform event. Any of them can add a fixed input that every run receives.
 
 The trigger belongs to the automation’s name. Deploying another version keeps its trigger configuration and webhook URL while changing the version used by subsequent starts. Disable the trigger when you need to pause automatic runs. [Workflow triggers](/platform/automations/triggers) explains timing, authentication, and the input each kind supplies.
 

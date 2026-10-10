@@ -2,7 +2,11 @@
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { automationReadAdapters, automationWriteAdapters } from './automations';
+import {
+  automationActionQueryAdapters,
+  automationReadAdapters,
+  automationWriteAdapters,
+} from './automations';
 import { backendKey } from './query-keys';
 
 /**
@@ -172,6 +176,34 @@ describe('approval decision adapter', () => {
  * run's own doors, and both live under the run's cache key: the run hint a
  * decision emits refreshes the card wherever the run is open.
  */
+describe('trigger runs adapter', () => {
+  it('reads the runs the trigger started under the run entity, ten by default', async () => {
+    const runs = [
+      {
+        runId: 'r1',
+        startedAt: 2,
+        status: 'success',
+        deliverySource: 'body',
+        header: null,
+      },
+    ];
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { runs }));
+    const query = automationReadAdapters[
+      'automations/queries:listTriggerRuns'
+    ]?.({ organizationId: 'org1', name: 'ops/github sync' }, {});
+    // A run hint refreshes it: a new run, or a status one reaches.
+    expect(query?.queryKey).toEqual(
+      backendKey('org1', 'automation_run', 'trigger', 'ops/github sync', '10'),
+    );
+    expect(await query?.queryFn()).toEqual(runs);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/github%20sync/trigger/runs?limit=10&orgId=org1',
+    );
+  });
+});
+
 describe('in-doubt adapters', () => {
   it('reads the open in-doubt write under the run', async () => {
     const fetchSpy = vi
@@ -249,5 +281,76 @@ describe('in-doubt adapters', () => {
       ).toThrow('Missing attempt for adapted write');
     }
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('node-type catalog adapter', () => {
+  const ROW = {
+    type: 'github.list_issues',
+    kind: 'connector',
+    description: 'List issues for a repository.',
+    allowedFields: ['input', 'credential'],
+    requiredFields: ['input'],
+    outputKind: 'structured',
+    hasEffect: false,
+    connector: 'github',
+    title: 'List issues',
+    i18n: { de: { title: 'Issues auflisten' } },
+  };
+
+  it('reads the actions and the connectors they belong to', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        nodeTypes: [ROW],
+        connectors: [
+          {
+            name: 'github',
+            displayName: 'GitHub',
+            iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+          },
+        ],
+      }),
+    );
+    const fetchCatalog = automationActionQueryAdapters[
+      'automations/catalog:listNodeTypes'
+    ]?.({ organizationId: 'org1' }, {});
+    await expect(fetchCatalog?.()).resolves.toEqual({
+      nodeTypes: [ROW],
+      connectors: [
+        {
+          name: 'github',
+          displayName: 'GitHub',
+          iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+        },
+      ],
+    });
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/catalog/node-types?orgId=org1',
+    );
+  });
+
+  it('refuses an answer in a shape it does not read, instead of casting it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, { nodeTypes: [{ ...ROW, kind: 'plugin' }] }),
+    );
+    const fetchCatalog = automationActionQueryAdapters[
+      'automations/catalog:listNodeTypes'
+    ]?.({ organizationId: 'org1' }, {});
+    await expect(fetchCatalog?.()).rejects.toThrow(/unreadable shape/);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('reads an answer without connectors as none', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, { nodeTypes: [ROW] }),
+    );
+    const fetchCatalog = automationActionQueryAdapters[
+      'automations/catalog:listNodeTypes'
+    ]?.({ organizationId: 'org1' }, {});
+    await expect(fetchCatalog?.()).resolves.toEqual({
+      nodeTypes: [ROW],
+      connectors: [],
+    });
   });
 });

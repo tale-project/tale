@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { ContactSource } from '../../../lib/shared/contact-sources.ts';
 import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { toJson } from '../../db/sql.ts';
@@ -15,34 +16,8 @@ import { assertNotHeld } from '../legal_holds/service.ts';
  * REST/connector surfaces.
  */
 
-export const CONTACT_SOURCES = [
-  'manual_import',
-  'file_upload',
-  'api_import',
-  'conversation',
-  'shopify',
-  'woocommerce',
-  'magento',
-  'bigcommerce',
-  'prestashop',
-  'chargebee',
-  'stripe',
-  'recurly',
-  'salesforce',
-  'hubspot',
-  'pipedrive',
-  'zoho',
-  'sap',
-  'oracle',
-  'netsuite',
-  'mailchimp',
-  'klaviyo',
-  'sendgrid',
-  'webhook',
-  'zapier',
-  'custom',
-] as const;
-export type ContactSource = (typeof CONTACT_SOURCES)[number];
+export { CONTACT_SOURCES } from '../../../lib/shared/contact-sources.ts';
+export type { ContactSource } from '../../../lib/shared/contact-sources.ts';
 
 export class ContactError extends Error {
   readonly code: string;

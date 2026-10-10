@@ -385,6 +385,7 @@ connectors:
     in workflows and supported platform tools.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Enter an integer port from 1 to 65535.
   catalog:
     emptyBody: >-
       This deployment ships no connector files. Check that the config root
@@ -444,6 +445,10 @@ connectors:
     statusOrg: Organization app
     statusEnv: Deployment app
     statusNone: Not configured
+    statusUnavailable: Status unavailable
+    statusLoadFailed:
+      Couldn't check whether the Knowledge import apps are set up. You can
+      configure them once the check works.
     orgClientId: 'Client ID: {clientId}'
     configure: Configure
     remove: Remove
@@ -1368,6 +1373,7 @@ logs:
       automation.run.failed: Automation run failed
       automation.run.cancelled: Automation run stopped
       automation.run.deleted: Automation run deleted
+      automation.run.replayed: Automation run started again
       automation.run.in_doubt_resolved: Interrupted automation step decided
       automation.version.saved: Automation version saved
       automation.deployed: Automation deployed

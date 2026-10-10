@@ -28,6 +28,7 @@ import {
   sweepOverdueRuns,
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
+import { fireDueProjectWakes } from '../domains/automations/wakes.ts';
 import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
@@ -459,6 +460,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           ...(startedVia !== undefined
             ? { startedVia, inPlace: newest.inPlace }
             : {}),
+          ...(newest.reviewBatchId !== undefined
+            ? { reviewBatchId: newest.reviewBatchId }
+            : {}),
           autoRetryAttempt: budget.attempt,
           // Queued now, so the card shows the retry; started once the
           // broker's cooldown has an account back.
@@ -770,17 +774,35 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       );
     },
     'automation.trigger_scan': async () => {
-      const result = await scanScheduledTriggers(deps.sql);
+      // A stopping process ends the scan between schedules; what it did
+      // not reach stays due for the next minute's scan, on any worker.
+      const result = await scanScheduledTriggers(deps.sql, {
+        signal: processShutdown.signal,
+      });
       if (result.fired > 0) {
         console.log(
           `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
         );
       }
+      // After the schedule walk: a project whose opted-in schedule has a
+      // pending slot release fires it early (`automations/wakes.ts`). Its
+      // failure is logged and never costs the scan its marker below.
+      try {
+        const wakes = await fireDueProjectWakes(deps.sql);
+        if (wakes.fired > 0 || wakes.failed > 0) {
+          console.log(
+            `[wakes] fired ${wakes.fired}/${wakes.examined} pending (waiting ${wakes.waiting}, busy ${wakes.busy}, failed ${wakes.failed})`,
+          );
+        }
+      } catch (error) {
+        console.error('[wakes] wake scan failed:', error);
+      }
       // A missing organization table returns before examining any page.
       // That bootstrap/connection state is not proof the scanner is working.
       // pg-boss persists this only when the actual handler's claim completes;
       // a draining worker's handover must never produce this marker.
-      return result.pages > 0
+      // A scan the shutdown stopped part-way did not finish either.
+      return result.pages > 0 && !processShutdown.signal.aborted
         ? { output: { triggerScanCompleted: true } }
         : undefined;
     },

@@ -25,6 +25,48 @@ export function toolJsonSchema(
     target: 'draft-2020-12',
     io,
   });
-  generated[io].set(schema, json);
-  return json;
+  const inlined = inlineDefinitions(json);
+  generated[io].set(schema, inlined);
+  return inlined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The schema with its `$defs` written in place: every `$ref` into them is
+ * replaced by the definition itself, so a client that does not resolve
+ * references still reads the whole shape. A definition that refers to
+ * itself (an "any JSON value") stops at `{}` — any value — one level down;
+ * the tool's own arguments check what a call sends.
+ */
+function inlineDefinitions(
+  json: Record<string, unknown>,
+): Record<string, unknown> {
+  const { $defs: definitions, ...rest } = json;
+  if (!isRecord(definitions)) return json;
+  const resolve = (node: unknown, open: ReadonlySet<string>): unknown => {
+    if (Array.isArray(node)) return node.map((item) => resolve(item, open));
+    if (!isRecord(node)) return node;
+    const { $ref: ref, ...siblings } = node;
+    const resolvedSiblings = Object.fromEntries(
+      Object.entries(siblings).map(([key, value]) => [
+        key,
+        resolve(value, open),
+      ]),
+    );
+    if (typeof ref !== 'string' || !ref.startsWith('#/$defs/')) {
+      return ref === undefined
+        ? resolvedSiblings
+        : { $ref: ref, ...resolvedSiblings };
+    }
+    const name = ref.slice('#/$defs/'.length);
+    const definition = definitions[name];
+    if (open.has(name) || !isRecord(definition)) return resolvedSiblings;
+    const inlined = resolve(definition, new Set([...open, name]));
+    return { ...(isRecord(inlined) ? inlined : {}), ...resolvedSiblings };
+  };
+  const inlined = resolve(rest, new Set());
+  return isRecord(inlined) ? inlined : rest;
 }

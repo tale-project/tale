@@ -106,6 +106,11 @@ const coverage: Record<string, Coverage> = {
     remaining:
       'Parser workload only; whole-repository lint wall time is separate.',
   },
+  '@tale/load': {
+    workloads: [],
+    remaining:
+      'It is the load harness itself: it measures a running deployment (smoke, load, stress, spike, soak profiles) rather than being measured here; see tools/load/README.md.',
+  },
   '@tale/lint-links': {
     workloads: ['tools.link-scan'],
     remaining:

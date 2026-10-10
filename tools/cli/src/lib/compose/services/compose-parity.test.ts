@@ -38,6 +38,7 @@ import {
   EGRESS_HEALTH_PROBE,
   createSandboxEgressService,
 } from './create-sandbox-egress-service';
+import { createSandboxLlmGatewayService } from './create-sandbox-llm-gateway-service';
 import { createSandboxService } from './create-sandbox-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
@@ -292,6 +293,23 @@ describe('egress connection capacity parity', () => {
     expect(egress.environment?.SANDBOX_EGRESS_MAX_CLIENTS).toBe(expected);
   });
 
+  test('both pipelines hand the proxy the same per-session cap, below the whole pool', () => {
+    const perSession = '${SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:-256}';
+    expect(
+      compose.services['sandbox-egress']?.environment
+        ?.SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION,
+    ).toBe(perSession);
+    expect(egress.environment?.SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION).toBe(
+      perSession,
+    );
+    // One session at its cap leaves at least three quarters of the default
+    // pool to every other session and build helper.
+    const cap = Number(/:-(\d+)\}$/.exec(perSession)?.[1]);
+    const pool = Number(/:-(\d+)\}$/.exec(expected)?.[1]);
+    expect(cap).toBe(256);
+    expect(cap * 4).toBeLessThanOrEqual(pool);
+  });
+
   test('both pipelines size the container for the default limit', () => {
     const connections = Number(/:-(\d+)\}$/.exec(expected)?.[1]);
     expect(connections).toBe(2000);
@@ -465,6 +483,17 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     const fromCompose = compose.services['backend-worker']?.stop_grace_period;
     const generated = createBackendWorkerService(config).stop_grace_period;
     expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(90 + 15);
+    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
+
+  // The gateway drains its model calls on SIGTERM and then writes its budget
+  // counters; Docker's 10s default would cut the streams and that write
+  // alike.
+  test('model gateway lets its calls in flight finish in both pipelines', () => {
+    const fromCompose =
+      compose.services['sandbox-llm-gateway']?.stop_grace_period;
+    const generated = createSandboxLlmGatewayService(config).stop_grace_period;
+    expect(graceSeconds(fromCompose)).toBe(90);
     expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
   });
 });
@@ -854,6 +883,7 @@ describe('release artifact identity', () => {
     name?: string;
     id?: string;
     if?: string;
+    'continue-on-error'?: boolean;
     run?: string;
     uses?: string;
     env?: Record<string, string | number>;
@@ -1460,6 +1490,14 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
     const job = release.jobs.build!;
     const step = documentStep();
     const image = job.steps.find((entry) => entry.name === 'Build and push')!;
+    const retry = job.steps.find(
+      (entry) =>
+        entry.name ===
+        'Retry build and push after a transient registry failure',
+    )!;
+    const backoff = job.steps.find(
+      (entry) => entry.name === 'Back off before retrying the registry',
+    )!;
     const setup = job.steps.find(
       (entry) => entry.name === 'Setup Bun for document checks',
     )!;
@@ -1468,10 +1506,18 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
       { name: 'arm64', runner: 'ubuntu-24.04-arm', platform: 'linux/arm64' },
     ]);
     expect(image.id).toBe('image');
+    expect(image['continue-on-error']).toBe(true);
     expect(image.with?.push).toBe(true);
+    expect(backoff.if).toBe("steps.image.outcome == 'failure'");
+    expect(backoff.run).toBe('sleep 15');
+    expect(retry.id).toBe('image_retry');
+    expect(retry.if).toBe("steps.image.outcome == 'failure'");
+    expect(retry['continue-on-error']).toBeUndefined();
+    expect(retry.uses).toBe(image.uses);
+    expect(retry.with).toEqual(image.with);
     expect(step.env).toEqual({
       DOCUMENT_IMAGE:
-        '${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image.outputs.digest }}',
+        '${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image_retry.outputs.digest || steps.image.outputs.digest }}',
       DOCUMENT_PLATFORM: '${{ matrix.arch.platform }}',
       DOCUMENT_REVISION: '${{ steps.meta.outputs.revision }}',
       DOCUMENT_VERSION: '${{ needs.prepare.outputs.version_number }}',

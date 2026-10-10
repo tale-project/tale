@@ -158,7 +158,9 @@ export function pendingProcReads(): number {
   return readsInFlight;
 }
 
-function tracked<T>(read: Promise<T>): Promise<T> {
+/** Count a read of the process table as out until it settles: the stall
+ * watch's reads (exec-stall.ts) hold the same pool threads. */
+export function tracked<T>(read: Promise<T>): Promise<T> {
   readsInFlight += 1;
   return read.finally(() => {
     readsInFlight -= 1;

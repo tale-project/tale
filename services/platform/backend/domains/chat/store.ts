@@ -33,12 +33,35 @@ import { ChatThreadError, projectChatAccess } from './threads.ts';
  *
  * Realtime rides the rows themselves: the per-thread progress lane
  * (`routes.ts` `/threads/:id/stream`) polls the generation row at this
- * store's write throttle, so no LISTEN/NOTIFY hub exists — a push could not
+ * store's shortest write gap, so no LISTEN/NOTIFY hub exists — a push could not
  * beat the throttle, and a listener would add a connection without adding
  * freshness.
  */
 
+/** Shortest gap between two progress writes of one turn. */
 const STREAM_WRITE_INTERVAL_MS = 250;
+/** Longest gap between two writes of a streaming turn (a stalled turn's
+ * cancel poll is held only to the shortest). */
+const STREAM_WRITE_MAX_INTERVAL_MS = 1000;
+/** Characters of streamed text (answer and reasoning) per millisecond of
+ * gap past the shortest one. */
+const STREAM_WRITE_CHARS_PER_MS = 8;
+
+/**
+ * The gap before the next progress write of a turn that has streamed
+ * `length` characters so far. Every write rewrites the whole text, so a
+ * fixed gap costs bytes that grow with the square of the reply; a gap that
+ * grows with the text keeps a long reply's writes linear in its length up
+ * to the cap. Replies up to 2,000 characters — most of them — keep the
+ * shortest gap, and the reader's constant-rate reveal absorbs the bigger
+ * steps of a long one.
+ */
+export function streamWriteIntervalMs(length: number): number {
+  return Math.min(
+    STREAM_WRITE_MAX_INTERVAL_MS,
+    Math.max(STREAM_WRITE_INTERVAL_MS, length / STREAM_WRITE_CHARS_PER_MS),
+  );
+}
 
 /** A detached REST turn must keep the project scope its URL accepted. */
 export interface ThreadWriteScope {
@@ -363,6 +386,12 @@ function pgTurnStore(
 ): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
+  /** What the last progress write stored, for a poll to compare against. */
+  let lastWritten: {
+    text: string;
+    reasoning: string;
+    messageId: string | undefined;
+  } | null = null;
   return {
     async appendMessage(message) {
       const stored = {
@@ -384,23 +413,57 @@ function pgTurnStore(
 
     async streamProgress(update) {
       const nowMs = Date.now();
+      // A stall's cancel poll is held only to the shortest gap: Stop must
+      // not wait for the longer gap a long reply's text earns.
+      const length = update.text.length + (update.reasoning?.length ?? 0);
+      const gapMs =
+        update.poll === true
+          ? STREAM_WRITE_INTERVAL_MS
+          : streamWriteIntervalMs(length);
+      if (update.flush !== true && nowMs - lastStreamWriteAt < gapMs) {
+        return { cancelRequested: lastCancelRequested };
+      }
+      const reasoning = update.reasoning ?? '';
+      // A poll with nothing new to store keeps the turn alive for the
+      // watchdog and reads the Stop, and leaves the text and the progress
+      // lane's clock alone: rewriting an unchanged long reply on every
+      // poll had every watcher read it again and push it to every tab.
       if (
+        update.poll === true &&
         update.flush !== true &&
-        nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS
+        lastWritten !== null &&
+        lastWritten.text === update.text &&
+        lastWritten.reasoning === reasoning &&
+        (update.messageId ?? lastWritten.messageId) === lastWritten.messageId
       ) {
+        const polled = await sql<{ cancelRequested: boolean }[]>`
+          UPDATE app.generations SET heartbeat_at_ms = ${nowMs}
+          WHERE thread_id = ${update.threadId}
+            AND org_id = ${update.organizationId}
+          RETURNING cancel_requested AS "cancelRequested"
+        `;
+        lastCancelRequested = polled[0]?.cancelRequested ?? false;
         return { cancelRequested: lastCancelRequested };
       }
       lastStreamWriteAt = nowMs;
+      const writing = {
+        text: update.text,
+        reasoning,
+        messageId: update.messageId ?? lastWritten?.messageId,
+      };
       const rows = await sql<{ cancelRequested: boolean }[]>`
         UPDATE app.generations SET
           text = ${update.text},
-          reasoning = ${update.reasoning ?? ''},
+          reasoning = ${reasoning},
           message_id = coalesce(${update.messageId ?? null}, message_id),
           heartbeat_at_ms = ${nowMs}, updated_at_ms = ${nowMs}
         WHERE thread_id = ${update.threadId}
           AND org_id = ${update.organizationId}
         RETURNING cancel_requested AS "cancelRequested"
       `;
+      // Only a write that landed is one a poll may skip repeating: a failed
+      // one leaves the row short of this text, and the next poll repairs it.
+      lastWritten = writing;
       lastCancelRequested = rows[0]?.cancelRequested ?? false;
       return { cancelRequested: lastCancelRequested };
     },

@@ -435,6 +435,19 @@ export class CapacityReader {
     return facts;
   }
 
+  /** The host's CPUs and memory alone, without the Docker inventory: the
+   * totals the daemon reported (asked at most every ten minutes) and, where
+   * /proc describes the Docker host, what is in use. Unknown, never an
+   * error, while the daemon does not answer. */
+  async hostResources(): Promise<HostResources> {
+    try {
+      return await this.observeHost();
+    } catch (error) {
+      console.warn('[sandbox] observing the host resources failed:', error);
+      return unavailableResources();
+    }
+  }
+
   private async observeHost(): Promise<HostResources> {
     const facts = await this.readHostFacts();
     const resources: HostResources = {

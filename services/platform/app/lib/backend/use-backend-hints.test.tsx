@@ -11,7 +11,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isBackendReachable, reportBackendReachable } from './connection-state';
 import { backendKey } from './query-keys';
 import { settingsReadAdapters } from './settings';
-import { HINT_BATCH_MS, useBackendHints } from './use-backend-hints';
+import {
+  HINT_BATCH_MS,
+  reconnectDelayMs,
+  useBackendHints,
+} from './use-backend-hints';
 
 /** A controllable EventSource double: tests dispatch named SSE events. */
 class FakeEventSource {
@@ -276,8 +280,8 @@ describe('useBackendHints', () => {
 
   it('coalesces project and task hints without crossing organizations', async () => {
     vi.useFakeTimers();
-    const own = ['project', 'task', 'chat_thread'].map((entity) =>
-      backendKey('org1', entity, 'list'),
+    const own = ['project', 'project_capability', 'task', 'chat_thread'].map(
+      (entity) => backendKey('org1', entity, 'list'),
     );
     const other = backendKey('org2', 'task', 'list');
     const unrelated = backendKey('org1', 'conversation', 'list');
@@ -298,7 +302,9 @@ describe('useBackendHints', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
     });
-    expect(invalidate).toHaveBeenCalledTimes(3);
+    // One refresh per entity: the many projects widen to every capability
+    // catalog rather than refreshing each project's separately.
+    expect(invalidate).toHaveBeenCalledTimes(4);
     for (const key of own)
       expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
     for (const key of [other, unrelated])
@@ -347,6 +353,7 @@ describe('useBackendHints', () => {
     expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
       [
         ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'project_capability', 'p1'],
         ['backend', 'org1', 'task'],
         ['backend', 'org1', 'chat_thread'],
       ],
@@ -409,6 +416,68 @@ describe('useBackendHints', () => {
     expect(queryClient.getQueryState(ownKeyAccess)?.isInvalidated).toBe(false);
   });
 
+  it('refreshes only the run a run hint names, and every run’s listings', async () => {
+    vi.useFakeTimers();
+    const own = backendKey(
+      'org1',
+      'automation_run',
+      'record',
+      'run-1',
+      null,
+      false,
+    );
+    const other = backendKey(
+      'org1',
+      'automation_run',
+      'record',
+      'run-2',
+      null,
+      false,
+    );
+    const list = backendKey(
+      'org1',
+      'automation_run',
+      'list',
+      'triage',
+      '50',
+      undefined,
+    );
+    const compare = backendKey(
+      'org1',
+      'automation_run_compare',
+      'run-1',
+      'run-2',
+    );
+    for (const key of [own, other, list, compare]) {
+      queryClient.setQueryData(key, {});
+    }
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'automation_run', entityId: 'run-1' }),
+      );
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(queryClient.getQueryState(own)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(list)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryState(compare)?.isInvalidated).toBe(false);
+    // A hint that names no run, from an older server, refreshes them all.
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'automation_run', entityId: null }),
+      );
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(queryClient.getQueryState(other)?.isInvalidated).toBe(true);
+  });
+
   it('subscribes the org stream and invalidates the entity prefix on a hint', async () => {
     vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
@@ -453,9 +522,32 @@ describe('useBackendHints', () => {
       [
         ['backend', 'org1', 'task'],
         ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'project_capability', 'p1'],
         ['backend', 'org1', 'chat_thread'],
       ],
     );
+  });
+
+  it('widens to every capability catalog when several projects change in one window', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const source = FakeEventSource.instances[0];
+
+    act(() => {
+      for (const id of ['p1', 'p1', 'p2']) {
+        source?.emit(
+          'hint',
+          JSON.stringify({ entity: 'project', entityId: id }),
+        );
+      }
+    });
+
+    flushHints();
+    const keys = invalidate.mock.calls.map(([options]) => options?.queryKey);
+    expect(keys.filter((key) => key?.[2] === 'project_capability')).toEqual([
+      ['backend', 'org1', 'project_capability'],
+    ]);
   });
 
   it('refetches the whole org scope when the server cannot replay the gap (resync)', () => {
@@ -626,6 +718,8 @@ describe('useBackendHints', () => {
 
   it('backs off between reopen attempts and resets after one opens', () => {
     vi.useFakeTimers();
+    // The top of each spread, so the doubling reads in whole seconds.
+    vi.spyOn(Math, 'random').mockReturnValue(1);
     renderHook(() => useBackendHints('org1'), { wrapper });
 
     abandon(FakeEventSource.instances[0]);
@@ -670,5 +764,17 @@ describe('useBackendHints', () => {
       vi.advanceTimersByTime(60_000);
     });
     expect(FakeEventSource.instances).toHaveLength(1);
+  });
+});
+
+describe('reconnectDelayMs', () => {
+  it('spreads each attempt over the upper half of its capped doubling', () => {
+    expect(reconnectDelayMs(0, () => 0)).toBe(500);
+    expect(reconnectDelayMs(0, () => 1)).toBe(1_000);
+    expect(reconnectDelayMs(3, () => 0)).toBe(4_000);
+    expect(reconnectDelayMs(3, () => 1)).toBe(8_000);
+    // Capped at a minute however long the backend stays away.
+    expect(reconnectDelayMs(20, () => 0)).toBe(30_000);
+    expect(reconnectDelayMs(20, () => 1)).toBe(60_000);
   });
 });

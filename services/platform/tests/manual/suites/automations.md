@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 104 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 171 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -20,8 +20,9 @@ groups folders (e.g. `billing/dunning-reminder`); in a URL every `/` travels
 as `__` (`billing__dunning-reminder`, lossless codec in
 `lib/automations/slug.ts`). The shipped packs use single-segment names (e.g.
 `github-triage-issues`), so their slug and URL segment are identical.
-`{runId}` is a plain URL segment — the run routes take **no** search params
-(the old `?wf=` is gone; verified in the route files).
+`{runId}` is a plain URL segment — a run's page takes **no** search params
+(the old `?wf=` is gone; verified in the route files); the comparison takes
+the two runs as `?a={runId}&b={runId}`.
 
 | Surface                   | Route                                                                                                                                        |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -32,9 +33,11 @@ as `__` (`billing__dunning-reminder`, lossless codec in
 | Legacy version history link              | `/dashboard/{org}/automations/{slug}/versions`                                                                                               |
 | Runs tab                  | `/dashboard/{org}/automations/{slug}/runs`                                                                                                   |
 | Run detail                | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                                                           |
+| Compare runs              | `/dashboard/{org}/automations/{slug}/runs/compare?a={runId}&b={runId}`                                                                       |
 | Project-scoped list       | `/dashboard/{org}/projects/{projectId}/automations`                                                                                          |
 | Project-scoped detail     | `/dashboard/{org}/projects/{projectId}/automations/{slug}` → forwards to `…/{slug}/editor`; carries the same four tabs            |
 | Project-scoped run        | `/dashboard/{org}/projects/{projectId}/automations/{slug}/runs/{runId}`                                                                      |
+| Project-scoped compare    | `/dashboard/{org}/projects/{projectId}/automations/{slug}/runs/compare?a={runId}&b={runId}`                                                  |
 | Metrics (redirect)        | `/dashboard/{org}/automations/metrics` → `/dashboard/{org}/settings/metrics/automations` (keeps query)                                       |
 
 > **Route note**: project navigation shows an Automations tab only once
@@ -58,8 +61,8 @@ through its task panel (`AUTO-F53`, `AUTO-B11`).
 **Seeding.** The builtin packs are provisioned from the builtin catalog
 (`configs/platform/custom/automations/` when `TALE_CONFIG_BUILTIN_DIR` is
 unset) at org creation and on deploy — and they always arrive as **Not
-deployed drafts** (`automations.list.notDeployed`); nothing runs until someone
-deploys a version. The eight org-scope packs are `gmail-sync-emails`,
+deployed drafts** (`automations.list.notDeployed`) whose triggers are switched
+off; nothing runs until someone deploys a version and turns its trigger on. The eight org-scope packs are `gmail-sync-emails`,
 `gmail-triage-inbox`, `outlook-sync-emails`, `outlook-triage-inbox`,
 `imap-smtp-sync-emails`, `imap-smtp-triage-inbox`, `github-triage-issues`,
 `github-review-pull-requests`. Two catches:
@@ -97,6 +100,32 @@ nodes:
     code: 'return { text: "hi " + input.who };'
 output:
   text: '{{ nodes.greet.output.text }}'
+```
+
+For the canvas boxes (`AUTO-F73`), a branch probe whose condition hangs
+**Yes** and **No** from one pill:
+
+```yaml
+# workflow.yml
+name: qa/branch-probe
+description: QA probe — a condition with an alternative, no connectors.
+nodes:
+  - id: score
+    type: transform
+    input: { total: 1200 }
+    code: 'return { total: input.total };'
+  - id: escalate
+    type: transform
+    when: '{{ nodes.score.output.total > 1000 }}'
+    input: { total: '{{ nodes.score.output.total }}' }
+    code: 'return { text: "escalate " + input.total };'
+  - id: file
+    type: transform
+    elseOf: escalate
+    input: { total: '{{ nodes.score.output.total }}' }
+    code: 'return { text: "file " + input.total };'
+output:
+  text: '{{ nodes.escalate.output?.text ?? nodes.file.output?.text }}'
 ```
 
 > **Agent note**: run state is Convex-reactive — never poll by reload. A run
@@ -200,16 +229,29 @@ output:
       live**, **Discard**, **Save** — nothing sits in the title row's right
       half. Body: the canvas alone fills the tab edge to edge under the strip
       — with no node selected there is no inspector column at all (AUTO-F37;
-      a selected node's inspector does not grow the canvas); the
+      a selected node's inspector does not grow the canvas). Its top left
+      holds the view switch (`automations.canvas.view.label`: **Canvas**,
+      **List**, **Source**); its top right the paths button
+      (`automations.paths.button`), the last-run eye once the automation has
+      run (`automations.detail.hideLastRun`) and, last, **Edit with your
+      coding agent** (`automations.codingAgent.button`); the zoom controls
+      and **Legend** (`flow.controls.legend`) sit bottom left. The
       trigger and the project bindings are the **General** tab (AUTO-F51),
       version history in the picker and executions in Runs (AUTO-F35) — none of them panels
       beside or under the canvas.
-- [ ] `AUTO-F13` · **Canvas graph** — On the workbench, inspect the canvas →
-      Region labelled **Automation canvas** (`automations.canvas.ariaLabel`); each
-      node is a box naming its type and inputs it reads
-      (`automations.canvas.readsFrom`); edges carry data/order semantics
-      (`automations.canvas.edge.data` / `automations.canvas.edge.control`); a
-      versionless/empty document shows `automations.canvas.empty.title`
+- [ ] `AUTO-F13` · **Canvas graph** — On the workbench of
+      `github-triage-issues`, inspect the canvas → a group labelled
+      **Automation canvas** (`automations.canvas.ariaLabel`), laid out by
+      itself: **Start** (`flow.node.entry`) on top, **End**
+      (`flow.node.exit`) at the bottom, every node below the nodes it reads.
+      Each node box shows its icon, a title from its ID, its catalog line,
+      what it returns once known and what it reads in its strip
+      (`flow.list.reads`, else `automations.canvas.readsNothing`); Score
+      sits in a frame headed by `automations.canvas.controlFlow.forEach`.
+      **Legend** (`flow.controls.legend`) opens `flow.legend.title` with
+      every line and box kind (`automations.canvas.legend.*`); a version with
+      no nodes shows `automations.canvas.empty.title` with **Edit with your
+      coding agent** as its action.
 - [ ] `AUTO-F14` · **Node inspector** — Click a node; **Close**
       (`common.aria.close`); Escape; click the box again; click empty canvas →
       First click opens the node's fields, rings the box, and moves focus into the
@@ -218,13 +260,17 @@ output:
       empty canvas all close the inspector and hand its width back to the
       canvas. A box near the canvas's right edge that the opening inspector
       would cover pans back into view. Canvas height stays
-      put; extra node fields scroll inside the inspector. Inspector heading is the
-      node id with a type badge (catalog copy is not dumped into the header).
-      Typed fields come first (e.g. **Prompt**), then **Input**
-      (`automations.editor.fields.input`); unused **Control flow**
-      (`automations.editor.controlFlowTitle`) is a closed disclosure that opens
-      when any of When / Else of / For each / Repeat until is set. Read-only
-      without the developer capability.
+      put; extra node fields scroll inside the inspector. The header reads the
+      node's title, its catalog line and its ID with **Copy node ID**
+      (`automations.editor.inspector.copyId`); **When it runs**
+      (`automations.editor.flow.title`) follows, then the tabs **Fields**,
+      **Shape** and, while a run is shown, **Last run**
+      (`automations.editor.inspector.tabs.*`). Typed fields come first (e.g.
+      **Prompt**), then **Input** (`automations.editor.fields.input`); unused
+      **Control flow** (`automations.editor.controlFlowTitle`) is a closed
+      disclosure that opens when any of When / Else of / For each / Repeat
+      until / Maximum repeats / On error is set. The URL carries
+      `?node=<id>`. Read-only without the developer capability.
 - [ ] `AUTO-F15` · **Edit → Save version** — Change a node field → **Save
       version** (`automations.detail.saveVersion`) → dialog
       (`automations.detail.saveDialog.title`) → enter a **Version message**
@@ -253,12 +299,12 @@ output:
       **Deploy** control.
 - [ ] `AUTO-F18` · **Test run (mock)** — On `qa/manual-probe` (undeployed is
   fine) → **Test run** (`automations.detail.runMock`); when the saved version declares inputs, fill **Run input (JSON)** (`automations.detail.runInput.label`) using **Input schema** (`automations.detail.runInput.schema`) — missing required fields and invalid JSON keep confirmation disabled → A run starts on the
-  version on screen; the canvas icon **Show last run** / **Hide last run**
-  (`automations.detail.showLastRun` / `automations.detail.hideLastRun`)
-  toggles per-node status overlays on the canvas
-  (`automations.runs.nodeStatus.*`), and the inspector gains an **In this
-  run** section (`automations.editor.runTitle`) with **Resolved input** /
-  **Output** (`automations.editor.resolvedInput` /
+  version on screen; the canvas shows it at once, each node's strip saying
+  how it ended (`flow.state.*`), and the eye at the canvas's top right,
+  **Hide last run** / **Show last run** (`automations.detail.hideLastRun` /
+  `automations.detail.showLastRun`), takes it off and back; the inspector
+  gains the **Last run** tab (`automations.editor.inspector.tabs.run`) with
+  **Resolved input** / **Output** (`automations.editor.resolvedInput` /
   `automations.editor.output`)
 - [ ] `AUTO-F19` · **Runs tab** — **Runs** tab (`automations.navigation.runs`)
       after AUTO-F18 → `…/{slug}/runs` lists the runs newest first under the
@@ -312,18 +358,22 @@ output:
   status leaves **Waiting** without reload.
 - [ ] `AUTO-F27` · **Trigger — schedule** — Open the **General** tab's
   **Trigger** section on an automation with a schedule → **Trigger type**
-  (`automations.trigger.kindLabel`) is Schedule; **Cron**
-  (`automations.trigger.cronLabel`), **Timezone**, and the **Enabled** switch
+  (`automations.trigger.kindLabel`) is Schedule; the schedule picker
+  (`automations.trigger.schedule.label`, or **Cron**
+  `automations.trigger.cronLabel` under **Cron (advanced)** for a cron no
+  repeat rule says), **Timezone**, **Missed runs**
+  (`automations.trigger.catchUp.label`) and the **Enabled** switch
   (`automations.trigger.enabledLabel`) reflect the stored trigger. Edit the
-  cron → the **General** tab's unsaved dot lights, and **Save**
+  schedule → the **General** tab's unsaved dot lights, and **Save**
   (`common.actions.save`) in the strip persists it on reload; an unchanged form
   leaves **Save** and **Discard** (`common.actions.discard`) disabled.
 - [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Trigger type** to
   Webhook → **Save** → The warning
-  `automations.trigger.tokenTitle` shows the full webhook URL once. The
-  **Webhook endpoint** section (`automations.trigger.webhookEndpointLabel`)
-  shows its POST command; after reload it uses a token placeholder and says
-  a token exists (`automations.trigger.hasToken`). **Rotate token**
+  `automations.trigger.tokenTitle` shows the full webhook URL once. After
+  reload the **Webhook endpoint** section
+  (`automations.trigger.webhookEndpointLabel`) lists the URL with its token
+  masked and says it was shown once
+  (`automations.trigger.webhook.tokenHiddenHint`). **Rotate token**
   (`automations.trigger.rotate`) reveals a new URL and the old URL stops
   working.
 - [ ] `AUTO-F29` · **Trigger — remove** — **Remove trigger**
@@ -455,17 +505,21 @@ output:
       `approval:<uuid>` or `repeat:tick`; a failed run's row and header keep
       its failure sentence; a succeeded run's row shows its starter only.
 - [ ] `AUTO-F40` · **One cron validator** — In the **General** tab's **Trigger**
-      section on a schedule, type a four-field cron (`*/1 * * *`), then a six-field one and
-      `0 9 * * MON` → Each shows the refusal with the validator's own sentence
-      under the field (`automations.trigger.cronInvalidReason`, e.g. "got 4")
-      and NO "Next run" line; **Save** in the tab strip stays disabled; nothing
-      is sent to the server. A five-field cron restores the preview
-      (`automations.trigger.cronNext`).
+      section on a schedule, pick **Cron (advanced)**
+      (`automations.trigger.schedule.formatCron`) and type a four-field cron
+      (`*/1 * * *`), then a six-field one and `0 9 * * MON` → Each shows the
+      refusal with the validator's own sentence under the field
+      (`automations.trigger.cronInvalidReason`, e.g. "got 4"); **Next runs**
+      lists nothing and reads `automations.trigger.nextRuns.unavailable`;
+      **Save** in the tab strip stays disabled; nothing is sent to the
+      server. A five-field cron restores the list, and one a repeat rule says
+      reads `automations.trigger.schedule.cronReadsAs`.
 - [ ] `AUTO-F41` · **Blank wizard validates the schedule before creating** —
       **Create automation** › **Blank** › step 2 with **Schedule** → The
-      **Cron** field shows the pattern and next run (`automations.trigger.cronNext`)
-      for the default; **Timezone** is a searchable picker
-      (`automations.trigger.timezoneSearch`), not free text. Type
+      schedule picker shows the default daily 09:00 in your time zone, with
+      three runs under `automations.trigger.nextRuns.wouldRun`; **Timezone**
+      is a searchable picker (`automations.trigger.timezoneSearch`), not free
+      text. Switch to **Cron (advanced)** and type
       `61 * * * *`, then `0 0 31 2 *`, then `*/1 * * *` → each shows the
       refusal under the field (`automations.trigger.cronInvalidReason`) and
       **Create automation** is disabled with that reason — no automation is
@@ -488,18 +542,20 @@ output:
       the latest directly (AUTO-F36); an unknown slug still shows
       `automations.notFound.title`.
 - [ ] `AUTO-F44` · **A schedule says what it will do** — On a deployed
-      automation with an enabled schedule the Cron line reads the pattern and
-      `automations.trigger.cronNext`. Switch **Enabled** off → the line reads
-      `automations.trigger.paused` with no next run, before and after **Save** +
-      reload. Open a not-deployed automation with a schedule (a
-      fresh upload, or a built-in pack) → the line reads
-      `automations.trigger.notDeployed` naming the would-be occurrence, never
-      a bare "Next run"; deploy a version → the plain next run returns.
+      automation with an enabled schedule, **Next runs**
+      (`automations.trigger.nextRuns.title`) lists five runs in the
+      schedule's zone. Switch **Enabled** off → the heading reads
+      `automations.trigger.nextRuns.wouldRun` and the line under it
+      `automations.trigger.nextRuns.paused`, before and after **Save** +
+      reload. Open a not-deployed automation with a schedule (a fresh
+      upload, or a built-in pack) → `automations.trigger.nextRuns.wouldRun`
+      with `automations.trigger.nextRuns.notDeployed`, never a bare **Next
+      runs**; deploy a version → the plain list returns.
 - [ ] `AUTO-F45` · **A new trigger starts off** — On an automation with no
       trigger, **Add trigger** (`automations.trigger.add`) → the form opens
-      with **Enabled** OFF; type a cron and **Save** → after reload
-      the switch is still off and the Cron line reads
-      `automations.trigger.paused`; nothing fires at the cron's minute. In the
+      with **Enabled** OFF on a daily 09:00 schedule in your time zone;
+      **Save** → after reload the switch is still off and the next runs read
+      `automations.trigger.nextRuns.paused`; nothing fires at 09:00. In the
       **Blank** wizard step 2, **Enable now** (`automations.blank.enableNow`)
       is unchecked by default → the created automation's trigger is off;
       check it → the trigger is on.
@@ -519,8 +575,9 @@ output:
       copy button (`automations.blank.copyWebhookUrl`); the copied URL
       answers 202 to a POST (after Deploy); **Open the automation**
       (`automations.blank.openAutomation`) lands in the editor, whose **General**
-      tab's Trigger section says a token is active (`automations.trigger.hasToken`) — no
-      Rotate needed. Closing the dialog with Escape also lands there.
+      tab's Trigger section lists the URL with its token masked
+      (`automations.trigger.webhook.tokenHiddenHint`) — no Rotate needed.
+      Closing the dialog with Escape also lands there.
 - [ ] `AUTO-F48` · **Stopping a run asks first and keeps what ran** — On a
       live run parked on an approval (AUTO-F25) whose first node already ran,
       **Stop the run** (`automations.runs.cancel`) → a confirm dialog
@@ -775,6 +832,442 @@ output:
       the node's sheet closes, the Problems sheet opens on All
       (`automations.problems.filter.all`) with focus on the first error, and
       Enter on it opens the node that holds the error with its field focused.
+- [ ] `AUTO-F70` · **Open Triage GitHub issues on the Editor tab** → **Start**
+      (`flow.node.entry`) sits above every node: under **Starts**
+      (`flow.node.triggers`) the schedule in words with its time zone and
+      next run, the state badge while it is not live
+      (`automations.canvas.start.notLive`), then **By hand, the API or MCP**
+      (`automations.canvas.start.manual`); under **Input** (`flow.node.inputs`)
+      owner and repo as required, trigger and firedAt as from the trigger
+      (`automations.canvas.start.fromTrigger`); a notice says the schedule
+      starts runs without owner and repo
+      (`automationIssues.codes.TRIGGER_INPUT_MISMATCH.cause`). **End** (`flow.node.exit`) at the
+      bottom says **The output of Report** (`automations.canvas.end.returnsNode`),
+      its shape once the check has answered, and the three ways a run ends
+      under **Ends** (`flow.node.outcomes`).
+- [ ] `AUTO-F71` · **Follow the line from Open issues to Report** → it runs
+      beside Score's frame, never through it; no line on the canvas crosses a
+      box, a condition pill, a frame header or a Yes / No label.
+- [ ] `AUTO-F72` · **Read the node boxes of Triage GitHub issues** → each shows
+      an icon, a title from its ID (**Open issues**), its catalog line
+      (**GitHub · List issues**, `automations.canvas.node.catalog.connector`;
+      **Transform**, **Language model · …**), what it returns once the check
+      has answered, and what it reads in its bottom strip
+      (`flow.list.reads`); no raw `{{ }}` and no raw type name such as
+      github.list_issues on any box. In Deutsch and Français the action titles are translated
+      (**GitHub · Issues auflisten**, **GitHub · Lister les issues**).
+- [ ] `AUTO-F73` · **Upload the branch probe (Preconditions) and open it** → a
+      condition pill above Escalate says
+      `automations.condition.gt` in words ("total of Score is greater than
+      1,000"); **Yes** (`flow.branch.yes`) leads to Escalate on the left,
+      **No** (`flow.branch.no`) to File on the right; Escalate and File have
+      dashed borders; the gate's name reads `flow.gate.name` and its
+      description `flow.gate.branches`.
+- [ ] `AUTO-F74` · **Open Gmail triage inbox** → Propose carries the chip
+      **Continues on error** (`automations.canvas.controlFlow.onError`); the
+      paths list has a path whose clause reads
+      `automations.paths.clause.fails`; Propose's **When it runs** says
+      `automations.editor.flow.failContinues`.
+- [ ] `AUTO-F75` · **Open the paths list, point at each path, then press Enter
+      on one** → the button (`automations.paths.button`) opens **Possible
+      paths** (`automations.paths.title`) as a panel under the view switch;
+      pointing previews a path, Enter pins it: off-path nodes turn dashed
+      with their reason (`automations.paths.skip.*`), End marks outputs
+      empty on that path (`automations.canvas.end.emptyOnPath`), and a screen
+      reader hears `automations.paths.showing` once; **Show all**
+      (`flow.paths.showAll`) or Escape restores every node. The panel stays
+      open while you click nodes.
+- [ ] `AUTO-F76` · **In the paths list, point at a node under Ends the run
+      when it fails** → the section (`automations.paths.halts.title`) rings
+      every halting node in red at once; Enter on a row opens that node in
+      the inspector.
+- [ ] `AUTO-F77` · **In a second window, save a new version through MCP while
+      the first shows the latest with no draft** → the first canvas glides
+      to the new layout in about a third of a second, a new node fades in,
+      changed nodes ring once, no node swaps sides with its row neighbour, a
+      screen reader hears `automations.canvas.updated`, and the open node
+      stays open (or the inspector closes with
+      `automations.canvas.selectionRemoved` when it is gone).
+- [ ] `AUTO-F78` · **With a draft open, save another version through MCP** →
+      an info notice above the canvas says
+      `automations.canvas.newerVersion.title` with
+      `automations.canvas.newerVersion.show`; nothing on the canvas moves
+      until you choose it, and choosing it shows the new version.
+- [ ] `AUTO-F79` · **In a Prompt, type `{{` then `nodes.`** → the field reads
+      `{{  }}` with the caret inside and suggestions open; after `nodes.` only
+      nodes that run earlier are offered, never the node itself or a later
+      one; after `.output.` the node's fields are listed with their kinds; the
+      finished expression shows as a tinted mono chip in the prose.
+- [ ] `AUTO-F80` · **Point at a reference in a code field, then press ⌘K ⌘I
+      (Ctrl+K Ctrl+I) on it** → the same type tooltip
+      (`codeEditor.typeInfo.label`) both ways; the keyboard one is read aloud
+      (`codeEditor.typeInfo.announce`).
+- [ ] `AUTO-F81` · **Misspell a node ID inside a transform's Code** → within
+      about a second a wavy underline sits under exactly that ID; F8 moves
+      to it and reads it (`codeEditor.diagnostics.atCursor`); ⌘. (Ctrl+.)
+      applies `automations.editor.fixSuggestion` with the closest ID; going
+      to the same problem from the Problems list selects the same span.
+- [ ] `AUTO-F82` · **Under Control flow, set On error to Continue without it,
+      Maximum repeats to 3 on a node with Repeat until, and an Else of
+      target** → **On error** (`automations.editor.fields.onError`) offers
+      `automations.editor.fields.onErrorStop` and
+      `automations.editor.fields.onErrorContinue`; **Else of** offers only
+      nodes with a condition, plus **None**
+      (`automations.editor.fields.elseOfNone`); 25 in **Maximum repeats** is
+      refused with `automations.editor.fields.maxRepeatsRange` and changes
+      nothing; each valid setting is in the saved version's Source.
+- [ ] `AUTO-F83` · **Open a node's Shape tab** → **Receives**, **Returns** with
+      where the shape comes from (`automations.editor.shape.origin.*`) and
+      **Read by** (`automations.editor.shape.readBy`), whose buttons open each
+      reader; **Show as TypeScript** (`schemaTree.asTypeScript`) shows the
+      same shape as a type.
+- [ ] `AUTO-F84` · **Select Start and edit its Input schema; select End and edit
+      its Output; save** → Start's inspector (`automations.editor.start.title`)
+      shows the trigger rows with **Change in General**
+      (`automations.editor.start.editTrigger`), the input fields as a tree and
+      **Input schema** (`automations.detail.runInput.schema`); End's
+      (`automations.editor.end.title`) shows **How a run ends** with each
+      halting node as a button, and **Output**
+      (`automations.editor.fields.output`); both edits are in the new version;
+      a problem in either opens there from the Problems list; `?node=__start`
+      and `?node=__end` open them from a link.
+- [ ] `AUTO-F85` · **Switch to Source** (`automations.canvas.view.source`) → the
+      whole document as highlighted YAML with line numbers, folding and
+      search (⌘F); **Copy YAML** (`automations.source.copy`) copies it and its
+      icon turns into a check for two seconds; **Download YAML**
+      (`automations.source.download`) saves `<name>-v<n>.yml`, with `-draft`
+      while a draft is open; `automations.source.readOnlyHint` stands under
+      the toolbar; a problem in `tests` goes to its line from the Problems
+      list.
+- [ ] `AUTO-F86` · **Switch to List** (`automations.canvas.view.list`) → the
+      nodes in run order, each with what it reads (`flow.list.reads`) and its
+      condition folded in as `flow.relation.onlyIf`; Enter opens a node; the
+      view stays in the URL as `?view=list` across a reload.
+- [ ] `AUTO-F87` · **Find Edit with your coding agent**
+      (`automations.codingAgent.button`) → it is the last button at the
+      canvas's top right in Canvas, List and Source, and the primary action of
+      a version with no nodes (`automations.canvas.empty.title`); its dialog
+      shows **Name of this automation** (`automations.codingAgent.nameLabel`)
+      to copy, **Set up MCP** (`automations.codingAgent.setUp`) opening
+      `/dashboard/{org}/settings/api/mcp`, and **How to connect a coding
+      agent** (`automations.codingAgent.learnMore`) opening the MCP endpoint
+      guide in a new tab.
+- [ ] `AUTO-F88` · **Upload a document whose `ui` block stacks every node at
+      0,0** → it is laid out automatically like any other; after a field edit
+      and **Save version**, Source shows the `ui` block unchanged.
+- [ ] `AUTO-F89` · **Open a failed run** → the failed node is in view, framed in
+      red with its error's first line in its strip; the way the run took to
+      it stands out while other nodes step back; End says
+      `automations.canvas.end.failedAt`; selecting a node opens its inspector
+      on **Last run** (`automations.editor.inspector.tabs.run`).
+- [ ] `AUTO-F90` · **Expand a node's Code field, edit, then go back** →
+      **Expand editor** (`codeEditor.expand`) opens the larger editor; **Back
+      to the field** (`codeEditor.collapse`) returns with the edit in place and
+      the caret where it was.
+- [ ] `AUTO-F91` · **Switch to Deutsch, Français and Deutsch (Schweiz)** →
+      every canvas, paths, Start/End, inspector and Source string is
+      translated; German conditions put the verb last ("… größer als 1.000
+      ist"); French shows « Canevas » with no-break spaces before `:`; Swiss
+      German shows «…» and "grösser".
+- [ ] `AUTO-F93` · **A preset saves in one click** — On a deployed
+      automation with an enabled schedule, open the **General** tab's
+      **Schedule** picker
+      (`automations.trigger.schedule.label`) → the popover lists the presets
+      (every 15 minutes, every hour, and daily, weekday
+      (`recurrence.workweekRange`), weekly and monthly at the schedule's
+      time) with the stored schedule's row checked and its next three runs
+      under **Next runs** (`recurrence.nextRuns`). Choose **Every hour** → the
+      popover closes, the picker reads Every hour, the **General** tab's
+      unsaved dot lights and the list below reads
+      `automations.trigger.nextRuns.titleUnsaved`; **Save**
+      (`common.actions.save`) → after reload the picker reads Every hour and
+      its row is checked. Opening the picker and pressing Escape changes
+      nothing.
+- [ ] `AUTO-F94` · **Times of day are added, deduplicated and sorted** — In
+      the picker, choose **Custom times** (`recurrence.customTimes`), **Week**
+      (`recurrence.editor.units.weekly`) on Mo–Fr and 09:00 under **At**
+      (`recurrence.editor.at`); **Add time** (`recurrence.editor.addTime`) →
+      a row one hour after the last (10:00) appears with focus in it; type
+      17:30, add another and type 09:00 → that row says
+      `recurrence.editor.duplicateTime`; remove it with its **Remove** button
+      (`recurrence.editor.removeTime`, naming the time). Add rows until there
+      are twelve → **Add time** is disabled and says
+      `recurrence.editor.maxTimes`. Remove back to 17:30 and 09:00 and
+      **Save** in the popover → the picker reads every weekday at 9:00 AM and
+      5:30 PM, in that order; after the tab's **Save** and a reload, Custom
+      times reopens with the same two times.
+- [ ] `AUTO-F95` · **An interval keeps to its hours** — Choose **Custom
+      interval** (`recurrence.customInterval`), every 15 minutes on Mo–Fr,
+      and turn on **Only between** (`recurrence.editor.onlyBetween`) from
+      08:00 until 18:00 → the line under the hours reads
+      `recurrence.editor.windowHint.sameDay` with 8:00 AM and 5:45 PM. From
+      22:00 until 06:00 → `recurrence.editor.windowHint.overnight`. The same
+      start and end → `recurrence.editor.windowHint.allDay`. Every 6 hours
+      from 08:00 until 11:00 → `recurrence.editor.windowHint.none`, and the
+      popover's **Save** is disabled with that reason; start at 06:00 instead
+      → `recurrence.editor.windowHint.once` and it saves.
+- [ ] `AUTO-F96` · **A stored cron keeps its meaning** — Switch **Schedule
+      format** to **Cron (advanced)** (`automations.trigger.schedule.formatCron`),
+      enter `0 7 * * *`, **Save** and reload → the schedule opens in
+      **Repeat** reading daily at 7:00 AM, with
+      `automations.trigger.schedule.savedAsCron` naming `0 7 * * *`. Turn
+      **Enabled** on, save and reload → the note still names the same
+      expression. Change the time to 07:30, save and reload → the note is
+      gone. Store `30 8 1 * 1` the same way → after reload it opens in
+      **Cron (advanced)** as typed; switching to **Repeat** shows
+      `automations.trigger.schedule.cronNotConvertible`, and switching back
+      shows the expression unchanged. In **Repeat**, a schedule at 9:00 and
+      17:30 switched to Cron reads `automations.trigger.schedule.repeatNoCron`.
+- [ ] `AUTO-F97` · **Next runs in the schedule's zone and across a clock
+      change** — With the computer's time zone set to America/New_York, set
+      **Timezone** (`automations.trigger.timezoneLabel`) to `Europe/Zurich`
+      and a Custom times schedule of **Year** on 28 March at 02:30 → **Next
+      runs** lists 28 March 2027 marked **Clock change**
+      (`recurrence.occurrences.clockChange`) with
+      `recurrence.occurrences.shiftedForward` (it starts at 3:30 AM), and
+      each run also in your own time
+      (`recurrence.occurrences.localOtherDay` or
+      `recurrence.occurrences.local`). On 25 October at 02:30 the 2026 run
+      reads `recurrence.occurrences.repeatedHour`. Set **Timezone** back to
+      your own zone (`automations.trigger.timezoneYours`) → the second time
+      is gone. (Past those dates, use the next last Sunday of March and of
+      October.)
+- [ ] `AUTO-F98` · **A skipped start says why and how to fix it** — Give an
+      automation an enabled every-minute schedule (**Custom interval**, every
+      minute) and reload a minute after each step: with no version deployed
+      → the **Trigger** section reads
+      `automations.trigger.skip.notDeployed.title` with **Open the editor**
+      (`automations.trigger.skip.openEditor`). Deploy a version whose
+      `inputs` require `owner` → `automations.trigger.skip.inputRefused.title`
+      naming that version, with **Add the missing field**
+      (`automations.trigger.fixedInput.fillMissing`) and **Open the editor**.
+      Each notice's **Technical details**
+      (`automations.trigger.skip.technicalDetails`) is closed at first and
+      shows the code in English. Add the field and **Save** → once the next
+      run starts, the notice is gone and the line reads
+      `automations.trigger.health.lastRun` with the run's state and **View
+      run** (`automations.trigger.failures.viewRun`). Then switch the trigger
+      to **Platform event** › **Contact created**, install the automation in
+      one project only, archive that project and create a contact →
+      `automations.trigger.skip.projectRefused.title`, saying an event
+      arrived and its project is archived, whose **Edit the projects**
+      (`automations.trigger.skip.editProjects`) moves focus to **Projects**.
+- [ ] `AUTO-F99` · **Run now starts what the trigger would** — On a deployed
+      automation with a saved schedule, **Run now**
+      (`automations.trigger.runNow.label`, beside **This run receives**,
+      `automations.trigger.input.title`) → a confirmation
+      (`automations.trigger.runNow.body`) shows the input with
+      `"trigger": "schedule"` and `firedAt`; **Start run**
+      (`automations.trigger.runNow.confirm`) → under the button
+      `automations.trigger.runNow.started` with **View run**, which opens a
+      live run of the deployed version; the trigger's last-run line and
+      **Next runs** do not change. On a webhook or event trigger, **Run now**
+      opens the run dialog with the sample `payload` to edit. Edit the
+      trigger without saving → **Run now** is disabled and says
+      `automations.trigger.runNow.unsaved`; with no deployed version it says
+      `automations.detail.runLiveNeedsDeploy`.
+- [ ] `AUTO-F100` · **A webhook answers on each project's URL** — Install an
+      automation in two projects, open its General tab inside the second one
+      (`/dashboard/{org}/projects/{projectId}/automations/{slug}/general`),
+      choose **Webhook** and **Save** → `automations.trigger.tokenTitle` lists
+      two copyable URLs, labelled with the project names, this project's
+      first, each ending in `/api/projects/<project id>/automations/webhook/`
+      and the token; **Send a test request**
+      (`automations.trigger.webhook.sampleTitle`) holds a curl command with
+      this project's full URL and an `Idempotency-Key`. Reload → **Project
+      URLs** (`automations.trigger.webhook.projectUrls`) lists both with the
+      token masked, `automations.trigger.webhook.tokenHiddenHint` and
+      `automations.trigger.webhook.orgUnused`; the curl command now reads
+      `$TALE_WEBHOOK_URL`, and the token appears nowhere on the page. An
+      automation installed in no project shows one **Webhook endpoint**
+      address under `/api/automations/webhook/`.
+- [ ] `AUTO-F101` · **Recent deliveries** — With the webhook of `AUTO-F100`
+      deployed and on, **Recent deliveries**
+      (`automations.trigger.webhook.deliveries.title`) reads
+      `automations.trigger.webhook.deliveries.empty`. Send the test request
+      with `Idempotency-Key: a1` and reload → one row with its time,
+      `automations.trigger.webhook.deliveries.byHeader` naming
+      `idempotency-key`, the run's state and **View run**. Send it again →
+      the answer names the same run and no row is added. Send a body with no
+      id header and reload → its row reads
+      `automations.trigger.webhook.deliveries.byBody`, which is gone two
+      minutes later. A request to a wrong token answers 404 and adds no row
+      (`automations.trigger.webhook.deliveries.refusedNote`). Block the
+      read in DevTools and reload →
+      `automations.trigger.webhook.deliveries.loadFailed` with **Try again**
+      (`automations.trigger.retry`); unblock and press it → the list returns
+      with focus on its heading.
+- [ ] `AUTO-F102` · **Events read as words** — Choose **Platform event** →
+      **Event name** (`automations.trigger.eventLabel`) lists the events
+      under Tasks, Comments, Conversations, Contacts and Projects
+      (`automations.trigger.events.group.*`), each with its name, its id
+      (such as task.created) and one sentence of when it is raised; typing
+      `status_changed` in the search (`automations.trigger.events.search`)
+      finds **Task status changed**, and `xyz` reads
+      `automations.trigger.events.empty`. Pick it → its sentence stays under
+      the field, with `automations.trigger.events.scopeOrg` (installed in no
+      project) or `automations.trigger.events.scopeProjects` naming the
+      saved projects, and `automations.trigger.events.loopBounded`; **This
+      run receives** shows `"trigger": "event"`, the event's id and a sample
+      `payload`, with `automations.trigger.input.event`. **Save** and reload
+      → the same event is picked.
+- [ ] `AUTO-F103` · **Missed runs follow the setting** — **Missed runs**
+      (`automations.trigger.catchUp.label`) reads
+      `automations.trigger.catchUp.latest` with
+      `automations.trigger.catchUp.latestHint`; choose
+      `automations.trigger.catchUp.skip` → the hint reads
+      `automations.trigger.catchUp.skipHint`, and **Save** + reload keep it.
+      On a deployed, enabled schedule due in two minutes under **Skip
+      them**, stop the backend before the due time and start it 12 minutes
+      after → no run starts for it, and the **Trigger** section reads
+      `automations.trigger.skip.missed.title` (1 run) with the time and
+      `automations.trigger.skip.missed.policySkip`. With the default, the
+      same outage starts one run for the due time as soon as the backend is
+      back, and no notice says a run was missed. An every-minute schedule
+      on the default, stopped for three minutes → one run starts for the
+      latest minute and the notice counts the earlier ones with
+      `automations.trigger.skip.missed.policyLatest`.
+- [ ] `AUTO-F104` · **The fixed input adds the missing fields** — Deploy a
+      version whose `inputs` require `owner` (a string) and `limit` (an
+      integer), with a saved schedule and no fixed input → **This run
+      receives** warns `automations.trigger.input.refusedTitle` naming the
+      version and both fields; **Fixed input**
+      (`automations.trigger.fixedInput.label`) is already open with **Add
+      the 2 missing fields** (`automations.trigger.fixedInput.fillMissing`).
+      Click it → the field holds `"owner": ""` and `"limit": 0` with the
+      caret inside the first; type `acme` and **Save** →
+      `automations.trigger.input.accepted` names the version, and after
+      reload the field and the input both show `owner` and `limit` beside
+      `trigger` and `firedAt`. Enter `{"trigger": "x"}` →
+      `automations.trigger.issues.input.reservedKey` under the field and
+      **Save** stays disabled; `[1]` →
+      `automations.trigger.issues.input.notObject`; `{` →
+      `automations.trigger.fixedInput.notJson`.
+- [ ] `AUTO-F105` · **A deploy offers to turn the trigger on** — On an
+      automation whose saved schedule is off, **Deploy** a saved version
+      (`automations.detail.deployVersion`) → a notice reads
+      `automations.trigger.deployNotice.title` with focus on it and **Turn
+      on the trigger** (`automations.trigger.deployNotice.turnOn`); press it
+      → the notice reads `automations.trigger.deployNotice.turnedOn` and
+      keeps the focus, and the General tab shows **Enabled** on with the
+      schedule unchanged. Deploy the built-in GitHub triage pack's version
+      from its editor → the notice offers **Review the trigger**
+      (`automations.trigger.deployNotice.review`) instead, which opens the
+      General tab with the **Trigger** section in view below the tab strip.
+      Upload a pack with a schedule and choose **Deploy**
+      (`automations.upload.deployNow`) → the dialog stays open on the same
+      notice. Block the trigger write in DevTools and press **Turn on the
+      trigger** → `automations.trigger.deployNotice.turnOnFailed` beside the
+      button, in words.
+- [ ] `AUTO-F106` · **Open a failed run** → a card titled
+      `automationRuns.failure.title` names the step it failed at and says,
+      in words, what the failure means, its concrete cause and the fix; the
+      engine's English sits under **Technical details**; **Show step**
+      (`automationRuns.failure.showStep`) selects the step on the canvas and
+      **Show in editor** (`automationRuns.failure.showInEditor`) opens the
+      editor on the run's version with the step selected.
+- [ ] `AUTO-F107` · **Retry from the failed step**
+      (`automationRuns.failure.retry`) → the dialog
+      `automationRuns.replay.from.titleRetry` lists what it reuses and what
+      runs again; on a live run whose steps write, it warns
+      `automationRuns.replay.writes.live` and focuses **Cancel**; confirming
+      opens the new run, whose header says `automationRuns.lineage.from` with
+      **Open run** and **Compare with it** (`automationRuns.lineage.compare`).
+- [ ] `AUTO-F108` · **Run again** (`automationRuns.again.button`) on a test
+      run → a new run starts at once and opens. On a live run that wrote,
+      it first asks `automationRuns.again.liveConfirm.title` and names the
+      services; the menu (`automationRuns.again.menu`) offers
+      `automationRuns.again.edit`, `automationRuns.again.latest` when a newer
+      version exists, `automationRuns.again.live` when another version is
+      live, and copies the run ID and link with a toast.
+- [ ] `AUTO-F109` · **Edit input and run…** → the run dialog opens with the
+      run's input and `automationRuns.again.editScope`; changing a field
+      starts a run with it; confirming unchanged runs the run again.
+- [ ] `AUTO-F110` · **Play a run back** → the canvas opens on the run's end
+      with the bar `flow.playback.label` below it; **Previous event** and
+      **Next event** step through it, **Play** plays it at the chosen speed
+      with the run's real elapsed time; a skipped step says
+      `automationRuns.playback.reason.when` and a waiting one
+      `automationRuns.playback.wait.approval`; a running run follows its end
+      until scrubbed, then offers `flow.playback.followLive`.
+- [ ] `AUTO-F111` · **Select a skipped step on a run** → **Last run** says
+      `automationRuns.conditions.skippedWhen`; the
+      `automationRuns.conditions.onlyIf` card reads the condition with the
+      values it read ("amount of the run input (250) is not greater than
+      1,000") and **No**; a condition joined with `&&` lists each part with
+      **Yes**, **No** or `automationRuns.conditions.verdict.notChecked`.
+- [ ] `AUTO-F112` · **Compare a replay with its run**
+      (`automationRuns.lineage.compare`) → `automationRuns.compare.title`
+      shows both runs, `automationRuns.compare.differs.title` in sentences
+      and every step of each in `automationRuns.compare.table.label`;
+      **Swap A and B** (`automationRuns.compare.swap`) swaps them in the URL.
+- [ ] `AUTO-F113` · **Switch to Deutsch, Français and Deutsch (Schweiz) on a
+      failed run, its retry dialog, its playback and a comparison** → every
+      sentence is translated; German conditions put the verb last ("…
+      nicht größer als 1.000 ist"); Swiss German shows «Für jedes» and
+      "grösser"; French puts a no-break space before `:`.
+- [ ] `AUTO-F114` · **Select a step of a finished run** → **Last run** lists
+      `automationRuns.data.reads` in words with each value read ("issues of
+      Open issues: 12 items"), then `automationRuns.data.received` and
+      `automationRuns.data.returned`; a value with a secret says
+      `automationRuns.data.redacted` and never shows it.
+- [ ] `AUTO-F115` · **Select a step that ran once per item, with a failed
+      item** → its items list says `automationRuns.items.failedCount`; each
+      row shows how it ended and a failed one why;
+      `automationRuns.items.failedOnly` keeps the failed ones; picking a row
+      shows that item's data below.
+- [ ] `AUTO-F116` · **Open the Runs tab of an automation with failed and
+      successful runs** → `automationRuns.list.caption` lists them newest
+      first with status, start, result (a failure's title, a waiting run's
+      reason), version, mode and starter; scrolling loads older runs;
+      **Filter** narrows by `automationRuns.list.filters.status` and mode,
+      and says `automationRuns.list.noMatch` when nothing fits; selecting two
+      rows enables `automationRuns.list.compare`, which opens their
+      comparison, and a row opens its run.
+- [ ] `AUTO-F117` · **On a finished run, choose `automationRuns.view.steps`**
+      → the canvas gives way to the run's steps in time order, each with how
+      long it worked (none for a skipped step) and a bar for when, each
+      condition with its decision; the playback bar stays, and a run of under
+      a minute reads its clock in seconds or milliseconds; choosing a step
+      opens it in the inspector and moves the clock to its start;
+      `automationRuns.view.chart` shows the canvas at that moment.
+- [ ] `AUTO-F118` · **Select a step that returned an object or a list** →
+      Received and Returned read as trees that open with the arrow keys;
+      **Shape** shows the fields and their kinds for both at once; copy puts
+      the JSON on the clipboard, full screen opens it large, and a value over
+      8 KB offers a download; for a transform whose input and output are both
+      objects, `automationRuns.data.changes` lists what it added, removed
+      and changed.
+- [ ] `AUTO-F119` · **Compare two runs whose input differs** →
+      `automationRuns.compare.diff.input` shows A and B side by side (a list
+      on a narrow window) with each changed field marked; when the outputs
+      differ too, `automationRuns.compare.diff.output` appears above it; two
+      runs with the same input show neither. `automationRuns.compare.canvas`
+      draws both runs on B's version: each strip reads "A … · B …", the
+      step where they part is ringed.
+- [ ] `AUTO-F120` · **In `automationRuns.view.steps`, open a step that ran
+      once per item** → `flow.timeline.loadingItems` shows while its items
+      are read, then each item joins under it with how it ended and how long
+      it worked (past 20, `flow.timeline.showAll`); choosing one opens it in
+      the inspector with that item picked in its list, and moves the clock
+      to its start. The URL now carries `?view=steps`, the step, the item and
+      `t` (where the clock rests): a reload or the same link in a new tab
+      opens the same view, step, item and moment; `automationRuns.view.chart`
+      takes `view` out of the URL, and playing on to the end takes `t`.
+- [ ] `AUTO-F121` · **Run live a deployed automation whose `agent` node
+      has `input: { customer: '{{ input.customer }}', apiKey: 'k-123' }`
+      and the prompt "Name the customer in your input file", started with
+      `{ customer: 'Ada' }`** → the agent's reply names Ada, and its
+      **Agent log** (`automations.runs.agentLog.title`) shows it reading
+      `/agent/workspace/input.json`; select the step → its
+      `automationRuns.data.received` holds the `input` beside the prompt,
+      with `apiKey` shown as `automationRuns.data.redacted`. A **Test run**
+      of the same version receives the same `input`. Give the node an
+      input over 1 MiB (a transform returning `'x'.repeat(1100000)`) and
+      run live again → the run fails within seconds and the step's error
+      reads "staging input files failed: workspace/input.json (too_large)"
+      — env-gated: mark **ENVIRONMENT** without a runnable harness and a
+      model credential.
 
 ## Boundary & error tests
 
@@ -798,9 +1291,11 @@ output:
       disabled with reason `automations.detail.runLiveNeedsDeploy`; no dialog, no
       run row appears.
 - [ ] `AUTO-B6` · **Invalid JSON in a node** — In the inspector, type the
-      text `{ not json` into the **Input** field → Notice
-      `automations.editor.invalidJson`; the node is NOT changed (no dirty state
-      from the invalid text; Save version keeps the last valid document)
+      text `{ not json` into the **Input** code field → the field says
+      `automations.editor.invalidJson` and the editor marks where the JSON
+      breaks (`codeEditor.syntax.json`); the node is NOT changed (no dirty
+      state from the invalid text; Save version keeps the last valid
+      document), and the text stays as typed
 - [ ] `AUTO-B7` · **Two tabs editing the same automation** — Open the same
       automation's workbench in tabs A and B (both on the latest version). In
       B, edit a node and leave it unsaved. In A, edit another node → **Save**
@@ -892,6 +1387,29 @@ output:
       answers instead of the editor and the network log shows no validate
       request; posting a document to the validate route with that session
       answers 403 and saves nothing.
+- [ ] `AUTO-B17` · **In Input, type `{"a":1}` one character at a time, then
+      replace it with `1`** → the caret never jumps while typing; `1` shows
+      `automations.editor.jsonMustBeObject` under the field and the node keeps
+      `{"a":1}`.
+- [ ] `AUTO-B18` · **Take the network offline and change a reference** →
+      Start, End, conditions, frames and the paths list still update; the
+      Shape tab says `automations.editor.shape.unavailable`; **Save** works
+      again once the network is back.
+- [ ] `AUTO-B19` · **Edit a field of a connector node that has a `credential`,
+      then save** → Source shows the `credential` key unchanged in the new
+      version, and so does every key the inspector has no field for.
+- [ ] `AUTO-B20` · **Upload an automation with 40 nodes and 13 conditions** →
+      it lays out in about a second, typing in a prompt never stutters, and
+      the paths list says `automations.paths.truncated`.
+- [ ] `AUTO-B21` · **Retry a test run from a step, and from a step of a
+      version that changed** → a test run's retry offers only a test run
+      (`automationRuns.replay.mode.mockStaysMock`); on a version that changed
+      a reused step the dialog explains
+      `automationRuns.replay.refusal.REPLAY_GRAPH_CHANGED.title` and offers
+      nothing to start.
+- [ ] `AUTO-B22` · **Open a comparison of a run with itself, and with a run
+      of another automation** → `automationRuns.compare.same`, then
+      `automationRuns.compare.notFound`; neither shows a table.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -925,11 +1443,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
 
 ## Accessibility (WCAG 2.1 AA)
 
-- [ ] `AUTO-A1` · **Canvas semantics** → The canvas is a labelled region
-      (**Automation canvas**, `automations.canvas.ariaLabel`); every node box is a
-      real `<button>` that is keyboard reachable and expands/controls the
-      inspector (`aria-expanded` / `aria-controls`). Enter/Space toggles the
-      inspector; Escape closes it (not while typing); **Close**
+- [ ] `AUTO-A1` · **Canvas semantics** → The canvas is a labelled group
+      (**Automation canvas**, `automations.canvas.ariaLabel`) described by
+      `flow.canvas.keyboardHelp`; the chart is one Tab stop with roving focus
+      (`AUTO-A11`), and every box is a real `<button>` that expands/controls
+      the inspector (`aria-expanded` / `aria-controls`). Enter/Space toggles
+      the inspector; Escape closes it (not while typing); **Close**
       (`common.aria.close`) is in the panel. Selection never needs a mouse.
 - [ ] `AUTO-A2` · **Status not by colour** → Run and node status badges each
       carry an icon AND a word (`automations.runs.status.*`,
@@ -978,6 +1497,57 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       `AUTO-F62`, press ⌘S (Ctrl+S) in the Prompt field → the browser's
       "Save page as" dialog does not open, focus moves to **Save** and its
       tooltip says `automations.problems.saveBlocked`; nothing is saved.
+- [ ] `AUTO-A11` · **Keyboard only on the canvas** → one Tab enters the chart
+      at Start; the arrows follow the lines and move along a row; Home and End
+      jump to Start and End; Enter opens the box; Tab leaves to the toolbars;
+      a screen reader hears each box's title, catalog line and what it reads;
+      the paths list works with the arrows, Enter and Escape.
+- [ ] `AUTO-A12` · **Keyboard only in the code editor** → Tab indents; Escape
+      then Tab leaves (`codeEditor.leaveArmed`); the legend chip
+      (`codeEditor.legend.leave`) shows only after keyboard focus; a condition
+      field never traps Tab; Ctrl+Space opens suggestions; the field's problem
+      is read as its description.
+- [ ] `AUTO-A13` · **At 390 px, in a node's sheet** → Escape closes the
+      suggestion list, then arms leaving, then closes the sheet; selecting text
+      never drags the sheet; code text is 16 px, so the page never zooms;
+      suggestions stay inside the sheet.
+- [ ] `AUTO-A14` · **With reduced motion on** → relayouts, refits, the changed
+      ring and the paths panel appear without movement; the caret does not
+      blink.
+- [ ] `AUTO-A15` · **In dark mode, with forced colours, at 200 % zoom, at
+      375 px and on touch** → tokens, lines, labels and squiggles stay
+      readable; toolbars and sheets stay usable; on the run page one finger
+      scrolls the page and two move the chart, with
+      `flow.canvas.touchHint` shown once.
+- [ ] `AUTO-A16` · **With a screen reader on Start, a condition and End** →
+      Start reads its triggers and fields
+      (`automations.canvas.start.description`); the condition reads
+      `flow.gate.name` then `flow.gate.branches`; End reads what it returns
+      and how a run ends.
+- [ ] `AUTO-A17` · **Times of day by keyboard and screen reader** → In
+      **Custom times**, keyboard only and with VoiceOver: Tab reaches each
+      time's hour and minute (and, in English, AM/PM) in turn, named by its
+      row (`recurrence.editor.timeName`) and part (`timeField.hours`,
+      `timeField.minutes`); Up and Down step a part, typing 0 9 3 0 gives
+      09:30, Backspace empties a part (`timeField.empty`), and Enter saves
+      the popover. VoiceOver reads each value as a time, says once that a
+      time was added or removed, and reads `recurrence.editor.duplicateTime`
+      as the duplicate row's description. Escape closes the popover and
+      returns focus to the **Schedule** button.
+- [ ] `AUTO-A18` · **The schedule picker at phone width and 200 % zoom** → At
+      375 px wide and at 200 % zoom, in light and dark: the presets, Custom
+      times with twelve rows, and Custom interval with **Only between** fit
+      the screen without horizontal scrolling, the popover's **Save** and
+      **Cancel** stay reachable, the **Trigger** section and its **Next
+      runs** wrap without horizontal scrolling, and all text keeps AA
+      contrast. With reduced motion on, switching **Repeat** and **Cron
+      (advanced)** and adding a time show no movement.
+- [ ] `AUTO-A19` · **Keyboard and screen reader on a failed run's page** →
+      the failure card is a region named by its title; **Run timeline**
+      (`flow.playback.label`) is reached by Tab and its slider says where it
+      is; the retry dialog and Run again's confirm trap focus and Escape
+      closes them; condition verdicts and compare rows are words, not
+      colours.
 
 ## Performance
 

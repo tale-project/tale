@@ -36,6 +36,22 @@ export interface FieldProps {
   className?: string;
 }
 
+/**
+ * A control that cannot be named by `<label for>` — a code editor's text
+ * is a contenteditable element, not a labelable one — declares
+ * `static fieldLabelling = 'labelledby'`, and `Field` names it with
+ * `aria-labelledby` pointing at its label instead.
+ */
+function namedByLabelledBy(element: unknown): boolean {
+  if (!isValidElement(element)) return false;
+  const type: unknown = element.type;
+  return (
+    (typeof type === 'function' ||
+      (typeof type === 'object' && type !== null)) &&
+    (type as { fieldLabelling?: unknown }).fieldLabelling === 'labelledby'
+  );
+}
+
 export function Field({
   label,
   htmlFor,
@@ -46,6 +62,7 @@ export function Field({
   className,
 }: FieldProps) {
   const baseId = useId();
+  const labelId = label ? `${baseId}-label` : undefined;
   const descriptionId = description ? `${baseId}-description` : undefined;
   const errorId = error ? `${baseId}-error` : undefined;
   const issuesId = fieldIssueDescribedBy(baseId, issues);
@@ -64,9 +81,11 @@ export function Field({
   // props, leaving existing behavior.
   let enhancedChildren: ReactNode = children;
   const onlyChild = Children.count(children) === 1 ? children : null;
+  const labelledBy =
+    labelId !== undefined && namedByLabelledBy(onlyChild) ? labelId : undefined;
   if (
     isValidElement<Record<string, unknown>>(onlyChild) &&
-    (describedBy || invalid)
+    (describedBy || invalid || labelledBy)
   ) {
     const childProps = onlyChild.props;
     const rawDescribedBy = childProps['aria-describedby'];
@@ -78,9 +97,18 @@ export function Field({
     const fallbackInvalid =
       typeof rawInvalid === 'boolean' ? rawInvalid : undefined;
     const rawClassName = childProps['className'];
+    const rawLabelledBy = childProps['aria-labelledby'];
     enhancedChildren = cloneElement(onlyChild, {
       'aria-describedby': merged,
       'aria-invalid': invalid ? true : fallbackInvalid,
+      ...(labelledBy !== undefined && {
+        'aria-labelledby': [
+          typeof rawLabelledBy === 'string' ? rawLabelledBy : undefined,
+          labelledBy,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      }),
       ...(invalid && {
         className: cn(
           typeof rawClassName === 'string' ? rawClassName : undefined,
@@ -98,7 +126,7 @@ export function Field({
       className={className}
       label={
         label ? (
-          <Label htmlFor={htmlFor}>
+          <Label id={labelId} htmlFor={htmlFor}>
             {label}
             {null}
           </Label>

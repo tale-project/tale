@@ -1,6 +1,7 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import {
   managedAgentInstructionsSchema,
+  managedAgentModelSchema,
   managedAgentToolsSchema,
   managedProjectInstructionsSchema,
 } from '@tale/shared/schemas/managed-configuration';
@@ -33,17 +34,19 @@ import {
   loadProjectOrThrow,
   type ProjectAuthContext,
   readAgentInstructionsConfiguration,
+  readAgentModelConfiguration,
   readAgentToolsConfiguration,
   readProjectInstructionsConfiguration,
   updateAgentInstructionsConfiguration,
+  updateAgentModelConfiguration,
   updateAgentToolsConfiguration,
   updateProjectInstructions,
 } from './service.ts';
 
 /**
- * A project's standing instructions and its agents' instructions and tools
- * as settings kinds over MCP (`project-instructions`, `agent-instructions`,
- * `agent-tools`): read and changed through the writers a declaration
+ * A project's standing instructions and its agents' instructions, tools and
+ * model as settings kinds over MCP (`project-instructions`,
+ * `agent-instructions`, `agent-tools`, `agent-model`): read and changed through the writers a declaration
  * applied by the CLI goes through, behind the project's own access rules —
  * reading takes access to the project, changing takes its editor role on a
  * project that is not archived, and an agent Tale manages changes in Tale
@@ -150,7 +153,11 @@ async function assertAgentEditable(
 }
 
 interface ManagedKind {
-  readonly kind: 'project-instructions' | 'agent-instructions' | 'agent-tools';
+  readonly kind:
+    | 'project-instructions'
+    | 'agent-instructions'
+    | 'agent-tools'
+    | 'agent-model';
   /** The config fields that name the resource, in id order. */
   readonly idFields: readonly string[];
   readonly idForm: string;
@@ -288,6 +295,9 @@ const readAgentInstructions: ManagedKind['read'] = (
 const readAgentTools: ManagedKind['read'] = (sql, auth, [projectId, agentId]) =>
   readAgentToolsConfiguration(sql, auth, projectId ?? '', agentId ?? '');
 
+const readAgentModel: ManagedKind['read'] = (sql, auth, [projectId, agentId]) =>
+  readAgentModelConfiguration(sql, auth, projectId ?? '', agentId ?? '');
+
 const gateAgent: ManagedKind['gate'] = (sql, auth, [projectId, agentId]) =>
   assertAgentEditable(sql, auth, projectId ?? '', agentId ?? '');
 
@@ -361,4 +371,22 @@ export const agentToolsSettings = managedKind({
       expectedHash,
     ),
   listPage: agentListPage(readAgentTools),
+});
+
+export const agentModelSettings = managedKind({
+  kind: 'agent-model',
+  idFields: ['projectId', 'agentId'],
+  idForm: '<projectId>/<agentId>',
+  what: "the agent's model",
+  schema: managedAgentModelSchema,
+  read: readAgentModel,
+  gate: gateAgent,
+  write: (tx, auth, config, expectedHash) =>
+    updateAgentModelConfiguration(
+      tx,
+      auth,
+      managedAgentModelSchema.parse(config),
+      expectedHash,
+    ),
+  listPage: agentListPage(readAgentModel),
 });

@@ -9,7 +9,7 @@ import {
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
   MembershipError,
-  requireOrganizationMember,
+  requireOrganizationMembership,
   type OrganizationMember,
 } from './membership.ts';
 import type { AuthEnv } from './session.ts';
@@ -53,7 +53,7 @@ export function requireOrgMember<E extends OrgEnv>(
       );
     }
     try {
-      const member = await requireOrganizationMember(
+      const { member, organizationIds } = await requireOrganizationMembership(
         sql,
         orgId,
         c.get('sessionBundle').user.id,
@@ -92,6 +92,7 @@ export function requireOrgMember<E extends OrgEnv>(
       const enforcement = await evaluateTwoFactorEnforcement(
         sql,
         c.get('sessionBundle').user.id,
+        { organizationIds },
       );
       if (enforcement.decision === 'blocked') {
         return c.json(

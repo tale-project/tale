@@ -4,7 +4,6 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useViewportVisibility } from '../hooks/use-viewport-visibility';
 import { useT } from '../i18n/client';
 import { cn } from '../lib/cn';
-import { useTheme } from '../theme';
 import { highlightCode, peekHighlightedCode } from './shiki';
 
 const LINE_NUMBER_THRESHOLD = 3;
@@ -59,7 +58,6 @@ export const HighlightedCode = memo(function HighlightedCode({
   className,
 }: HighlightedCodeProps) {
   const { t } = useT('markdownCopy');
-  const { resolvedTheme } = useTheme();
   const { ref, isVisible } = useViewportVisibility<HTMLDivElement>();
   const [copied, setCopied] = useState(false);
 
@@ -72,19 +70,19 @@ export const HighlightedCode = memo(function HighlightedCode({
     () => (code.endsWith('\n') ? code.slice(0, -1) : code),
     [code],
   );
-  // A snippet highlighted before shows highlighted from the first frame.
+  // A snippet highlighted before shows highlighted from the first frame. The
+  // HTML colours through the `--code-*` variables, so a theme switch repaints
+  // it without highlighting again.
   const [highlighted, setHighlighted] = useState<{
     code: string;
     language: string | undefined;
-    theme: string;
     html: string;
   } | null>(() => {
-    const known = peekHighlightedCode(normalisedCode, language, resolvedTheme);
+    const known = peekHighlightedCode(normalisedCode, language);
     if (known === null) return null;
     return {
       code: normalisedCode,
       language,
-      theme: resolvedTheme,
       html:
         known.language === 'diff'
           ? applyDiffLineBackgrounds(known.html)
@@ -96,40 +94,34 @@ export const HighlightedCode = memo(function HighlightedCode({
     if (!isVisible) return undefined;
     if (
       highlighted?.code === normalisedCode &&
-      highlighted.language === language &&
-      highlighted.theme === resolvedTheme
+      highlighted.language === language
     )
       return undefined;
     let cancelled = false;
-    void highlightCode(normalisedCode, language, resolvedTheme).then(
-      (result) => {
-        if (cancelled) return;
-        if (!result) {
-          // Oversized input or highlighter init failure — drop the cached
-          // html so the plain `<pre>` fallback renders the new source.
-          setHighlighted(null);
-          return;
-        }
-        setHighlighted({
-          code: normalisedCode,
-          language,
-          theme: resolvedTheme,
-          html:
-            result.language === 'diff'
-              ? applyDiffLineBackgrounds(result.html)
-              : result.html,
-        });
-      },
-    );
+    void highlightCode(normalisedCode, language).then((result) => {
+      if (cancelled) return;
+      if (!result) {
+        // Oversized input or highlighter init failure — drop the cached
+        // html so the plain `<pre>` fallback renders the new source.
+        setHighlighted(null);
+        return;
+      }
+      setHighlighted({
+        code: normalisedCode,
+        language,
+        html:
+          result.language === 'diff'
+            ? applyDiffLineBackgrounds(result.html)
+            : result.html,
+      });
+    });
     return () => {
       cancelled = true;
     };
-  }, [normalisedCode, language, resolvedTheme, isVisible, highlighted]);
+  }, [normalisedCode, language, isVisible, highlighted]);
 
   const html =
-    highlighted?.code === normalisedCode &&
-    highlighted.language === language &&
-    highlighted.theme === resolvedTheme
+    highlighted?.code === normalisedCode && highlighted.language === language
       ? highlighted.html
       : null;
 

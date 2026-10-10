@@ -1,8 +1,8 @@
 // @vitest-environment node
 
 /**
- * A project's instructions and its agents' instructions and tools over
- * MCP. The writers are the managed lane's own, held against a real schema
+ * A project's instructions and its agents' instructions, tools and model
+ * over MCP. The writers are the managed lane's own, held against a real schema
  * by `managed-instructions.integration.ts` and `managed-tools.integration.ts`;
  * here they are an in-memory store with the same hash and refusals, so
  * what the kinds add — ids, listing, plan gates and compare-and-set — is
@@ -20,7 +20,14 @@ const { agents, projects } = vi.hoisted(() => ({
   >(),
   agents: new Map<
     string,
-    { instructions: string; tools: string[]; managed: boolean }
+    {
+      instructions: string;
+      tools: string[];
+      managed: boolean;
+      harness: string;
+      model: string;
+      modelProvider: string;
+    }
   >(),
 }));
 
@@ -140,6 +147,15 @@ vi.mock('./service.ts', async (original) => {
         agentId,
         tools: agentOf(projectId, agentId).tools,
       }),
+    readAgentModelConfiguration: async (
+      _sql: unknown,
+      _auth: unknown,
+      projectId: string,
+      agentId: string,
+    ) => {
+      const { harness, model, modelProvider } = agentOf(projectId, agentId);
+      return snapshot({ projectId, agentId, harness, model, modelProvider });
+    },
     updateProjectInstructions: vi.fn(
       async (
         _tx: unknown,
@@ -197,6 +213,38 @@ vi.mock('./service.ts', async (original) => {
         });
       },
     ),
+    updateAgentModelConfiguration: vi.fn(
+      async (
+        _tx: unknown,
+        _auth: unknown,
+        config: {
+          projectId: string;
+          agentId: string;
+          harness: string;
+          model: string;
+          modelProvider: string;
+        },
+        expected: string,
+      ) => {
+        const entry = agentOf(config.projectId, config.agentId);
+        cas(
+          {
+            projectId: config.projectId,
+            agentId: config.agentId,
+            harness: entry.harness,
+            model: entry.model,
+            modelProvider: entry.modelProvider,
+          },
+          expected,
+        );
+        agents.set(`${config.projectId}/${config.agentId}`, {
+          ...entry,
+          harness: config.harness,
+          model: config.model,
+          modelProvider: config.modelProvider,
+        });
+      },
+    ),
   };
 });
 
@@ -205,9 +253,13 @@ import { applySettings } from '../mcp/settings/apply.ts';
 import { getSettings } from '../mcp/settings/get.ts';
 import { planSettings } from '../mcp/settings/plan.ts';
 import type { SettingsContext } from '../mcp/settings/registry.ts';
-import { updateAgentToolsConfiguration } from './service.ts';
+import {
+  updateAgentModelConfiguration,
+  updateAgentToolsConfiguration,
+} from './service.ts';
 import {
   agentInstructionsSettings,
+  agentModelSettings,
   agentToolsSettings,
   projectInstructionsSettings,
 } from './settings-resource.ts';
@@ -216,6 +268,7 @@ const registry = {
   'project-instructions': projectInstructionsSettings,
   'agent-instructions': agentInstructionsSettings,
   'agent-tools': agentToolsSettings,
+  'agent-model': agentModelSettings,
 };
 
 function contextOf(role: string): SettingsContext {
@@ -253,9 +306,18 @@ function agent(
     instructions: string;
     tools: string[];
     managed: boolean;
+    model: string;
   }> = {},
 ) {
-  agents.set(key, { instructions: '', tools: [], managed: false, ...fields });
+  agents.set(key, {
+    instructions: '',
+    tools: [],
+    managed: false,
+    harness: 'claude-code',
+    model: 'model-a',
+    modelProvider: 'provider-a',
+    ...fields,
+  });
 }
 
 beforeEach(() => {
@@ -462,5 +524,63 @@ describe('changing project settings', () => {
       { projectId: 'p-1', agentId: 'a-1', tools: ['task_find', 'task_get'] },
       hash,
     );
+  });
+
+  it('changes the model an agent runs on through its writer, compare-and-set on the hash read', async () => {
+    project('p-1');
+    agent('p-1/a-1');
+    const before = {
+      projectId: 'p-1',
+      agentId: 'a-1',
+      harness: 'claude-code',
+      model: 'model-a',
+      modelProvider: 'provider-a',
+    };
+    const change = {
+      kind: 'agent-model' as const,
+      op: 'set' as const,
+      config: { ...before, model: 'model-b' },
+    };
+    const plan = await planSettings(contextOf('editor'), registry, [change]);
+    expect(plan.changes[0]).toMatchObject({
+      key: 'agent-model/p-1/a-1',
+      action: 'update',
+      diff: [{ path: '/model', before: 'model-a', after: 'model-b' }],
+    });
+    const answer = await applySettings(
+      contextOf('editor'),
+      registry,
+      [change],
+      { 'agent-model/p-1/a-1': configurationHash(before) },
+    );
+    expect(answer).toMatchObject({
+      applied: [{ action: 'update', hash: configurationHash(change.config) }],
+    });
+    expect(updateAgentModelConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: 'user-editor' }),
+      change.config,
+      configurationHash(before),
+    );
+  });
+
+  it('refuses a model change on an agent Tale manages, before anything is written', async () => {
+    project('p-1');
+    agent('p-1/a-1', { managed: true });
+    const plan = await planSettings(contextOf('editor'), registry, [
+      {
+        kind: 'agent-model',
+        op: 'set',
+        config: {
+          projectId: 'p-1',
+          agentId: 'a-1',
+          harness: 'claude-code',
+          model: 'model-b',
+          modelProvider: 'provider-a',
+        },
+      },
+    ]);
+    expect(plan.changes[0]?.refusal?.code).toBe('PROJECT_AGENT_MANAGED');
+    expect(updateAgentModelConfiguration).not.toHaveBeenCalled();
   });
 });

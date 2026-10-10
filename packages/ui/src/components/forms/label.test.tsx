@@ -44,6 +44,32 @@ describe('Label', () => {
     });
   });
 
+  // A click on a label whose target is not labelable (a code editor's
+  // contenteditable text) still moves focus there.
+  describe('a target that is not labelable', () => {
+    it('takes focus when the label is clicked', async () => {
+      const { user } = render(
+        <>
+          <Label htmlFor="editable">Code</Label>
+          <div id="editable" role="textbox" tabIndex={0} contentEditable />
+        </>,
+      );
+      await user.click(screen.getByText('Code'));
+      expect(screen.getByRole('textbox')).toHaveFocus();
+    });
+
+    it('leaves a labelable target to the browser', async () => {
+      const { user } = render(
+        <>
+          <Label htmlFor="plain">Name</Label>
+          <input id="plain" />
+        </>,
+      );
+      await user.click(screen.getByText('Name'));
+      expect(screen.getByRole('textbox')).toHaveFocus();
+    });
+  });
+
   describe('info tooltip', () => {
     it('renders a keyboard-focusable info button with an aria-label', () => {
       render(<Label info="Use a public domain.">Domain</Label>);

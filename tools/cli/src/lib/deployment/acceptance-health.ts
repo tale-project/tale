@@ -37,16 +37,9 @@ export function servingIdentity(
   return parsed.data;
 }
 
-/** Fixed read-only projection in the captured container. It prints no body,
- * environment or credentials, and needs neither a shell nor writable storage. */
-export function localServingArgs(
-  id: string,
-  service: ServingService,
-): string[] {
-  const endpoint = SERVING_ENDPOINTS[service];
-  const url = `http://127.0.0.1:${endpoint.port}${endpoint.path}`;
+/** Captured loopback HTTP must not inherit the container's external proxy. */
+export function localHttpEnvironmentArgs(): string[] {
   return [
-    'exec',
     ...[
       'HTTP_PROXY',
       'HTTPS_PROXY',
@@ -59,6 +52,20 @@ export function localServingArgs(
     'NO_PROXY=*',
     '--env',
     'no_proxy=*',
+  ];
+}
+
+/** Fixed read-only projection in the captured container. It prints no body,
+ * environment or credentials, and needs neither a shell nor writable storage. */
+export function localServingArgs(
+  id: string,
+  service: ServingService,
+): string[] {
+  const endpoint = SERVING_ENDPOINTS[service];
+  const url = `http://127.0.0.1:${endpoint.port}${endpoint.path}`;
+  return [
+    'exec',
+    ...localHttpEnvironmentArgs(),
     id,
     'bun',
     '--eval',
@@ -90,6 +97,7 @@ export async function acceptanceHealth(
   expected: ServingProcess,
   timeoutMs: number,
   request?: typeof fetch,
+  address?: string,
 ) {
   const endpoint = SERVING_ENDPOINTS[expected.service as ServingService];
   if (!endpoint)
@@ -109,7 +117,7 @@ export async function acceptanceHealth(
           credentials: 'omit',
           headers: { 'Cache-Control': 'no-cache' },
         })
-      : await acceptanceRequest(`${origin}${endpoint.path}`, signal);
+      : await acceptanceRequest(`${origin}${endpoint.path}`, signal, address);
     if (response.status !== 200 || !response.body)
       throw new Error('health status');
     const observed = servingIdentity(

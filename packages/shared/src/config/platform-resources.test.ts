@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { POLICY_SCHEMAS } from '../schemas/governance';
+import { configurationHash } from '../utils/configuration-hash';
 import {
   platformConfigurationSchema,
   resourceConverged,
@@ -289,6 +290,71 @@ describe('the embedding floor in a declaration', () => {
         declare({ ...embedding().config, ...fields }).success,
         JSON.stringify(fields),
       ).toBe(false);
+  });
+
+  test('converges on a schedule declared out of order, in its own zone spelling', () => {
+    // A schedule is declared beside the definition and deployment it runs.
+    const definition = {
+      name: 'reports/weekly',
+      projectId: 'project-a',
+      document: {
+        name: 'reports/weekly',
+        nodes: [],
+        tests: [{ name: 'guard', input: {}, expect: {} }],
+      },
+      settings: null,
+      presentation: null,
+      taskContract: null,
+    };
+    const declared = platformConfigurationSchema.parse({
+      schemaVersion: 1,
+      resources: [
+        { kind: 'automation-definition', config: definition },
+        {
+          kind: 'automation-deployment',
+          config: {
+            name: definition.name,
+            projectId: definition.projectId,
+            definitionSha256: configurationHash(definition),
+          },
+        },
+        {
+          kind: 'automation-schedule',
+          config: {
+            projectId: 'project-a',
+            name: 'reports/weekly',
+            repeat: {
+              frequency: 'weekly',
+              interval: 1,
+              weekdays: [5, 1],
+              times: ['17:00', '09:00'],
+            },
+            startDate: '2026-10-01',
+            timezone: 'utc',
+            enabled: true,
+          },
+        },
+      ],
+    }).resources[2]!;
+    // The readback: the rule in the normal form the platform stores, the
+    // zone as the declaration spells it.
+    const stored = {
+      projectId: 'project-a',
+      name: 'reports/weekly',
+      repeat: {
+        frequency: 'weekly',
+        interval: 1,
+        weekdays: [1, 5],
+        times: ['09:00', '17:00'],
+      },
+      startDate: '2026-10-01',
+      timezone: 'utc',
+      enabled: true,
+    };
+    expect(resourceConverged(declared, stored)).toBe(true);
+    expect(resourceConverged(declared, { ...stored, timezone: 'UTC' })).toBe(
+      false,
+    );
   });
 
   test('converges per kept setting when a declaration states several', () => {

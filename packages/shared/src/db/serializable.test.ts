@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isSerializationFailure,
+  localQueueDepth,
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
   retryQueueKeyOf,
@@ -519,5 +520,108 @@ describe('transactSerializable — nested retry queues, failure paths', () => {
       .filter((s) => s.text.startsWith('SELECT pg_advisory_lock'))
       .map((s) => s.values[1]);
     expect(locks).toEqual(['task-comment:t_1', 'audit-chain:org_1']);
+  });
+});
+
+describe('transactSerializable — the process-local queue', () => {
+  /** A body whose first, unqueued attempt loses at `queueKey`, so its retry
+   * runs queued — the way a write reaches the queue. */
+  function queuedAfterLoss<T>(
+    body: (tx: TransactionSql) => Promise<T>,
+  ): (tx: TransactionSql) => Promise<T> {
+    let calls = 0;
+    return (tx) => {
+      calls += 1;
+      return calls === 1
+        ? Promise.reject(markRetryQueueKey(sqlstateError('40001'), queueKey))
+        : body(tx);
+    };
+  }
+
+  it('holds one connection per hot key: the next queued attempt reserves only once the first is done', async () => {
+    const { runner, reservations } = createQueueRunner([]);
+    let releaseFirst: () => void = () => undefined;
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const first = transactSerializable(
+      runner,
+      queuedAfterLoss(async () => {
+        await firstHeld;
+        return 'first';
+      }),
+      { sleep: noSleep },
+    );
+    const second = transactSerializable(
+      runner,
+      queuedAfterLoss(() => Promise.resolve('second')),
+      { sleep: noSleep },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // The second waits in memory: no connection reserved, none parked on
+    // the database lock.
+    expect(reservations).toHaveLength(1);
+    expect(localQueueDepth(queueKey)).toBe(2);
+    releaseFirst();
+    expect(await first).toBe('first');
+    expect(await second).toBe('second');
+    expect(reservations).toHaveLength(2);
+    expect(reservations.every((r) => r.released() === 1)).toBe(true);
+    expect(localQueueDepth(queueKey)).toBe(0);
+  });
+
+  it('two attempts marked with the same keys in opposite orders both finish', async () => {
+    const { runner } = createQueueRunner([]);
+    const other = 'task-comment:t_9';
+    const lostAt = (keys: string[]) => {
+      let calls = 0;
+      return () => {
+        calls += 1;
+        if (calls > 1) return Promise.resolve('done');
+        let error = sqlstateError('40001');
+        for (const key of [...keys].reverse())
+          error = markRetryQueueKey(error, key);
+        return Promise.reject(error);
+      };
+    };
+    const results = await Promise.race([
+      Promise.all([
+        transactSerializable(runner, lostAt([queueKey, other]), {
+          sleep: noSleep,
+        }),
+        transactSerializable(runner, lostAt([other, queueKey]), {
+          sleep: noSleep,
+        }),
+      ]),
+      new Promise((resolve) => setTimeout(() => resolve('hung'), 2_000)),
+    ]);
+    expect(results).toEqual(['done', 'done']);
+    expect(localQueueDepth(queueKey)).toBe(0);
+    expect(localQueueDepth(other)).toBe(0);
+  });
+
+  it('lets the queue go on after an attempt that failed for good', async () => {
+    const { runner } = createQueueRunner([], {
+      failOn: (text) =>
+        text.startsWith('SELECT boom') ? sqlstateError('23505') : undefined,
+    });
+    await expect(
+      transactSerializable(
+        runner,
+        queuedAfterLoss(async (tx) => {
+          await tx`SELECT boom`;
+          return 'never';
+        }),
+        { sleep: noSleep },
+      ),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect(localQueueDepth(queueKey)).toBe(0);
+    await expect(
+      transactSerializable(
+        runner,
+        queuedAfterLoss(() => Promise.resolve('next')),
+        { sleep: noSleep },
+      ),
+    ).resolves.toBe('next');
   });
 });

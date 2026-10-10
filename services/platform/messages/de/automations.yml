@@ -66,7 +66,6 @@ blank:
   promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
     neue eine Aufgabe anlegen.
   equipmentLabel: Ausrüstung
-  timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
   webhookHint: Die Webhook-URL erscheint genau einmal, direkt nach dem
     Anlegen — kopiere sie, bevor du den Editor öffnest.
   stepWebhook: Kopiere die Webhook-URL — sie wird nur jetzt angezeigt.
@@ -82,6 +81,7 @@ blank:
   submit: Automatisierung erstellen
   submitting: Erstellt …
   initialMessage: Erste Version
+  kindQuestion: 'Wann läuft sie?'
 notFound:
   title: Automatisierung nicht gefunden
   description:
@@ -157,19 +157,12 @@ trigger:
   cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
   cronInvalid: Dieser Cron-Ausdruck ist ungültig.
   cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
-  cronNext: 'Nächster Lauf {at}'
-  paused: Pausiert — es starten keine Läufe
-  notDeployed: 'Startet erst, wenn eine Version bereitgestellt ist · nächster Lauf wäre {at}'
-  cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
-  cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'
-  cronDailyAt: 'Jeden Tag um {time}'
   timezoneLabel: Zeitzone
   timezoneSearch: Zeitzonen suchen
   timezoneEmpty: Keine passende Zeitzone
   eventLabel: Ereignisname
   eventPlaceholder: Ereignis wählen
   enabledLabel: Aktiv
-  lastFired: 'Zuletzt ausgelöst {at}'
   failures:
     pausedTitle: 'Nach wiederholten Fehlern pausiert'
     pausedBody: '{count, plural, one {# Lauf ist} other {# Läufe sind}} nacheinander mit einem Fehler fehlgeschlagen, den ein erneuter Versuch nicht behebt, deshalb hat sich der Zeitplan ausgeschaltet. Behebe den Fehler in der Automatisierung, schalte den Trigger dann wieder ein und speichere.'
@@ -184,12 +177,8 @@ trigger:
   tokenHint: Der Token ist der letzte Teil der URL, erscheint genau einmal
     und liegt nur als Hash gespeichert.
   webhookEndpointLabel: Webhook-Endpunkt
-  webhookHowto: Diese URL gilt für Automatisierungen, die keinem Projekt zugeordnet sind.
-  hasToken: Ein Token ist aktiv — die URL braucht den beim Anlegen einmalig
-    gezeigten Token; rotiere, um eine neue URL zu erzeugen.
   noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
     einmal.
-  webhookProjectHint: Für ein aktives Projekt, in dem die Automatisierung eingerichtet ist, setzt du dessen ID in die folgende URL ein.
   rotate: Token rotieren
   revokeConfirm:
     title: Webhook ersetzen?
@@ -199,31 +188,268 @@ trigger:
     title: Webhook-Token rotieren?
     body: Die aktuelle URL funktioniert nicht mehr, sobald das neue Token erzeugt ist. Kopiere die neue URL und aktualisiere jedes sendende System.
   revokedToast: Die bisherige Webhook-URL wurde widerrufen — Absender, die sie nutzen, bekommen jetzt 404.
+  loadFailed: 'Der Trigger konnte nicht geladen werden.'
+  retry: 'Erneut versuchen'
+  kindHint:
+    schedule: 'Zu den Zeiten, die du wählst.'
+    webhook: 'Wenn ein anderes System eine Anfrage an seine URL sendet.'
+    event: 'Wenn in Tale etwas passiert, etwa eine neue Aufgabe.'
+  schedule:
+    label: 'Zeitplan'
+    description: 'Wann die Automatisierung startet.'
+    format: 'Format des Zeitplans'
+    formatRepeat: 'Wiederholung'
+    formatCron: 'Cron (erweitert)'
+    inZone: 'Zeiten in {zone}'
+    savedAsCron: 'Gespeichert als Cron-Ausdruck {cron}. Änderst du den Zeitplan und speicherst, wird daraus eine Wiederholungsregel.'
+    cronNotConvertible: 'Dieser Cron-Ausdruck lässt sich nicht als Wiederholung darstellen. Speicherst du unter Wiederholung, wird er ersetzt.'
+    repeatNoCron: '„{sentence}“ lässt sich nicht als ein Cron-Ausdruck schreiben. Gib einen ein oder wechsle zurück zu Wiederholung.'
+    cronReadsAs: 'Bedeutet: {sentence}'
+    anchor:
+      daily: 'Gezählt ab {date}.'
+      weekly: 'Gezählt ab der Woche vom {date}.'
+      monthly: 'Gezählt ab {month}.'
+      yearly: 'Gezählt ab {year}.'
+  timezoneYours: 'Deine Zeitzone'
+  catchUp:
+    label: 'Verpasste Läufe'
+    description: 'Wenn Tale zum geplanten Zeitpunkt nicht verfügbar war, etwa während eines Updates.'
+    latest: 'Den letzten nachholen, sobald Tale wieder läuft'
+    skip: 'Auslassen'
+    latestHint: 'Läuft einmal für den letzten verpassten Zeitpunkt, egal wie spät. Frühere verpasste Zeitpunkte werden gezählt, nicht nachgeholt.'
+    skipHint: 'Ein Lauf, der mehr als 10 Minuten zu spät ist, startet nicht und wird als verpasst gezählt.'
+  nextRuns:
+    title: 'Nächste Läufe'
+    titleUnsaved: 'Nächste Läufe (nicht gespeichert)'
+    wouldRun: 'Würde laufen um'
+    paused: 'Pausiert: Schalte „Aktiv“ ein und speichere, damit diese Läufe starten.'
+    notDeployed: 'Es startet nichts, solange keine Version bereitgestellt ist.'
+    unavailable: 'Korrigiere den Zeitplan oben, um die nächsten Läufe zu sehen.'
+  health:
+    lastRun: 'Letzter Lauf {at}'
+    noRunYet: 'Hat noch keinen Lauf gestartet.'
+  skip:
+    technicalDetails: 'Technische Details'
+    openEditor: 'Editor öffnen'
+    editSchedule: 'Zeitplan bearbeiten'
+    editProjects: 'Projekte bearbeiten'
+    alsoMissed: '{count, plural, one {Ein früherer Lauf wurde ebenfalls verpasst.} other {# frühere Läufe wurden ebenfalls verpasst.}}'
+    notDeployed:
+      title: 'Ausgelassen: keine Version bereitgestellt'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber es ist keine Version bereitgestellt, deshalb startete kein Lauf. Stelle im Editor eine getestete Version bereit.'
+    inputRefused:
+      title: 'Ausgelassen: Die Eingabe des Laufs wurde abgelehnt'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber Version {version} lehnte ab, was der Trigger sendet. Passe die Eingaben der Automatisierung oder die feste Eingabe des Triggers an, damit sie zusammenpassen.'
+    projectRefused:
+      title: 'Ausgelassen: Das Projekt kann keine Läufe starten'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber {reason, select, archived {das Projekt ist archiviert} other {das Projekt fehlt oder erlaubt diese Automatisierung nicht mehr}}, deshalb startete kein Lauf. Prüfe die Projekte der Automatisierung.'
+    startRefused:
+      title: 'Ausgelassen: Der Lauf konnte nicht starten'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber der Lauf konnte nicht starten. Die technischen Details nennen den Grund.'
+    unusableSchedule:
+      title: 'Ausgelassen: Der Zeitplan ist nicht lesbar'
+      body: 'Er war am {at} fällig, aber Zeitplan oder Zeitzone waren nicht lesbar. Korrigiere sie und speichere; bis dahin startet nichts.'
+    missed:
+      title: '{count, plural, one {# Lauf wurde verpasst} other {# Läufe wurden verpasst}}'
+      titleCapped: 'Mehr als {count, number} Läufe wurden verpasst'
+      body: '{count, plural, one {Ein Lauf war am {from} fällig, während Tale nicht verfügbar war.} other {Zwischen {from} und {to} waren Läufe fällig, während Tale nicht verfügbar war.}} {policy}'
+      policyLatest: 'Der letzte wurde nachgeholt, als Tale wieder lief.'
+      policySkip: 'Sie wurden ausgelassen, wie unter „Verpasste Läufe“ eingestellt.'
+  input:
+    title: 'Dieser Lauf erhält'
+    copy: 'Eingabe kopieren'
+    firedAt: 'firedAt: der Fälligkeitszeitpunkt in Millisekunden seit 1970 (UTC). Hier {at}.'
+    webhook: 'Dein Request-Body kommt als payload an: JSON bleibt strukturiert, alles andere kommt als Text.'
+    event: 'Die Ereignisdaten kommen als payload an. Sie enthalten IDs; lies den vollständigen Datensatz mit einem Schritt.'
+    accepted: 'Version {version} akzeptiert diese Eingabe.'
+    refusedTitle: 'Version {version} akzeptiert diese Eingabe nicht'
+    refusedBody: 'Ihre Eingaben lehnen ab, was dieser Trigger sendet, also würde jeder Start ausgelassen. Ergänze die fehlenden Felder in der festen Eingabe oder passe die Eingaben im Editor an.'
+  runNow:
+    label: 'Jetzt ausführen'
+    unsaved: 'Speichere zuerst deine Änderungen am Trigger.'
+    body: 'Führt Version {version} live mit der Eingabe unten aus, wie es der Trigger täte — Mails gehen raus, Daten ändern sich. Der Zeitplan bleibt, wie er ist.'
+    confirm: 'Lauf starten'
+    started: 'Lauf gestartet.'
+    failed: 'Der Lauf konnte nicht starten: {error}'
+  webhook:
+    projectUrls: 'Projekt-URLs'
+    orgUnused: 'Diese Automatisierung ist in Projekten eingerichtet und läuft deshalb nur über eine Projekt-URL.'
+    tokenHidden: 'Webhook-URL, Token verborgen'
+    tokenHiddenHint: 'Der Token wurde nur einmal angezeigt, beim Erzeugen. Rotiere ihn, um eine neue URL zu bekommen.'
+    sampleTitle: 'Testanfrage senden'
+    sampleCopy: 'Anfrage kopieren'
+    sampleHint: 'Sende für jedes Ereignis einen neuen Idempotency-Key: Wiederholst du einen innerhalb von 24 Stunden, kommt der erste Lauf zurück.'
+    sampleEnv: 'Lege die URL im sendenden System in TALE_WEBHOOK_URL ab; sie wirkt wie ein Passwort.'
+    deliveries:
+      title: 'Letzte Zustellungen'
+      empty: 'Noch keine Zustellungen. Sende eine Testanfrage, um hier eine zu sehen.'
+      loadFailed: 'Die Zustellungen konnten nicht geladen werden.'
+      byHeader: 'ID aus {header}'
+      byBody: 'Ohne Zustell-ID'
+      refusedNote: 'Abgelehnte Anfragen stehen nicht in der Liste; der Absender sieht den Grund in der Antwort.'
+  events:
+    search: 'Ereignisse suchen'
+    empty: 'Kein passendes Ereignis'
+    scopeOrg: 'Startet bei passenden Ereignissen in allen Projekten und bei Ereignissen, die zu keinem Projekt gehören.'
+    scopeProjects: 'Startet bei passenden Ereignissen in {projects} und bei Ereignissen, die zu keinem Projekt gehören, etwa Kontakten.'
+    loopBounded: 'Ihre eigenen Läufe starten sie nie erneut, und ein Lauf, den ein Ereignis gestartet hat, startet keine weiteren Automatisierungen.'
+    group:
+      tasks: 'Aufgaben'
+      comments: 'Kommentare'
+      conversations: 'Konversationen'
+      contacts: 'Kontakte'
+      projects: 'Projekte'
+    contactCreated:
+      label: 'Kontakt erstellt'
+      description: 'Ein Kontakt wird über die API, die App oder einen Import angelegt.'
+    contactUpdated:
+      label: 'Kontakt geändert'
+      description: 'Die Angaben eines Kontakts ändern sich.'
+    contactDeleted:
+      label: 'Kontakt gelöscht'
+      description: 'Ein Kontakt wird gelöscht.'
+    conversationCreated:
+      label: 'Konversation gestartet'
+      description: 'Eine Konversation öffnet sich in der Inbox: Eine E-Mail trifft ein oder eine externe Konversation wird gespiegelt.'
+    conversationMessageReceived:
+      label: 'Nachricht erhalten'
+      description: 'Eine Nachricht kommt in einer bestehenden Konversation an.'
+    projectCreated:
+      label: 'Projekt erstellt'
+      description: 'Ein Projekt wird erstellt.'
+    taskCreated:
+      label: 'Aufgabe erstellt'
+      description: 'Eine Aufgabe wird auf einem Board, über die API oder durch einen Import erstellt.'
+    taskStatusChanged:
+      label: 'Aufgabenstatus geändert'
+      description: 'Eine Person verschiebt eine Aufgabe in einen anderen Status. Eigene Verschiebungen eines Agenten zählen nicht.'
+    commentCreated:
+      label: 'Kommentar hinzugefügt'
+      description: 'Zu einer Aufgabe wird ein Kommentar geschrieben.'
+    commentMentioned:
+      label: 'In einem Kommentar erwähnt'
+      description: 'Ein Aufgabenkommentar erwähnt jemanden mit @.'
+  deployNotice:
+    title: 'Ihr Trigger ist ausgeschaltet'
+    body: '{kind, select, schedule {Der Zeitplan startet keine Läufe, bis du den Trigger einschaltest.} webhook {Anfragen an seine URL starten keine Läufe, bis du den Trigger einschaltest.} other {Ereignisse starten keine Läufe, bis du den Trigger einschaltest.}}'
+    turnOn: 'Trigger einschalten'
+    review: 'Trigger prüfen'
+    turnedOn: 'Der Trigger ist eingeschaltet.'
+    turnOnFailed: 'Der Trigger konnte nicht eingeschaltet werden: {error}'
+  issues:
+    keyOtherKind: 'Diese Einstellung gehört zu einem anderen Trigger-Typ.'
+    schedule:
+      cronOrRepeat: 'Gib dem Zeitplan entweder eine Wiederholungsregel oder einen Cron-Ausdruck, nicht beides.'
+      cronUnreadable: 'Dieser Cron-Ausdruck ist nicht lesbar.'
+      cronImpossibleDate: 'Dieser Cron-Ausdruck nennt ein Datum, das nie eintritt.'
+      timesRequired: 'Füge mindestens eine Uhrzeit hinzu.'
+      timeFormat: 'Schreibe Uhrzeiten als HH:MM, zum Beispiel 09:30.'
+      timesTooMany: 'Verwende höchstens {max} Uhrzeiten pro Tag.'
+      intervalUnsupported: 'Wähle eines der angebotenen Intervalle.'
+      monthDayImpossible: 'Diesen Tag hat der Monat nie.'
+      windowHoursEqual: 'Beginn und Ende sind gleich. Lass die Uhrzeiten weg, damit es den ganzen Tag läuft.'
+      startDate: 'Das Startdatum ist kein Kalenderdatum.'
+    input:
+      notObject: 'Die feste Eingabe muss ein JSON-Objekt sein.'
+      reservedKey: 'Entferne {keys}: Diese Felder setzt der Trigger selbst.'
+      tooLarge: 'Die feste Eingabe ist größer als 16 KiB.'
+      unstorableText: 'Die feste Eingabe enthält ein Zeichen, das sich nicht speichern lässt: ein NUL-Zeichen oder ein halbes Emoji.'
+    event:
+      required: 'Wähle ein Ereignis.'
+      unknown: 'Dieses Ereignis löst Tale nicht aus.'
+  fixedInput:
+    label: 'Feste Eingabe'
+    description: 'Werte, die dieser Trigger jeder Laufeingabe hinzufügt, als JSON. Die eigenen Felder des Triggers (trigger, firedAt, event, payload) überschreiben sie.'
+    add: 'Feste Eingabe hinzufügen'
+    fillMissing: '{count, plural, one {Fehlendes Feld ergänzen} other {Die # fehlenden Felder ergänzen}}'
+    notJson: 'Das ist kein gültiges JSON.'
+  timezoneInvalid: 'Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).'
 canvas:
   ariaLabel: Canvas der Automatisierung
-  readsFrom: 'Liest {nodes}'
   unpinnedModel: Kein fester Anbieter — der Lauf wählt ihn automatisch.
   empty:
     title: Diese Version hat keine Nodes
-    description:
-      Ein Automatisierungsdokument besteht aus Nodes. Sobald du dem Dokument
-      eine hinzufügst, erscheint sie hier.
+    description: Eine Automatisierung erledigt ihre Arbeit in Nodes. Bitte deinen Coding-Agent, welche hinzuzufügen.
   cycle:
     title: Diese Nodes verweisen im Kreis aufeinander
     description: Gezeigt wird die Reihenfolge, in der die Nodes im Dokument
       stehen – nicht die Reihenfolge, in der sie laufen würden, denn die Engine
       kann keinen Kreis ausführen. Entferne eine der Referenzen, um ihn
       aufzubrechen.
+  view:
+    label: Ansicht
+    canvas: Canvas
+    list: Liste
+    source: Quelltext
+  legend:
+    data: 'Durchgezogene Linie: liest die Ausgabe der Node darüber'
+    control: 'Gestrichelte Linie: läuft danach, ohne ihre Ausgabe zu lesen'
+    gate: 'Bedingung: entscheidet, ob die Node darunter läuft'
+    yes: 'Ja: läuft, wenn die Bedingung zutrifft'
+    no: 'Nein: läuft, wenn die Bedingung nicht zutrifft'
+    completion: 'Gepunktete Linie: Der Lauf endet nach dieser Node'
+    conditional: 'Gestrichelter Rahmen: läuft vielleicht nicht oder lief nicht'
+    loop: 'Rahmen: läuft einmal pro Element oder wiederholt sich'
+  readsNothing: Liest keine andere Node
+  node:
+    returnsUnknown: Struktur nach einem Lauf bekannt
+    returns: 'Gibt {shape} zurück'
+    writes: Ändert Daten in {connector}. Ein Live-Lauf wartet unter Umständen auf eine Freigabe.
+    asks: Kann eine Frage stellen und auf die Antwort warten.
+    catalog:
+      transform: Transformation
+      llm: Sprachmodell
+      agent: Agent
+      subautomation: 'Ruft {automation} auf'
+      subautomationUnset: Ruft eine Automatisierung auf
+      connector: '{connector} · {action}'
+      withModel: '{type} · {model}'
+      unknown: 'Unbekannter Typ {type}'
+    source:
+      input: 'die Laufeingabe ({keys})'
+      inputAll: die Laufeingabe
+      item: jedes Element
+  gate:
+    asCode: Als Code geschrieben
   edge:
-    data: '{target} liest die Ausgabe von {source}'
-    control: '{target} läuft nach {source}'
+    carries: 'Überträgt {fields}'
   controlFlow:
-    when: 'wenn {value}'
-    elseOf: 'sonst zu {value}'
-    forEach: 'für jedes {value}'
-    repeatUntil: 'wiederholen bis {value}'
-    repeatUntilCapped: 'wiederholen bis {value}, höchstens {maxRepeats}×'
-    onError: bei Fehler weiterlaufen
+    forEach: 'Für jedes Element von {list}'
+    forEachRaw: Für jedes Element ihrer Liste
+    repeatUntilCapped: 'Wiederholt sich, bis {condition}, höchstens {maxRepeats}×'
+    repeatRaw: 'Wiederholt sich, bis ihre Bedingung zutrifft, höchstens {maxRepeats}×'
+    onError: Läuft bei Fehler weiter
+  updated: 'Jetzt wird v{version} angezeigt.'
+  selectionRemoved: '{node} ist in dieser Version nicht mehr enthalten.'
+  newerVersion:
+    title: Eine neuere Version wurde gespeichert
+    body: 'v{version} wurde gespeichert, während du bearbeitet hast. Dein Entwurf basiert auf v{base}.'
+    show: 'v{version} zeigen und Entwurf verwerfen'
+  start:
+    manual: Von Hand, über die API oder MCP
+    manualOnly: Nur von Hand, über die API oder MCP – kein Trigger
+    webhook: Eine Anfrage an ihre Webhook-URL
+    event: 'Wenn {event}'
+    scheduleZone: '{schedule} · {zone}'
+    off: Aus
+    notLive: Wartet auf eine Live-Version
+    paused: Pausiert — es starten keine Läufe
+    nextRun: 'Nächster Lauf {at}'
+    anyInput: Beliebige JSON-Eingabe
+    noFields: Keine Eingabefelder
+    fromTrigger: vom Trigger
+    description: '{triggers}. Eingabe: {fields}.'
+  end:
+    returnsNode: 'Die Ausgabe von {node}'
+    returnsNothing: Nichts – diese Automatisierung hat keine Ausgabe
+    fieldFrom: 'aus {nodes}'
+    maybeEmpty: kann leer sein
+    emptyOnPath: auf diesem Pfad leer
+    succeeded: gibt die Ausgabe zurück
+    failed: '{count, plural, =0 {keine Node stoppt den Lauf} one {wenn # Node fehlschlägt} other {wenn eine von # Nodes fehlschlägt}}'
+    stopped: wenn jemand ihn stoppt
+    someEmpty: Manche Läufe geben leere Werte zurück
+    failedAt: 'Fehlgeschlagen bei {node}'
 editor:
   unknownType: 'Unbekannter Node-Typ: {type}'
   catalogUnavailable:
@@ -231,12 +457,68 @@ editor:
     sind nur die eingebauten Typen beschrieben. Die Felder dieser Node siehst
     du trotzdem.
   invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
+  fixSuggestion: 'Durch {name} ersetzen'
+  jsonMustBeObject: Das muss ein JSON-Objekt in geschweiften Klammern sein.
+  jsonMustBeList: Das muss eine JSON-Liste in eckigen Klammern sein.
+  inspector:
+    copyId: Node-ID kopieren
+    tabs:
+      fields: Felder
+      shape: Struktur
+      run: Letzter Lauf
+  start:
+    title: Start
+    description: Was diese Automatisierung startet und was jeder Lauf erhält.
+    trigger: Trigger
+    editTrigger: In Allgemein ändern
+    inputs: Eingaben
+    inputsDescription: Die Daten, die jeder Lauf erhält, als JSON-Schema. Ein Lauf mit unpassender Eingabe wird abgelehnt, bevor eine Node läuft.
+  end:
+    title: Ende
+    description: Was ein erfolgreicher Lauf zurückgibt und wie ein Lauf enden kann.
+    outputDescription: Ein JSON-Wert. Lies Node-Ausgaben mit Templates, etwa '{{' nodes.report.output '}}'.
+    outcomes: Wie ein Lauf endet
+  flow:
+    title: Wann sie läuft
+    always: Bei jedem Lauf
+    some: 'Auf {count} von {total} Pfaden'
+    never: 'Nie: Keine Kombination von Bedingungen lässt sie laufen'
+    skipWhen: Übersprungen, wenn ihre Bedingung nicht zutrifft
+    skipElse: 'Übersprungen, wenn {node} läuft'
+    skipUpstream: 'Übersprungen, wenn {node} übersprungen wird'
+    skipError: Übersprungen, wenn sie fehlschlägt
+    failHalts: Schlägt sie fehl, stoppt der Lauf mit ihrem Fehler.
+    failContinues: '{count, plural, =0 {Schlägt sie fehl, geht der Lauf ohne sie weiter.} one {Schlägt sie fehl, geht der Lauf ohne sie weiter und überspringt # Node, die sie liest.} other {Schlägt sie fehl, geht der Lauf ohne sie weiter und überspringt # Nodes, die sie lesen.}}'
+    failsWhen: 'Schlägt fehl, wenn {reasons}.'
+  explain:
+    when: 'Läuft nur, wenn {condition}. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
+    whenRaw: 'Läuft nur, wenn diese Bedingung zutrifft. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
+    forEach: 'Läuft einmal für jedes Element von {list}. Ihre Ausgabe ist die Liste der Ergebnisse.'
+    repeatUntil: 'Läuft erneut, bis {condition}, insgesamt höchstens {max}-mal.'
+    elseOf: 'Läuft nur, wenn {node} durch ihre eigene Bedingung übersprungen wird.'
+  shape:
+    receives: Erhält
+    receivesCode: Was ihr Code als input liest
+    item: Jedes Element
+    returns: Gibt zurück
+    readBy: Gelesen von
+    readByOutput: Die Ausgabe der Automatisierung
+    notRead: Nichts liest ihre Ausgabe.
+    checking: Wird aktualisiert…
+    unavailable: Die Strukturen konnten nicht ermittelt werden. Sie erscheinen nach der nächsten erfolgreichen Prüfung.
+    origin:
+      declared: Aus ihrem Ausgabeschema
+      signature: 'Wie {connector} es beschreibt'
+      inferred: Aus ihrem Code abgeleitet
+      fixed: 'Jede Node dieses Typs ({type}) gibt das zurück'
+      child: 'Was {automation} zurückgibt'
+      unknown: Tale kann nicht erkennen, was sie zurückgibt. Ein Testlauf zeigt die echten Daten.
   versionNotFound:
     title: 'Version {version} gibt es nicht'
     description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
     openLatest: Neueste öffnen
   controlFlowTitle: Ablaufsteuerung
-  nodeSheetDescription: Bearbeite die Felder dieses Knotens, dann speichere die
+  nodeSheetDescription: Bearbeite die Felder dieser Node, dann speichere die
     Änderung oder verwirf sie.
   agent:
     equipmentLabel: Ausrüstung
@@ -253,7 +535,6 @@ editor:
     typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
     modelIdLabel: Modell-ID
     modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
-  runTitle: In diesem Lauf
   resolvedInput: Aufgelöste Eingabe
   output: Ausgabe
   fields:
@@ -286,6 +567,13 @@ editor:
     repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
     maxRepeats: Maximale Wiederholungen
     onError: Bei Fehler
+    onErrorStop: Lauf stoppen
+    onErrorContinue: Ohne sie weiterlaufen
+    onErrorDescription: Was passiert, wenn diese Node fehlschlägt. Geht der Lauf weiter, wird jede Node übersprungen, die ihre Ausgabe liest.
+    maxRepeatsDescription: Höchstens so viele Durchläufe, von 1 bis 20. Leer bedeutet 5.
+    maxRepeatsRange: Gib eine ganze Zahl von 1 bis 20 ein.
+    elseOfNone: Keine
+    elseOfEmpty: Keine andere Node hat eine Bedingung.
     output: Ausgabe
     type: Typ
     id: ID
@@ -545,7 +833,7 @@ problems:
   refusedDeploy: Diese Version hat Probleme, die das Live-Schalten verhindern. Du findest sie unter Probleme.
   refusedDeployDraft: Diese Version hat Probleme, die das Live-Schalten verhindern. Verwirf deinen Entwurf, um sie unter Probleme zu sehen.
   open: Probleme anzeigen
-  notEditableHere: Dieser Teil der Automatisierung lässt sich hier nicht bearbeiten. Ändere ihn über MCP, die API oder ein hochgeladenes Paket.
+  notEditableHere: Ändere das mit deinem Coding-Agent.
   nodeTitle: Probleme in dieser Node
   filter:
     label: Probleme anzeigen
@@ -554,3 +842,84 @@ problems:
     warnings: Warnungen
   emptyFiltered: '{filter, select, errors {Keine Fehler} warnings {Keine Warnungen} other {Keine Probleme}}'
   fieldPart: '{part}: {message}'
+condition:
+  group: '({parts})'
+  gt: '{a} größer als {b} ist'
+  gte: '{a} mindestens {b} ist'
+  lt: '{a} kleiner als {b} ist'
+  lte: '{a} höchstens {b} ist'
+  eq: '{a} gleich {b} ist'
+  neq: '{a} nicht gleich {b} ist'
+  empty: '{a} leer ist'
+  notEmpty: '{a} nicht leer ist'
+  set: '{a} als Ja zählt'
+  notSet: '{a} als Nein zählt'
+  contains: '{a} {b} enthält'
+  notContains: '{a} {b} nicht enthält'
+  startsWith: '{a} mit {b} beginnt'
+  endsWith: '{a} auf {b} endet'
+  notGt: '{a} nicht größer als {b} ist'
+  notGte: '{a} nicht mindestens {b} ist'
+  notLt: '{a} nicht kleiner als {b} ist'
+  notLte: '{a} nicht höchstens {b} ist'
+  notStartsWith: '{a} nicht mit {b} beginnt'
+  notEndsWith: '{a} nicht auf {b} endet'
+  withValue: '{operand} ({value})'
+  ref:
+    node: '{path} von {node}'
+    nodeOutput: 'die Ausgabe von {node}'
+    input: '{path} der Laufeingabe'
+    inputWhole: die Laufeingabe
+    item: '{path} des Elements'
+    itemWhole: das Element
+    index: die Position des Elements
+    output: '{path} des Ergebnisses dieses Durchlaufs'
+    outputWhole: das Ergebnis dieses Durchlaufs
+    length: 'die Anzahl von {inner}'
+  literal:
+    valueTrue: wahr
+    valueFalse: falsch
+    valueNull: leer
+  quote: '„{text}“'
+paths:
+  button: '{count, plural, one {# Pfad} other {# Pfade}}'
+  title: Mögliche Pfade
+  description: Jeder Weg, den ein erfolgreicher Lauf nehmen kann. Zeig auf einen oder wähle ihn aus, um ihn im Canvas zu sehen.
+  single: 'Jeder Lauf nimmt denselben Pfad: {count, plural, one {die # Node läuft} other {alle # Nodes laufen}}.'
+  row: 'Pfad {index}'
+  rowRuns: '{ran, plural, one {# von {total} Nodes läuft} other {# von {total} Nodes laufen}}'
+  clause:
+    runs: '{node} läuft'
+    skipped: '{node} wird übersprungen'
+    fails: '{node} schlägt fehl, der Lauf geht weiter'
+    succeeds: '{node} läuft erfolgreich'
+  more: '{count, plural, one {# weiterer Pfad ist nicht aufgeführt} other {# weitere Pfade sind nicht aufgeführt}}'
+  truncated: Diese Automatisierung hat {count} Bedingungen – zu viele, um jeden Pfad aufzuführen. Jede Node zeigt trotzdem, wann sie läuft.
+  halts:
+    title: Beendet den Lauf, wenn sie fehlschlägt
+    row: '{node} schlägt fehl, wenn {reasons}'
+  showing: 'Pfad {index} wird gezeigt: {ran, plural, one {# von {total} Nodes läuft} other {# von {total} Nodes laufen}}.'
+  pill: 'Pfad {index} · {ran, plural, one {# von {total} Nodes läuft} other {# von {total} Nodes laufen}}'
+  skip:
+    when: 'Übersprungen: Bedingung trifft nicht zu'
+    else: 'Übersprungen: {node} läuft'
+    upstream: 'Übersprungen: {node} wird übersprungen'
+    error: Schlägt fehl, der Lauf geht weiter
+failureReason:
+  external: ein aufgerufener Dienst fehlschlägt
+  code: ihr Code einen Fehler wirft
+  expression: einer ihrer Ausdrücke fehlschlägt
+  iteration: ihre Liste nicht durchlaufen werden kann
+  inputContract: ihre Eingabe abgelehnt wird
+  subautomation: die aufgerufene Automatisierung fehlschlägt
+source:
+  ariaLabel: Quelltext dieser Automatisierung (YAML)
+  copy: YAML kopieren
+  download: YAML herunterladen
+  readOnlyHint: Um das Dokument zu ändern, nutze die Felder oder deinen Coding-Agent.
+codingAgent:
+  button: Mit deinem Coding-Agent bearbeiten
+  body: Coding-Agents wie Claude Code, Codex und Cursor ändern Automatisierungen über den MCP-Server von Tale. Sie lesen diese Automatisierung, ändern und prüfen sie und speichern eine neue Version, die dann hier erscheint.
+  nameLabel: Name dieser Automatisierung
+  setUp: MCP einrichten
+  learnMore: So verbindest du einen Coding-Agent

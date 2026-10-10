@@ -13,6 +13,8 @@
  * every one, in the order it happened.
  */
 
+import type { FlowShownState } from '@tale/ui/flow/node-status';
+
 import type { RunWaitingFor } from '@/app/lib/backend/contract/automations';
 import type { Effect, NodeStatus, NodeTrace } from '@/lib/engine/core/types';
 
@@ -128,6 +130,28 @@ export type NodeRunStatus =
   | 'waiting'
   | 'interrupted'
   | 'stopped';
+
+/**
+ * The package's state for a node's status in a run — one icon and colour
+ * vocabulary for the canvas, the step list and the badges. A node whose
+ * server stopped (`interrupted`) is not being worked on, so it does not
+ * spin: it waits to be picked up again, like a node not reached yet.
+ */
+export function flowNodeState(status: NodeRunStatus): FlowShownState {
+  return FLOW_NODE_STATE_OF[status];
+}
+
+const FLOW_NODE_STATE_OF: Readonly<Record<NodeRunStatus, FlowShownState>> = {
+  ok: 'succeeded',
+  error: 'failed',
+  skipped: 'skipped',
+  not_run: 'not-run',
+  stopped: 'stopped',
+  running: 'running',
+  waiting: 'waiting',
+  pending: 'pending',
+  interrupted: 'pending',
+};
 
 /** What the node a live run's cursor names reads as. */
 export type CursorNodeStatus = Extract<
@@ -397,4 +421,39 @@ export function nodeStatusMap(
       return [id, id === cursorNode ? cursorStatus : 'pending'];
     }),
   );
+}
+
+/** A run's short name: the first six characters of its id, without
+ * dashes ("7f3e2a") — how the run page, its lineage and a replay name a
+ * run. */
+export function shortRunId(runId: string): string {
+  return runId.replaceAll('-', '').slice(0, 6);
+}
+
+/** A run as a canvas draws it: how it went, and each step's last state. */
+export interface RunOnCanvas {
+  projection: RunProjection;
+  statusByNode: ReadonlyMap<string, NodeRunStatus>;
+  status: RunStatus;
+}
+
+/**
+ * What a canvas needs to draw `run` over a document whose nodes are
+ * `nodeIds` — the run page draws one run so, a comparison two.
+ */
+export function runOnCanvas(
+  run: RunLike & { stalled?: unknown; waitingFor?: unknown },
+  nodeIds: readonly string[],
+): RunOnCanvas {
+  const projection = projectRun(run);
+  return {
+    projection,
+    statusByNode: nodeStatusMap(
+      projection,
+      nodeIds,
+      readRunCursorNode(run),
+      cursorNodeStatus(run),
+    ),
+    status: readRunStatus(run.status),
+  };
 }

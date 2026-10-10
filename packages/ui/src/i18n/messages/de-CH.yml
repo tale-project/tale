@@ -11,5 +11,24 @@ docs:
 common:
   aria:
     close: Schliessen
+  flow:
+    zoomIn: Vergrössern
 envEditor:
   projectSecretBadKey: «{key}» muss mit einem Grossbuchstaben beginnen und darf nur Grossbuchstaben, Ziffern oder Unterstriche enthalten (maximal 64 Zeichen).
+codeEditor:
+  expand: Editor vergrössern
+  syntax:
+    unterminatedTemplate: "Zu diesem '{{' fehlt das schliessende '}}'."
+  phrases:
+    close: Schliessen
+    matchCase: Gross-/Kleinschreibung
+valueTree:
+  summary:
+    quote: '«{text}»'
+  elided:
+    whole: Zu gross zum Speichern ({size})
+dataView:
+  closeFullScreen: Vollbild schliessen
+flow:
+  canvas:
+    arrangeFailed: Die Nodes liessen sich nicht anordnen und stehen deshalb untereinander.

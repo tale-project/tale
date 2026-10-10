@@ -13,12 +13,16 @@ import { governanceSettings } from '../../governance/settings-resource.ts';
 import { knowledgeEmbeddingSettings } from '../../knowledge/settings-resource.ts';
 import {
   agentInstructionsSettings,
+  agentModelSettings,
   agentToolsSettings,
   projectInstructionsSettings,
 } from '../../projects/settings-resource.ts';
 import { providerCredentialSettings } from '../../provider_credentials/settings-resource.ts';
 import { providerSettings } from '../../providers/settings-resource.ts';
-import { taskInstructionsSettings } from '../../tasks/settings-resource.ts';
+import {
+  taskInstructionsSettings,
+  taskReviewContextSettings,
+} from '../../tasks/settings-resource.ts';
 import type { SettingsKindHandler } from './registry.ts';
 
 export const SETTINGS_HANDLERS: Readonly<
@@ -32,6 +36,8 @@ export const SETTINGS_HANDLERS: Readonly<
   'project-instructions': projectInstructionsSettings,
   'agent-instructions': agentInstructionsSettings,
   'agent-tools': agentToolsSettings,
+  'agent-model': agentModelSettings,
   'task-instructions': taskInstructionsSettings,
+  'task-review-context': taskReviewContextSettings,
   deployment: deploymentSettings,
 };

@@ -9,6 +9,10 @@ import {
   type PendingReviewIdentity,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
+import {
+  taskReviewBatchStartSchema,
+  taskReviewBatchReadSchema,
+} from '@tale/shared/schemas/task-review-batch';
 /**
  * First-party DOMAIN handlers of the workspace-tool bridge: the task family
  * and `document_create`. The dispatch (`workspace_tools_bridge.ts`) resolves
@@ -1703,6 +1707,32 @@ export async function runTaskTool(
             },
           ],
         };
+      }
+      if (
+        callArgs.operation === 'start_batch' ||
+        callArgs.operation === 'read_batch'
+      ) {
+        const parsed = (
+          callArgs.operation === 'start_batch'
+            ? taskReviewBatchStartSchema
+            : taskReviewBatchReadSchema
+        ).safeParse(callArgs);
+        if (!parsed.success)
+          return {
+            status: 'invalid_args',
+            message:
+              'Use {operation:"start_batch",requestId,contextTaskId,targets:[{taskId,expected:{approvalId,runId,evidenceRevision}}]} with 1–20 distinct tasks, or {operation:"read_batch",batchId}. Copy exact native IDs. No other fields are accepted.',
+          };
+        const output = await ctx.runMutation(
+          internal.tasks.internal_mutations.agentReviewBatch,
+          {
+            organizationId,
+            sessionId: args.session.sessionId,
+            taskRunExecId: args.session.taskRunExecId,
+            request: parsed.data,
+          },
+        );
+        return { status: 'ok', output };
       }
       if (callArgs.operation === 'stage_file') {
         const stage = taskAgentReviewStageFileSchema.safeParse(callArgs);

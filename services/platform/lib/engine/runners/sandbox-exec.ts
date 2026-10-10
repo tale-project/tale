@@ -29,7 +29,12 @@
  * with a fake transport.
  */
 
-import type { CodeRunner, RunnerLimits } from '../core/runner';
+import {
+  type CodeRunner,
+  type RunnerLimits,
+  RunnerStopped,
+} from '../core/runner';
+import { probedExprSource, readProbedAnswer } from '../core/syntax/probe';
 
 // --------------------------------------------------------------- the seam
 
@@ -173,26 +178,36 @@ function unwrapEnvelope(valueJson: string): unknown {
     : undefined;
 }
 
-/** Run one request through the transport and turn its outcome into the value or
- * a rejection. Every failure mode — a thrown transport, a reported failure, an
- * unparseable envelope — becomes a rejection with a clear message, so a caller
- * never mistakes a dead session for an empty result. */
-async function runThroughTransport(
+/** Run one request through the transport and answer the text it produced.
+ * Every failure mode — a thrown transport, a reported failure — becomes a
+ * rejection with a clear message, so a caller never mistakes a dead session
+ * for an empty result. */
+async function answerOf(
   transport: SandboxExecTransport,
   request: SandboxExecRequest,
-): Promise<unknown> {
+): Promise<string> {
   let result: SandboxExecResult;
   try {
     result = await transport(request);
   } catch (cause) {
-    throw new Error(`sandbox-exec transport failed: ${messageOf(cause)}`, {
-      cause,
-    });
+    throw new RunnerStopped(
+      `sandbox-exec transport failed: ${messageOf(cause)}`,
+      { cause },
+    );
   }
   if (!result.ok) {
     throw new Error(`sandbox-exec run failed: ${result.error}`);
   }
-  return unwrapEnvelope(result.valueJson);
+  return result.valueJson;
+}
+
+/** {@link answerOf}, with the result envelope unwrapped; an unparseable
+ * envelope rejects too. */
+async function runThroughTransport(
+  transport: SandboxExecTransport,
+  request: SandboxExecRequest,
+): Promise<unknown> {
+  return unwrapEnvelope(await answerOf(transport, request));
 }
 
 // ------------------------------------------------------------ compile checks
@@ -256,6 +271,28 @@ export function createSandboxExecRunner(
         scopeJson,
         limits,
       });
+    },
+    // The probed wrapper rides the same `code` field as any expression: the
+    // transport runs it like one and needs nothing new. An error the
+    // expression throws comes back inside the answer; a transport failure or
+    // an overrun still rejects.
+    async evalExprProbed(instrumented, scope, limits) {
+      const scopeJson = serializeScope(scope, maxScopeBytes);
+      const answer = readProbedAnswer(
+        await answerOf(transport, {
+          code: probedExprSource(instrumented, identifierKeys(scope)),
+          scopeJson,
+          limits,
+        }),
+      );
+      return {
+        value:
+          answer.valueJson === null
+            ? undefined
+            : unwrapEnvelope(answer.valueJson),
+        probes: answer.probes,
+        ...(answer.error !== undefined && { error: answer.error }),
+      };
     },
     async runBody(code, scope, limits, bodyOpts) {
       const scopeJson = serializeScope(scope, maxScopeBytes);

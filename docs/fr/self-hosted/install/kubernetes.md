@@ -15,6 +15,7 @@ Tale fonctionne sur Kubernetes lorsque tu transposes le [contrat de services](/f
 | Des nœuds qui accordent `NET_ADMIN` et fournissent ip6tables, ou autorisent les sysctls IPv6 | Le proxy de sortie installe son pare-feu au démarrage et refuse de démarrer sans lui. |
 | Les ports 80 et 443 joignables à l’adresse publique | Caddy obtient lui-même les certificats en mode `selfsigned` et `letsencrypt`. Derrière un Ingress qui termine TLS, définis `TLS_MODE=external`. |
 | Un accès en lecture à `ghcr.io/tale-project/tale/*` sur chaque nœud, y compris pour l’image du runtime sandbox | Les Pods de session démarrent depuis `SANDBOX_RUNTIME_IMAGE`. Un nœud qui ne peut pas la récupérer fait échouer la première session qui y est planifiée. |
+| Un runtime de conteneurs qui décompresse les couches zstd, comme containerd 1.5 ou une version ultérieure | Les couches des images Tale sont compressées en zstd. Un nœud dont le runtime ne sait pas les décompresser ne peut pas récupérer les images, et aucun Pod n’y démarre à partir d’elles. |
 | Une RuntimeClass sysbox ou kata si les agents ont besoin de Docker dans leur sandbox | Sans elle, garde `SANDBOX_DOCKER_IN_CONTAINER=false`. Le niveau `runc` exigerait des Pods privilégiés. |
 | `kubectl` et `envsubst` sur la machine qui applique les manifestes | Les manifestes contiennent une variable `${VERSION}` que kubectl ne développe pas. |
 
@@ -40,7 +41,7 @@ Chaque Pod ci-dessous définit `enableServiceLinks: false`. Sinon, Kubernetes in
 | `proxy` | Deployment avec la stratégie `Recreate` ; `hostPort` 80 et 443 ; PVC pour `/data` | Le magasin de certificats survit aux redémarrages sur le PVC. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment ; Service sur 8003 | `SANDBOX_BACKEND=kubernetes` ; `config-data` en lecture seule sur `/app/platform-config`. Aucun socket Docker. |
 | `sandbox-egress` | Deployment ; Service sur 3128 | Le jeu de capabilities livré, sans sysctls. |
-| `sandbox-llm-gateway` | Deployment avec la stratégie `Recreate`, PVC sur `/app/data` ; Services `sandbox-llm-gateway` et `llm-gateway` sur 8080 | L’image s’exécute avec l’uid 1000 ; `fsGroup: 1000` lui permet d’écrire son état. La passerelle lit `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` dans `tale-env` : tant qu’elle n’a pas de compte d’administration, elle n’en crée un que pour un appelant qui présente ce secret. |
+| `sandbox-llm-gateway` | Deployment avec la stratégie `Recreate`, PVC sur `/app/data` ; Services `sandbox-llm-gateway` et `llm-gateway` sur 8080 | L’image s’exécute avec l’uid 1000 ; `fsGroup: 1000` lui permet d’écrire son état. La passerelle lit `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` dans `tale-env` : tant qu’elle n’a pas de compte d’administration, elle n’en crée un que pour un appelant qui présente ce secret. Avec `terminationGracePeriodSeconds: 90`, un déploiement laisse à l’ancien Pod jusqu’à 90 secondes pour terminer les appels de modèle en cours, réponses en flux comprises ; il n’enregistre ses compteurs de dépenses à la fin que s’ils se terminent dans les 30 secondes qui suivent l’arrêt ; il n’accepte aucun nouvel appel entre-temps, et le nouveau Pod démarre une fois qu’il s’est arrêté. |
 | `bgutil-provider` | Deployment ; Service sur 4416 | Fournisseur de jetons vidéo, facultatif. |
 
 Les sondes transposent les contrôles de santé Compose :
@@ -545,6 +546,7 @@ spec:
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 90
       securityContext: { fsGroup: 1000 }
       containers:
         - name: gateway

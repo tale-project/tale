@@ -1,7 +1,12 @@
 'use node';
 
 import { findConnector } from '../../../lib/connectors/catalog';
-import { refsOf, topoSort } from '../../../lib/engine/core/execute/controlflow';
+import { topoSort } from '../../../lib/engine/core/execute/controlflow';
+import {
+  decideNode,
+  repeatSettled,
+  resolveForEach,
+} from '../../../lib/engine/core/execute/decide';
 import {
   cloneData,
   makeScope,
@@ -13,18 +18,28 @@ import {
   connectorIdempotencyKey,
   subautomationPathPrefix,
 } from '../../../lib/engine/core/protocol';
+import {
+  createRecorder,
+  type RunRecorder,
+  type NodeRunWrite,
+} from '../../../lib/engine/core/record/recorder';
+import { END_PATH, type UnitKey } from '../../../lib/engine/core/record/types';
+import { recordBudget } from '../../../lib/engine/core/record/value';
 import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import {
-  evalCondition,
   evalTemplates,
+  evalTemplatesRendered,
+  explainFailure,
   ExprError,
   runCode,
 } from '../../../lib/engine/core/template';
-import type {
-  Effect,
-  NodeDef,
-  NodeTrace,
-  Automation,
+import {
+  type Automation,
+  type Effect,
+  effectPlace,
+  nestedEffectPlace,
+  type NodeDef,
+  type NodeTrace,
 } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
@@ -39,6 +54,7 @@ import {
   type WorkflowAgentRequest,
 } from './agent_host';
 import {
+  RESOURCE_EXHAUSTED_REKICK_DELAY_MS,
   SANDBOX_ROOM_MAX_WAIT_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
@@ -66,6 +82,7 @@ import {
   NodeFailure,
   runFailureCodeOf,
   RunStopFailure,
+  stepFailureOf,
   type RunFailureCode,
 } from './failure';
 import {
@@ -314,6 +331,8 @@ function automationApprovalGate(
       throw new NodeFailure(
         'approval_rejected',
         `approval for "${request.nodeType}" was rejected — the run cannot perform it`,
+        undefined,
+        { reason: 'APPROVAL_REJECTED', params: {} },
       );
     },
   };
@@ -440,6 +459,12 @@ interface RunContext {
    * reaches a walker, and a drain read a few seconds stale must not bounce a
    * run back and forth without a step. */
   shuttingDown: () => boolean;
+  /** Where the run's record goes: every unit of work this turn touched,
+   * flushed with the progress it describes. */
+  recorder: RunRecorder;
+  /** Write the given units' rows on their own: a long step that started, so
+   * a live view shows it working before its first commit. */
+  recordStarted: (keys: readonly UnitKey[]) => Promise<void>;
 }
 
 /** The note a hand-off carries when the walker is yielding to a stopping
@@ -485,6 +510,69 @@ interface BodyArgs {
    * this node's key prefix among them. */
   pins: Record<string, number> | undefined;
   pinPrefix: string;
+  /** The unit of the run record this invocation is (the node, its item or
+   * its pass), and the node's pointer in its document. */
+  unit: UnitKey;
+  pointer: string;
+  /** For a pass: the item or node row that shows its last pass's input. */
+  mirror?: UnitKey;
+  /** Called once the resolved input is recorded: a long step writes its
+   * start then. */
+  started?: () => Promise<void>;
+}
+
+/** Record what an invocation works on, and say it started. */
+async function noteInput(
+  args: Pick<BodyArgs, 'run' | 'unit' | 'started' | 'mirror'>,
+  value: unknown,
+  meta: Parameters<RunRecorder['meta']>[1] = {},
+): Promise<void> {
+  const recorder = args.run.recorder;
+  for (const unit of args.mirror === undefined
+    ? [args.unit]
+    : [args.unit, args.mirror]) {
+    recorder.unitInput(unit, value);
+    if (Object.keys(meta).length > 0) recorder.meta(unit, meta);
+  }
+  await args.started?.();
+}
+
+/**
+ * {@link evalTemplates} for text a step sends (a prompt, a connector's
+ * input), keeping in the unit's record where each `{{ }}` unit landed in it.
+ */
+async function renderedTemplates(
+  run: RunContext,
+  unit: UnitKey,
+  value: unknown,
+  scope: Record<string, unknown>,
+  pointer: string,
+): Promise<unknown> {
+  if (!run.recorder.enabled) return await evalTemplates(value, scope, pointer);
+  const answer = await evalTemplatesRendered(value, scope, pointer);
+  if (Object.keys(answer.rendered).length > 0) {
+    run.recorder.meta(unit, { rendered: answer.rendered });
+  }
+  return answer.value;
+}
+
+/** {@link runNodeBody}, where a failing expression is evaluated once more
+ * with probes, so the run's record says which value was missing. */
+async function explainedBody(
+  run: RunContext,
+  input: unknown,
+  outputs: Record<string, { output: unknown }>,
+  extra: Record<string, unknown>,
+  args: BodyArgs,
+): Promise<unknown> {
+  try {
+    return await runNodeBody(args);
+  } catch (error) {
+    if (run.recorder.enabled) {
+      await explainFailure(error, makeScope(input, outputs, extra));
+    }
+    throw error;
+  }
 }
 
 /**
@@ -495,19 +583,34 @@ interface BodyArgs {
 async function runNodeBody(args: BodyArgs): Promise<unknown> {
   const { run, node, extra, outputs, input, record, trace, effects } = args;
   const scope = () => makeScope(input, outputs, extra);
+  const at = args.pointer;
+  const resolve = (value: unknown, pointer: string) =>
+    renderedTemplates(run, args.unit, value, scope(), pointer);
 
   if (node.type === 'transform') {
-    const resolved = await evalTemplates(node.input ?? {}, scope());
+    const resolved = await evalTemplates(
+      node.input ?? {},
+      scope(),
+      `${at}/input`,
+    );
     if (record) trace.input = resolved;
-    const out = await runCode(node.code ?? '', {
-      input: resolved,
-      nodes: scope().nodes,
-      item: extra.item,
-      index: extra.index,
-    });
+    await noteInput(args, resolved);
+    const out = await runCode(
+      node.code ?? '',
+      {
+        input: resolved,
+        nodes: scope().nodes,
+        item: extra.item,
+        index: extra.index,
+      },
+      undefined,
+      `${at}/code`,
+    );
     if (out === undefined || out === null) {
-      throw new Error(
+      throw new ExprError(
+        '[code]',
         'transform code returned nothing — it must return a value',
+        { reason: 'CODE_NO_RESULT', params: {}, at: { pointer: `${at}/code` } },
       );
     }
     return out;
@@ -516,10 +619,10 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   if (node.type === 'llm') {
     const model = node.model ?? '';
     const prompt = asPromptText(
-      await evalTemplates(node.prompt ?? '', scope()),
+      await resolve(node.prompt ?? '', `${at}/prompt`),
     );
     const system = node.system
-      ? asPromptText(await evalTemplates(node.system, scope()))
+      ? asPromptText(await resolve(node.system, `${at}/system`))
       : undefined;
     const llmInput = {
       model,
@@ -527,7 +630,13 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       ...(system !== undefined && { system }),
     };
     if (record) trace.input = llmInput;
-    effects.push({ node: node.id, connector: 'llm', input: llmInput });
+    await noteInput(args, llmInput, { model });
+    effects.push({
+      node: node.id,
+      connector: 'llm',
+      input: llmInput,
+      ...effectPlace(args.unit),
+    });
     if (run.mode === 'live') {
       // A model call reaches nothing outside the run but the provider's
       // meter: one a resumed run cannot account for is simply made again,
@@ -563,6 +672,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
               throw new NodeFailure(
                 'llm_output_invalid',
                 'the llm call returned plain text for a node with outputSchema — structured output was required',
+                undefined,
+                {
+                  reason: 'LLM_OUTPUT_INVALID',
+                  params: { model },
+                  at: { pointer: `${at}/outputSchema` },
+                },
               );
             }
             return reply.data;
@@ -580,15 +695,19 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   if (node.type === 'agent') {
     const model = node.model ?? '';
     const prompt = asPromptText(
-      await evalTemplates(node.prompt ?? '', scope()),
+      await resolve(node.prompt ?? '', `${at}/prompt`),
     );
     const system = node.system
-      ? asPromptText(await evalTemplates(node.system, scope()))
+      ? asPromptText(await resolve(node.system, `${at}/system`))
       : undefined;
     const files =
       node.files === undefined
         ? undefined
-        : await evalTemplates(node.files, scope());
+        : await evalTemplates(node.files, scope(), `${at}/files`);
+    const context =
+      node.input === undefined
+        ? undefined
+        : await evalTemplates(node.input, scope(), `${at}/input`);
     const agentInput = {
       model,
       ...(node.modelProvider !== undefined && {
@@ -602,9 +721,16 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       ...(node.tools !== undefined && { tools: node.tools }),
       ...(node.secrets !== undefined && { secrets: node.secrets }),
       ...(files !== undefined && { files }),
+      ...(context !== undefined && { input: context }),
     };
     if (record) trace.input = agentInput;
-    effects.push({ node: node.id, connector: 'agent', input: agentInput });
+    await noteInput(args, agentInput, { model });
+    effects.push({
+      node: node.id,
+      connector: 'agent',
+      input: agentInput,
+      ...effectPlace(args.unit),
+    });
     if (run.mode === 'live') {
       // Unreachable: stepNode routes live agent nodes to stepAgentNode before
       // any body runs. Kept as a guard so a future path cannot silently mock
@@ -619,8 +745,15 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   if (node.type === 'subautomation') {
     const ref = node.automation ?? '';
     if (args.depth >= MAX_SUBAUTOMATION_DEPTH) {
-      throw new Error(
+      throw new NodeFailure(
+        'node_error',
         `subautomations nest at most ${MAX_SUBAUTOMATION_DEPTH} levels deep`,
+        undefined,
+        {
+          reason: 'SUBAUTOMATION_TOO_DEEP',
+          params: { max: MAX_SUBAUTOMATION_DEPTH },
+          at: { pointer: at },
+        },
       );
     }
     const [subName, subVersion] = ref.split('@');
@@ -643,12 +776,24 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       },
     );
     if (!found) {
-      throw new Error(
+      throw new NodeFailure(
+        'node_error',
         `no saved automation "${ref}" — save and deploy it first`,
+        undefined,
+        {
+          reason: 'SUBAUTOMATION_NOT_FOUND',
+          params: { automation: ref },
+          at: { pointer: `${at}/automation` },
+        },
       );
     }
-    const resolved = await evalTemplates(node.input ?? {}, scope());
+    const resolved = await evalTemplates(
+      node.input ?? {},
+      scope(),
+      `${at}/input`,
+    );
     if (record) trace.input = { automation: ref, input: resolved };
+    await noteInput(args, { automation: ref, input: resolved });
     // A sub-run is ONE durable step of its parent: its nodes run inline and are
     // not individually checkpointed, so an interrupted sub-run walks again from
     // its first node — and every call its earlier walk made outside the run is
@@ -671,12 +816,14 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       pathPrefix: subautomationPathPrefix(args.path, args.itemIndex, args.pass),
       pins: args.pins,
       pinPrefix: `${args.pinPrefix}${node.id}/`,
+      docRef: `${subName}@${found.version}`,
     });
     for (const effect of subEffects) {
       effects.push({
         node: `${node.id}/${effect.node}`,
         connector: effect.connector,
         input: effect.input,
+        ...nestedEffectPlace(effect),
       });
     }
     if (result.kind === 'failed') {
@@ -687,6 +834,16 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       throw new NodeFailure(
         result.code,
         `subautomation "${ref}" failed: ${result.message}`,
+        undefined,
+        {
+          reason: 'SUBAUTOMATION_FAILED',
+          params: {
+            automation: subName,
+            version: found.version,
+            childPath: result.nodeId ?? '',
+          },
+          at: { pointer: `${at}/automation` },
+        },
       );
     }
     if (result.kind !== 'done') {
@@ -710,8 +867,22 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   }
   const connector = node.type.slice(0, separator);
   const action = node.type.slice(separator + 1);
-  const resolved = await evalTemplates(node.input ?? {}, scope());
+  const resolved = await resolve(node.input ?? {}, `${at}/input`);
   if (record) trace.input = resolved;
+  const reach = nodeEffect(node.type);
+  await noteInput(args, resolved, {
+    connector,
+    action: node.type,
+    ...(reach !== 'unknown' && { effect: reach }),
+    ...(reach === 'write' && {
+      idempotencyKey: connectorIdempotencyKey(
+        run.runId,
+        args.path,
+        args.itemIndex,
+        args.pass,
+      ),
+    }),
+  });
   const dispatch = async (): Promise<{ output: unknown; effects: string }> => {
     const result = await run.ctx.runAction(
       internal.connectors.execute_action.runConnectorAction,
@@ -737,7 +908,11 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     if (result.status !== 'ok') {
       // A coded `ConnectorError` used to lose its code in the stepper's
       // catch; the run now says a connector, not the author's code, failed.
-      throw new NodeFailure('connector_error', result.message);
+      throw new NodeFailure('connector_error', result.message, undefined, {
+        reason: 'CONNECTOR_FAILED',
+        params: { connector, action: node.type },
+        at: { pointer: at },
+      });
     }
     return { output: result.output, effects: result.effects };
   };
@@ -748,7 +923,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   // call, change nothing outside the run and simply run again — at the top
   // level, where the outputs a node reads are checkpointed.
   if (run.mode === 'live' && nodeEffect(node.type) === 'write') {
-    const effect = { node: node.id, connector: node.type, input: resolved };
+    const effect = {
+      node: node.id,
+      connector: node.type,
+      input: resolved,
+      ...effectPlace(args.unit),
+    };
     let output: unknown;
     try {
       output = await callThroughLedger(
@@ -805,7 +985,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         )
       : await dispatch();
   if (result.effects === 'write') {
-    effects.push({ node: node.id, connector: node.type, input: resolved });
+    effects.push({
+      node: node.id,
+      connector: node.type,
+      input: resolved,
+      ...effectPlace(args.unit),
+    });
   }
   return result.output;
 }
@@ -831,6 +1016,9 @@ interface WalkArgs {
    * where each subautomation node fixes its own. */
   pins?: Record<string, number>;
   pinPrefix: string;
+  /** The document a subautomation's nodes come from (`name@version`); none
+   * at the top level. */
+  docRef?: string;
 }
 
 /**
@@ -876,6 +1064,11 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
     const outcome = await stepNode({
       run,
       node,
+      pointer: `/nodes/${automation.nodes.indexOf(node)}`,
+      rank: (id) => {
+        const at = ordered.findIndex((candidate) => candidate.id === id);
+        return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+      },
       input,
       checkpoints,
       sink,
@@ -884,6 +1077,7 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
       pathPrefix: args.pathPrefix,
       pins: args.pins,
       pinPrefix: args.pinPrefix,
+      ...(args.docRef !== undefined && { docRef: args.docRef }),
     });
 
     if (outcome.kind === 'suspended' || outcome.kind === 'cancelled') {
@@ -893,28 +1087,51 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
     if (outcome.kind === 'failed') return outcome;
   }
 
-  // Every node is recorded: evaluate the document's output expression.
+  // Every node is recorded: evaluate the document's output expression. The
+  // run's own output is its `__end` unit; a subautomation's is its calling
+  // node's.
+  const endKey: UnitKey = { path: END_PATH, item: -1, pass: -1 };
+  const outermost = args.pathPrefix === '';
+  if (outermost) {
+    run.recorder.unitStarted(endKey, { nodeId: END_PATH, nodeType: 'output' });
+  }
   try {
     const output =
       automation.output !== undefined
         ? await evalTemplates(
             cloneData(automation.output),
             makeScope(input, outputsFrom(checkpoints)),
+            '/output',
           )
         : null;
+    if (outermost) run.recorder.unitFinished(endKey, { status: 'ok', output });
     return { kind: 'done', output };
   } catch (error) {
-    return {
-      kind: 'failed',
-      code: 'node_error',
-      message: `failed to evaluate automation "output": ${error instanceof Error ? error.message : String(error)}`,
-    };
+    const message = `failed to evaluate automation "output": ${error instanceof Error ? error.message : String(error)}`;
+    if (outermost) {
+      await explainFailure(error, makeScope(input, outputsFrom(checkpoints)));
+      run.recorder.unitFinished(endKey, {
+        status: 'failed',
+        failure: stepFailureOf(error, {
+          code: 'node_error',
+          message,
+          pointer: '/output',
+          nodeType: 'output',
+        }),
+      });
+    }
+    return { kind: 'failed', code: 'node_error', message };
   }
 }
 
 interface StepArgs {
   run: RunContext;
   node: NodeDef;
+  /** The node's pointer in the document it comes from (`/nodes/3`). */
+  pointer: string;
+  /** Where a node sits in the walk, so a skip names the first skipped node
+   * it reads from. */
+  rank: (nodeId: string) => number;
   input: unknown;
   checkpoints: RunCheckpoints;
   sink: RunSink;
@@ -923,6 +1140,8 @@ interface StepArgs {
   pathPrefix: string;
   pins: Record<string, number> | undefined;
   pinPrefix: string;
+  /** The document a subautomation's nodes come from (`name@version`). */
+  docRef?: string;
 }
 
 type StepOutcome =
@@ -978,6 +1197,10 @@ async function assertConnectorCredentialUsable(
       'connector_error',
       probe.message ?? `no usable credential for ${nodeType}`,
       probe.hint,
+      {
+        reason: 'CONNECTOR_CREDENTIAL_MISSING',
+        params: { connector: nodeType.slice(0, nodeType.indexOf('.')) },
+      },
     );
   }
 }
@@ -1036,8 +1259,9 @@ async function resolveSubautomationPins(
 }
 
 async function stepNode(args: StepArgs): Promise<StepOutcome> {
-  const { run, node, input, checkpoints, sink, depth } = args;
+  const { run, node, input, checkpoints, sink, depth, pointer } = args;
   const path = `${args.pathPrefix}${node.id}`;
+  const nodeKey = { path, item: -1, pass: -1 };
   // Where in the node this turn is — hoisted so a park in the catch below
   // can say where to come back to.
   let index = 0;
@@ -1061,6 +1285,28 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   const started = performance.now();
   const trace: NodeTrace = { node: node.id, type: node.type, status: 'ok' };
   const effects: Effect[] = [];
+  const rec = run.recorder;
+  // Back at the node a loop or an agent turn left off: the same attempt.
+  const resumingHere = checkpoints.cursor?.node === node.id;
+  rec.unitStarted(nodeKey, {
+    nodeId: node.id,
+    nodeType: node.type,
+    resuming: resumingHere,
+  });
+  if (args.docRef !== undefined) rec.meta(nodeKey, { docRef: args.docRef });
+  // The item and pass this turn is on, while they are open: a failure ends
+  // them with the node.
+  let openItem: UnitKey | undefined;
+  let openPass: UnitKey | undefined;
+  // A long step (anything but a transform, or one that iterates) writes its
+  // start on its own the first time it is entered, so a live view shows it
+  // working before its first commit.
+  const long =
+    sink.canPark &&
+    !resumingHere &&
+    (node.type !== 'transform' ||
+      typeof node.forEach === 'string' ||
+      typeof node.repeatUntil === 'string');
 
   /** Record the node as finished and mirror it into the walk's own view. */
   const record = async (checkpoint: NodeCheckpoint): Promise<StepOutcome> => {
@@ -1095,27 +1341,22 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   try {
     // The skip rules, in the executor's order: data dependencies first, then
     // the else-branch rule, then the node's own condition.
-    const upstream = [...refsOf(node).data].filter((ref) => skipped.has(ref));
-    if (upstream.length > 0) {
-      return await skip(
-        'upstream',
-        `skipped: reads from skipped node(s) ${upstream.join(', ')}`,
-      );
-    }
-    if (typeof node.elseOf === 'string' && !whenSkipped.has(node.elseOf)) {
-      return await skip('else', `skipped: elseOf partner "${node.elseOf}" ran`);
-    }
-    if (typeof node.when === 'string') {
-      const condition = await evalCondition(
-        node.when,
-        makeScope(input, outputs),
-      );
-      if (!condition) {
-        return await skip(
-          'when',
-          `skipped: when=${JSON.stringify(node.when)} was falsy`,
-        );
-      }
+    const verdict = await decideNode(
+      node,
+      input,
+      { outputs, skipped, whenSkipped, rank: args.rank },
+      { key: nodeKey, pointer },
+      rec,
+    );
+    if (verdict.kind === 'skip') {
+      rec.unitFinished(nodeKey, {
+        status: 'skipped',
+        skip: {
+          reason: verdict.reason,
+          ...(verdict.via !== undefined && { via: verdict.via }),
+        },
+      });
+      return await skip(verdict.reason, verdict.note);
     }
 
     // A live effectful step asks the human gate before it acts. The answer is
@@ -1148,6 +1389,13 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
             `a subautomation cannot wait for approval — "${node.id}" (${node.type}) needs a person to release it; hoist the node into the calling automation or allow ${node.type} without approval in the approval policy`,
           );
         }
+        rec.waitOpened(nodeKey, {
+          kind: 'approval',
+          since: Date.now(),
+          ...(decision.approvalId !== undefined && {
+            ref: decision.approvalId,
+          }),
+        });
         const waited = await sink.wait({
           detail: `approval:${decision.approvalId ?? node.id}`,
           ...(checkpoints.cursor !== undefined && {
@@ -1176,6 +1424,8 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         trace,
         effects,
         record,
+        unit: nodeKey,
+        pointer,
       });
     }
 
@@ -1204,18 +1454,18 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
 
     let items: unknown[] | null = null;
     if (typeof node.forEach === 'string') {
-      const resolved = await evalTemplates(
+      const resolved = await resolveForEach(
         node.forEach,
-        makeScope(input, outputs),
+        input,
+        { outputs },
+        { key: nodeKey, pointer },
+        rec,
       );
-      if (!Array.isArray(resolved)) {
-        throw new Error(
-          `forEach must resolve to an array, got ${resolved === undefined ? 'undefined' : typeof resolved} — check the referenced path`,
-        );
-      }
       items = resolved;
       trace.input = { forEach: `${resolved.length} item(s)` };
     }
+    const iterates = items !== null || typeof node.repeatUntil === 'string';
+    if (long && iterates) await run.recordStarted([nodeKey]);
 
     const maxRepeats = Math.min(
       node.maxRepeats ?? DEFAULT_MAX_REPEATS,
@@ -1236,12 +1486,30 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         throw new NodeFailure(
           'execution_limit',
           `run exceeded the ${DEFAULT_MAX_NODE_EXECUTIONS}-execution guard — a forEach over a huge array or a runaway repeat; split the automation`,
+          undefined,
+          {
+            reason: 'EXECUTION_LIMIT',
+            params: { limit: DEFAULT_MAX_NODE_EXECUTIONS },
+          },
         );
       }
 
       const extra: Record<string, unknown> =
         items === null ? {} : { item: items[index], index };
-      const output = await runNodeBody({
+      if (items !== null && openItem === undefined) {
+        openItem = { path, item: index, pass: -1 };
+        // A pass after the first comes back to an item already begun.
+        rec.unitStarted(openItem, {
+          nodeId: node.id,
+          nodeType: node.type,
+          resuming: passes > 0,
+        });
+      }
+      if (typeof node.repeatUntil === 'string') {
+        openPass = { path, item: items === null ? -1 : index, pass: passes };
+        rec.unitStarted(openPass, { nodeId: node.id, nodeType: node.type });
+      }
+      const output = await explainedBody(run, input, outputs, extra, {
         run,
         node,
         extra,
@@ -1256,19 +1524,47 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         pass: passes,
         pins: pins ?? args.pins,
         pinPrefix: args.pinPrefix,
+        unit: openPass ?? openItem ?? nodeKey,
+        pointer,
+        ...(openPass !== undefined && { mirror: openItem ?? nodeKey }),
+        ...(long &&
+          !iterates && { started: () => run.recordStarted([nodeKey]) }),
       });
 
       if (typeof node.repeatUntil === 'string') {
         passes++;
-        const withSelf = { ...outputs, [node.id]: { output } };
-        const condition = await evalCondition(
+        const passKey = openPass ?? {
+          path,
+          item: items === null ? -1 : index,
+          pass: passes - 1,
+        };
+        const condition = await repeatSettled(
+          node,
           node.repeatUntil,
-          makeScope(input, withSelf, { ...extra, output }),
+          input,
+          { outputs },
+          {
+            key: passKey,
+            pointer,
+            index: passes - 1,
+            max: maxRepeats,
+            extra,
+            output,
+          },
+          rec,
         );
+        rec.unitFinished(passKey, { status: 'ok', output });
+        openPass = undefined;
         trace.note = `repeatUntil ran ${passes}x${condition ? '' : ' (maxRepeats hit before the condition became true)'}`;
         if (!condition && passes < maxRepeats) {
           // The pass did not settle it. Park rather than spin: a poll that has
           // not finished must not hold an action open.
+          if (sink.canPark) {
+            rec.waitOpened(openItem ?? nodeKey, {
+              kind: 'repeat',
+              since: Date.now(),
+            });
+          }
           const waited = await sink.wait({
             detail: `repeat:${node.id}`,
             cursor: cursorHere(),
@@ -1287,6 +1583,10 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       if (items === null) {
         single = output;
         break;
+      }
+      if (openItem !== undefined) {
+        rec.unitFinished(openItem, { status: 'ok', output });
+        openItem = undefined;
       }
       outs.push(output);
       index++;
@@ -1325,6 +1625,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     trace.status = 'ok';
     const output = items === null ? single : outs;
     trace.output = output;
+    rec.unitFinished(nodeKey, { status: 'ok', output });
     return await record({ status: 'ok', output, trace, effects });
   } catch (error) {
     // This walker lost its run (a newer claim, or the run ended): nothing more
@@ -1339,6 +1640,11 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // subautomation cannot park, so it hands the park to its calling node.
     if (error instanceof InDoubtPark) {
       if (!sink.canPark) throw error;
+      rec.waitOpened(openPass ?? openItem ?? nodeKey, {
+        kind: 'in_doubt',
+        since: Date.now(),
+        ref: error.attemptId,
+      });
       const cursor = cursorHere();
       const waited = await sink.wait({
         detail: `in_doubt:${node.id}`,
@@ -1404,7 +1710,33 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // A person decided the run stops here: `onError: continue` does not
     // apply, and inside a subautomation the calling node stops with it.
     if (error instanceof RunStopFailure && !sink.canPark) throw error;
+    const hint = /is not defined/.test(message)
+      ? 'in templates and code, only `input` and `nodes.<id>.output` are available'
+      : /Cannot read propert/.test(message)
+        ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
+        : undefined;
+    const code = runFailureCodeOf(error);
+    const failure = stepFailureOf(error, {
+      code,
+      message,
+      ...(hint !== undefined && { hint }),
+      pointer,
+      nodeType: node.type,
+      ...(node.model !== undefined && { model: node.model }),
+    });
+    // The pass and the item it was on failed with it.
+    for (const unit of [openPass, openItem]) {
+      if (unit !== undefined) {
+        rec.unitFinished(unit, { status: 'failed', failure });
+      }
+    }
     if (node.onError === 'continue' && !(error instanceof RunStopFailure)) {
+      rec.decision(nodeKey, { kind: 'onError', policy: 'continue' });
+      rec.unitFinished(nodeKey, {
+        status: 'skipped',
+        skip: { reason: 'error' },
+        failure,
+      });
       return await record({
         status: 'skipped',
         reason: 'error',
@@ -1423,11 +1755,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // the author sees the resolved input that produced the failure.
     trace.ms = Math.round((performance.now() - started) * 10) / 10;
     args.effects.push(...effects);
-    const hint = /is not defined/.test(message)
-      ? 'in templates and code, only `input` and `nodes.<id>.output` are available'
-      : /Cannot read propert/.test(message)
-        ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
-        : undefined;
+    rec.unitFinished(nodeKey, { status: 'failed', failure });
     return {
       kind: 'failed',
       nodeId: node.id,
@@ -1436,7 +1764,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       // tell its cause threw a `NodeFailure`; anything else is classified the
       // way the chat surface classifies a provider failure, else the
       // author's own `node_error`.
-      code: runFailureCodeOf(error),
+      code,
       ...(hint !== undefined && { hint }),
       trace,
     };
@@ -1453,6 +1781,9 @@ interface AgentStepArgs {
   trace: NodeTrace;
   effects: Effect[];
   record: (checkpoint: NodeCheckpoint) => Promise<StepOutcome>;
+  /** The node's unit of the run record, and its pointer in the document. */
+  unit: UnitKey;
+  pointer: string;
 }
 
 /**
@@ -1478,6 +1809,7 @@ function agentParkDetail(nodeId: string, agent: AgentCursor): string {
 async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
   const { run, node, checkpoints, sink, outputs, trace, effects, record } =
     args;
+  const at = args.pointer;
   // An agent turn spans suspensions, so a sink that cannot park cannot host
   // one. Refused HERE, before the op row, the scheduled start and the real
   // sandbox turn a kick spends — the inline sink's `continue` used to reveal
@@ -1503,14 +1835,35 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     // First entry: resolve the request and kick the turn.
     const scope = makeScope(args.input, outputs);
     const model = node.model ?? '';
-    const prompt = asPromptText(await evalTemplates(node.prompt ?? '', scope));
+    const prompt = asPromptText(
+      await renderedTemplates(
+        run,
+        args.unit,
+        node.prompt ?? '',
+        scope,
+        `${at}/prompt`,
+      ),
+    );
     const system = node.system
-      ? asPromptText(await evalTemplates(node.system, scope))
+      ? asPromptText(
+          await renderedTemplates(
+            run,
+            args.unit,
+            node.system,
+            scope,
+            `${at}/system`,
+          ),
+        )
       : undefined;
     const files =
       node.files === undefined
         ? undefined
-        : await evalTemplates(node.files, scope);
+        : await evalTemplates(node.files, scope, `${at}/files`);
+    // The node's own input, staged for the turn as `input.json`.
+    const context =
+      node.input === undefined
+        ? undefined
+        : await evalTemplates(node.input, scope, `${at}/input`);
     const request: WorkflowAgentRequest = {
       model,
       ...(node.modelProvider !== undefined && {
@@ -1527,7 +1880,10 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- evalTemplates preserves the record shape of `files`
         files: files as Record<string, unknown>,
       }),
+      ...(context !== undefined && { input: context }),
     };
+    await noteInput({ run, unit: args.unit }, request, { model });
+    await run.recordStarted([args.unit]);
     // Crash-safety guard (the mirror of the already-fixed under-run): a prior
     // kick may have created this turn's op row and scheduled its start, then
     // crashed in the kick→suspend window BEFORE the cursor was persisted —
@@ -1703,6 +2059,25 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       (waitingForRoom || checkpoints.executions < DEFAULT_MAX_NODE_EXECUTIONS)
     ) {
       if (!waitingForRoom) checkpoints.executions++;
+      // A start refused for room ran nothing: the node waits for room. Any
+      // other retry is a try that ended without settling the node.
+      if (waitingForRoom) {
+        run.recorder.waitOpened(args.unit, {
+          kind: 'room',
+          since: plan.waitingForRoomSince ?? Date.now(),
+        });
+      } else {
+        run.recorder.attempt(args.unit, {
+          n: attempt + 1,
+          startedAt: Date.now(),
+          endedAt: Date.now(),
+          outcome: 'retried',
+          ...(settled.failureCode !== undefined &&
+            settled.failureCode !== null && {
+              failureCode: settled.failureCode,
+            }),
+        });
+      }
       const burned = plan.burnedBrokerTokenHashes;
       // The retry CONTINUES the failed conversation when the harness left a
       // handle — the agent's reasoning and the operator's answers stand,
@@ -1719,6 +2094,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       // more with each refusal in a row; any other refusal with a hint (a
       // broker pool cooling down) waits for exactly that.
       const now = Date.now();
+      // One whose sandbox ran out of memory waits as long as a start may be
+      // held (two minutes): at once it would meet the same limit.
       const notBefore = waitingForRoom
         ? sandboxRoomRetryAtMs({
             now,
@@ -1728,7 +2105,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
             refusals: plan.roomRefusals ?? 1,
             queued: settled.roomQueued === true,
           })
-        : settled.retryAtMs;
+        : settled.failureCode === 'resource_exhausted'
+          ? now + RESOURCE_EXHAUSTED_REKICK_DELAY_MS
+          : settled.retryAtMs;
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,
@@ -1798,15 +2177,29 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     // The settle's own code (`turn_crashed`, `deadline`, `budget_exceeded`,
     // …) used to be dropped here, so the run said only "the agent turn
     // failed" — it is the run's `failureCode` now.
+    const agentCode = agentFailureCodeOf(settled.failureCode);
+    const cause = {
+      reason: 'AGENT_FAILED' as const,
+      params: {
+        harness: parked.harness,
+        agentCode: settled.failureCode ?? agentCode,
+        attempts: attempt + 1,
+      },
+      at: { pointer: at },
+    };
     if (settled.failureCode === 'sandbox_capacity') {
       throw new NodeFailure(
-        agentFailureCodeOf(settled.failureCode),
+        agentCode,
         `the agent turn waited ${Math.round(SANDBOX_ROOM_MAX_WAIT_MS / 60_000)} minutes for sandbox room without getting any (${reason.replace(/^the agent turn is waiting for sandbox room: /, '')})`,
+        undefined,
+        cause,
       );
     }
     throw new NodeFailure(
-      agentFailureCodeOf(settled.failureCode),
+      agentCode,
       attempt > 0 ? `${reason} (after ${attempt + 1} attempts)` : reason,
+      undefined,
+      cause,
     );
   }
   const output = {
@@ -2030,6 +2423,14 @@ async function stepClaimedRun(
     const checkpoints = parsed.checkpoints;
     const shutdown = options.shutdown ?? processShutdown;
     const draining = options.draining ?? (() => false);
+    // The run's record: what earlier turns left open, and what the run may
+    // still store.
+    const recorder = createRecorder({
+      now: () => Date.now(),
+      budget: recordBudget(loaded.recordBytes ?? 0),
+      open: loaded.openNodeRuns ?? [],
+      rowsKept: loaded.recordRows ?? 0,
+    });
     const run: RunContext = {
       ctx,
       organizationId: args.organizationId,
@@ -2061,6 +2462,29 @@ async function stepClaimedRun(
       signal,
       yielding: () => shutdown.shuttingDown || draining(),
       shuttingDown: () => shutdown.shuttingDown,
+      recorder,
+      recordStarted: async (keys) => {
+        const rows = recorder.drain(keys);
+        if (rows.length === 0) return;
+        // The record is display state: a start that could not be written
+        // shows with the step's next commit, and never fails the step.
+        try {
+          await ctx.runMutation(
+            internal.automations.mutations.recordNodeRunsStarted,
+            {
+              organizationId: args.organizationId,
+              runId: args.runId,
+              epoch,
+              rows,
+            },
+          );
+        } catch (error) {
+          console.warn(
+            `[automations] run ${args.runId}: the start of ${keys.map((key) => key.path).join(', ')} was not recorded (${error instanceof Error ? error.message : String(error)})`,
+          );
+          recorder.restore(rows);
+        }
+      },
     };
 
     const sink = durableSink(
@@ -2070,6 +2494,7 @@ async function stepClaimedRun(
       run.deadline,
       epoch,
       run.yielding,
+      recorder,
     );
     const order = (topoSort(automation.nodes) ?? automation.nodes).map(
       (node) => node.id,
@@ -2131,6 +2556,7 @@ async function stepClaimedRun(
           failureCode: result.code,
         }),
         executions: checkpoints.executions,
+        nodeRuns: recorder.drain(),
       },
     );
     return { status: finished.status };
@@ -2156,7 +2582,14 @@ function durableSink(
   deadline: number,
   epoch: number,
   yielding: () => boolean,
+  recorder: RunRecorder,
 ): RunSink {
+  // The record's rows ride every write that commits progress: what a write
+  // does not commit is not recorded either.
+  const nodeRuns = (): { nodeRuns?: NodeRunWrite[] } => {
+    const rows = recorder.drain();
+    return rows.length > 0 ? { nodeRuns: rows } : {};
+  };
   return {
     async commit(args) {
       const result = await ctx.runMutation(
@@ -2171,6 +2604,7 @@ function durableSink(
           }),
           ...(args.cursor !== undefined && { cursor: args.cursor }),
           executions: args.executions,
+          ...nodeRuns(),
         },
       );
       // Only a live run keeps walking: a stop, a finish another walker
@@ -2189,6 +2623,7 @@ function durableSink(
           executions: args.executions,
           resumeInMs: args.resumeInMs,
           ...(args.event !== undefined && { event: args.event }),
+          ...nodeRuns(),
         },
       );
       return result.suspended ? 'suspended' : 'cancelled';
@@ -2204,6 +2639,7 @@ function durableSink(
         epoch,
         resumeInMs: 0,
         ...(note !== undefined && { handoff: note }),
+        ...nodeRuns(),
       });
     },
   };

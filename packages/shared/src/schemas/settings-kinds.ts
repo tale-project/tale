@@ -233,7 +233,7 @@ export const SETTINGS_KINDS = [
       'The tools a project agent may use. id is <projectId>/<agentId>.',
   },
   {
-    kind: 'task-instructions',
+    kind: 'agent-model',
     scope: 'project',
     areas: [],
     cli: true,
@@ -243,7 +243,33 @@ export const SETTINGS_KINDS = [
     baseRisk: 'high',
     order: 63,
     description:
+      'The harness, model and provider a project agent runs on; a change applies to the runs it starts next. id is <projectId>/<agentId>.',
+  },
+  {
+    kind: 'task-instructions',
+    scope: 'project',
+    areas: [],
+    cli: true,
+    ops: ['set'],
+    acts: [],
+    secretPaths: [],
+    baseRisk: 'high',
+    order: 64,
+    description:
       "A standing task's description, which its agent works from. id is <projectId>/<taskId>.",
+  },
+  {
+    kind: 'task-review-context',
+    scope: 'project',
+    areas: [],
+    cli: true,
+    ops: ['set'],
+    acts: [],
+    secretPaths: [],
+    baseRisk: 'high',
+    order: 65,
+    description:
+      "Whether a task's work goes to an independent review by another project agent, and which one (reviewerAgentId); the reviewer stays the same once set. A task without one reads as null. id is <projectId>/<taskId>.",
   },
   {
     kind: 'deployment',

@@ -11,6 +11,13 @@
  * backend/rest/* adapters over the domain services), not an aspiration.
  */
 
+import {
+  STATIC_INPUT_MAX_BYTES,
+  TRIGGER_SKIP_REASONS,
+  triggerSkipDetailSchema,
+  triggerViewSchema,
+  triggerWriteJsonSchema,
+} from '@tale/shared/schemas/automation-trigger';
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import {
   PROJECT_AGENT_BINDINGS_MAX,
@@ -18,6 +25,7 @@ import {
   PROJECT_SHARED_TEAMS_MAX,
   projectAgentInputSchema,
 } from '@tale/shared/schemas/projects';
+import { scheduleRuleSchema } from '@tale/shared/schemas/schedule-rule';
 import {
   MAX_SKILL_BODY_BYTES,
   MAX_SKILL_DESCRIPTION_LENGTH,
@@ -79,6 +87,7 @@ import { AGENT_TOOL_GRANT_NAMES } from '../../backend/domains/projects/agent-equ
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import { EFFORT_LEVELS } from '../../lib/chat/effort.ts';
 import { TURN_FINISH_REASONS } from '../../lib/chat/types.ts';
+import { STEP_FAILURE_REASONS } from '../../lib/engine/core/record/failure.ts';
 import { CHAT_ERROR_CODES } from '../../lib/shared/chat-errors.ts';
 import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
@@ -471,8 +480,135 @@ const runResumeProperties: Record<string, Json> = {
 
 /** The keys of a run — the `Run` schema in full, and the `RunProjection` a
  * `?fields=` read answers, share them so the two can never drift. */
+/** [start, end) in a field's text, in UTF-16 code units. */
+const textRange: Json = {
+  type: 'array',
+  minItems: 2,
+  maxItems: 2,
+  items: { type: 'integer', minimum: 0 },
+};
+
+/** Why a step reads as different in two runs, in the order it is looked
+ * for. */
+const divergenceReason: Json = {
+  type: 'string',
+  enum: ['missing', 'status', 'decision', 'input', 'output'],
+};
+
+/** A step of a run's record, shared by the record, one unit and a page. */
+const runStepProperties: Record<string, Json> = {
+  path: {
+    type: 'string',
+    description:
+      'The step’s id; `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output',
+  },
+  nodeId: { type: 'string' },
+  type: { type: 'string' },
+  parentPath: { type: 'string' },
+  parentItem: { type: 'integer', minimum: -1 },
+  parentPass: { type: 'integer', minimum: -1 },
+  status: {
+    type: 'string',
+    enum: [
+      'pending',
+      'running',
+      'waiting',
+      'succeeded',
+      'failed',
+      'skipped',
+      'stopped',
+      'not_run',
+      'reused',
+    ],
+  },
+  startedAt: { type: 'integer', minimum: 0, description: 'Epoch milliseconds' },
+  endedAt: { type: 'integer', minimum: 0, description: 'Epoch milliseconds' },
+  activeMs: { type: 'integer', minimum: 0 },
+  waitedMs: { type: 'integer', minimum: 0 },
+  attempt: { type: 'integer', minimum: 0 },
+  attempts: {
+    type: 'array',
+    items: { $ref: '#/components/schemas/AttemptRecord' },
+  },
+  skip: {
+    type: 'object',
+    required: ['reason', 'chain'],
+    properties: {
+      reason: { type: 'string', enum: ['when', 'else', 'upstream', 'error'] },
+      via: { type: 'array', items: { type: 'string' } },
+      at: { type: 'integer', minimum: 0, description: 'Epoch milliseconds' },
+      chain: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/SkipCause' },
+      },
+    },
+  },
+  notRun: {
+    type: 'object',
+    required: ['runStatus'],
+    properties: {
+      stoppedAt: { type: 'string' },
+      runStatus: { type: 'string', enum: ['failed', 'cancelled'] },
+    },
+  },
+  failure: { $ref: '#/components/schemas/StepFailure' },
+  decisions: {
+    type: 'array',
+    items: { $ref: '#/components/schemas/Decision' },
+  },
+  waits: { type: 'array', items: { $ref: '#/components/schemas/WaitRecord' } },
+  counts: {
+    type: 'object',
+    required: ['items', 'ok', 'failed', 'skipped', 'kept'],
+    properties: {
+      items: { type: 'integer', minimum: 0 },
+      ok: { type: 'integer', minimum: 0 },
+      failed: { type: 'integer', minimum: 0 },
+      skipped: { type: 'integer', minimum: 0 },
+      passes: { type: 'integer', minimum: 0 },
+      kept: {
+        type: 'integer',
+        minimum: 0,
+        description:
+          'How many of its items and passes have a record of their own',
+      },
+    },
+  },
+  input: { $ref: '#/components/schemas/ValueGlimpse' },
+  output: { $ref: '#/components/schemas/ValueGlimpse' },
+  reused: {
+    type: 'object',
+    required: ['runId'],
+    properties: { runId: { type: 'string' } },
+  },
+  meta: {
+    type: 'object',
+    properties: {
+      model: { type: 'string' },
+      connector: { type: 'string' },
+      action: { type: 'string' },
+      effect: { type: 'string', enum: ['read', 'write'] },
+      execId: { type: 'string' },
+      docRef: { type: 'string' },
+      pins: { type: 'object', additionalProperties: { type: 'integer' } },
+      bench: { type: 'string' },
+    },
+  },
+};
+
 const runProperties: Record<string, Json> = {
   id: { ...str, description: 'The run id (`runId` at start)' },
+  replayOf: {
+    type: 'object',
+    description:
+      'Present on a run started by running another one again: that run (`runId`, null once it was deleted), how (`kind`), and from which step (`fromNode`)',
+    required: ['runId', 'kind'],
+    properties: {
+      runId: { type: 'string', nullable: true },
+      kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+      fromNode: { type: 'string' },
+    },
+  },
   organizationId: str,
   name: str,
   version: int,
@@ -607,21 +743,20 @@ const triggerHealthProperties: Json = {
       'schedule paused itself.',
   },
   lastSkipReason: {
-    ...nullable({
-      type: 'string',
-      enum: [
-        'not_deployed',
-        'unusable_cron',
-        'start_refused',
-        'paused_after_failures',
-      ],
-    }),
+    ...nullable({ type: 'string', enum: [...TRIGGER_SKIP_REASONS] }),
     description:
       '`not_deployed`: the automation had no deployed version to run — ' +
-      'deploy one. `unusable_cron`: the schedule’s expression or time zone ' +
-      'could not be read; the scheduler leaves the binding alone until it ' +
-      'is edited. `start_refused`: the deployed version’s `inputs` schema ' +
-      'refused the run’s input (`{trigger, firedAt}` for a schedule). ' +
+      'deploy one. `unusable_cron`: the schedule’s repeat rule, cron ' +
+      'expression or time zone could not be read; the scheduler leaves the ' +
+      'binding alone until it is edited. `start_refused`: the run could not ' +
+      'start — the deployed version’s `inputs` schema refused the run’s ' +
+      'input (`{…input, trigger, firedAt}` for a schedule; ' +
+      '`AUTOMATION_INPUT_INVALID`), or its project could not start runs ' +
+      '(`PROJECT_ARCHIVED` and the other project refusals); ' +
+      '`lastSkipDetail.code` names which. `missed_occurrences`: the schedule ' +
+      'came due while the platform was not running — ' +
+      '`lastSkipDetail.missed` counts the occurrences it did not start, and ' +
+      '`firedLatest` says whether it started the latest one late. ' +
       '`paused_after_failures`: the schedule turned itself off ' +
       `(\`enabled: false\`) after ${PERMANENT_FAILURES_BEFORE_PAUSE} runs ` +
       'in a row failed for a reason the next occurrence would repeat — fix the ' +
@@ -664,6 +799,266 @@ const triggerFailureProperties: Json = {
     description:
       'That run — `GET …/runs/{runId}` has its failure sentence; null once ' +
       'the run is deleted.',
+  },
+};
+
+function isJsonRecord(value: unknown): value is Json {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A zod rendering spelled the way the house spells nullability
+ * (`nullable` above): a typeless `oneOf` carries `nullable` on each branch,
+ * and a nullable enum lists null. */
+function houseNullability(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(houseNullability);
+  if (!isJsonRecord(node)) return node;
+  const { nullable: isNullable, ...rest } = Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [key, houseNullability(value)]),
+  );
+  return isNullable === true ? nullable(rest) : rest;
+}
+
+/** The trigger a `PUT …/triggers` binds: the shared write contract
+ * (`triggerWriteSchema`) the app's editor and MCP `set_trigger` send,
+ * rendered to JSON Schema — one strict branch per kind — with the events
+ * the platform raises as the event branch's closed set. */
+const triggerWriteSpec: Json = (() => {
+  const rendered = triggerWriteJsonSchema('openapi-3.0');
+  const branches: unknown[] = Array.isArray(rendered.oneOf)
+    ? rendered.oneOf
+    : [];
+  return {
+    ...rendered,
+    oneOf: branches.map(houseTriggerBranch),
+    description:
+      'One strict shape per `kind`; a key of another kind is refused like ' +
+      'an unknown key. A schedule runs on a repeat rule (`repeat`, read in ' +
+      '`timezone`, which it requires, from `startDate`) or on a five-field ' +
+      '`cron` (read in `timezone`, UTC when absent), never both. Any kind ' +
+      `takes a fixed \`input\` (a JSON object of at most ${STATIC_INPUT_MAX_BYTES / 1024} KiB). ` +
+      'The PUT replaces the trigger whole: an omitted `catchUp` reads as ' +
+      '`latest`, an omitted `input` clears it, and an omitted `startDate` ' +
+      'means today in `timezone` — send back the `startDate` and `input` ' +
+      '`GET …/triggers` reads to keep them.',
+  };
+})();
+
+/** One kind's branch of the trigger body as the document publishes it: a
+ * schedule's rule as the `ScheduleRule` component, an event's name from
+ * the events the platform raises. */
+function houseTriggerBranch(branch: unknown): unknown {
+  if (!isJsonRecord(branch) || !isJsonRecord(branch.properties)) {
+    return branch;
+  }
+  if (isJsonRecord(branch.properties.repeat)) {
+    return {
+      ...branch,
+      properties: { ...branch.properties, repeat: ref('ScheduleRule') },
+    };
+  }
+  const event = branch.properties.event;
+  if (!isJsonRecord(event)) return branch;
+  return {
+    ...branch,
+    properties: {
+      ...branch.properties,
+      event: {
+        ...event,
+        enum: [...EMITTED_EVENT_TYPES],
+        description:
+          'The platform event that starts the automation — one of the ' +
+          'events the platform raises. Any other name answers 400 ' +
+          '`AUTOMATION_TRIGGER_INVALID`, naming this list.',
+      },
+    },
+  };
+}
+
+/** A trigger as `GET …/triggers` reads it: the shared read contract
+ * (`triggerViewSchema`) rendered to JSON Schema, with the house's words for
+ * each field. Open at the top, as every read is. */
+const triggerViewSpec: Json = (() => {
+  const { additionalProperties: _closed, ...rendered } = z.toJSONSchema(
+    triggerViewSchema,
+    { target: 'openapi-3.0', io: 'output' },
+  );
+  const shaped = houseNullability(rendered);
+  const base = isJsonRecord(shaped) ? shaped : {};
+  const properties = isJsonRecord(base.properties) ? base.properties : {};
+  const field = (key: string, description: string): Json => ({
+    ...(isJsonRecord(properties[key]) ? properties[key] : {}),
+    description,
+  });
+  return {
+    ...base,
+    description:
+      'The binding, and its health: `lastFiredAt` and `lastRunId` name ' +
+      'the last run it started, `lastSkippedAt` and `lastSkipReason` ' +
+      '(with `lastSkipDetail`) the last time it came due and started ' +
+      'nothing. A schedule says what it runs on — `repeat` from ' +
+      '`startDate`, or `cron` — in which `timezone`, what it does with ' +
+      'missed occurrences (`catchUp`) and when it next runs (`nextRunAt`). ' +
+      'A binding is alive when `lastFiredAt` keeps pace with its cadence; ' +
+      'one whose `lastSkippedAt` is the newer stamp is coming due and not ' +
+      'running — the reason says what to fix. `consecutiveFailures` counts ' +
+      'the runs it started that failed in a row, and `lastFailedAt`, ' +
+      '`lastFailureCode` and `lastFailedRunId` name the last of them — a ' +
+      'schedule that reaches the threshold pauses itself.',
+    properties: {
+      ...properties,
+      id: field(
+        'id',
+        'The binding’s id — what a run’s `startedBy` (`trigger:<id>`) names',
+      ),
+      cron: field(
+        'cron',
+        'A schedule’s five-field cron expression; null when it runs on a ' +
+          'repeat rule, and for a webhook or an event.',
+      ),
+      repeat: {
+        ...nullable(ref('ScheduleRule')),
+        description:
+          'A schedule’s repeat rule — the shape the PUT takes; null when it ' +
+          'runs on a cron expression, and for a webhook or an event.',
+      },
+      startDate: field(
+        'startDate',
+        'The day the repeat rule starts on, `YYYY-MM-DD` in `timezone`: no ' +
+          'start comes before it, and "every 2 weeks" counts from it. Send ' +
+          'it back on a PUT to keep the rule in step; null without a ' +
+          'repeat rule.',
+      ),
+      timezone: field(
+        'timezone',
+        'The zone the schedule reads in, in its canonical spelling; null ' +
+          'for a cron expression without one (read in UTC) and for a ' +
+          'webhook or an event.',
+      ),
+      catchUp: field(
+        'catchUp',
+        'What a schedule does with occurrences it missed while the ' +
+          'platform was not running: `latest` starts the most recent one ' +
+          'once, however late; `skip` starts it only when it is at most 10 ' +
+          'minutes late. Null for a webhook or an event.',
+      ),
+      input: {
+        ...nullable(obj),
+        description:
+          'The fixed input every run it starts receives, under the ' +
+          'trigger’s own fields; null when it has none. Send it back on a ' +
+          'PUT to keep it.',
+      },
+      event: field(
+        'event',
+        'The platform event that starts an event trigger; null for the ' +
+          'other kinds.',
+      ),
+      hasToken: {
+        ...bool,
+        description: 'A webhook secret exists (never returned here)',
+      },
+      nextRunAt: field(
+        'nextRunAt',
+        'Epoch milliseconds of a schedule’s next start — the earliest ' +
+          'occurrence it has not handled yet; null while it is switched off, ' +
+          'for a webhook or an event, and for a schedule that never comes ' +
+          'due again.',
+      ),
+      lastRunId: {
+        ...nullable(str),
+        description:
+          'The run `lastFiredAt` started; null until one has, and again ' +
+          'once that run is deleted.',
+      },
+      lastSkipDetail: {
+        ...nullable(ref('TriggerSkipDetail')),
+        description:
+          'The facts behind `lastSkipReason`. Null with ' +
+          '`paused_after_failures` (its facts are the failure fields) and ' +
+          'for a skip recorded without them.',
+      },
+      ...triggerHealthProperties,
+      ...triggerFailureProperties,
+    },
+  };
+})();
+
+/** A schedule's repeat rule: the shared zod schema every door validates a
+ * rule with, rendered to JSON Schema — one branch per frequency. */
+const scheduleRuleSpec: Json = {
+  ...z.toJSONSchema(scheduleRuleSchema, {
+    target: 'openapi-3.0',
+    io: 'output',
+  }),
+  description:
+    'When a schedule starts, read in its time zone. `minutely` and ' +
+    '`hourly` step a grid from local midnight (`interval` divides the hour ' +
+    'or the day), optionally only on some `weekdays` and between some ' +
+    '`hours` (`to` before `from` runs overnight; "00:00" runs until ' +
+    'midnight). `daily`, `weekly`, `monthly` and `yearly` name the days ' +
+    'as a task’s repeat rule does (0 is Sunday … 6 is Saturday; weeks run ' +
+    'Monday to Sunday; a shorter month uses its last day) and add `times`, ' +
+    '1 to 12 times of day as "HH:MM"; `interval` repeats every N of them, ' +
+    'counted from `startDate`. Through a daylight-saving change, a time ' +
+    'that does not exist that day moves forward by the gap, a time that ' +
+    'occurs twice starts once at the first, and a grid keeps its pace in ' +
+    'real time.',
+};
+
+/** Why a trigger last started nothing, with its facts: the shared zod
+ * schema the store writes and reads them with, one branch per reason. */
+const triggerSkipDetailSpec: Json = {
+  ...(houseNullability(
+    z.toJSONSchema(triggerSkipDetailSchema, {
+      target: 'openapi-3.0',
+      io: 'output',
+    }),
+  ) as Json),
+  description:
+    'The facts behind a trigger’s `lastSkipReason`, by `reason` (which ' +
+    'equals it): the `occurrence` a `not_deployed` or `start_refused` ' +
+    'skip was for — the instant a schedule came due, or an event or ' +
+    'delivery arrived; a refusal’s `code`, the `version` that refused ' +
+    '(always set for `AUTOMATION_INPUT_INVALID`) and its `message` and ' +
+    '`issues`; under `missed`, the occurrences a schedule missed while the ' +
+    'platform was not running (`count`, `capped` when it stopped at 1,000, ' +
+    'the `firstAt` and `lastAt` of them, the `policy` it applied) and ' +
+    'whether it started the latest one late (`firedLatest`); an ' +
+    '`unusable_cron` skip’s `message`.',
+};
+
+/** One warning a trigger bind (or a deploy) answers: what the deployed
+ * version would make of what the trigger sends. */
+const triggerWarningSpec: Json = {
+  type: 'object',
+  required: ['level', 'code', 'message'],
+  // The codes are warnings, not REST error codes: named here in prose,
+  // without the backticks the error-code registry test reads as one.
+  description:
+    'A warning, never a refusal: the trigger is saved either way. ' +
+    'TRIGGER_INPUT_MISMATCH: the deployed version’s `inputs` schema ' +
+    'refuses the input the trigger hands a run (`params.kind`, ' +
+    '`params.missing` — the required fields it lacks — and ' +
+    '`params.problems`); a webhook’s body is not judged. ' +
+    'TRIGGER_INPUT_NOT_TEMPLATED: the fixed input holds a template ' +
+    '(`params.paths`), which arrives as text and is never evaluated.',
+  properties: {
+    level: { type: 'string', enum: ['warning'] },
+    code: {
+      type: 'string',
+      enum: ['TRIGGER_INPUT_MISMATCH', 'TRIGGER_INPUT_NOT_TEMPLATED'],
+    },
+    message: str,
+    hint: str,
+    at: {
+      type: 'object',
+      properties: { pointer: str },
+      description: 'Where in the automation document: `/inputs`',
+    },
+    params: {
+      ...obj,
+      description: 'The facts the sentence names, by name',
+    },
   },
 };
 
@@ -4709,6 +5104,11 @@ export function buildSpec(): Json {
     scope: 'automation and scope',
     answer: 'the run the first attempt started',
   });
+  const replayIdempotencyKeyParam = idempotencyKeyParam({
+    names: 'replay',
+    scope: 'run, kind and step',
+    answer: 'the replay the first attempt started',
+  });
   const sendIdempotencyKeyParam = idempotencyKeyParam({
     names: 'send',
     scope: 'thread and scope',
@@ -5081,53 +5481,28 @@ export function buildSpec(): Json {
         'live webhook revokes its URL — the response says so (`revoked`). ' +
         'For a webhook trigger the plaintext token is returned ONCE in this ' +
         'response (and again only with `rotateToken: true`); the platform ' +
-        'stores a hash. Each kind takes its own keys — `cron` and `timezone` ' +
-        'only with `schedule`, `event` only with `event`, `rotateToken` only ' +
-        'with `webhook`, `enabled` with any — and a key of another kind is ' +
-        'refused like an unknown key (`INVALID_BODY`, named under ' +
-        '`data.issues`). The 200 says whether the automation has a version ' +
-        'to run (`deployed`): binding before deploying is accepted, and such ' +
-        'a trigger skips every occurrence as `not_deployed` — visible on ' +
-        '`GET /api/v1/automations` — until a version is deployed.',
+        'stores a hash. Each kind takes its own keys — `repeat`, `cron`, ' +
+        '`startDate`, `timezone` and `catchUp` only with `schedule`, `event` ' +
+        'only with `event`, `rotateToken` only with `webhook`, `enabled` and ' +
+        '`input` with any — and a key of another kind is refused like an ' +
+        'unknown key (`INVALID_BODY`, named under `data.issues`). A rule the ' +
+        'trigger breaks (a schedule with neither a repeat rule nor a cron, ' +
+        'or both; a time not written HH:MM; a blank or unknown zone; a fixed ' +
+        'input naming a field the trigger sets) answers 400 ' +
+        '`AUTOMATION_TRIGGER_INVALID` with each problem under ' +
+        '`data.issues` (`{path, code, message}`). The PUT is a full ' +
+        'replace: send back the `startDate` and `input` `GET …/triggers` ' +
+        'reads to keep them. The 200 says whether the automation has a ' +
+        'version to run (`deployed`): binding before deploying is accepted, ' +
+        'and such a trigger skips every occurrence as `not_deployed` — ' +
+        'visible on `GET /api/v1/automations` — until a version is ' +
+        'deployed. It names a schedule’s next start (`nextRunAt`) and, in ' +
+        '`warnings`, what the deployed version would make of what the ' +
+        'trigger sends.',
       operationId: 'setAutomationTrigger',
       security: sec,
       parameters: [automationNameParam],
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['kind'],
-        additionalProperties: false,
-        properties: {
-          kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
-          cron: {
-            type: 'string',
-            description:
-              'Only with `kind: schedule`: the five-field cron expression. ' +
-              'One that can never fire — a field out of range, a day no ' +
-              'named month has (`0 0 30 2 *`) — answers 400 ' +
-              '`AUTOMATION_TRIGGER_INVALID`.',
-          },
-          timezone: {
-            type: 'string',
-            description:
-              'Only with `kind: schedule`: the IANA zone the cron is read ' +
-              'in (UTC when absent)',
-          },
-          event: {
-            type: 'string',
-            enum: [...EMITTED_EVENT_TYPES],
-            description:
-              'Only with `kind: event`: the platform event that starts the ' +
-              'automation — one of the events the platform raises. Any other ' +
-              'name answers 400 `AUTOMATION_TRIGGER_INVALID`, naming this list.',
-          },
-          enabled: { type: 'boolean', default: true },
-          rotateToken: {
-            type: 'boolean',
-            description:
-              'Only with `kind: webhook`: mint (and return) a fresh token',
-          },
-        },
-      }),
+      requestBody: jsonBody(triggerWriteSpec),
       responses: {
         '200': jsonResponse('Trigger bound', {
           type: 'object',
@@ -5155,13 +5530,28 @@ export function buildSpec(): Json {
                 'back. Absent on a first bind and on a re-bind of the same ' +
                 'kind (which keeps the token).',
             },
+            nextRunAt: {
+              ...nullable(epochMs),
+              description:
+                'Epoch milliseconds of a schedule’s next start, as ' +
+                '`GET …/triggers` reads it; null while it is switched off ' +
+                'or never comes due again. Absent for a webhook or an event.',
+            },
+            warnings: {
+              type: 'array',
+              items: ref('TriggerWarning'),
+              description:
+                'What the deployed version would make of what the trigger ' +
+                'sends — the trigger is saved either way. Absent when ' +
+                'nothing is wrong, and when no version is deployed.',
+            },
           },
         }),
         '403': errorResponse('Needs the developer capability'),
         '404': errorResponse('Automation not found'),
         ...standardErrors,
         '400': errorResponse(
-          'Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that could never fire: a cron that matches nothing (including a day no named month has, `0 0 30 2 *`), a time zone that is not an IANA zone, an event the platform does not raise (`AUTOMATION_TRIGGER_INVALID`)',
+          'Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that breaks a rule or could never fire (`AUTOMATION_TRIGGER_INVALID`, each problem under `data.issues` as `{path, code, message}`): neither a repeat rule nor a cron, or both; a repeat rule without a time zone, with a time not written HH:MM, more than 12 times, an interval it does not offer, a day the month never has, a window whose start equals its end or in which it never runs, or a start date that is no calendar day; a cron that matches nothing (including a day no named month has, `0 0 30 2 *`); a blank time zone or one that is not an IANA zone; a fixed input that is not an object, names a field the trigger sets, or is larger than 16 KiB; an event the platform does not raise',
         ),
       },
     },
@@ -5246,6 +5636,208 @@ export function buildSpec(): Json {
             'The run is still queued, running or waiting (`RUN_ACTIVE`)',
           ),
           ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/record`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Read a run step by step',
+        description: `${visibility} The run’s record: every step in the order it runs — the run input as \`__start\`, the version’s steps, the document output as \`__end\`, then steps inside subautomations — each with its status, times, attempts, the decisions that ran or skipped it with an explanation of each condition, why it produced no output (followed back to the cause), why it failed, and glimpses of what it received and returned (never the values: read one step at \`…/record/node\`). Also the run’s events a reader may see, the path it took, and with \`include=travels\` the data that travelled between steps. Pass \`cursor\` back as \`since\` to read only what changed: steps whose record was written at or after it and events since, merged by step path and by event id. A run recorded before step records were kept reads \`source: "trace"\`. The answer stays under 512 KiB: past it, shapes keep one level, then explanations and travels are left out, then steps inside subautomations and from the end (\`truncated\` says which).`,
+        operationId: scope.project ? 'getProjectRunRecord' : 'getRunRecord',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'since',
+              'A `cursor` an earlier read answered: only what changed at or after it',
+            ),
+            schema: { type: 'integer', minimum: 0 },
+          },
+          queryParam(
+            'include',
+            'What else to answer: `travels`, the data that travelled between steps',
+          ),
+        ],
+        responses: {
+          '200': jsonResponse('The run’s record', ref('RunRecord')),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/record/node`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Read one step of a run whole',
+        description: `${visibility} One unit of the run — a step, or one of its items or passes — with what the step summary has and its stored input and output (secrets withheld, cut to their bounds, every cut and withheld place listed), where each templated field’s text landed in the input, what it read from other steps and the run input and when, how its output differs from its input, and its call to a connector or a model as the run’s ledger keeps it. The answer stays under 256 KiB.`,
+        operationId: scope.project ? 'getProjectRunNode' : 'getRunNode',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'node',
+              'The step’s path: its id, or `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output',
+            ),
+            required: true,
+          },
+          {
+            ...queryParam(
+              'item',
+              'The item of a step that runs per item; -1 (the default) for the step itself',
+            ),
+            schema: { type: 'integer', minimum: -1, default: -1 },
+          },
+          {
+            ...queryParam(
+              'pass',
+              'The pass of a step that repeats; -1 (the default) for the step itself',
+            ),
+            schema: { type: 'integer', minimum: -1, default: -1 },
+          },
+        ],
+        responses: {
+          '200': jsonResponse('The unit, read whole', ref('RunNode')),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); the record holds no such unit (`NODE_RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/record/items`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'List the items and passes of a run’s step',
+        description: `${visibility} A step’s items and passes in item, then pass order, each read like a step: its status, times, attempts, decisions, failure and value glimpses. \`status=failed\` keeps the units that failed. A run recorded before step records were kept has none.`,
+        operationId: scope.project
+          ? 'listProjectRunNodeUnits'
+          : 'listRunNodeUnits',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'node',
+              'The step’s path, as `…/record/node` takes it',
+            ),
+            required: true,
+          },
+          {
+            ...queryParam(
+              'status',
+              'Which units: `all` (the default) or `failed`',
+            ),
+            schema: { type: 'string', enum: ['all', 'failed'] },
+          },
+          ...paginationParams(200, 50),
+        ],
+        responses: {
+          '200': jsonResponse(
+            'One page of the step’s units',
+            ref('RunUnitPage'),
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/compare/{otherRunId}`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Compare two runs of one automation',
+        description: `${visibility} The same holds for \`otherRunId\`. The two runs side by side, step by step in the order the second run’s version runs them: what changed in the version, how their input and output differ, each step’s status, decisions and the values that flipped them, its values and items, the first step where the runs went different ways, and the side effects only one had or both had with different input. Values are told apart by their hashes, exact past what was stored; a place either run cut or withheld reads \`unknown\`, never \`changed\`. The answer stays under 512 KiB: value changes go first, then steps from the end, never the first divergence (\`truncated\` says which).`,
+        operationId: scope.project ? 'compareProjectRuns' : 'compareRuns',
+        security: sec,
+        parameters: [
+          ...parameters,
+          pathParam('otherRunId', 'The run to compare with'),
+        ],
+        responses: {
+          '200': jsonResponse('How the two runs differ', ref('RunDiff')),
+          '404': errorResponse(
+            'Either run missing or outside the visible URL scope (`RUN_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+          '400': withDoorRefusal(
+            standardErrors['400'],
+            'two runs of different automations (`RUN_COMPARE_MISMATCH`)',
+          ),
+        },
+      },
+    };
+    paths[`${scope.path}/replay`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Plan running a run again',
+        description: `${visibility} What running the run again would do, without doing it: the version it runs, which steps it reuses and which it runs again, what each does outside Tale, how many writes go out a second time when it runs live, how many model and agent calls it repeats — or the \`refusal\` it would meet. The query is the request \`POST …/replay\` takes.`,
+        operationId: scope.project ? 'planProjectRunReplay' : 'planRunReplay',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'kind',
+              '`again` (its own input), `edited` (an input you send to POST), or `from` (from one step)',
+            ),
+            required: true,
+            schema: { type: 'string', enum: ['again', 'edited', 'from'] },
+          },
+          queryParam('from', 'kind `from`: the step to run again from'),
+          queryParam(
+            'version',
+            '`same` (the default: the version the run ran), `deployed`, `latest`, or a version number',
+          ),
+          {
+            ...queryParam('mode', 'The run’s own mode by default'),
+            schema: { type: 'string', enum: ['mock', 'live'] },
+          },
+        ],
+        responses: {
+          '200': jsonResponse('What the replay would do', ref('ReplayPlan')),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+          ),
+          '409': errorResponse(
+            '`version: "deployed"` while nothing is deployed (`AUTOMATION_NOT_DEPLOYED`)',
+          ),
+          ...standardErrors,
+        },
+      },
+      post: {
+        tags: ['Runs'],
+        summary: 'Run a run again',
+        description: `${visibility}${scope.project ? ' Requires write access to the active URL project.' : ''} Starts a new run of the same automation in the same scope: with the run's own input (\`again\`), with an \`input\` you send (\`edited\`), or from one step (\`from\`) — a fork born with the steps the run finished outside that step and what it feeds, which it reuses (their results, their record, never their effects), and runs the rest. Plan it first with \`GET …/replay\`: a step that writes runs again and writes again, under a new request key. Answers 202 like a start; the new run's \`replayOf\` names this run. A live replay requires the developer capability and the deployed version; a fork of a mock run stays mock. Send \`Idempotency-Key\` to make it safe to retry. Charges the execute bucket on top of the general REST bucket.`,
+        operationId: scope.project ? 'replayProjectRun' : 'replayRun',
+        security: sec,
+        parameters: [...parameters, replayIdempotencyKeyParam],
+        requestBody: jsonBody(ref('ReplayRequest')),
+        responses: {
+          '202': jsonResponse(
+            'The replay started, or the one an earlier attempt under the same `Idempotency-Key` started',
+            ref('ReplayStarted'),
+          ),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires write access to an active project; a live replay also requires developer capability (`ROLE_FORBIDDEN`)'
+              : 'A live replay requires developer capability (`ROLE_FORBIDDEN`)',
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), no step `from` in both versions (`REPLAY_NODE_UNKNOWN`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+          ),
+          '409': errorResponse(
+            'The run has not finished (`REPLAY_RUN_NOT_FINISHED`); the version to run changed what a reused step would compute (`REPLAY_GRAPH_CHANGED`, the steps under `data.nodes`); a fork of a mock run asked to run live (`REPLAY_MODE_MISMATCH`); the run’s progress cannot be read (`REPLAY_PROGRESS_UNREADABLE`); the run kept no input (`REPLAY_INPUT_UNAVAILABLE`); a live replay of a version that is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`) or of nothing deployed (`AUTOMATION_NOT_DEPLOYED`); the automation is now installed in projects while the run had none (`AUTOMATION_PROJECT_SCOPE_REQUIRED`); or the `Idempotency-Key` was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)',
+          ),
+          ...standardErrors,
+          '400': errorResponse(
+            'Invalid body (`INVALID_BODY` — a fork without `from`, an `edited` replay without `input`, …), or input that does not match the automation inputs schema (`AUTOMATION_INPUT_INVALID`)',
+          ),
         },
       },
     };
@@ -7437,7 +8029,8 @@ loop from the document rather than from this prose:
   (contacts, products, documents, knowledge entries, threads, messages,
   websites) and under the resource's own key elsewhere: \`{runs, …}\`,
   \`{deliveries, …}\`, \`{conversations, …}\`, \`{comments, …}\`,
-  \`{projects, …}\`, \`{files, …}\`.
+  \`{projects, …}\`, \`{files, …}\`, and a run step's items and passes
+  under \`{units, …}\`.
   The last two also answer \`cursor\` — the same token under its pre-1.5.0
   name, present only while more pages remain, deprecated and served for at
   least two more minor versions; a project lookup by \`externalItemId\` is
@@ -9501,6 +10094,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               required: [
                 'kind',
                 'enabled',
+                'nextRunAt',
                 'lastFiredAt',
                 'lastSkippedAt',
                 'lastSkipReason',
@@ -9511,18 +10105,26 @@ curl -H "Authorization: Bearer <api-key>" \\
                   enum: ['schedule', 'webhook', 'event'],
                 },
                 enabled: bool,
+                nextRunAt: {
+                  ...nullable(epochMs),
+                  description:
+                    'Epoch milliseconds of a schedule’s next start, as ' +
+                    '`GET …/triggers` reads it; null while it is switched ' +
+                    'off, and for a webhook or an event.',
+                },
                 ...triggerHealthProperties,
               },
               description:
                 'What starts the automation, if a trigger is bound: its kind, ' +
-                'whether it is switched on, and its health — the same ' +
-                '`lastFiredAt`, `lastSkippedAt` and `lastSkipReason` that ' +
+                'whether it is switched on, when a schedule next runs, and ' +
+                'its health — the same `nextRunAt`, `lastFiredAt`, ' +
+                '`lastSkippedAt` and `lastSkipReason` that ' +
                 '`GET …/triggers` reads, so one listing call finds every ' +
                 'binding that is enabled and not firing (a `lastSkipReason` ' +
                 'of `not_deployed` beside a null `deployedVersion` is a ' +
                 'trigger waiting for a deploy); null when none is bound. ' +
-                '`GET …/triggers` has the rest — the cron, the event, ' +
-                '`lastRunId`.',
+                '`GET …/triggers` has the rest — the repeat rule or cron, ' +
+                'the event, `lastRunId`, `lastSkipDetail`.',
             }),
             projectIds: {
               type: 'array',
@@ -9660,59 +10262,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
           },
         },
-        Trigger: {
-          type: 'object',
-          description:
-            'The binding, and its health: `lastFiredAt` and `lastRunId` name ' +
-            'the last run it started, `lastSkippedAt` and `lastSkipReason` ' +
-            'the last time it came due and started nothing. A binding is ' +
-            'alive when `lastFiredAt` keeps pace with its cadence; one whose ' +
-            '`lastSkippedAt` is the newer stamp is coming due and not running ' +
-            '— the reason says what to fix. `consecutiveFailures` counts the ' +
-            'runs it started that failed in a row, and `lastFailedAt`, ' +
-            '`lastFailureCode` and `lastFailedRunId` name the last of them — ' +
-            'a schedule that reaches the threshold pauses itself.',
-          required: [
-            'id',
-            'name',
-            'kind',
-            'hasToken',
-            'enabled',
-            'lastFiredAt',
-            'lastRunId',
-            'lastSkippedAt',
-            'lastSkipReason',
-            'consecutiveFailures',
-            'lastFailedAt',
-            'lastFailureCode',
-            'lastFailedRunId',
-          ],
-          properties: {
-            id: {
-              ...str,
-              description:
-                'The binding’s id — what a run’s `startedBy` (`trigger:<id>`) names',
-            },
-            name: str,
-            kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
-            cron: nullable(str),
-            timezone: nullable(str),
-            event: nullable(str),
-            hasToken: {
-              ...bool,
-              description: 'A webhook secret exists (never returned here)',
-            },
-            enabled: bool,
-            lastRunId: {
-              ...nullable(str),
-              description:
-                'The run `lastFiredAt` started; null until one has, and again ' +
-                'once that run is deleted.',
-            },
-            ...triggerHealthProperties,
-            ...triggerFailureProperties,
-          },
-        },
+        Trigger: triggerViewSpec,
+        TriggerWarning: triggerWarningSpec,
+        TriggerSkipDetail: triggerSkipDetailSpec,
+        ScheduleRule: scheduleRuleSpec,
         LegacyRunQuarantine: {
           type: 'object',
           additionalProperties: false,
@@ -9922,6 +10475,1222 @@ curl -H "Authorization: Bearer <api-key>" \\
             'chose them.',
           properties: runProperties,
           additionalProperties: false,
+        },
+
+        // ── A run step by step ──
+        ValueSummary: {
+          type: 'object',
+          description:
+            'A value told without the value itself: its kind, a short text, ' +
+            'its length or key count, its first names or items. A secret ' +
+            'reads `redacted`; a value the record cut away reads `elided`.',
+          required: ['kind'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: [
+                'string',
+                'number',
+                'boolean',
+                'null',
+                'undefined',
+                'array',
+                'object',
+                'redacted',
+                'elided',
+              ],
+            },
+            text: {
+              ...str,
+              maxLength: 80,
+              description:
+                'At most 80 characters: a string (cut), a number (`NaN` and `Infinity` as text) or a boolean',
+            },
+            length: {
+              ...int,
+              minimum: 0,
+              description: 'A string’s full length, or a list’s',
+            },
+            keys: { ...int, minimum: 0, description: 'An object’s key count' },
+            names: {
+              type: 'array',
+              maxItems: 8,
+              items: str,
+              description: 'An object’s first key names',
+            },
+            items: {
+              type: 'array',
+              maxItems: 3,
+              items: ref('ValueSummary'),
+              description: 'A list’s first items, one level deep',
+            },
+            cut: {
+              type: 'boolean',
+              enum: [true],
+              description: 'The text was cut',
+            },
+            bytes: {
+              ...int,
+              minimum: 0,
+              description: 'The value’s size as JSON text, in UTF-8 bytes',
+            },
+          },
+        },
+        ValueShape: {
+          type: 'object',
+          description:
+            'The shape a value was read to have, as a JSON Schema subset. ' +
+            '`x-count` says in how many of several objects a field was ' +
+            'present, `x-omitted` how many fields were left out; a shape ' +
+            'with neither `type` nor `anyOf` is any value — its depth or ' +
+            'size ran out.',
+          properties: {
+            type: {
+              anyOf: [
+                {
+                  type: 'string',
+                  enum: [
+                    'string',
+                    'number',
+                    'integer',
+                    'boolean',
+                    'object',
+                    'array',
+                    'null',
+                  ],
+                },
+                { type: 'array', items: str },
+              ],
+            },
+            properties: {
+              type: 'object',
+              additionalProperties: ref('ValueShape'),
+            },
+            required: { type: 'array', items: str },
+            items: ref('ValueShape'),
+            enum: { type: 'array', items: {} },
+            anyOf: { type: 'array', items: ref('ValueShape') },
+            description: str,
+            'x-count': {
+              type: 'object',
+              required: ['present', 'of'],
+              properties: { present: int, of: int },
+            },
+            'x-omitted': { ...int, minimum: 1 },
+          },
+        },
+        ValueGlimpse: {
+          type: 'object',
+          description:
+            'A recorded value as a step summary shows it: never the value itself.',
+          required: ['summary', 'shape', 'bytes', 'elided', 'redactions'],
+          properties: {
+            summary: ref('ValueSummary'),
+            shape: {
+              allOf: [ref('ValueShape')],
+              description: 'Read from the whole value, three levels deep',
+            },
+            bytes: {
+              ...int,
+              minimum: 0,
+              description: 'The whole value’s size as JSON, in UTF-8 bytes',
+            },
+            elided: {
+              ...bool,
+              description: 'The stored copy was cut somewhere',
+            },
+            redactions: {
+              ...int,
+              minimum: 0,
+              description: 'Places a secret was withheld from',
+            },
+          },
+        },
+        ValueRecord: {
+          type: 'object',
+          description:
+            'A recorded value: secrets withheld first (a withheld place ' +
+            'reads `null`), then summarized, shaped and hashed from the ' +
+            'whole withheld value, then cut to its bounds — every cut and ' +
+            'withheld place listed beside it.',
+          required: ['summary', 'shape', 'bytes', 'hash'],
+          properties: {
+            value: {
+              description:
+                'The stored value; absent when the run’s budget for stored values was spent, or there was no value',
+            },
+            summary: ref('ValueSummary'),
+            shape: ref('ValueShape'),
+            bytes: {
+              ...int,
+              minimum: 0,
+              description: 'The whole value’s size as JSON, in UTF-8 bytes',
+            },
+            hash: {
+              ...nullable(str),
+              description:
+                'A hash of the whole value, to tell two values apart past what was stored; null above 4 MiB',
+            },
+            elided: {
+              type: 'array',
+              description: 'Each place the stored value was cut',
+              items: {
+                type: 'object',
+                required: ['pointer', 'kind', 'dropped'],
+                properties: {
+                  pointer: {
+                    ...str,
+                    description: 'RFC 6901 pointer into the value',
+                  },
+                  kind: {
+                    type: 'string',
+                    enum: ['string', 'items', 'depth', 'whole'],
+                    description:
+                      '`string`: characters dropped from its end; `items`: list entries dropped; `depth`: a value past the depth bound, now null; `whole`: nothing of the value was kept',
+                  },
+                  dropped: { ...int, minimum: 0 },
+                },
+              },
+            },
+            redacted: {
+              type: 'array',
+              description: 'Each place a secret was withheld',
+              items: {
+                type: 'object',
+                required: ['pointer', 'why'],
+                properties: {
+                  pointer: str,
+                  why: {
+                    type: 'string',
+                    enum: ['key', 'pattern', 'name'],
+                    description:
+                      '`key`: its name marks a secret; `pattern`: the text looked like a credential; `name`: a member was left out because its own name looked like one',
+                  },
+                },
+              },
+            },
+            elidedTotal: {
+              ...int,
+              description:
+                'How many places were cut, when more than `elided` lists',
+            },
+            redactedTotal: {
+              ...int,
+              description:
+                'How many places were withheld, when more than `redacted` lists',
+            },
+          },
+        },
+        EvalTrace: {
+          type: 'object',
+          description:
+            'One evaluation of a condition or a template field: per `{{ }}` ' +
+            'unit (or the bare expression), the value of each sub-expression ' +
+            'it evaluated, by its range in the field’s text.',
+          required: ['pointer', 'units'],
+          properties: {
+            pointer: {
+              ...str,
+              description:
+                'RFC 6901 pointer to the field in the version’s document',
+            },
+            units: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['range', 'probes', 'probed'],
+                properties: {
+                  range: textRange,
+                  probes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['range', 'v'],
+                      properties: { range: textRange, v: ref('ValueSummary') },
+                    },
+                  },
+                  error: {
+                    type: 'object',
+                    required: ['message'],
+                    properties: { message: str, name: str },
+                  },
+                  probed: {
+                    type: 'string',
+                    enum: ['full', 'partial', 'none'],
+                    description:
+                      '`full`: every sub-expression worth a value was read; `partial`: some were not; `none`: only the result is known',
+                  },
+                },
+              },
+            },
+          },
+        },
+        ExplainNode: {
+          type: 'object',
+          description:
+            'One part of a condition and what it came to: the tree a step’s ' +
+            'decision is explained with, operands in source order.',
+          required: ['range', 'source', 'kind', 'evaluated', 'children'],
+          properties: {
+            range: textRange,
+            source: {
+              ...str,
+              maxLength: 200,
+              description: 'The part’s text; a longer one ends in `…`',
+            },
+            kind: {
+              type: 'string',
+              enum: [
+                'logical',
+                'compare',
+                'not',
+                'arith',
+                'conditional',
+                'call',
+                'ref',
+                'literal',
+                'other',
+              ],
+            },
+            op: {
+              ...str,
+              description:
+                'The operator (`&&`, `>=`), `!`, `?:`, the function a call names, or `typeof`/`void`/`delete`/`[]`',
+            },
+            ref: {
+              type: 'object',
+              description: 'What a reference reads',
+              required: ['root', 'path'],
+              properties: {
+                root: {
+                  type: 'string',
+                  enum: ['input', 'nodes', 'item', 'index', 'output'],
+                },
+                nodeId: {
+                  ...str,
+                  description: 'The step whose output it reads',
+                },
+                path: { type: 'array', items: { anyOf: [str, int] } },
+              },
+            },
+            value: ref('ValueSummary'),
+            evaluated: bool,
+            unknown: {
+              type: 'boolean',
+              enum: [true],
+              description: 'Whether it was evaluated cannot be told',
+            },
+            children: { type: 'array', items: ref('ExplainNode') },
+          },
+        },
+        Decision: {
+          type: 'object',
+          description:
+            'Why a step ran, was skipped, or ran as often as it did — the ' +
+            'latest of each kind. `when`, `forEach` and `repeatUntil` carry ' +
+            'the condition’s value, its trace, its text (`source`) and its ' +
+            'explanation; `else` its partner; `upstream` the skipped steps ' +
+            'it reads; `onError` the policy that let the run go on.',
+          required: ['kind', 'at'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: [
+                'when',
+                'else',
+                'upstream',
+                'forEach',
+                'repeatUntil',
+                'onError',
+              ],
+            },
+            at: epochMs,
+            result: { ...bool, description: '`when`, `else`, `repeatUntil`' },
+            value: ref('ValueSummary'),
+            trace: ref('EvalTrace'),
+            count: { ...int, description: '`forEach`: how many items' },
+            pass: { ...int, description: '`repeatUntil`: the pass it ended' },
+            capped: {
+              ...bool,
+              description: '`repeatUntil`: the pass limit stopped it',
+            },
+            partner: {
+              ...str,
+              description: '`else`: the step it is the alternative of',
+            },
+            partnerSkippedByWhen: bool,
+            skipped: {
+              type: 'array',
+              items: str,
+              description: '`upstream`: the skipped steps it reads',
+            },
+            policy: { type: 'string', enum: ['continue'] },
+            source: {
+              ...str,
+              description: 'The condition’s text in the version’s document',
+            },
+            explanation: {
+              type: 'array',
+              items: ref('ExplainNode'),
+              description: 'One tree per evaluated unit of the condition',
+            },
+          },
+        },
+        StepFailure: {
+          type: 'object',
+          description:
+            'Why a step failed: the run’s failure family, a reason from a ' +
+            'fixed list (a newer server may answer one this list lacks — read ' +
+            'it as a reason not known), and the parameters it is worded with.',
+          required: ['code', 'reason', 'params', 'message'],
+          properties: {
+            code: {
+              ...str,
+              description:
+                'The run-level family, as `Run.failureCode` names it',
+            },
+            reason: { type: 'string', enum: [...STEP_FAILURE_REASONS] },
+            params: {
+              type: 'object',
+              description:
+                'What the reason is worded with — secrets withheld, each at most 200 characters',
+              additionalProperties: {
+                anyOf: [
+                  nullable(str),
+                  num,
+                  bool,
+                  { type: 'array', items: str },
+                ],
+                description:
+                  'A text, a number, a yes/no, a list of texts, or null',
+              },
+            },
+            message: {
+              ...str,
+              description: 'The engine’s English, for technical detail only',
+            },
+            hint: str,
+            at: {
+              type: 'object',
+              required: ['pointer'],
+              properties: { pointer: str, range: textRange },
+            },
+            trace: ref('EvalTrace'),
+            explanation: { type: 'array', items: ref('ExplainNode') },
+          },
+        },
+        WaitRecord: {
+          type: 'object',
+          required: ['kind', 'since'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: ['approval', 'ask', 'room', 'repeat', 'in_doubt'],
+            },
+            since: epochMs,
+            until: {
+              ...epochMs,
+              description: 'Epoch milliseconds; absent while it waits',
+            },
+            ref: {
+              ...str,
+              description: 'The approval or attempt it waited for',
+            },
+            outcome: {
+              type: 'string',
+              enum: [
+                'approved',
+                'rejected',
+                'answered',
+                'expired',
+                'retry',
+                'skip',
+                'fail',
+              ],
+            },
+            by: { ...str, description: 'The member who decided' },
+          },
+        },
+        AttemptRecord: {
+          type: 'object',
+          required: ['n', 'startedAt', 'outcome'],
+          properties: {
+            n: { ...int, minimum: 1 },
+            startedAt: epochMs,
+            endedAt: epochMs,
+            outcome: {
+              type: 'string',
+              enum: ['interrupted', 'retried', 'failed', 'ok'],
+            },
+            failureCode: str,
+            reason: str,
+          },
+        },
+        SkipCause: {
+          type: 'object',
+          description:
+            'One link of a skip chain: why the step at `path` produced no ' +
+            'output. `upstream` and `else` go on with the step they name.',
+          required: ['kind', 'nodeId', 'path'],
+          properties: {
+            kind: {
+              type: 'string',
+              enum: ['when', 'else', 'error', 'upstream', 'not_run'],
+            },
+            nodeId: str,
+            path: str,
+            decision: ref('Decision'),
+            partner: str,
+            failure: ref('StepFailure'),
+            via: str,
+            stoppedAt: str,
+            runStatus: { type: 'string', enum: ['failed', 'cancelled'] },
+          },
+        },
+        RunStep: {
+          type: 'object',
+          description:
+            'One step of a run as its record reads: the shared status words, ' +
+            'times, attempts, decisions, skip chain, failure and value ' +
+            'glimpses — never the values themselves.',
+          required: [
+            'path',
+            'nodeId',
+            'type',
+            'status',
+            'activeMs',
+            'waitedMs',
+            'attempt',
+            'attempts',
+            'decisions',
+            'waits',
+            'meta',
+          ],
+          properties: runStepProperties,
+        },
+        RunEvent: {
+          type: 'object',
+          description:
+            'What happened to a run between its steps — a hand-off, a lease ' +
+            'that ran out, a write in doubt and its decision — as a reader ' +
+            'may see it: never the server that saw it.',
+          required: ['id', 'at', 'kind'],
+          properties: {
+            id: { ...str, description: 'Stable across reads' },
+            at: epochMs,
+            kind: {
+              type: 'string',
+              enum: [
+                'taken_over',
+                'handed_off',
+                'lease_expired',
+                'node_interrupted',
+                'in_doubt',
+                'in_doubt_resolved',
+                'engine_deferred',
+                'legacy_stop_requested',
+              ],
+            },
+            nodeId: str,
+            itemIndex: int,
+            pass: int,
+            reason: str,
+            resolution: { type: 'string', enum: ['retry', 'skip', 'fail'] },
+            by: str,
+          },
+        },
+        Travel: {
+          type: 'object',
+          description:
+            'A value that travelled into a step: where it came from, the ' +
+            'field that read it, when, and what it was.',
+          required: ['from', 'to', 'refPath', 'at', 'edge'],
+          properties: {
+            from: {
+              type: 'object',
+              required: ['kind'],
+              properties: {
+                kind: { type: 'string', enum: ['input', 'node'] },
+                nodeId: str,
+              },
+            },
+            to: {
+              type: 'object',
+              required: ['path', 'field', 'pointer', 'range'],
+              properties: {
+                path: str,
+                field: {
+                  type: 'string',
+                  enum: [
+                    'input',
+                    'prompt',
+                    'system',
+                    'files',
+                    'code',
+                    'forEach',
+                    'when',
+                    'repeatUntil',
+                    'output',
+                  ],
+                },
+                pointer: str,
+                range: textRange,
+              },
+            },
+            refPath: { type: 'array', items: { anyOf: [str, int] } },
+            at: epochMs,
+            item: int,
+            pass: int,
+            value: ref('ValueSummary'),
+            edge: {
+              type: 'object',
+              required: ['source', 'target', 'kind'],
+              properties: {
+                source: str,
+                target: str,
+                kind: { type: 'string', enum: ['data', 'order', 'entry'] },
+              },
+            },
+          },
+        },
+        RunRecord: {
+          type: 'object',
+          description:
+            'A run step by step. `format` names the shape; a reader that does ' +
+            'not know a format shows the run as it showed runs before.',
+          required: [
+            'format',
+            'runId',
+            'status',
+            'version',
+            'mode',
+            'startedAt',
+            'source',
+            'nodes',
+            'events',
+            'eventsTotal',
+            'cursor',
+          ],
+          properties: {
+            format: { type: 'integer', enum: [1] },
+            runId: str,
+            status: runProperties.status ?? str,
+            version: int,
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            startedAt: epochMs,
+            finishedAt: epochMs,
+            source: {
+              type: 'string',
+              enum: ['record', 'trace'],
+              description:
+                '`trace`: recorded before step records were kept, read from the run’s trace',
+            },
+            nodes: { type: 'array', items: ref('RunStep') },
+            events: {
+              type: 'array',
+              maxItems: 200,
+              items: ref('RunEvent'),
+              description: 'Oldest first, at most 200',
+            },
+            eventsTotal: { ...int, minimum: 0 },
+            travels: {
+              type: 'array',
+              maxItems: 1000,
+              items: ref('Travel'),
+              description: 'With `include=travels`',
+            },
+            travelsTotal: { ...int, minimum: 0 },
+            path: {
+              type: 'object',
+              description:
+                'The path the run took through its conditions and tolerated failures, when the document’s paths can be told apart',
+              required: ['id', 'assignment'],
+              properties: {
+                id: str,
+                assignment: {
+                  type: 'object',
+                  additionalProperties: bool,
+                },
+                stoppedAt: str,
+              },
+            },
+            cursor: {
+              ...int,
+              minimum: 0,
+              description:
+                'The latest write the answer reflects; pass it back as `since`',
+            },
+            truncated: {
+              type: 'object',
+              description: 'What was left out to hold the answer to 512 KiB',
+              properties: {
+                shapes: { type: 'boolean', enum: [true] },
+                explanations: { type: 'boolean', enum: [true] },
+                travels: { type: 'boolean', enum: [true] },
+                nodes: { type: 'boolean', enum: [true] },
+              },
+            },
+          },
+        },
+        RunCall: {
+          type: 'object',
+          description:
+            'A step’s call to a connector or a model, as the run’s ledger ' +
+            'keeps it: never the server that made it.',
+          required: ['kind', 'type', 'attempt', 'status', 'startedAt'],
+          properties: {
+            kind: { type: 'string', enum: ['connector', 'llm'] },
+            type: str,
+            attempt: { ...int, minimum: 1 },
+            status: { type: 'string', enum: ['started', 'done', 'failed'] },
+            startedAt: epochMs,
+            finishedAt: epochMs,
+            failureCode: str,
+            resolution: {
+              type: 'string',
+              enum: ['retry', 'skip', 'fail'],
+              description:
+                'A person’s decision about a call whose outcome was not known',
+            },
+            resolvedBy: str,
+            resolvedAt: epochMs,
+            input: ref('ValueRecord'),
+            output: ref('ValueRecord'),
+          },
+        },
+        RunNode: {
+          type: 'object',
+          description:
+            'One unit of a run read whole: a step (`item` and `pass` -1), or ' +
+            'one of its items or passes.',
+          required: [
+            'path',
+            'item',
+            'pass',
+            'nodeId',
+            'type',
+            'status',
+            'activeMs',
+            'waitedMs',
+            'attempt',
+            'attempts',
+            'decisions',
+            'waits',
+            'meta',
+            'reads',
+            'readsTotal',
+          ],
+          properties: {
+            ...runStepProperties,
+            item: { ...int, minimum: -1 },
+            pass: { ...int, minimum: -1 },
+            input: ref('ValueRecord'),
+            output: ref('ValueRecord'),
+            rendered: {
+              type: 'object',
+              description:
+                'Each templated text field, by its pointer in the document: where its text sits in `input`, and where each `{{ }}` unit’s text landed in it',
+              additionalProperties: {
+                type: 'object',
+                required: ['at', 'spans'],
+                properties: {
+                  at: {
+                    ...nullable(str),
+                    description:
+                      'Pointer into `input`; null when the text is not there',
+                  },
+                  spans: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['unit', 'out'],
+                      properties: { unit: textRange, out: textRange },
+                    },
+                  },
+                  cut: {
+                    type: 'boolean',
+                    enum: [true],
+                    description:
+                      'The stored text was cut; spans past the cut are left out',
+                  },
+                },
+              },
+            },
+            reads: {
+              type: 'array',
+              items: ref('Travel'),
+              description: 'What it read from other steps and the run input',
+            },
+            readsTotal: { ...int, minimum: 0 },
+            change: {
+              allOf: [ref('ValueComparison')],
+              description:
+                'How its output differs from its input, when both are objects or both lists',
+            },
+            call: ref('RunCall'),
+            truncated: {
+              type: 'object',
+              description: 'What was left out to hold the answer to 256 KiB',
+              properties: {
+                reads: { type: 'boolean', enum: [true] },
+                call: { type: 'boolean', enum: [true] },
+              },
+            },
+          },
+        },
+        RunUnitPage: {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: ['path', 'units', 'isDone', 'continueCursor'],
+          properties: {
+            path: str,
+            units: {
+              type: 'array',
+              maxItems: 200,
+              items: {
+                type: 'object',
+                required: [
+                  'path',
+                  'item',
+                  'pass',
+                  'nodeId',
+                  'type',
+                  'status',
+                  'activeMs',
+                  'waitedMs',
+                  'attempt',
+                  'attempts',
+                  'decisions',
+                  'waits',
+                  'meta',
+                ],
+                properties: {
+                  ...runStepProperties,
+                  item: { ...int, minimum: -1 },
+                  pass: { ...int, minimum: -1 },
+                },
+              },
+            },
+            isDone: bool,
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        },
+        ValueChange: {
+          type: 'object',
+          description: 'One place two values differ, each side as a summary.',
+          required: ['pointer', 'path', 'kind'],
+          properties: {
+            pointer: str,
+            path: { type: 'array', items: { anyOf: [str, int] } },
+            kind: {
+              type: 'string',
+              enum: [
+                'added',
+                'removed',
+                'changed',
+                'type-changed',
+                'reordered',
+                'unknown',
+              ],
+              description:
+                '`unknown`: the place was cut or withheld on a side, so how it differs cannot be told',
+            },
+            before: ref('ValueSummary'),
+            after: ref('ValueSummary'),
+            shape: {
+              type: 'object',
+              description:
+                'Set when the change was read from the two shapes: each side’s type, or `required`/`optional`',
+              properties: { before: str, after: str },
+            },
+          },
+        },
+        ValueComparison: {
+          type: 'object',
+          required: [
+            'equal',
+            'changes',
+            'counts',
+            'total',
+            'truncated',
+            'basis',
+          ],
+          properties: {
+            equal: {
+              ...nullable(bool),
+              description:
+                'Whether the values are the same, exact past what was stored; null when it cannot be told',
+            },
+            changes: { type: 'array', items: ref('ValueChange') },
+            counts: {
+              type: 'object',
+              description: 'Exact counts, also past the changes listed',
+              additionalProperties: int,
+            },
+            total: { ...int, minimum: 0 },
+            truncated: bool,
+            basis: {
+              type: 'string',
+              enum: ['value', 'shape', 'none'],
+              description:
+                'What the changes were read from: the stored values, their shapes (a value was not stored), or nothing',
+            },
+          },
+        },
+        RunDiff: {
+          type: 'object',
+          description: 'Two runs of one automation side by side.',
+          required: [
+            'a',
+            'b',
+            'version',
+            'input',
+            'output',
+            'nodes',
+            'effects',
+          ],
+          properties: {
+            a: ref('RunDiffRef'),
+            b: ref('RunDiffRef'),
+            version: {
+              type: 'object',
+              required: ['same', 'changed', 'added', 'removed'],
+              properties: {
+                same: bool,
+                changed: { type: 'array', items: str },
+                added: { type: 'array', items: str },
+                removed: { type: 'array', items: str },
+              },
+            },
+            input: ref('ValueComparison'),
+            output: ref('ValueComparison'),
+            nodes: {
+              type: 'array',
+              maxItems: 500,
+              items: ref('RunStepDiff'),
+            },
+            firstDivergence: {
+              type: 'object',
+              required: ['path', 'why'],
+              properties: { path: str, why: divergenceReason },
+            },
+            effects: {
+              type: 'object',
+              required: ['count', 'onlyA', 'onlyB', 'changed'],
+              properties: {
+                count: {
+                  type: 'object',
+                  required: ['a', 'b'],
+                  properties: { a: int, b: int },
+                },
+                onlyA: {
+                  type: 'array',
+                  maxItems: 200,
+                  items: ref('RunEffectDiff'),
+                },
+                onlyB: {
+                  type: 'array',
+                  maxItems: 200,
+                  items: ref('RunEffectDiff'),
+                },
+                changed: {
+                  type: 'array',
+                  maxItems: 200,
+                  items: ref('RunEffectDiff'),
+                },
+              },
+            },
+            truncated: {
+              type: 'object',
+              description:
+                '`nodes`: steps past the cap or the size were left out, never the first divergence; `effects`: effects past the cap; `values`: value changes and operands were left out for size',
+              properties: {
+                nodes: { type: 'boolean', enum: [true] },
+                effects: { type: 'boolean', enum: [true] },
+                values: { type: 'boolean', enum: [true] },
+              },
+            },
+          },
+        },
+        ReplayRequest: {
+          type: 'object',
+          description:
+            'How to run a run again. `from` is taken only by kind `from`, ' +
+            '`input` only by kind `edited`.',
+          additionalProperties: false,
+          required: ['kind'],
+          properties: {
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            from: {
+              ...str,
+              minLength: 1,
+              maxLength: 200,
+              description: 'kind `from`: the step to run again from',
+            },
+            version: {
+              description:
+                '`same` (the default: the version the run ran), `deployed`, `latest`, or a version number',
+              anyOf: [
+                { type: 'string', enum: ['same', 'deployed', 'latest'] },
+                { type: 'integer', minimum: 1 },
+              ],
+            },
+            mode: {
+              type: 'string',
+              enum: ['mock', 'live'],
+              description: 'The run’s own mode by default',
+            },
+            input: {
+              description:
+                'kind `edited`: the input to run with; must match the automation inputs schema when declared',
+            },
+          },
+        },
+        ReplayStarted: {
+          type: 'object',
+          required: ['runId', 'version', 'mode', 'kind', 'reused'],
+          properties: {
+            runId: str,
+            version: int,
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            reused: {
+              ...int,
+              minimum: 0,
+              description: 'Steps taken from the run it replays',
+            },
+            duplicate: {
+              type: 'boolean',
+              enum: [true],
+              description:
+                'Present when the `Idempotency-Key` had already started this replay: nothing new ran',
+            },
+          },
+        },
+        ReplayPlan: {
+          type: 'object',
+          description: 'What a replay would do, before it starts.',
+          required: [
+            'kind',
+            'sourceRunId',
+            'version',
+            'mode',
+            'deployed',
+            'liveAllowed',
+            'reuse',
+            'rerun',
+            'writesAgain',
+            'spendAgain',
+          ],
+          properties: {
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            sourceRunId: str,
+            version: {
+              type: 'object',
+              required: ['source', 'target', 'resolved'],
+              properties: {
+                source: int,
+                target: int,
+                resolved: {
+                  type: 'string',
+                  enum: ['same', 'deployed', 'latest', 'number'],
+                },
+              },
+            },
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            deployed: {
+              ...bool,
+              description: 'The version it runs is the deployed one',
+            },
+            liveAllowed: {
+              ...bool,
+              description:
+                'It may run live: the version is deployed and the key holder may start live runs',
+            },
+            reuse: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['nodeId', 'status'],
+                properties: {
+                  nodeId: str,
+                  status: { type: 'string', enum: ['ok', 'skipped'] },
+                  reason: str,
+                },
+              },
+            },
+            rerun: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['nodeId', 'type', 'effect'],
+                properties: {
+                  nodeId: str,
+                  type: str,
+                  effect: {
+                    type: 'string',
+                    enum: ['write', 'read', 'llm', 'agent', 'none'],
+                  },
+                  connector: str,
+                  items: {
+                    ...int,
+                    minimum: 1,
+                    description:
+                      'How many items it ran for in the run, for a step that runs per item',
+                  },
+                },
+              },
+            },
+            writesAgain: {
+              ...int,
+              minimum: 0,
+              description:
+                'Writes that go out a second time when it runs live: one per writing step, one per item for a step that ran per item',
+            },
+            spendAgain: {
+              type: 'object',
+              required: ['llm', 'agent'],
+              properties: { llm: int, agent: int },
+            },
+            refusal: {
+              type: 'object',
+              required: ['code', 'message'],
+              properties: {
+                code: {
+                  type: 'string',
+                  enum: [
+                    'REPLAY_NODE_UNKNOWN',
+                    'REPLAY_GRAPH_CHANGED',
+                    'REPLAY_RUN_NOT_FINISHED',
+                    'REPLAY_MODE_MISMATCH',
+                    'REPLAY_PROGRESS_UNREADABLE',
+                    'REPLAY_INPUT_UNAVAILABLE',
+                  ],
+                },
+                message: str,
+                nodes: { type: 'array', items: str },
+              },
+            },
+          },
+        },
+        RunDiffRef: {
+          type: 'object',
+          required: ['id', 'version', 'mode', 'status', 'startedAt'],
+          properties: {
+            id: str,
+            version: int,
+            mode: str,
+            status: str,
+            startedAt: epochMs,
+            finishedAt: epochMs,
+            durationMs: { ...int, minimum: 0 },
+          },
+        },
+        RunStepDiff: {
+          type: 'object',
+          required: ['path', 'nodeId', 'decisions', 'input', 'output'],
+          properties: {
+            path: str,
+            nodeId: str,
+            a: ref('RunStepFacts'),
+            b: ref('RunStepFacts'),
+            differs: divergenceReason,
+            decisions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['kind', 'operands'],
+                properties: {
+                  kind: {
+                    type: 'string',
+                    enum: [
+                      'when',
+                      'else',
+                      'upstream',
+                      'forEach',
+                      'repeatUntil',
+                      'onError',
+                    ],
+                  },
+                  pass: int,
+                  a: ref('RunDecisionFacts'),
+                  b: ref('RunDecisionFacts'),
+                  sameSource: bool,
+                  operands: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['range'],
+                      properties: {
+                        range: textRange,
+                        a: ref('ValueSummary'),
+                        b: ref('ValueSummary'),
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            input: ref('ValueComparison'),
+            output: ref('ValueComparison'),
+            items: {
+              type: 'object',
+              required: ['a', 'b', 'differing'],
+              properties: { a: int, b: int, differing: int },
+            },
+          },
+        },
+        RunStepFacts: {
+          type: 'object',
+          required: ['status', 'activeMs', 'attempt'],
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['running', 'waiting', 'ok', 'skipped', 'failed'],
+            },
+            skip: {
+              type: 'string',
+              enum: ['when', 'else', 'upstream', 'error'],
+            },
+            durationMs: { ...int, minimum: 0 },
+            activeMs: { ...int, minimum: 0 },
+            attempt: int,
+            failureReason: str,
+            reused: { type: 'boolean', enum: [true] },
+          },
+        },
+        RunDecisionFacts: {
+          type: 'object',
+          properties: {
+            result: bool,
+            count: int,
+            capped: bool,
+            skipped: { type: 'array', items: str },
+            value: ref('ValueSummary'),
+          },
+        },
+        RunEffectDiff: {
+          type: 'object',
+          required: ['node', 'connector', 'n'],
+          properties: {
+            node: str,
+            connector: str,
+            item: int,
+            pass: int,
+            n: {
+              ...int,
+              minimum: 0,
+              description:
+                'Which of the effects at the same place it is, in the order the run made them',
+            },
+            a: ref('ValueSummary'),
+            b: ref('ValueSummary'),
+            input: ref('ValueComparison'),
+          },
         },
 
         // ── Knowledge search ──

@@ -85,6 +85,10 @@ Ein gesunder Egress-Prozess belegt nicht die Verfügbarkeit von Gegenstelle, DNS
 
 Wenn viele Sessions gleichzeitig Pakete installieren oder Seiten laden und Verbindungen mit Resets abbrechen, während der Proxy gesund bleibt, hat er womöglich `SANDBOX_EGRESS_MAX_CLIENTS` erreicht, die Verbindungen, die er für alle Sessions zusammen gleichzeitig bedient. Sein Log meldet dann, dass die Höchstzahl an Verbindungen erreicht ist. Erhöhe den Wert zusammen mit den Prozess- und Dateigrenzen des Egress-Containers und erstelle den Egress-Dienst neu.
 
+Wenn die Verbindungen einer einzelnen Session mit Resets abbrechen, während andere Sessions dieselben Hosts weiterhin erreichen, hält diese Session womöglich schon `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` Verbindungen (Default 256), und der Proxy lehnt ihre nächsten ab, bis einige geschlossen sind. Erhöhe den Wert oder setze `0`, um die Grenze abzuschalten, und erstelle den Egress-Dienst neu.
+
+Ein neu erstellter Dienst `sandbox-egress` (nach einem Deploy oder einem Neustart des Stacks) kann unter einer anderen Adresse zurückkommen, während Sessions, die schon liefen, ihren Verkehr weiter an die alte Adresse schicken und keinen Netzzugriff mehr haben. Der Dienst `sandbox` startet jede solche Session neu, sobald sie freigegeben und untätig ist, und protokolliert `recycling <session>`; die nächste Nutzung startet sie mit unverändertem Workspace. Eine Session, die noch in Gebrauch ist, scheitert weiter, bis ihre Arbeit endet, und eine angepinnte Session läuft weiter, bis du sie stoppst oder nicht mehr anpinnst.
+
 ## Schreibzugriffe scheitern oder Speicher läuft voll
 
 Prüfe Datenbankverbindung, freien Platz, Verbindungsbelegung und Sperren. Stoppe vermeidbares Wachstum und stelle Kapazität nach deinem Datenbankverfahren wieder her. Lösche keine Volume-Inhalte, setze keine Verschlüsselungsschlüssel zurück und erwarte keine automatische Wiederholung fehlgeschlagener Schreibzugriffe. Prüfe vor einem erneuten Versuch, ob die ursprüngliche Operation bereits gespeichert wurde.

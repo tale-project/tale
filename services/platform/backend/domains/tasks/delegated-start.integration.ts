@@ -63,7 +63,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-async function waitFor(
+export async function waitFor(
   predicate: () => Promise<boolean>,
   timeoutMs: number,
 ): Promise<boolean> {
@@ -385,10 +385,13 @@ export async function checkScheduledAgentStarts(
     `;
     return rows[0]?.count ?? -1;
   };
-  /** Move the schedule's cursor back so the current minute is due. */
+  /** Move the schedule's cursor back so the current minute is due: the
+   * claim, and the instant the scan next finds it due, which a save or a
+   * fire set ahead. */
   const backdate = (ms: number) => sql`
     UPDATE app.automation_triggers
-    SET last_due_at_ms = ${Date.now() - ms}, last_fired_at_ms = NULL
+    SET last_due_at_ms = ${Date.now() - ms}, last_fired_at_ms = NULL,
+        next_due_at_ms = ${Date.now() - ms / 2}
     WHERE org_id = ${orgId} AND name = ${name}
   `;
   /** One occurrence: claim it, let the worker land its run, read it. */
@@ -2381,9 +2384,12 @@ export async function checkInPlaceCompletionCycle(
     name: string,
   ): Promise<{ runId: string; output: Record<string, unknown> | null }> => {
     const before = await runCount(name);
+    // The claim moves back, and so does the instant the scan next finds the
+    // schedule due, which a save or a fire set ahead.
     await sql`
       UPDATE app.automation_triggers
-      SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL
+      SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL,
+          next_due_at_ms = ${Date.now() - 60_000}
       WHERE org_id = ${orgId} AND name = ${name}
     `;
     await scanScheduledTriggers(sql);

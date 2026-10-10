@@ -1,4 +1,4 @@
-import type { ItemOf } from '@/app/lib/backend/contract';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { nodeTypes } from '@/lib/engine/core/slots';
 
 /**
@@ -17,14 +17,16 @@ import { nodeTypes } from '@/lib/engine/core/slots';
  */
 
 /**
- * Every node type the engine has registered — core types plus one per
- * connector action. An action: reading the connector catalog needs the
- * deployment's config tree.
+ * Every connector action the engine has registered, plus the connectors they
+ * belong to (display name and icon, once each). An action: reading the
+ * connector catalog needs the deployment's config tree.
  */
 export const listNodeTypesRef = 'automations/catalog:listNodeTypes';
 
 /** One node type as the editor needs it — the server's own return shape. */
-export type NodeTypeSummary = ItemOf<typeof listNodeTypesRef>;
+export type NodeTypeSummary = ReturnsOf<
+  typeof listNodeTypesRef
+>['nodeTypes'][number];
 
 /** The core node types, read from the engine's own registry so the editor
  * never carries a hand-written copy of the node grammar. */

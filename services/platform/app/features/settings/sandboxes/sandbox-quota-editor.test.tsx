@@ -19,11 +19,15 @@ import {
 
 import { SandboxQuotaEditor } from './sandbox-quota-editor';
 
-const { state, save, refresh, toast } = vi.hoisted(() => ({
+const { state, save, refresh, toast, refetch } = vi.hoisted(() => ({
   state: {
     canEdit: true,
     usage: {
       isLoading: false,
+      isError: false,
+      isFetching: false,
+      error: null as Error | null,
+      refetch: vi.fn(),
       data: undefined as
         | Array<{ budget: string; used: number; cap: number }>
         | undefined,
@@ -32,6 +36,7 @@ const { state, save, refresh, toast } = vi.hoisted(() => ({
   save: vi.fn(),
   refresh: vi.fn(),
   toast: vi.fn(),
+  refetch: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -70,6 +75,11 @@ function EditorView(props: Partial<ComponentProps<typeof SandboxQuotaEditor>>) {
 beforeEach(() => {
   state.canEdit = true;
   state.usage.isLoading = false;
+  state.usage.isError = false;
+  state.usage.isFetching = false;
+  state.usage.error = null;
+  state.usage.refetch = refetch;
+  refetch.mockReset().mockResolvedValue(undefined);
   state.usage.data = [
     { budget: 'project', used: 1, cap: 2 },
     { budget: 'workflow', used: 1, cap: 2 },
@@ -465,20 +475,164 @@ describe('SandboxQuotaEditor', () => {
     expect(screen.queryByText(/waiting for a free worker/)).toBeNull();
   });
 
-  it('shows unavailable allocation data without substituting defaults or a zero total', () => {
-    state.usage.data = undefined;
-    render(<EditorView />);
-    expect(screen.getAllByText('Allocation data unavailable')).toHaveLength(3);
+  it.each([
+    new BackendApiError(503, 'Internal allocation reader payload'),
+    new Error('Allocation service is temporarily offline.'),
+  ])(
+    'shows a safe allocation-read error and retries before recovering: %s',
+    async (error) => {
+      const recovered = [
+        { budget: 'project', used: 1, cap: 3 },
+        { budget: 'workflow', used: 0, cap: 4 },
+        { budget: 'render', used: 0, cap: 2 },
+      ];
+      state.usage.data = undefined;
+      state.usage.isError = true;
+      state.usage.error = error;
+      const { user, rerender } = render(<EditorView />);
+      const alert = screen.getByRole('alert');
+      expect(alert).toHaveTextContent("Couldn't load sandbox allocation data");
+      if (error instanceof BackendApiError) {
+        expect(alert).not.toHaveTextContent(
+          'Internal allocation reader payload',
+        );
+      } else {
+        expect(alert).toHaveTextContent(
+          'Allocation service is temporarily offline.',
+        );
+      }
+      expect(
+        screen.queryByText('Allocation data unavailable'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Deployment capacity is unavailable/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Save' }),
+      ).not.toBeInTheDocument();
+      for (const input of screen.getAllByRole('spinbutton')) {
+        expect(input).toBeDisabled();
+        expect(input).toHaveValue(null);
+      }
+
+      let finishRetry = () => {};
+      refetch.mockImplementationOnce(() => {
+        state.usage.isFetching = true;
+        state.usage.isLoading = true;
+        state.usage.isError = false;
+        state.usage.error = null;
+        return new Promise<void>((resolve) => {
+          finishRetry = resolve;
+        });
+      });
+      const retry = screen.getByRole('button', { name: 'Retry' });
+      await user.click(retry);
+      rerender(<EditorView />);
+      expect(refetch).toHaveBeenCalledOnce();
+      expect(refresh).not.toHaveBeenCalled();
+      expect(retry).toBeDisabled();
+      expect(retry).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('alert')).toBe(alert);
+      if (!(error instanceof BackendApiError)) {
+        expect(alert).toHaveTextContent(
+          'Allocation service is temporarily offline.',
+        );
+      }
+      for (const input of screen.getAllByRole('spinbutton')) {
+        expect(input).toBeDisabled();
+      }
+      await user.click(retry);
+      expect(refetch).toHaveBeenCalledOnce();
+      expect(
+        screen.queryByRole('button', { name: 'Save' }),
+      ).not.toBeInTheDocument();
+
+      state.usage.data = recovered;
+      state.usage.isError = false;
+      state.usage.isFetching = false;
+      state.usage.isLoading = false;
+      state.usage.error = null;
+      finishRetry();
+      rerender(<EditorView />);
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Retry' }),
+      ).not.toBeInTheDocument();
+      const workflow = screen.getByRole('spinbutton', {
+        name: 'Workflow sessions',
+      });
+      await waitFor(() => expect(workflow).toHaveValue(4));
+      for (const input of screen.getAllByRole('spinbutton'))
+        expect(input).toBeEnabled();
+      expect(
+        screen.getByRole('status', { name: 'Total organization sessions' }),
+      ).toHaveTextContent('9 / 16');
+      await user.clear(workflow);
+      await user.type(workflow, '5');
+      await user.tab();
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(save).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          policyType: 'sandbox_quota',
+          config: {
+            maxSessionsPerOrg: 3,
+            maxWorkflowSessionsPerOrg: 5,
+            maxRenderSessionsPerOrg: 2,
+          },
+        }),
+      );
+    },
+  );
+
+  it('blocks editing and saving cached limits after an allocation refresh fails', async () => {
+    const { user, rerender } = render(<EditorView />);
+    const workflow = screen.getByRole('spinbutton', {
+      name: 'Workflow sessions',
+    });
+    await user.clear(workflow);
+    await user.type(workflow, '3');
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    state.usage.isError = true;
+    state.usage.error = new BackendApiError(503, 'Reader failed');
+    rerender(<EditorView />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load sandbox allocation data",
+    );
     expect(screen.queryByText(/Allocated:/)).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Save' }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('status', { name: 'Total organization sessions' }),
-    ).toHaveTextContent('Unavailable / 16');
-    for (const input of screen.getAllByRole('spinbutton')) {
+    for (const input of screen.getAllByRole('spinbutton'))
       expect(input).toBeDisabled();
-      expect(input).toHaveValue(null);
-    }
+    expect(save).not.toHaveBeenCalled();
   });
+
+  it.each([undefined, [{ budget: 'project', used: 1, cap: 2 }]])(
+    'shows successful incomplete allocation data without substituting defaults or a zero total: %j',
+    (data) => {
+      state.usage.data = data;
+      render(<EditorView />);
+      expect(screen.getAllByText('Allocation data unavailable')).toHaveLength(
+        data ? 2 : 3,
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Retry' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Save' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('status', { name: 'Total organization sessions' }),
+      ).toHaveTextContent('Unavailable / 16');
+      for (const input of screen.getAllByRole('spinbutton')) {
+        expect(input).toBeDisabled();
+        expect(input).toHaveValue(null);
+      }
+    },
+  );
 });

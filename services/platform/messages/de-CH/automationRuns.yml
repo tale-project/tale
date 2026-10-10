@@ -1,0 +1,4 @@
+runtime:
+  codes:
+    FOREACH_NOT_LIST:
+      title: «Für jedes» erhielt keine Liste

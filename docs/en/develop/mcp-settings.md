@@ -19,10 +19,12 @@ Tale reads and writes each kind of setting with its own code and the checks the 
 | `project-instructions` | A project's standing instructions.                                                                                                                                           | Set                                                            | Whoever can edit the project                                                                       |
 | `agent-instructions`   | A project agent's instructions.                                                                                                                                              | Set                                                            | Whoever can edit the project                                                                       |
 | `agent-tools`          | The tools a project agent may use.                                                                                                                                           | Set                                                            | Whoever can edit the project                                                                       |
+| `agent-model` | The agent runtime (harness), model and provider a project agent runs on. A change applies to the runs it starts next. | Set | Whoever can edit the project |
 | `task-instructions`    | A task's description.                                                                                                                                                        | Set                                                            | Whoever can change the task                                                                        |
+| `task-review-context` | Whether a task's work goes to an independent review by another project agent, and which agent reviews it. Once set, the reviewer stays the same. | Set | Whoever can edit the project |
 | `deployment`           | The deployment's own settings, shared by every organization on it, such as the sandbox runtime.                                                                              | Set                                                            | An owner or admin of any organization on the deployment reads them; only the addresses on the deployment's editor allowlist change them |
 
-A resource has an id within its kind: a provider by its name, a credential as `<provider>/<name>` with the name URI-encoded, a policy by its key such as `password_policy`, a project by its id, an agent as `<projectId>/<agentId>` and a task as `<projectId>/<taskId>`. The embedding model, the branding and the deployment settings have no id. `get_settings` lists project and agent settings page by page over the projects you can read; it reads a task's description only by its id.
+A resource has an id within its kind: a provider by its name, a credential as `<provider>/<name>` with the name URI-encoded, a policy by its key such as `password_policy`, a project by its id, an agent as `<projectId>/<agentId>` and a task as `<projectId>/<taskId>`. The embedding model, the branding and the deployment settings have no id. `get_settings` lists project and agent settings page by page over the projects you can read; it reads a task's description and its review context only by the task's id.
 
 Some changes stay in Tale:
 
@@ -30,7 +32,7 @@ Some changes stay in Tale:
 - The retention policy and the data subject request policy change through their own staged workflows.
 - Branding images are uploaded in Tale. A file name an agent sets must name an image already uploaded.
 - Over MCP, the embedding model itself changes only while the knowledge base holds no document and no website, so that vectors from two models never meet in one search. Its similarity floor and serving limits change at any time; with documents indexed, a person changes the model in Tale.
-- A project's standard agent follows the `standard_agent` policy, which the `governance` kind changes; its own instructions and tools are not settings.
+- A project's standard agent follows the `standard_agent` policy, which the `governance` kind changes; its own instructions, tools and model are not settings.
 - No kind covers members, teams, connectors, skills, competences, legal holds, the audit log, metrics or personal settings. `get_settings` without arguments shows what each kind covers.
 
 ## Make a change {#make-a-change}

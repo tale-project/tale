@@ -253,6 +253,29 @@ describe('GET /projects/{id}/tasks/{taskId}/review', () => {
 });
 
 describe('POST /projects/{id}/tasks/{taskId}/review', () => {
+  it.each([
+    ['reviewBatchId', 'batch-1'],
+    ['reviewBatch', { contextTaskId: 't-1', targets: [] }],
+  ])(
+    'refuses the native %s envelope before any task read or write',
+    async (field, value) => {
+      const { request, queries } = mount();
+      const res = await request('POST', {
+        decision: 'approve',
+        actor,
+        [field]: value,
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+      expect(queries).toEqual([]);
+      expect(service.getPendingReviewForTask).not.toHaveBeenCalled();
+      expect(service.updateTaskStatus).not.toHaveBeenCalled();
+      expect(service.addTaskComment).not.toHaveBeenCalled();
+      expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+      expect(service.createAuditLog).not.toHaveBeenCalled();
+    },
+  );
+
   it('approves as the actor: the move to Done in a transaction, audited as a relay', async () => {
     const { request, tx, queries } = mount();
     const res = await request('POST', { decision: 'approve', actor });

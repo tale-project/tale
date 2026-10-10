@@ -410,6 +410,7 @@ connectors:
     des connectors dans les workflows et les outils compatibles de la plateforme.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Saisis un port entier compris entre 1 et 65535.
   catalog:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
@@ -475,6 +476,10 @@ connectors:
     statusOrg: App de l'organisation
     statusEnv: App du déploiement
     statusNone: Non configurée
+    statusUnavailable: Statut indisponible
+    statusLoadFailed:
+      Impossible de vérifier si les apps de l'import de connaissances sont
+      configurées. Tu pourras les configurer dès que la vérification aboutira.
     orgClientId: 'ID client : {clientId}'
     configure: Configurer
     remove: Retirer
@@ -1455,6 +1460,7 @@ logs:
       automation.run.failed: Exécution d'automatisation en échec
       automation.run.cancelled: Exécution d'automatisation arrêtée
       automation.run.deleted: Exécution d'automatisation supprimée
+      automation.run.replayed: Exécution d'automatisation relancée
       automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
       automation.version.saved: Version d’automatisation enregistrée
       automation.deployed: Automatisation mise en service

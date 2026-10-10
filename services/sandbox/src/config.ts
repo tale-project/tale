@@ -7,6 +7,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
 import { DOCKER_STORAGE_SIZE_LIMIT } from './backend/kubernetes/k8s-session-pod-spec.ts';
+import { DEFAULT_CPU_PRESSURE_PERCENT } from './host-memory.ts';
 import { parseDindInnerPool } from './network-address.ts';
 import {
   dindDefaultEnabled,
@@ -395,6 +396,16 @@ function numEnv(
     throw new Error(`Env var ${name} must be <= ${opts.max}; got: ${n}`);
   }
   return n;
+}
+
+/** A stall window in whole minutes, at most a day; 0 turns the stall watch
+ * off. */
+function stallMinutesEnv(name: string, fallback: number): number {
+  const minutes = numEnv(name, fallback, { min: 0, max: 24 * 60 });
+  if (!Number.isInteger(minutes)) {
+    throw new Error(`Env var ${name} must be a whole number; got: ${minutes}`);
+  }
+  return minutes;
 }
 
 /** A Docker `--cpu-shares` weight: a whole number in the 2–262144 range the
@@ -849,7 +860,7 @@ export function loadConfig(): SpawnerConfig {
     // a mirrored ref in fenced deploys.
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ??
-      'registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373',
+      'registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8',
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
     buildkitdProvisionTimeoutMs: numEnv(
       'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
@@ -901,6 +912,11 @@ export function loadConfig(): SpawnerConfig {
       maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 }),
       autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
       ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
+      cpuPressurePercent: numEnv(
+        'SANDBOX_CPU_PRESSURE_PERCENT',
+        DEFAULT_CPU_PRESSURE_PERCENT,
+        { max: 100 },
+      ),
       ...(minFreeDiskBytes !== undefined ? { minFreeDiskBytes } : {}),
       ...(criticalFreeDiskBytes !== undefined ? { criticalFreeDiskBytes } : {}),
       maxLifetimeMs: numEnv(
@@ -939,6 +955,13 @@ export function loadConfig(): SpawnerConfig {
         24 * 60 * 60 * 1000,
         { min: 1_000 },
       ),
+      // An exec that prints nothing and computes nothing this long has hung
+      // (an agent CLI waiting on a socket that never answers): runnerd ends
+      // it so it stops holding the session. Whole minutes; 0 turns it off.
+      execStallMs: stallMinutesEnv('SANDBOX_EXEC_STALL_MINUTES', 45) * 60_000,
+      // Past 90% of its memory limit a session starts no new exec: one more
+      // would make the kernel kill a running one, most often the agent.
+      execAdmissionMemoryPercent: 90,
       createHealthTimeoutMs: numEnv(
         'SANDBOX_SESSION_CREATE_TIMEOUT_MS',
         180_000,

@@ -315,6 +315,48 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
       );
     });
 
+    it.each([
+      [undefined, 2 * 60_000],
+      [1, 10 * 60_000],
+      [2, 30 * 60_000],
+      [5, 30 * 60_000],
+    ])(
+      'holds the retry decision of a run out of memory (attempt %p) for %p ms',
+      async (autoRetryAttempt, waitMs) => {
+        const { sql } = fakeSql((text) =>
+          text.startsWith('UPDATE app.project_agent_runs')
+            ? [
+                {
+                  organizationId: 'org-1',
+                  taskId: 'task-1',
+                  agentId: 'agent-1',
+                  autoRetryAttempt: autoRetryAttempt ?? null,
+                },
+              ]
+            : [],
+        );
+        await failAgentRunFromTurn(sql, {
+          runId: 'run-1',
+          execId: 'exec-1',
+          error: "the agent's sandbox ran out of memory",
+          failureCode: 'resource_exhausted',
+        });
+        // The job itself waits: no queued run sits out the wait for the
+        // stranded-queued-run sweep to start early.
+        expect(addJobInTx).toHaveBeenCalledExactlyOnceWith(
+          expect.anything(),
+          'task.agent_retry',
+          {
+            organizationId: 'org-1',
+            taskId: 'task-1',
+            agentId: 'agent-1',
+            expectedRunId: 'run-1',
+          },
+          { startAfter: new Date(NOW + waitMs) },
+        );
+      },
+    );
+
     it('starts the model-capacity floor after a terminal-update lock wait, not before it', async () => {
       const { sql } = fakeSql((text) => {
         if (!text.startsWith('UPDATE app.project_agent_runs')) return [];
@@ -516,9 +558,29 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
     const inserts = calls.filter((call) =>
       call.text.startsWith('INSERT INTO app.project_agent_runs'),
     );
-    expect(inserts[0]?.text).toContain('api_key_id');
-    expect(inserts[0]?.values.at(-1)).toBe('key-1');
-    expect(inserts[1]?.values.at(-1)).toBeNull();
+    const apiKeyValue = (insert: (typeof inserts)[number] | undefined) => {
+      const match = insert?.text.match(
+        /INSERT INTO app\.project_agent_runs \((.*?)\) VALUES \((.*?)\) ON CONFLICT/s,
+      );
+      if (
+        insert === undefined ||
+        match?.[1] === undefined ||
+        match[2] === undefined
+      )
+        throw new Error('Expected the captured agent run INSERT');
+      const columns = match[1].split(',').map((column) => column.trim());
+      const values = match[2].split(',').map((value) => value.trim());
+      const columnIndex = columns.indexOf('api_key_id');
+      expect(columnIndex).toBeGreaterThanOrEqual(0);
+      expect(values).toHaveLength(columns.length);
+      expect(values[columnIndex]).toBe('?');
+      // Constants such as 'queued' are SQL expressions, not bound values.
+      const parameterIndex =
+        values.slice(0, columnIndex).join(',').match(/\?/g)?.length ?? 0;
+      return insert.values[parameterIndex];
+    };
+    expect(apiKeyValue(inserts[0])).toBe('key-1');
+    expect(apiKeyValue(inserts[1])).toBeNull();
   });
 
   it('queues a retry at once but holds its start until a cooling broker has an account back', async () => {

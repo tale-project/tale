@@ -15,6 +15,7 @@ import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import type { SortingState } from '@/lib/pagination/types';
+import { CONTACT_SOURCES } from '@/lib/shared/contact-sources';
 
 import { useDeleteContact } from '../hooks/mutations';
 import {
@@ -22,7 +23,7 @@ import {
   useListContactsPaginated,
 } from '../hooks/queries';
 import { useContactsTableConfig } from '../hooks/use-contacts-table-config';
-import { canEditContact } from '../lib/contact-data';
+import { canEditContact, getContactSourceLabel } from '../lib/contact-data';
 import { ContactViewDialog } from './contact-view-dialog';
 import { ContactsActionMenu } from './contacts-action-menu';
 
@@ -100,15 +101,10 @@ export function ContactsTable({
       {
         key: 'source',
         title: tTables('headers.source'),
-        options: [
-          { value: 'manual_import', label: tContacts('filter.source.manual') },
-          { value: 'file_upload', label: tContacts('filter.source.upload') },
-          { value: 'api_import', label: tContacts('filter.source.api') },
-          {
-            value: 'conversation',
-            label: tContacts('filter.source.conversation'),
-          },
-        ],
+        options: CONTACT_SOURCES.map((value) => ({
+          value,
+          label: getContactSourceLabel(value, tContacts, value),
+        })),
         selectedValues: source ? [source] : [],
         onChange: handleSourceChange,
       },

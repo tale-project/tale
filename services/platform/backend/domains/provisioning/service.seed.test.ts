@@ -40,6 +40,8 @@ interface Organization {
   automations?: string[];
   /** Names of the automations the organization deleted. */
   deleted?: string[];
+  /** Names of the automations the organization has a trigger for. */
+  triggers?: string[];
   projects?: number;
 }
 
@@ -68,7 +70,9 @@ function organizationSql(organization: Organization): {
       );
     }
     if (text.startsWith('SELECT id FROM app.automation_triggers')) {
-      return Promise.resolve([]);
+      return Promise.resolve(
+        (organization.triggers ?? []).includes(name) ? [{ id: 't-1' }] : [],
+      );
     }
     if (text.startsWith('SELECT count(*)::text AS count FROM app.projects')) {
       return Promise.resolve([{ count: String(organization.projects ?? 0) }]);
@@ -135,6 +139,45 @@ describe('seedDefaultAutomationPacks', () => {
         (call) => (call[1] as { name: string }).name,
       ),
     ).toEqual(['ops/weekly']);
+  });
+
+  it('adds a shipped trigger switched off unless the pack turns it on, and only where none is bound [PROVN-R7]', async () => {
+    h.loadSeedablePacks.mockReturnValue([
+      {
+        ...pack('ops/sync'),
+        trigger: {
+          kind: 'schedule',
+          repeat: { frequency: 'minutely', interval: 5 },
+          timezone: 'UTC',
+        },
+      },
+      { ...pack('ops/hook'), trigger: { kind: 'webhook', enabled: true } },
+      {
+        ...pack('ops/kept'),
+        trigger: { kind: 'event', event: 'contact.created' },
+      },
+    ]);
+    const { sql } = organizationSql({ triggers: ['ops/kept'] });
+    await seedDefaultAutomationPacks(sql, 'org-1');
+    expect(h.setTrigger.mock.calls.map((call) => call[1])).toEqual([
+      {
+        organizationId: 'org-1',
+        name: 'ops/sync',
+        trigger: {
+          kind: 'schedule',
+          repeat: { frequency: 'minutely', interval: 5 },
+          timezone: 'UTC',
+          enabled: false,
+        },
+        actor: 'system:provisioning',
+      },
+      {
+        organizationId: 'org-1',
+        name: 'ops/hook',
+        trigger: { kind: 'webhook', enabled: true },
+        actor: 'system:provisioning',
+      },
+    ]);
   });
 });
 

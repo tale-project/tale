@@ -16,6 +16,7 @@ import {
 } from 'react';
 
 import { cn } from '../../lib/cn';
+import { respectEscapeClaims } from './claims-escape';
 import { TooltipContent } from './tooltip';
 
 export interface DropdownMenuActionItem {
@@ -649,6 +650,7 @@ export function DropdownMenu({
           collisionPadding={collisionPadding ?? 16}
           onClick={(e) => e.stopPropagation()}
           onPointerDownOutside={keepTriggerPointerDown}
+          onEscapeKeyDown={respectEscapeClaims()}
           {...(search !== undefined
             ? {
                 // A searchable menu opens with the caret in its field.

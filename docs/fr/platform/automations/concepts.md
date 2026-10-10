@@ -42,17 +42,17 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-Le bloc `ui` conserve la disposition du canvas. Déplacer un nœud modifie sa position, sans changer son exécution.
+Tale dispose le canevas à partir des références entre les nœuds : personne ne place un nœud à la main. Un bloc `ui` contient des métadonnées libres que Tale conserve telles quelles et ignore.
 
 ### Les liaisons se déduisent, elles ne se déclarent pas
 
-Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canvas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi une flèche, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
+Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canevas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi un trait, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
 
 Les templates utilisent une seule grammaire `{{ }}` d’expressions JavaScript sur `input`, `nodes.<id>.output` et, à l’intérieur d’un nœud qui itère, `item` et `index`.
 
 ### Le contrôle du flux vit sur le nœud
 
-Brancher et répéter sont des champs du nœud plutôt que des types d’étape à part. Le canvas les montre donc comme des badges sur la boîte qu’ils concernent.
+Brancher et répéter sont des champs du nœud plutôt que des types d’étape à part. Le canevas dessine chacun d’eux là où il agit : un `when` devient une condition au-dessus de son nœud, une alternative `elseOf` part de cette condition comme sa branche **Non**, `forEach` et `repeatUntil` placent le nœud dans un cadre, et `onError: continue` lui ajoute une puce.
 
 | Champ                        | Ce qu’il fait                                                                                 |
 | ---------------------------- | --------------------------------------------------------------------------------------------- |
@@ -70,7 +70,7 @@ Quatre types sont intégrés, et chaque action de connector comme chaque capacit
 
 **`llm`** appelle un modèle de langage avec un prompt en template. `model` est obligatoire et toujours explicite — une automatisation n’en choisit jamais un à ta place (l’Auto du composer est une affaire de chat, et de chat seulement). La sortie est `{text}`, ou l’objet à la forme du schéma quand le nœud déclare un `outputSchema`. Chaque appel d’une exécution réelle est un usage de l’exécution : il est vérifié par rapport aux [limites de budget](/fr/platform/admin/governance/policies-and-limits) avant d’être fait, et un appel refusé par une limite fait échouer le nœud avec `budget_exceeded`, ce qui arrête l’exécution, sauf si son `onError` vaut `continue`. Avant l’appel au fournisseur, chaque tentative réserve le coût estimé du prompt et le budget maximal de réponse dans tous les projets retenus pour cette tentative. Le modèle doit disposer de tarifs dans le catalogue. L’usage déclaré remplace la réservation à la fin de l’appel. Si un délai dépassé, une connexion interrompue ou l’absence de données d’usage laisse le coût inconnu, la réservation reste en place jusqu’à l’échéance de la requête, puis son montant estimé est comptabilisé ; il s’agit d’une estimation, pas d’une facture du fournisseur. Modifier les associations aux projets pendant l’appel ne déplace pas sa consommation.
 
-**`agent`** exécute un tour d’un agent de code (Claude Code, Codex et les autres environnements d’agent) dans la sandbox. Il lit les `files` mis en place, utilise des `skills`, des `connectors` relayés, des `tools` de plateforme accordés et des `secrets` injectés, et renvoie `{text, files, status}` ; `model` est obligatoire. Si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images), il peut aussi créer des images, qui reviennent parmi ses `files`. Prends `llm` quand une complétion unique suffit, et `agent` seulement quand l’étape a besoin d’outils, de fichiers ou de plusieurs tours — un nœud agent en service s’exécute comme un tour asynchrone, il siège donc au niveau supérieur plutôt que dans une `subautomation` et n’itère pas avec `forEach`.
+**`agent`** exécute un tour d’un agent de code (Claude Code, Codex et les autres environnements d’agent) dans la sandbox. Il lit les `files` mis en place, utilise des `skills`, des `connectors` relayés, des `tools` de plateforme accordés et des `secrets` injectés, et renvoie `{text, files, status}` ; `model` est obligatoire. L’`input` résolue du nœud parvient à l’agent en JSON dans `/agent/workspace/input.json`, un fichier que ses instructions désignent. Lors d’une exécution réelle, le nœud échoue avant le démarrage de l’agent si ce JSON dépasse 1 Mio, ou si ses `files` contiennent aussi une entrée nommée `input.json`. Si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images), il peut aussi créer des images, qui reviennent parmi ses `files`. Prends `llm` quand une complétion unique suffit, et `agent` seulement quand l’étape a besoin d’outils, de fichiers ou de plusieurs tours — un nœud agent en service s’exécute comme un tour asynchrone, il siège donc au niveau supérieur plutôt que dans une `subautomation` et n’itère pas avec `forEach`.
 
 **`subautomation`** exécute une autre automatisation enregistrée comme un seul nœud ; son champ `automation` nomme `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
 
@@ -80,11 +80,17 @@ Une sortie **structurée** possède des champs nommés, accessibles avec `nodes.
 
 Un outil sans schéma de sortie produit une sortie non structurée. Pour transformer son texte en données structurées utilisables par les étapes suivantes, ajoute un nœud `llm` avec un `outputSchema`. En cas d’erreur, la validation indique la référence incorrecte et les champs ou contextes autorisés. Corrige-la avant d’enregistrer à nouveau.
 
+## Les chemins qu’une exécution peut prendre {#paths}
+
+Chaque condition, et chaque nœud qui peut échouer pendant que l’exécution continue, ouvre deux possibilités à une exécution. Tale essaie chaque combinaison et garde les différentes façons dont une exécution réussie peut se dérouler ; chacune est un chemin. Un chemin nomme les conditions qui le décident, comme les nœuds qui s’exécutent, ceux qui sont ignorés et ceux qui échouent pendant que l’exécution continue, ainsi que les nœuds qui s’exécutent sur ce chemin. Un nœud qui s’exécute sur chaque chemin s’exécute toujours ; un nœud qui ne s’exécute sur aucun ne peut jamais s’exécuter, et Tale le signale par un avertissement.
+
+Tale liste jusqu’à 32 chemins et compte les autres. Au-delà de 12 conditions et échecs tolérés, les combinaisons sont trop nombreuses pour être parcourues : Tale ne liste alors aucun chemin, mais indique toujours, pour chaque nœud, quand il s’exécute. Tale nomme aussi les nœuds dont l’échec termine l’exécution et ce qui peut faire échouer chacun d’eux. L’éditeur montre les chemins sur le canevas, comme le décrit [Suivre les chemins possibles](/fr/platform/automations/editor#paths) ; un client du [point d’accès MCP](/fr/develop/mcp-endpoint) lit les mêmes chemins dans `analysis.paths`.
+
 ## Ce que Tale vérifie avant une exécution {#checks}
 
 Tale vérifie le document entier quand tu l’enregistres, quand tu déploies une version et chaque fois qu’un client appelle `validate_automation`. Une **erreur** décrit un échec certain ou du code qui dépasse les limites d’analyse : elle empêche d’enregistrer comme de déployer. Un **avertissement** signale ce qui peut échouer ou ne sert à rien. Il n’empêche jamais d’enregistrer ni de déployer, c’est donc toi qui décides d’agir. Chaque problème nomme son nœud et son champ et, dans un template, une condition ou du code, l’expression exacte.
 
-Pour que les vérifications restent réactives, chaque expression et chaque corps `transform` sont limités à 8192 unités de code UTF-16, 512 tokens JavaScript et 64 niveaux d’imbrication dans la syntaxe ou l’arbre syntaxique. Les espaces autour d’une expression de template ne comptent pas dans sa taille ; ceux du corps `transform` comptent. Le texte ordinaire hors des templates n’est pas du code. Ces limites peuvent refuser du code auparavant valide. Raccourcis-le ou répartis le travail entre plusieurs nœuds avant d’enregistrer ou de déployer à nouveau.
+Pour que les vérifications restent réactives, chaque expression est limitée à 8192 unités de code UTF-16 et 512 tokens JavaScript. Un corps `transform` peut contenir jusqu’à 16384 unités de code et 4096 tokens. Dans les deux cas, la limite reste de 64 niveaux d’imbrication dans la syntaxe ou l’arbre syntaxique. Les espaces autour d’une expression de template ne comptent pas dans sa taille ; ceux du corps `transform` comptent. Le texte ordinaire hors des templates n’est pas du code. Ces limites peuvent refuser du code auparavant valide. Raccourcis-le ou répartis le travail entre plusieurs nœuds avant d’enregistrer ou de déployer à nouveau.
 
 ### Références et noms {#checks-references}
 
@@ -151,7 +157,7 @@ Une exécution réelle nécessite une version en service. Tu peux tester un brou
 
 ## Ce qui lance une exécution
 
-Tu peux tester manuellement une version enregistrée ou exécuter en réel la version en service. Pour un démarrage automatique, configure l’un des trois déclencheurs : une planification avec expression cron et fuseau IANA, une URL de webhook protégée par un jeton, ou un événement nommé de la plateforme.
+Tu peux tester manuellement une version enregistrée ou exécuter en réel la version en service. Pour un démarrage automatique, configure l’un des trois déclencheurs : une planification qui se répète à des heures précises ou à intervalles dans son fuseau horaire, une URL de webhook protégée par un jeton, ou un événement nommé de la plateforme. Chacun peut ajouter une entrée fixe que reçoit chaque exécution.
 
 Le déclencheur appartient au nom de l’automatisation. Mettre une autre version en service conserve sa configuration et l’URL du webhook, mais les démarrages suivants utilisent la nouvelle version. Désactive le déclencheur pour suspendre les démarrages automatiques. [Déclencheurs de workflow](/fr/platform/automations/triggers) explique les horaires, l’authentification et les données fournies par chaque type.
 

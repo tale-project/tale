@@ -21,6 +21,9 @@ switcher:
   empty: Keine Projekte gefunden
   ariaLabel: 'Projekt wechseln, aktuell: {name}'
   allProjects: Alle Projekte
+  retry: Erneut versuchen
+  retrying: Wird erneut versucht…
+  readError: Projektliste nicht verfügbar
 navigation:
   overview: Allgemein
   files: Wissen

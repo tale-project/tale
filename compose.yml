@@ -704,6 +704,10 @@ services:
       # Connections the proxy serves at once for the whole fleet (tinyproxy
       # MaxClients). Mirrors the CLI compose generator.
       SANDBOX_EGRESS_MAX_CLIENTS: ${SANDBOX_EGRESS_MAX_CLIENTS:-2000}
+      # Connections one session (one client address) may hold open to the
+      # proxy at once, so no session takes the whole pool above; 0 turns the
+      # cap off. Mirrors the CLI compose generator.
+      SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: ${SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:-256}
     # Mirrors the CLI compose generator (create-sandbox-egress-service.ts):
     # tinyproxy runs a thread and holds two descriptors per connection
     # (SANDBOX_EGRESS_MAX_CLIENTS, 2000 by default), and threads count
@@ -851,7 +855,7 @@ services:
       # generator (create-sandbox-service.ts) — R2-B11 lockstep.
       SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
       SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
-      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373}
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:
@@ -962,6 +966,14 @@ services:
       # `llm-gateway`); kept as-is to avoid a data migration.
       - llm-gateway-data:/app/data
     restart: unless-stopped
+    # Graceful shutdown: on SIGTERM the gateway stops taking new calls and
+    # waits for the ones in flight (streamed answers included) to finish. It
+    # writes its in-memory budget counters (the spend the platform books) to
+    # its store only when that drain ends within 30s of the signal, its own
+    # cleanup window. Docker's 10s default would cut every model stream still
+    # running 10s into a deploy's stop.
+    # Mirrors the CLI generator (create-sandbox-llm-gateway-service.ts: 90s).
+    stop_grace_period: 90s
     mem_limit: 512m
     healthcheck:
       # The gateway image ships busybox wget but no curl.

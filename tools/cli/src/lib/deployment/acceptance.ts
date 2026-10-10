@@ -40,6 +40,7 @@ export interface AcceptDeploymentOptions {
   cliRef: string;
   deploymentRef: string;
   expectedVersion: string;
+  originContainer?: string;
 }
 const readySchema = z.object({
   schemaVersion: z.literal(1),
@@ -57,6 +58,14 @@ const containerIdentitySchema = z.object({
   Image: digest,
   RestartCount: z.number().int().nonnegative(),
   State: z.object({ Running: z.literal(true), StartedAt: startedAtSchema }),
+});
+const originContainerSchema = containerIdentitySchema.extend({
+  NetworkSettings: z.object({
+    Networks: z.record(
+      z.string().min(1),
+      z.object({ NetworkID: sha, IPAddress: z.ipv4() }),
+    ),
+  }),
 });
 const imageIdentitySchema = z.object({
   Id: digest,
@@ -109,6 +118,7 @@ export async function acceptDeployment(
   gitSha.parse(options.cliRef);
   gitSha.parse(options.deploymentRef);
   acceptanceVersionSchema.parse(options.expectedVersion);
+  const originContainerId = sha.optional().parse(options.originContainer);
   const now = dependencies.now ?? performance.now.bind(performance);
   const deadline = now() + 120_000;
   let total = 0;
@@ -250,9 +260,40 @@ export async function acceptDeployment(
             service,
           );
         };
+        const captureOrigin = async () => {
+          if (!originContainerId) return undefined;
+          const values = z
+            .array(originContainerSchema)
+            .length(1)
+            .parse(
+              JSON.parse(
+                await query(['container', 'inspect', originContainerId]),
+              ),
+            );
+          const captured = values[0];
+          const networks = Object.values(captured.NetworkSettings.Networks);
+          requireRuntime(
+            captured.Id === originContainerId && networks.length === 1,
+            'The private origin requires one captured running container and network address.',
+          );
+          return {
+            captured,
+            address: networks[0].IPAddress,
+            networkId: networks[0].NetworkID,
+          };
+        };
+        const origin = await captureOrigin();
+        const verifyOrigin = async () => {
+          if (!origin) return;
+          requireRuntime(
+            stableJson(await captureOrigin()) === stableJson(origin),
+            'The private origin container or network changed during acceptance.',
+          );
+        };
         const frontend = await localServing('platform');
         const backend = await localServing('backend-api');
         const canonicalServing = async () => {
+          await verifyOrigin();
           for (const process of [frontend, backend])
             await acceptanceHealth(
               bundle.spec.origin,
@@ -260,13 +301,25 @@ export async function acceptDeployment(
               process,
               remaining(),
               dependencies.fetch,
+              origin?.address,
             );
+          await verifyOrigin();
         };
         await canonicalServing();
         const serving = {
           status: 'ok',
           version: options.expectedVersion,
           origin: bundle.spec.origin,
+          ...(origin
+            ? {
+                originRoute: {
+                  kind: 'container' as const,
+                  containerId: origin.captured.Id,
+                  networkId: origin.networkId,
+                  address: origin.address,
+                },
+              }
+            : {}),
           frontend,
           backend,
         };
@@ -297,6 +350,7 @@ export async function acceptDeployment(
               stableJson(backend),
           'Serving process changed during deployment acceptance.',
         );
+        await verifyOrigin();
         const final = ready(bundle, directory);
         requireRuntime(
           final.proof.sha256 === initial.proof.sha256,

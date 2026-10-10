@@ -2,6 +2,8 @@ title: Benachrichtigungen
 ariaUnread: Ungelesen
 emptyCaughtUpTitle: Alles erledigt
 emptyCaughtUpDescription: Wir melden uns, sobald etwas Neues eintrifft.
+emptyOlderUnreadTitle: Du hast ältere ungelesene Benachrichtigungen
+emptyOlderUnreadDescription: Lade mehr, um sie zu sehen.
 emptyAllTitle: Noch keine Benachrichtigungen
 emptyAllDescription: Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.
 markAsRead: Als gelesen markieren

@@ -69,7 +69,7 @@ resume. If `tale dev --help` lists `--stop`, you can start in the background wit
 keep the foreground run. The production deployment uses separate data volumes and
 does not import the local instance's data.
 
-When available, `doctor` checks Docker, Compose, daemon architecture and local port availability
+When available, `doctor` checks Docker, the Docker Engine version (24.0 or later), Compose, daemon architecture and local port availability
 without installing dependencies or changing files. Use `tale doctor --port 8443`
 when selecting another HTTPS port, or `tale doctor --json` for structured output.
 Its warnings include limitations such as ARM64 emulation; a successful check is
@@ -181,12 +181,49 @@ process identities as the captured local containers, including a final reread;
 another installation at the same version is refused. Legacy servers without that
 identity contract cannot supply acceptance. No application/configuration state is
 written. The existing lock and an owned temporary bundle copy preserve custody.
+For a private origin unreachable from the deployment host, pass
+`--origin-container "$TALE_GATEWAY_CONTAINER_ID"` with the full ID of its running
+local gateway. The CLI requires exactly one container network with an IPv4
+address and keeps that container, image, start time, restart count and network
+identity stable through acceptance. It connects through that address while
+preserving the canonical HTTPS hostname, certificate verification and both
+serving-process checks. This observes the local private gateway; it does not
+prove remote staff membership or public DNS reachability. Without this option,
+acceptance uses the origin's normal DNS route. Captured-route receipts include
+`serving.originRoute` with the container ID, network ID and address.
+
 External observations share a 120-second elapsed budget; the bundle's existing
 2 GiB/256 MiB-per-file limits bound preparation resources, but filesystem waits
 and cleanup do not have a cancellable whole-command deadline. Use an external
 process supervisor when a total deadline is required. A receipt is point-in-time
 correlation, not authentication or a guarantee of later routing. `sourceTag` is
 image-reference metadata; OCI labels and frontend health establish the version.
+
+`tale --json deploy observe --spec <file> --cli-ref <sha> --deployment-ref <sha>
+--machine-id-sha256 <digest>` reads an existing admitted host and retained native
+configuration without preparing a bundle or compiling preserved packs. Private stdin
+is `{"environment":{"UPPERCASE_ENV_NAME":"value"}}`: an explicit map only, at most
+64 KiB, 128 keys and 8192 bytes per value. It uses the pinned compiled CLI and local
+Docker socket, existing account/organization custody and credentials, bounded SQL
+and GET verification, temporary root-owned tooling and temporary authentication.
+It performs no provisioning, configuration apply, migration, restart, prune or
+cutover-lock acquisition. Complete reports have `ok:true` and `data.complete:true`;
+missing retained custody or owned-skill ownership preserves partial host/database
+facts with `ok:false`, `data.complete:false` and exit `3`. Identity drift and unsafe
+custody refuse. Refusal summaries identify a bounded, source-authored verification
+phase without returning private input, paths, command output or native responses;
+they identify where verification stopped, not the underlying host cause. Cleanup
+refusals take precedence. Retain partial reports for investigation; neither result is Ready
+acceptance or authorization for a rollout. An external supervisor must also bound
+filesystem waits. The public CLI guide documents the full input and result contract.
+
+`tale deploy smoke --url <url>` checks any running deployment through its public
+URL as a browser would, without credentials or writes: health and version,
+readiness, the app shell, an anonymous session, and the `/events` and `/api/app`
+session gates. `--full` also signs in as `TALE_SMOKE_EMAIL`/`TALE_SMOKE_PASSWORD`
+and creates, observes (live update) and deletes a task (archives it, when the
+account may not delete tasks); `--chat` adds one model
+turn. `--json` reports every check; exit `5` means a check failed.
 
 Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
 retained `name`. To use a canonical reporting label, declare
@@ -423,6 +460,45 @@ saves. Plan/readback exposes only identity, tools and their native hash. A runti
 without this configuration facet or a requested capability refuses the operation.
 Interrupted application uses the same pending receipt recovery described above.
 
+A `task-review-context` resource explicitly enrolls a pristine native operational
+task with `projectId`, `taskId`, `reviewerAgentId` and `enabled`. The editor must
+name an existing open task without retained execution, review or source work,
+external identity, children or dependencies, and an eligible project reviewer
+already granted `task_review`. Enrollment does not grant tools or start work.
+Its reviewer and purpose remain fixed when disabled. A runtime without the
+native facet refuses planning; interrupted application reconciles the same
+native hash before writing again.
+
+To provision a new context, add `createIfMissing: true` beside `kind` and `config`
+and declare a stable UUID as `config.taskId`. The same editor-only transaction
+creates a backlog task assigned to the reviewer and enrolls it; a failed
+enrollment leaves neither the task nor its audit/count changes. The flag never
+changes the stored configuration hash. Existing tasks still pass the pristine
+checks, and an occupied identity is never overwritten. Keep the ID and pending
+receipt when retrying. Omit the flag for adoption only. Disabling a context keeps
+its identity and purpose; it does not delete the task or grant tools.
+
+A live project manager with `task_review` and `task_start_agent` starts an
+occurrence through `task_review` operation `start_batch`, supplying a request
+UUID, `contextTaskId`, and one to twenty exact `{taskId, expected}` targets copied
+from native review reads. Use operation `read_batch` with its `batchId` to recover
+the result. Only matching native decisions from that batch can complete it; a
+settled report does not. An incomplete replay starts nothing. A new occurrence
+must explicitly name the remaining targets. Each source task keeps its original
+independent review gate; the operational context produces no report-review gate.
+
+An `agent-model` resource selects `harness`, `model` and an explicit
+`modelProvider` for an existing `projectId` and `agentId`. The native model
+catalog checks the exact combination and credentials without provider fallback.
+The same project editing permissions and platform-managed-agent restriction
+apply. Only those serving fields change; instructions and all equipment and
+secret grants retain their exact stored values. Queued and running work retains
+the tuple stamped at admission. Future starts use the new selection. An equal
+selection is a no-op, and a changed selection invalidates stale full-agent saves.
+A legacy unset provider is observed as `null`; desired declarations require an
+explicit provider. Plan, apply, interrupted recovery and readback use the same
+configuration flow. A runtime without this facet refuses the operation.
+
 An `automation-definition` resource declares `projectId`, the exact native `name`
 (including folder slashes), `document`, `settings`, `presentation` and `taskContract`.
 The three metadata fields are required: copy their observed native values, or use
@@ -436,7 +512,10 @@ Declare an `automation-deployment` for the same name and project, with
 serialized as compact JSON with object keys sorted recursively. Arrays retain their
 order. The CLI refuses a different digest. A schedule also requires both phases in
 the same declaration. Its `automation-schedule` configuration has `projectId`,
-`name`, `cron`, `timezone` and `enabled`. Application saves definitions, promotes their
+`name`, `cron`, `timezone` and `enabled`, and optionally `wakeOnSlotFreed: true`, which
+also fires the schedule as soon as an agent of its project frees its slot; leave it out
+to opt out. Only one enabled schedule per project may set it: a second one, or binding its
+automation to a project another schedule already wakes, is refused with 409. Application saves definitions, promotes their
 exact tested versions, then reconciles schedules. Existing runs retain their version.
 
 Equal resources are no-ops. Interrupted phases reconcile native readback before

@@ -42,17 +42,17 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-Der `ui`-Block speichert die Positionen auf dem Canvas. Verschieben ändert die Anordnung, nicht die Ausführung einer Node.
+Tale ordnet den Canvas anhand der Verweise zwischen den Nodes an, niemand platziert eine Node von Hand. Ein `ui`-Block ist freie Metadaten: Tale behält ihn unverändert und ignoriert ihn.
 
 ### Kanten entstehen, sie werden nicht deklariert
 
-Es gibt keine Kantenliste. Eine Node liest eine andere, indem sie sie referenziert — `{{ nodes.invoice.output.id }}` —, und genau diese Referenz _ist_ die Kante, die der Canvas zeichnet. Die Reihenfolge ergibt sich aus einer topologischen Sortierung über diese abgeleiteten Kanten. Deshalb verschwindet mit einer gelöschten Referenz auch ein Pfeil, und deshalb weist die Plattform zwei Nodes zurück, die einander lesen.
+Es gibt keine Kantenliste. Eine Node liest eine andere, indem sie sie referenziert — `{{ nodes.invoice.output.id }}` —, und genau diese Referenz _ist_ die Kante, die der Canvas zeichnet. Die Reihenfolge ergibt sich aus einer topologischen Sortierung über diese abgeleiteten Kanten. Deshalb verschwindet mit einer gelöschten Referenz auch eine Linie, und deshalb weist die Plattform zwei Nodes zurück, die einander lesen.
 
 Templates nutzen eine einzige `{{ }}`-Grammatik aus JavaScript-Ausdrücken über `input`, `nodes.<id>.output` und, innerhalb einer iterierenden Node, `item` und `index`.
 
 ### Die Ablaufsteuerung sitzt an der Node
 
-Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen. Der Canvas zeigt sie deshalb als Badges an genau der Box, die sie betreffen.
+Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen. Der Canvas zeichnet jedes davon dort, wo es wirkt: Aus `when` wird eine Bedingung über ihrer Node, eine Alternative per `elseOf` hängt als Zweig **Nein** an dieser Bedingung, `forEach` und `repeatUntil` setzen die Node in einen Rahmen, und `onError: continue` gibt ihr einen Chip.
 
 | Feld                         | Wirkung                                                                                 |
 | ---------------------------- | --------------------------------------------------------------------------------------- |
@@ -70,7 +70,7 @@ Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktio
 
 **`llm`** ruft ein Sprachmodell mit einem Prompt-Template auf. `model` ist Pflicht und immer ausdrücklich — eine Automatisierung wählt nie eines für dich (das Auto der Chat-Eingabezeile ist eine reine Chat-Sache). Die Ausgabe ist `{text}` oder das Objekt in Form des Schemas, wenn die Node ein `outputSchema` deklariert. Jeder Aufruf in einem Live-Lauf ist Nutzung des Laufs: Er wird vorher gegen die [Budgetlimits](/de/platform/admin/governance/policies-and-limits) geprüft, und ein Aufruf, den ein Limit ablehnt, lässt die Node mit `budget_exceeded` fehlschlagen, was den Lauf abbricht, außer ihr `onError` ist `continue`. Vor dem Anbieteraufruf reserviert jeder Versuch die geschätzten Prompt-Kosten und das maximale Antwortbudget in allen für diesen Versuch berücksichtigten Projekten. Dafür braucht das Modell Katalogpreise. Sobald der Aufruf endet, ersetzt die gemeldete Nutzung die Reservierung. Bleiben die Kosten wegen einer Zeitüberschreitung, einer unterbrochenen Verbindung oder fehlender Nutzungsdaten unbekannt, bleibt die Reservierung bis zur Anfragefrist bestehen und wird danach als reservierter Schätzwert verbucht; das ist eine Schätzung, keine Anbieterrechnung. Änderungen an Projektzuordnungen während des Aufrufs verschieben dessen Verbrauch nicht.
 
-**`agent`** führt einen Agent-Turn eines Coding-Agents (Claude Code, Codex und die übrigen Agent-Laufzeiten) in der Sandbox aus. Er liest bereitgestellte `files`, nutzt `skills`, vermittelte `connectors`, gewährte Plattform-`tools` und eingespielte `secrets` und gibt `{text, files, status}` zurück; `model` ist Pflicht. Hat ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet, kann er auch Bilder erstellen, die unter seinen `files` zurückkommen. Greif zu `llm`, wenn eine einmalige Completion reicht, und zu `agent` nur, wenn der Schritt Werkzeuge, Dateien oder mehrere Turns braucht — eine live geschaltete Agent-Node läuft als asynchroner Turn, sitzt daher auf der obersten Ebene statt in einer `subautomation` und iteriert nicht mit `forEach`.
+**`agent`** führt einen Agent-Turn eines Coding-Agents (Claude Code, Codex und die übrigen Agent-Laufzeiten) in der Sandbox aus. Er liest bereitgestellte `files`, nutzt `skills`, vermittelte `connectors`, gewährte Plattform-`tools` und eingespielte `secrets` und gibt `{text, files, status}` zurück; `model` ist Pflicht. Die aufgelöste `input` der Node erreicht den Agenten als JSON in `/agent/workspace/input.json`, und seine Anweisungen nennen diese Datei. In einem Live-Lauf schlägt die Node fehl, bevor der Agent startet, wenn dieses JSON größer als 1 MiB ist oder ihre `files` zusätzlich einen Eintrag namens `input.json` enthalten. Hat ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet, kann er auch Bilder erstellen, die unter seinen `files` zurückkommen. Greif zu `llm`, wenn eine einmalige Completion reicht, und zu `agent` nur, wenn der Schritt Werkzeuge, Dateien oder mehrere Turns braucht — eine live geschaltete Agent-Node läuft als asynchroner Turn, sitzt daher auf der obersten Ebene statt in einer `subautomation` und iteriert nicht mit `forEach`.
 
 **`subautomation`** führt eine andere gespeicherte Automatisierung als einzelne Node aus; ihr Feld `automation` benennt `"name"` oder `"name@version"`. Ohne Version läuft die live geschaltete, und die Verschachtelung endet bei drei Ebenen.
 
@@ -80,11 +80,17 @@ Eine **strukturierte** Ausgabe hat benannte Felder, die du über `nodes.<id>.out
 
 Ein Werkzeug ohne Ausgabeschema liefert unstrukturierte Ausgabe. Soll daraus strukturierte Eingabe für weitere Schritte entstehen, nutze eine `llm`-Node mit `outputSchema`. Die Validierung nennt bei einem Fehler die ungültige Referenz und die zulässigen Felder oder Kontexte. Korrigiere die Referenz, bevor du erneut speicherst.
 
+## Pfade, die ein Lauf nehmen kann {#paths}
+
+Jede Bedingung und jede Node, die fehlschlagen darf, während der Lauf weitergeht, eröffnet einem Lauf zwei Möglichkeiten. Tale probiert jede Kombination davon aus und behält die unterschiedlichen Wege, die ein erfolgreicher Lauf nehmen kann; jeder davon ist ein Pfad. Ein Pfad nennt die Bedingungen, die über ihn entscheiden, etwa welche Nodes laufen, welche übersprungen werden und welche fehlschlagen, während der Lauf weitergeht, und die Nodes, die auf ihm laufen. Eine Node, die auf jedem Pfad läuft, läuft immer; eine Node, die auf keinem läuft, kann nie laufen, und Tale warnt davor.
+
+Tale führt bis zu 32 Pfade auf und zählt die übrigen. Bei mehr als 12 Bedingungen und hingenommenen Fehlern sind die Kombinationen zu viele zum Durchgehen, deshalb führt Tale dann keinen Pfad auf; es sagt aber weiterhin bei jeder Node, wann sie läuft. Außerdem nennt Tale die Nodes, deren Fehler den Lauf beendet, und was jede von ihnen fehlschlagen lassen kann. Der Editor zeigt die Pfade im Canvas, wie [Den möglichen Pfaden folgen](/de/platform/automations/editor#paths) beschreibt; ein Client des [MCP-Endpoints](/de/develop/mcp-endpoint) liest dieselben Pfade aus `analysis.paths`.
+
 ## Was Tale vor einem Lauf prüft {#checks}
 
 Tale prüft das ganze Dokument, wenn du es speicherst, wenn du eine Version bereitstellst und wann immer ein Client `validate_automation` aufruft. Ein **Fehler** beschreibt etwas, das sicher scheitert, oder Code, der die Analysegrenzen überschreitet. Er verhindert Speichern wie Bereitstellen. Eine **Warnung** zeigt auf etwas, das scheitern kann oder nichts Nützliches tut. Sie verhindert weder Speichern noch Bereitstellen; du entscheidest selbst, ob du etwas änderst. Jedes Problem nennt seine Node und sein Feld und, in einem Template, einer Bedingung oder in Code, den genauen Ausdruck.
 
-Damit die Prüfung zügig bleibt, gelten für jeden Ausdruck und jeden `transform`-Code Grenzen von 8192 UTF-16-Codeeinheiten, 512 JavaScript-Tokens und 64 Verschachtelungsebenen in der Syntax oder im Syntaxbaum. Leerraum um einen Template-Ausdruck zählt nicht zu seiner Größe; Leerraum im Transform-Code zählt mit. Reiner Text außerhalb von Templates ist kein Code. Diese Grenzen können zuvor gültigen Code ablehnen. Kürze ihn oder verteile die Arbeit auf mehrere Nodes, bevor du erneut speicherst oder bereitstellst.
+Damit die Prüfung zügig bleibt, ist jeder Ausdruck auf 8192 UTF-16-Codeeinheiten und 512 JavaScript-Tokens begrenzt. Für `transform`-Code gelten 16384 Codeeinheiten und 4096 Tokens. Beide dürfen höchstens 64 Verschachtelungsebenen in der Syntax oder im Syntaxbaum enthalten. Leerraum um einen Template-Ausdruck zählt nicht zu seiner Größe; Leerraum im Transform-Code zählt mit. Reiner Text außerhalb von Templates ist kein Code. Diese Grenzen können zuvor gültigen Code ablehnen. Kürze ihn oder verteile die Arbeit auf mehrere Nodes, bevor du erneut speicherst oder bereitstellst.
 
 ### Referenzen und Namen {#checks-references}
 
@@ -151,7 +157,7 @@ Ein Live-Lauf braucht eine bereitgestellte Version. Einen gespeicherten Entwurf 
 
 ## Was einen Lauf startet
 
-Eine gespeicherte Version kannst du manuell testen; die bereitgestellte Version lässt sich live ausführen. Für automatische Starts richtest du eine von drei Trigger-Arten ein: einen Zeitplan mit Cron-Ausdruck und IANA-Zeitzone, eine durch ein Token geschützte Webhook-URL oder ein benanntes Plattformereignis.
+Eine gespeicherte Version kannst du manuell testen; die bereitgestellte Version lässt sich live ausführen. Für automatische Starts richtest du eine von drei Trigger-Arten ein: einen Zeitplan, der sich zu festen Uhrzeiten oder in einem Intervall in seiner Zeitzone wiederholt, eine durch ein Token geschützte Webhook-URL oder ein benanntes Plattformereignis. Jeder davon kann eine feste Eingabe mitgeben, die jeder Lauf erhält.
 
 Der Trigger gehört zum Namen der Automatisierung. Bei einer neuen Bereitstellung bleiben Konfiguration und Webhook-URL erhalten; nachfolgende Starts verwenden die neu bereitgestellte Version. Deaktiviere den Trigger, um automatische Starts zu pausieren. [Workflow-Trigger](/de/platform/automations/triggers) erklärt Zeitsteuerung, Anmeldung und die Eingabe jeder Trigger-Art.
 

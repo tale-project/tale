@@ -66,7 +66,6 @@ blank:
   promptPlaceholder: p. ex. Passer en revue les issues GlitchTip ouvertes et
     créer une tâche pour chaque nouvelle.
   equipmentLabel: Équipement
-  timezoneInvalid: Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).
   webhookHint: L’URL du webhook s’affiche une seule fois, juste après la
     création — copie-la avant d’ouvrir l’éditeur.
   stepWebhook: Copie l’URL du webhook — elle n’est affichée que maintenant.
@@ -82,6 +81,7 @@ blank:
   submit: Créer l'automatisation
   submitting: Création…
   initialMessage: Première version
+  kindQuestion: 'Quand s’exécute-t-elle ?'
 notFound:
   title: Automatisation introuvable
   description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -157,19 +157,12 @@ trigger:
   cronHint: Expression cron standard à 5 champs (minute heure jour mois jour-semaine).
   cronInvalid: Cette expression cron n’est pas valide.
   cronInvalidReason: 'Cette expression cron n’est pas valide : {reason}'
-  cronNext: 'Prochaine exécution {at}'
-  paused: En pause — aucune exécution ne démarre
-  notDeployed: 'Ne démarrera pas tant qu’aucune version n’est déployée · prochaine exécution prévue {at}'
-  cronEveryMinutes: '{n, plural, one {Toutes les minutes} other {Toutes les # minutes}}'
-  cronEveryHours: '{n, plural, one {Toutes les heures} other {Toutes les # heures}}'
-  cronDailyAt: 'Tous les jours à {time}'
   timezoneLabel: Fuseau horaire
   timezoneSearch: Rechercher un fuseau
   timezoneEmpty: Aucun fuseau ne correspond
   eventLabel: Nom de l’événement
   eventPlaceholder: Choisir un événement
   enabledLabel: Actif
-  lastFired: 'Dernier déclenchement {at}'
   failures:
     pausedTitle: 'En pause après des échecs répétés'
     pausedBody: '{count, plural, one {# exécution a échoué} other {# exécutions ont échoué}} d’affilée avec une erreur qu’une nouvelle tentative ne corrigera pas, la planification s’est donc désactivée. Corrige l’automatisation, puis réactive le déclencheur et enregistre.'
@@ -184,12 +177,8 @@ trigger:
   tokenHint: Le token est la dernière partie de l’URL, affiché une seule
     fois et conservé uniquement sous forme de hash.
   webhookEndpointLabel: Point de terminaison du webhook
-  webhookHowto: Cette URL s’utilise quand l’automatisation n’est liée à aucun projet.
-  hasToken: Un token est actif — l’URL a besoin du token affiché une seule
-    fois à la création ; renouvelle-le pour générer une nouvelle URL.
   noToken: Enregistre pour créer le token ; l’URL complète s’affiche une
     seule fois.
-  webhookProjectHint: Pour un projet actif auquel l’automatisation est liée, indique son identifiant dans l’URL ci-dessous.
   rotate: Renouveler le token
   revokeConfirm:
     title: Remplacer le webhook ?
@@ -199,37 +188,330 @@ trigger:
     title: Renouveler le token du webhook ?
     body: L’URL actuelle cesse de fonctionner dès que le nouveau token est généré. Copie la nouvelle URL et mets à jour chaque système expéditeur.
   revokedToast: L’ancienne URL du webhook a été révoquée — les expéditeurs qui l’utilisent reçoivent désormais 404.
+  loadFailed: 'Impossible de charger le déclencheur.'
+  retry: 'Réessayer'
+  kindHint:
+    schedule: 'Aux moments que tu choisis.'
+    webhook: 'Quand un autre système envoie une requête à son URL.'
+    event: 'Quand quelque chose se passe dans Tale, comme une nouvelle tâche.'
+  schedule:
+    label: 'Planification'
+    description: 'Quand l’automatisation démarre.'
+    format: 'Format de la planification'
+    formatRepeat: 'Répétition'
+    formatCron: 'Cron (avancé)'
+    inZone: 'Heures en {zone}'
+    savedAsCron: 'Enregistrée comme expression cron {cron}. Si tu modifies la planification et enregistres, elle devient une règle de répétition.'
+    cronNotConvertible: 'Cette expression cron ne peut pas s’afficher comme répétition. L’enregistrer en mode Répétition la remplace.'
+    repeatNoCron: '« {sentence} » ne s’écrit pas en une seule expression cron. Saisis-en une ou reviens à Répétition.'
+    cronReadsAs: 'Signifie : {sentence}'
+    anchor:
+      daily: 'Compté à partir du {date}.'
+      weekly: 'Compté à partir de la semaine du {date}.'
+      monthly: 'Compté depuis {month}.'
+      yearly: 'Compté à partir de {year}.'
+  timezoneYours: 'Ton fuseau horaire'
+  catchUp:
+    label: 'Exécutions manquées'
+    description: 'Quand Tale n’était pas disponible à l’heure prévue, par exemple pendant une mise à jour.'
+    latest: 'Lancer la dernière au retour de Tale'
+    skip: 'Les ignorer'
+    latestHint: 'S’exécute une fois pour le dernier horaire manqué, quel que soit le retard. Les horaires manqués plus anciens sont comptés, pas rattrapés.'
+    skipHint: 'Une exécution en retard de plus de 10 minutes ne démarre pas ; elle est comptée comme manquée.'
+  nextRuns:
+    title: 'Prochaines exécutions'
+    titleUnsaved: 'Prochaines exécutions (non enregistrées)'
+    wouldRun: 'S’exécuterait à'
+    paused: 'En pause : active « Actif » et enregistre pour lancer ces exécutions.'
+    notDeployed: 'Rien ne démarre tant qu’aucune version n’est déployée.'
+    unavailable: 'Corrige la planification ci-dessus pour voir les prochaines exécutions.'
+  health:
+    lastRun: 'Dernière exécution {at}'
+    noRunYet: 'N’a encore lancé aucune exécution.'
+  skip:
+    technicalDetails: 'Détails techniques'
+    openEditor: 'Ouvrir l’éditeur'
+    editSchedule: 'Modifier la planification'
+    editProjects: 'Modifier les projets'
+    alsoMissed: '{count, plural, one {Une exécution précédente a aussi été manquée.} other {# exécutions précédentes ont aussi été manquées.}}'
+    notDeployed:
+      title: 'Ignorée : aucune version déployée'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais aucune version n’est déployée : aucune exécution n’a démarré. Déploie une version testée dans l’éditeur.'
+    inputRefused:
+      title: 'Ignorée : l’entrée de l’exécution a été refusée'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais la version {version} a refusé ce que le déclencheur envoie. Modifie les entrées de l’automatisation ou l’entrée fixe du déclencheur pour qu’elles correspondent.'
+    projectRefused:
+      title: 'Ignorée : le projet ne peut pas lancer d’exécutions'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais {reason, select, archived {son projet est archivé} other {son projet n’existe plus ou n’autorise plus cette automatisation}} : aucune exécution n’a démarré. Vérifie les projets de l’automatisation.'
+    startRefused:
+      title: 'Ignorée : l’exécution n’a pas pu démarrer'
+      body: '{kind, select, event {Un événement est arrivé le {at}} other {Il était prévu le {at}}}, mais l’exécution n’a pas pu démarrer. Les détails techniques en donnent la raison.'
+    unusableSchedule:
+      title: 'Ignorée : la planification est illisible'
+      body: 'Il était prévu le {at}, mais sa planification ou son fuseau horaire était illisible. Corrige-les et enregistre ; rien ne démarre d’ici là.'
+    missed:
+      title: '{count, plural, one {# exécution manquée} other {# exécutions manquées}}'
+      titleCapped: 'Plus de {count, number} exécutions manquées'
+      body: '{count, plural, one {Une exécution était prévue le {from} pendant que Tale était indisponible.} other {Des exécutions étaient prévues entre le {from} et le {to} pendant que Tale était indisponible.}} {policy}'
+      policyLatest: 'La dernière a été lancée au retour de Tale.'
+      policySkip: 'Elles ont été ignorées, comme réglé sous « Exécutions manquées ».'
+  input:
+    title: 'Cette exécution reçoit'
+    copy: 'Copier l’entrée'
+    firedAt: 'firedAt : l’heure prévue, en millisecondes depuis 1970 (UTC). Ici, {at}.'
+    webhook: 'Le corps de ta requête arrive dans payload : le JSON reste structuré, le reste arrive en texte.'
+    event: 'Les données de l’événement arrivent dans payload. Elles contiennent des identifiants ; lis l’enregistrement complet avec une étape.'
+    accepted: 'La version {version} accepte cette entrée.'
+    refusedTitle: 'La version {version} n’accepte pas cette entrée'
+    refusedBody: 'Ses entrées refusent ce que ce déclencheur envoie : chaque démarrage serait ignoré. Ajoute les champs manquants à l’entrée fixe ou modifie les entrées dans l’éditeur.'
+  runNow:
+    label: 'Exécuter maintenant'
+    unsaved: 'Enregistre d’abord tes modifications du déclencheur.'
+    body: 'Exécute la version {version} en réel avec l’entrée ci-dessous, comme le ferait le déclencheur : les e-mails partent, les données changent. La planification ne change pas.'
+    confirm: 'Lancer l’exécution'
+    started: 'Exécution lancée.'
+    failed: 'Impossible de lancer l’exécution : {error}'
+  webhook:
+    projectUrls: 'URL des projets'
+    orgUnused: 'Cette automatisation est installée dans des projets : elle ne s’exécute que via une URL de projet.'
+    tokenHidden: 'URL du webhook, token masqué'
+    tokenHiddenHint: 'Le token ne s’est affiché qu’une fois, à sa création. Renouvelle-le pour obtenir une nouvelle URL.'
+    sampleTitle: 'Envoyer une requête de test'
+    sampleCopy: 'Copier la requête'
+    sampleHint: 'Envoie un nouvel Idempotency-Key pour chaque événement : en répéter un dans les 24 heures renvoie la première exécution.'
+    sampleEnv: 'Garde l’URL dans TALE_WEBHOOK_URL sur le système émetteur : elle agit comme un mot de passe.'
+    deliveries:
+      title: 'Livraisons récentes'
+      empty: 'Aucune livraison pour l’instant. Envoie une requête de test pour en voir une ici.'
+      loadFailed: 'Impossible de charger les livraisons.'
+      byHeader: 'ID issu de {header}'
+      byBody: 'Sans ID de livraison'
+      refusedNote: 'Les requêtes refusées n’apparaissent pas ; l’expéditeur en voit la raison dans la réponse.'
+  events:
+    search: 'Rechercher un événement'
+    empty: 'Aucun événement ne correspond'
+    scopeOrg: 'Démarre pour les événements correspondants de tous les projets et pour ceux qui n’appartiennent à aucun projet.'
+    scopeProjects: 'Démarre pour les événements correspondants de {projects} et pour ceux qui n’appartiennent à aucun projet, comme les contacts.'
+    loopBounded: 'Ses propres exécutions ne la relancent jamais, et une exécution lancée par un événement ne lance pas d’autres automatisations.'
+    group:
+      tasks: 'Tâches'
+      comments: 'Commentaires'
+      conversations: 'Conversations'
+      contacts: 'Contacts'
+      projects: 'Projets'
+    contactCreated:
+      label: 'Contact créé'
+      description: 'Un contact est ajouté via l’API, l’application ou un import.'
+    contactUpdated:
+      label: 'Contact modifié'
+      description: 'Les informations d’un contact changent.'
+    contactDeleted:
+      label: 'Contact supprimé'
+      description: 'Un contact est supprimé.'
+    conversationCreated:
+      label: 'Conversation ouverte'
+      description: 'Une conversation s’ouvre dans la boîte de réception : un e-mail arrive ou une conversation externe est reflétée.'
+    conversationMessageReceived:
+      label: 'Message reçu'
+      description: 'Un message arrive dans une conversation existante.'
+    projectCreated:
+      label: 'Projet créé'
+      description: 'Un projet est créé.'
+    taskCreated:
+      label: 'Tâche créée'
+      description: 'Une tâche est créée sur un tableau, via l’API ou par un import.'
+    taskStatusChanged:
+      label: 'Statut de tâche modifié'
+      description: 'Une personne déplace une tâche vers un autre statut. Les déplacements faits par un agent ne comptent pas.'
+    commentCreated:
+      label: 'Commentaire ajouté'
+      description: 'Un commentaire est publié sur une tâche.'
+    commentMentioned:
+      label: 'Mention dans un commentaire'
+      description: 'Un commentaire de tâche mentionne quelqu’un avec @.'
+  deployNotice:
+    title: 'Son déclencheur est désactivé'
+    body: '{kind, select, schedule {La planification ne lance aucune exécution tant que tu n’actives pas le déclencheur.} webhook {Les requêtes vers son URL ne lancent aucune exécution tant que tu n’actives pas le déclencheur.} other {Les événements ne lancent aucune exécution tant que tu n’actives pas le déclencheur.}}'
+    turnOn: 'Activer le déclencheur'
+    review: 'Vérifier le déclencheur'
+    turnedOn: 'Le déclencheur est activé.'
+    turnOnFailed: 'Impossible d’activer le déclencheur : {error}'
+  issues:
+    keyOtherKind: 'Ce réglage appartient à un autre type de déclencheur.'
+    schedule:
+      cronOrRepeat: 'Donne à la planification soit une règle de répétition, soit une expression cron, pas les deux.'
+      cronUnreadable: 'Cette expression cron est illisible.'
+      cronImpossibleDate: 'Cette expression cron désigne une date qui n’arrive jamais.'
+      timesRequired: 'Ajoute au moins une heure.'
+      timeFormat: 'Écris les heures au format HH:MM, par exemple 09:30.'
+      timesTooMany: 'Utilise au plus {max} heures par jour.'
+      intervalUnsupported: 'Choisis l’un des intervalles proposés.'
+      monthDayImpossible: 'Ce mois n’a jamais ce jour.'
+      windowHoursEqual: 'Le début et la fin sont identiques. Retire les heures pour une exécution toute la journée.'
+      startDate: 'La date de début n’est pas une date du calendrier.'
+    input:
+      notObject: 'L’entrée fixe doit être un objet JSON.'
+      reservedKey: 'Retire {keys} : le déclencheur définit ces champs lui-même.'
+      tooLarge: 'L’entrée fixe dépasse 16 Kio.'
+      unstorableText: 'L’entrée fixe contient un caractère impossible à enregistrer : un caractère NUL ou la moitié d’un emoji.'
+    event:
+      required: 'Choisis un événement.'
+      unknown: 'Tale ne déclenche pas cet événement.'
+  fixedInput:
+    label: 'Entrée fixe'
+    description: 'Valeurs que ce déclencheur ajoute à l’entrée de chaque exécution, en JSON. Les champs propres au déclencheur (trigger, firedAt, event, payload) les remplacent.'
+    add: 'Ajouter une entrée fixe'
+    fillMissing: '{count, plural, one {Ajouter le champ manquant} other {Ajouter les # champs manquants}}'
+    notJson: 'Ce n’est pas du JSON valide.'
+  timezoneInvalid: 'Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).'
 canvas:
-  ariaLabel: Canvas de l’automatisation
-  readsFrom: 'Lit {nodes}'
+  ariaLabel: Canevas de l’automatisation
   unpinnedModel: Pas de fournisseur épinglé — chaque exécution en choisit un.
   empty:
     title: Cette version ne contient aucun nœud
-    description:
-      Un document d'automatisation est une liste de nœuds. Ajoutes-en un au
-      document et il apparaît ici.
+    description: Une automatisation travaille avec des nœuds. Demande à ton agent de code d’en ajouter.
   cycle:
     title: Ces nœuds se référencent en boucle
     description:
       L’ordre affiché est celui dans lequel les nœuds sont écrits, pas
       celui dans lequel ils s’exécuteraient, car le moteur ne peut pas
       exécuter une boucle. Retire l’une des références pour la rompre.
+  view:
+    label: Vue
+    canvas: Canevas
+    list: Liste
+    source: Source
+  legend:
+    data: 'Trait plein : lit la sortie du nœud au-dessus'
+    control: 'Trait tireté : s’exécute après lui, sans lire sa sortie'
+    gate: 'Condition : décide si le nœud en dessous s’exécute'
+    yes: 'Oui : s’exécute quand la condition est remplie'
+    no: 'Non : s’exécute quand la condition n’est pas remplie'
+    completion: 'Trait pointillé : l’exécution se termine après ce nœud'
+    conditional: 'Cadre tireté : peut ne pas s’exécuter, ou ne s’est pas exécuté'
+    loop: 'Cadre : s’exécute une fois par élément, ou se répète'
+  readsNothing: Ne lit aucun autre nœud
+  node:
+    returnsUnknown: Structure connue après une exécution
+    returns: 'Renvoie {shape}'
+    writes: Modifie des données dans {connector}. Une exécution réelle peut attendre une approbation.
+    asks: Peut poser une question et attendre la réponse.
+    catalog:
+      transform: Transformation
+      llm: Modèle de langage
+      agent: Agent
+      subautomation: 'Appelle {automation}'
+      subautomationUnset: Appelle une automatisation
+      connector: '{connector} · {action}'
+      withModel: '{type} · {model}'
+      unknown: 'Type inconnu {type}'
+    source:
+      input: 'l’entrée ({keys})'
+      inputAll: l’entrée
+      item: chaque élément
+  gate:
+    asCode: Écrite en code
   edge:
-    data: '{target} lit la sortie de {source}'
-    control: '{target} s’exécute après {source}'
+    carries: 'Transporte {fields}'
   controlFlow:
-    when: 'si {value}'
-    elseOf: 'sinon de {value}'
-    forEach: 'pour chaque {value}'
-    repeatUntil: 'répéter jusqu’à {value}'
-    repeatUntilCapped: 'répéter jusqu’à {value}, {maxRepeats}× au plus'
-    onError: continuer en cas d’erreur
+    forEach: 'Pour chaque élément de {list}'
+    forEachRaw: Pour chaque élément de sa liste
+    repeatUntilCapped: 'Se répète jusqu’à : {condition}, {maxRepeats} fois au plus'
+    repeatRaw: 'Se répète jusqu’à ce que sa condition soit remplie, {maxRepeats} fois au plus'
+    onError: Continue en cas d’erreur
+  updated: 'Affichage de la v{version}.'
+  selectionRemoved: '{node} ne fait plus partie de cette version.'
+  newerVersion:
+    title: Une version plus récente a été enregistrée
+    body: 'La v{version} a été enregistrée pendant ta modification. Ton brouillon part de la v{base}.'
+    show: 'Afficher la v{version} et abandonner mon brouillon'
+  start:
+    manual: À la main, via l’API ou MCP
+    manualOnly: Seulement à la main, via l’API ou MCP — aucun déclencheur
+    webhook: Une requête vers son URL de webhook
+    event: 'Quand {event}'
+    scheduleZone: '{schedule} · {zone}'
+    off: Désactivé
+    notLive: Attend une version en service
+    paused: En pause — aucune exécution ne démarre
+    nextRun: 'Prochaine exécution {at}'
+    anyInput: N’importe quelle entrée JSON
+    noFields: Aucun champ d’entrée
+    fromTrigger: du déclencheur
+    description: '{triggers}. Entrée : {fields}.'
+  end:
+    returnsNode: 'La sortie de {node}'
+    returnsNothing: Rien — cette automatisation n’a pas de sortie
+    fieldFrom: 'de {nodes}'
+    maybeEmpty: peut être vide
+    emptyOnPath: vide sur ce chemin
+    succeeded: renvoie la sortie
+    failed: '{count, plural, =0 {aucun nœud n’arrête l’exécution} one {quand # nœud échoue} other {quand l’un des # nœuds échoue}}'
+    stopped: quand quelqu’un l’arrête
+    someEmpty: Certaines exécutions renvoient des valeurs vides
+    failedAt: 'Échec à {node}'
 editor:
   unknownType: 'Type de nœud inconnu : {type}'
   catalogUnavailable:
     Le catalogue des types de nœuds n’a pas pu être chargé, donc seuls
     les types intégrés sont décrits. Les champs de ce nœud restent affichés.
   invalidJson: Ce n’est pas encore du JSON valide, le nœud n’a donc pas été modifié.
+  fixSuggestion: 'Remplacer par {name}'
+  jsonMustBeObject: Ce doit être un objet JSON, entre accolades.
+  jsonMustBeList: Ce doit être une liste JSON, entre crochets.
+  inspector:
+    copyId: Copier l’ID du nœud
+    tabs:
+      fields: Champs
+      shape: Structure
+      run: Dernière exécution
+  start:
+    title: Début
+    description: Ce qui démarre cette automatisation et ce que reçoit chaque exécution.
+    trigger: Déclencheur
+    editTrigger: Modifier dans Général
+    inputs: Entrées
+    inputsDescription: Les données que reçoit chaque exécution, sous forme de schéma JSON. Une exécution dont l’entrée ne correspond pas est refusée avant qu’un nœud ne s’exécute.
+  end:
+    title: Fin
+    description: Ce que renvoie une exécution réussie, et comment une exécution peut se terminer.
+    outputDescription: Une valeur JSON. Lis les sorties des nœuds avec des templates, par exemple '{{' nodes.report.output '}}'.
+    outcomes: Comment une exécution se termine
+  flow:
+    title: Quand il s’exécute
+    always: À chaque exécution
+    some: 'Sur {count} des {total} chemins'
+    never: 'Jamais : aucune combinaison de conditions ne le permet'
+    skipWhen: Ignoré quand sa condition n’est pas remplie
+    skipElse: 'Ignoré quand {node} s’exécute'
+    skipUpstream: 'Ignoré quand {node} est ignoré'
+    skipError: Ignoré quand il échoue
+    failHalts: S’il échoue, l’exécution s’arrête avec son erreur.
+    failContinues: '{count, plural, =0 {S’il échoue, l’exécution continue sans lui.} one {S’il échoue, l’exécution continue sans lui et ignore # nœud qui le lit.} other {S’il échoue, l’exécution continue sans lui et ignore # nœuds qui le lisent.}}'
+    failsWhen: 'Échoue si {reasons}.'
+  explain:
+    when: 'S’exécute seulement si {condition}. Sinon, il est ignoré, ainsi que chaque nœud qui lit sa sortie.'
+    whenRaw: 'S’exécute seulement si cette condition est remplie. Sinon, il est ignoré, ainsi que chaque nœud qui lit sa sortie.'
+    forEach: 'S’exécute une fois pour chaque élément de {list}. Sa sortie est la liste des résultats.'
+    repeatUntil: 'S’exécute à nouveau jusqu’à ce que la condition soit remplie ({condition}), {max} fois au plus.'
+    elseOf: 'S’exécute seulement quand {node} est ignoré par sa propre condition.'
+  shape:
+    receives: Reçoit
+    receivesCode: Ce que son code lit comme input
+    item: Chaque élément
+    returns: Renvoie
+    readBy: Lu par
+    readByOutput: La sortie de l’automatisation
+    notRead: Rien ne lit sa sortie.
+    checking: Mise à jour…
+    unavailable: Impossible de déterminer les structures. Elles apparaîtront après la prochaine vérification réussie.
+    origin:
+      declared: D’après son schéma de sortie
+      signature: 'Tel que {connector} le décrit'
+      inferred: Déduit de son code
+      fixed: 'Chaque nœud de ce type ({type}) renvoie ceci'
+      child: 'Ce que renvoie {automation}'
+      unknown: Tale ne peut pas déterminer ce qu’il renvoie. Un essai montre les vraies données.
   versionNotFound:
     title: 'La version {version} n’existe pas'
     description: Cette automatisation n’a aucune version portant ce numéro — le lien est peut-être périmé, ou le numéro mal saisi.
@@ -253,7 +535,6 @@ editor:
     typeUnlisted: Saisir un modèle qui n’est pas listé
     modelIdLabel: Identifiant du modèle
     modelIdHint: Exactement tel que le fournisseur l’écrit, p. ex. fournisseur/nom-du-modele.
-  runTitle: Dans cette exécution
   resolvedInput: Entrée résolue
   output: Sortie
   fields:
@@ -287,6 +568,13 @@ editor:
     repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
     maxRepeats: Répétitions maximales
     onError: En cas d’erreur
+    onErrorStop: Arrêter l’exécution
+    onErrorContinue: Continuer sans lui
+    onErrorDescription: Ce qui se passe quand ce nœud échoue. Continuer ignore chaque nœud qui lit sa sortie.
+    maxRepeatsDescription: Au plus ce nombre de passages, de 1 à 20. Vide signifie 5.
+    maxRepeatsRange: Saisis un nombre entier de 1 à 20.
+    elseOfNone: Aucun
+    elseOfEmpty: Aucun autre nœud n’a de condition.
     output: Sortie
     type: Type
     id: Identifiant
@@ -547,7 +835,7 @@ problems:
   refusedDeploy: Cette version a des problèmes qui empêchent sa mise en service. Ils sont listés dans Problèmes.
   refusedDeployDraft: Cette version a des problèmes qui empêchent sa mise en service. Abandonne ton brouillon pour les voir dans Problèmes.
   open: Afficher les problèmes
-  notEditableHere: Cette partie de l’automatisation ne se modifie pas ici. Modifie-la via MCP, l’API ou un paquet téléversé.
+  notEditableHere: Modifie-le avec ton agent de code.
   nodeTitle: Problèmes de ce nœud
   filter:
     label: Afficher les problèmes
@@ -556,3 +844,84 @@ problems:
     warnings: Avertissements
   emptyFiltered: '{filter, select, errors {Aucune erreur} warnings {Aucun avertissement} other {Aucun problème}}'
   fieldPart: '{part} : {message}'
+condition:
+  group: '({parts})'
+  gt: '{a} est supérieur à {b}'
+  gte: '{a} vaut au moins {b}'
+  lt: '{a} est inférieur à {b}'
+  lte: '{a} vaut au plus {b}'
+  eq: '{a} vaut {b}'
+  neq: '{a} ne vaut pas {b}'
+  empty: '{a} est vide'
+  notEmpty: '{a} n’est pas vide'
+  set: '{a} compte comme oui'
+  notSet: '{a} compte comme non'
+  contains: '{a} contient {b}'
+  notContains: '{a} ne contient pas {b}'
+  startsWith: '{a} commence par {b}'
+  endsWith: '{a} se termine par {b}'
+  notGt: '{a} n’est pas supérieur à {b}'
+  notGte: '{a} ne vaut pas au moins {b}'
+  notLt: '{a} n’est pas inférieur à {b}'
+  notLte: '{a} ne vaut pas au plus {b}'
+  notStartsWith: '{a} ne commence pas par {b}'
+  notEndsWith: '{a} ne se termine pas par {b}'
+  withValue: '{operand} ({value})'
+  ref:
+    node: '{path} de {node}'
+    nodeOutput: 'la sortie de {node}'
+    input: '{path} de l’entrée'
+    inputWhole: l’entrée
+    item: '{path} de l’élément'
+    itemWhole: l’élément
+    index: la position de l’élément
+    output: '{path} du résultat de ce passage'
+    outputWhole: le résultat de ce passage
+    length: 'le nombre de {inner}'
+  literal:
+    valueTrue: vrai
+    valueFalse: faux
+    valueNull: vide
+  quote: '« {text} »'
+paths:
+  button: '{count, plural, one {# chemin} other {# chemins}}'
+  title: Chemins possibles
+  description: Chaque chemin qu’une exécution réussie peut prendre. Pointe sur l’un d’eux ou sélectionne-le pour le voir sur le canevas.
+  single: 'Chaque exécution suit le même chemin : {count, plural, one {son # nœud s’exécute} other {les # nœuds s’exécutent}}.'
+  row: 'Chemin {index}'
+  rowRuns: '{ran, plural, one {# nœud sur {total} s’exécute} other {# nœuds sur {total} s’exécutent}}'
+  clause:
+    runs: '{node} s’exécute'
+    skipped: '{node} est ignoré'
+    fails: '{node} échoue, l’exécution continue'
+    succeeds: '{node} réussit'
+  more: '{count, plural, one {# autre chemin n’est pas listé} other {# autres chemins ne sont pas listés}}'
+  truncated: Cette automatisation a {count} conditions, trop pour lister chaque chemin. Chaque nœud indique quand même quand il s’exécute.
+  halts:
+    title: Arrête l’exécution en cas d’échec
+    row: '{node} échoue si {reasons}'
+  showing: 'Chemin {index} affiché : {ran, plural, one {# nœud sur {total} s’exécute} other {# nœuds sur {total} s’exécutent}}.'
+  pill: 'Chemin {index} · {ran, plural, one {# nœud sur {total} s’exécute} other {# nœuds sur {total} s’exécutent}}'
+  skip:
+    when: 'Ignoré : condition non remplie'
+    else: 'Ignoré : {node} s’exécute'
+    upstream: 'Ignoré : {node} est ignoré'
+    error: Échoue, l’exécution continue
+failureReason:
+  external: un service appelé échoue
+  code: son code lève une erreur
+  expression: l’une de ses expressions échoue
+  iteration: sa liste ne peut pas être parcourue
+  inputContract: son entrée est refusée
+  subautomation: l’automatisation appelée échoue
+source:
+  ariaLabel: Source de cette automatisation (YAML)
+  copy: Copier le YAML
+  download: Télécharger le YAML
+  readOnlyHint: Pour modifier le document, utilise les champs ou ton agent de code.
+codingAgent:
+  button: Modifier avec ton agent de code
+  body: Les agents de code comme Claude Code, Codex et Cursor modifient les automatisations via le serveur MCP de Tale. Ils lisent cette automatisation, la modifient, la vérifient et enregistrent une nouvelle version, qui apparaît ensuite ici.
+  nameLabel: Nom de cette automatisation
+  setUp: Configurer MCP
+  learnMore: Connecter un agent de code

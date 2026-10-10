@@ -84,7 +84,10 @@ export function boundedGithub(): Api {
   };
 }
 
-function readJobs(run: NativeRun, api: Api): NativeJob[] {
+export function readNativeJobs(
+  run: Pick<NativeRun, 'id' | 'run_attempt' | 'head_sha'>,
+  api: Api,
+): NativeJob[] {
   const jobs: NativeJob[] = [];
   let expected: number | undefined;
   for (let page = 1; page <= 5; page++) {
@@ -130,8 +133,8 @@ function snapshot(options: Options, { api, now }: Dependencies): TailSnapshot {
     replacement.id !== options.replacementRun
   )
     throw new Error('Requested CI identity was not returned.');
-  const olderJobs = readJobs(older, api);
-  const replacementJobs = readJobs(replacement, api);
+  const olderJobs = readNativeJobs(older, api);
+  const replacementJobs = readNativeJobs(replacement, api);
   const after = [
     runSchema.parse(api('GET', olderPath)),
     runSchema.parse(api('GET', replacementPath)),

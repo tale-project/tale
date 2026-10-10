@@ -59,6 +59,91 @@ authorized credential as `GH_TOKEN` for this command's process, following its
 provisioned instructions; an operator may use their existing `gh` authentication.
 The shared command does not look up agent secrets or change global authentication.
 
+## Retiring a deleted merge-group revision
+
+Rebuilding the merge queue gives its temporary branches new names. Workflow
+concurrency is keyed by the complete ref, so an old revision can keep running
+after GitHub deletes its branch. A run marked `queued` can still contain allocated
+jobs: use the organization's **Settings → Actions → Runners → Standard
+GitHub-hosted runners** view or complete native job inventories to measure occupancy.
+
+Inspect one exact run with the maintained CLI workspace command:
+
+```sh
+bun tools/cli/scripts/ci-retire-merge-group.ts --run 1000
+```
+
+The default prints a read-only decision. Eligibility requires a Tale `merge_group`
+run from one of the seven validation workflows, older than one minute, on the
+recognized temporary `main` queue ref. Its exact ref must return HTTP 404 and its
+head must be absent from a complete native merge-queue inventory. The current
+default-branch head and queued PR source heads are also protected. Authentication
+errors, unreadable queue/default-branch data, more than 100 queue entries, current
+refs, incomplete responses and unknown workflows preserve the run. PR validation,
+main pushes, release candidates and publication workflows are never eligible.
+
+After reviewing the decision, add `--apply --receipt /absolute/private/run-attempt.jsonl`.
+The command repeats its run, queue and deleted-ref observations, creates and flushes
+the same exclusive owner-only journal used by tail recovery, then sends at most one
+ordinary cancellation. This can stop live validation jobs for that obsolete revision;
+it does not escalate to force cancellation. Cancellation does not establish a passed
+check. The receipt distinguishes confirmed cancellation, an accepted request still pending readback and
+unknown outcomes. Never replay an uncertain request or replace its receipt. Ordinary
+cancellation may leave an `always()` aggregate queued; the explicit finishing mode
+below is a separate decision.
+
+To inspect an orphan that still has queued verdict jobs at least five minutes after an
+accepted ordinary cancellation, supply that command's retained journal:
+
+```sh
+bun tools/cli/scripts/ci-retire-merge-group.ts --run 1000 --finish \
+  --ordinary-receipt /absolute/private/ordinary-run-attempt.jsonl
+```
+
+This remains read-only. Finishing recognizes the reviewed source profiles for all seven
+validation workflows, including the retained older Checks profile. Each profile pins the
+whole workflow and its verdict action/script. Every substantive job must have a terminal
+native row. Only the reviewed `CI ready` jobs, plus Checks' `Unit` and `UI` aggregates,
+may remain queued and unassigned; event-inapplicable jobs cannot start in a merge group.
+
+A matrix normally requires every exact child. GitHub can instead record one cancelled or
+skipped literal matrix placeholder before expansion. That representation is accepted only
+when the pinned node requires a named predecessor to succeed, that predecessor is terminal
+without success, and no expanded child exists. Missing or mixed children, an unknown matrix
+value or a successful predecessor preserve the run. This is a fixed source-reviewed rule,
+not a general interpretation of workflow expressions.
+
+Different source, a missing real job, an assigned verdict, incomplete pagination or changed
+run identity preserves the workflow. The five-minute interval permits normal cancellation
+to settle; elapsed time alone does not prove work has stopped. The current-source guard in
+`ci-merge-group-finish.test.ts` requires each workflow and its verdict closure to match a
+profile. When these files change, review the complete future graph and add its profile;
+retain historical profiles for obsolete runs. Never update a digest merely to silence the
+guard or add an arbitrary job-name override.
+
+After reviewing that manifest, add `--apply --receipt /absolute/private/finish-run-attempt.jsonl`
+with a **new** receipt path. This repeats the complete source, queue, deleted-ref and
+job observations before one force-cancel request. The separate journal records the
+ordinary receipt's hash, reviewed source profile and actual job conclusions, including
+failures. Confirmation requires both a cancelled run and every returned job terminal;
+otherwise the result stays pending or unknown. Never replay a force intent, replace
+its receipt, or treat cancelled checks as passed. GitHub provides no atomic comparison:
+a verdict can allocate between the final observation and the request, but the exact
+closed graph excludes any remaining test, build or deployment work from that race.
+
+Ordinary reads and writes share a 60-second, 20-request budget; explicit finishing uses
+at most 40 requests within the same deadline. HTTP Date/Age and the local observations
+must be fresh within 30 seconds. The command requests uncached metadata, and refuses
+missing, ambiguous or stale response dates. Caller-selected `GH_TOKEN` or existing
+`gh` authentication remains responsible for authorization; no secret is acquired.
+Actual Actions response rate-limit headers govern its available REST budget: a
+contradictory `/rate_limit` overview does not authorize spending a reserved balance.
+
+A later run attempt or changed source is refused. The existing CI manager owns
+scheduling, exact-run selection and receipt retention; this command
+does not start a second scheduler or change queue settings. Use the existing
+authorized credential as described above.
+
 ## Current execution graph
 
 - **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run

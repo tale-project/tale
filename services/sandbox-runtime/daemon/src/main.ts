@@ -49,12 +49,23 @@ import {
   RUNNERD_INCARNATION_ENV,
   RUNNERD_INCARNATION_HEADER,
   RUNNERD_MAX_LIVE_EXECS,
+  RUNNERD_MEMORY_BUSY_ERROR,
   RUNNERD_PORT,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
+  type RunnerdHealth,
+  type RunnerdMemoryBusy,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
+import {
+  admissionMemoryPercentFromEnv,
+  MEMORY_BUSY_RETRY_AFTER_SECONDS,
+  memoryRefusesExec,
+  readMemoryPeak,
+  readOomKills,
+  readSessionMemory,
+} from './session-memory.ts';
 let execConsumers = 0;
 const MAX_EXEC_CONSUMERS = 8;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
@@ -62,6 +73,9 @@ const MAX_STAGING_OPERATIONS = 2;
 let stagingOperations = 0;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
+// The share of the session's memory limit past which a new exec is refused
+// (session-memory.ts); the spawner sets it.
+const ADMISSION_MEMORY_PERCENT = admissionMemoryPercentFromEnv();
 // Named in /healthz and every activity answer, so the spawner can trust an
 // answer as coming from the incarnation it registered without asking the
 // backend. Empty for a container launched without a stamp.
@@ -120,13 +134,37 @@ function tokenOk(req: IncomingMessage): boolean {
   }
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
+/** The session's memory for /healthz: in use, the limit, the peak and the
+ * OOM kills so far, or undefined where the cgroup cannot be read. */
+async function sessionMemoryHealth(): Promise<
+  RunnerdHealth['memory'] | undefined
+> {
+  const [memory, peak, oomKills] = await Promise.all([
+    readSessionMemory(),
+    readMemoryPeak(),
+    readOomKills(),
+  ]);
+  if (memory === null) return undefined;
+  return {
+    currentBytes: memory.currentBytes,
+    maxBytes: memory.maxBytes,
+    ...(peak === null ? {} : { peakBytes: peak }),
+    ...(oomKills === null ? {} : { oomKills }),
+  };
+}
+
+function sendJson(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): void {
   const payload = JSON.stringify(body);
   // A 413 needs no `Connection: close`: `readJsonBody` drains the refused
   // body before the route answers, so the keep-alive connection is clean
   // for the next request (closing it under a half-sent upload hangs Bun
   // 1.3.12's fetch — the spawner — on its next call).
-  res.writeHead(status, { 'content-type': 'application/json' });
+  res.writeHead(status, { 'content-type': 'application/json', ...headers });
   res.end(payload);
 }
 
@@ -303,6 +341,21 @@ async function handleExec(
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = body.value as RunnerdExecRequest;
+  // A session about to run out of memory starts nothing more: a new exec
+  // would push the kernel to kill one of the running ones, most often the
+  // agent. Refused before it starts, with a hint to ask again; the execs
+  // already running are left alone.
+  if (memoryRefusesExec(await readSessionMemory(), ADMISSION_MEMORY_PERCENT)) {
+    const refusal: RunnerdMemoryBusy = {
+      error: RUNNERD_MEMORY_BUSY_ERROR,
+      code: 'SESSION_MEMORY_BUSY',
+      message: `the session is using ${ADMISSION_MEMORY_PERCENT}% or more of its memory limit`,
+    };
+    sendJson(res, 429, refusal, {
+      'retry-after': String(MEMORY_BUSY_RETRY_AFTER_SECONDS),
+    });
+    return;
+  }
   if (execManager.liveCount() >= RUNNERD_MAX_LIVE_EXECS) {
     // Report through the NDJSON channel so the spawner's parser handles it
     // uniformly with pre-spawn failures.
@@ -412,7 +465,10 @@ async function router(
   }
 
   if (req.method === 'GET' && path === '/healthz') {
-    const docker = await innerDocker.snapshot();
+    const [docker, memory] = await Promise.all([
+      innerDocker.snapshot(),
+      sessionMemoryHealth(),
+    ]);
     const dependencies = await dependencyHealth(docker.dockerReady);
     const body: Record<string, unknown> = {
       ok: true,
@@ -422,6 +478,7 @@ async function router(
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
       ...(dependencies ? { dependencies } : {}),
+      ...(memory ? { memory } : {}),
       ...docker,
     };
     sendJson(res, 200, body);

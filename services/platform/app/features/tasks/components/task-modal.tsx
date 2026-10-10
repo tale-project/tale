@@ -31,6 +31,7 @@ import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { useCopy } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
@@ -297,6 +298,7 @@ export function TaskModal({
             // task fresh, on its newest message, with nothing sliding in.
             key={bodyTaskId}
             taskId={bodyTaskId}
+            active={open}
             onOpenTask={onOpenTask}
             onClose={() => onOpenChange(false)}
             showProjectLink={showProjectLink}
@@ -1355,6 +1357,7 @@ function CreateTaskBody({
 
 export function EditTaskBody({
   taskId,
+  active = true,
   organizationId,
   onOpenTask,
   onClose,
@@ -1363,6 +1366,7 @@ export function EditTaskBody({
   pageActions,
 }: {
   taskId: string;
+  active?: boolean;
   /** Page surface: the page's organization, which frames the page while the
    *  task is still on its way. */
   organizationId?: string;
@@ -1916,6 +1920,7 @@ export function EditTaskBody({
           {canMutate ? (
             <EditableTitle
               key={task._id}
+              active={active}
               value={task.title}
               ariaLabel={t('fields.title')}
               onSave={(title) =>
@@ -2467,6 +2472,7 @@ export function EditTaskBody({
                 {canMutate ? (
                   <EditableTitle
                     key={task._id}
+                    active={active}
                     value={task.title}
                     ariaLabel={t('fields.title')}
                     size="compact"
@@ -2607,17 +2613,21 @@ function SubtaskComposer({
 /** Inline-editable single-line title; commits on blur / Enter, reverts on Escape. */
 function EditableTitle({
   value,
+  active,
   ariaLabel,
   onSave,
   size = 'default',
 }: {
   value: string;
+  active: boolean;
   ariaLabel: string;
   onSave: (value: string) => void;
   /** `compact` fits the thread header's title line. */
   size?: 'default' | 'compact';
 }) {
   const [draft, setDraft] = useState(value);
+  const settledRef = useRef(false);
+  const { isComposing, compositionProps } = useImeComposition(active);
   useEffect(() => setDraft(value), [value]);
 
   const commit = () => {
@@ -2629,16 +2639,28 @@ function EditableTitle({
   return (
     <input
       value={draft}
+      {...compositionProps}
       aria-label={ariaLabel}
       // The create form's cap: a longer title is refused by the server.
       maxLength={TASK_TITLE_MAX}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+      onFocus={() => {
+        settledRef.current = false;
+      }}
+      onBlur={() => {
+        compositionProps.onBlur();
+        if (settledRef.current) return;
+        settledRef.current = true;
+        commit();
+      }}
       onKeyDown={(e) => {
+        if (isComposing(e.nativeEvent)) return;
         if (e.key === 'Enter') {
           e.preventDefault();
           e.currentTarget.blur();
         } else if (e.key === 'Escape') {
+          // Blur fires synchronously, before the draft reset reaches onBlur.
+          settledRef.current = true;
           setDraft(value);
           e.currentTarget.blur();
         }

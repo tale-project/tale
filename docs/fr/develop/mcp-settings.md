@@ -19,10 +19,12 @@ Tale lit et écrit chaque type de paramètre avec son propre code et les contrô
 | `project-instructions` | Les instructions permanentes d’un projet. | Définir | Qui peut modifier le projet |
 | `agent-instructions` | Les instructions d’un agent de projet. | Définir | Qui peut modifier le projet |
 | `agent-tools` | Les outils qu’un agent de projet peut utiliser. | Définir | Qui peut modifier le projet |
+| `agent-model` | L’environnement d’agent (harness), le modèle et le fournisseur avec lesquels travaille un agent de projet. Un changement s’applique aux exécutions qu’il lance ensuite. | Définir | Qui peut modifier le projet |
 | `task-instructions` | La description d’une tâche. | Définir | Qui peut modifier la tâche |
+| `task-review-context` | Si le travail d’une tâche passe par une relecture indépendante d’un autre agent de projet, et lequel. Une fois défini, l’agent relecteur reste le même. | Définir | Qui peut modifier le projet |
 | `deployment` | Les paramètres propres au déploiement, communs à toutes les organisations qu’il héberge, comme l’environnement d’exécution des sandboxes. | Définir | Tout propriétaire ou admin d’une organisation du déploiement peut les lire ; seules les adresses de la liste d’autorisation des éditeurs du déploiement peuvent les modifier |
 
-Une ressource a un identifiant au sein de son type : un fournisseur, son nom ; des identifiants, `<provider>/<name>` avec le nom encodé en URI ; une politique, sa clé, comme `password_policy` ; un projet, son identifiant ; un agent, `<projectId>/<agentId>` ; une tâche, `<projectId>/<taskId>`. Le modèle d’embedding, le branding et les paramètres du déploiement n’ont pas d’identifiant. `get_settings` liste les paramètres des projets et des agents page par page, sur les projets que tu peux lire ; il ne lit la description d’une tâche que par son identifiant.
+Une ressource a un identifiant au sein de son type : un fournisseur, son nom ; des identifiants, `<provider>/<name>` avec le nom encodé en URI ; une politique, sa clé, comme `password_policy` ; un projet, son identifiant ; un agent, `<projectId>/<agentId>` ; une tâche, `<projectId>/<taskId>`. Le modèle d’embedding, le branding et les paramètres du déploiement n’ont pas d’identifiant. `get_settings` liste les paramètres des projets et des agents page par page, sur les projets que tu peux lire ; il ne lit la description d’une tâche et son contexte de relecture que par l’identifiant de la tâche.
 
 Certaines modifications restent dans Tale :
 
@@ -30,7 +32,7 @@ Certaines modifications restent dans Tale :
 - La politique de conservation et la politique des demandes des personnes concernées changent uniquement par leurs propres procédures échelonnées.
 - Les images du branding sont téléversées dans Tale. Un nom de fichier qu’un agent définit doit désigner une image déjà téléversée.
 - Par MCP, le modèle d’embedding lui-même ne change que tant que les connaissances de l’organisation ne contiennent aucun document et aucun site web : ainsi, les vecteurs de deux modèles ne se rencontrent jamais dans une même recherche. Son seuil de similarité et ses limites d’utilisation changent à tout moment ; si des documents sont indexés, une personne change le modèle dans Tale.
-- L’agent standard d’un projet suit la politique `standard_agent`, que modifie le type `governance` ; ses propres instructions et outils ne sont pas des paramètres.
+- L’agent standard d’un projet suit la politique `standard_agent`, que modifie le type `governance` ; ses propres instructions, outils et modèle ne sont pas des paramètres.
 - Aucun type ne couvre les membres, les équipes, les connectors, les skills, les compétences, les conservations légales, les journaux d’audit, les métriques ni les paramètres personnels. `get_settings` sans arguments indique ce que couvre chaque type.
 
 ## Faire une modification {#make-a-change}

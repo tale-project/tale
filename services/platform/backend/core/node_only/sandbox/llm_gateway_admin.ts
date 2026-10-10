@@ -240,6 +240,46 @@ function gatewayProviderPool(custom: boolean): GatewayProviderPool {
   };
 }
 
+/** How many days the gateway keeps its request log (`log_retention_days`):
+ * one row per model call with its model, tokens, cost and timing, never a
+ * prompt or an answer (`disable_content_logging`). Nothing in Tale reads that
+ * log — spend, budgets and usage come from each virtual key's budget counters
+ * (readVirtualKeySpend), which the gateway keeps in its config store — so it
+ * only serves an operator debugging recent traffic, and every day kept is
+ * disk on the gateway's volume. The gateway refuses a value below 1.
+ * Operator-tunable (`SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS`); the gateway
+ * reads the stored value when it starts, so a change applies from its next
+ * start. */
+const LOG_RETENTION_DAYS = 3;
+
+/** The longest request log the backend asks for: a decade. The gateway reads
+ * the value into a Go int and refuses a config whose number does not fit,
+ * which would fail every config apply, so a larger setting is held here. */
+const MAX_LOG_RETENTION_DAYS = 3650;
+
+function gatewayLogRetentionDays(): number {
+  const raw = gatewayEnv('LOG_RETENTION_DAYS')?.trim();
+  if (raw === undefined || raw === '') return LOG_RETENTION_DAYS;
+  const days = Number(raw);
+  const valid = Number.isSafeInteger(days) && days >= 1;
+  const used = valid
+    ? Math.min(days, MAX_LOG_RETENTION_DAYS)
+    : LOG_RETENTION_DAYS;
+  if (used !== days) {
+    // Said once per process: the config apply runs on every sandbox start.
+    const setting = `SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS=${raw}`;
+    if (!warnedPoolSettings.has(setting)) {
+      warnedPoolSettings.add(setting);
+      console.warn(
+        valid
+          ? `[llm-gateway] ${setting} is above ${MAX_LOG_RETENTION_DAYS} days; keeping the request log for ${used} days`
+          : `[llm-gateway] ${setting} is not a whole number of days of at least 1; keeping the request log for ${used} days`,
+      );
+    }
+  }
+  return used;
+}
+
 function managementHeaders(): Record<string, string> {
   // The gateway authenticates /api/* with HTTP Basic
   // (admin_username/admin_password), not a bearer token. ALWAYS sent:
@@ -2162,31 +2202,27 @@ async function verifyGatewayConfig(): Promise<void> {
     auth_config?: { is_enabled?: boolean };
   };
   const current = cfg.client_config ?? {};
+  const logRetentionDays = gatewayLogRetentionDays();
   // Authenticate and inspect on every sandbox create; write only on drift.
-  // A restored/insecure store is repaired before any virtual key is minted.
+  // A restored/insecure store is repaired before any virtual key is minted,
+  // and a gateway keeping its request log for any other span is moved to
+  // this one.
   if (
     cfg.auth_config?.is_enabled === true &&
     current.enforce_auth_on_inference === true &&
     current.disable_content_logging === true &&
     current.drop_excess_requests !== true &&
-    typeof current.log_retention_days === 'number' &&
-    current.log_retention_days >= 1
+    current.log_retention_days === logRetentionDays
   ) {
     gatewayConfigAppliedAt = Date.now();
     return;
   }
   // `PUT /api/config` re-validates the whole client_config, but GET returns
   // server-side zero-defaults that fail it — notably log_retention_days=0 vs
-  // the `min=1` validator. Clamp the known-constrained field before
-  // re-PUTting.
-  const logRetentionRaw = current.log_retention_days;
-  const logRetention =
-    typeof logRetentionRaw === 'number' && logRetentionRaw >= 1
-      ? logRetentionRaw
-      : 30;
+  // the `min=1` validator — so the retention is always sent, never copied.
   const clientConfig = {
     ...current,
-    log_retention_days: logRetention,
+    log_retention_days: logRetentionDays,
     enforce_auth_on_inference: true,
     // The gateway's request log would otherwise keep every prompt and
     // answer — agent turns and model-endpoint calls alike — for its

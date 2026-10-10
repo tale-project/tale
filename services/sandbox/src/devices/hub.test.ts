@@ -518,6 +518,46 @@ describe('DeviceHub placement', () => {
     expect(busy.served).toHaveLength(0);
   });
 
+  test('a create the device already reports as starting takes its slot once', async () => {
+    const { hub } = await makeHub();
+    const answer = Promise.withResolvers<void>();
+    // The first create is admitted on the device and answers later; the
+    // device reports it as starting meanwhile, as its STATUS does within a
+    // second of admitting it.
+    const device = connectDevice(hub, 'dev-one', (s, body) => {
+      const done = () =>
+        s.respond(
+          { status: 201, headers: [['content-type', 'application/json']] },
+          new Response(JSON.stringify({ ok: true })).body,
+        );
+      if (!body.includes('slow-create')) {
+        done();
+        return;
+      }
+      void (async () => {
+        await answer.promise;
+        done();
+      })();
+    });
+    await device.hello();
+    const first = createRequest('slow-create', 'device');
+    const firstAnswer = hub.maybeForward(first.req, first.url, first.body);
+    await new Promise((r) => setTimeout(r, 20));
+    await device.status({
+      starting: 1,
+      sessions: [{ sessionId: 'slow-create', state: 'starting' }],
+    });
+    // Two slots, one taken: the second create still fits on the device.
+    const second = createRequest('next-create', 'device');
+    expect(
+      (
+        await hub.maybeForward(second.req, second.url, second.body)
+      )?.headers.get(DEVICE_HEADER),
+    ).toBe('dev-one');
+    answer.resolve();
+    expect((await firstAnswer)?.status).toBe(201);
+  });
+
   test('a device answering 429 releases the placement and the server takes over', async () => {
     const { hub } = await makeHub();
     const d1 = connectDevice(hub, 'dev-1', (s) =>

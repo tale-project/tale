@@ -16,6 +16,7 @@ import {
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
   buildkitHelperLimits,
+  buildkitMirrorEnvironment,
   EGRESS_READY_MARKER,
   egressProxyHostname,
   firstIpv4,
@@ -480,4 +481,20 @@ test('builder boot takes the cache cap and floor the spawner sized, in bytes', a
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+describe('buildkitd registry mirrors', () => {
+  test('expire what a mirror cached two days after it was last pulled, and can delete it', () => {
+    const environment = buildkitMirrorEnvironment(
+      { egressProxy: 'http://tale-buildkit-egress:3128/' },
+      'docker.io',
+    );
+    expect(environment).toContain(
+      'REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io',
+    );
+    // Distribution v3 reads this as the proxy's blob lifetime (a week unset).
+    expect(environment).toContain('REGISTRY_PROXY_TTL=48h');
+    // Without deletion the expiry scheduler forgets a failed delete.
+    expect(environment).toContain('REGISTRY_STORAGE_DELETE_ENABLED=true');
+  });
 });

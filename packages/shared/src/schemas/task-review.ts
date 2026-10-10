@@ -67,7 +67,7 @@ export type SetProjectTaskReviewerInput = z.infer<
 >;
 
 const evidenceRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/);
-const taskReviewExpectedSchema = z
+export const taskReviewExpectedSchema = z
   .object({
     approvalId: reviewerIdSchema,
     runId: reviewerIdSchema,

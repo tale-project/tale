@@ -86,6 +86,12 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 | `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. `ResponsiveDialogContent` takes it too, for a close that hands the reader on to another panel. |
 | `onCloseAutoFocus` | Called after the close focus handler runs. Available on `Dialog`, `ConfirmDialog` and `DeleteDialog`; use it to release a retained virtual row after focus returns to its opener. |
 
+## Widgets that use Escape
+
+A widget inside a dialog may use Escape itself: a code editor closes its completion list, then arms leaving the field. The dialog hears Escape first, so every `@tale/ui` overlay (`Dialog`, `ResponsiveDialog`, `Sheet`, `Popover`, `DropdownMenu`) leaves an Escape alone when an element around the focus carries `data-claims-escape`: it cancels the event and stays open.
+
+Set the attribute while your widget needs Escape and remove it once it does not; the next Escape then closes the layer. A cancelled event still reaches your widget, but some libraries skip cancelled events. Such a widget handles a claimed Escape before the overlay does, in a capture listener on `window`. [`CodeEditor`](/docs/components/code-editor) does all of this itself.
+
 ## Handle lifecycle and focus deliberately
 
 The modal traps focus while open. Escape and the close control request dismissal; controlled state determines whether the request is accepted. Restore focus to a useful surviving control after close, especially when a successful action removes the original row.

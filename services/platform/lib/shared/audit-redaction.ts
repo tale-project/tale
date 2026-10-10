@@ -36,7 +36,9 @@ const SENSITIVE_FIELDS = new Set(
   ].map((key) => key.toLowerCase()),
 );
 
-function isSensitiveKey(key: string): boolean {
+/** Whether a member named `key` holds a credential or other secret, by its
+ * name alone: audit logs and the automation run recorder withhold it. */
+export function isSensitiveKey(key: string): boolean {
   const lowerKey = key.toLowerCase();
   return (
     SENSITIVE_FIELDS.has(lowerKey) ||

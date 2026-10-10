@@ -1,0 +1,583 @@
+name: E2E
+
+# Playwright suites for the frontend services. The platform job boots the real
+# 0.5 stack (Hono backend + Vite preview + Postgres) with the hermetic fixture
+# config and the mock LLM; the web/docs jobs are smoke suites against each
+# static site's built preview (no backend, no mock LLM). All share the shared
+# config in `@tale/e2e`.
+#
+# Policy (issue #179): the suite is strict on every trigger — PRs, nightly, and
+# manual runs all fail loudly. A red E2E run signals a real regression.
+# Investigate failures; don't reach for `continue-on-error`.
+
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
+on:
+  merge_group:
+    types: [checks_requested]
+  repository_dispatch:
+    types: [release-candidate]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+  schedule:
+    # Nightly at 02:30 UTC.
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
+
+jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+      platform: ${{ steps.scope.outputs.platform }}
+      web: ${{ steps.scope.outputs.web }}
+      docs: ${{ steps.scope.outputs.docs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: e2e
+          queue-only: 'true'
+
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
+  candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
+  # PRs run only the affected services. Shared packages/toolchain changes run
+  # all three; release candidates, nightly and manual runs always run all.
+  # Detailed PR decisions reuse the validated frozen discovery above.
+  scope:
+    needs: [candidate-source, pr-scope]
+    name: E2E scope
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      platform: ${{ steps.decide.outputs.platform }}
+      static_services: ${{ steps.decide.outputs.static_services }}
+    steps:
+      - name: Decide
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PLATFORM: ${{ needs.pr-scope.outputs.platform }}
+          WEB: ${{ needs.pr-scope.outputs.web }}
+          DOCS: ${{ needs.pr-scope.outputs.docs }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != pull_request ]; then
+            PLATFORM=true
+            WEB=true
+            DOCS=true
+          fi
+          for value in "$PLATFORM" "$WEB" "$DOCS"; do
+            case "$value" in
+              true|false) ;;
+              *) echo '::error::E2E scope did not return a boolean for every service'; exit 1 ;;
+            esac
+          done
+          services='[]'
+          if [ "$WEB" = true ]; then
+            services='["web"]'
+          fi
+          if [ "$DOCS" = true ]; then
+            if [ "$WEB" = true ]; then services='["web","docs"]'; else services='["docs"]'; fi
+          fi
+          echo "platform=$PLATFORM" >> "$GITHUB_OUTPUT"
+          echo "static_services=$services" >> "$GITHUB_OUTPUT"
+
+  # Build the platform prod bundle ONCE per run and hand it to every shard.
+  # Before this job existed every shard restored the dist cache itself and,
+  # on a cold key, every shard missed and built in parallel (issue #2385).
+  # Turbo can restore the same build that Checks validated, and it flows
+  # to the shards as a run artifact — deterministic within the run (no
+  # cache-visibility race between sibling jobs) and still available to
+  # `gh run rerun --failed` from the first attempt.
+  build:
+    needs: [candidate-source, scope]
+    name: Build platform (E2E preview bundle)
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.scope.result == 'success' && needs.scope.outputs.platform == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    # Sized for the COLD path: a lockfile bump invalidates the toolchain and
+    # dist caches at once, and the uncached install + prod build exceeds 15
+    # minutes on the 4-vCPU runner (observed: a one-line dependency override
+    # timed the job out and skipped every shard). The warm path stays ~4
+    # minutes; the ceiling only bounds a wedged build.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    outputs:
+      dist_artifact_id: ${{ steps.bundle-artifact.outputs.artifact-id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          # This job only reads/builds — don't leave the GITHUB_TOKEN in git config.
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-scope: build
+
+      # Serve a production build instead of the Vite dev server. `vite dev`
+      # transpiles on the fly — the dominant CPU consumer that, on the 4-vCPU
+      # runner, starved the backend into flaking the suite. A prebuilt dist/
+      # makes the webServer (scripts/dev.ts, TALE_E2E_SERVE_BUILD=1) serve via
+      # `vite preview`: static assets + API proxy only, no transpilation.
+      # Built here (not inside the webServer) so the boot stays inside the
+      # Playwright webServer timeout. Reuse the normal build task and its
+      # declared inputs instead of a second, incomplete cache-key file list.
+      - name: Build platform (prod bundle for E2E preview)
+        run: bunx turbo run build --filter=@tale/platform
+
+      # Uploaded whether the bundle came from the cache or a fresh build — the
+      # shards always download this artifact and never build. 7 days covers
+      # late `gh run rerun --failed` re-runs; a re-run after expiry needs a
+      # full workflow re-run instead.
+      - name: Upload platform dist for the shards
+        id: bundle-artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-platform-dist-attempt-${{ github.run_attempt }}
+          path: services/platform/dist
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 0
+
+  e2e:
+    name: Playwright (platform ${{ matrix.shard }}/4)
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.build.result == 'success' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
+    needs: [candidate-source, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Keep one worker per independent stack: more workers starve the backend.
+    # Each stack authenticates through the worker-scoped org fixture. Four
+    # shards preserve the full suite while removing twelve copies of fixed
+    # Postgres/toolchain/browser boot. In three October 2026 runs setup cost
+    # ~20 of the platform's ~28 runner-minutes, and the static web suite already
+    # set the critical path. fail-fast:false preserves every shard's result
+    # and failed-job reruns.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    permissions:
+      contents: read
+
+    # App Postgres only — not the compose stack. `TALE_DEV_SKIP_DOCKER=1` in
+    # playwright.config.ts leaves sandbox/gateway/knowledge-db/object-store
+    # down; the Hono backend applies SQL migrations at boot against this
+    # empty database. Credentials match playwright.config.ts + `.env.test`.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tale
+          POSTGRES_PASSWORD: test_password_e2e
+          POSTGRES_DB: tale_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tale -d tale_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_PASSWORD: test_password_e2e
+      DATABASE_URL: postgresql://tale:test_password_e2e@127.0.0.1:5432/tale_app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          # This job only reads/tests — don't leave the GITHUB_TOKEN in git config.
+          persist-credentials: false
+
+      - name: Validate platform bundle artifact identity
+        env:
+          DIST_ARTIFACT_ID: ${{ needs.build.outputs.dist_artifact_id }}
+        run: |
+          if [[ ! "$DIST_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::The platform build reported no valid bundle artifact ID'
+            exit 1
+          fi
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # Browser revisions follow the installed Playwright version, not every
+      # unrelated dependency bump. Native dependencies are installed below.
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: services/platform
+        run: |
+          set -euo pipefail
+          version="$(bun -e 'console.log(require("@playwright/test/package.json").version)')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Cannot resolve the installed Playwright version'; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        working-directory: services/platform
+        # Preserve the runner's mirror failover. Bound APT itself: killing
+        # bunx with a shell timeout can leave its root child holding the lock.
+        timeout-minutes: 12
+        run: |
+          # Native config also reaches Playwright's sudo-launched APT process.
+          sudo tee /etc/apt/apt.conf.d/99-tale-playwright >/dev/null <<'APT'
+          Acquire::ForceIPv4 "true";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::Retries "1";
+          APT
+          sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
+          bunx playwright install --with-deps --only-shell chromium
+
+      # Keep provisioned browsers even when a later test fails. Failed-only
+      # reruns otherwise download the same cold browser payload again.
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
+      # The prod bundle is built (or cache-restored) exactly once by the
+      # upstream `build` job — see its comments for why the suite serves a
+      # prebuilt dist/ via `vite preview` (TALE_E2E_SERVE_BUILD=1). Shards only
+      # download it; none ever runs `bun run build` (issue #2385).
+      - name: Download platform dist (built once by the build job)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          # Failed-only reruns keep the successful build's original output.
+          artifact-ids: ${{ needs.build.outputs.dist_artifact_id }}
+          path: services/platform/dist
+
+      - name: Run E2E suite (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+        working-directory: services/platform
+        # One worker per shard. Two workers over-subscribed the 4-vCPU runner
+        # (Vite + backend + mock + the browser workers all share it).
+        # Parallelism comes from the four shards; each single-worker shard still
+        # finishes well inside the 30-min budget. Tune via E2E_WORKERS.
+        env:
+          E2E_WORKERS: '1'
+          # Serve the prebuilt dist/ via `vite preview` (see the build step
+          # above) instead of the CPU-heavy dev server.
+          TALE_E2E_SERVE_BUILD: '1'
+          # Skips the video-toolchain apt install in scripts/dev.ts (a slow
+          # mirror has burned the webServer boot budget).
+          TALE_E2E: '1'
+        run: bunx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+      # Under the shared config (`@tale/e2e/config`: failure screenshots,
+      # traces on the first retry) Playwright writes test-results/ only for an
+      # attempt that failed or retried; its hidden .last-run.json is no
+      # diagnostic, and the upload skips hidden files anyway. A flake the retry
+      # recovered leaves the job green, and `failure()` alone then dropped the
+      # only record of it (#4013). This step runs only while the job is green;
+      # the static-sites job keeps the identical pair. A test-results/ it
+      # cannot read fails the step, and the upload then runs through
+      # `failure()`. Without pipefail, the default `bash -e` took the listing's
+      # status from `paste`, and a failed `find` read as a clean run.
+      - name: Find Playwright diagnostics
+        id: diagnostics
+        working-directory: services/platform
+        run: |
+          set -euo pipefail
+          attempts=''
+          if [ -d test-results ]; then
+            if ! attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"; then
+              echo '::error title=Playwright diagnostics::Could not read test-results/, so this run is not reported clean'; exit 1
+            fi
+          fi
+          if [ -z "$attempts" ]; then
+            echo 'found=false' >> "$GITHUB_OUTPUT"
+            echo 'Every test passed on its first attempt; no diagnostics to keep.'
+            exit 0
+          fi
+          echo 'found=true' >> "$GITHUB_OUTPUT"
+          echo "::notice title=Playwright diagnostics::A test failed before its retry passed; keeping $attempts"
+
+      - name: Upload Playwright report
+        if: failure() || steps.diagnostics.outputs.found == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          # One artifact per attempt: a re-run that fails or flakes again would
+          # otherwise collide with the earlier attempt's name (409 Conflict).
+          name: playwright-report-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
+          path: |
+            services/platform/playwright-report/
+            services/platform/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Smoke suites for the scoped static sites — each restores/builds its client
+  # once through Turbo, then boots Vite preview without rebuilding
+  # (no backend, no mock LLM), so the job is much lighter than platform's.
+  static-sites:
+    needs: [candidate-source, scope]
+    name: Playwright (${{ matrix.service }})
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.scope.result == 'success' && needs.scope.outputs.static_services != '[]' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.scope.outputs.static_services) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Historical candidates can predate complete build outputs and
+          # preview reuse. Keep their compatibility lane uncached.
+          turbo-cache: ${{ github.event_name != 'repository_dispatch' }}
+          cache-scope: build
+          cache-writer: static-${{ matrix.service }}
+
+      # Browser revisions follow the installed Playwright version, not every
+      # unrelated dependency bump. Native dependencies are installed below.
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: services/${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          version="$(bun -e 'console.log(require("@playwright/test/package.json").version)')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Cannot resolve the installed Playwright version'; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        working-directory: services/${{ matrix.service }}
+        # Same native APT bounds and step cap as the platform shards above.
+        timeout-minutes: 12
+        run: |
+          # Native config also reaches Playwright's sudo-launched APT process.
+          sudo tee /etc/apt/apt.conf.d/99-tale-playwright >/dev/null <<'APT'
+          Acquire::ForceIPv4 "true";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::Retries "1";
+          APT
+          sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
+          bunx playwright install --with-deps --only-shell chromium
+
+      # Keep provisioned browsers even when a later test fails. Failed-only
+      # reruns otherwise download the same cold browser payload again.
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
+      # Restore/build once with the same task hash as Checks. Preview never
+      # rebuilds, and web's SEO suite reads this same production output.
+      - name: Build static site
+        id: site-build
+        run: |
+          set -euo pipefail
+          args=(build --filter=@tale/${{ matrix.service }})
+          if [[ "$CANDIDATE_RUN" == 'true' ]]; then args+=(--force); fi
+          bunx turbo run "${args[@]}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_RUN: ${{ github.event_name == 'repository_dispatch' }}
+
+      - name: Run E2E suite
+        # Static sites share no mutable backend: each page/context is isolated.
+        # Two browser workers passed all 90 web and 55 docs cases without retries.
+        run: bun run --filter @tale/${{ matrix.service }} test:e2e --workers=2
+        env:
+          E2E_USE_BUILD: '1'
+
+      - name: Prerender SEO suite (web)
+        if: >-
+          !cancelled() && matrix.service == 'web' &&
+          steps.site-build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          if [[ "$CANDIDATE_RUN" == 'true' ]]; then
+            # Older candidate browser configs rebuild only the client and
+            # overwrite prerendered HTML. Restore their complete build first.
+            bunx turbo run test:prerender --filter=@tale/web --force
+          else
+            # fetch-releases rewrites a tracked build input. Calling Turbo
+            # again would rebuild; inspect the exact browser-tested bytes.
+            bun run --filter @tale/web test:prerender
+          fi
+        env:
+          # fetch-releases calls api.github.com; unauthenticated shared-runner
+          # IPs get rate-limited (403), so hand it the workflow token.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_RUN: ${{ github.event_name == 'repository_dispatch' }}
+
+      # Same diagnostics pair as the platform shards above.
+      - name: Find Playwright diagnostics
+        id: diagnostics
+        working-directory: services/${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          attempts=''
+          if [ -d test-results ]; then
+            if ! attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"; then
+              echo '::error title=Playwright diagnostics::Could not read test-results/, so this run is not reported clean'; exit 1
+            fi
+          fi
+          if [ -z "$attempts" ]; then
+            echo 'found=false' >> "$GITHUB_OUTPUT"
+            echo 'Every test passed on its first attempt; no diagnostics to keep.'
+            exit 0
+          fi
+          echo 'found=true' >> "$GITHUB_OUTPUT"
+          echo "::notice title=Playwright diagnostics::A test failed before its retry passed; keeping $attempts"
+
+      - name: Upload Playwright report
+        if: failure() || steps.diagnostics.outputs.found == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: playwright-report-${{ matrix.service }}-attempt-${{ github.run_attempt }}
+          path: |
+            services/${{ matrix.service }}/playwright-report/
+            services/${{ matrix.service }}/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, scope, build, e2e, static-sites]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/e2e.yml
+      jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (E2E)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, scope, build, e2e, static-sites, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: e2e
+          jobs: ${{ toJSON(needs) }}

@@ -28,6 +28,7 @@ import {
   saveVersion,
   versionRow,
   setTrigger,
+  triggerWakesOnSlotFreed,
 } from './store';
 
 export const managedAutomationKindSchema = z.enum([
@@ -125,7 +126,20 @@ export async function readManagedAutomation(
         'An orphaned trigger requires explicit recovery.',
         409,
       );
-    config = managedScheduleValue(scope.projectId, scope.name, row);
+    config = managedScheduleValue(
+      scope.projectId,
+      scope.name,
+      row === null
+        ? null
+        : {
+            ...row,
+            wakeOnSlotFreed: await triggerWakesOnSlotFreed(
+              sql,
+              scope.organizationId,
+              scope.name,
+            ),
+          },
+    );
   }
   return { config, hash: managedConfigurationHash(config) };
 }
@@ -154,14 +168,24 @@ export async function writeManagedAutomation(
         'Managed schedule requires its reviewed definition digest.',
         409,
       );
+    const schedule = resource.config;
     await setTrigger(sql, {
       ...scope,
       name,
       trigger: {
         kind: 'schedule',
-        cron: resource.config.cron,
-        timezone: resource.config.timezone,
-        enabled: resource.config.enabled,
+        ...('cron' in schedule
+          ? { cron: schedule.cron }
+          : { repeat: schedule.repeat, startDate: schedule.startDate }),
+        timezone: schedule.timezone,
+        enabled: schedule.enabled,
+        ...(schedule.catchUp !== undefined
+          ? { catchUp: schedule.catchUp }
+          : {}),
+        ...(schedule.input !== undefined ? { input: schedule.input } : {}),
+        // The declaration is the whole desired state: an absent opt-in
+        // turns it off (a native save that omits it keeps it).
+        wakeOnSlotFreed: schedule.wakeOnSlotFreed === true,
       },
       managed: {
         projectId,

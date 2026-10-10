@@ -249,6 +249,9 @@ describe('tools/list', () => {
     'start_run',
     'list_runs',
     'get_run',
+    'get_run_node',
+    'compare_runs',
+    'replay_run',
     'cancel_run',
     'answer_run_ask',
     'list_versions',
@@ -1071,7 +1074,7 @@ describe('tools/call — arguments are held to the advertised schema [MCP-R7]', 
       {
         path: 'trigger.kind',
         code: 'invalid_union',
-        message: 'must name its kind: "schedule", "webhook" or "event"',
+        message: 'must be one of "schedule", "webhook", "event"',
       },
     ]);
   });

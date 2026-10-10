@@ -4,11 +4,13 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { useRestoreFocus } from '@tale/ui/use-restore-focus';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
+import { respectEscapeClaims } from '../overlays/claims-escape';
 import { CLOSE_BUTTON_CLASS } from '../overlays/close-button-class';
 import { PagePointerPin } from '../overlays/page-pointer-pin';
 
@@ -263,6 +265,10 @@ export function Dialog({
   const restoreFocus = useRestoreFocus(open, restoreFocusRef);
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const { isComposing, compositionProps } = useImeComposition(open);
+  const onEscapeKeyDown = respectEscapeClaims<KeyboardEvent>((event) => {
+    if (isComposing(event)) event.preventDefault();
+  });
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (
@@ -278,6 +284,8 @@ export function Dialog({
           )}
           <DialogPrimitive.Content
             ref={contentRef}
+            {...compositionProps}
+            onEscapeKeyDown={onEscapeKeyDown}
             aria-modal="true"
             data-tale-modal=""
             className={cn(dialogContentVariants({ size }), className)}

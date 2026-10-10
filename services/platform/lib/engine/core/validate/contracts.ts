@@ -18,7 +18,7 @@ import type { ErrorObject } from 'ajv';
 
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
-import { nodeTypes, scheduleTriggerInput, type ConnectorLike } from '../slots';
+import { nodeTypes, type ConnectorLike } from '../slots';
 import { pointerFromAjv, pointerTokens, ptr } from '../syntax/pointer';
 import type { ExprSource } from '../syntax/sources';
 import { exprSegments, tokenizeTemplate } from '../syntax/tokens';
@@ -30,6 +30,7 @@ import type { ValidationContext } from './context';
 import { compileSchema, describeSchemaErrors } from './schema';
 import { closestName } from './similar';
 import { analyzable } from './syntax-check';
+import { type InputsCheck, triggerInputWarnings } from './trigger-input';
 
 /** ajv keywords that judge a VALUE — unknowable where the value is still a
  * template; structural keywords (required, additionalProperties) stay. */
@@ -465,19 +466,21 @@ export async function validateContracts(
 }
 
 /**
- * What the automation's own triggers start runs with, against its inputs
- * schema: a run checks its input before any node runs, so a schedule whose
- * input the schema refuses never starts a run — every occurrence is
- * refused. Only the schedule's input is known ahead (webhook and event runs
- * carry a payload). A warning: triggers change without a new version.
+ * What the automation's own trigger starts runs with, against its inputs
+ * schema, and its fixed input for a template: a run checks its input
+ * before any node runs, so a trigger whose input the schema refuses never
+ * starts a run — every start is refused. The host says what the trigger
+ * sends, as far as it knows ahead (a webhook's body it does not). Warnings:
+ * triggers change without a new version.
  */
 async function checkTriggerInput(ctx: ValidationContext): Promise<void> {
   const { doc, store, issues } = ctx;
-  if (store?.triggerKinds === undefined) return;
-  if (!isRecord(doc.inputs) || typeof doc.name !== 'string') return;
-  let kinds: ReadonlyArray<string>;
+  if (store?.triggerInput === undefined || typeof doc.name !== 'string') {
+    return;
+  }
+  let sample;
   try {
-    kinds = await store.triggerKinds(doc.name);
+    sample = await store.triggerInput(doc.name);
   } catch (e) {
     console.warn(
       '[engine] skipping the trigger input check (store lookup failed):',
@@ -485,38 +488,20 @@ async function checkTriggerInput(ctx: ValidationContext): Promise<void> {
     );
     return;
   }
-  if (!kinds.includes('schedule')) return;
-  let check;
-  try {
-    check = compileSchema(doc.inputs);
-  } catch (e) {
-    // INPUTS_SCHEMA_INVALID reports it; there is nothing to check against.
-    console.warn(
-      '[engine] skipping the trigger input check (the inputs schema does not compile):',
-      e instanceof Error ? e.message : e,
-    );
-    return;
+  if (sample === null) return;
+  let check: InputsCheck | null = null;
+  if (isRecord(doc.inputs)) {
+    try {
+      check = compileSchema(doc.inputs);
+    } catch (e) {
+      // INPUTS_SCHEMA_INVALID reports it; there is nothing to check against.
+      console.warn(
+        '[engine] skipping the trigger input check (the inputs schema does not compile):',
+        e instanceof Error ? e.message : e,
+      );
+    }
   }
-  if (check(scheduleTriggerInput(Date.now()))) return;
-  const errors = check.errors ?? [];
-  const described = describeSchemaErrors(errors);
-  const missing = described
-    .filter((_, i) => errors[i]?.keyword === 'required')
-    .map((d) => d.path);
-  const problems = described.map((d) =>
-    d.path === '' ? d.message : `${d.path} ${d.message}`,
-  );
-  issues.push(
-    warn(
-      'TRIGGER_INPUT_MISMATCH',
-      `the schedule trigger starts runs with {trigger, firedAt}, which the inputs schema refuses: ${problems.join('; ')} — every scheduled run is refused`,
-      {
-        hint: 'a schedule passes only trigger and firedAt: declare both in the inputs schema and make every other input optional, or start this automation from a webhook, an event or the API',
-        at: { pointer: '/inputs' },
-        params: { kind: 'schedule', missing, problems },
-      },
-    ),
-  );
+  issues.push(...triggerInputWarnings(check, sample));
 }
 
 /**

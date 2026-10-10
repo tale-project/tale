@@ -66,6 +66,28 @@ export const READ_TOOL_RESULTS = {
         .looseObject({ askId: z.string(), question: z.string() })
         .optional(),
     }),
+    // With include: ["record"], the run step by step.
+    record: z
+      .looseObject({
+        format: z.number(),
+        nodes: z.array(z.looseObject({ path: z.string(), status: z.string() })),
+      })
+      .optional(),
+  }),
+  get_run_node: z.looseObject({
+    node: z.looseObject({
+      path: z.string(),
+      item: z.number(),
+      pass: z.number(),
+      status: z.string(),
+    }),
+  }),
+  compare_runs: z.looseObject({
+    diff: z.looseObject({
+      a: z.looseObject({ id: z.string() }),
+      b: z.looseObject({ id: z.string() }),
+      nodes: z.array(z.looseObject({ path: z.string() })),
+    }),
   }),
   list_versions: z.looseObject({
     deployedVersion: z.number().nullable(),

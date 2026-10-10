@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer, type Server } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -42,9 +44,12 @@ function exec(
   });
 }
 
-async function tls() {
+async function tls(capturedOrigin = false) {
   const directory = mkdtempSync(join(tmpdir(), 'tale-acceptance-tls-'));
-  let server: ReturnType<typeof Bun.serve> | undefined;
+  const passphrase = randomBytes(32).toString('hex');
+  let server: Server | undefined;
+  let port = 0;
+  const serverNames: (string | false | null)[] = [];
   let proxy: ReturnType<typeof Bun.serve> | undefined;
   try {
     const generated = await exec(
@@ -54,7 +59,8 @@ async function tls() {
         '-x509',
         '-newkey',
         'rsa:2048',
-        '-nodes',
+        '-passout',
+        'env:TALE_ACCEPTANCE_TEST_PASSPHRASE',
         '-keyout',
         join(directory, 'key.pem'),
         '-out',
@@ -64,24 +70,46 @@ async function tls() {
         '-subj',
         '/CN=localhost',
         '-addext',
-        'subjectAltName=IP:127.0.0.1,DNS:localhost',
+        'subjectAltName=IP:127.0.0.1,DNS:localhost,DNS:origin.example.test',
       ],
-      { silent: true, timeout: 10, maxOutputBytes: 65536 },
+      {
+        silent: true,
+        timeout: 10,
+        maxOutputBytes: 65536,
+        env: {
+          PATH: process.env.PATH ?? '',
+          TALE_ACCEPTANCE_TEST_PASSPHRASE: passphrase,
+        },
+      },
     );
     assert.equal(generated.success, true);
-    server = Bun.serve({
-      hostname: '127.0.0.1',
-      port: 0,
-      tls: {
+    server = createServer(
+      {
         key: readFileSync(join(directory, 'key.pem')),
+        passphrase,
         cert: readFileSync(join(directory, 'cert.pem')),
       },
-      fetch: () =>
-        Response.json(
-          { status: 'ok', version: '1.2.3' },
-          { headers: { 'Tale-Serving-Identity': identity } },
-        ),
-    });
+      (request, response) => {
+        assert.equal(
+          request.headers.host,
+          `${capturedOrigin ? 'origin.example.test' : '127.0.0.1'}:${port}`,
+        );
+        response.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Tale-Serving-Identity': identity,
+        });
+        response.end(JSON.stringify({ status: 'ok', version: '1.2.3' }));
+      },
+    );
+    server.on('secureConnection', (socket) =>
+      serverNames.push(socket.servername),
+    );
+    await new Promise<void>((resolve) =>
+      server!.listen(0, '127.0.0.1', resolve),
+    );
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    port = address.port;
     let proxyCalls = 0;
     proxy = Bun.serve({
       hostname: '127.0.0.1',
@@ -91,7 +119,7 @@ async function tls() {
         return new Response('wrong process');
       },
     });
-    const script = `import {acceptanceRequest} from ${JSON.stringify(join(import.meta.dir, '../../src/lib/deployment/acceptance-request.ts'))};try{const response=await acceptanceRequest(${JSON.stringify(`https://127.0.0.1:${server.port}/api/health`)},AbortSignal.timeout(1000));console.log(await response.text());}catch{console.log('refused');process.exitCode=1;}`;
+    const script = `import {acceptanceRequest} from ${JSON.stringify(join(import.meta.dir, '../../src/lib/deployment/acceptance-request.ts'))};try{const response=await acceptanceRequest(${JSON.stringify(`https://${capturedOrigin ? 'origin.example.test' : '127.0.0.1'}:${port}/api/health`)},AbortSignal.timeout(1000),${capturedOrigin ? JSON.stringify('127.0.0.1') : 'undefined'});console.log(await response.text());}catch{console.log('refused');process.exitCode=1;}`;
     const environment = {
       PATH: process.env.PATH ?? '',
       HTTPS_PROXY: `http://127.0.0.1:${proxy.port}`,
@@ -129,9 +157,44 @@ async function tls() {
       status: 'ok',
       version: '1.2.3',
     });
+    if (capturedOrigin) {
+      const wrongName = await exec(
+        process.execPath,
+        ['--eval', script.replace('origin.example.test', 'wrong.example.test')],
+        {
+          env: {
+            ...environment,
+            NODE_EXTRA_CA_CERTS: join(directory, 'cert.pem'),
+          },
+          silent: true,
+          timeout: 5,
+          maxOutputBytes: 65536,
+        },
+      );
+      assert.equal(wrongName.success, false);
+      assert.equal(wrongName.stdout.trim(), 'refused');
+      const normalDns = await exec(
+        process.execPath,
+        ['--eval', script.replace(',"127.0.0.1")', ',undefined)')],
+        {
+          env: {
+            ...environment,
+            NODE_EXTRA_CA_CERTS: join(directory, 'cert.pem'),
+          },
+          silent: true,
+          timeout: 5,
+          maxOutputBytes: 65536,
+        },
+      );
+      assert.equal(normalDns.success, false);
+      assert.equal(normalDns.stdout.trim(), 'refused');
+    }
+    if (capturedOrigin) assert.ok(serverNames.includes('origin.example.test'));
     assert.equal(proxyCalls, 0);
   } finally {
-    await server?.stop(true);
+    server?.closeAllConnections();
+    if (server)
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
     await proxy?.stop(true);
     rmSync(directory, { recursive: true, force: true });
   }
@@ -280,6 +343,7 @@ async function identityFixture() {
 // Fresh processes also separate aborted native sockets and server teardown from
 // later cases, alongside Bun's cached proxy state and suite-global exec mocks.
 if (process.argv[2] === 'tls') await tls();
+else if (process.argv[2] === 'tls-origin') await tls(true);
 else if (process.argv[2] === 'proxy') await proxyFixture();
 else if (process.argv[2] === 'identity') await identityFixture();
 else if (

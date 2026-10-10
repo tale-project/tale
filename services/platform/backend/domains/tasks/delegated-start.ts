@@ -2,6 +2,10 @@ import type {
   TaskAgentRepairReceipt,
   TaskAgentResumeFrom,
 } from '@tale/shared/schemas/task-review';
+import type {
+  TaskReviewBatchStart,
+  TaskReviewBatchResult,
+} from '@tale/shared/schemas/task-review-batch';
 import type { Sql, TransactionSql } from 'postgres';
 
 import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting.ts';
@@ -20,6 +24,8 @@ import {
 import { predictWorkerWait } from './agent-workers.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
+import { admitReviewBatch } from './review-batch-admission.ts';
+import { projectReviewBatch, replayReviewBatch } from './review-batch-store.ts';
 import {
   prepareRepair,
   readRepairDecision,
@@ -34,7 +40,12 @@ import {
   isTaskRunConfined,
   runStarterMayEditProject,
 } from './run-authority.ts';
-import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
+import {
+  assertTaskAutomationEnabled,
+  lockTaskRunStart,
+  lockAgentForStart,
+} from './run-start.ts';
+export { type LockedAgent } from './run-start.ts';
 import {
   agentAssignTaskToAgentTrusted,
   agentHandTaskToInProgressTrusted,
@@ -163,12 +174,40 @@ export async function admitAutomatedStart(
     task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
     agentId: string;
   },
-): Promise<{ admitted: true } | { admitted: false; retryAfter: number }> {
+): Promise<AutomatedStartWindow> {
   await tx`
     SELECT id FROM app.tasks
     WHERE id = ${args.task.id} AND org_id = ${args.task.organizationId}
     FOR UPDATE
   `;
+  const window = await automatedStartWindow(tx, args.task);
+  if (window.admitted) return window;
+  await recordActivity(tx, {
+    task: args.task,
+    actorType: 'agent',
+    actorId: args.agentId,
+    action: 'agent_run.refused',
+    toValue: 'task_circuit_breaker',
+  });
+  return window;
+}
+
+/** Whether the task may take another automated start now — and, when not,
+ * exactly when it may. */
+type AutomatedStartWindow =
+  | { admitted: true }
+  | { admitted: false; retryAfter: number };
+
+/**
+ * The circuit's count alone ({@link admitAutomatedStart} without the task
+ * row's lock and without the refusal's timeline row): the one rule both the
+ * admission and the wake scan (`automations/wakes.ts`) read, so a wake never
+ * fires into a closed circuit and waits for its exact `retryAfter` instead.
+ */
+export async function automatedStartWindow(
+  tx: Sql | TransactionSql,
+  task: Pick<TaskRow, 'id' | 'organizationId'>,
+): Promise<AutomatedStartWindow> {
   const now = Date.now();
   const since = now - HOUR_MS;
   // The cooldown rule reads actual predecessor order. Keep human runs in
@@ -186,11 +225,11 @@ export async function admitAutomatedStart(
   >`
     WITH oldest_recent AS (
       SELECT min(seq) AS seq FROM app.project_agent_runs
-      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+      WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
         AND started_at_ms > ${since}
     ), predecessor AS (
       SELECT max(seq) AS seq FROM app.project_agent_runs
-      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+      WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
         AND seq < (SELECT seq FROM oldest_recent)
     )
     SELECT started_at_ms::float8 AS "startedAt",
@@ -198,7 +237,7 @@ export async function admitAutomatedStart(
            agent_id AS "agentId", status, failure_code AS "failureCode",
            api_error_status AS "apiErrorStatus"
     FROM app.project_agent_runs
-    WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+    WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
       AND seq >= coalesce((SELECT seq FROM predecessor),
                           (SELECT seq FROM oldest_recent))
     ORDER BY seq DESC
@@ -216,13 +255,6 @@ export async function admitAutomatedStart(
   if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
     return { admitted: true };
   }
-  await recordActivity(tx, {
-    task: args.task,
-    actorType: 'agent',
-    actorId: args.agentId,
-    action: 'agent_run.refused',
-    toValue: 'task_circuit_breaker',
-  });
   return {
     admitted: false,
     retryAfter:
@@ -233,37 +265,31 @@ export async function admitAutomatedStart(
   };
 }
 
-/** The agent row as a start locks it: what the kick needs to run it. */
-export interface LockedAgent {
-  id: string;
-  projectId: string;
-  harness: string;
-  model: string;
-  modelProvider: string | null;
-}
-
 /**
- * Take the agent row that two delegated starts of one agent queue on, and
- * read what the kick needs to run it. A write rather than a SELECT FOR
- * UPDATE, as `lockTaskRunStart` does for the task: an overlapping
- * SERIALIZABLE snapshot is invalidated too, and its retry sees the winner.
- * A start that locks both takes the agent first, then the task; never the
- * task first. `projectId` confines it to one project's agents. Null when no
- * such agent exists (nothing is locked then).
+ * Why an in-place start (`moveToInProgress: false`) may not start under this
+ * card: a pending task review or a card at In review (`in_review`), or a
+ * closed card (`closed`); `null` while the card is open work. One rule for
+ * the start itself and for the wake scan (`automations/wakes.ts`), which
+ * holds a wake instead of firing an occurrence the start would refuse.
  */
-async function lockAgentForStart(
-  tx: TransactionSql,
-  args: { organizationId: string; agentId: string; projectId?: string },
-): Promise<LockedAgent | null> {
-  const agents = await tx<LockedAgent[]>`
-    UPDATE app.project_agents SET updated_at_ms = updated_at_ms
-    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
-      AND (${args.projectId ?? null}::text IS NULL
-           OR project_id = ${args.projectId ?? null})
-    RETURNING id, project_id AS "projectId", harness, model,
-              model_provider AS "modelProvider"
+export async function inPlaceStartRefusal(
+  tx: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    task: { id: string; status: string };
+  },
+): Promise<'in_review' | 'closed' | null> {
+  const pendingReviews = await tx<{ id: string }[]>`
+    SELECT id FROM app.approvals
+    WHERE org_id = ${args.organizationId} AND resource_type = 'task_review'
+      AND resource_id = ${args.task.id} AND status = 'pending'
+    LIMIT 1
   `;
-  return agents[0] ?? null;
+  if (args.task.status === 'in_review' || pendingReviews.length > 0) {
+    return 'in_review';
+  }
+  if (TERMINAL_STATUSES.has(args.task.status)) return 'closed';
+  return null;
 }
 
 /** The actor an automation's writes are recorded as on the task timeline —
@@ -288,6 +314,8 @@ export interface DelegatedAgentStartArgs {
   feedback?: string;
   /** Move the card to In progress (default) or leave it where it is. */
   moveToInProgress?: boolean;
+  /** Internal native batch door only; never parsed by task_start_agent. */
+  reviewBatch?: TaskReviewBatchStart;
   /**
    * Resume the agent with the answer to the question it asked: the run that
    * asked and the review it is waiting at. The start happens only while that
@@ -302,6 +330,10 @@ export interface DelegatedAgentStartArgs {
    * a replayable admission without modifying the rejected decision.
    */
   resumeFrom?: TaskAgentResumeFrom;
+  /** The wake generation this start covers when its automation run answers
+   * to the project's wake target (`wakeGenerationForStart`). Written on the
+   * new run only; a reused or replayed start writes nothing. */
+  wakeAdmittedSeq?: number;
 }
 
 /** Why a resumption's question is no longer the task's open question. */
@@ -313,6 +345,7 @@ export type StaleQuestionCause =
 
 export type DelegatedAgentStart =
   | StaleRepair
+  | { outcome: 'review_batch'; batch: TaskReviewBatchResult; replayed?: true }
   | {
       outcome: 'started';
       runId: string;
@@ -546,6 +579,17 @@ export async function startDelegatedAgentRun(
   tx: TransactionSql,
   args: DelegatedAgentStartArgs,
 ): Promise<DelegatedAgentStart> {
+  if (
+    args.reviewBatch !== undefined &&
+    (args.via.kind !== 'agent' ||
+      args.moveToInProgress !== false ||
+      args.resumeFrom !== undefined ||
+      args.reviewBatch.contextTaskId !== args.taskId)
+  )
+    throw new TaskError(
+      'TASK_REVIEW_INVALID',
+      'A native review batch requires its exact in-place context admission',
+    );
   const repairFrom =
     args.resumeFrom !== undefined && 'kind' in args.resumeFrom
       ? args.resumeFrom
@@ -638,7 +682,8 @@ export async function startDelegatedAgentRun(
     await assertDelegatingRun(tx, {
       organizationId: args.organizationId,
       via: args.via,
-      requireCurrentGrant: repairFrom !== undefined,
+      requireCurrentGrant:
+        repairFrom !== undefined || args.reviewBatch !== undefined,
     });
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
@@ -738,6 +783,23 @@ export async function startDelegatedAgentRun(
     );
   }
 
+  if (args.reviewBatch !== undefined && args.via.kind === 'agent') {
+    await lockTaskRunStart(tx, args.organizationId, task.id);
+    task = await loadTaskOrThrow(tx, task.id, args.organizationId);
+    const batch = await replayReviewBatch(tx, {
+      organizationId: args.organizationId,
+      projectId: task.projectId,
+      managerAgentId: args.via.agentId,
+      request: args.reviewBatch,
+    });
+    if (batch !== null)
+      return {
+        outcome: 'review_batch',
+        batch: await projectReviewBatch(tx, batch),
+        replayed: true,
+      };
+  }
+
   // A resumption checks, under the task's row lock and before anything is
   // written, that it still answers the task's open question.
   if (questionFrom !== undefined) {
@@ -817,16 +879,14 @@ export async function startDelegatedAgentRun(
   // under open work. Checked before anything is assigned: a refused start
   // changes nothing on the task.
   if (args.moveToInProgress === false) {
-    const pendingReviews = await tx<{ id: string }[]>`
-      SELECT id FROM app.approvals
-      WHERE org_id = ${args.organizationId} AND resource_type = 'task_review'
-        AND resource_id = ${task.id} AND status = 'pending'
-      LIMIT 1
-    `;
-    if (task.status === 'in_review' || pendingReviews.length > 0) {
+    const refusal = await inPlaceStartRefusal(tx, {
+      organizationId: args.organizationId,
+      task,
+    });
+    if (refusal === 'in_review') {
       return { outcome: 'in_review', taskId: task.id, agentId: agent.id };
     }
-    if (TERMINAL_STATUSES.has(task.status)) {
+    if (refusal === 'closed') {
       return {
         outcome: 'closed',
         taskId: task.id,
@@ -878,6 +938,17 @@ export async function startDelegatedAgentRun(
     });
     task = await loadTaskOrThrow(tx, task.id, args.organizationId);
   }
+  const reviewBatch =
+    args.reviewBatch !== undefined && args.via.kind === 'agent'
+      ? await admitReviewBatch(tx, {
+          organizationId: args.organizationId,
+          projectId: task.projectId,
+          reviewerAgentId: agent.id,
+          managerAgentId: args.via.agentId,
+          issuerRunId: args.via.runId,
+          request: args.reviewBatch,
+        })
+      : undefined;
   const kicked = await kickAgentRun(tx, {
     organizationId: args.organizationId,
     projectId: task.projectId,
@@ -893,6 +964,10 @@ export async function startDelegatedAgentRun(
     trigger,
     startedVia: args.via,
     inPlace: args.moveToInProgress === false,
+    ...(args.wakeAdmittedSeq !== undefined
+      ? { wakeAdmittedSeq: args.wakeAdmittedSeq }
+      : {}),
+    ...(reviewBatch !== undefined ? { reviewBatchId: reviewBatch.id } : {}),
     ...(preparedRepair !== undefined
       ? { feedback: repairFeedback(preparedRepair, args.feedback) }
       : args.feedback !== undefined && args.feedback.trim() !== ''
@@ -900,6 +975,12 @@ export async function startDelegatedAgentRun(
         : {}),
   });
   if (kicked.reused) {
+    if (reviewBatch !== undefined)
+      throw new TaskError(
+        'TASK_HAS_LIVE_RUN',
+        'Review context changed during admission; reconcile before retrying',
+        409,
+      );
     return {
       outcome: 'already_running',
       runId: kicked.runId,
@@ -907,6 +988,11 @@ export async function startDelegatedAgentRun(
       agentId: agent.id,
     };
   }
+  if (reviewBatch !== undefined)
+    return {
+      outcome: 'review_batch',
+      batch: await projectReviewBatch(tx, reviewBatch),
+    };
   if (args.moveToInProgress !== false) {
     await agentHandTaskToInProgressTrusted(tx, {
       organizationId: args.organizationId,

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../lib/ctx';
-import { liveProgressSink } from './agent_host';
+import { LIVE_TRANSCRIPT_WRITE_FLOOR_MS, liveProgressSink } from './agent_host';
 
 const keys = {
   organizationId: 'org-a',
@@ -247,5 +247,63 @@ describe('liveProgressSink backpressure', () => {
     await flushed;
     expect(onFlushed).toHaveBeenCalledOnce();
     expect(write.mock.calls[1]?.[1]).toMatchObject({ progressText: 'new' });
+  });
+});
+
+describe('liveProgressSink cadence', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('writes at most once per floor, folding what arrives meanwhile into the next write', async () => {
+    vi.useFakeTimers();
+    const writes: Record<string, unknown>[] = [];
+    const runMutation = vi.fn(
+      async (_ref: unknown, args: Record<string, unknown>) => {
+        writes.push(args);
+      },
+    );
+    const sink = liveProgressSink({ runMutation } as never, keys, 'task-agent');
+    sink.onTimeline([{ type: 'text', text: 'first' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(writes).toHaveLength(1);
+    // The drain notifies every 500 ms: three more notifications inside one
+    // floor make one write.
+    for (const text of ['a', 'b', 'c']) {
+      await vi.advanceTimersByTimeAsync(500);
+      sink.onTimeline([{ type: 'text', text }]);
+    }
+    expect(writes).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(LIVE_TRANSCRIPT_WRITE_FLOOR_MS);
+    expect(writes).toHaveLength(2);
+    expect(writes[1]?.liveTimeline).toEqual(
+      expect.arrayContaining([{ type: 'text', text: 'c' }]),
+    );
+    await sink.flush();
+    expect(writes).toHaveLength(2);
+  });
+
+  it('a flush writes what is pending at once, without waiting out the floor', async () => {
+    vi.useFakeTimers();
+    const writes: Record<string, unknown>[] = [];
+    const runMutation = vi.fn(
+      async (_ref: unknown, args: Record<string, unknown>) => {
+        writes.push(args);
+      },
+    );
+    const sink = liveProgressSink(
+      { runMutation } as never,
+      keys,
+      'workflow-agent',
+    );
+    sink.onText('first');
+    await vi.advanceTimersByTimeAsync(0);
+    sink.onText('last words');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(writes).toHaveLength(1);
+    // The settle path's flush: no timer advances, yet the write lands.
+    await sink.flush();
+    expect(writes).toHaveLength(2);
+    expect(writes[1]?.progressText).toBe('last words');
   });
 });

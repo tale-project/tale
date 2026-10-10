@@ -36,6 +36,7 @@ async function setup(opts: {
   deviceVersion?: string;
   ticketStatus?: number;
   observe?: () => Promise<DeviceObservation>;
+  inventoryKey?: () => string;
 }) {
   const stateDir = await mkdtemp(join(tmpdir(), 'tale-device-'));
   cleanups.push(() => rm(stateDir, { recursive: true, force: true }));
@@ -164,6 +165,7 @@ async function setup(opts: {
             memory: { totalBytes: 16 * 1024 ** 3, usedBytes: 4 * 1024 ** 3 },
           },
         })),
+    ...(opts.inventoryKey ? { inventoryKey: opts.inventoryKey } : {}),
     selfUpdate: (version) => {
       updates.push(version);
       return Promise.resolve();
@@ -433,5 +435,45 @@ describe('device connection upkeep', () => {
       starting: 1,
     });
     expect(agent.connected).toBe(true);
+  });
+
+  test('a change in its sessions is reported at once, not at the next heartbeat', async () => {
+    let sessions: DeviceObservation['sessions'] = [];
+    let observed = 0;
+    const { hub, agent } = await setup({
+      observe: () => {
+        observed += 1;
+        return Promise.resolve({
+          running: sessions.filter((s) => s.state === 'running').length,
+          starting: sessions.filter((s) => s.state === 'starting').length,
+          sessions,
+          resources: {
+            cpu: { totalCores: 8, usedCores: null },
+            memory: { totalBytes: null, usedBytes: null },
+          },
+        });
+      },
+      inventoryKey: () => JSON.stringify(sessions),
+    });
+    await until(() => agent.connected, 'the WELCOME');
+    await until(
+      () => hub.devicesFor(ORG)[0]?.sessions !== undefined,
+      'a report',
+    );
+    const settled = observed;
+    // Nothing changed: no report beyond the heartbeat (15 s away).
+    await new Promise((r) => setTimeout(r, 1_500));
+    expect(observed).toBe(settled);
+    sessions = [{ sessionId: 'pa-change', state: 'starting' }];
+    await until(
+      () => hub.devicesFor(ORG)[0]?.sessions.starting === 1,
+      'the change to be reported',
+    );
+    sessions = [{ sessionId: 'pa-change', state: 'running' }];
+    await until(
+      () => hub.devicesFor(ORG)[0]?.sessions.running === 1,
+      'the next change to be reported',
+    );
+    expect(observed).toBe(settled + 2);
   });
 });

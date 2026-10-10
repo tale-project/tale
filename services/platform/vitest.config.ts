@@ -32,12 +32,30 @@ export default defineConfig({
   optimizeDeps: {
     entries: ['**/*.browser.test.{ts,tsx}'],
     include: [
+      // The code editor loads CodeMirror behind a dynamic import; found
+      // only when a test opens a code field, it would re-optimise mid-run
+      // and load a second React.
+      '@codemirror/autocomplete',
+      '@codemirror/commands',
+      '@codemirror/lang-javascript',
+      '@codemirror/lang-json',
+      '@codemirror/lang-yaml',
+      '@codemirror/language',
+      '@codemirror/search',
+      '@codemirror/state',
+      '@codemirror/view',
+      '@lezer/common',
+      '@lezer/highlight',
+      '@lezer/markdown',
       '@milkdown/kit/plugin/listener',
       '@radix-ui/react-toast',
       '@radix-ui/react-toggle-group',
       '@sentry/browser',
       '@sentry/tanstackstart-react',
       'ajv',
+      // The flow canvas lays itself out with ELK behind a dynamic import.
+      'elkjs/lib/elk-api',
+      'elkjs/lib/elk.bundled.js',
       'framer-motion',
       'he',
       'qrcode.react',

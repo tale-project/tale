@@ -2,7 +2,9 @@
  * Credentials pasted where none belongs: the one detector the automation
  * engine refuses a document with (`SECRET_IN_DOCUMENT`) and the MCP settings
  * tools refuse a change with (`SECRET_ARGUMENT_REFUSED`), so a key a person
- * or an agent pastes into a field is caught the same way on both doors.
+ * or an agent pastes into a field is caught the same way on both doors. The
+ * run recorder withholds what it finds too, and more shapes besides
+ * (`lib/engine/core/secret-patterns.ts`).
  *
  * Pure and runtime-neutral (the engine's purity guard scans it): no I/O, no
  * host APIs. A hit names the KIND of credential and where it sits, never
@@ -43,9 +45,17 @@ function token(part: string | number): string {
   return `/${String(part).replaceAll('~', '~0').replaceAll('/', '~1')}`;
 }
 
-/** The credential a string looks like, if any: one of the known shapes, or
- * an opaque word under a key that names a credential. */
-function credentialLabel(value: string, key?: string): string | null {
+/**
+ * The kind of credential `value` holds, such as `GitHub token`, or
+ * `undefined` when it holds none: one of the known shapes, or an opaque word
+ * under a key that names a credential. `key` is the member name the string
+ * sits under, when it sits under one. The label names the kind, never the
+ * value.
+ */
+export function credentialKind(
+  value: string,
+  key?: string,
+): string | undefined {
   for (const [pattern, label] of SECRET_PATTERNS) {
     if (pattern.test(value)) return label;
   }
@@ -56,7 +66,7 @@ function credentialLabel(value: string, key?: string): string | null {
   ) {
     return `credential-looking value under "${key}"`;
   }
-  return null;
+  return undefined;
 }
 
 /**
@@ -73,8 +83,8 @@ export function findSecrets(value: unknown): SecretHit[] {
     key?: string,
   ): void => {
     if (typeof current === 'string') {
-      const label = credentialLabel(current, key);
-      if (label !== null) hits.push({ path, pointer, label });
+      const label = credentialKind(current, key);
+      if (label !== undefined) hits.push({ path, pointer, label });
     } else if (Array.isArray(current)) {
       for (const [index, item] of current.entries()) {
         walk(item, `${path}[${index}]`, pointer + token(index));

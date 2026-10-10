@@ -30,6 +30,7 @@ import {
   recordLlmStepUsage,
 } from './llm-metering.ts';
 import { beginNodeAttempt, finishNodeAttempt } from './node-attempts.ts';
+import { readOpenNodeRuns, recordNodeRunsStarted } from './node-runs.ts';
 import {
   claimRun,
   continueRun,
@@ -212,6 +213,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as Parameters<typeof continueRun>[1];
       return continueRun(sql, args);
     },
+    'automations/mutations:recordNodeRunsStarted': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof recordNodeRunsStarted>[1];
+      return recordNodeRunsStarted(sql, args);
+    },
     'automations/mutations:finishRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
       const args = raw as Parameters<typeof finishRun>[1];
@@ -259,11 +265,16 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
           input: unknown;
           checkpoints: unknown;
           startedAt: number;
+          recordBytes: number;
+          recordRows: number;
         }[]
       >`
         SELECT id, org_id AS "organizationId", name, version, status, mode,
                started_by AS "startedBy", input, checkpoints,
-               started_at_ms::float8 AS "startedAt"
+               started_at_ms::float8 AS "startedAt",
+               record_bytes AS "recordBytes",
+               (SELECT count(*)::int FROM app.automation_node_runs n
+                 WHERE n.run_id = ${args.runId}) AS "recordRows"
         FROM app.automation_runs
         WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         LIMIT 1
@@ -277,7 +288,20 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         run.version,
       );
       if (!version) return null;
-      return { run, document: version.document };
+      // The run's record as earlier turns left it: the units still open, and
+      // the bytes of values it already stored.
+      const openNodeRuns = await readOpenNodeRuns(
+        sql,
+        args.organizationId,
+        args.runId,
+      );
+      return {
+        run,
+        document: version.document,
+        openNodeRuns,
+        recordBytes: run.recordBytes,
+        recordRows: run.recordRows,
+      };
     },
 
     'automations/queries:loadAutomationDocument': async (raw) => {

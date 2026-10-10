@@ -76,6 +76,9 @@ function referenceStore(): DispatchStore {
       mem.startRun(name, input, mode, version),
     listRuns: (options) => mem.listRuns(options),
     getRun: (runId) => mem.getRun(runId),
+    getRunRecord: (runId, options) => mem.getRunRecord(runId, options),
+    getRunNode: (runId, unit) => mem.getRunNode(runId, unit),
+    compareRuns: (runId, otherRunId) => mem.compareRuns(runId, otherRunId),
     cancelRun: (runId) => mem.cancelRun(runId),
     listVersions: (name) => mem.listVersions(name),
     listTriggers: (name) => mem.listTriggers(name),
@@ -159,6 +162,9 @@ function readCalls(): Array<[string, Record<string, unknown>]> {
     ['list_runs', { mode: 'mock', statuses: ['success', 'failed'] }],
     // The run is started in `beforeAll`, after the table is built.
     ['get_run', { runId: STARTED_RUN }],
+    ['get_run', { runId: STARTED_RUN, include: ['record', 'travels'] }],
+    ['get_run_node', { runId: STARTED_RUN, node: '__start' }],
+    ['compare_runs', { a: STARTED_RUN, b: STARTED_RUN }],
     ['list_versions', { name: 'order-report' }],
     ['list_triggers', {}],
     ['get_automation_metrics', {}],
@@ -211,7 +217,12 @@ describe('read tools answer what they advertise', () => {
       const reply = await callTool(
         caller,
         tool,
-        args.runId === STARTED_RUN ? { ...args, runId } : args,
+        Object.fromEntries(
+          Object.entries(args).map(([key, value]) => [
+            key,
+            value === STARTED_RUN ? runId : value,
+          ]),
+        ),
         { host, requestId: 'req-1' },
       );
       if (reply.kind !== 'answer') throw new Error('not admitted');
@@ -295,7 +306,9 @@ describe('tools/list', () => {
       answer_run_ask: { 'anthropic/requiresUserInteraction': true },
       set_automation_projects: { 'anthropic/requiresUserInteraction': true },
       run_deployed: { 'anthropic/maxResultSizeChars': 200_000 },
-      get_run: { 'anthropic/maxResultSizeChars': 250_000 },
+      get_run: { 'anthropic/maxResultSizeChars': 500_000 },
+      get_run_node: { 'anthropic/maxResultSizeChars': 300_000 },
+      compare_runs: { 'anthropic/maxResultSizeChars': 500_000 },
       get_settings: { 'anthropic/maxResultSizeChars': 250_000 },
       apply_settings: { 'anthropic/requiresUserInteraction': true },
     });

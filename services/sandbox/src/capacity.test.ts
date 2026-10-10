@@ -262,6 +262,45 @@ describe('infrastructure capacity observations', () => {
     expect(sleep).toHaveBeenCalledTimes(2);
   });
 
+  test('host resources alone read /proc and never list containers', async () => {
+    const docker = dockerStub();
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker,
+      sleep: async () => {},
+      kernelRelease: () => 'test-kernel',
+      read: async (path) =>
+        path === '/proc/stat'
+          ? 'cpu 100 0 0 100 0 0 0 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n'
+          : 'MemTotal: 1000 kB\nMemAvailable: 400 kB\nMemFree: 10 kB\n',
+    });
+    const resources = await reader.hostResources();
+    expect(resources.memory).toEqual({
+      totalBytes: 1024_000,
+      usedBytes: 600 * 1024,
+    });
+    expect(resources.cpu.totalCores).toBe(2);
+    await reader.hostResources();
+    expect(docker.mock.calls.map(([args]) => args[0])).toEqual([
+      'info',
+      'context',
+    ]);
+  });
+
+  test('host resources are unknown, never an error, while the daemon does not answer', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const reader = new CapacityReader(config(), () => new Map(), {
+        docker: mock(async () => ({ ...ok(''), exitCode: 1 })),
+      });
+      expect(await reader.hostResources()).toEqual({
+        cpu: { totalCores: null, usedCores: null },
+        memory: { totalBytes: null, usedBytes: null },
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('a failed second sample leaves the first CPU reading unknown but primes the next poll', async () => {
     let now = 10_000;
     let busy = 100;

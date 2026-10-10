@@ -3,8 +3,6 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Automation } from '@/lib/engine/core/types';
-
 const { validate } = vi.hoisted(() => ({ validate: vi.fn() }));
 vi.mock('@/app/lib/backend/automation-validation', async (importOriginal) => ({
   ...(await importOriginal<
@@ -13,6 +11,7 @@ vi.mock('@/app/lib/backend/automation-validation', async (importOriginal) => ({
   validateAutomationDraft: validate,
 }));
 
+import type { RawDocument } from '../lib/draft-document';
 import {
   documentHash,
   useAutomationValidation,
@@ -27,7 +26,7 @@ import {
  * is on its way, and a failure that says so without a toast.
  */
 
-function doc(prompt: string): Automation {
+function doc(prompt: string): RawDocument {
   return {
     version: 1,
     name: 'support/triage',
@@ -52,7 +51,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 interface Props {
-  document: Automation | null;
+  document: RawDocument | null;
   isDraft: boolean;
   enabled: boolean;
 }
@@ -103,12 +102,42 @@ describe('useAutomationValidation', () => {
       expect.objectContaining({ code: 'REF_UNKNOWN_NODE' }),
     ]);
     expect(result.current.settledFor).toBe(documentHash(stored));
+    // The text the issues' ranges index into, kept beside the result.
+    expect(result.current.settledDocument).toBe(stored);
     expect(validate).toHaveBeenCalledWith(
       'org-1',
       'support/triage',
       stored,
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it('asks for the analysis and the shapes, and keeps them with the result', async () => {
+    const analysis = {
+      nodes: {},
+      paths: { count: 1, truncated: false, halts: [] },
+      output: { reads: [], maybeEmpty: false },
+    };
+    const types = {
+      inputs: {},
+      nodes: { reply: { output: { type: 'string' } } },
+      output: {},
+    };
+    validate.mockResolvedValue({ ...answer(), analysis, types });
+    const { result } = renderValidation({
+      document: doc('Hi'),
+      isDraft: false,
+      enabled: true,
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(validate).toHaveBeenCalledWith(
+      'org-1',
+      'support/triage',
+      doc('Hi'),
+      expect.objectContaining({ detail: ['analysis', 'types'] }),
+    );
+    expect(result.current.analysis).toEqual(analysis);
+    expect(result.current.types).toEqual(types);
   });
 
   it('waits for a pause in the edits and checks the newest draft only', async () => {
@@ -257,8 +286,8 @@ describe('useAutomationValidation', () => {
 
 describe('documentHash', () => {
   it('names a document by its content, whatever order its keys are in', () => {
-    const a = { name: 'x', version: 1, nodes: [] } as unknown as Automation;
-    const b = { nodes: [], version: 1, name: 'x' } as unknown as Automation;
+    const a = { name: 'x', version: 1, nodes: [] } satisfies RawDocument;
+    const b = { nodes: [], version: 1, name: 'x' } satisfies RawDocument;
     expect(documentHash(a)).toBe(documentHash(b));
     expect(documentHash(a)).not.toBe(documentHash(doc('A')));
   });

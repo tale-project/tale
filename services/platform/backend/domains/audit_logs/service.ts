@@ -17,6 +17,7 @@ import {
   rowToHashInput,
   toStoredAuditRecord,
 } from './hash-input.ts';
+import { attributeApiKeyAudit } from './request-actor.ts';
 import type {
   AuditContext,
   AuditLogCategory,
@@ -92,6 +93,25 @@ export async function lockAuditChain(
   } catch (error) {
     throw markRetryQueueKey(error, queueKey);
   }
+}
+
+/**
+ * {@link lockAuditChain} without waiting: `true` when this transaction now
+ * holds the org's chain key (or already did), `false` when another holds it.
+ * For a sweep that must not stall behind one busy organization — the wake
+ * scan (`automations/wakes.ts`) skips that org for the minute instead; the
+ * order stays the chain key first.
+ */
+export async function tryLockAuditChain(
+  tx: TransactionSql,
+  organizationId: string,
+): Promise<boolean> {
+  const queueKey = auditChainQueueKey(organizationId);
+  const rows = await tx<{ locked: boolean }[]>`
+    SELECT pg_try_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${queueKey})) AS locked
+  `;
+  // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- only an explicit database true admits a sweep
+  return rows[0]?.locked === true;
 }
 
 /**
@@ -228,7 +248,7 @@ export async function createAuditLog(
   tx: TransactionSql,
   callerArgs: CreateAuditLogArgs,
 ): Promise<string> {
-  const args = withRequestChannel(callerArgs);
+  const args = attributeApiKeyAudit(withRequestChannel(callerArgs));
   const head = await lockChainHead(tx, args.organizationId);
   await selfCheckPriorRow(tx, args.organizationId, head.lastHash);
 

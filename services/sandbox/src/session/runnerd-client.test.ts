@@ -21,6 +21,8 @@ import {
   RunnerdStageBusyError,
   runnerdEnvPatch,
   waitForRunnerd,
+  RunnerdMemoryBusyError,
+  runnerdOpenExec,
   RunnerdOutputGapError,
   RunnerdProtocolError,
 } from './runnerd-client.ts';
@@ -974,5 +976,74 @@ describe('session incarnation', () => {
     ['12345678901234567', 'unnamed'],
   ] as const)('an answer naming %p is %s', (named, expected) => {
     expect(answeringIncarnation(1700, named)).toBe(expected);
+  });
+});
+
+describe('runnerd exec admission', () => {
+  const request = {
+    execId: 'exec-memory',
+    command: ['true'],
+    timeoutMs: 1000,
+    stdoutMaxBytes: 0,
+    stderrMaxBytes: 0,
+  };
+
+  test('a session short of memory refuses the exec before it starts, with its wait', async () => {
+    const fetch = spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        {
+          error: 'session_memory_busy',
+          code: 'SESSION_MEMORY_BUSY',
+          message: 'the session is using 90% or more of its memory limit',
+        },
+        { status: 429, headers: { 'retry-after': '7' } },
+      ),
+    );
+    try {
+      const error = await runnerdOpenExec(opts, request).then(
+        () => null,
+        (failure: unknown) => failure,
+      );
+      expect(error).toBeInstanceOf(RunnerdMemoryBusyError);
+      expect(error).toMatchObject({
+        message: 'the session is using 90% or more of its memory limit',
+        retryAfterMs: 7_000,
+      });
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+
+  test('any other refusal stays an ordinary failure', async () => {
+    const fetch = spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({ error: 'busy' }, { status: 429 }),
+    );
+    try {
+      const error = await runnerdOpenExec(opts, request).then(
+        () => null,
+        (failure: unknown) => failure,
+      );
+      expect(error).not.toBeInstanceOf(RunnerdMemoryBusyError);
+      expect(String(error)).toContain('runnerd /execs 429');
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+
+  test('an accepted exec streams its events once pumped', async () => {
+    const fetch = spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(`${JSON.stringify({ ...completed, seq: 1 })}\n`),
+    );
+    try {
+      const stream = await runnerdOpenExec(opts, request);
+      const events: RunnerdExecEvent[] = [];
+      await stream.pump((event) => {
+        events.push(event);
+      });
+      stream.close();
+      expect(events.map((event) => event.t)).toEqual(['exit']);
+    } finally {
+      fetch.mockRestore();
+    }
   });
 });

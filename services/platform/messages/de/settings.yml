@@ -399,6 +399,7 @@ connectors:
     und unterstützten Plattform-Werkzeugen deiner Organisation.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Gib eine ganze Zahl zwischen 1 und 65535 ein.
   catalog:
     emptyBody: >-
       Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
@@ -463,6 +464,10 @@ connectors:
     statusOrg: App der Organisation
     statusEnv: App des Deployments
     statusNone: Nicht eingerichtet
+    statusUnavailable: Status nicht verfügbar
+    statusLoadFailed:
+      Es konnte nicht geprüft werden, ob die Apps für den Wissens-Import
+      eingerichtet sind. Du kannst sie einrichten, sobald die Prüfung klappt.
     orgClientId: 'Client-ID: {clientId}'
     configure: Einrichten
     remove: Entfernen
@@ -1425,6 +1430,7 @@ logs:
       automation.run.failed: Automatisierungslauf fehlgeschlagen
       automation.run.cancelled: Automatisierungslauf gestoppt
       automation.run.deleted: Automatisierungslauf gelöscht
+      automation.run.replayed: Automatisierungslauf erneut gestartet
       automation.run.in_doubt_resolved: Über unterbrochenen Automatisierungsschritt entschieden
       automation.version.saved: Automatisierungsversion gespeichert
       automation.deployed: Automatisierung live geschaltet

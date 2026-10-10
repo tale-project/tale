@@ -8,11 +8,13 @@ import { FileUpload } from '@tale/ui/file-upload';
 import { Row, Stack } from '@tale/ui/layout';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useFocusHandoff } from '@tale/ui/use-focus-handoff';
 import { toast } from '@tale/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   FileArchive,
   FileText,
+  Loader2,
   Rocket,
   Upload,
   X,
@@ -29,6 +31,11 @@ import { useT } from '@/lib/i18n/client';
 
 import { useDeployAutomation } from '../hooks/mutations';
 import { automationErrorMessage } from '../lib/errors';
+import {
+  type DeployedTrigger,
+  TriggerDeployNotice,
+  triggerOffAfterDeploy,
+} from './trigger-deploy-notice';
 
 /** The org sentinel of the destination picker — not a project id. */
 const ORG_TARGET = '__org__';
@@ -70,6 +77,7 @@ export function UploadAutomationDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const filesId = useId();
   const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
@@ -80,6 +88,15 @@ export function UploadAutomationDialog({
   const [skillConflicts, setSkillConflicts] = useState<string[] | null>(null);
   const [uploaded, setUploaded] = useState<UploadedVersion | null>(null);
   const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
+  /** Deployed, with its trigger left off: the dialog stays to offer
+   * turning it on. */
+  const [triggerOff, setTriggerOff] = useState<DeployedTrigger | null>(null);
+  const noticeRef = useRef<HTMLDivElement>(null);
+  // Deploy now leaves the footer once it worked; its focus goes to the
+  // notice of what is left to do.
+  const deployHandoffRef = useFocusHandoff<HTMLSpanElement>(() =>
+    noticeRef.current?.focus(),
+  );
   const abortRef = useRef<AbortController | null>(null);
   const deploy = useDeployAutomation();
 
@@ -119,6 +136,7 @@ export function UploadAutomationDialog({
     setSkillConflicts(null);
     setUploaded(null);
     setDeployRefusal(null);
+    setTriggerOff(null);
     abortRef.current?.abort();
     abortRef.current = null;
   };
@@ -174,7 +192,14 @@ export function UploadAutomationDialog({
         version: uploaded.version,
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          // A trigger that is off starts nothing the version runs: the
+          // dialog says so and offers to turn it on, instead of closing.
+          const off = triggerOffAfterDeploy(result.trigger);
+          if (off !== null) {
+            setTriggerOff(off);
+            return;
+          }
           toast({
             title: t('upload.deployed', {
               name: uploaded.name,
@@ -284,10 +309,15 @@ export function UploadAutomationDialog({
       description={
         uploaded === null
           ? t('upload.description')
-          : t('upload.successNote', {
-              name: uploaded.name,
-              version: uploaded.version,
-            })
+          : triggerOff !== null
+            ? t('upload.deployed', {
+                name: uploaded.name,
+                version: uploaded.version,
+              })
+            : t('upload.successNote', {
+                name: uploaded.name,
+                version: uploaded.version,
+              })
       }
       submitText={t('upload.submit')}
       submittingText={
@@ -304,7 +334,17 @@ export function UploadAutomationDialog({
         void run();
       }}
       customFooter={
-        uploaded === null ? undefined : (
+        uploaded === null ? undefined : triggerOff !== null ? (
+          <Button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              reset();
+            }}
+          >
+            {tCommon('actions.done')}
+          </Button>
+        ) : (
           <>
             <Button
               type="button"
@@ -317,20 +357,40 @@ export function UploadAutomationDialog({
             >
               {t('upload.deployLater')}
             </Button>
-            <Button
-              type="button"
-              icon={Rocket}
-              isLoading={deploy.isPending}
-              onClick={deployUploaded}
-              data-testid="deploy-uploaded-version"
-            >
-              {t('upload.deployNow', { version: uploaded.version })}
-            </Button>
+            <span ref={deployHandoffRef} className="contents">
+              <Button
+                type="button"
+                // Busy, not disabled: a disabled button drops its focus,
+                // and the focus is what the notice of the deploy takes over.
+                icon={deploy.isPending ? Loader2 : Rocket}
+                iconClassName={
+                  deploy.isPending
+                    ? 'animate-spin motion-reduce:animate-none'
+                    : undefined
+                }
+                aria-busy={deploy.isPending || undefined}
+                aria-disabled={deploy.isPending || undefined}
+                onClick={deploy.isPending ? undefined : deployUploaded}
+                data-testid="deploy-uploaded-version"
+              >
+                {t('upload.deployNow', { version: uploaded.version })}
+              </Button>
+            </span>
           </>
         )
       }
     >
-      {uploaded !== null ? (
+      {uploaded !== null && triggerOff !== null ? (
+        <TriggerDeployNotice
+          ref={noticeRef}
+          place={{ organizationId, projectId, name: uploaded.name }}
+          trigger={triggerOff}
+          onReview={() => {
+            onOpenChange(false);
+            reset();
+          }}
+        />
+      ) : uploaded !== null ? (
         <Stack gap={4}>
           {deployRefusal !== null && (
             <Alert

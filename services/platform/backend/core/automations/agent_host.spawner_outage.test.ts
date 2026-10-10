@@ -247,6 +247,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   globalThis.fetch = origFetch;
   if (origToken === undefined) delete process.env.SANDBOX_TOKEN;
   else process.env.SANDBOX_TOKEN = origToken;
@@ -255,13 +256,24 @@ afterEach(() => {
 
 describe('an automation agent turn whose spawner goes away', () => {
   it('rides out the restart across windows, resumes after the checkpoint and settles once', async () => {
+    vi.useFakeTimers();
     const { ctx, mutations, scheduled } = makeCtx();
     const before = Date.now();
     // The agent's first line arrives, then the spawner dies under the
     // stream and refuses every connection for the rest of the window.
     spawner.serve = { blocks: [stdout(1)], ends: false };
 
-    await driveWorkflowAgentTurnImpl(ctx, KEYS, { signal: windowOf(900) });
+    // Drive the retry clock, rather than asking a busy worker to fit both
+    // backoffs into 900 ms of wall time.
+    const firstWindow = driveWorkflowAgentTurnImpl(ctx, KEYS, {
+      signal: windowOf(900),
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(spawner.attaches).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(spawner.attaches).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(150);
+    await firstWindow;
 
     // The drain kept asking (250 ms, then 500 ms) instead of spending its
     // budget of five failures, and the window ended with the turn running.

@@ -15,7 +15,8 @@
  *  4. the flow model predicts real runs: each document's acceptance tests
  *     run in mock mode, the conditions and failures the trace shows are fed
  *     to `simulate`, and it must name exactly the nodes the run ran and
- *     skipped, with the trace's reasons.
+ *     skipped, with the trace's reasons; the same run, recorded, answers the
+ *     same conditions and failures from its record as the plain run's trace.
  *
  * After an intentional change, regenerate the snapshot with:
  *
@@ -41,10 +42,17 @@ import { DOC_EXAMPLE } from '../../api/docs';
 import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../selftest/memory-store';
 import { execute } from '../execute';
+import { createRecorder } from '../record/recorder';
 import { setCodeRunner } from '../runner';
-import type { Automation, NodeTrace } from '../types';
+import type { Automation } from '../types';
 import { validate } from '../validate';
-import { flowModel, simulate, type SkipReason } from './flow';
+import {
+  assignmentFromRun,
+  flowModel,
+  pathIdOf,
+  simulate,
+  traceOutcome,
+} from './flow';
 
 const REPO = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -309,18 +317,6 @@ describe('the shipped automation corpus', () => {
   );
 });
 
-/** What a trace entry says happened to its node. */
-function traced(entry: NodeTrace): 'ran' | SkipReason | 'other' {
-  if (entry.status === 'ok') return 'ran';
-  if (entry.status === 'error') return 'error';
-  if (entry.status !== 'skipped') return 'other';
-  const note = entry.note ?? '';
-  if (note.startsWith('skipped: when=')) return 'when';
-  if (note.startsWith('skipped: elseOf')) return 'else';
-  if (note.startsWith('skipped: reads from')) return 'upstream';
-  return 'other';
-}
-
 describe('the flow model predicts the shipped tests', () => {
   const withTests = documents.filter(([, doc]) => (doc.tests ?? []).length > 0);
 
@@ -334,24 +330,29 @@ describe('the flow model predicts the shipped tests', () => {
     if (model === null) return;
     let replayed = 0;
     for (const t of doc.tests ?? []) {
+      // The plain executor is the one the model predicts; the recorded run
+      // must answer the same conditions and failures from its record.
       const run = await execute(doc, { input: t.input, mode: 'mock', store });
       if (run.status !== 'success') continue;
       replayed++;
-      const byId = new Map(run.trace.map((e) => [e.node, traced(e)]));
-      const assignment: Record<string, boolean> = {};
-      for (const atom of model.atoms) {
-        if (atom.fixed === true) continue;
-        const what = byId.get(atom.nodeId);
-        if (atom.kind === 'when') {
-          if (what === 'when') assignment[atom.id] = false;
-          else if (what === 'ran' || what === 'error') {
-            assignment[atom.id] = true;
-          }
-        } else if (what === 'ran' || what === 'error') {
-          assignment[atom.id] = what === 'error';
-        }
-      }
+      const recorded = await execute(doc, {
+        input: t.input,
+        mode: 'mock',
+        store,
+        recorder: createRecorder({ now: () => Date.now() }),
+      });
+      expect(recorded.status).toBe(run.status);
+      const byId = new Map(run.trace.map((e) => [e.node, traceOutcome(e)]));
+      const assignment = assignmentFromRun(model, { trace: run.trace });
+      expect(recorded.record?.length).toBeGreaterThan(0);
+      expect({
+        test: t.name,
+        assignment: assignmentFromRun(model, { record: recorded.record }),
+      }).toEqual({ test: t.name, assignment });
       const predicted = simulate(model, assignment);
+      // A run that finished answered every atom it consulted: its path is
+      // the one the model names.
+      expect(pathIdOf(model, assignment)).toBe(predicted.id);
       const fromTrace = run.trace.map((e) => ({
         node: e.node,
         outcome: byId.get(e.node),

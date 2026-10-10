@@ -11,7 +11,7 @@ import {
   lapsedSessionRefusal,
   saveLocale,
 } from '@/tests/utils/lapsed-session';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 // The dialog's user-facing duplicate-name handling (a AppError with code
 // `DUPLICATE_PRODUCT_NAME` → the `create.toast.duplicateName` toast) is what we
@@ -282,6 +282,42 @@ describe('ProductCreateDialog — price and stock', () => {
       stock: 3,
     });
   });
+
+  // `1e3` passed the Pricing step as 1000 and was created as stock 1: the
+  // step judged it with `Number`, Create sent `parseInt` (#3616). A browser
+  // keeps the spelling as the input's value; `user.type` would hand the form
+  // `1000` instead, so the value is set the way the browser leaves it.
+  it.each([
+    ['stock', '1000', 1000, '1000'],
+    ['stock', '1e3', 1000, '1e3'],
+    ['stock', '2.5e2', 250, '2.5e2'],
+    ['price', '1.25e1', 12.5, '1.25e1 USD'],
+  ])(
+    'creates %s %s as the %d the Pricing step accepted',
+    async (field, entered, sent, reviewed) => {
+      mockMutate.mockImplementation((_args, opts) => {
+        opts.onSuccess();
+      });
+      const { user } = renderDialog();
+      await toPricing(user);
+      fireEvent.change(
+        screen.getByLabelText(`products.edit.labels.${field}`, {
+          exact: false,
+        }),
+        { target: { value: entered } },
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.next' }),
+      );
+      // Review shows the entry as typed; Create sends what it means.
+      expect(await screen.findByText(reviewed)).toBeInTheDocument();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.create' }),
+      );
+      await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+      expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({ [field]: sent });
+    },
+  );
 });
 
 // The session door's 401 names the REST API in English; the person whose

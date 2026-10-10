@@ -13,11 +13,39 @@
       "description": "Choose an action style, name icon controls, and handle loading or unavailable actions without losing context."
     }
   },
+  "components/code-editor": {
+    "slug": "components/code-editor",
+    "frontmatter": {
+      "title": "Code editor",
+      "description": "Edit code, JSON, YAML and templates with highlighting, completion and inline problems, and leave the field with the keyboard."
+    }
+  },
+  "components/data-core": {
+    "slug": "components/data-core",
+    "frontmatter": {
+      "title": "Data core",
+      "description": "Summarize, shape and compare JSON values, and name a place in one with a JSON pointer — pure functions, no React."
+    }
+  },
+  "components/data-diff": {
+    "slug": "components/data-diff",
+    "frontmatter": {
+      "title": "Data diff",
+      "description": "Say what changed between two values in sentences, or set them side by side with every change marked, and compare their shapes."
+    }
+  },
   "components/data-table": {
     "slug": "components/data-table",
     "frontmatter": {
       "title": "Data table",
       "description": "Connect rows, search, selection, loading, and paging to one consistent list surface."
+    }
+  },
+  "components/data-view": {
+    "slug": "components/data-view",
+    "frontmatter": {
+      "title": "Data view",
+      "description": "Show one recorded value as its values or its shape, hold it against the shape it should have, and copy, download or open it full screen."
     }
   },
   "components/dialog": {
@@ -39,6 +67,13 @@
     "frontmatter": {
       "title": "Flow node issues",
       "description": "Mark the nodes of a flow canvas with their problem counts, in a way that reads without colour or sight."
+    }
+  },
+  "components/format-duration": {
+    "slug": "components/format-duration",
+    "frontmatter": {
+      "title": "Format durations",
+      "description": "Say how long something took in the reader's language, and show a duration that counts on while it runs."
     }
   },
   "components/input": {
@@ -76,6 +111,13 @@
       "description": "Show the next times a schedule starts, in the schedule's time zone, with the reader's own time and any clock change spelled out."
     }
   },
+  "components/schema-tree": {
+    "slug": "components/schema-tree",
+    "frontmatter": {
+      "title": "Schema tree",
+      "description": "Show the fields a value has, with each kind in words, whether it is required, and where it comes from."
+    }
+  },
   "components/tabs-and-navigation": {
     "slug": "components/tabs-and-navigation",
     "frontmatter": {
@@ -102,6 +144,34 @@
     "frontmatter": {
       "title": "Toast",
       "description": "Show brief completion feedback, avoid duplicate viewports, and keep essential information on the page."
+    }
+  },
+  "components/value-tree": {
+    "slug": "components/value-tree",
+    "frontmatter": {
+      "title": "Value tree",
+      "description": "Show a JSON value a person can read and walk with the keyboard, with what a recorder left out as chips and highlights by JSON pointer."
+    }
+  },
+  "components/workflow-canvas": {
+    "slug": "components/workflow-canvas",
+    "frontmatter": {
+      "title": "Workflow canvas",
+      "description": "Draw a workflow from its data with an automatic layout, lines that route round every box, a keyboard path through it and a List view that says the same in text."
+    }
+  },
+  "components/workflow-paths": {
+    "slug": "components/workflow-paths",
+    "frontmatter": {
+      "title": "Workflow paths",
+      "description": "Show every way a run can go through a workflow, preview and pin one path at a time, and point out the nodes that end a run when they fail."
+    }
+  },
+  "components/workflow-playback": {
+    "slug": "components/workflow-playback",
+    "frontmatter": {
+      "title": "Workflow playback",
+      "description": "Show how a run went on a workflow chart, and replay it with values travelling the lines, a scrubber and the failure in focus."
     }
   },
   "foundations/accessibility": {

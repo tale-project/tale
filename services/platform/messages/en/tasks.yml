@@ -39,6 +39,7 @@ run:
   openFull: Open the full run
 subject:
   runLoadError: "Couldn't load the workflow state. Try again to see the available actions."
+  askLoadError: "Couldn't check for a pending question. Try again to see whether an answer is needed."
   ready: 'Ready to start — {name} takes it from here.'
   start: Start
   startAgain: Start again
@@ -123,6 +124,8 @@ agentRun:
     model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
     start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
     interrupted: The run was interrupted before the agent finished. Start the agent again.
+    out_of_memory: The agent's sandbox ran out of memory, so its work was stopped. Start the agent again — if it keeps happening, ask an Admin to give agents more memory.
+    stalled: The agent stopped responding — it printed nothing and did almost no work for a long time — so its sandbox stopped it. Start the agent again; if it stops again, show an Admin what the run reported under Details.
     unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported under Details.
   standardAgent:
     switchedOff: The organization's standard agent is switched off. Ask an Admin to switch it on under Governance.

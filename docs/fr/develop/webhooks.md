@@ -42,7 +42,7 @@ L'acceptation renvoie HTTP `202` et une réponse de forme `{"runId":"..."}`. Con
 }
 ```
 
-Lis la commande via `input.payload.orderId`. Si l'automatisation déclare un schéma `inputs`, il doit décrire cette enveloppe. Un corps qui n'est pas du JSON devient du texte dans `payload`. La limite est de 256 Kio (262 144 octets), comptés pendant la réception ; une requête plus grande reçoit `413`.
+Lis la commande via `input.payload.orderId`. Si l'automatisation déclare un schéma `inputs`, il doit décrire cette enveloppe. Un déclencheur avec une entrée fixe ajoute ses champs à côté de `trigger` et `payload` dans l’entrée de chaque livraison ; les [paramètres du déclencheur](/fr/platform/automations/triggers#entree-fixe) de l’application la définissent, et l’API la prend sous `input`. Un corps qui n'est pas du JSON devient du texte dans `payload`. La limite est de 256 Kio (262 144 octets), comptés pendant la réception ; une requête plus grande reçoit `413`.
 
 ### Suivre le résultat
 
@@ -52,6 +52,8 @@ Lis la commande via `input.payload.orderId`. Si l'automatisation déclare un sch
 | Organisation | `GET /api/v1/runs/{runId}` |
 
 Interroge la route avec une clé API dont le titulaire peut lire ce périmètre, ou ouvre l'exécution dans Tale. Le jeton webhook autorise les livraisons, pas la lecture des résultats REST. Attends un état terminal avant d'annoncer que le travail a réussi.
+
+Dans l’application, **Livraisons récentes**, sous le déclencheur de l’onglet **Général** de l’automatisation, liste les dix dernières exécutions lancées par le webhook, les plus récentes d’abord, avec leur statut. Tant que Tale se souvient d’une livraison, chaque ligne nomme l’en-tête d’où vient son identifiant, ou indique qu’elle n’en a pas. Les requêtes refusées ne lancent aucune exécution et n’y figurent pas ; leur réponse fait foi.
 
 ### Interpréter les réponses
 

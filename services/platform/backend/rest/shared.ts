@@ -61,6 +61,7 @@ import {
   checkUserRateLimit,
   type RateLimitName,
 } from '../lib/rate-limit.ts';
+import { findUnstorableText } from '../lib/unstorable-text.ts';
 import { isRestErrorCode } from './error-codes.ts';
 
 /**
@@ -544,59 +545,6 @@ export async function readJsonBody(
 }
 
 /**
- * The dotted path of the first string — a value or an object key — in a
- * parsed JSON body for which `test` holds, or null when none does.
- * Iterative, so a deeply nested body cannot exhaust the stack.
- */
-function findStringPath(
-  value: unknown,
-  test: (text: string) => boolean,
-): string | null {
-  const stack: { value: unknown; path: string }[] = [{ value, path: '' }];
-  while (stack.length > 0) {
-    const item = stack.pop();
-    if (item === undefined) break;
-    const current = item.value;
-    if (typeof current === 'string') {
-      if (test(current)) return item.path;
-      continue;
-    }
-    if (Array.isArray(current)) {
-      for (let index = current.length - 1; index >= 0; index -= 1) {
-        stack.push({
-          value: current[index],
-          path: item.path === '' ? String(index) : `${item.path}.${index}`,
-        });
-      }
-      continue;
-    }
-    if (current !== null && typeof current === 'object') {
-      const entries = Object.entries(current);
-      for (let index = entries.length - 1; index >= 0; index -= 1) {
-        const entry = entries[index];
-        if (entry === undefined) continue;
-        const [key, child] = entry;
-        const path = item.path === '' ? key : `${item.path}.${key}`;
-        if (test(key)) return path;
-        stack.push({ value: child, path });
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * The dotted path of the first string — a value or an object key — that
- * carries a U+0000, or null when none does. Postgres refuses a NUL in any
- * text or jsonb value (`22021`), so a body that carries one can never be
- * stored; letting it reach the driver turned a client mistake into a
- * text/plain 500.
- */
-export function findNulByte(value: unknown): string | null {
-  return findStringPath(value, (text) => text.includes('\0'));
-}
-
-/**
  * A parsed body that carries a value Postgres cannot store reads as
  * `INVALID_JSON`, with the offending path recorded for `invalidBodyResponse`
  * to name. Two cases, both refused the same field-named way: a NUL character
@@ -606,24 +554,10 @@ export function findNulByte(value: unknown): string | null {
  * no signal (2026-09-14 evaluation, g7-6). A NUL is named first.
  */
 function refuseUnstorableText(c: Context<RestEnv>, parsed: unknown): unknown {
-  const nul = findNulByte(parsed);
-  if (nul !== null) {
-    c.set('bodyIssue', {
-      path: nul,
-      message: 'must not contain a NUL character (U+0000)',
-    });
-    return INVALID_JSON;
-  }
-  const surrogate = findStringPath(parsed, (text) => !text.isWellFormed());
-  if (surrogate !== null) {
-    c.set('bodyIssue', {
-      path: surrogate,
-      message:
-        'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored',
-    });
-    return INVALID_JSON;
-  }
-  return parsed;
+  const issue = findUnstorableText(parsed);
+  if (issue === null) return parsed;
+  c.set('bodyIssue', issue);
+  return INVALID_JSON;
 }
 
 /**
@@ -697,6 +631,20 @@ function describeQuantity(origin: string | undefined, count: unknown): string {
 
 function quoteValue(value: unknown): string {
   return typeof value === 'string' ? `"${value}"` : String(value);
+}
+
+/** The quoted values a discriminated union's tag may take, when `issue` is
+ * that union refusing a tag none of its shapes names; otherwise null. */
+function discriminatorValues(issue: z.core.$ZodRawIssue): string[] | null {
+  if (!('discriminator' in issue) || typeof issue.discriminator !== 'string')
+    return null;
+  const internals = issue.inst?._zod;
+  const values =
+    internals !== undefined && 'propValues' in internals
+      ? internals.propValues?.[issue.discriminator]
+      : undefined;
+  if (values === undefined) return null;
+  return [...values].map(quoteValue);
 }
 
 /**
@@ -773,10 +721,18 @@ export function houseIssueMessage(
       }
     case 'not_multiple_of':
       return `must be a multiple of ${String(issue.divisor)}`;
-    case 'invalid_union':
-      return issue.input === undefined
-        ? 'is required'
-        : 'does not match any accepted shape';
+    case 'invalid_union': {
+      if (issue.input === undefined) return 'is required';
+      // A tagged union whose tag names no shape (`{kind: "hourly"}`): say
+      // which tags it takes, as a closed set's refusal does.
+      const tags = discriminatorValues(issue);
+      if (tags !== null && tags.length > 0) {
+        return tags.length === 1
+          ? `must be ${tags[0]}`
+          : `must be one of ${tags.join(', ')}`;
+      }
+      return 'does not match any accepted shape';
+    }
     default:
       // `unrecognized_keys` is spelled out per key by `schemaIssues`; a
       // `custom` refinement carries its own sentence.
@@ -878,8 +834,14 @@ export function invalidBodyResponse(
  * The developer capability gate — authoring a trigger, starting a LIVE run,
  * cancelling a run (the same rule the session surface applies).
  */
+/** Whether the key holder's role carries the developer capability — what
+ * a live run needs (`capabilities.developer` on `/me`). */
+export function hasDeveloperCapability(c: Context<RestEnv>): boolean {
+  return defineAbilityFor(c.get('role')).can('read', 'developerSettings');
+}
+
 export function requireDeveloper(c: Context<RestEnv>): void {
-  if (defineAbilityFor(c.get('role')).cannot('read', 'developerSettings')) {
+  if (!hasDeveloperCapability(c)) {
     throw new RestRefusal(
       `Role "${c.get('role')}" lacks the developer capability required here.`,
       403,
@@ -1211,6 +1173,26 @@ export function readKeysetCursor(
   const position = verifyCursor(c, list, raw);
   return (
     (position === null ? null : parseKeysetCursor(position)) ??
+    invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE, [CURSOR_ISSUE])
+  );
+}
+
+/**
+ * The `cursor` query of a list whose position is a token of its own (a
+ * run's units, `item:pass`): null for the first page, the position the
+ * list signed, or the 400 for anything else — the same posture as
+ * `readKeysetCursor`. The list's own reader still refuses a position it
+ * cannot read.
+ */
+export function readSignedCursor(
+  c: Context<RestEnv>,
+  list: string,
+): string | null | Response {
+  const raw = c.req.query('cursor');
+  if (raw === undefined) return null;
+  if (raw.trim() === '') return blankParameterResponse(c, 'cursor');
+  return (
+    verifyCursor(c, list, raw) ??
     invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE, [CURSOR_ISSUE])
   );
 }

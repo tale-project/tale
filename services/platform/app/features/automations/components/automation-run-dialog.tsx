@@ -1,17 +1,23 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { CodeEditor } from '@tale/ui/code-editor';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Field } from '@tale/ui/field';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { SchemaTree, schemaKindLabel } from '@tale/ui/schema-tree';
 import { Text } from '@tale/ui/text';
-import { Textarea } from '@tale/ui/textarea';
 import { useId, useMemo, useState } from 'react';
-import { z } from 'zod';
 
 import { useT } from '@/lib/i18n/client';
 
+import {
+  parseJsonText,
+  useJsonInputDraft,
+} from '../hooks/use-json-input-draft';
 import { guidedIssueSource } from '../lib/issue-import';
+import { runInputProviders } from '../lib/run-input-completion';
 import {
   IssueImportFields,
   type IssueImportProject,
@@ -47,6 +53,8 @@ export function AutomationRunDialog({
   onConfirm: (input: unknown) => void;
 }) {
   const { t } = useT('automations');
+  const { t: tSchema } = useT('schemaTree');
+  const { locale } = useLocale();
   const inputId = useId();
   const [text, setText] = useState(() =>
     JSON.stringify(request.initialInput ?? {}, null, 2),
@@ -58,45 +66,45 @@ export function AutomationRunDialog({
     ...(source === 'glitchtip' && { query: 'is:unresolved' }),
     ...request.initialInput,
   }));
-  const schema = useMemo(() => {
-    if (request.schema === undefined) return null;
-    try {
-      // Ajv compiles with new Function, forbidden by the production CSP.
-      // Zod is already used by the app and supports CSP-safe validation.
-      return z.fromJSONSchema(request.schema);
-    } catch {
-      // Author schemas may use keywords the client converter cannot handle.
-      // Do not reject a server-valid schema merely for that reason: the
-      // start endpoint validates the original input with the engine's Ajv.
-      return null;
-    }
-  }, [request.schema]);
+  const { check } = useJsonInputDraft(request.schema);
+  // The fields the schema declares, offered where a key of the input is
+  // typed, each with its kind.
+  const providers = useMemo(
+    () =>
+      runInputProviders(request.schema, (field) =>
+        schemaKindLabel(tSchema, field, locale),
+      ),
+    [request.schema, tSchema, locale],
+  );
   const parsed = useMemo(() => {
-    let input: unknown;
-    try {
-      input = source === null ? JSON.parse(text) : values;
-    } catch {
-      return { valid: false as const, error: t('detail.runInput.invalidJson') };
+    let input: unknown = values;
+    if (source === null) {
+      const read = parseJsonText(text);
+      if (!read.ok) {
+        // The editor marks where the text stops being JSON; this line says
+        // nothing can start until it is.
+        return {
+          valid: false as const,
+          error: t('detail.runInput.invalidJson'),
+        };
+      }
+      input = read.value;
     }
-    const checked = schema?.safeParse(input);
-    if (checked && !checked.success) {
-      const paths = [
-        ...new Set(
-          checked.error.issues.map((issue) =>
-            issue.path.length === 0 ? '$' : issue.path.join('.'),
-          ),
-        ),
-      ]
-        .slice(0, 20)
-        .join(', ');
+    const checked = check(input);
+    if (!checked.valid) {
       return {
         valid: false as const,
-        error: t('detail.runInput.invalid', { paths }),
+        error: t('detail.runInput.invalid', {
+          paths: checked.paths.join(', '),
+        }),
       };
     }
     // Send the original JSON, not a converter's transformed/stripped value.
-    return { valid: true as const, input };
-  }, [schema, text, source, values, t]);
+    return { valid: true as const, input: checked.input };
+  }, [check, text, source, values, t]);
+
+  const confirmText =
+    request.mode === 'live' ? t('detail.runLive') : t('detail.runMock');
 
   return (
     <ConfirmDialog
@@ -110,9 +118,7 @@ export function AutomationRunDialog({
           ? t('detail.runLiveBody')
           : t('detail.runInput.mockDescription')
       }
-      confirmText={
-        request.mode === 'live' ? t('detail.runLive') : t('detail.runMock')
-      }
+      confirmText={confirmText}
       disableConfirm={!parsed.valid}
       isLoading={pending}
       onConfirm={() => {
@@ -147,7 +153,10 @@ export function AutomationRunDialog({
           )}
         </>
       ) : (
-        request.schema !== undefined && (
+        // The input is typed when the version declares one, or when the
+        // caller hands a sample to edit (a trigger's Run now).
+        (request.schema !== undefined ||
+          request.initialInput !== undefined) && (
           <div className="mt-4 space-y-3">
             <Field
               label={t('detail.runInput.label')}
@@ -157,20 +166,33 @@ export function AutomationRunDialog({
               })}
               error={parsed.valid ? undefined : parsed.error}
             >
-              <Textarea
+              <CodeEditor
                 id={inputId}
-                rows={6}
-                className="font-mono text-xs"
+                language="json"
                 value={text}
-                onChange={(event) => setText(event.target.value)}
-                spellCheck={false}
+                onChange={setText}
+                minRows={6}
+                maxRows={14}
+                providers={providers}
+                // Mod-Enter starts the run, as the dialog's button does —
+                // once the input is one the run takes.
+                onSubmit={() => {
+                  if (parsed.valid && !pending) onConfirm(parsed.input);
+                }}
+                submitLabel={confirmText}
+                describeDiagnostics={false}
               />
             </Field>
-            <CollapsibleDetails summary={t('detail.runInput.schema')}>
-              <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
-                {JSON.stringify(request.schema, null, 2)}
-              </pre>
-            </CollapsibleDetails>
+            {request.schema !== undefined && (
+              <CollapsibleDetails summary={t('detail.runInput.schema')}>
+                <SchemaTree
+                  schema={request.schema}
+                  density="comfortable"
+                  aria-label={t('detail.runInput.schema')}
+                  className="mt-2"
+                />
+              </CollapsibleDetails>
+            )}
           </div>
         )
       )}
