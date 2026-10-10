@@ -11,6 +11,28 @@
 export const FLOW_NODE_DASHED =
   'border-dashed border-[color:var(--flow-node-dashed)]';
 
+/**
+ * A box's frame when two versions are compared: 2 px in the change's
+ * colour (`--diff-*`, 3:1 and more on the card in both themes). Every box
+ * is border-box, so the wider frame never changes its size. A rename is a
+ * change.
+ */
+export const FLOW_DIFF_FRAME = {
+  added: 'border-2 border-diff-added',
+  removed: 'border-2 border-diff-removed',
+  changed: 'border-2 border-diff-changed',
+  renamed: 'border-2 border-diff-changed',
+} as const;
+
+/** The surface of a removed box: faint stripes (`--diff-removed-hatch`,
+ *  under 8 % alpha, so its words keep 4.5:1) that drop in forced colours. */
+export const FLOW_DIFF_HATCH =
+  'bg-[repeating-linear-gradient(135deg,var(--diff-removed-hatch)_0_6px,transparent_6px_12px)]';
+
+/** A change's badge on a box fades in; reduced motion shows it at once. */
+export const FLOW_DIFF_BADGE_MOTION =
+  'animate-in fade-in duration-[var(--duration-short)] ease-[var(--ease-out-quint)] motion-reduce:animate-none';
+
 /** The icon tile at the head of a box. Start and End take the accent pair
  *  (`accent-base` / `accent-fg`): the chart's two anchors, the same token in
  *  both themes. */

@@ -10,6 +10,15 @@ import type { FlowGraph } from './types';
  * tests should run it over every graph they build.
  */
 export function validateFlowGraph(graph: FlowGraph): void {
+  const problems = flowGraphProblems(graph);
+  if (problems.length > 0) {
+    throw new Error(`Invalid flow graph:\n  ${problems.join('\n  ')}`);
+  }
+}
+
+/** What {@link validateFlowGraph} would refuse, one sentence each; empty
+ *  for a graph the canvas can draw. */
+export function flowGraphProblems(graph: FlowGraph): string[] {
   const problems: string[] = [];
   const kinds = new Map<string, string>();
   for (const node of graph.nodes) {
@@ -95,7 +104,5 @@ export function validateFlowGraph(graph: FlowGraph): void {
       }
     }
   }
-  if (problems.length > 0) {
-    throw new Error(`Invalid flow graph:\n  ${problems.join('\n  ')}`);
-  }
+  return problems;
 }

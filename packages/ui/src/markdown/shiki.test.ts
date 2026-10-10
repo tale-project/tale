@@ -3,10 +3,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { CODE_LANGUAGES, codeRoleOfColor } from '../lib/code-roles';
 import {
   highlightCode,
+  peekCodeTokens,
   peekHighlightedCode,
   resolveLanguage,
   resolveShikiTheme,
   shikiLanguageFor,
+  tokenizeCode,
 } from './shiki';
 
 /** The text of every `<span style="color:var(--code-…)">` with its role. */
@@ -115,6 +117,42 @@ describe('remembered highlights', () => {
     const code = 'x'.repeat(70_000);
     expect(await highlightCode(code, 'text')).toBeNull();
     expect(peekHighlightedCode(code, 'text')).toBeNull();
+  });
+});
+
+describe('tokenizeCode', () => {
+  // A diff tokenizes each whole text once and shows the tokens line by
+  // line: a line inside a YAML block scalar is only a string in its whole
+  // document.
+  it('answers each line’s runs in the --code-* colours', async () => {
+    const yaml = 'prompt: |\n  Say hello\n  to the user\ncount: 3\n';
+    const lines = await tokenizeCode(yaml, 'yaml');
+    expect(lines).not.toBeNull();
+    expect(
+      lines?.map((line) => line.map((token) => token.content).join('')),
+    ).toEqual(['prompt: |', '  Say hello', '  to the user', 'count: 3', '']);
+    const role = (line: number, text: string) =>
+      codeRoleOfColor(
+        lines?.[line]?.find((token) => token.content.trim() === text)?.color,
+      );
+    expect(role(1, 'Say hello')).toBe('string');
+    expect(role(3, '3')).toBe('constant');
+    for (const line of lines ?? [])
+      for (const token of line)
+        expect(token.color ?? 'var(--code-foreground)').toMatch(
+          /^var\(--code-/,
+        );
+  });
+
+  it('remembers a text it tokenized, per language, and nothing too large', async () => {
+    const code = 'const tokens = "remembered";';
+    expect(peekCodeTokens(code, 'ts')).toBeNull();
+    const first = await tokenizeCode(code, 'ts');
+    expect(peekCodeTokens(code, 'typescript')).toBe(first);
+    expect(peekCodeTokens(code, 'js')).toBeNull();
+    const big = 'x'.repeat(70_000);
+    expect(await tokenizeCode(big, 'text')).toBeNull();
+    expect(peekCodeTokens(big, 'text')).toBeNull();
   });
 });
 

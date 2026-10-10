@@ -248,7 +248,17 @@ function compareObjects(
       state.notChecked += 1;
       continue;
     }
-    compare(before[key], after[key], [...path, key], depth + 1, state);
+    // Only the members an object holds are its data: one named like a
+    // member every object inherits (`constructor`, or `__proto__`, which
+    // JSON.parse keeps as a member) is missing where the object does not
+    // hold it, never the inherited one.
+    compare(
+      Object.hasOwn(before, key) ? before[key] : undefined,
+      Object.hasOwn(after, key) ? after[key] : undefined,
+      [...path, key],
+      depth + 1,
+      state,
+    );
   }
 }
 

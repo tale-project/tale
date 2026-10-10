@@ -52,6 +52,7 @@ import {
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import type { AutomationWriteVia } from '../../../lib/shared/schemas/automation-versions.ts';
 import { localDateIn } from '../../../lib/shared/zoned-time.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
@@ -210,19 +211,11 @@ export function assertAutomationNameCreatable(name: string): string {
 
 // ------------------------------------------------------------- definitions
 
-/** The doors a version can be saved through — `automations.created_via`
- * (0181): the editor, a package upload, a coding agent over MCP, the REST
- * API, managed configuration, the shipped default packs. */
-export const AUTOMATION_WRITE_VIAS = [
-  'app',
-  'upload',
-  'mcp',
-  'rest',
-  'managed',
-  'system',
-] as const;
-
-export type AutomationWriteVia = (typeof AUTOMATION_WRITE_VIAS)[number];
+// The doors a version can be saved through (`automations.created_via`,
+// 0181) are listed once, with the wire's version schemas
+// (`AUTOMATION_WRITE_VIAS`, `lib/shared/schemas/automation-versions.ts`),
+// where the app reads every door's answer with them.
+export type { AutomationWriteVia };
 
 /** Which door a definition write came through, and — for a keyed door —
  * with which key and client. Recorded on the version a save writes. */

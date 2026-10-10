@@ -11,6 +11,11 @@
 
 import { stringifyYaml } from '../../shared/config/yaml';
 import { nodeTypes } from '../core/slots';
+import {
+  MAX_TESTS,
+  SUITE_DEADLINE_MS,
+  TEST_DEADLINE_MS,
+} from '../core/test-limits';
 import type { Automation } from '../core/types';
 
 /** The worked example woven through the docs — executed by the selftest.
@@ -237,7 +242,7 @@ An automation is a node graph. Execution order is computed automatically from da
 - "name": the identity — lowercase slug segments; "/" groups related automations into folders ("billing/dunning-reminder").
 - "inputs": JSON Schema describing the runtime input.
 - "output": the automation's return value (templates allowed inside).
-- "tests": [{name, input, expect: {output?, effects?: [{connector, input}]}}] — acceptance tests run by test_automation.
+- "tests": [{name, description?, input, mocks?, failures?, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?}], nodes?, failure?}}] — acceptance tests run by test_automation (see Testing).
 - "ui": free metadata. Tale lays the canvas out from the references; never write positions — "ui" is kept but ignored.
 
 YAML gotchas (top causes of failure):
@@ -279,6 +284,45 @@ run_automation returns {status, output, trace, effects}:
 - effects: every external call (message/email/llm/…) with its input.
 Compare output and effects to the requirements character by character.
 
+${testingReference()}
+
 ## Authoring loop
-Draft the complete automation, run it with run_automation and a realistic test input, read error + hint + trace when it fails and run again; once the output and effects match the requirements exactly, attach a tests: block, verify with test_automation, then save_automation and deploy_automation.`;
+Draft the complete automation, run it with run_automation and a realistic test input, read error + hint + trace when it fails and run again; once the output and effects match the requirements exactly, attach tests (simulate the outside world with mocks; one test per path — validate_automation's analysis.paths lists them), verify with test_automation, then save_automation and deploy_automation (the deploy gate runs the tests again).`;
+}
+
+/** How tests are written, run and read — the Testing section of the
+ * authoring reference. */
+function testingReference(): string {
+  return `## Testing
+A test is an example the automation must handle: an input, what stands in for the outside world, and what the run must do. test_automation runs the tests against the deterministic mocks — of a document ({automation}) or of a saved version ({name, version?}); save_automation runs them too (its answer's testsPassed), and deploy_automation runs them again and refuses a version whose tests fail. An automation carries at most ${MAX_TESTS} tests; each has ${TEST_DEADLINE_MS / 1000} s, the whole suite ${SUITE_DEADLINE_MS / 1000} s.
+
+\`\`\`yaml
+tests:
+  - name: a pass with nothing waiting skips the model
+    description: what the test is about, for people
+    input: { limit: 25 }
+    mocks:
+      inbox: { conversations: [] }
+    expect:
+      nodes: { triage: skipped }
+      outputIncludes: { read: 0 }
+      effects:
+        - { connector: llm, absent: true }
+  - name: a draft that fails leaves the pass going
+    input: { limit: 1 }
+    failures:
+      propose: the conversation was closed meanwhile
+    expect:
+      nodes: { propose: failed }
+\`\`\`
+
+- mocks: node id → the output that node returns in this test. A mock replaces the node's CALL, not the node: the skip rules (when, elseOf, reading a skipped node) apply as written, the node's input is still resolved — and checked against its connector's schema — and its effect recorded; only the answer is made up. A forEach node's mock is a list: item i returns entry i, and fewer entries than items fail the node. A repeatUntil node returns its mock on every pass. A mocked subautomation node replaces the whole called automation. Mocks and failures name the automation's own nodes, and apply in mock runs only.
+- failures: node id → the error that node fails with instead of calling ("<message> (simulated by the test)"); its onError applies.
+- expect.output: the output equals this exactly. expect.outputIncludes: the output contains this — the keys it lists match, recursively; lists compare item by item and must have the same length; other keys are not checked.
+- expect.effects: each entry must occur — connector, optionally node (a subautomation's inner effects read "<node>/<inner>"), input (equal) or inputIncludes (contained); with absent: true it must not occur.
+- expect.nodes: node id → ran | skipped | failed (failed: it failed and the run went on — onError: continue).
+- expect.failure: {node?, message?} — the run must fail, at that node, with an error that contains that text (any case); it excludes output and outputIncludes. Without it, the run must succeed.
+A test that cannot run — a mock or a failure for a node the automation does not have, both for one node, an input the inputs schema refuses — fails; it is never skipped. validate_automation warns about such tests before they run (the TESTS_* codes).
+
+test_automation answers {passed, failed, results, notRun?}. Each result has name, index, pass, ms, and when it failed message (the first failure, in English) and failures: each with a kind — refused (issues), run_failed (node, failure.reason), run_succeeded, failed_elsewhere, failure_message, output (mode exact | includes, mismatches, total), effect_missing (closest, actual), effect_present, node_state (expected, actual) or timeout. A mismatch names one difference by its pointer and kind: removed (the test expects it, the run lacks it), added (the run has it, an exact expectation does not), changed or type-changed, with both values cut to 200 characters; a failure lists five and counts them all in total. path is the way through the conditions and tolerated failures the run took (analysis.paths lists every way — a test per way covers them); unusedMocks names the stand-ins the run never used: their node was skipped or not reached, or ran over no items. notRun names the tests the suite's time did not reach; they count as failed.`;
 }

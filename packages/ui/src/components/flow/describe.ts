@@ -1,4 +1,5 @@
 import type { IssueCounts } from '../feedback/issue-summary';
+import type { FlowDiffOverlay } from './diff/diff';
 import { flowNodeIssueText } from './node-issue-marker';
 import { FLOW_NODE_STATE } from './node-status';
 import type {
@@ -176,6 +177,7 @@ export function describeFlowGraph(
     issues,
     run,
     compare,
+    diff,
     stoppedAt,
     reasons,
   }: {
@@ -189,6 +191,10 @@ export function describeFlowGraph(
     /** Two runs compared: every node says how it went in each, and whether
      *  they differ. Wins over `run`. */
     compare?: FlowCompareOverlay | null;
+    /** Two versions compared: every node says what became of it — its
+     *  name the change, its strip the host's words. Wins over `compare`
+     *  and `run`. */
+    diff?: FlowDiffOverlay | null;
     /** The node the run stopped at, in focus: without an error line its
      *  strip says the run stopped here. */
     stoppedAt?: string | null;
@@ -216,8 +222,30 @@ export function describeFlowGraph(
       ? null
       : (compare.labels ?? { a: t('compare.a'), b: t('compare.b') });
 
-  /** How `node` went in the run shown, or in each of the two compared. */
+  /** What became of a node between two versions, in words: the change
+   *  for its name, its old name and the host's words for its strip — or,
+   *  for a condition, which has no strip, for its tooltip. */
+  const diffWordsOf = (overlay: FlowDiffOverlay, node: FlowNode): RunWords => {
+    const entry = overlay.nodes[node.id];
+    if (entry === undefined) return NO_RUN_WORDS;
+    const told = [
+      entry.kind === 'renamed' && entry.renamedFrom
+        ? t('diff.wasNamed', { from: entry.renamedFrom })
+        : '',
+      entry.summary ?? '',
+    ].filter((part) => part !== '');
+    return {
+      stateName: t('diff.nodeState', { kind: entry.kind }),
+      strip: told.join(' · '),
+      sentences: told,
+      explanations: node.kind === 'gate' ? told : [],
+    };
+  };
+
+  /** How `node` went in the run shown, or in each of the two compared; or
+   *  what became of it between two versions. */
   const runWordsOf = (node: FlowNode): RunWords => {
+    if (diff !== undefined && diff !== null) return diffWordsOf(diff, node);
     if (compare !== undefined && compare !== null && labels !== null) {
       const entry = compare.nodes[node.id];
       if (entry === undefined) return NO_RUN_WORDS;
@@ -375,8 +403,9 @@ export function describeFlowGraph(
         reads,
         ...conditions(node.id),
         ...decisions(node.id),
-        // The List view has no row for a condition: its problems are said
-        // on the step it guards.
+        // The List view has no row for a condition: its problems, and what
+        // became of it between two versions, are said on the step it
+        // guards.
         ...(guards.get(node.id) ?? []).map((gate) => {
           const gateIssues = flowNodeIssueText(
             tIssues,
@@ -388,6 +417,18 @@ export function describeFlowGraph(
                 label: titleOf(gate),
                 detail: gateIssues,
               });
+        }),
+        ...(guards.get(node.id) ?? []).map((gate) => {
+          const guard = byId.get(gate);
+          const changed = diff?.nodes[gate];
+          if (guard?.kind !== 'gate' || changed === undefined) return null;
+          return t('node.rowWithDetail', {
+            label: t('gate.name', {
+              node: guard.label,
+              condition: guard.condition,
+            }),
+            detail: t('diff.nodeState', { kind: changed.kind }),
+          });
         }),
         leadsTo(node.id),
         node.unreachable ? t('node.unreachable') : null,

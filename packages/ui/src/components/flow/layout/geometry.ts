@@ -195,6 +195,38 @@ export function sampleRoute(
   return out;
 }
 
+/**
+ * The point `fraction` (0–1) of the way along a route, by its length: half
+ * is the route's middle, where a mark on a line sits. A route of one point
+ * answers that point; none answers `null`.
+ */
+export function pointAlongRoute(
+  points: readonly FlowPoint[],
+  fraction: number,
+): FlowPoint | null {
+  const first = points[0];
+  if (first === undefined) return null;
+  let total = 0;
+  for (let index = 1; index < points.length; index++)
+    total += distance(points[index - 1], points[index]);
+  let left = total * Math.min(1, Math.max(0, fraction));
+  for (let index = 1; index < points.length; index++) {
+    const from = points[index - 1];
+    const to = points[index];
+    const run = distance(from, to);
+    if (run > 0 && left <= run) {
+      const ratio = left / run;
+      return {
+        x: from.x + (to.x - from.x) * ratio,
+        y: from.y + (to.y - from.y) * ratio,
+      };
+    }
+    left -= run;
+  }
+  const last = points[points.length - 1];
+  return { x: last.x, y: last.y };
+}
+
 const fmt = (value: number) => String(Math.round(value * 100) / 100);
 
 /**

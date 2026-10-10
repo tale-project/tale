@@ -17,6 +17,10 @@ import type { FlowEdgeKind } from './types';
  *  - `error`    — the way into a step that failed. The only red line.
  *  - `emphasis` — a highlighted or travelled edge.
  *  - `activity` — something moving or running right now.
+ *  - `added` / `removed` — comparing two versions: a line only the newer
+ *                 or only the older one draws (`--diff-added`,
+ *                 `--diff-removed`). Every other line is `flow` then, the
+ *                 branches too, so no hue reads as a change it is not.
  *
  * Shape carries the rest: an `order` edge is dashed, a `completion` edge
  * dotted, so colour keeps its one meaning and never speaks alone. All values
@@ -30,6 +34,8 @@ export const FLOW_EDGE_COLORS = {
   error: 'hsl(var(--destructive))',
   emphasis: 'hsl(var(--foreground))',
   activity: 'hsl(var(--info-foreground))',
+  added: 'var(--diff-added)',
+  removed: 'var(--diff-removed)',
 } as const;
 
 export type FlowEdgeTone = keyof typeof FLOW_EDGE_COLORS;
@@ -42,6 +48,8 @@ export const FLOW_EDGE_TONES: readonly FlowEdgeTone[] = [
   'error',
   'emphasis',
   'activity',
+  'added',
+  'removed',
 ];
 
 /** One stroke width for every edge at rest. */

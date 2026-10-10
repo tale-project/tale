@@ -53,6 +53,7 @@ export const STEP_FAILURE_REASONS = [
   'APPROVAL_REJECTED',
   'EXECUTION_LIMIT',
   'EFFECT_IN_DOUBT_FAILED',
+  'SIMULATED_FAILURE',
   'UNKNOWN',
 ] as const;
 
@@ -118,6 +119,9 @@ export const STEP_FAILURE_META: Readonly<
   APPROVAL_REJECTED: NONE,
   EXECUTION_LIMIT: { params: ['limit'] },
   EFFECT_IN_DOUBT_FAILED: NONE,
+  // The message the test gives the failure, in its author's words; absent
+  // when the test gave none, or when it looked like a credential.
+  SIMULATED_FAILURE: { params: [], optional: ['message'] },
   // The error's own text, from whatever raised it.
   UNKNOWN: { params: [], technical: ['detail'] },
 };

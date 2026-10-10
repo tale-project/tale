@@ -6,12 +6,13 @@ import { memo, type ReactNode } from 'react';
 
 import { useT } from '../../../i18n/client';
 import { cn } from '../../../lib/cn';
+import { ChangeKindBadge } from '../../data-display/change-list';
 import { ISSUE_SEVERITY_CHIP_CLASS } from '../../feedback/issue-severity';
 import { SKELETON_PULSE } from '../../feedback/skeleton';
 import { FlowNodeIssueMarker } from '../node-issue-marker';
 import { FlowNodeStatusIcon } from '../node-status';
 import type { FlowChip, FlowIcon, FlowStepNode } from '../types';
-import { FLOW_ICON_TILE } from './chrome';
+import { FLOW_DIFF_BADGE_MOTION, FLOW_ICON_TILE } from './chrome';
 import {
   FlowNodeButton,
   FlowNodeStrip,
@@ -51,7 +52,9 @@ function FlowChipPill({ chip }: { chip: FlowChip }) {
 
 /** The title row every box shares: icon tile, title, glyphs, problems and,
  *  in a run, the state's glyph — or, where two runs compared differ, the
- *  "Differs" glyph. Start and End (`terminal`) wear the accent tile. */
+ *  "Differs" glyph; or, two versions compared, the change's badge (a
+ *  removed box's title struck through). Start and End (`terminal`) wear
+ *  the accent tile. */
 export function FlowNodeTitleRow({
   id,
   icon: Icon,
@@ -81,7 +84,12 @@ export function FlowNodeTitleRow({
       >
         <Icon className="size-3.5" />
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm leading-5 font-medium">
+      <span
+        className={cn(
+          'min-w-0 flex-1 truncate text-sm leading-5 font-medium',
+          look?.diff === 'removed' && 'line-through decoration-2',
+        )}
+      >
         {title}
       </span>
       <span className="flex shrink-0 items-center gap-1">
@@ -102,6 +110,12 @@ export function FlowNodeTitleRow({
           </span>
         )}
         <FlowNodeStatusIcon state={state} className="size-3.5" />
+        {look?.diff !== undefined && (
+          <ChangeKindBadge
+            kind={look.diff}
+            className={FLOW_DIFF_BADGE_MOTION}
+          />
+        )}
       </span>
     </span>
   );
