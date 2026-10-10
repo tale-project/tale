@@ -21,17 +21,23 @@ nodes:
       labels: [support]
 ```
 
-| Input         | What it holds                                                                                                                  |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `projectId`   | The project the task goes to. The automation must be installed in it, and a run started in a project creates tasks only there. |
-| `title`       | The task's title. One over 200 characters is cut, ending in "…".                                                               |
-| `description` | The task's description, in Markdown.                                                                                           |
-| `assignee`    | A member's email or user id, or an agent of the project by its name or handle.                                                 |
-| `status`      | `backlog`, the default, `todo` or `in_progress`. An agent's task created at `in_progress` starts its run.                      |
-| `dueDate`     | A date such as `2026-10-17`, or an ISO date and time. A date alone falls on that day in nearly every time zone.                |
-| `labels`      | Label names. The project's catalog gains those it doesn't have yet.                                                            |
+| Input         | What it holds                                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`   | The project the task goes to. The automation must be installed in it, and a run started in a project creates tasks only there.                             |
+| `title`       | The task's title. One over 200 characters is cut, ending in "…".                                                                                           |
+| `description` | The task's description, in Markdown.                                                                                                                       |
+| `assignee`    | A member's email or user id, or an agent of the project by its name or handle.                                                                             |
+| `status`      | `backlog`, the default, `todo` or `in_progress`. An agent's task created at `in_progress` starts its run.                                                  |
+| `dueDate`     | A date such as `2026-10-17`, or an ISO date and time. A date alone falls on that day in nearly every time zone.                                            |
+| `labels`      | Label names. The project's catalog gains those it doesn't have yet when the person who started the run may edit the project, or when a trigger started it. |
 
 The step returns `{ taskId, number, title, url }`; `url` opens the task in Tale.
+
+<Frame caption="A live run in Customer onboarding portal: the step read the email's sender and subject from the run's input, and created the task.">
+
+![The page of a succeeded live run of Follow up on support emails with the Ticket step selected, a Tasks · Create task step. Its Last run tab says it ran task.create and read from, subject and projectId from the run input; under Received are the task's title, a list of 1 label and the status todo. Below the canvas the run lists 1 effect.](/images/platform/automation-task-create-run.webp)
+
+</Frame>
 
 ## One task each time the step runs
 

@@ -21,17 +21,23 @@ nodes:
       labels: [support]
 ```
 
-| Eingabe       | Was sie enthält                                                                                                                                                         |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`   | Das Projekt, in das die Aufgabe kommt. Die Automatisierung muss darin installiert sein, und ein Lauf, der in einem Projekt gestartet wurde, erstellt Aufgaben nur dort. |
-| `title`       | Der Titel der Aufgabe. Einer mit mehr als 200 Zeichen wird gekürzt und endet mit „…“.                                                                                   |
-| `description` | Die Beschreibung der Aufgabe, in Markdown.                                                                                                                              |
-| `assignee`    | Die E-Mail-Adresse oder Benutzer-ID eines Mitglieds oder ein Agent des Projekts mit seinem Namen oder Handle.                                                           |
-| `status`      | `backlog`, der Standard, `todo` oder `in_progress`. Eine Aufgabe eines Agenten, die mit `in_progress` erstellt wird, startet seinen Lauf.                               |
-| `dueDate`     | Ein Datum wie `2026-10-17` oder ein ISO-Datum mit Uhrzeit. Ein Datum allein fällt in fast jeder Zeitzone auf diesen Tag.                                                |
-| `labels`      | Namen von Labels. Der Katalog des Projekts erhält die, die er noch nicht hat.                                                                                           |
+| Eingabe       | Was sie enthält                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `projectId`   | Das Projekt, in das die Aufgabe kommt. Die Automatisierung muss darin installiert sein, und ein Lauf, der in einem Projekt gestartet wurde, erstellt Aufgaben nur dort.                    |
+| `title`       | Der Titel der Aufgabe. Einer mit mehr als 200 Zeichen wird gekürzt und endet mit „…“.                                                                                                      |
+| `description` | Die Beschreibung der Aufgabe, in Markdown.                                                                                                                                                 |
+| `assignee`    | Die E-Mail-Adresse oder Benutzer-ID eines Mitglieds oder ein Agent des Projekts mit seinem Namen oder Handle.                                                                              |
+| `status`      | `backlog`, der Standard, `todo` oder `in_progress`. Eine Aufgabe eines Agenten, die mit `in_progress` erstellt wird, startet seinen Lauf.                                                  |
+| `dueDate`     | Ein Datum wie `2026-10-17` oder ein ISO-Datum mit Uhrzeit. Ein Datum allein fällt in fast jeder Zeitzone auf diesen Tag.                                                                   |
+| `labels`      | Namen von Labels. Der Katalog des Projekts erhält die, die er noch nicht hat, wenn die Person, die den Lauf gestartet hat, das Projekt bearbeiten darf oder ein Trigger ihn gestartet hat. |
 
 Der Schritt gibt `{ taskId, number, title, url }` zurück; `url` öffnet die Aufgabe in Tale.
+
+<Frame caption="Ein Live-Lauf in Customer onboarding portal: Der Schritt hat Absender und Betreff der E-Mail aus der Laufeingabe gelesen und die Aufgabe erstellt.">
+
+![Die Seite eines erfolgreichen Live-Laufs von Follow up on support emails mit ausgewähltem Schritt Ticket, einem Schritt Tasks · Create task. Sein Tab Last run sagt, dass er task.create ausgeführt und from, subject und projectId aus der Laufeingabe gelesen hat; unter Received stehen der Titel der Aufgabe, eine Liste mit 1 Label und der Status todo. Unter dem Canvas listet der Lauf 1 effect.](/images/platform/automation-task-create-run.webp)
+
+</Frame>
 
 ## Eine Aufgabe pro Ausführung des Schritts
 

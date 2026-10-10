@@ -21,17 +21,23 @@ nodes:
       labels: [support]
 ```
 
-| Entrée        | Ce qu’elle contient                                                                                                                            |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`   | Le projet où va la tâche. L’automatisation doit y être installée, et une exécution lancée dans un projet ne crée des tâches que dans celui-ci. |
-| `title`       | Le titre de la tâche. Un titre de plus de 200 caractères est coupé et se termine par « … ».                                                    |
-| `description` | La description de la tâche, en Markdown.                                                                                                       |
-| `assignee`    | L’e-mail ou l’identifiant d’un membre, ou un agent du projet par son nom ou son identifiant de mention.                                        |
-| `status`      | `backlog`, par défaut, `todo` ou `in_progress`. La tâche d’un agent créée à `in_progress` lance son exécution.                                 |
-| `dueDate`     | Une date comme `2026-10-17`, ou une date et une heure ISO. Une date seule tombe ce jour-là dans presque tous les fuseaux horaires.             |
-| `labels`      | Des noms de libellés. Le catalogue du projet reçoit ceux qu’il n’a pas encore.                                                                 |
+| Entrée        | Ce qu’elle contient                                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `projectId`   | Le projet où va la tâche. L’automatisation doit y être installée, et une exécution lancée dans un projet ne crée des tâches que dans celui-ci.                                       |
+| `title`       | Le titre de la tâche. Un titre de plus de 200 caractères est coupé et se termine par « … ».                                                                                          |
+| `description` | La description de la tâche, en Markdown.                                                                                                                                             |
+| `assignee`    | L’e-mail ou l’identifiant d’un membre, ou un agent du projet par son nom ou son identifiant de mention.                                                                              |
+| `status`      | `backlog`, par défaut, `todo` ou `in_progress`. La tâche d’un agent créée à `in_progress` lance son exécution.                                                                       |
+| `dueDate`     | Une date comme `2026-10-17`, ou une date et une heure ISO. Une date seule tombe ce jour-là dans presque tous les fuseaux horaires.                                                   |
+| `labels`      | Des noms de libellés. Le catalogue du projet reçoit ceux qu’il n’a pas encore quand la personne qui a lancé l’exécution peut modifier le projet, ou quand un déclencheur l’a lancée. |
 
 L’étape renvoie `{ taskId, number, title, url }` ; `url` ouvre la tâche dans Tale.
+
+<Frame caption="Une exécution en direct dans Customer onboarding portal : l’étape a lu l’expéditeur et l’objet de l’e-mail dans l’entrée de l’exécution, et a créé la tâche.">
+
+![La page d’une exécution réussie en direct de Follow up on support emails, avec l’étape Ticket sélectionnée, une étape Tasks · Create task. Son onglet Last run indique qu’elle a exécuté task.create et lu from, subject et projectId dans l’entrée de l’exécution ; sous Received figurent le titre de la tâche, une liste de 1 libellé et le statut todo. Sous le canevas, l’exécution liste 1 effect.](/images/platform/automation-task-create-run.webp)
+
+</Frame>
 
 ## Une tâche à chaque exécution de l’étape
 
