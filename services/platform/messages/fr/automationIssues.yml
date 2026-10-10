@@ -371,8 +371,8 @@ codes:
   TESTS_EXPECT_PATH_IMPOSSIBLE:
     title: Attend un chemin impossible
     explanation: 'Aucune exécution de cette automatisation ne fait ce que le test attend de ses nœuds : il ne peut donc jamais réussir.'
-    cause: '{reason, select, neverTogether {{aLabel} et {bLabel} ne s’exécutent jamais dans la même exécution.} cannotFail {{nodeLabel} arrête l’exécution quand il échoue.} alwaysRuns {{nodeLabel} s’exécute sur chaque chemin.} other {{nodeLabel} ne peut jamais s’exécuter.}}'
-    fix: Modifie ce que le test attend, ou les conditions de l’automatisation.
+    cause: '{via, select, none {{reason, select, neverTogether {{aLabel} et {bLabel} ne s’exécutent jamais dans la même exécution.} cannotFail {{nodeLabel} arrête l’exécution quand il échoue.} alwaysRuns {{nodeLabel} s’exécute sur chaque chemin.} other {{nodeLabel} ne peut jamais s’exécuter.}}} other {{reason, select, neverTogether {Avec l’échec que le test simule pour {viaLabel}, {aLabel} et {bLabel} ne s’exécutent jamais dans la même exécution.} alwaysRuns {Avec l’échec que le test simule pour {viaLabel}, {nodeLabel} s’exécute sur chaque chemin.} other {Avec l’échec que le test simule pour {viaLabel}, {nodeLabel} ne peut jamais s’exécuter.}}}}'
+    fix: '{via, select, none {Modifie ce que le test attend, ou les conditions de l’automatisation.} other {Modifie ce que le test attend, ou l’échec qu’il simule.}}'
   TESTS_EXPECT_FAILURE_IMPOSSIBLE:
     title: Attend un échec qui n’arrête pas l’exécution
     explanation: Le test attend que l’exécution échoue à un nœud qui ne l’arrête jamais.

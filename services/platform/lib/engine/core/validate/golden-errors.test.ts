@@ -929,6 +929,33 @@ const fixtures: Record<string, unknown> = {
       },
     ],
   }),
+  // The automation runs the node, but never while the failure the test
+  // simulates for the node it reads holds.
+  'tests-expect-path-impossible-simulated': flow({
+    nodes: [
+      {
+        id: 'ping',
+        type: 'mail.send',
+        input: { to: 'a@b.test' },
+        onError: 'continue',
+      },
+      {
+        id: 'after',
+        type: 'transform',
+        input: { id: '{{ nodes.ping.output.id }}' },
+        code: 'return input.id;',
+      },
+    ],
+    output: '{{ nodes.after.output ?? "no mail" }}',
+    tests: [
+      {
+        name: 'reads the mail',
+        input: {},
+        failures: { ping: 'down' },
+        expect: { nodes: { after: 'ran' } },
+      },
+    ],
+  }),
   'tests-expect-failure-impossible': flow({
     nodes: [
       { id: 'main', type: 'transform', code: 'return 1;', onError: 'continue' },

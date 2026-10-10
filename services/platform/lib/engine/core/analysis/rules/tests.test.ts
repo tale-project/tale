@@ -717,6 +717,73 @@ describe('TESTS_EXPECT_PATH_IMPOSSIBLE', () => {
     ).toEqual([]);
   });
 
+  it('a node expected to fail and go on, whose simulated failure stops the run', async () => {
+    const [issue] = await judged(
+      { summary: 'failed' },
+      { failures: { summary: 'the service is down' } },
+    );
+    expect(issue).toMatchObject({
+      at: { pointer: '/tests/0/expect/nodes/summary' },
+      params: { reason: 'cannot-fail', node: 'summary' },
+    });
+  });
+
+  it('names the simulated failure that rules out what the test expects', async () => {
+    const nodes: NodeDef[] = [
+      { ...send, id: 'ping', onError: 'continue' },
+      {
+        id: 'after',
+        type: 'transform',
+        input: { id: '{{ nodes.ping.output.id }}' },
+        code: 'return input.id;',
+      },
+    ];
+    const found = await issues(
+      doc(nodes, [
+        {
+          name: 'reads the mail',
+          input: {},
+          failures: { ping: 'down' },
+          expect: { nodes: { after: 'ran' } },
+        },
+        {
+          name: 'sends the mail',
+          input: {},
+          failures: { ping: 'down' },
+          expect: { nodes: { ping: 'ran' } },
+        },
+      ]),
+      'TESTS_EXPECT_PATH_IMPOSSIBLE',
+    );
+    // Both nodes run on some path of the automation: it is the test's own
+    // simulated failure that rules each expectation out.
+    expect(found.map((i) => [i.params, i.hint])).toEqual([
+      [
+        {
+          test: 0,
+          name: 'reads the mail',
+          reason: 'never-runs',
+          node: 'after',
+          via: 'ping',
+        },
+        '"after" can never run — the test simulates a failure of "ping"',
+      ],
+      [
+        {
+          test: 1,
+          name: 'sends the mail',
+          reason: 'never-runs',
+          node: 'ping',
+          via: 'ping',
+        },
+        '"ping" can never run — the test simulates a failure of "ping"',
+      ],
+    ]);
+    expect(found[0]?.message).toBe(
+      'tests[0] "reads the mail" expects "after" to run, which no run of this automation does while "ping" fails',
+    );
+  });
+
   it('is silent for a run that must fail, or that a simulated failure stops', async () => {
     expect(
       await judged(

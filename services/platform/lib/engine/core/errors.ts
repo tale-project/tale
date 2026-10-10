@@ -527,11 +527,13 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['test', 'name', 'node', 'suggestion?'],
   },
   // `reason`: never-together (`a` and `b` never both run), cannot-fail,
-  // always-runs or never-runs (each about `node`).
+  // always-runs or never-runs (each about `node`); `via`: the node whose
+  // simulated failure rules the states out, where the automation without
+  // the test's failures would give them.
   TESTS_EXPECT_PATH_IMPOSSIBLE: {
     level: 'warning',
     family: 'test',
-    params: ['test', 'name', 'reason', 'node?', 'a?', 'b?'],
+    params: ['test', 'name', 'reason', 'node?', 'a?', 'b?', 'via?'],
   },
   // `cause`: continues (the node has onError: continue) or unreachable.
   TESTS_EXPECT_FAILURE_IMPOSSIBLE: {

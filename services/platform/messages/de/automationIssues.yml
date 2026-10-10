@@ -371,8 +371,8 @@ codes:
   TESTS_EXPECT_PATH_IMPOSSIBLE:
     title: Erwartet einen Pfad, den es nicht gibt
     explanation: Kein Lauf dieser Automatisierung macht, was der Test von ihren Nodes erwartet, deshalb kann er nie bestehen.
-    cause: '{reason, select, neverTogether {{aLabel} und {bLabel} laufen nie im selben Lauf.} cannotFail {{nodeLabel} stoppt den Lauf, wenn sie fehlschlägt.} alwaysRuns {{nodeLabel} läuft auf jedem Pfad.} other {{nodeLabel} kann nie laufen.}}'
-    fix: Ändere, was der Test erwartet, oder die Bedingungen der Automatisierung.
+    cause: '{via, select, none {{reason, select, neverTogether {{aLabel} und {bLabel} laufen nie im selben Lauf.} cannotFail {{nodeLabel} stoppt den Lauf, wenn sie fehlschlägt.} alwaysRuns {{nodeLabel} läuft auf jedem Pfad.} other {{nodeLabel} kann nie laufen.}}} other {{reason, select, neverTogether {Mit dem Fehler, den der Test für {viaLabel} simuliert, laufen {aLabel} und {bLabel} nie im selben Lauf.} alwaysRuns {Mit dem Fehler, den der Test für {viaLabel} simuliert, läuft {nodeLabel} auf jedem Pfad.} other {Mit dem Fehler, den der Test für {viaLabel} simuliert, kann {nodeLabel} nie laufen.}}}}'
+    fix: '{via, select, none {Ändere, was der Test erwartet, oder die Bedingungen der Automatisierung.} other {Ändere, was der Test erwartet, oder den Fehler, den er simuliert.}}'
   TESTS_EXPECT_FAILURE_IMPOSSIBLE:
     title: Erwartet einen Fehler, der den Lauf nicht stoppt
     explanation: Der Test erwartet, dass der Lauf bei einer Node fehlschlägt, die ihn nie stoppt.

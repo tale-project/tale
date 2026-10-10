@@ -327,6 +327,36 @@ describe('issueText — what a person reads', () => {
     });
   });
 
+  it('names the simulated failure that rules out what a test expects', () => {
+    const issue: WireIssue = {
+      level: 'warning',
+      code: 'TESTS_EXPECT_PATH_IMPOSSIBLE',
+      message: '',
+      params: {
+        test: 0,
+        name: 'reads the mail',
+        reason: 'never-runs',
+        node: 'after',
+        via: 'ping',
+      },
+    };
+    expect(issueText(issue, context('en'))).toMatchObject({
+      cause:
+        'With the failure the test simulates for "ping", "after" can never run.',
+      fix: 'Change what the test expects, or the failure it simulates.',
+    });
+    expect(issueText(issue, context('de')).cause).toBe(
+      'Mit dem Fehler, den der Test für „ping“ simuliert, kann „after“ nie laufen.',
+    );
+    expect(issueText(issue, context('fr')).cause).toBe(
+      'Avec l’échec que le test simule pour « ping », « after » ne peut jamais s’exécuter.',
+    );
+    const { via: _via, ...alone } = issue.params ?? {};
+    expect(issueText({ ...issue, params: alone }, context('en')).cause).toBe(
+      '"after" can never run.',
+    );
+  });
+
   it('reads a code this build does not know as words, never as a key', () => {
     const text = issueText(
       {

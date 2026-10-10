@@ -376,8 +376,8 @@ codes:
   TESTS_EXPECT_PATH_IMPOSSIBLE:
     title: Expects a path that can't happen
     explanation: No run of this automation does what the test expects of its nodes, so the test can never pass.
-    cause: '{reason, select, neverTogether {{aLabel} and {bLabel} never run in the same run.} cannotFail {{nodeLabel} stops the run when it fails.} alwaysRuns {{nodeLabel} runs on every path.} other {{nodeLabel} can never run.}}'
-    fix: Change what the test expects, or the conditions of the automation.
+    cause: '{via, select, none {{reason, select, neverTogether {{aLabel} and {bLabel} never run in the same run.} cannotFail {{nodeLabel} stops the run when it fails.} alwaysRuns {{nodeLabel} runs on every path.} other {{nodeLabel} can never run.}}} other {{reason, select, neverTogether {With the failure the test simulates for {viaLabel}, {aLabel} and {bLabel} never run in the same run.} alwaysRuns {With the failure the test simulates for {viaLabel}, {nodeLabel} runs on every path.} other {With the failure the test simulates for {viaLabel}, {nodeLabel} can never run.}}}}'
+    fix: '{via, select, none {Change what the test expects, or the conditions of the automation.} other {Change what the test expects, or the failure it simulates.}}'
   TESTS_EXPECT_FAILURE_IMPOSSIBLE:
     title: Expects a failure that can't stop the run
     explanation: The test expects the run to fail at a node that never stops it.

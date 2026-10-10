@@ -1481,6 +1481,20 @@ tests-expect-path-impossible:
         reason: never-together
         a: big
         b: small
+tests-expect-path-impossible-simulated:
+  errors: []
+  warnings:
+    - code: TESTS_EXPECT_PATH_IMPOSSIBLE
+      message: tests[0] "reads the mail" expects "after" to run, which no run of this automation does while "ping" fails
+      hint: '"after" can never run — the test simulates a failure of "ping"'
+      at:
+        pointer: /tests/0/expect/nodes/after
+      params:
+        test: 0
+        name: reads the mail
+        reason: never-runs
+        node: after
+        via: ping
 tests-expect-failure-impossible:
   errors: []
   warnings:

@@ -436,37 +436,32 @@ function inState(
   return outcome === 'when' || outcome === 'else' || outcome === 'upstream';
 }
 
-/** Why no run gives the nodes the states a test expects; null when one
- * does, or when no reason words the conflict. */
-function impossiblePath(
-  cx: RuleContext,
+type Expected = ReadonlyArray<readonly [string, ExpectedNodeState]>;
+
+/** Whether some path among `paths` gives the nodes these states. */
+function holdsOn(
   flow: FlowFacts,
-  expected: ReadonlyArray<readonly [string, ExpectedNodeState]>,
-  failures: Record<string, unknown>,
+  paths: readonly PathOutcome[],
+  expected: Expected,
+): boolean {
+  return paths.some((p) =>
+    expected.every(([node, state]) => inState(flow, p, node, state)),
+  );
+}
+
+/** Why no path among `paths` gives the nodes the states a test expects;
+ * null when one does, or when no reason words the conflict. */
+function whyNot(
+  flow: FlowFacts,
+  paths: readonly PathOutcome[],
+  expected: Expected,
 ):
-  | { reason: 'cannot-fail' | 'always-runs' | 'never-runs'; node: string }
+  | { reason: 'always-runs' | 'never-runs'; node: string }
   | { reason: 'never-together'; a: string; b: string }
   | null {
+  if (holdsOn(flow, paths, expected)) return null;
   for (const [node, state] of expected) {
-    if (state === 'failed' && cx.byId.get(node)?.onError !== 'continue') {
-      return { reason: 'cannot-fail', node };
-    }
-  }
-  // A simulated failure of a node that continues on error forces its
-  // failure on every path that reaches it.
-  const forced = Object.keys(failures)
-    .filter((id) => cx.byId.get(id)?.onError === 'continue')
-    .map((id) => `fail:${id}`);
-  const paths = flow.paths.filter((p) =>
-    forced.every(
-      (atom) => !Object.hasOwn(p.assignment, atom) || p.assignment[atom],
-    ),
-  );
-  const holds = (p: PathOutcome, entries: typeof expected) =>
-    entries.every(([node, state]) => inState(flow, p, node, state));
-  if (paths.some((p) => holds(p, expected))) return null;
-  for (const [node, state] of expected) {
-    if (paths.some((p) => inState(flow, p, node, state))) continue;
+    if (holdsOn(flow, paths, [[node, state]])) continue;
     return state === 'skipped'
       ? { reason: 'always-runs', node }
       : { reason: 'never-runs', node };
@@ -476,12 +471,56 @@ function impossiblePath(
   const running = expected.filter(([, state]) => state !== 'skipped');
   for (const [i, a] of running.entries()) {
     for (const b of running.slice(i + 1)) {
-      if (!paths.some((p) => holds(p, [a, b]))) {
+      if (!holdsOn(flow, paths, [a, b])) {
         return { reason: 'never-together', a: a[0], b: b[0] };
       }
     }
   }
   return null;
+}
+
+/** The paths a run can take when the test simulates the failures of
+ * `failing`, nodes that continue on error: each fails wherever it runs. */
+function pathsFailing(
+  flow: FlowFacts,
+  failing: readonly string[],
+): PathOutcome[] {
+  const atoms = failing.map((id) => `fail:${id}`);
+  return flow.paths.filter((p) =>
+    atoms.every(
+      (atom) => !Object.hasOwn(p.assignment, atom) || p.assignment[atom],
+    ),
+  );
+}
+
+/**
+ * Why no run of the test gives the nodes the states it expects; null when
+ * one does, or when no reason words the conflict. `via` names the node
+ * whose simulated failure rules the states out, where some run of the
+ * automation without the test's failures would give them.
+ */
+function impossiblePath(
+  cx: RuleContext,
+  flow: FlowFacts,
+  expected: Expected,
+  failures: Record<string, unknown>,
+):
+  | ({ via?: string } & (
+      | { reason: 'always-runs' | 'never-runs'; node: string }
+      | { reason: 'never-together'; a: string; b: string }
+    ))
+  | null {
+  const failing = Object.keys(failures).filter(
+    (id) => cx.byId.get(id)?.onError === 'continue',
+  );
+  const found = whyNot(flow, pathsFailing(flow, failing), expected);
+  if (found === null || !holdsOn(flow, flow.paths, expected)) return found;
+  // The automation does it; the test's own simulated failures rule it out
+  // — the first that does on its own, else the first of them.
+  const via =
+    failing.find((id) => !holdsOn(flow, pathsFailing(flow, [id]), expected)) ??
+    failing[0];
+  return via === undefined ? found : { ...found, via };
 }
 
 function pathRules(
@@ -496,13 +535,6 @@ function pathRules(
   // A run that must fail stops part-way: what its nodes do after the
   // failure is no path.
   if (expect.failure !== undefined) return;
-  const failures = isRecord(test.failures) ? test.failures : {};
-  // A simulated failure that stops the run fails the test before its
-  // nodes are judged.
-  for (const id of Object.keys(failures)) {
-    const node = cx.byId.get(id);
-    if (node !== undefined && node.onError !== 'continue') return;
-  }
   const expected: Array<readonly [string, ExpectedNodeState]> = [];
   for (const [node, state] of Object.entries(expect.nodes)) {
     if (!cx.byId.has(node)) continue;
@@ -510,14 +542,33 @@ function pathRules(
     expected.push([node, state]);
   }
   if (expected.length === 0) return;
-  const found = impossiblePath(cx, flow, expected, failures);
+  const failures = isRecord(test.failures) ? test.failures : {};
+  // Only a node that continues on error fails and lets the run go on,
+  // whether the test simulates its failure or not.
+  const stops = expected.find(
+    ([node, state]) =>
+      state === 'failed' && cx.byId.get(node)?.onError !== 'continue',
+  );
+  // Else a simulated failure that stops the run fails the test before its
+  // nodes are judged.
+  const stopping = Object.keys(failures).some((id) => {
+    const node = cx.byId.get(id);
+    return node !== undefined && node.onError !== 'continue';
+  });
+  const found =
+    stops !== undefined
+      ? { reason: 'cannot-fail' as const, node: stops[0] }
+      : stopping
+        ? null
+        : impossiblePath(cx, flow, expected, failures);
   if (found === null) return;
+  const via = 'via' in found ? found.via : undefined;
   const stateOf = new Map(expected);
   const what =
     found.reason === 'never-together'
       ? `"${found.a}" and "${found.b}" to run`
       : `"${found.node}" ${EXPECTED_STATE_WORDS[stateOf.get(found.node) ?? 'ran']}`;
-  const hint =
+  const why =
     found.reason === 'never-together'
       ? `"${found.a}" and "${found.b}" never run in the same run`
       : found.reason === 'cannot-fail'
@@ -528,25 +579,27 @@ function pathRules(
   out.push(
     warn(
       'TESTS_EXPECT_PATH_IMPOSSIBLE',
-      `tests[${index}] "${name}" expects ${what}, which no run of this automation does`,
+      `tests[${index}] "${name}" expects ${what}, which no run of this automation does${via === undefined ? '' : ` while "${via}" fails`}`,
       {
-        hint,
+        hint:
+          via === undefined
+            ? why
+            : `${why} — the test simulates a failure of "${via}"`,
         at: {
           pointer:
             found.reason === 'never-together'
               ? ptr('tests', index, 'expect', 'nodes')
               : ptr('tests', index, 'expect', 'nodes', found.node),
         },
-        params:
-          found.reason === 'never-together'
-            ? {
-                test: index,
-                name,
-                reason: found.reason,
-                a: found.a,
-                b: found.b,
-              }
-            : { test: index, name, reason: found.reason, node: found.node },
+        params: {
+          test: index,
+          name,
+          reason: found.reason,
+          ...(found.reason === 'never-together'
+            ? { a: found.a, b: found.b }
+            : { node: found.node }),
+          ...(via !== undefined && { via }),
+        },
       },
     ),
   );
