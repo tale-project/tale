@@ -88,6 +88,26 @@ const perCredential = shipped.filter(
 );
 
 describe('the connector docs describe the catalog the picker offers', () => {
+  it('serves mailbox port constraints to the settings picker', () => {
+    const mailbox = shipped.find((connector) => connector.slug === 'imap-smtp');
+    expect(mailbox?.configFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'imapPort',
+          integer: true,
+          min: 1,
+          max: 65535,
+        }),
+        expect.objectContaining({
+          key: 'smtpPort',
+          integer: true,
+          min: 1,
+          max: 65535,
+        }),
+      ]),
+    );
+  });
+
   it('serves both mailbox port bounds to the real settings catalog', () => {
     const mailbox = shipped.find((connector) => connector.slug === 'imap-smtp');
     expect(mailbox).toBeDefined();

@@ -112,7 +112,7 @@ const hintFor = (entityId: string) => ({
 });
 
 const ownRow =
-  (row: typeof ROW, extra?: (s: Statement) => unknown[] | undefined) =>
+  <T>(row: T, extra?: (s: Statement) => unknown[] | undefined) =>
   (statement: Statement) =>
     statement.text.includes('WHERE id = ? AND org_id = ? LIMIT 1')
       ? [row]
@@ -270,6 +270,109 @@ describe.each(['create', 'update'] as const)(
 );
 
 describe('connector credential writes — realtime hints', () => {
+  const mailboxArgs = {
+    organizationId: 'org-1',
+    connectorSlug: 'imap-smtp',
+    authMethod: 'basic' as const,
+    name: 'Mailbox',
+    secret: { username: 'mailbox@example.test', password: 'password' },
+    createdBy: 'user-1',
+  };
+
+  it.each([
+    ['imapPort', 0],
+    ['imapPort', 1.5],
+    ['imapPort', 65536],
+    ['smtpPort', 0],
+    ['smtpPort', 1.5],
+    ['smtpPort', 65536],
+  ])('refuses an invalid mailbox %s before INSERT', async (key, value) => {
+    const { sql, statements } = fakeSql(() => undefined);
+
+    await expect(
+      createCredential(sql, {
+        ...mailboxArgs,
+        config: {
+          imapHost: 'imap.example.test',
+          smtpHost: 'smtp.example.test',
+          [key]: value,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'CREDENTIAL_CONFIG_INVALID' });
+    expect(
+      statements.some((statement) =>
+        statement.text.startsWith('INSERT INTO app.connector_credentials'),
+      ),
+    ).toBe(false);
+  });
+
+  it('stores valid custom mailbox ports and declared defaults', async () => {
+    const run = (config: Record<string, string | number>) => {
+      const state = fakeSql((statement) =>
+        statement.text.startsWith('INSERT INTO app.connector_credentials')
+          ? [{ id: 'cred-mailbox' }]
+          : undefined,
+      );
+      return createCredential(state.sql, { ...mailboxArgs, config }).then(
+        () => {
+          const insert = state.statements.find((statement) =>
+            statement.text.startsWith('INSERT INTO app.connector_credentials'),
+          );
+          return insert?.values;
+        },
+      );
+    };
+
+    await expect(
+      run({
+        imapHost: 'imap.example.test',
+        smtpHost: 'smtp.example.test',
+        imapPort: 1993,
+        smtpPort: 1587,
+      }),
+    ).resolves.toContainEqual(
+      expect.objectContaining({ imapPort: 1993, smtpPort: 1587 }),
+    );
+    await expect(
+      run({ imapHost: 'imap.example.test', smtpHost: 'smtp.example.test' }),
+    ).resolves.toContainEqual(
+      expect.objectContaining({ imapPort: 993, smtpPort: 465 }),
+    );
+  });
+
+  it('refuses invalid mailbox config on update before UPDATE', async () => {
+    const mailboxRow = {
+      ...ROW,
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      config: {
+        imapHost: 'imap.example.test',
+        smtpHost: 'smtp.example.test',
+        imapPort: 1993,
+        smtpPort: 1587,
+      },
+    };
+    const { sql, statements } = fakeSql(ownRow(mailboxRow));
+
+    await expect(
+      updateCredential(sql, {
+        organizationId: 'org-1',
+        credentialId: 'cred-1',
+        config: {
+          imapHost: 'imap.example.test',
+          smtpHost: 'smtp.example.test',
+          imapPort: 65536,
+          smtpPort: 1.5,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'CREDENTIAL_CONFIG_INVALID' });
+    expect(
+      statements.some((statement) =>
+        statement.text.startsWith('UPDATE app.connector_credentials'),
+      ),
+    ).toBe(false);
+  });
+
   it('hints a creation to the whole organization, inside its transaction', async () => {
     const { sql, statements } = fakeSql((s) =>
       s.text.startsWith('INSERT INTO app.connector_credentials')
