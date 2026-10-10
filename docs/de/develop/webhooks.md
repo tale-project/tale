@@ -42,7 +42,7 @@ Die Annahme liefert HTTP `202` mit der Form `{"runId":"..."}`. Speichere die Lau
 }
 ```
 
-Lies die Bestellung über `input.payload.orderId`. Ein deklariertes `inputs`-Schema muss diese Hülle beschreiben. Ein Body ohne gültiges JSON wird als Text in `payload` übergeben. Die Grenze beträgt 256 KiB (262.144 Bytes), während des Empfangs gezählt; größere Anfragen erhalten `413`.
+Lies die Bestellung über `input.payload.orderId`. Ein deklariertes `inputs`-Schema muss diese Hülle beschreiben. Hat der Trigger eine feste Eingabe, stehen ihre Felder in der Eingabe jeder Zustellung neben `trigger` und `payload`; du legst sie in den [Trigger-Einstellungen](/de/platform/automations/triggers#feste-eingabe) der App fest, die API nimmt sie als `input`. Ein Body ohne gültiges JSON wird als Text in `payload` übergeben. Die Grenze beträgt 256 KiB (262.144 Bytes), während des Empfangs gezählt; größere Anfragen erhalten `413`.
 
 ### Das Ergebnis verfolgen
 
@@ -52,6 +52,8 @@ Lies die Bestellung über `input.payload.orderId`. Ein deklariertes `inputs`-Sch
 | Organisation | `GET /api/v1/runs/{runId}` |
 
 Frage mit einem API-Schlüssel ab, dessen Inhaber den Bereich lesen darf, oder öffne den Lauf in Tale. Das Webhook-Token erlaubt Zustellungen, aber keine REST-Ergebnisabfragen. Melde den Vorgang erst als erfolgreich, wenn der Lauf einen entsprechenden Endstatus erreicht hat.
+
+In der App listet **Letzte Zustellungen** unter dem Trigger im Tab **Allgemein** der Automatisierung die letzten zehn Läufe, die der Webhook gestartet hat, die neuesten zuerst, mit ihrem Status. Solange sich Tale an eine Zustellung erinnert, nennt jede Zeile den Header, aus dem die Zustell-ID stammt, oder sagt, dass es keine gibt. Abgelehnte Anfragen starten keinen Lauf und stehen dort nicht; ihre Antwort ist der Beleg.
 
 ### Antworten auf Zustellungen auswerten
 

@@ -14,7 +14,7 @@ For your first instance, use the [quickstart](/self-hosted/install/quickstart). 
 You need:
 
 - A workstation running macOS, Linux, or Windows with PowerShell.
-- For local container operations: Docker Engine 24.0 or later with Compose and a running Docker daemon. Tale’s images have zstd-compressed layers, which Docker pulls from Engine 23.0 on; `tale doctor` reports an older engine, and `tale dev` and `tale deploy` refuse it before downloading images.
+- For local container operations: Docker Engine 24.0 or later with Compose and a running Docker daemon. Tale’s images have zstd-compressed layers, which Docker pulls from Engine 23.0 on; `tale doctor` reports an older engine, and `tale dev` and `tale deploy`, a bundle deployment included, refuse it before downloading images.
 - For a remote workspace: access to its Docker daemon, running Docker Engine 24.0 or later, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
 The bundled object store currently ships only a `linux/amd64` image. On an ARM64 host, local development and workspace deployment need working amd64 emulation: Docker Desktop includes it; a standalone Linux Docker host needs [QEMU registered on the host](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale selects the amd64 image but does not install emulation. Managed bundles still require native images for their declared architecture, so an ARM64 managed deployment must wait for a native object-store image.
@@ -299,6 +299,14 @@ The JSON result contains source pins, bundle and Ready hashes, image identities,
 Docker and HTTPS observations have individual cancellation limits and share a 120-second elapsed budget checked at observation boundaries. Bundle verification, the owned temporary copy and cleanup use the existing size limits (2 GiB total, 256 MiB per file); filesystem waits are not covered by a cancellable whole-command deadline. Use an external process supervisor when a whole-command deadline is required. Acceptance does not apply configuration, restart containers, run migrations or export credentials. It changes lock metadata and creates and removes its private temporary bundle copy.
 
 Older bundles remain deployable, but acceptance requires both a source-derived migration inventory and compatible servers that publish process identities. Prepare and complete a reviewed bundle through the normal deployment flow before collecting its acceptance receipt. A receipt proves the observed state at its timestamp; it does not guarantee later routing or server state. Repeat acceptance when fresh evidence is needed.
+
+#### Observe retained state before a rollout
+
+`tale --json deploy observe --spec <file> --cli-ref <sha> --deployment-ref <sha> --machine-id-sha256 <digest>` collects runtime image identities, migration inventories, corpus and disk metadata, and retained native configuration proof. Run the pinned compiled CLI on the admitted Linux host with its local Docker socket. Supply private JSON on stdin as `{"environment":{"UPPERCASE_ENV_NAME":"value"}}`, containing only the variables the reviewed specification needs; ambient variables are not a fallback. Input is limited to 64 KiB, 128 keys and 8192 bytes per value.
+
+The observer reuses existing credentials and exact retained account and organization IDs. It reads preserved pack bytes without compiling them again, verifies current native versions, assets and owned-skill owners, and rechecks custody and container identities. It creates only temporary tooling and authentication sessions, then removes the tooling and signs out. It does not provision identities, prepare or apply configuration, migrate, restart, prune or acquire the cutover lock. Docker and native reads are bounded; supervise the command externally to bound filesystem waits too.
+
+A complete observation returns `ok:true` and `data.complete:true`. Missing legacy custody or ownership returns available host/database facts with `ok:false`, `data.complete:false`, an authored reason code and exit `3`; retain that report for investigation. Malformed input, mismatched identities or changed state refuse the observation. Neither result is Ready acceptance, permission to cut over, nor proof that packs will survive a future deployment. Use the normal reviewed deployment and acceptance flow for those decisions.
 
 #### Provision the native identity
 

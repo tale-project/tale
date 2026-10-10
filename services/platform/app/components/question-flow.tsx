@@ -35,6 +35,7 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { Check } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
@@ -96,6 +97,7 @@ export function QuestionFlow({
   const [drafts, setDrafts] = useState<Record<string, DraftAnswer>>({});
   const optionsRef = useRef<HTMLDivElement | null>(null);
   const freeTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const { isComposing, compositionProps } = useImeComposition();
 
   const total = set.questions.length;
   const stepped = total > 1;
@@ -382,6 +384,7 @@ export function QuestionFlow({
           </label>
           <Textarea
             id={`${headingId}-other`}
+            {...compositionProps}
             ref={freeTextRef}
             rows={2}
             maxLength={MAX_FREE_TEXT_LENGTH}
@@ -392,6 +395,7 @@ export function QuestionFlow({
               patch(question.id, { freeText: event.target.value })
             }
             onKeyDown={(event) => {
+              if (isComposing(event.nativeEvent)) return;
               if (event.key === 'Enter' && !event.shiftKey && answered) {
                 event.preventDefault();
                 onNext();

@@ -22,13 +22,16 @@ import {
 } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
-import { scheduleTriggerInput } from '../../../lib/engine/core/slots.ts';
+import { triggerRunInput } from '../../../lib/engine/core/slots.ts';
 import {
   standingSessionIdForProjectAgent,
   workerSessionId,
 } from '../../core/sandbox/session_naming.ts';
+import {
+  lockProjectWork,
+  projectWorkQueueKey,
+} from '../../lib/project-work-lock.ts';
 import { loadRestProject } from '../../rest/shared.ts';
-import { lockAuditChain } from '../audit_logs/service.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import {
   managedConfigurationHash,
@@ -362,9 +365,12 @@ export async function checkStandingRoleWakeScenarios(
     const run = await kickWorker(s, index);
     await settleAgentRun(sql, { runId: run.runId, resultText: 'done' });
   };
+  // The claim moves back, and so does the instant the scan next finds the
+  // schedule due, which a save or a fire set ahead.
   const backdate = (s: Scenario) => sql`
     UPDATE app.automation_triggers
-    SET last_due_at_ms = ${Date.now() - 2 * MINUTE_MS}, last_fired_at_ms = NULL
+    SET last_due_at_ms = ${Date.now() - 2 * MINUTE_MS}, last_fired_at_ms = NULL,
+        next_due_at_ms = ${Date.now() - MINUTE_MS}
     WHERE org_id = ${s.orgId} AND name = ${s.name}
   `;
   const clearWait = (s: Scenario) => sql`
@@ -413,7 +419,7 @@ export async function checkStandingRoleWakeScenarios(
       const run = await beginRunInTx(tx, {
         organizationId: s.orgId,
         name: s.name,
-        input: scheduleTriggerInput(minute),
+        input: triggerRunInput({ kind: 'schedule', firedAt: minute }),
         mode: 'live',
         startedBy: `trigger:${s.triggerId}`,
       });
@@ -495,15 +501,6 @@ export async function checkStandingRoleWakeScenarios(
       WHERE l.locktype = 'advisory' AND NOT l.granted AND l.objsubid = 1
         AND l.classid = ((k.key >> 32) & 4294967295)::oid
         AND l.objid = (k.key & 4294967295)::oid
-    `;
-    return rows[0]?.count ?? 0;
-  };
-  const auditWaiters = async (): Promise<number> => {
-    const rows = await sql<{ count: number }[]>`
-      SELECT count(*)::int AS count FROM pg_locks
-      WHERE locktype = 'advisory' AND NOT granted AND objsubid = 2
-        AND classid::bigint = ${RETRY_QUEUE_LOCK_CLASS}
-        AND objid::bigint = (hashtext(${`audit-chain:${orgId}`})::bigint & 4294967295)
     `;
     return rows[0]?.count ?? 0;
   };
@@ -897,6 +894,10 @@ export async function checkStandingRoleWakeScenarios(
         cron: CRON,
         timezone: 'UTC',
         enabled: false,
+        repeat: null,
+        startDate: null,
+        catchUp: null,
+        input: null,
         wakeOnSlotFreed: true,
       });
       const refused = await setTrigger(sql, {
@@ -1234,7 +1235,7 @@ export async function checkStandingRoleWakeScenarios(
       await complete(await kickWorker(s, 0), []);
       const expectedKeys = [
         `task-comment:${worker.taskId}`,
-        `audit-chain:${s.orgId}`,
+        projectWorkQueueKey(s.project),
       ];
       const barrier = (key: number) =>
         triggerFn(
@@ -1244,7 +1245,8 @@ export async function checkStandingRoleWakeScenarios(
           `PERFORM pg_advisory_xact_lock(${BARRIER_CLASS}, ${key});`,
         );
 
-      // F-a: an audited release commits after the snapshot → 40001 at the head.
+      // F-a: an audited release commits after the snapshot → 40001 at the
+      // completion's wake upsert: the audit row itself meets no writer.
       const before = await wake(s);
       const runA = await kickWorker(s, 0);
       const auditedRun = await kick(s, auditor.agentId, auditor.taskId);
@@ -1267,7 +1269,7 @@ export async function checkStandingRoleWakeScenarios(
       await dropA();
       const afterA = await wake(s);
       record(
-        'standing-role wake: an audited release after the completion’s snapshot aborts it at the chain head; the queued retry carries exactly [task-comment, audit-chain] and commits once (W16 F-a)',
+        'standing-role wake: an audited release after the completion’s snapshot aborts it at the wake row, not at its audit row; the queued retry carries exactly [task-comment, project-work] and commits once (W16 F-a)',
         pausedA &&
           doneA &&
           show(attemptsA[0]?.keys) === show(expectedKeys) &&
@@ -1279,8 +1281,9 @@ export async function checkStandingRoleWakeScenarios(
         `paused=${pausedA} done=${doneA} attempts=${show(attemptsA)} before=${show(before)} after=${show(afterA)} (want one 40001 marked with both keys, one ledger row each, s + 2)`,
       );
 
-      // F-b: a wake-row write under the chain key, with no audit row, commits
-      // after the snapshot → 40001 at the completion's own wake upsert.
+      // F-b: a wake-row write under the project's work key, with no audit
+      // row, commits after the snapshot → 40001 at the completion's own wake
+      // upsert.
       const runB = await kickWorker(s, 0);
       const attemptsB: { code: unknown; keys: string[] }[] = [];
       const unlockB = await holdBarrier(162);
@@ -1292,7 +1295,7 @@ export async function checkStandingRoleWakeScenarios(
       );
       const marker = Date.now();
       await sql.begin(async (tx) => {
-        await lockAuditChain(tx, s.orgId);
+        await lockProjectWork(tx, s.project);
         await tx`
           UPDATE app.project_wakes SET updated_at_ms = ${marker}
           WHERE org_id = ${s.orgId} AND project_id = ${s.project}
@@ -1303,7 +1306,7 @@ export async function checkStandingRoleWakeScenarios(
       await dropB();
       const afterB = await wake(s);
       record(
-        'standing-role wake: a non-audited wake-row write under the chain key makes the completion’s wake upsert fail; the retry carries the same two keys and commits once (W16 F-b)',
+        'standing-role wake: a non-audited wake-row write under the project’s work key makes the completion’s wake upsert fail; the retry carries the same two keys and commits once (W16 F-b)',
         pausedB &&
           doneB &&
           show(attemptsB[0]?.keys) === show(expectedKeys) &&
@@ -1576,10 +1579,14 @@ export async function checkStandingRoleWakeScenarios(
         `RAISE EXCEPTION 'itest wake row fault';`,
         'UPDATE',
       );
-      // The busy rows: their organization's chain key is held throughout.
+      // The busy rows: their projects' work keys are held throughout.
+      const busyKeys = noise
+        .filter((row) => row.kind === 'busy')
+        .map((row) => projectWorkQueueKey(row.id));
       const holder = await sql.reserve();
       await holder`
-        SELECT pg_advisory_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${`audit-chain:${busyOrg}`}))
+        SELECT pg_advisory_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(k.key))
+        FROM unnest(${busyKeys}::text[]) AS k(key)
       `;
       let scans = 0;
       let fired = false;
@@ -1593,7 +1600,8 @@ export async function checkStandingRoleWakeScenarios(
         }
       } finally {
         await holder`
-          SELECT pg_advisory_unlock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${`audit-chain:${busyOrg}`}))
+          SELECT pg_advisory_unlock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(k.key))
+          FROM unnest(${busyKeys}::text[]) AS k(key)
         `;
         holder.release();
       }
@@ -1680,10 +1688,12 @@ export async function checkStandingRoleWakeScenarios(
           (error: unknown) => error,
         );
       const racing = [enable(x.name), enable(otherName)];
-      // One save holds audit/name/claim locks at the database barrier;
-      // the other is queued on the newly shared definition audit chain.
+      // One save holds its name and the project's claim key at the database
+      // barrier; the other is queued on that claim key.
       const bothWaiting = await waitFor(
-        async () => (await waitersAt(20)) + (await auditWaiters()) === 2,
+        async () =>
+          (await waitersAt(20)) + (await keyWaiters(projectLock(x.project))) ===
+          2,
         WAIT_MS,
       );
       await unlock();
@@ -1704,7 +1714,7 @@ export async function checkStandingRoleWakeScenarios(
           outcome.status === 409,
       );
       record(
-        'standing-role wake: two schedule saves overlapping under audit/name/claim locks to wake one project — exactly one is saved, the other answers 409 and changes nothing (W20)',
+        'standing-role wake: two schedule saves overlapping under name/claim locks to wake one project — exactly one is saved, the other answers 409 and changes nothing (W20)',
         bothWaiting &&
           outcomes.filter((outcome) => outcome === 'saved').length === 1 &&
           refused.length === 1 &&
@@ -1741,9 +1751,11 @@ export async function checkStandingRoleWakeScenarios(
         );
       const racing = [bind(x.name), bind(y.name)];
       // One bind holds the contested claim at the barrier; the other
-      // waits on the organization audit chain before taking its name lock.
+      // waits on that project's claim key.
       const bothWaiting = await waitFor(
-        async () => (await waitersAt(21)) + (await auditWaiters()) === 2,
+        async () =>
+          (await waitersAt(21)) + (await keyWaiters(projectLock(contested))) ===
+          2,
         WAIT_MS,
       );
       await unlock();
@@ -1870,7 +1882,7 @@ export async function checkStandingRoleWakeScenarios(
       );
       const first = restInstall(xName, y.project);
       const firstWaits = await waitFor(
-        async () => (await keyWaiters(xLock)) + (await auditWaiters()) === 1,
+        async () => (await keyWaiters(xLock)) === 1,
         WAIT_MS,
       );
       await unlock();
@@ -1936,7 +1948,7 @@ export async function checkStandingRoleWakeScenarios(
       await Promise.race([held, recreated]);
       const second = restInstall(xName, y.project);
       const secondWaits = await waitFor(
-        async () => (await keyWaiters(xLock)) + (await auditWaiters()) === 1,
+        async () => (await keyWaiters(xLock)) === 1,
         WAIT_MS,
       );
       opening();
@@ -1996,10 +2008,7 @@ export async function checkStandingRoleWakeScenarios(
       );
       const third = restInstall(zName, y.project);
       const thirdWaits = await waitFor(
-        async () =>
-          (await keyWaiters(`automation:${orgId}/${zName}`)) +
-            (await auditWaiters()) ===
-          1,
+        async () => (await keyWaiters(`automation:${orgId}/${zName}`)) === 1,
         WAIT_MS,
       );
       await unlockAbsent();
@@ -2316,8 +2325,8 @@ export async function checkStandingRoleWakeScenarios(
 
       // The forced swap: a moves P → Q while b moves Q → P. A barrier holds
       // each binding insert after its change's delete, so neither can finish
-      // before the other has started; the shared audit chain now queues
-      // the second writer before its ordered claim keys.
+      // before the other has started; both take the same two claim keys in
+      // one order, so the second writer queues on the first of them.
       const unlock = await holdBarrier(24);
       const dropBarrier = await triggerFn(
         `itest_wake_w24_${suffix}`,
@@ -2327,7 +2336,11 @@ export async function checkStandingRoleWakeScenarios(
       );
       const swap = [move(a.name, [b.project]), move(b.name, [a.project])];
       const bothBlocked = await waitFor(
-        async () => (await waitersAt(24)) + (await auditWaiters()) === 2,
+        async () =>
+          (await waitersAt(24)) +
+            (await keyWaiters(projectLock(a.project))) +
+            (await keyWaiters(projectLock(b.project))) ===
+          2,
         WAIT_MS,
       );
       await unlock();
@@ -2393,7 +2406,8 @@ export async function checkStandingRoleWakeScenarios(
     });
 
     // ---- W27: the MCP editor's multi-project transaction preclaims before
-    // its first deletion, then shares the definition audit/name order. -----
+    // its first deletion, then shares the definition writers' name/claim
+    // order. ---------------------------------------------------------------
     await scenario('W27', async () => {
       const a = await setup('w27a');
       const b = await setup('w27b');
@@ -2466,7 +2480,11 @@ export async function checkStandingRoleWakeScenarios(
         move(b.name, b.project, target),
       ];
       const bothWaiting = await waitFor(
-        async () => (await waitersAt(27)) + (await auditWaiters()) === 2,
+        async () =>
+          (await waitersAt(27)) +
+            (await keyWaiters(projectLock(target))) +
+            (await keyWaiters(projectLock(b.project))) ===
+          2,
         WAIT_MS,
       );
       await unlock();
@@ -2477,7 +2495,7 @@ export async function checkStandingRoleWakeScenarios(
         b: await automationBindings(b.name),
       };
       record(
-        'standing-role wake: overlapping real MCP binding swaps keep audit/name/claim order and refuse both changes whole with 409 (W27 swap)',
+        'standing-role wake: overlapping real MCP binding swaps keep name/claim order and refuse both changes whole with 409 (W27 swap)',
         bothWaiting &&
           outcomes.every(answered409) &&
           show(after.a) === show([{ projectId: target, wakes: true }]) &&

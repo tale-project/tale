@@ -2,6 +2,12 @@ import type { Sql } from 'postgres';
 
 import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { nodeTypeFor } from '../../../lib/connectors/registry.ts';
+import {
+  connectorFailureOf,
+  failureCauseOf,
+  reasonFamily,
+} from '../../../lib/engine/core/record/failure.ts';
 import { NodeFailure } from '../../core/automations/failure.ts';
 import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
@@ -30,6 +36,7 @@ import {
   recordLlmStepUsage,
 } from './llm-metering.ts';
 import { beginNodeAttempt, finishNodeAttempt } from './node-attempts.ts';
+import { readOpenNodeRuns, recordNodeRunsStarted } from './node-runs.ts';
 import {
   claimRun,
   continueRun,
@@ -126,14 +133,21 @@ export type CredentialProbe =
  */
 export async function probeCredentialUsable(
   sql: Sql,
-  args: { organizationId: string; connectorSlug: string },
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
 ): Promise<CredentialProbe> {
   const connector = loadConnectorDefinitions().find(
     (entry) => entry.name === args.connectorSlug,
   );
   if (
     connector === undefined ||
-    connector.auth.some((method) => method.method === 'platform')
+    connector.auth.some((method) => method.method === 'platform') ||
+    // A step that names no credential on a connector that needs none runs
+    // with none: there is nothing to look up.
+    (connector.credential === 'optional' && args.credentialRef === undefined)
   ) {
     return { usable: true };
   }
@@ -212,6 +226,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as Parameters<typeof continueRun>[1];
       return continueRun(sql, args);
     },
+    'automations/mutations:recordNodeRunsStarted': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as Parameters<typeof recordNodeRunsStarted>[1];
+      return recordNodeRunsStarted(sql, args);
+    },
     'automations/mutations:finishRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
       const args = raw as Parameters<typeof finishRun>[1];
@@ -259,11 +278,16 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
           input: unknown;
           checkpoints: unknown;
           startedAt: number;
+          recordBytes: number;
+          recordRows: number;
         }[]
       >`
         SELECT id, org_id AS "organizationId", name, version, status, mode,
                started_by AS "startedBy", input, checkpoints,
-               started_at_ms::float8 AS "startedAt"
+               started_at_ms::float8 AS "startedAt",
+               record_bytes AS "recordBytes",
+               (SELECT count(*)::int FROM app.automation_node_runs n
+                 WHERE n.run_id = ${args.runId}) AS "recordRows"
         FROM app.automation_runs
         WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         LIMIT 1
@@ -277,7 +301,20 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         run.version,
       );
       if (!version) return null;
-      return { run, document: version.document };
+      // The run's record as earlier turns left it: the units still open, and
+      // the bytes of values it already stored.
+      const openNodeRuns = await readOpenNodeRuns(
+        sql,
+        args.organizationId,
+        args.runId,
+      );
+      return {
+        run,
+        document: version.document,
+        openNodeRuns,
+        recordBytes: run.recordBytes,
+        recordRows: run.recordRows,
+      };
     },
 
     'automations/queries:loadAutomationDocument': async (raw) => {
@@ -316,8 +353,31 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         // It used to be re-thrown as an `AppError`, whose `message` is the
         // JSON of its data, so the run's failure detail printed a raw
         // `{"code":…}` blob (2026-09-26 evaluation, D-09).
+        // A refusal that knows its cause in the run record's words (the
+        // HTTP connector's statuses and blocked hosts) keeps it; any other
+        // is classified the way the in-process executor classifies it, by
+        // the status the service answered. The run's code follows the
+        // cause: a usage limit stays `budget_exceeded`, as an llm step's
+        // does, and a service that did not answer or was busy is
+        // `connector_unavailable` — both may pass at the next occurrence,
+        // where `connector_error` counts toward pausing a schedule.
         if (error instanceof ConnectorError) {
-          throw new NodeFailure('connector_error', error.message, error.hint);
+          const cause =
+            failureCauseOf(error) ??
+            connectorFailureOf(
+              error,
+              args.connector,
+              nodeTypeFor(args.connector, args.action),
+            );
+          const family = reasonFamily(cause.reason, cause.params);
+          throw new NodeFailure(
+            family === 'budget_exceeded' || family === 'connector_unavailable'
+              ? family
+              : 'connector_error',
+            error.message,
+            error.hint,
+            cause,
+          );
         }
         throw error;
       }
@@ -334,7 +394,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       raw,
     ) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
-      const args = raw as { organizationId: string; connectorSlug: string };
+      const args = raw as {
+        organizationId: string;
+        connectorSlug: string;
+        credentialRef?: string;
+      };
       return probeCredentialUsable(sql, args);
     },
 

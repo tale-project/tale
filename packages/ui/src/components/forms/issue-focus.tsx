@@ -15,14 +15,27 @@ import {
 /** Offsets into the text a control shows, start inclusive, end exclusive. */
 export type IssueFocusRange = readonly [number, number];
 
+/**
+ * A request for a part of a target: the rest of the requested anchor below
+ * the target's own (`/to` when `/nodes/0/input/to` lands on
+ * `/nodes/0/input`), and the range the request carried, which is offsets
+ * into that part's value.
+ */
+export interface IssueFocusPart {
+  rest: string;
+  range: IssueFocusRange | undefined;
+}
+
 /** Something a reader can be taken to: a control, a heading, a panel. */
 export interface IssueFocusTarget {
   /**
    * Moves focus here. `range` is passed only when the request names this
    * target's own anchor exactly — a request for a part of it (a key inside a
-   * JSON value) has offsets into that part, not into this control.
+   * JSON value) has offsets into that part, not into this control, and comes
+   * as `part` instead: a target that can find the part in its text (a code
+   * editor showing JSON or YAML) selects it; any other ignores it.
    */
-  focus(range?: IssueFocusRange): void;
+  focus(range?: IssueFocusRange, part?: IssueFocusPart): void;
   /** Makes the target visible first: opens the disclosure or tab it sits in. */
   reveal?(): void;
 }
@@ -163,15 +176,28 @@ class IssueFocusRegistry {
     const registration = this.targets.get(best)?.at(-1);
     const target = registration?.resolve() ?? null;
     if (registration === undefined || target === null) return false;
-    const exactRange = best === anchor ? range : undefined;
+    const exact = best === anchor;
+    const exactRange = exact ? range : undefined;
+    const part: IssueFocusPart | undefined = exact
+      ? undefined
+      : {
+          rest: anchor.slice(
+            best.endsWith('/') ? best.length - 1 : best.length,
+          ),
+          range,
+        };
+    const go = () => {
+      if (part === undefined) target.focus(exactRange);
+      else target.focus(exactRange, part);
+    };
     const reveal = registration.reveal() ?? target.reveal?.bind(target);
     if (reveal === undefined) {
-      target.focus(exactRange);
+      go();
       return true;
     }
     reveal();
     // Let what the reveal opened render before the target takes focus.
-    requestAnimationFrame(() => target.focus(exactRange));
+    requestAnimationFrame(go);
     return true;
   }
 }

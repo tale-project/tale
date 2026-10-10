@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen } from '@/tests/utils/render';
 
 import { connectorConfigExtras } from './config-fields';
@@ -35,9 +36,22 @@ const imapSmtpFields: ConnectorSummary['configFields'] = [
     label: 'IMAP port',
     type: 'number',
     required: false,
+    integer: true,
+    min: 1,
+    max: 65535,
     default: 993,
   },
   { key: 'smtpHost', label: 'SMTP server', type: 'string', required: true },
+  {
+    key: 'smtpPort',
+    label: 'SMTP port',
+    type: 'number',
+    required: false,
+    integer: true,
+    min: 1,
+    max: 65535,
+    default: 465,
+  },
   {
     key: 'security',
     label: 'Connection security',
@@ -67,6 +81,62 @@ describe('connectorConfigExtras', () => {
       ),
     ).toBe(true);
   });
+
+  it('is incomplete when a bounded numeric field is invalid', () => {
+    const vendor = { summary: summary(imapSmtpFields) };
+    expect(
+      extras.isComplete?.(
+        {
+          imapHost: 'imap.example.com',
+          smtpHost: 'smtp.example.com',
+          imapPort: 65536,
+        },
+        vendor,
+      ),
+    ).toBe(false);
+    expect(
+      extras.isComplete?.(
+        {
+          imapHost: 'imap.example.com',
+          smtpHost: 'smtp.example.com',
+          imapPort: 1993,
+        },
+        vendor,
+      ),
+    ).toBe(true);
+  });
+
+  it.each(['imapPort', 'smtpPort'])(
+    'keeps %s invalid and its inline error accessible for CONN-B2',
+    (key) => {
+      const vendor = { summary: summary(imapSmtpFields) };
+      const Fields = extras.Fields;
+      if (Fields === null)
+        throw new Error('the mailbox config fields are missing');
+      const value = {
+        imapHost: '127.0.0.1',
+        smtpHost: '127.0.0.1',
+        [key]: 'abc',
+      };
+      for (const invalid of ['abc', '0', '1.5', '65536']) {
+        expect(extras.isComplete?.({ ...value, [key]: invalid }, vendor)).toBe(
+          false,
+        );
+      }
+      render(<Fields vendor={vendor} value={value} onChange={() => {}} />);
+      const input = screen.getByRole('textbox', {
+        name: key === 'imapPort' ? /^IMAP port/ : /^SMTP port/,
+      });
+      expect(input).toHaveValue('abc');
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      expect(input).toHaveAccessibleDescription(
+        'Enter an integer port from 1 to 65535.',
+      );
+      const error = screen.getByRole('alert');
+      expect(error).toHaveTextContent('Enter an integer port from 1 to 65535.');
+      expect(input.getAttribute('aria-errormessage')).toBe(error.id);
+    },
+  );
 
   it('treats whitespace as unsupplied, so a spacebar does not satisfy a required field', () => {
     const vendor = { summary: summary(imapSmtpFields) };
@@ -210,5 +280,54 @@ describe('connectorConfigExtras', () => {
     ).toEqual({
       config: { imapHost: 'other.example.com', fromAddress: 'a@b.test' },
     });
+  });
+});
+
+describe('the declared fields in the reader’s language', () => {
+  const httpFields: ConnectorSummary['configFields'] = [
+    {
+      key: 'baseUrl',
+      label: 'Base URL',
+      type: 'string',
+      required: true,
+      description: 'The address every call stays under.',
+      i18n: {
+        de: {
+          label: 'Basis-URL',
+          description: 'Die Adresse, unter der jeder Aufruf bleibt.',
+        },
+        fr: { label: 'URL de base' },
+      },
+    },
+  ];
+
+  afterEach(async () => {
+    localStorage.removeItem('user-locale');
+    await i18n.changeLanguage('en');
+  });
+
+  it.each([
+    ['en', 'Base URL', 'The address every call stays under.'],
+    ['de', 'Basis-URL', 'Die Adresse, unter der jeder Aufruf bleibt.'],
+    // An override names the label alone: the help falls back to English.
+    ['fr', 'URL de base', 'The address every call stays under.'],
+    // A regional tag falls back to its base language.
+    ['de-CH', 'Basis-URL', 'Die Adresse, unter der jeder Aufruf bleibt.'],
+  ])('labels a field in %s', async (locale, label, help) => {
+    localStorage.setItem('user-locale', locale);
+    await i18n.changeLanguage(locale);
+    const Fields = extras.Fields;
+    if (Fields === null) throw new Error('the config fields are missing');
+    render(
+      <Fields
+        vendor={{ summary: summary(httpFields) }}
+        value={{}}
+        onChange={() => {}}
+      />,
+    );
+    const input = screen.getByRole('textbox', {
+      name: new RegExp(`^${label}`),
+    });
+    expect(input).toHaveAccessibleDescription(help);
   });
 });

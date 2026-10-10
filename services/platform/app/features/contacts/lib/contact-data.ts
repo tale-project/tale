@@ -3,6 +3,7 @@ import { formatEnumLabel } from '@tale/ui/string';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import type { ContactInfo } from '@/backend/core/conversations/types';
 import type { AppAbility } from '@/lib/permissions/ability';
+import { isRecord } from '@/lib/utils/type-utils';
 
 /**
  * A contact as rendered in the app: either a full directory row
@@ -116,4 +117,52 @@ export function getContactLocaleLabel(
   locale: string | null | undefined,
 ): string {
   return locale || '—';
+}
+
+/**
+ * The words one address value holds: a string or a number as written, an
+ * object or a list (`{line1, line2}`, a list of lines) as the words of its
+ * values in order, joined with commas; a flag or `null` holds none. The walk
+ * keeps its own stack, as the door's bound check does, so no stored nesting
+ * can exhaust the call stack.
+ */
+function addressText(value: unknown): string {
+  const words: string[] = [];
+  const pending: unknown[] = [value];
+  while (pending.length > 0) {
+    const next = pending.pop();
+    if (typeof next === 'string') {
+      const word = next.trim();
+      if (word !== '') words.push(word);
+    } else if (typeof next === 'number') {
+      words.push(String(next));
+    } else if (typeof next === 'object' && next !== null) {
+      const children = Object.values(next);
+      // Pushed last-first, so they pop in their stored order.
+      for (let index = children.length - 1; index >= 0; index -= 1) {
+        pending.push(children[index]);
+      }
+    }
+  }
+  return words.join(', ');
+}
+
+/**
+ * The lines the details dialog shows for a contact's address: the street;
+ * the city and state together; the postal code; the country. `address` is a
+ * free-form object on the door, so any JSON can sit under any of these keys:
+ * each is read through `addressText` rather than handed to React, where a
+ * nested object threw and replaced the whole dialog with its error display
+ * (#3625). A line with no words is left out; other keys stay stored but are
+ * not shown.
+ */
+export function getContactAddressLines(address: unknown): string[] {
+  if (!isRecord(address)) return [];
+  const field = (key: string) => addressText(address[key]);
+  return [
+    field('street'),
+    [field('city'), field('state')].filter(Boolean).join(', '),
+    field('postalCode'),
+    field('country'),
+  ].filter(Boolean);
 }

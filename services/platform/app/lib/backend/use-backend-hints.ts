@@ -2,14 +2,20 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import { isStructuredBackendError } from '@/app/hooks/use-action-query';
+import { CONNECTOR_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import { eventsUrl } from './api-client';
+import { runHintPrefixes } from './automations';
 import { probeBackendSoon, reportBackendReachable } from './connection-state';
 import {
   backendEntityPrefix,
   backendOrgPrefix,
   orgApiKeyListKey,
+  projectCapabilityCatalogKey,
 } from './query-keys';
+
+/** Pending-hint slot shared by every project capability catalog refresh. */
+const PROJECT_CAPABILITY_HINT = 'project_capability';
 
 /**
  * `EventSource.CLOSED` as a literal: the browser has given up on this source
@@ -104,6 +110,21 @@ export function useBackendHints(orgId: string | undefined): void {
       }
       scheduleHints();
     };
+    // A project's capability catalog depends on its audience. One project
+    // changing in a window refreshes only its catalog; several projects (or
+    // an unknown one) widen to every catalog, still one refresh per window.
+    const queueCapabilityCatalog = (projectId: string | undefined): void => {
+      const target = projectCapabilityCatalogKey(org, projectId);
+      const pending = pendingHints.get(PROJECT_CAPABILITY_HINT);
+      const sameTarget =
+        pending === undefined ||
+        (pending.length === target.length &&
+          pending.every((part, index) => part === target[index]));
+      queueHint(
+        PROJECT_CAPABILITY_HINT,
+        sameTarget ? target : projectCapabilityCatalogKey(org),
+      );
+    };
     const flushHints = (): void => {
       hintTimer = undefined;
       // oxlint-disable-next-line unicorn/no-useless-spread -- reinserting pending work would extend a live Map iterator indefinitely
@@ -143,12 +164,36 @@ export function useBackendHints(orgId: string | undefined): void {
           'entity' in hint &&
           typeof hint.entity === 'string'
         ) {
-          queueHint(hint.entity, backendEntityPrefix(org, hint.entity));
+          // A run's hint names the run: refresh its own reads and the
+          // listings, not every open run's. One without an id (an older
+          // server) refreshes them all.
+          const runId =
+            hint.entity === 'automation_run' &&
+            'entityId' in hint &&
+            typeof hint.entityId === 'string' &&
+            hint.entityId !== ''
+              ? hint.entityId
+              : undefined;
+          if (runId === undefined) {
+            queueHint(hint.entity, backendEntityPrefix(org, hint.entity));
+          } else {
+            for (const prefix of runHintPrefixes(org, runId)) {
+              queueHint(JSON.stringify(prefix), prefix);
+            }
+          }
           // Project writes also remove or hide the project's tasks and chats.
           // Refresh those entity lists so Home cannot retain stale rows.
           if (hint.entity === 'project') {
+            queueCapabilityCatalog(
+              'entityId' in hint && typeof hint.entityId === 'string'
+                ? hint.entityId
+                : undefined,
+            );
             queueHint('task', backendEntityPrefix(org, 'task'));
             queueHint('chat_thread', backendEntityPrefix(org, 'chat_thread'));
+          }
+          if (hint.entity === CONNECTOR_CREDENTIAL_HINT_ENTITY) {
+            queueCapabilityCatalog(undefined);
           }
           // Entry lists display the indexing state of their backing document.
           // The indexing worker emits document hints as that state changes.

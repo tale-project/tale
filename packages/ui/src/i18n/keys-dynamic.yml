@@ -11,3 +11,6 @@ entries:
   - 'themeSwitcher.light'
   - 'themeSwitcher.dark'
   - 'themeSwitcher.system'
+  # `t(FLOW_NODE_STATE[state].labelKey)` in components/flow/node-status.tsx —
+  # the state is the key, chosen from the typed `FlowNodeState` union.
+  - 'flow.state'

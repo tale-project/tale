@@ -250,7 +250,7 @@ describe('recordSlotReleaseInTx — the signal rides the run’s end', () => {
     await expect(recordSlotReleaseInTx(tx, KEYS)).rejects.toBe(fault);
   });
 
-  it('marks a serialization failure with the chain key alone; outer marks prepend (R3, W16)', async () => {
+  it("marks a serialization failure with the project's work key alone; outer marks prepend (R3, W16)", async () => {
     const failure = serializationFailure();
     const { tx } = fakeTx(answering(released()), (text) =>
       text.startsWith(UPSERT) ? failure : undefined,
@@ -259,13 +259,13 @@ describe('recordSlotReleaseInTx — the signal rides the run’s end', () => {
       (error: unknown) => error,
     );
     expect(thrown).toBe(failure);
-    expect(retryQueueKeysOf(thrown)).toEqual([`audit-chain:${ORG}`]);
+    expect(retryQueueKeysOf(thrown)).toEqual(['project-work:project-1']);
     // The completion wraps the callback in `queuedOnTask`, whose mark is the
-    // outer one: the queued retry takes exactly today's two keys, in order.
+    // outer one: the queued retry takes both keys, the task's first.
     markRetryQueueKey(thrown, 'task-comment:task-1');
     expect(retryQueueKeysOf(thrown)).toEqual([
       'task-comment:task-1',
-      `audit-chain:${ORG}`,
+      'project-work:project-1',
     ]);
   });
 });

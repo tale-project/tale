@@ -18,3 +18,10 @@ declare module '@fontsource/inter/files/inter-latin-500-normal.woff2?url' {
   const src: string;
   export default src;
 }
+
+// The ELK layout worker: elkjs's own worker script, emitted as a
+// same-origin file the flow layout starts a `Worker` from.
+declare module 'elkjs/lib/elk-worker.min.js?url' {
+  const src: string;
+  export default src;
+}

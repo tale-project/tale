@@ -1,3 +1,11 @@
+import {
+  resourceConverged,
+  resourceConvergedWithHash,
+  resourceId,
+  sameConfiguration,
+  type PlatformConfiguration,
+  type PlatformResource,
+} from '@tale/shared/config/platform-resources';
 import { z } from 'zod';
 
 import { CliError, preconditionError } from '../../utils/fail';
@@ -6,13 +14,7 @@ import type { PlatformConfigurationClient } from './platform-client';
 import {
   configurationPlanSchema,
   parsePlatformConfiguration,
-  resourceConverged,
-  resourceConvergedWithHash,
-  resourceId,
-  sameConfiguration,
   type ConfigurationPlan,
-  type PlatformConfiguration,
-  type PlatformResource,
 } from './platform-model';
 import {
   checkResourceChange,

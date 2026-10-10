@@ -45,6 +45,9 @@ describe('MCP tool grouping', () => {
       'start_run',
       'list_runs',
       'get_run',
+      'get_run_node',
+      'compare_runs',
+      'replay_run',
       'cancel_run',
       'answer_run_ask',
       'list_versions',
@@ -61,6 +64,11 @@ describe('MCP tool grouping', () => {
       'list_agent_secrets',
       'list_projects',
       'list_events',
+    ]);
+    expect(byGroup('settings')).toEqual([
+      'get_settings',
+      'plan_settings',
+      'apply_settings',
     ]);
     expect(byGroup('capability')).toEqual([
       'search_capabilities',
@@ -117,6 +125,9 @@ describe('MCP tool annotations', () => {
     start_run: hints(false, true, false, true),
     list_runs: { ...READ, idempotentHint: true },
     get_run: { ...READ, idempotentHint: true },
+    get_run_node: { ...READ, idempotentHint: true },
+    compare_runs: { ...READ, idempotentHint: true },
+    replay_run: hints(false, true, false, true),
     cancel_run: hints(false, true, true, false),
     answer_run_ask: hints(false, false, false, false),
     list_versions: { ...READ, idempotentHint: true },
@@ -131,6 +142,9 @@ describe('MCP tool annotations', () => {
     list_agent_secrets: { ...READ, idempotentHint: true },
     list_projects: { ...READ, idempotentHint: true },
     list_events: { ...READ, idempotentHint: true },
+    get_settings: { ...READ, idempotentHint: true },
+    plan_settings: { ...READ, idempotentHint: true },
+    apply_settings: hints(false, true, false, true),
     search_capabilities: { ...READ, idempotentHint: true },
     invoke_capability: hints(false, true, false, true),
     get_knowledge: { ...READ, idempotentHint: true },
@@ -163,15 +177,75 @@ describe('MCP tool annotations', () => {
       'cancel_run',
       'run_deployed',
       'start_run',
+      'replay_run',
       'invoke_capability',
       'run_automation',
       'test_automation',
+      'apply_settings',
     ]);
     for (const tool of MCP_TOOLS) {
       expect(tool.annotations.readOnlyHint, tool.name).toBe(
         !mutating.has(tool.name),
       );
     }
+  });
+});
+
+/**
+ * `set_trigger` publishes the shared trigger contract
+ * (`@tale/shared/schemas/automation-trigger`) — the same shape the REST door
+ * and the app's editor send — so an agent learns a repeat rule, a time zone,
+ * a catch-up policy and a fixed input from the tool list itself, and a key
+ * of another kind is refused before it reaches the store.
+ */
+describe('set_trigger input schema', () => {
+  const tool = MCP_TOOLS.find((candidate) => candidate.name === 'set_trigger');
+  const trigger = (
+    (tool === undefined ? undefined : toolJsonSchema(tool.args, 'input')) as
+      | { properties?: { trigger?: { oneOf?: Record<string, unknown>[] } } }
+      | undefined
+  )?.properties?.trigger;
+
+  test('one strict shape per kind, each with the keys the contract names', () => {
+    const shapes = (trigger?.oneOf ?? []).map((shape) => ({
+      kind: (shape.properties as Record<string, { const?: string }>).kind
+        ?.const,
+      keys: Object.keys(shape.properties as object).toSorted(),
+      strict: shape.additionalProperties === false,
+    }));
+    expect(shapes).toEqual([
+      {
+        kind: 'schedule',
+        keys: [
+          'catchUp',
+          'cron',
+          'enabled',
+          'input',
+          'kind',
+          'repeat',
+          'startDate',
+          'timezone',
+        ],
+        strict: true,
+      },
+      {
+        kind: 'webhook',
+        keys: ['enabled', 'input', 'kind', 'rotateToken'],
+        strict: true,
+      },
+      {
+        kind: 'event',
+        keys: ['enabled', 'event', 'input', 'kind'],
+        strict: true,
+      },
+    ]);
+  });
+
+  test('carries no definition it would need its own root to resolve', () => {
+    const text = JSON.stringify(trigger);
+    expect(text).not.toContain('$ref');
+    expect(text).not.toContain('$defs');
+    expect(text).not.toContain('$schema');
   });
 });
 
@@ -197,6 +271,9 @@ describe('MCP tool input schemas', () => {
       }
       // A typo is refused, never dropped.
       expect(schema.additionalProperties).toBe(false);
+      // Every definition written in place: a client that resolves no
+      // reference still reads the whole shape.
+      expect(JSON.stringify(schema)).not.toMatch(/"\$(ref|defs)"/);
       const properties = Object.keys(
         (schema.properties ?? {}) as Record<string, unknown>,
       );
@@ -272,9 +349,18 @@ describe('MCP tool roles and budgets', () => {
       'deploy_automation',
       'run_deployed',
       'start_run',
+      'replay_run',
       'answer_run_ask',
       'invoke_capability',
     ]);
+  });
+
+  test('a settings change draws from the settings budget; planning one does not', () => {
+    expect(
+      MCP_TOOLS.filter((tool) => tool.lane === 'settings').map(
+        (tool) => tool.name,
+      ),
+    ).toEqual(['apply_settings']);
   });
 
   test('a read never draws from it', () => {
@@ -315,7 +401,7 @@ describe('MCP tool answers and client hints', () => {
     }
   });
 
-  test('putting a version live, deleting, installing, binding a trigger and answering for a person ask the person before every call', () => {
+  test('putting a version live, deleting, installing, binding a trigger, answering for a person and changing settings ask the person before every call', () => {
     expect(
       MCP_TOOLS.filter((tool) => tool.requiresUserInteraction).map(
         (tool) => tool.name,
@@ -326,6 +412,7 @@ describe('MCP tool answers and client hints', () => {
       'set_trigger',
       'answer_run_ask',
       'set_automation_projects',
+      'apply_settings',
     ]);
     for (const tool of MCP_TOOLS) {
       if (tool.annotations.readOnlyHint) {

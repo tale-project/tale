@@ -1,12 +1,12 @@
 import { isAbsolute, resolve } from 'node:path';
 
+import { platformConfigurationSchema } from '@tale/shared/config/platform-resources';
 import { PROJECT_NAME_MAX } from '@tale/shared/schemas/projects';
 import { isValidProjectKey } from '@tale/shared/utils/project-key';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
-import { platformConfigurationSchema } from '../config/platform-model';
 import {
   gitSha,
   owner,

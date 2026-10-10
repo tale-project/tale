@@ -1,4 +1,3 @@
-import { markRetryQueueKey } from '@tale/shared/db/serializable';
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import {
@@ -65,12 +64,12 @@ import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
-  auditChainQueueKey,
-  createAuditLog,
-  lockAuditChain,
-} from '../audit_logs/service.ts';
+  lockProjectWork,
+  queueOnProjectWork,
+} from '../../lib/project-work-lock.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import {
   currentMentionNames,
   prepareSurfaceText,
@@ -840,7 +839,8 @@ export async function applyTaskCountTransition(
   }
   const openDelta = (after === 'open' ? 1 : 0) - (before === 'open' ? 1 : 0);
   const doneDelta = (after === 'done' ? 1 : 0) - (before === 'done' ? 1 : 0);
-  const organizationId = await lockChainBeforeProjectRow(tx, projectId);
+  // The project's work key before its row (`lib/project-work-lock.ts`).
+  await lockProjectWork(tx, projectId);
   try {
     await tx`
       UPDATE app.projects SET
@@ -849,47 +849,8 @@ export async function applyTaskCountTransition(
       WHERE id = ${projectId}
     `;
   } catch (error) {
-    throw queueOnChain(error, organizationId);
+    throw queueOnProjectWork(error, projectId);
   }
-}
-
-/**
- * Take the project's organization audit chain BEFORE its project row.
- *
- * Every task write updates the project row (its number counter, its open
- * and done counts) and appends to the organization's audit chain, and both
- * locks are held until commit. A write that took the row first and the
- * chain second deadlocked with a retry already queued on the chain (which
- * holds the chain from before its transaction began and then needs the
- * row): under a burst of task writes in one project, a cycle a second,
- * each costing the deadlock timeout while every party held a pooled
- * connection. One order — chain, then row — makes the cycle impossible.
- * The chain lock is re-entrant inside the transaction, so the audit append
- * that follows takes it again for free. Returns the organization, or null
- * for a project that does not exist (the UPDATE then touches nothing).
- */
-async function lockChainBeforeProjectRow(
-  tx: TransactionSql,
-  projectId: string,
-): Promise<string | null> {
-  const rows = await tx<{ organizationId: string }[]>`
-    SELECT org_id AS "organizationId" FROM app.projects WHERE id = ${projectId}
-  `;
-  const organizationId = rows[0]?.organizationId ?? null;
-  if (organizationId !== null) await lockAuditChain(tx, organizationId);
-  return organizationId;
-}
-
-/**
- * A conflict on the project row, met while holding the organization's
- * chain, queues the retry on that chain: the queued attempt then takes the
- * chain before its snapshot, after the writer it lost to has committed,
- * instead of colliding on the row again.
- */
-function queueOnChain(error: unknown, organizationId: string | null): unknown {
-  return organizationId === null
-    ? error
-    : markRetryQueueKey(error, auditChainQueueKey(organizationId));
 }
 
 /** Claim the next per-project task number in the same transaction. */
@@ -897,7 +858,7 @@ export async function nextTaskNumber(
   tx: TransactionSql,
   projectId: string,
 ): Promise<number> {
-  const organizationId = await lockChainBeforeProjectRow(tx, projectId);
+  await lockProjectWork(tx, projectId);
   let rows: { taskCounter: number }[];
   try {
     rows = await tx<{ taskCounter: number }[]>`
@@ -906,7 +867,7 @@ export async function nextTaskNumber(
       RETURNING task_counter AS "taskCounter"
     `;
   } catch (error) {
-    throw queueOnChain(error, organizationId);
+    throw queueOnProjectWork(error, projectId);
   }
   const number = rows[0]?.taskCounter;
   if (number === undefined) {
@@ -1175,11 +1136,12 @@ async function settleTaskStatusChange(
   }
   // The platform event is the HUMAN doors' — every gesture a person makes
   // on the board or in the sheet fires the org's `task.status_changed`
-  // triggers alike. The agent lane stays event-less on purpose: dispatch
-  // cannot yet tell a run's own flips apart from a person's (nothing
-  // passes `dispatchAutomationEvent` its 'automation' origin), so an
-  // automation reacting to the event by moving the card would re-trigger
-  // itself. That plumbing is the precondition for turning it on.
+  // triggers alike. The agent lane stays event-less on purpose, and the
+  // event's description in the trigger editor says so ("an agent's own
+  // moves don't count"). A run's own flips could now be told apart (the
+  // run's doors pass the event its origin, `events/origin.ts`), but a
+  // project agent's moves are not a run's, so turning the lane on is a
+  // product decision of its own, not a missing seam.
   if (args.actorType === 'user') {
     await emitEvent(tx, {
       organizationId: task.organizationId,
@@ -4371,41 +4333,38 @@ export async function searchTasks(
     toHit(hit, hit.description ?? hit.title),
   );
 
-  if (results.length < SEARCH_MAX_RESULTS) {
-    const commentHits = await sql<(FieldHit & { body: string })[]>`
-      SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
-             t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
-             t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
-             t.archived_at_ms::float8 AS "archivedAt",
-             m.text AS body
-      FROM app.task_discussion_message_meta meta
-      JOIN app.messages m ON m.id = meta.message_id
-      JOIN app.tasks t ON t.id = meta.task_id
-      WHERE meta.org_id = ${auth.organizationId}
-        AND t.project_id = ANY(${projectIds})
-        AND ${commentSearchMatch(sql, patterns)}
-      ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
-               m.created_at_ms DESC
-      LIMIT ${SEARCH_MAX_RESULTS}
-    `;
-    names = await currentMentionNames(
-      sql,
-      auth.organizationId,
-      commentHits.map((hit) => searchSnippetSource(hit.body)),
-    );
-    for (const hit of commentHits) {
-      if (results.length >= SEARCH_MAX_RESULTS) break;
-      if (seen.has(hit.taskId)) continue;
-      seen.add(hit.taskId);
-      results.push(toHit(hit, hit.body));
-    }
-    results.sort(
-      (a, b) =>
-        Number(a.archived ?? false) - Number(b.archived ?? false) ||
-        b.updatedAt - a.updatedAt,
-    );
+  const commentHits = await sql<(FieldHit & { body: string })[]>`
+    SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
+           t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
+           t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
+           t.archived_at_ms::float8 AS "archivedAt",
+           m.text AS body
+    FROM app.task_discussion_message_meta meta
+    JOIN app.messages m ON m.id = meta.message_id
+    JOIN app.tasks t ON t.id = meta.task_id
+    WHERE meta.org_id = ${auth.organizationId}
+      AND t.project_id = ANY(${projectIds})
+      AND ${commentSearchMatch(sql, patterns)}
+    ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
+             m.created_at_ms DESC
+    LIMIT ${SEARCH_MAX_RESULTS}
+  `;
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    commentHits.map((hit) => searchSnippetSource(hit.body)),
+  );
+  for (const hit of commentHits) {
+    if (seen.has(hit.taskId)) continue;
+    seen.add(hit.taskId);
+    results.push(toHit(hit, hit.body));
   }
-  return results;
+  results.sort(
+    (a, b) =>
+      Number(a.archived ?? false) - Number(b.archived ?? false) ||
+      b.updatedAt - a.updatedAt,
+  );
+  return results.slice(0, SEARCH_MAX_RESULTS);
 }
 
 // ---------------------------------------------------------------------------

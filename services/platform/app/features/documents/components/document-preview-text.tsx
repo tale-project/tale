@@ -2,7 +2,6 @@
 
 import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
-import { useTheme } from '@tale/ui/theme';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -38,7 +37,6 @@ export function DocumentPreviewText({
   fileName,
 }: DocumentPreviewTextProps) {
   const { t } = useT('documents');
-  const { resolvedTheme } = useTheme();
   const { data, isLoading, error } = useTextPreview(url);
   const content = data?.text;
   const truncated = data?.truncated ?? false;
@@ -51,7 +49,6 @@ export function DocumentPreviewText({
     category === 'markup' ||
     category === 'config' ||
     category === 'data';
-  const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
   // Until its highlight lands, a code file under both caps is laid out the
   // way the highlight will lay it out: unwrapped, in the numbered column.
   const willHighlight =
@@ -67,13 +64,15 @@ export function DocumentPreviewText({
 
     let cancelled = false;
     const lang = resolveLanguage(ext);
-    void highlightCode(content, lang, shikiTheme).then((result) => {
+    // One highlight serves both themes: it colours through the `--code-*`
+    // variables, so a theme switch keeps it.
+    void highlightCode(content, lang).then((result) => {
       if (!cancelled) setHighlightedHtml(result?.html ?? null);
     });
     return () => {
       cancelled = true;
     };
-  }, [content, ext, willHighlight, shikiTheme]);
+  }, [content, ext, willHighlight]);
 
   const highlightRef = useCallback(
     (el: HTMLDivElement | null) => {

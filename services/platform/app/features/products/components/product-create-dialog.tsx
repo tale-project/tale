@@ -35,7 +35,10 @@ import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useCreateProduct } from '../hooks/mutations';
 import { productImageUrlSchema } from '../utils/product-image-url-schema';
-import { productNumberSchema } from '../utils/product-number-schema';
+import {
+  parseProductNumber,
+  productNumberSchema,
+} from '../utils/product-number-schema';
 import { ProductImageField } from './product-image-field';
 
 function isProductStatus(value: string): value is ProductStatus {
@@ -239,8 +242,8 @@ function ProductCreateDraft({
       name: data.name.trim(),
       description: data.description.trim() || undefined,
       imageUrl: data.imageUrl.trim() || undefined,
-      stock: data.stock ? parseInt(data.stock) : undefined,
-      price: data.price ? parseFloat(data.price) : undefined,
+      stock: data.stock ? parseProductNumber(data.stock) : undefined,
+      price: data.price ? parseProductNumber(data.price) : undefined,
       currency: data.currency || undefined,
       category: data.category.trim() || undefined,
       status:

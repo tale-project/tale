@@ -14,6 +14,7 @@ import {
   createVerifyBundleCommand,
   runManagedDeployment,
 } from './managed';
+import { createNativeObserveCommand, createObserveCommand } from './observe';
 import { createProvisionCommand } from './provision';
 import { createSmokeCommand } from './smoke';
 
@@ -74,6 +75,8 @@ export function createDeployCommand(): Command {
     .addCommand(createPrepareCommand())
     .addCommand(createVerifyBundleCommand())
     .addCommand(createAcceptCommand())
+    .addCommand(createObserveCommand())
+    .addCommand(createNativeObserveCommand(), { hidden: true })
     .addCommand(createProvisionCommand())
     .addCommand(createSmokeCommand())
     .addCommand(createExportClientCommand())

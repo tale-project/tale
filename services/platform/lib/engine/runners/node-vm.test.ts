@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { RunnerLimits } from '../core/runner';
+import { parseExpressionIn } from '../core/syntax/parse';
+import { instrument, probePlan } from '../core/syntax/probe';
 import { nodeVmRunner } from './node-vm';
 
 const LIMITS = { timeoutMs: 200 };
@@ -237,5 +240,91 @@ describe('nodeVmRunner — the deadline charges the evaluation, nothing around i
     await expect(
       runner.evalExpr('[o.x, o.own, Object.keys(o).length]', { o }, LIMITS),
     ).resolves.toEqual([null, 2, 2]);
+  });
+});
+
+/** `text` with its planned probes spliced in. */
+function instrumented(text: string): string {
+  const parsed = parseExpressionIn(text, 0, text.length);
+  if (!parsed.ok) throw new Error(parsed.message);
+  const source = instrument(text, [0, text.length], probePlan(parsed));
+  if (source === null) throw new Error('not instrumentable');
+  return source;
+}
+
+describe('nodeVmRunner — probed expressions', () => {
+  const runner = nodeVmRunner({ killGraceMs: 100 });
+  async function evalExprProbed(
+    source: string,
+    scope: Record<string, unknown>,
+    limits: RunnerLimits,
+  ) {
+    const answer = await runner.evalExprProbed?.(source, scope, limits);
+    if (answer === undefined) throw new Error('node-vm probes');
+    return answer;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('answers the value and what each probed sub-expression held', async () => {
+    await expect(
+      evalExprProbed(instrumented('input.n > 5'), { input: { n: 7 } }, LIMITS),
+    ).resolves.toEqual({
+      value: true,
+      probes: [
+        [1, { kind: 'number', text: '7', bytes: 1 }],
+        [0, { kind: 'boolean', text: 'true', bytes: 4 }],
+      ],
+    });
+  });
+
+  it('answers an error the expression throws, in the words evalExpr rejects with', async () => {
+    const scope = { input: { a: 2 } };
+    const text = 'input.a > 1 && input.a.b.c';
+    const answer = await evalExprProbed(instrumented(text), scope, LIMITS);
+    const plain = await runner
+      .evalExpr(text, scope, LIMITS)
+      .catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
+    expect(answer.error).toEqual({ message: plain, name: 'TypeError' });
+    expect(answer.value).toBeUndefined();
+    expect(answer.probes.map(([k]) => k)).toEqual([2, 1]);
+  });
+
+  it('still rejects a timeout, and keeps serving', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(
+      evalExprProbed(
+        instrumented('input.n + (() => { for (;;) {} })()'),
+        { input: { n: 1 } },
+        { timeoutMs: 50 },
+      ),
+    ).rejects.toThrow(/timed out/i);
+    await expect(
+      evalExprProbed(instrumented('input.n'), { input: { n: 1 } }, LIMITS),
+    ).resolves.toMatchObject({ value: 1 });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('evaluates in a fresh context each time, scope keys bound as evalExpr binds them', async () => {
+    await evalExprProbed('(globalThis.leak = 1)', {}, LIMITS);
+    await expect(
+      evalExprProbed('typeof globalThis.leak', {}, LIMITS),
+    ).resolves.toMatchObject({ value: 'undefined' });
+    const scope = { input: 1, nodes: {}, 'not-valid': 2 };
+    await expect(
+      evalExprProbed('arguments.length', scope, LIMITS),
+    ).resolves.toMatchObject({
+      value: await runner.evalExpr('arguments.length', scope, LIMITS),
+    });
+  });
+
+  it('rejects a scope that cannot cross as data, as evalExpr does', async () => {
+    const scope: Record<string, unknown> = {};
+    scope.self = scope;
+    await expect(evalExprProbed('1', scope, LIMITS)).rejects.toThrow(
+      /circular/i,
+    );
   });
 });

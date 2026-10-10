@@ -656,7 +656,7 @@ Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la f
 - `projectIds` indique les projets où l’automatisation est installée.
 - `description` décrit son rôle.
 - `inputs` contient le schéma d’entrée de la version déployée ou, à défaut, de la dernière version enregistrée.
-- `trigger` contient le type de déclencheur, son activation et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
+- `trigger` contient le type de déclencheur, son activation, `nextRunAt` et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
 
 Une automatisation installée uniquement dans des projets que le titulaire de la clé ne peut pas lire n’apparaît pas dans la liste, et `GET /api/v1/automations/{name}`, ses versions et ses déclencheurs répondent **404** `AUTOMATION_NOT_FOUND` pour elle, comme pour une automatisation qui n’existe pas ; une automatisation installée nulle part appartient à toute l’organisation.
 
@@ -691,15 +691,36 @@ curl -sS --compressed -X PUT "https://your-host.example.com/api/v1/automations/b
 
 Choisis `kind` selon le mode de démarrage :
 
-- `schedule` exige un `cron` à cinq champs et accepte un `timezone` IANA facultatif.
+- `schedule` s’exécute selon une règle de répétition (`repeat`) ou une expression cron (`cron`), jamais les deux (contrat 3.24.0).
 - `webhook` renvoie une seule fois le `token` utilisé dans l’URL. Voir [Webhooks](/fr/develop/webhooks).
 - `event` exige le nom d’un événement émis par la plateforme.
 
-Une configuration impossible à déclencher donne **400**, `AUTOMATION_TRIGGER_INVALID`, avec une explication : expression cron sans occurrence, comme `0 0 30 2 *`, fuseau non IANA ou événement non pris en charge.
+`repeat` est une `ScheduleRule`, la règle qu’écrit aussi le sélecteur de planification de l’application. Une règle `daily`, `weekly`, `monthly` ou `yearly` s’exécute à une à douze heures locales dans `times`, écrites `HH:MM` ; une règle `minutely` ou `hourly` démarre toutes les quelques minutes ou heures, à la minute `minute` après l’heure pile pour `hourly`, éventuellement certains jours de la semaine seulement et entre deux heures (`window`). Elle exige un `timezone`. `startDate`, un jour `YYYY-MM-DD` dans ce fuseau, est le premier jour où elle peut s’exécuter et le jour à partir duquel « toutes les 2 semaines » se compte ; s’il manque, c’est aujourd’hui : renvoie donc celui que lit `GET .../triggers` pour garder une règle en phase. `cron` est une expression à cinq champs, lue dans `timezone`, ou en UTC sans fuseau.
 
-Chaque type accepte uniquement ses propres champs : `cron` et `timezone` pour `schedule`, `event` pour `event`, `rotateToken` pour `webhook`. Un champ d’un autre type donne **400**, `INVALID_BODY`, et figure dans `data.issues`. Un webhook ne peut donc pas conserver implicitement une planification.
+```json
+{
+  "kind": "schedule",
+  "repeat": {
+    "frequency": "weekly",
+    "interval": 1,
+    "weekdays": [1, 2, 3, 4, 5],
+    "times": ["09:00", "17:30"]
+  },
+  "timezone": "Europe/Zurich",
+  "catchUp": "latest",
+  "input": { "region": "emea" }
+}
+```
 
-Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trigger": "event", "event": "<name>", "payload": <les données de l'événement> }`. Les événements disponibles sont :
+Les jours de la semaine comptent à partir de 0 pour dimanche. Une heure locale que l’horloge saute démarre une fois, décalée de la durée du saut, et une heure qu’elle répète démarre une fois, à sa première occurrence ; une règle `minutely` ou `hourly`, comme une expression cron dont la minute ou l’heure commence par `*`, garde en revanche son intervalle réel. `catchUp` décide de ce que fait une planification des occurrences manquées pendant que la plateforme ne tournait pas : `latest`, la valeur par défaut, lance la plus récente une fois, quel que soit le retard ; `skip` ne la lance que si elle a au plus dix minutes de retard. Dans les deux cas, les autres sont comptées, pas rattrapées.
+
+Chaque type accepte aussi `enabled` (absent, il vaut `true`) et `input`, une entrée fixe : un objet JSON d’au plus 16 KiB que reçoit chaque exécution lancée par le déclencheur, ses propres champs `trigger`, `firedAt`, `event` et `payload` étant placés par-dessus — elle ne peut pas les nommer. Ce sont de simples données ; un modèle qu’elle contient arrive sous forme de texte. Le `PUT` remplace tout le déclencheur : un champ omis est réinitialisé.
+
+Un déclencheur qui enfreint une règle ou ne pourrait jamais se déclencher donne **400**, `AUTOMATION_TRIGGER_INVALID`, chaque problème figurant dans `data.issues` sous la forme `{ "path", "code", "message" }` : ni `repeat` ni `cron`, ou les deux (`schedule.cron_or_repeat`) ; une expression cron sans occurrence, y compris un jour qu’aucun mois nommé n’a (`0 0 30 2 *`) ; une heure qui n’est pas écrite `HH:MM`, plus de douze heures, un intervalle que la règle ne propose pas, un jour que le mois n’a jamais, ou une plage où aucun démarrage ne tombe ; un fuseau vide ou non IANA ; une entrée fixe qui n’est pas un objet, nomme l’un des champs propres au déclencheur ou dépasse 16 KiB ; un événement que la plateforme n’émet pas.
+
+Chaque type accepte uniquement ses propres champs : `cron`, `repeat`, `startDate`, `timezone` et `catchUp` pour `schedule`, `event` pour `event`, `rotateToken` pour `webhook`, ainsi que `enabled` et `input` pour tous. Un champ d’un autre type donne **400**, `INVALID_BODY`, et figure dans `data.issues`. Un webhook ne peut donc pas conserver implicitement une planification.
+
+Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trigger": "event", "event": "<name>", "payload": <les données de l'événement> }`, à côté d’une éventuelle entrée fixe. Les événements disponibles sont :
 
 | Événement                                               | Émis quand                                                                                                                                                       |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -716,12 +737,12 @@ Le `comment` d’un événement de commentaire contient `body` tel qu’il est e
 
 ### Vérifier le déclencheur et le suspendre
 
-`GET .../triggers` renvoie `triggers`, une liste contenant au maximum un élément. Les horodatages distinguent les exécutions réellement lancées des occurrences ignorées :
+`GET .../triggers` renvoie `triggers`, une liste contenant au maximum un élément, avec ce qui a été enregistré (`repeat` et `startDate` ou `cron`, `timezone`, `catchUp`, `input`) et le prochain démarrage (`nextRunAt`, `null` tant que le déclencheur est désactivé, ainsi que pour un webhook ou un événement). Les horodatages distinguent les exécutions réellement lancées des occurrences ignorées :
 
 - `lastFiredAt` et `lastRunId` correspondent à la dernière exécution lancée. Ils restent `null` tant qu’aucune exécution n’a démarré.
 - `lastSkippedAt` et `lastSkipReason` décrivent la dernière occurrence qui n’a rien lancé. Une livraison de webhook que le schéma `inputs` de la version déployée refuse est un autre cas : l’expéditeur reçoit **400** `AUTOMATION_INPUT_INVALID`, rien ne démarre et aucun de ces horodatages ne bouge — la liaison n’était pas due, un webhook dont chaque livraison est refusée se lit donc comme un webhook jamais appelé. Vérifie les livraisons côté expéditeur.
 
-Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, `start_refused` si le schéma `inputs` déployé refuse l’entrée, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
+Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si la planification ou son fuseau ne peut pas être interprété, `start_refused` si le démarrage a été refusé — le schéma `inputs` déployé refuse l’entrée, ou le projet de l’exécution ne peut pas la recevoir, comme un projet archivé pour un événement ; `lastSkipDetail.code` précise lequel —, `missed_occurrences` si des occurrences étaient dues pendant que la plateforme ne tournait pas, comme le décrit `catchUp`, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification. `lastSkipDetail` contient les faits derrière le motif : l’occurrence concernée (`occurrence`), le `code` d’un refus, la `version` qui a refusé, son `message` et ses `issues`, et `missed` — `count` (jusqu’à 1 000, `capped` au-delà), `firstAt`, `lastAt` et la `policy` — quand des occurrences ont été manquées. Une pause après des échecs n’a pas de détail ; ses faits sont les champs d’échec ci-dessous.
 
 Compare `lastFiredAt` à la cadence attendue. Si `lastSkippedAt` est plus récent, consulte la raison avant de relancer. Changer le type de déclencheur réinitialise ces horodatages.
 
@@ -733,7 +754,7 @@ Une planification dont les exécutions échouent sans cesse se met en pause d’
 
 Quand le compteur d’une planification atteint cinq, la plateforme passe `enabled: false` et `lastSkipReason: "paused_after_failures"`, écrit une ligne d’audit `automation.trigger.paused` et prévient les Propriétaires et Admins de l’organisation. Corrige l’automatisation, puis envoie un `PUT` du déclencheur avec `enabled: true`. Chaque `PUT` remet le compteur à zéro et efface ce motif ; un `PUT` sans `enabled` réactive le déclencheur, car `enabled` vaut `true` par défaut. Les liaisons webhook et événement continuent de compter, mais ne sont jamais mises en pause (contrat 3.1.0).
 
-La réponse `PUT` indique aussi `deployed`. Il est possible de configurer le déclencheur avant le déploiement, mais ses occurrences sont ignorées avec `not_deployed` jusqu’à ce qu’une version soit déployée. Le champ `trigger` de `GET /api/v1/automations` permet de constater cet état.
+La réponse `PUT` indique aussi `deployed`. Il est possible de configurer le déclencheur avant le déploiement, mais ses occurrences sont ignorées avec `not_deployed` jusqu’à ce qu’une version soit déployée. Le champ `trigger` de `GET /api/v1/automations` permet de constater cet état. Pour une planification, la réponse ajoute `nextRunAt`. Quand une version est déployée, elle ajoute `warnings`, ce que cette version ferait de l’entrée du déclencheur ; le déclencheur est enregistré dans tous les cas. `TRIGGER_INPUT_MISMATCH` signifie que son schéma `inputs` refuse ce que le déclencheur transmet à une exécution et nomme les champs obligatoires manquants dans `params.missing` (le corps d’un webhook n’est pas jugé) ; `TRIGGER_INPUT_NOT_TEMPLATED` signifie que l’entrée fixe contient un modèle, qui arrive sous forme de texte.
 
 ## Démarrer une exécution, puis la suivre
 
@@ -775,7 +796,7 @@ Une exécution lancée par un déclencheur (`startedBy: "trigger:<id>"`) porte a
 
 | Origine de l’échec | Exemples et action |
 | --- | --- |
-| Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
+| Automatisation | `node_error`, `connector_error`, `connector_unavailable`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
 | Fournisseur de modèle | Par exemple `credit_exhausted` ou `rate_limited` : résous le problème du fournisseur avant un nouvel essai. |
 | Exécution d’agent | Par exemple `harness_error`, `session_gone` ou `deadline` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
 | Limite de budget | `budget_exceeded` : une limite de budget a refusé un tour d’agent ou l’appel d’une étape `llm`, ou un tour a épuisé l’enveloppe avec laquelle il a démarré. Lis `detail`, puis attends que la limite se réinitialise ou demande à un administrateur de la relever. |
@@ -823,6 +844,42 @@ Avec `include`, une page contient au maximum 25 lignes et 8 Mio. Elle peut s’a
 Une automatisation sans association à un projet peut démarrer sans projet via `POST /api/v1/automations/{name}/runs`. Une automatisation associée donne **409** sur cette route. `GET /api/v1/automations/{name}/runs` et `/api/v1/runs/{runId}` exposent uniquement les exécutions sans projet. Pour lire, annuler ou supprimer une exécution de projet, utilise toujours la route de ce projet.
 
 `DELETE /api/v1/projects/{id}/runs/{runId}`, ou `/api/v1/runs/{runId}`, exige la capacité développeur et supprime une exécution terminée, entrée et sortie comprises. Une exécution active donne **409**, `RUN_ACTIVE` : annule-la d’abord.
+
+### Lire une exécution étape par étape
+
+`GET /api/v1/runs/{runId}/record` (ou la forme projet) renvoie l’enregistrement de l’exécution : chaque étape dans l’ordre où elle s’exécute – l’entrée de l’exécution comme `__start`, les étapes de la version, la sortie du document comme `__end` – avec son statut, ses durées et ses tentatives, les décisions qui l’ont exécutée ou ignorée (chaque condition expliquée avec les valeurs qu’elle a lues), pourquoi elle n’a produit aucune sortie, remonté jusqu’à la cause, pourquoi elle a échoué (une `reason` tirée d’une liste fixe, avec les `params` qui la formulent), et un aperçu de ce qu’elle a reçu et renvoyé. Les valeurs elles-mêmes restent hors de l’enregistrement : lis une étape en entier sur `…/record/node?node=<path>` et ajoute `item` ou `pass` pour l’un de ses éléments ou passages. `…/record/items?node=<path>` parcourt les éléments et passages d’une étape page par page ; `status=failed` ne garde que ceux qui ont échoué. `…/compare/{otherRunId}` compare deux exécutions de la même automatisation étape par étape et nomme la première étape où elles ont divergé ; des exécutions d’automatisations différentes renvoient **400** `RUN_COMPARE_MISMATCH`. Chaque lecture demande le même accès que la lecture de l’exécution, et les secrets restent partout retenus.
+
+Pour suivre une exécution pendant qu’elle travaille, renvoie le `cursor` de l’enregistrement comme `since` : la réponse ne contient alors que les étapes écrites depuis et les événements depuis – fusionne les étapes par `path` et les événements par `id`. Un enregistrement reste sous 512 KiB et une étape sous 256 KiB ; `truncated` dit ce qui a été laissé de côté pour tenir. Ces lectures nécessitent le contrat d’API 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "format": 1, "nodes": [{ "path": "__start", "status": "succeeded", … },
+#   { "path": "triage", "status": "skipped", "skip": { "reason": "when", … },
+#     "decisions": [{ "kind": "when", "result": false, "explanation": [ … ] }] }, …],
+#   "cursor": 1758210000000 }
+```
+
+### Relancer une exécution
+
+`POST /api/v1/runs/{runId}/replay` (ou la forme projet) démarre une nouvelle exécution de la même automatisation, dans le périmètre de l’exécution : avec son entrée (`"kind": "again"`), avec une `input` que tu envoies (`"edited"`), ou à partir d’une étape (`"from"` avec `from`). Une relance à partir d’une étape réutilise les étapes que l’exécution a terminées hors de cette étape et de ce qu’elle alimente – leurs résultats et leur enregistrement, jamais leurs effets – et exécute le reste ; le `replayOf` de la nouvelle exécution nomme celle qu’elle relance. `version` choisit la version (`same` par défaut, ou `deployed`, `latest`, un numéro) et `mode` le mode (celui de l’exécution par défaut). Une relance réelle demande la capacité de développeur et la version déployée, et une relance à partir d’une étape d’une exécution simulée reste simulée (**409** `REPLAY_MODE_MISMATCH`).
+
+Une étape qui écrit s’exécute à nouveau et écrit à nouveau, sous une nouvelle clé de requête : les services qui ignorent les requêtes répétées n’y verront donc pas une répétition. Planifie d’abord : `GET …/replay` avec la même requête dans la query renvoie ce qui est réutilisé, ce qui s’exécute à nouveau, ce que chaque étape fait hors de Tale, et `writesAgain`, les écritures qui repartent une seconde fois – ou le `refusal` qu’elle rencontrerait : l’exécution n’est pas terminée (`REPLAY_RUN_NOT_FINISHED`), la version à exécuter a changé ce que calcule une étape réutilisée (`REPLAY_GRAPH_CHANGED`, avec les étapes), aucune étape de ce nom (`REPLAY_NODE_UNKNOWN`), ou l’exécution n’a gardé aucune entrée (`REPLAY_INPUT_UNAVAILABLE`). Envoie `Idempotency-Key` pour pouvoir réessayer sans risque. Ces points d’accès nécessitent le contrat d’API 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/replay?kind=from&from=send" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "reuse": [{ "nodeId": "fetch", "status": "ok" }], "rerun": [{ "nodeId": "send", "effect": "write", … }],
+#   "writesAgain": 1, … }
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/runs/<runId>/replay" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: fix-4711" \
+  -d '{ "kind": "from", "from": "send" }'
+# → 202 { "runId": "...", "version": 3, "mode": "live", "kind": "from", "reused": 1 }
+```
 
 ## Agir pour un membre : répondre à la question d’une exécution, décider la relecture d’une tâche
 

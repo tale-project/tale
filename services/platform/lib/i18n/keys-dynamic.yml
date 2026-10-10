@@ -307,3 +307,12 @@ entries:
   # the catalog to the engine's code list instead (one entry per code, none
   # left over, and the shape of the phrases).
   - 'automationIssues'
+
+  # Why a run or one of its steps failed:
+  # app/features/automations/lib/run-failure.ts renders
+  # `runtime.codes.<REASON>.*` and `runFailure.codes.<code>.*` (or
+  # `runFailure.unknown.*`) from the run record's failure, through the `t`
+  # its caller hands it. lib/i18n/automation-run-failure-keys.test.ts holds
+  # the catalog to the engine's reasons and the run failure codes instead.
+  - 'automationRuns.runtime'
+  - 'automationRuns.runFailure'

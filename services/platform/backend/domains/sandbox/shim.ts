@@ -3,15 +3,19 @@ import type { TaskAgentResumeFrom } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
-import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { isStandingProjectAgentSession } from '../../core/sandbox/session_naming.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { automationAskShimHandlers } from '../automations/ask-shim.ts';
+import { resolveAutomationRunBinding } from '../automations/run-binding.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
+import {
+  automationRunKnowledgeScope,
+  projectsKnowledgeScope,
+} from '../knowledge/automation-scope.ts';
 import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
 import {
   authorizeAgentReviewFile,
@@ -71,29 +75,6 @@ interface BindingResolution {
   boundProjectIds?: string[];
 }
 
-/**
- * The projects an org-wide automation run may act on — the deploy-time
- * bindings of the automation this run belongs to.
- *
- * Read STRAIGHT off the binding rows, never joined against `projects`: an
- * empty set means "org-level, unbounded", so a join that dropped a row would
- * WIDEN this run's authority. An id whose project is gone simply matches
- * nothing downstream, which is the fail-closed direction.
- */
-async function boundProjectIdsOf(
-  sql: Sql | TransactionSql,
-  organizationId: string,
-  automationName: string,
-): Promise<string[]> {
-  const rows = await sql<{ projectId: string }[]>`
-    SELECT project_id AS "projectId"
-    FROM app.automation_project_bindings
-    WHERE org_id = ${organizationId}
-      AND automation_name = ${automationName}
-  `;
-  return rows.map((row) => row.projectId);
-}
-
 async function resolveSessionBinding(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -136,31 +117,7 @@ async function resolveSessionBinding(
     // Step-scoped owners are `${runId}:<suffix>` (the 0.4 spelling the
     // automation host still mints).
     const runId = session.ownerId.split(':')[0] ?? '';
-    const runs = await sql<{ name: string; projectId: string | null }[]>`
-      SELECT name, project_id AS "projectId" FROM app.automation_runs
-      WHERE id = ${runId} AND org_id = ${organizationId}
-      LIMIT 1
-    `;
-    const run = runs[0];
-    if (!run) return { kind: 'none' };
-    // Writes are attributed to the AUTOMATION, not to whoever started the
-    // run — the same actor the engine's own task natives use.
-    const actorId = `automation:${run.name}`;
-    if (run.projectId !== null) {
-      const projects = await sql<{ id: string }[]>`
-        SELECT id FROM app.projects
-        WHERE id = ${run.projectId} AND org_id = ${organizationId}
-        LIMIT 1
-      `;
-      // A run pinned to a project whose row is gone stays fail-closed.
-      if (projects.length === 0) return { kind: 'none' };
-      return { kind: 'project', projectId: run.projectId, actorId };
-    }
-    return {
-      kind: 'org_run',
-      actorId,
-      boundProjectIds: await boundProjectIdsOf(sql, organizationId, run.name),
-    };
+    return resolveAutomationRunBinding(sql, organizationId, runId);
   }
   return { kind: 'none' };
 }
@@ -284,52 +241,6 @@ async function requireProjectTaskRun(
     projectId: binding.projectId,
     agentId: binding.actorId,
     execId: args.taskRunExecId,
-  };
-}
-
-/**
- * The knowledge scope over a set of ALREADY-AUTHORIZED projects: each
- * project's team and shared teams, the org pseudo-team, the hub, and the
- * archived subset (labelling only). One helper for both bindings — a project
- * session reads its one project, an org-wide run of a multi-bound automation
- * reads its bound projects. Built from the `projects` rows that EXIST: a bound
- * id whose project is gone contributes nothing (the fail-closed direction),
- * never a widening.
- */
-async function projectsKnowledgeScope(
-  sql: Sql,
-  organizationId: string,
-  projectIds: readonly string[],
-): Promise<{
-  teamIds: string[];
-  projectIds: string[];
-  includeHub: boolean;
-  archivedProjectIds: string[];
-}> {
-  const rows = await sql<
-    {
-      id: string;
-      teamIds: string[] | null;
-      archivedAt: number | null;
-    }[]
-  >`
-    SELECT id, ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds",
-           archived_at_ms::float8 AS "archivedAt"
-    FROM app.projects
-    WHERE id = ANY(${[...projectIds]}) AND org_id = ${organizationId}
-    ORDER BY created_at_ms, id
-  `;
-  const teamIds = new Set<string>();
-  const archivedProjectIds: string[] = [];
-  for (const row of rows) {
-    for (const teamId of row.teamIds ?? []) teamIds.add(teamId);
-    if (row.archivedAt != null) archivedProjectIds.push(row.id);
-  }
-  return {
-    teamIds: [...teamIds],
-    projectIds: rows.map((row) => row.id),
-    includeHub: true,
-    archivedProjectIds,
   };
 }
 
@@ -467,32 +378,13 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         };
       }
       if (binding.kind === 'org_run') {
-        const bound = binding.boundProjectIds ?? [];
-        if (bound.length > 0) {
-          // A multi-bound automation's run reads ITS bound projects' files —
-          // the same projects `resolveSessionActionContext` confines its task
-          // and document actions to — plus the hub. Hub-only here made the
-          // very documents the run was deployed over `not_found` mid-run.
-          return {
-            allowed: true,
-            scope: await projectsKnowledgeScope(
-              sql,
-              args.organizationId,
-              bound,
-            ),
-          };
-        }
-        // An automation with NO bindings is org-level: it reads the org HUB —
-        // the knowledge every member shares (`includeHub`) — not the union
-        // of every project's attached files, and no team library.
+        // What any step of an automation run reads: its bound projects, or
+        // the hub alone for an automation bound to none.
         return {
           allowed: true,
-          scope: {
-            teamIds: [],
-            projectIds: [],
-            includeHub: true,
-            archivedProjectIds: [],
-          },
+          scope: await automationRunKnowledgeScope(sql, args.organizationId, {
+            boundProjectIds: binding.boundProjectIds ?? [],
+          }),
         };
       }
       if (args.userId !== undefined) {

@@ -30,6 +30,7 @@ import {
   backendEntityPrefix,
   backendKey,
   orgApiKeyListKey,
+  projectCapabilityCatalogKey,
 } from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
@@ -590,10 +591,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       queryFn: () =>
         backendFetch<{ usage: QuotaUsageResult }>('/sandbox/quota-usage', {
           orgId,
-        }).then(
-          (body) => body.usage,
-          () => null,
-        ),
+        }).then((body) => body?.usage ?? null),
       refetchInterval: 15_000,
     };
   },
@@ -1102,6 +1100,9 @@ function invalidateConnectorCredentials(
   if (orgId === undefined) return;
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, CONNECTOR_CREDENTIAL_HINT_ENTITY),
+  });
+  void client.invalidateQueries({
+    queryKey: projectCapabilityCatalogKey(orgId),
   });
 }
 

@@ -544,14 +544,6 @@ default means deleting the override and fixing what surfaces:
   project, then `assertTaskWorkable` — an archived task stays deletable) so its
   `TASK_FORBIDDEN` never leaks, `deleteTask`'s owner/admin rule surfaced as 403
   `ROLE_FORBIDDEN`, and a contract bump.
-- **A webhook bind does not say whether the deployed `inputs` schema admits a delivery** — a
-  `PUT …/triggers` of kind `webhook` answers `deployed`, and every delivery then dies on 400
-  `AUTOMATION_INPUT_INVALID` when the version's `inputs` schema does not take
-  `{trigger: "webhook", payload}` at the top level (2026-09, round g). Paying it down means an
-  additive `inputsAcceptDelivery` on the bind: compile the deployed version's `inputs` with the
-  stepper's own `compileSchemaCached` key, check `{trigger: 'webhook', payload: {}}`, and
-  judge only issues at `trigger`/`payload` or a top-level `is required` (requirements inside
-  `payload.*` are not judged); absent without a schema or a deployment.
 - **An exhausted `repeatUntil` is only a trace note** — a `repeat` node that spends its
   `maxRepeats` budget without its condition becoming true finishes the run `success` with the
   last pass's output and a free-text `trace[].note`; nothing structured says the loop gave up

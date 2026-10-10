@@ -6,12 +6,8 @@
 # the diff, and regenerate with
 #   CORPUS_UPDATE=1 bunx vitest --run --project server lib/engine/core/analysis/corpus
 pack github/import-issues: []
-pack github/review-pull-requests:
-  - code: TRIGGER_INPUT_MISMATCH
-    pointer: /inputs
-pack github/triage-issues:
-  - code: TRIGGER_INPUT_MISMATCH
-    pointer: /inputs
+pack github/review-pull-requests: []
+pack github/triage-issues: []
 pack glitchtip/import-issues: []
 pack gmail/sync-emails: []
 pack gmail/triage-inbox: []

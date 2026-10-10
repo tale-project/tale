@@ -20,6 +20,9 @@ switcher:
   empty: Aucun projet trouvé
   ariaLabel: 'Changer de projet, actuel : {name}'
   allProjects: Tous les projets
+  retry: Réessayer
+  retrying: Nouvelle tentative…
+  readError: Liste des projets indisponible
 navigation:
   overview: Général
   files: Connaissances

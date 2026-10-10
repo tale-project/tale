@@ -42,6 +42,7 @@ vi.mock('../../../lib/connectors/catalog.ts', () => ({
   loadConnectorDefinitions: () => [
     { name: 'task', auth: [{ method: 'platform' }] },
     { name: 'imap-smtp', auth: [{ method: 'basic' }] },
+    { name: 'http', auth: [{ method: 'bearer' }], credential: 'optional' },
   ],
 }));
 
@@ -85,6 +86,116 @@ describe('the connector action seam', () => {
     expect(failure.message).not.toContain('{"code"');
   });
 
+  it('keeps the reason a connector gave for its refusal', async () => {
+    const refusal = Object.assign(
+      new ConnectorError('LIVE_BODY_FAILED', 'The service answered 404', {
+        connector: 'http',
+        action: 'get',
+      }),
+      {
+        failure: {
+          reason: 'HTTP_STATUS' as const,
+          params: { status: 404, method: 'GET', host: 'api.example.com' },
+        },
+      },
+    );
+    runConnectorAction.mockRejectedValueOnce(refusal);
+    const handler = handlers['connectors/execute_action:runConnectorAction'];
+    if (!handler) throw new Error('no connector handler');
+    const caught = await handler({ connector: 'http', action: 'get' }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(NodeFailure);
+    expect((caught as NodeFailure).failure).toEqual(refusal.failure);
+  });
+
+  it('keeps a usage limit a budget refusal, never a connector one', async () => {
+    const refusal = Object.assign(
+      new ConnectorError('LIVE_BODY_FAILED', 'Usage limit reached.', {
+        connector: 'knowledge',
+        action: 'search',
+      }),
+      {
+        failure: {
+          reason: 'BUDGET_EXCEEDED' as const,
+          params: { detail: 'Usage limit reached.' },
+        },
+      },
+    );
+    runConnectorAction.mockRejectedValueOnce(refusal);
+    const handler = handlers['connectors/execute_action:runConnectorAction'];
+    if (!handler) throw new Error('no connector handler');
+    const caught = await handler({
+      connector: 'knowledge',
+      action: 'search',
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(NodeFailure);
+    expect((caught as NodeFailure).code).toBe('budget_exceeded');
+    expect((caught as NodeFailure).failure).toEqual(refusal.failure);
+  });
+
+  it.each([
+    [
+      'a busy service',
+      Object.assign(
+        new ConnectorError('LIVE_BODY_FAILED', 'The service answered 503', {
+          connector: 'github',
+          action: 'create_issue',
+        }),
+        { status: 503 },
+      ),
+      'connector_unavailable',
+      { reason: 'CONNECTOR_FAILED', status: 503 },
+    ],
+    [
+      'a service that never answered',
+      new ConnectorError('LIVE_BODY_FAILED', 'fetch failed', {
+        connector: 'github',
+        action: 'create_issue',
+      }),
+      'connector_unavailable',
+      { reason: 'CONNECTOR_UNREACHABLE' },
+    ],
+    [
+      'a refusal with no status',
+      new ConnectorError('LIVE_BODY_FAILED', 'Repository is archived', {
+        connector: 'github',
+        action: 'create_issue',
+      }),
+      'connector_error',
+      { reason: 'CONNECTOR_FAILED' },
+    ],
+  ])(
+    'classifies %s the way the in-process executor does',
+    async (_case, refusal, code, expected) => {
+      runConnectorAction.mockRejectedValueOnce(refusal);
+      const handler = handlers['connectors/execute_action:runConnectorAction'];
+      if (!handler) throw new Error('no connector handler');
+      const caught = await handler({
+        connector: 'github',
+        action: 'create_issue',
+      }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(caught).toBeInstanceOf(NodeFailure);
+      const failure = caught as NodeFailure;
+      expect(failure.code).toBe(code);
+      expect(failure.failure).toMatchObject({
+        reason: expected.reason,
+        params: {
+          connector: 'github',
+          action: 'github.create_issue',
+          ...('status' in expected && { status: expected.status }),
+        },
+      });
+    },
+  );
+
   it('lets any other failure through untouched', async () => {
     runConnectorAction.mockRejectedValueOnce(new Error('connection reset'));
     const handler = handlers['connectors/execute_action:runConnectorAction'];
@@ -94,6 +205,32 @@ describe('the connector action seam', () => {
 });
 
 describe('the credential probe', () => {
+  it('answers usable without a lookup for a step that names no credential where none is needed', async () => {
+    await expect(
+      probeCredentialUsable(sql, {
+        organizationId: 'org_1',
+        connectorSlug: 'http',
+      }),
+    ).resolves.toEqual({ usable: true });
+    expect(assertConnectorCredentialInService).not.toHaveBeenCalled();
+  });
+
+  it('checks the credential a step names', async () => {
+    assertConnectorCredentialInService.mockResolvedValueOnce(undefined);
+    await expect(
+      probeCredentialUsable(sql, {
+        organizationId: 'org_1',
+        connectorSlug: 'http',
+        credentialRef: 'Shop API',
+      }),
+    ).resolves.toEqual({ usable: true });
+    expect(assertConnectorCredentialInService).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      connectorSlug: 'http',
+      credentialRef: 'Shop API',
+    });
+  });
+
   it('answers usable without a lookup for a platform connector', async () => {
     await expect(
       probeCredentialUsable(sql, {

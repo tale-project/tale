@@ -1,0 +1,723 @@
+'use client';
+
+/**
+ * The CodeMirror implementation behind `CodeEditor` — loaded lazily, the
+ * first time a code field mounts (or `preloadCodeEditor()` asks). Nothing
+ * outside this module and its `extensions/` imports CodeMirror, so a page
+ * without a code field never downloads it.
+ */
+
+import {
+  closeBrackets,
+  closeBracketsKeymap,
+  startCompletion,
+} from '@codemirror/autocomplete';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import {
+  bracketMatching,
+  codeFolding,
+  foldGutter,
+  foldKeymap,
+  indentOnInput,
+  indentUnit,
+} from '@codemirror/language';
+import {
+  highlightSelectionMatches,
+  search,
+  searchKeymap,
+} from '@codemirror/search';
+import {
+  Annotation,
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Prec,
+  Transaction,
+  type Extension,
+} from '@codemirror/state';
+import {
+  drawSelection,
+  EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  keymap,
+  lineNumbers,
+  placeholder as placeholderExtension,
+} from '@codemirror/view';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { createPortal } from 'react-dom';
+
+import { useT } from '../../../i18n/client';
+import type { IssueFocusPart, IssueFocusRange } from '../issue-focus';
+import { completionExtension } from './extensions/completion';
+import {
+  applyFix,
+  diagnosticsExtension,
+  goToDiagnostic,
+  mapperFrom,
+  placeDiagnostics,
+  setDiagnostics,
+  type DiagnosticWords,
+} from './extensions/diagnostics';
+import { codeHighlighting } from './extensions/highlight';
+import { hoverExtension } from './extensions/hover';
+import { keyboard, type KeyboardWords } from './extensions/keyboard';
+import { languageExtension, templatesOn } from './extensions/languages';
+import { memberObjects } from './extensions/member-objects';
+import { editorPhrases } from './extensions/phrases';
+import { templateChips } from './extensions/template/chips';
+import { templateInput } from './extensions/template/input';
+import { codeEditorTheme } from './extensions/theme';
+import {
+  createTooltipPortals,
+  tooltipPlacement,
+  tooltipPortals,
+  type TooltipPortals,
+} from './extensions/tooltips';
+import { editorIcon, EditorIconSprite } from './icon-sprite';
+import { locateJsonPointer, locateYamlPointer } from './locate';
+import { DiagnosticTooltipBody, TypeTooltipBody } from './tooltip-bodies';
+import type { CodeEditorProps } from './types';
+
+/** What the light wrapper drives once the view exists. */
+export interface CodeEditorViewHandle {
+  view: EditorView;
+  /**
+   * Focuses and selects `range` (offsets into the text), or the `part` of a
+   * JSON or YAML value a problem names (`/to` inside the field's value).
+   */
+  focus(range?: IssueFocusRange, part?: IssueFocusPart): void;
+  getSelection(): readonly [number, number] | null;
+  openCompletion(): void;
+  nextDiagnostic(direction: 1 | -1): void;
+}
+
+export interface CodeEditorViewProps extends CodeEditorProps {
+  /** The ids the editor's content is described by, merged by the wrapper. */
+  describedBy: string | undefined;
+  reducedMotion: boolean;
+  onView: (handle: CodeEditorViewHandle | null) => void;
+}
+
+/** Marks a transaction that applies the `value` prop (not the reader typing). */
+const external = Annotation.define<boolean>();
+
+/** The smallest change that turns `from` into `to`: common prefix and suffix kept. */
+function minimalChange(
+  from: string,
+  to: string,
+): { from: number; to: number; insert: string } {
+  const max = Math.min(from.length, to.length);
+  let start = 0;
+  while (start < max && from.charCodeAt(start) === to.charCodeAt(start))
+    start++;
+  let end = 0;
+  while (
+    end < max - start &&
+    from.charCodeAt(from.length - 1 - end) ===
+      to.charCodeAt(to.length - 1 - end)
+  ) {
+    end++;
+  }
+  return {
+    from: start,
+    to: from.length - end,
+    insert: to.slice(start, to.length - end),
+  };
+}
+
+function clampRange(
+  state: EditorState,
+  range: readonly [number, number],
+): [number, number] {
+  const length = state.doc.length;
+  const from = Math.min(Math.max(range[0], 0), length);
+  const to = Math.min(Math.max(range[1], from), length);
+  return [from, to];
+}
+
+const CODE_LANGUAGES = new Set(['javascript', 'expression', 'json', 'yaml']);
+
+/** A stable number per template scanner, for the language signature. */
+const scannerIds = new WeakMap<object, number>();
+let scannerCount = 0;
+function scannerId(scanner: unknown): number {
+  if (typeof scanner !== 'function') return 0;
+  const known = scannerIds.get(scanner);
+  if (known !== undefined) return known;
+  scannerCount += 1;
+  scannerIds.set(scanner, scannerCount);
+  return scannerCount;
+}
+
+type SlotName =
+  | 'language'
+  | 'editable'
+  | 'gutters'
+  | 'wrap'
+  | 'placeholder'
+  | 'attributes'
+  | 'keyboard'
+  | 'search'
+  | 'templates'
+  | 'phrases'
+  | 'selection'
+  | 'diagnostics'
+  | 'completion'
+  | 'hover';
+
+const SLOT_NAMES: readonly SlotName[] = [
+  'language',
+  'editable',
+  'gutters',
+  'wrap',
+  'placeholder',
+  'attributes',
+  'keyboard',
+  'search',
+  'templates',
+  'phrases',
+  'selection',
+  'diagnostics',
+  'completion',
+  'hover',
+];
+
+/** One reconfigurable part: rebuilt only when its signature changes. */
+interface Slot {
+  signature: string;
+  build: () => Extension;
+}
+
+export default function CodeEditorView(props: CodeEditorViewProps) {
+  const { t } = useT('codeEditor');
+  const host = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const latest = useRef(props);
+  const pendingValue = useRef<string | null>(null);
+  const compartments = useRef<Record<SlotName, Compartment> | null>(null);
+  compartments.current ??= {
+    language: new Compartment(),
+    editable: new Compartment(),
+    gutters: new Compartment(),
+    wrap: new Compartment(),
+    placeholder: new Compartment(),
+    attributes: new Compartment(),
+    keyboard: new Compartment(),
+    search: new Compartment(),
+    templates: new Compartment(),
+    phrases: new Compartment(),
+    selection: new Compartment(),
+    diagnostics: new Compartment(),
+    completion: new Compartment(),
+    hover: new Compartment(),
+  };
+  const applied = useRef<Partial<Record<SlotName, string>>>({});
+  // Undo history in a slot of its own, so a value replaced from outside
+  // starts it afresh (`applyValue`).
+  const [historySlot] = useState(() => new Compartment());
+
+  useLayoutEffect(() => {
+    latest.current = props;
+  });
+
+  const words: KeyboardWords = {
+    leaveArmed: t('leaveArmed'),
+    tabFocusOn: t('tabFocusOn'),
+    tabFocusOff: t('tabFocusOff'),
+  };
+  const wordsRef = useRef(words);
+  useLayoutEffect(() => {
+    wordsRef.current = words;
+  });
+
+  const diagnosticWords: DiagnosticWords = {
+    severity: {
+      error: t('diagnostics.severity.error'),
+      warning: t('diagnostics.severity.warning'),
+      info: t('diagnostics.severity.info'),
+    },
+    atCursor: (values) => t('diagnostics.atCursor', values),
+    fixAvailable: (shortcut) => t('diagnostics.fixAvailable', { shortcut }),
+    fixApplied: (label) => t('diagnostics.fixApplied', { label }),
+    syntax: {
+      json: t('syntax.json'),
+      yaml: t('syntax.yaml'),
+      javascript: t('syntax.javascript'),
+      unterminatedTemplate: t('syntax.unterminatedTemplate'),
+    },
+  };
+  const completionWords = {
+    type: t('typeInfo.label'),
+    optional: t('typeInfo.optional'),
+    sample: (value: string) => t('typeInfo.sample', { value }),
+  };
+  const textWords = useRef({ diagnosticWords, completionWords, t });
+  useLayoutEffect(() => {
+    textWords.current = { diagnosticWords, completionWords, t };
+  });
+
+  // Tooltip bodies are React, portalled into the DOM CodeMirror positions.
+  const [portals] = useState<TooltipPortals>(createTooltipPortals);
+
+  const {
+    language,
+    templates = false,
+    templateScanner,
+    readOnly = false,
+    disabled = false,
+    disabledReason,
+    placeholder,
+    singleLine = false,
+    lineNumbers: showLineNumbers = false,
+    fold = showLineNumbers,
+    search: withSearch = false,
+    wrap,
+    font = 'mono',
+    fillHeight = false,
+    id,
+    required,
+    describedBy,
+    reducedMotion,
+    diagnosticsStatus,
+    syntaxDiagnostics = true,
+    providers,
+  } = props;
+  const pending =
+    diagnosticsStatus === 'checking' || diagnosticsStatus === 'stale';
+  const showGutter =
+    showLineNumbers ||
+    props.diagnostics !== undefined ||
+    providers?.lint !== undefined;
+  const softDisabled = disabled && hasReason(disabledReason);
+  const editable = !disabled && !readOnly;
+  const live = templatesOn(language, templates);
+  const isCode = CODE_LANGUAGES.has(language);
+  const wraps = wrap ?? (singleLine || !isCode);
+
+  const contentAttributes: Record<string, string> = {
+    ...(id !== undefined ? { id } : {}),
+    ...(props['aria-label'] !== undefined
+      ? { 'aria-label': props['aria-label'] }
+      : {}),
+    ...(props['aria-labelledby'] !== undefined
+      ? { 'aria-labelledby': props['aria-labelledby'] }
+      : {}),
+    ...(describedBy !== undefined ? { 'aria-describedby': describedBy } : {}),
+    ...(props['aria-invalid'] ? { 'aria-invalid': 'true' } : {}),
+    ...(required ? { 'aria-required': 'true' } : {}),
+    ...(readOnly ? { 'aria-readonly': 'true', inputmode: 'none' } : {}),
+    ...(disabled ? { 'aria-disabled': 'true' } : {}),
+    ...(softDisabled || (readOnly && !disabled) ? { tabindex: '0' } : {}),
+    'aria-multiline': singleLine ? 'false' : 'true',
+    'aria-roledescription': t('roleDescription'),
+    spellcheck: font === 'prose' ? 'true' : 'false',
+    autocorrect: font === 'prose' ? 'on' : 'off',
+    autocapitalize: 'off',
+    ...(isCode ? { translate: 'no', dir: 'ltr' } : {}),
+    ...(pending ? { 'aria-busy': 'true' } : {}),
+  };
+  const rootClass = [
+    font === 'prose' ? 'cm-prose' : '',
+    fillHeight ? 'cm-fill' : '',
+    readOnly || disabled ? 'cm-readonly' : '',
+    pending ? 'cm-diagnostics-pending' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const phrases = editorPhrases(t);
+
+  const slots: Record<SlotName, Slot> = {
+    language: {
+      signature: `${language}|${templates}|${scannerId(templateScanner)}`,
+      build: () => languageExtension(language, templates, templateScanner),
+    },
+    editable: {
+      signature: `${readOnly}|${disabled}`,
+      build: () => [
+        EditorState.readOnly.of(!editable),
+        EditorView.editable.of(!disabled),
+      ],
+    },
+    gutters: {
+      signature: `${showLineNumbers}|${fold}`,
+      build: () => [
+        showLineNumbers ? [lineNumbers(), highlightActiveLineGutter()] : [],
+        fold
+          ? [
+              codeFolding(),
+              foldGutter({
+                markerDOM: (open) =>
+                  editorIcon(open ? 'chevron-down' : 'chevron-right'),
+              }),
+              keymap.of(foldKeymap),
+            ]
+          : [],
+      ],
+    },
+    wrap: {
+      signature: String(wraps),
+      build: () => (wraps ? EditorView.lineWrapping : []),
+    },
+    placeholder: {
+      signature: placeholder ?? '',
+      build: () =>
+        placeholder !== undefined && placeholder !== ''
+          ? placeholderExtension(placeholder)
+          : [],
+    },
+    attributes: {
+      signature: JSON.stringify([contentAttributes, rootClass]),
+      build: () => [
+        EditorView.contentAttributes.of(contentAttributes),
+        EditorView.editorAttributes.of({ class: rootClass }),
+      ],
+    },
+    keyboard: {
+      signature: String(singleLine),
+      build: () =>
+        keyboard({
+          singleLine,
+          words: () => wordsRef.current,
+          submit: () => {
+            const onSubmit = latest.current.onSubmit;
+            if (onSubmit === undefined) return null;
+            return (view) => onSubmit(view.state.doc.toString());
+          },
+        }),
+    },
+    search: {
+      signature: String(withSearch),
+      build: () =>
+        withSearch
+          ? [
+              search({ top: true }),
+              highlightSelectionMatches(),
+              keymap.of(searchKeymap),
+            ]
+          : [],
+    },
+    templates: {
+      signature: `${live}|${language}`,
+      // The chip is the outer element, so a coloured name inside it never
+      // splits it into pieces.
+      build: () =>
+        live ? [Prec.lowest(templateChips), templateInput(language)] : [],
+    },
+    phrases: {
+      signature: JSON.stringify(phrases),
+      build: () => EditorState.phrases.of(phrases),
+    },
+    selection: {
+      signature: String(reducedMotion),
+      build: () => drawSelection({ cursorBlinkRate: reducedMotion ? 0 : 1200 }),
+    },
+    diagnostics: {
+      signature: `${language}|${syntaxDiagnostics}|${showGutter}`,
+      build: () =>
+        diagnosticsExtension({
+          language,
+          syntax: syntaxDiagnostics,
+          gutter: showGutter,
+          words: () => textWords.current.diagnosticWords,
+          providers: () => latest.current.providers,
+          render: (view, items, focusFix) => (
+            <DiagnosticTooltipBody
+              items={items}
+              focusFix={focusFix}
+              onFix={(fix) => applyFix(view, fix)}
+            />
+          ),
+        }),
+    },
+    completion: {
+      signature: `${language}|${editable}|${providers?.completion !== undefined}`,
+      build: () =>
+        editable && providers?.completion !== undefined
+          ? completionExtension({
+              language,
+              providers: () => latest.current.providers,
+              words: () => textWords.current.completionWords,
+            })
+          : [],
+    },
+    hover: {
+      signature: language,
+      build: () =>
+        hoverExtension({
+          language,
+          providers: () => latest.current.providers,
+          render: (info) => <TypeTooltipBody info={info} />,
+          announce: (info) =>
+            textWords.current.t('typeInfo.announce', {
+              title: info.title ?? '',
+              type: info.type,
+            }),
+        }),
+    },
+  };
+  const slotsRef = useRef(slots);
+  useLayoutEffect(() => {
+    slotsRef.current = slots;
+  });
+
+  // Create the view once; props flow in through the compartments.
+  useLayoutEffect(() => {
+    const parent = host.current;
+    const c = compartments.current;
+    if (parent === null || c === null) return undefined;
+    const initial = latest.current;
+    const doc = initial.value;
+    const selection =
+      initial.initialSelection === undefined
+        ? undefined
+        : EditorSelection.single(
+            ...clampRange(
+              EditorState.create({ doc }),
+              initial.initialSelection,
+            ),
+          );
+    const startSlots = slotsRef.current;
+    const slotExtensions = SLOT_NAMES.map((name) => {
+      applied.current[name] = startSlots[name].signature;
+      return c[name].of(startSlots[name].build());
+    });
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        ...(selection !== undefined ? { selection } : {}),
+        extensions: [
+          slotExtensions,
+          indentUnit.of('  '),
+          EditorState.tabSize.of(2),
+          historySlot.of(history()),
+          highlightSpecialChars(),
+          highlightActiveLine(),
+          bracketMatching(),
+          closeBrackets(),
+          indentOnInput(),
+          memberObjects,
+          codeHighlighting,
+          codeEditorTheme,
+          tooltipPortals.of(portals),
+          tooltipPlacement,
+          keymap.of([
+            ...closeBracketsKeymap,
+            ...defaultKeymap,
+            ...historyKeymap,
+          ]),
+          EditorView.updateListener.of((update) => {
+            const changed = update.transactions.some(
+              (tr) => tr.docChanged && tr.annotation(external) !== true,
+            );
+            if (changed) latest.current.onChange?.(update.state.doc.toString());
+            if (update.focusChanged) {
+              if (update.view.hasFocus) latest.current.onFocus?.();
+              else latest.current.onBlur?.();
+            }
+          }),
+          EditorView.domEventObservers({
+            compositionend: () => {
+              // CodeMirror finishes the composition after this event; apply
+              // a value the host sent meanwhile once it has.
+              setTimeout(() => {
+                const waiting = pendingValue.current;
+                const current = viewRef.current;
+                if (
+                  waiting === null ||
+                  current === null ||
+                  current.compositionStarted
+                ) {
+                  return;
+                }
+                pendingValue.current = null;
+                applyValue(current, waiting, historySlot);
+              }, 0);
+            },
+          }),
+        ],
+      }),
+    });
+    viewRef.current = view;
+    latest.current.onView({
+      view,
+      focus(range, part) {
+        view.focus();
+        // A range from the check indexes into the text it checked: mapped
+        // through the edits made since, as the underlines are; one inside
+        // what changed selects nothing rather than the wrong characters.
+        const checked = latest.current.diagnosticsFor;
+        const mapped =
+          range === undefined || checked === undefined
+            ? range
+            : (mapperFrom(checked, view.state.doc)(range[0], range[1]) ?? null);
+        if (mapped === null) return;
+        const target =
+          mapped ?? locatePart(view, latest.current.language, part);
+        if (target === undefined) return;
+        const [from, to] = clampRange(view.state, target);
+        view.dispatch({
+          selection: EditorSelection.single(from, to),
+          effects: EditorView.scrollIntoView(from, { y: 'center' }),
+          userEvent: 'select',
+        });
+      },
+      getSelection() {
+        const main = view.state.selection.main;
+        return [main.from, main.to];
+      },
+      openCompletion() {
+        view.focus();
+        startCompletion(view);
+      },
+      nextDiagnostic(direction) {
+        view.focus();
+        goToDiagnostic(view, direction);
+      },
+    });
+    return () => {
+      latest.current.onView(null);
+      view.destroy();
+      viewRef.current = null;
+    };
+  }, [portals, historySlot]);
+
+  // Reconfigure the parts whose props changed.
+  useEffect(() => {
+    const view = viewRef.current;
+    const c = compartments.current;
+    if (view === null || c === null) return;
+    const effects = SLOT_NAMES.filter(
+      (name) => applied.current[name] !== slots[name].signature,
+    ).map((name) => {
+      applied.current[name] = slots[name].signature;
+      return c[name].reconfigure(slots[name].build());
+    });
+    if (effects.length > 0) view.dispatch({ effects });
+  });
+
+  // The host's problems, placed on the text they were found in.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view === null) return;
+    view.dispatch({
+      effects: setDiagnostics.of({
+        source: 'host',
+        items: placeDiagnostics(
+          'host',
+          props.diagnostics ?? [],
+          view.state.doc,
+          props.diagnosticsFor,
+        ),
+      }),
+    });
+  }, [props.diagnostics, props.diagnosticsFor]);
+
+  // The value prop: applied as the smallest change, never echoed.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view === null) return;
+    // Mid-composition (IME), a change would break the reader's input.
+    if (view.compositionStarted) {
+      pendingValue.current = props.value;
+      return;
+    }
+    applyValue(view, props.value, historySlot);
+  }, [props.value, historySlot]);
+
+  return (
+    <>
+      <EditorIconSprite />
+      <TooltipPortalsHost portals={portals} viewRef={viewRef} />
+      <div
+        ref={host}
+        className={fillHeight ? 'h-full min-h-0' : undefined}
+        data-code-editor-view=""
+      />
+    </>
+  );
+}
+
+/** Where the part of a JSON or YAML value a request names sits in the text. */
+function locatePart(
+  view: EditorView,
+  language: CodeEditorProps['language'],
+  part: IssueFocusPart | undefined,
+): IssueFocusRange | undefined {
+  if (part === undefined) return undefined;
+  const text = view.state.doc.toString();
+  const options = part.range === undefined ? {} : { range: part.range };
+  const found =
+    language === 'json'
+      ? locateJsonPointer(text, part.rest, options)
+      : language === 'yaml'
+        ? locateYamlPointer(text, part.rest, options)
+        : null;
+  return found === null ? undefined : [found.from, found.to];
+}
+
+/**
+ * Renders each open tooltip's React body into its CodeMirror element, then
+ * asks CodeMirror to measure again: the body arrives after the element.
+ */
+function TooltipPortalsHost({
+  portals,
+  viewRef,
+}: {
+  portals: TooltipPortals;
+  viewRef: { current: EditorView | null };
+}) {
+  const open = useSyncExternalStore(
+    portals.subscribe,
+    portals.snapshot,
+    portals.snapshot,
+  );
+  useLayoutEffect(() => {
+    viewRef.current?.requestMeasure();
+  }, [open, viewRef]);
+  return [...open].map(([dom, node], index) =>
+    createPortal(node, dom, `tooltip-${index}`),
+  );
+}
+
+function hasReason(reason: unknown): boolean {
+  if (reason === undefined || reason === null || typeof reason === 'boolean') {
+    return false;
+  }
+  return typeof reason !== 'string' || reason.trim() !== '';
+}
+
+/**
+ * A value set from outside, applied as the smallest change. While the reader
+ * is in the field it is the host answering their typing (a host may tidy
+ * what they type), and their undo history carries on. Otherwise it replaced
+ * the text — a discard, another version, an agent's edit — and it is a hard
+ * edge for undo: the history of the text it replaced is dropped (the slot is
+ * emptied, then filled with a fresh history), since undoing an old edit into
+ * the new text would put back text the reader never saw there.
+ */
+function applyValue(
+  view: EditorView,
+  value: string,
+  historySlot: Compartment,
+): void {
+  const current = view.state.doc.toString();
+  if (current === value) return;
+  const replaced = !view.hasFocus;
+  view.dispatch({
+    changes: minimalChange(current, value),
+    annotations: [external.of(true), Transaction.addToHistory.of(false)],
+    ...(replaced && { effects: historySlot.reconfigure([]) }),
+  });
+  if (replaced) {
+    view.dispatch({ effects: historySlot.reconfigure(history()) });
+  }
+}

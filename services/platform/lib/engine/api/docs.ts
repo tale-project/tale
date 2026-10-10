@@ -11,6 +11,11 @@
 
 import { stringifyYaml } from '../../shared/config/yaml';
 import { nodeTypes } from '../core/slots';
+import {
+  MAX_TESTS,
+  SUITE_DEADLINE_MS,
+  TEST_DEADLINE_MS,
+} from '../core/test-limits';
 import type { Automation } from '../core/types';
 
 /** The worked example woven through the docs — executed by the selftest.
@@ -140,10 +145,10 @@ export const CORE_NODE_KIND_REFERENCE: Readonly<Record<CoreNodeKind, string>> =
    {id, type: llm, model: "<model id>", system?: "...", prompt: "... {{ nodes.get.output }} ..."} → output {text: string}
    With "outputSchema" (a JSON Schema), the output becomes the schema-shaped OBJECT instead — this is the one bridge from free text to structured data, and the fix for "an unstructured output has no fields".`,
     agent: `3. agent — run ONE turn of an external coding agent (Claude Code, Codex, …) in the sandbox. "model" and "prompt" are required and explicit.
-   {id, type: agent, model: "<model id>", modelProvider?: "<provider slug>", prompt: "...", system?: "...", harness?: "claude-code", skills?: ["<skill slug>"], connectors?: ["<connector slug>"], tools?: ["task_find", "task_create", …], secrets?: ["GLITCHTIP_TOKEN"], files?: {"setup": "{{ input.setupFolderId }}"}} → output {text, files: [{name, storageId, size, contentType}], status}
+   {id, type: agent, model: "<model id>", modelProvider?: "<provider slug>", prompt: "...", system?: "...", harness?: "claude-code", skills?: ["<skill slug>"], connectors?: ["<connector slug>"], tools?: ["task_find", "task_create", …], secrets?: ["GLITCHTIP_TOKEN"], files?: {"setup": "{{ input.setupFolderId }}"}, input?: {"customer": "{{ input.customer }}"}} → output {text, files: [{name, storageId, size, contentType}], status}
    "modelProvider" pins which configured provider serves (and bills) the model, honored fail-closed at run time. Set it to the provider list_models answers beside the model (its providerSlug): the editor saves the pair, and flags a step without one as unpinned. Left out, the host resolves a provider when the step runs.
    Name only what the organization has: validate_automation warns when a skill is not one a run of the automation can reach (SKILL_UNKNOWN), a connector is not connected (CONNECTOR_NOT_CONNECTED), a secret was never stored (SECRET_UNKNOWN) or the harness cannot run here (HARNESS_UNKNOWN). A missing skill or harness fails the step, a missing connector leaves it without that app, a missing secret is simply absent; list_skills, list_connectors, list_agent_secrets and list_harnesses show what exists.
-   "files" stages folders/documents into the agent workspace; whatever the agent writes to its output directory comes back as output.files. "tools" grants platform workspace tools — reads (task_find, task_get, document_find, knowledge_entry_find, contact_find, product_find, website_find) and writes (task_create, task_comment, task_update_status, task_upsert_by_external_ref, document_create, knowledge_entry_write); a write grant is the standing authorization (no per-call approval). knowledge_entry_write saves an org-wide knowledge entry by topic; changing an existing one needs the version the agent read (expectedVersionId). To put a project's existing agent to work, use a task.start_agent capability node, not an agent node: the task_start_agent tool is a project agent's own and is never granted here. "secrets" injects the org's named agentSecrets as environment variables (a scoped API key for a service with no connector). Use llm for a one-shot completion; use agent ONLY when the step needs tools, staged files, or multiple turns — it is slower and costs more.
+   "files" stages folders/documents into the agent workspace; whatever the agent writes to its output directory comes back as output.files. "input" is resolved like any node's and staged as JSON at /agent/workspace/input.json, a file the agent's instructions name; an input over 1 MiB as JSON fails the step, and so does a "files" mount of that name beside it. "tools" grants platform workspace tools — reads (task_find, task_get, document_find, knowledge_entry_find, contact_find, product_find, website_find) and writes (task_create, task_comment, task_update_status, task_upsert_by_external_ref, document_create, knowledge_entry_write); a write grant is the standing authorization (no per-call approval). knowledge_entry_write saves an org-wide knowledge entry by topic; changing an existing one needs the version the agent read (expectedVersionId). To put a project's existing agent to work, use a task.start_agent capability node, not an agent node: the task_start_agent tool is a project agent's own and is never granted here. "secrets" injects the org's named agentSecrets as environment variables (a scoped API key for a service with no connector). Use llm for a one-shot completion; use agent ONLY when the step needs tools, staged files, or multiple turns — it is slower and costs more.
    Task and workflow agents preserve the task title/description language for writes and operator questions, using the organization's default agent language when no human-authored task language is clear. UI locale, generated title templates and workflow examples do not select it. For translated UI progress, task.comment and task_comment accept bodyByLocale alongside canonical body: en/de/fr are required, extra language or language-region keys are allowed, and each translation is nonblank with a 10,000-character limit. Readers select exact locale, base language, en, then body. Prefer predefined translated progress text; for variable reports request structured output containing body and equivalent bodyByLocale values.`,
     subautomation: `4. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
    A scheduled issue import that must cover every open issue imports one batch per occurrence and keeps its place between them: read the position with task.get_import_cursor, pass its cursor as the importer's cursor, then task.save_import_cursor with revision = the read's revision and next = the importer's nextCursor ('' once drained); the revision is the compare token, never the cursor text, so a stale save from an earlier pass or from before a restart is refused. Give all three onError: continue — a failed import saves nothing, so the next occurrence retries the same batch.`,
@@ -207,9 +212,9 @@ Authoring methods:
 - save_automation      params {automation, message?, baseVersion?, create?, projectId?, settings?, taskContract?, presentation?} → save as a new immutable version; answers {name, version, testsPassed?, warnings, carried, baseVersionChecked} — errors refuse the save, warnings never do. Pass baseVersion (the version you read): a version saved since refuses the save with latestVersion. settings, taskContract and presentation you leave out are kept from the latest version (carried names them); null stores none
 - get_automation       params {name, version?}        → a saved version: the document (automation), its settings, taskContract and presentation, latestVersion, deployedVersion, who saved it and through which door (createdVia, clientName), its projectIds and trigger
 - list_automations     params {}                      → saved automations with their latest and deployed versions and the projects they are installed in
-- deploy_automation    params {name, version, expectedDeployedVersion?} → mark the version triggers run; answers previousVersion — deploy it again to roll back. expectedDeployedVersion (the version you read as live, null for none) refuses the deploy if another went live
+- deploy_automation    params {name, version, expectedDeployedVersion?} → mark the version triggers run; answers previousVersion — deploy it again to roll back. expectedDeployedVersion (the version you read as live, null for none) refuses the deploy if another went live; it also answers the bound trigger ({kind, enabled, nextRunAt, warnings}, or null) so you can turn on one that is off
 - delete_automation    params {name, expectedLatestVersion} → delete every version, the trigger and the installations; the runs stay
-- set_trigger          params {name, trigger}         → host-managed trigger binding
+- set_trigger          params {name, trigger}         → bind what starts the automation, replacing the trigger whole. A schedule takes a repeat rule or a cron: {kind: "schedule", repeat: {frequency: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5], times: ["09:00", "17:30"]}, timezone: "Europe/Zurich", catchUp: "latest"} — or {kind: "schedule", cron: "0 9 * * 1-5", timezone: "UTC"}; any kind takes a fixed input, values every run receives under the trigger's own fields ({input: {owner: "tale"}}). Send back the startDate and input list_triggers shows, or the save resets them (startDate to today). Answers nextRunAt for a schedule, and warnings when the deployed version would refuse what the trigger sends
 - run_deployed         params {name, input, idempotencyKey?} → run the deployed version (live on a deployment) and WAIT for the finished result; a run that outlives the wait answers with its runId to poll. idempotencyKey shares start_run's and the REST door's ledger: a repeat answers the first run with duplicate: true
 (run_automation validates automatically — you rarely need validate_automation.)
 
@@ -237,7 +242,8 @@ An automation is a node graph. Execution order is computed automatically from da
 - "name": the identity — lowercase slug segments; "/" groups related automations into folders ("billing/dunning-reminder").
 - "inputs": JSON Schema describing the runtime input.
 - "output": the automation's return value (templates allowed inside).
-- "tests": [{name, input, expect: {output?, effects?: [{connector, input}]}}] — acceptance tests run by test_automation.
+- "tests": [{name, description?, input, mocks?, failures?, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?}], nodes?, failure?}}] — acceptance tests run by test_automation (see Testing).
+- "ui": free metadata. Tale lays the canvas out from the references; never write positions — "ui" is kept but ignored.
 
 YAML gotchas (top causes of failure):
 - ALWAYS double-quote any string containing {{ }} or starting with # — unquoted they break YAML.
@@ -278,6 +284,45 @@ run_automation returns {status, output, trace, effects}:
 - effects: every external call (message/email/llm/…) with its input.
 Compare output and effects to the requirements character by character.
 
+${testingReference()}
+
 ## Authoring loop
-Draft the complete automation, run it with run_automation and a realistic test input, read error + hint + trace when it fails and run again; once the output and effects match the requirements exactly, attach a tests: block, verify with test_automation, then save_automation and deploy_automation.`;
+Draft the complete automation, run it with run_automation and a realistic test input, read error + hint + trace when it fails and run again; once the output and effects match the requirements exactly, attach tests (simulate the outside world with mocks; one test per path — validate_automation's analysis.paths lists them), verify with test_automation, then save_automation and deploy_automation (the deploy gate runs the tests again).`;
+}
+
+/** How tests are written, run and read — the Testing section of the
+ * authoring reference. */
+function testingReference(): string {
+  return `## Testing
+A test is an example the automation must handle: an input, what stands in for the outside world, and what the run must do. test_automation runs the tests against the deterministic mocks — of a document ({automation}) or of a saved version ({name, version?}); save_automation runs them too (its answer's testsPassed), and deploy_automation runs them again and refuses a version whose tests fail. An automation carries at most ${MAX_TESTS} tests; each has ${TEST_DEADLINE_MS / 1000} s, the whole suite ${SUITE_DEADLINE_MS / 1000} s.
+
+\`\`\`yaml
+tests:
+  - name: a pass with nothing waiting skips the model
+    description: what the test is about, for people
+    input: { limit: 25 }
+    mocks:
+      inbox: { conversations: [] }
+    expect:
+      nodes: { triage: skipped }
+      outputIncludes: { read: 0 }
+      effects:
+        - { connector: llm, absent: true }
+  - name: a draft that fails leaves the pass going
+    input: { limit: 1 }
+    failures:
+      propose: the conversation was closed meanwhile
+    expect:
+      nodes: { propose: failed }
+\`\`\`
+
+- mocks: node id → the output that node returns in this test. A mock replaces the node's CALL, not the node: the skip rules (when, elseOf, reading a skipped node) apply as written, the node's input is still resolved — and checked against its connector's schema — and its effect recorded; only the answer is made up. A forEach node's mock is a list: item i returns entry i, and fewer entries than items fail the node. A repeatUntil node returns its mock on every pass. A mocked subautomation node replaces the whole called automation. Mocks and failures name the automation's own nodes, and apply in mock runs only.
+- failures: node id → the error that node fails with instead of calling ("<message> (simulated by the test)"); its onError applies.
+- expect.output: the output equals this exactly. expect.outputIncludes: the output contains this — the keys it lists match, recursively; lists compare item by item and must have the same length; other keys are not checked.
+- expect.effects: each entry must occur — connector, optionally node (a subautomation's inner effects read "<node>/<inner>"), input (equal) or inputIncludes (contained); with absent: true it must not occur.
+- expect.nodes: node id → ran | skipped | failed (failed: it failed and the run went on — onError: continue).
+- expect.failure: {node?, message?} — the run must fail, at that node, with an error that contains that text (any case); it excludes output and outputIncludes. Without it, the run must succeed.
+A test that cannot run — a mock or a failure for a node the automation does not have, both for one node, an input the inputs schema refuses — fails; it is never skipped. validate_automation warns about such tests before they run (the TESTS_* codes).
+
+test_automation answers {passed, failed, results, notRun?}. Each result has name, index, pass, ms, and when it failed message (the first failure, in English) and failures: each with a kind — refused (issues), run_failed (node, failure.reason), run_succeeded, failed_elsewhere, failure_message, output (mode exact | includes, mismatches, total), effect_missing (closest, actual), effect_present, node_state (expected, actual) or timeout. A mismatch names one difference by its pointer and kind: removed (the test expects it, the run lacks it), added (the run has it, an exact expectation does not), changed or type-changed, with both values cut to 200 characters; a failure lists five and counts them all in total. path is the way through the conditions and tolerated failures the run took (analysis.paths lists every way — a test per way covers them); unusedMocks names the stand-ins the run never used: their node was skipped or not reached, or ran over no items. notRun names the tests the suite's time did not reach; they count as failed.`;
 }

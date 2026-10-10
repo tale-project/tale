@@ -9,8 +9,9 @@
 
 /**
  * One row of the org's contact directory, as every contacts read answers it:
- * the listing, its paginated twin and the single by-id read. One declaration
- * so the three cannot drift — `ContactDoc` in `./docs` is this shape.
+ * the listing, its paginated twin and the single by-id read (the update's
+ * echo too). One declaration so they cannot drift — `ContactDoc` in `./docs`
+ * is this shape.
  */
 interface ContactRecord {
   _id: string;
@@ -23,13 +24,11 @@ interface ContactRecord {
   email?: string;
   phone?: string;
   externalId?: string | number;
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    postalCode?: string;
-  };
+  /** A free-form object on the door (`boundedJsonObject`), so a key holds
+   *  any JSON: `street` may be a nested object or a list as validly as a
+   *  string. Read it through `getContactAddressLines`, never as text
+   *  (#3625). */
+  address?: Record<string, unknown> | null;
   tags?: string[];
   notes?: string;
   organizationId: string;
@@ -228,54 +227,7 @@ export interface ContactsContract {
       notes?: string;
       contactId: string;
     };
-    returns: null | {
-      _id: string;
-      _creationTime: number;
-      metadata?: Record<string, unknown>;
-      name?: string;
-      lifecycleStatus?: 'active' | 'trashed' | 'expired' | 'deleted';
-      statusChangedAt?: number;
-      locale?: string;
-      email?: string;
-      phone?: string;
-      externalId?: string | number;
-      address?: {
-        street?: string;
-        city?: string;
-        state?: string;
-        country?: string;
-        postalCode?: string;
-      };
-      tags?: string[];
-      notes?: string;
-      organizationId: string;
-      source:
-        | 'webhook'
-        | 'manual_import'
-        | 'file_upload'
-        | 'api_import'
-        | 'conversation'
-        | 'shopify'
-        | 'woocommerce'
-        | 'magento'
-        | 'bigcommerce'
-        | 'prestashop'
-        | 'chargebee'
-        | 'stripe'
-        | 'recurly'
-        | 'salesforce'
-        | 'hubspot'
-        | 'pipedrive'
-        | 'zoho'
-        | 'sap'
-        | 'oracle'
-        | 'netsuite'
-        | 'mailchimp'
-        | 'klaviyo'
-        | 'sendgrid'
-        | 'zapier'
-        | 'custom';
-    };
+    returns: null | ContactRecord;
   };
   'contacts/queries:approxCountContacts': {
     kind: 'query';

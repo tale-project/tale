@@ -146,7 +146,7 @@ describe('the start’s pass over the worker’s copies of task inputs', () => {
     );
   });
 
-  it('looks at the oldest copies first, a bounded number per start', async () => {
+  it('removes the oldest stale copies first, a bounded number per start', async () => {
     io.dirs['/agent/inputs'] = Array.from(
       { length: MAX_INPUT_MIRRORS_PER_PASS + 10 },
       (_, n) => dir(`task-${n}`, 10_000 - n),
@@ -158,14 +158,40 @@ describe('the start’s pass over the worker’s copies of task inputs', () => {
 
     await pruneStaleTaskInputMirrors(ctx, ARGS);
 
+    // Every copy is asked about, the least recently changed first.
     const checked = asked[0]?.taskIds as string[];
-    expect(checked).toHaveLength(MAX_INPUT_MIRRORS_PER_PASS);
-    // The least recently changed first: task-59 down to task-10.
+    expect(checked).toHaveLength(MAX_INPUT_MIRRORS_PER_PASS + 10);
     expect(checked[0]).toBe(`task-${MAX_INPUT_MIRRORS_PER_PASS + 9}`);
-    expect(checked).not.toContain('task-0');
+    // A bounded number goes: the oldest, task-59 down to task-10.
     expect(io.deletes[0]).toHaveLength(MAX_INPUT_MIRRORS_PER_PASS);
+    expect(io.deletes[0]?.[0]).toBe(
+      `/agent/inputs/task-${MAX_INPUT_MIRRORS_PER_PASS + 9}`,
+    );
+    expect(io.deletes[0]).not.toContain('/agent/inputs/task-0');
     // No reviews directory, so none is listed.
     expect(io.listings).toEqual(['/agent/inputs']);
+  });
+
+  it('old copies that are still needed never hide the stale ones behind them', async () => {
+    // The oldest 60 copies belong to tasks still open; the 5 newer ones are
+    // stale.
+    io.dirs['/agent/inputs'] = Array.from({ length: 65 }, (_, n) =>
+      dir(`task-${n}`, n < 60 ? n : 10_000 + n),
+    );
+    const { ctx } = makeCtx(({ taskIds }) => ({
+      taskIds: taskIds.filter((id) => Number(id.slice('task-'.length)) >= 60),
+      reviewHashes: [],
+    }));
+
+    await pruneStaleTaskInputMirrors(ctx, ARGS);
+
+    expect(io.deletes[0]).toEqual([
+      '/agent/inputs/task-60',
+      '/agent/inputs/task-61',
+      '/agent/inputs/task-62',
+      '/agent/inputs/task-63',
+      '/agent/inputs/task-64',
+    ]);
   });
 
   it('asks nothing and removes nothing when the worker holds no other copy', async () => {

@@ -4,8 +4,9 @@
 
 The rules of the door a coding agent uses to work in Tale, `/api/v1/mcp`: whom a call acts as and
 what the key holder's role lets it read and change, how an agent's save, deploy and runs meet the
-editor's rules, how a refusal or a bad argument reaches the agent, what a request and a batch of
-calls cost, what is kept of a call, and which protocol revisions the endpoint speaks. The rest of
+editor's rules, how a settings change is checked and that no secret travels with it, how a refusal
+or a bad argument reaches the agent, what a request and a batch of calls cost, what is kept of a
+call, and which protocol revisions the endpoint speaks. The rest of
 what a call does once it reaches an automation, the capability surface, and the tool inventory
 itself are not covered; see Not yet. Resources and prompts are reads the tools already answer, and
 the Tale skill is the one file an agent installs to work here.
@@ -15,13 +16,13 @@ the Tale skill is the one file an agent installs to work here.
 A call acts as the person who holds the API key, in the organization the key names, with that
 person's role in it at the time of the request.
 
-| | Owner, admin or developer | Any other member |
-| --- | --- | --- |
-| Save a version, deploy one, delete an automation, set or remove a trigger | yes | no |
-| Install an automation in projects or remove it from them | yes | no |
-| Start or stop a live run | yes | no |
-| Read, validate and test automations, run them on the mocks, start a mock run | yes | yes |
-| Answer a run's question | yes | yes, in a project they can edit |
+|                                                                              | Owner, admin or developer | Any other member                |
+| ---------------------------------------------------------------------------- | ------------------------- | ------------------------------- |
+| Save a version, deploy one, delete an automation, set or remove a trigger    | yes                       | no                              |
+| Install an automation in projects or remove it from them                     | yes                       | no                              |
+| Start or stop a live run                                                     | yes                       | no                              |
+| Read, validate and test automations, run them on the mocks, start a mock run | yes                       | yes                             |
+| Answer a run's question                                                      | yes                       | yes, in a project they can edit |
 
 Reads and runs reach only the automations the app would show the person (MCP-R9).
 
@@ -175,6 +176,67 @@ answer carries a secret's value.
   and never its value. Mia lists the projects → Sales is listed with `sales/follow-up`, and
   nothing of the HR project she is not in.
 
+## Changing settings
+
+An agent reads the organization's settings, plans a change and applies it through three tools.
+Each kind of setting is read and written by the same code the Settings page uses, so the
+person's role allows the same changes over MCP as in the app.
+
+### MCP-R10 · An agent changes a setting only where its person's role can change it in the app
+
+Each kind of setting is read and changed through the code its Settings page uses, with the same
+checks of the person's role, so a person's agent can read and change every setting their role
+lets them read and change in the app, and nothing more. A change the role does not allow is
+refused with the reason the app's check gives, and nothing in the call is applied. Without
+`kinds`, `get_settings` says for each kind whether the person's role may read and change it.
+
+- **Example**: Ada, an admin, has her agent turn the organization's feature flags off → they are
+  off. Mia, an ordinary member, has her agent send the same change → refused, saying only owners
+  and admins can change organization policies, and the flags stay on; her agent asks for the
+  password policy, which only owners and admins read → refused as well.
+
+### MCP-R11 · A settings call applies only when each setting is still what the agent read
+
+Every change names the hash of the setting the agent read, or none for a setting it creates.
+Before anything is written, each change is planned again against what is stored now: when one
+setting has moved since it was read, or one change is refused, nothing in the call is applied,
+and the agent learns the hash stored now (`SETTINGS_STALE`). The changes then run one setting at
+a time, each checking its hash again; a failure stops the rest, and the agent is told what was
+applied, what failed and what was skipped.
+
+- **Example**: Ada's agent reads the password policy and plans a longer minimum length; Ben
+  changes the policy in the app before the agent applies → refused with the policy's current
+  hash, and the branding change in the same call is not applied either.
+
+### MCP-R12 · No secret goes into or comes out of a settings call
+
+A stored secret reads as masked, with a short excerpt at most, and so does a credential found
+anywhere else in a stored setting — a key someone pasted into an instruction or a header in
+Tale. A change may send a masked value back to keep what is stored there, and nothing else in
+its place; a credential anywhere else in a change — a key pasted into a description — refuses
+the change, naming where it was found and never the value (`SECRET_ARGUMENT_REFUSED`). A person
+enters a new secret in Tale.
+
+- **Example**: Ada's agent reads a provider whose key is stored → the key reads as masked; it
+  changes the address and sends the masked key back → the stored key is kept; it sends a key it
+  typed instead → refused, and the answer names the field, not the key.
+- **Example**: Ben once pasted an API key into the organization's system prompt in Tale. Ada's
+  agent reads the policy → the prompt reads as masked; the agent changes another field and sends
+  the masked prompt back → the prompt is kept as Ben wrote it.
+
+### MCP-R28 · An agent changes the embedding model only while the knowledge base is empty
+
+Vectors of two embedding models must never meet in one search, so an agent's change to the model
+itself — its provider, credential, model, vector width or endpoint — is taken only while the
+organization holds no document and no website, as a declaration applied with the CLI is. With
+anything indexed it is refused, naming how many documents and websites there are
+(`EMBEDDING_CORPUS_NOT_EMPTY`), and the person changes the model in Tale, where what is indexed
+is queued again. The similarity floor and the serving limits change at any time.
+
+- **Example**: Ada's agent proposes a larger embedding model while 40 documents are indexed →
+  refused, naming the 40 documents; her agent lowers the similarity floor instead → it is
+  changed, and nothing is indexed again.
+
 ## Answers and refusals
 
 ### MCP-R18 · A refusal comes back as an answer the agent can read, not a protocol error
@@ -276,9 +338,11 @@ counts twice, once in each. Counters are kept 90 days, and an erasure of the per
 ### MCP-R14 · Every write over MCP leaves an audit row naming the coding agent
 
 A write a tool call makes — a version saved, a deploy, a delete, a trigger set or removed, an
-installation added or removed, a run stopped, a question answered — leaves its audit row (`AUTO-R28`),
-and every row written during the call says it came through MCP, with the tool, the API key and the
-client's name when the client named itself on that call (every call on 2026-07-28; see Not yet).
+installation added or removed, a run stopped, a question answered, a setting changed — leaves its
+audit row (`AUTO-R28`; for a setting, the row the same change leaves when it is made on its
+Settings page), and every row written during the call says it came through MCP, with the tool, the
+API key and the client's name when the client named itself on that call (every call on 2026-07-28;
+see Not yet).
 
 - **Example**: Ada's agent deploys v7 with her key "laptop" → the audit log shows "Automation
   deployed" by Ada, through MCP (`deploy_automation`, her laptop key).
@@ -358,6 +422,11 @@ deployment of a release. A signed-in person downloads it in the app; an agent re
   a version its agent saves records the door and the key but no client name; a 2026-07-28 client
   names itself on every call (MCP-R26).
 - The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).
+- Settings pages no kind covers yet — members, teams, connectors, skills, competences, legal
+  holds, data subject requests, the audit log, metrics and a person's own settings among them —
+  are listed with what an agent cannot do there (`settings/coverage.ts`); those changes are made
+  in Tale. A secret is always entered in Tale: no change request carries an agent's change there
+  for the person to finish yet.
 - A client cannot subscribe to a resource or be told that a list changed (`subscriptions/listen`
   answers 404 on 2026-07-28): the lists are read again when a client reconnects, or on 2026-07-28
   once the time the answer named has passed.

@@ -148,6 +148,110 @@ export async function checkBrokerAccountSelection(
     );
 
     const now = Date.now();
+    const beforeRefusal = await sql<{ hash: string; until: number }[]>`
+      SELECT account_hash AS hash, cooldown_until_ms::float8 AS until
+      FROM app.provider_broker_accounts
+      WHERE org_id = ${ctx.orgId} AND credential_id = ${credentialId}
+      ORDER BY account_hash
+    `;
+    for (const refusal of [
+      {
+        organizationId: 'different-organization',
+        apiErrorStatus: 403,
+        providerErrorKind: 'subscription_access_disabled' as const,
+      },
+      { organizationId: ctx.orgId, apiErrorStatus: 403 },
+      {
+        organizationId: ctx.orgId,
+        apiErrorStatus: 401,
+        providerErrorKind: 'subscription_access_disabled' as const,
+      },
+    ])
+      await recordBrokerFailure(
+        sql,
+        { ...refusal, brokerTokenHash: firstHash },
+        now,
+      );
+    const afterUnrelated = await sql<{ hash: string; until: number }[]>`
+      SELECT account_hash AS hash, cooldown_until_ms::float8 AS until
+      FROM app.provider_broker_accounts
+      WHERE org_id = ${ctx.orgId} AND credential_id = ${credentialId}
+      ORDER BY account_hash
+    `;
+    assert.deepEqual(afterUnrelated, beforeRefusal);
+    await recordBrokerFailure(
+      sql,
+      {
+        organizationId: ctx.orgId,
+        brokerTokenHash: firstHash,
+        apiErrorStatus: 403,
+        providerErrorKind: 'subscription_access_disabled',
+      },
+      now,
+    );
+    const afterRefusal = await sql<{ hash: string; until: number }[]>`
+      SELECT account_hash AS hash, cooldown_until_ms::float8 AS until
+      FROM app.provider_broker_accounts
+      WHERE org_id = ${ctx.orgId} AND credential_id = ${credentialId}
+      ORDER BY account_hash
+    `;
+    assert.deepEqual(
+      [...afterRefusal],
+      beforeRefusal.map((row) =>
+        row.hash === firstHash ? { ...row, until: now + 60 * 60_000 } : row,
+      ),
+    );
+    const refusalCandidates = [
+      { hash: firstHash, excluded: false },
+      ...beforeRefusal
+        .filter((row) => row.hash !== firstHash)
+        .map((row) => ({ hash: row.hash, excluded: false })),
+    ];
+    for (const at of [now, now + 30 * 60_000, now + 60 * 60_000 - 1]) {
+      assert.notEqual(
+        (
+          await selectBrokerAccount(
+            anotherPool,
+            { ...args, selection: 'first', candidates: refusalCandidates },
+            at,
+          )
+        ).hash,
+        firstHash,
+      );
+    }
+    assert.equal(
+      (
+        await selectBrokerAccount(
+          anotherPool,
+          { ...args, selection: 'first', candidates: refusalCandidates },
+          now + 60 * 60_000,
+        )
+      ).hash,
+      firstHash,
+    );
+    const longerUntil = now + 2 * 60 * 60_000;
+    await sql`UPDATE app.provider_broker_accounts SET cooldown_until_ms = ${longerUntil} WHERE org_id = ${ctx.orgId} AND credential_id = ${credentialId} AND account_hash = ${firstHash}`;
+    await recordBrokerFailure(
+      sql,
+      {
+        organizationId: ctx.orgId,
+        brokerTokenHash: firstHash,
+        apiErrorStatus: 403,
+        providerErrorKind: 'subscription_access_disabled',
+      },
+      now,
+    );
+    const longer = await sql<
+      { until: number }[]
+    >`SELECT cooldown_until_ms::float8 AS until FROM app.provider_broker_accounts WHERE org_id = ${ctx.orgId} AND account_hash = ${firstHash}`;
+    assert.equal(longer[0]?.until, longerUntil);
+    record(
+      'broker: recognized subscription refusal cools only its account for one hour without shortening a longer hold',
+      true,
+      'generic403 and another organization preserve every account; alternative serves at 0 and 30 minutes; the refused account reopens exactly at one hour',
+    );
+    // Finish this isolated clock-controlled proof before the rate-limit cases.
+    await sql`UPDATE app.provider_broker_accounts SET cooldown_until_ms = 0 WHERE org_id = ${ctx.orgId} AND credential_id = ${credentialId} AND account_hash = ${firstHash}`;
     await recordBrokerFailure(
       sql,
       {

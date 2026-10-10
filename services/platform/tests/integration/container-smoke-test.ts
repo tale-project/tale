@@ -165,7 +165,14 @@ async function main(): Promise<number> {
 
   // 2. Start services
   header('Starting services');
-  await compose.run(['up', '-d']);
+  const upExitCode = await compose.run(['up', '-d']);
+  if (upExitCode !== 0) {
+    console.error(
+      `${RED}Compose failed to start the validation stack (exit ${upExitCode}).${NC}`,
+    );
+    await cleanup(true);
+    return 1;
+  }
   console.log('');
   console.log('Container status:');
   await compose.run(['ps']);

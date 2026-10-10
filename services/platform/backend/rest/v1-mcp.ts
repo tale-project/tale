@@ -31,7 +31,7 @@ import { DEFAULT_BODY_BYTES, restBodyLimit, type RestEnv } from './shared.ts';
  * wait when the budget is spent. */
 async function chargeLane(
   sql: Sql,
-  lane: 'rest:api' | 'rest:execute',
+  lane: 'rest:api' | 'rest:execute' | 'rest:settings',
   userId: string,
 ): Promise<{ retryAfterMs: number } | null> {
   try {
@@ -110,7 +110,8 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // never cheaper than the requests it stands for.
       admit: () => chargeLane(deps.sql, 'rest:api', caller.userId),
       // A tool that executes an automation draws one execution from the
-      // budget the REST API's run starts draw from, after its role check.
+      // budget the REST API's run starts draw from, and a settings change
+      // one change from its own, after the tool's role check.
       charge: (lane) => chargeLane(deps.sql, lane, caller.userId),
     });
   });

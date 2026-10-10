@@ -50,6 +50,63 @@ test('native syntax errors are rejected before any immutable release is publishe
   }
 }, 30_000);
 
+test('native staging keeps advisory analysis findings visible without blocking the release', async () => {
+  const f = commandFixture('advisory-team', false);
+  writeFileSync(
+    path.join(f.pack, 'workflow.yml'),
+    stringify({
+      version: 1,
+      name: f.name,
+      inputs: {
+        type: 'object',
+        properties: { go: { type: 'boolean' } },
+      },
+      nodes: [
+        {
+          id: 'check',
+          type: 'transform',
+          when: '{{ input.go }}',
+          code: 'return { ok: true };',
+        },
+        {
+          id: 'next',
+          type: 'transform',
+          when: '{{ nodes.check.output.ok }}',
+          code: 'return true;',
+        },
+      ],
+      output: '{{ nodes.next.output }}',
+    }),
+  );
+  const sourceCommit = f.commit();
+  await expect(
+    buildRelease({ ...f.options, sourceCommit }),
+  ).resolves.toBeDefined();
+});
+
+test('native staging still rejects non-advisory analysis warnings', async () => {
+  const f = commandFixture('drift-team', false);
+  writeFileSync(
+    path.join(f.pack, 'workflow.yml'),
+    stringify({
+      version: 1,
+      name: f.name,
+      nodes: [
+        {
+          id: 'work',
+          type: 'transform',
+          input: { missing: '{{ input.not_declared }}' },
+          code: 'return input.missing;',
+        },
+      ],
+    }),
+  );
+  const sourceCommit = f.commit();
+  await expect(buildRelease({ ...f.options, sourceCommit })).rejects.toThrow(
+    /native workflow validation failed/,
+  );
+});
+
 test('larger transform bodies survive native release emission and backend admission unchanged', async () => {
   const f = commandFixture('code-team', false);
   // Synthetic code exceeds both former expression-sized limits. Validation

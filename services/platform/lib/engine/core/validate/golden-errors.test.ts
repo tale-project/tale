@@ -55,6 +55,7 @@ const store = memoryStore({
       catalogued: new Set(['github', 'gmail', 'task']),
       connected: new Set(['github']),
       needsCredential: new Set(['github', 'gmail']),
+      credentials: new Map([['http', [{ id: 'cred_shop', name: 'Shop API' }]]]),
     },
     secrets: new Set(['SUPPORT_SIGNATURE']),
     harnesses: new Set(['claude-code', 'codex']),
@@ -68,6 +69,11 @@ beforeAll(async () => {
   await store.setTrigger('scheduled-report', {
     kind: 'schedule',
     cron: '0 6 * * *',
+  });
+  // The webhook whose fixed input trigger-input-not-templated reads.
+  await store.setTrigger('templated-hook', {
+    kind: 'webhook',
+    input: { owner: '{{ payload.repository.owner }}', repo: 'tale' },
   });
   // A trigger bound before the platform refused names it does not raise.
   await store.setTrigger('stale-event-trigger', {
@@ -128,6 +134,32 @@ beforeAll(async () => {
       outputSignature: '{ tempC: number }',
       hasEffect: false,
       mock: () => ({ tempC: 21 }),
+    },
+  });
+  // The HTTP connector's read, as its connector declares it in short.
+  registerNodeType({
+    type: 'http.get',
+    kind: 'connector',
+    outputKind: 'structured',
+    description: 'test connector: an HTTP GET',
+    allowedFields: ['input', 'credential'],
+    requiredFields: ['input'],
+    connector: {
+      name: 'http.get',
+      description: 'read from an HTTPS API',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          url: { type: 'string' },
+          query: { type: 'object' },
+          headers: { type: 'object', additionalProperties: { type: 'string' } },
+        },
+        required: ['url'],
+        additionalProperties: false,
+      },
+      outputSignature: '{ status: number, body: unknown }',
+      hasEffect: false,
+      mock: () => ({ status: 200, body: null }),
     },
   });
   registerNodeType({
@@ -512,6 +544,41 @@ const fixtures: Record<string, unknown> = {
     ],
     output: '{{ nodes.w.output }}',
   }),
+  'http-input-checks': flow({
+    nodes: [
+      {
+        id: 'orders',
+        type: 'http.get',
+        input: {
+          url: 'http://api.example.com/orders?api_key=abcdef0123456789abcd',
+          headers: { Authorization: 'Basic x', Accept: 'application/json' },
+        },
+      },
+    ],
+    output: '{{ nodes.orders.output }}',
+  }),
+  'http-credentialed-step': flow({
+    nodes: [
+      {
+        id: 'orders',
+        type: 'http.get',
+        credential: 'Shop API',
+        input: { url: '/orders', query: { status: 'open' } },
+      },
+    ],
+    output: '{{ nodes.orders.output }}',
+  }),
+  'credential-unknown': flow({
+    nodes: [
+      {
+        id: 'orders',
+        type: 'http.get',
+        credential: 'Shop APII',
+        input: { url: '/orders' },
+      },
+    ],
+    output: '{{ nodes.orders.output }}',
+  }),
   'output-missing': {
     version: 1,
     name: 'fixture-flow',
@@ -774,6 +841,13 @@ const fixtures: Record<string, unknown> = {
       additionalProperties: false,
     },
   }),
+  'trigger-input-not-templated': flow({
+    name: 'templated-hook',
+    inputs: {
+      type: 'object',
+      properties: { owner: { type: 'string' }, repo: { type: 'string' } },
+    },
+  }),
   'tests-input-invalid': flow({
     inputs: {
       type: 'object',
@@ -798,6 +872,171 @@ const fixtures: Record<string, unknown> = {
     output: { count: '{{ nodes.calc.output.count }}' },
     tests: [
       { name: 'counts', input: {}, expect: { output: { count: 'one' } } },
+    ],
+  }),
+  // Each malformed part of a test, once: its description, its stand-ins,
+  // an expected effect, the node states and the expected failure.
+  'tests-invalid-parts': flow({
+    nodes: [
+      { id: 'main', type: 'transform', code: 'return 1;' },
+      { id: 'ask', type: 'llm', model: 'test-model', prompt: 'Hi' },
+    ],
+    tests: [
+      {
+        name: 'stand-ins',
+        input: {},
+        description: 5,
+        mocks: 'main',
+        failures: { main: 404 },
+      },
+      {
+        name: 'expectations',
+        input: {},
+        expect: {
+          effects: [
+            { input: {} },
+            { connector: 'llm', input: {}, inputIncludes: {} },
+            { connector: 'llm', absent: false },
+          ],
+          nodes: { main: 'done' },
+        },
+      },
+      {
+        name: 'fails with an output',
+        input: {},
+        expect: { failure: { node: 'main', code: 1 }, output: 1 },
+      },
+    ],
+  }),
+  'tests-too-many': flow({
+    tests: Array.from({ length: 51 }, (_, i) => ({
+      name: `case ${i + 1}`,
+      input: {},
+    })),
+  }),
+  'tests-unknown-field': flow({
+    tests: [{ name: 'stands in', input: {}, mock: { main: 2 } }],
+  }),
+  // A misspelled field of an expected effect is ignored when the test is
+  // judged, so the test checks less than it says, or the opposite.
+  'tests-unknown-field-effect': flow({
+    nodes: [{ id: 'send', type: 'mail.send', input: { to: 'a@b.test' } }],
+    output: '{{ nodes.send.output }}',
+    tests: [
+      {
+        name: 'never sends',
+        input: {},
+        expect: { effects: [{ connector: 'mail.send', absnt: true }] },
+      },
+    ],
+  }),
+  'tests-name-duplicate': flow({
+    tests: [
+      { name: 'same', input: {} },
+      { name: 'same', input: {} },
+    ],
+  }),
+  'tests-mock-unknown-node': flow({
+    tests: [{ name: 'stands in', input: {}, mocks: { mainn: 2 } }],
+  }),
+  'tests-mock-conflict': flow({
+    tests: [
+      {
+        name: 'both',
+        input: {},
+        mocks: { main: 2 },
+        failures: { main: 'the service is down' },
+      },
+    ],
+  }),
+  'tests-mock-not-list': flow({
+    inputs: {
+      type: 'object',
+      properties: { items: { type: 'array' } },
+    },
+    nodes: [
+      {
+        id: 'each',
+        type: 'transform',
+        forEach: '{{ input.items }}',
+        code: 'return { seen: true };',
+      },
+    ],
+    output: '{{ nodes.each.output }}',
+    tests: [
+      { name: 'one item', input: { items: [1] }, mocks: { each: { id: 1 } } },
+    ],
+  }),
+  'tests-mock-type': flow({
+    nodes: [{ id: 'calc', type: 'transform', code: 'return { count: 1 };' }],
+    output: '{{ nodes.calc.output.count }}',
+    tests: [{ name: 'counts', input: {}, mocks: { calc: { count: 'one' } } }],
+  }),
+  'tests-expect-node-unknown': flow({
+    tests: [{ name: 'names', input: {}, expect: { nodes: { mian: 'ran' } } }],
+  }),
+  'tests-expect-path-impossible': flow({
+    inputs: {
+      type: 'object',
+      properties: { n: { type: 'number' } },
+    },
+    nodes: [
+      {
+        id: 'big',
+        type: 'transform',
+        when: '{{ input.n > 10 }}',
+        code: 'return "big";',
+      },
+      {
+        id: 'small',
+        type: 'transform',
+        elseOf: 'big',
+        code: 'return "small";',
+      },
+    ],
+    output: '{{ nodes.big.output ?? nodes.small.output }}',
+    tests: [
+      {
+        name: 'both sizes',
+        input: { n: 1 },
+        expect: { nodes: { big: 'ran', small: 'ran' } },
+      },
+    ],
+  }),
+  // The automation runs the node, but never while the failure the test
+  // simulates for the node it reads holds.
+  'tests-expect-path-impossible-simulated': flow({
+    nodes: [
+      {
+        id: 'ping',
+        type: 'mail.send',
+        input: { to: 'a@b.test' },
+        onError: 'continue',
+      },
+      {
+        id: 'after',
+        type: 'transform',
+        input: { id: '{{ nodes.ping.output.id }}' },
+        code: 'return input.id;',
+      },
+    ],
+    output: '{{ nodes.after.output ?? "no mail" }}',
+    tests: [
+      {
+        name: 'reads the mail',
+        input: {},
+        failures: { ping: 'down' },
+        expect: { nodes: { after: 'ran' } },
+      },
+    ],
+  }),
+  'tests-expect-failure-impossible': flow({
+    nodes: [
+      { id: 'main', type: 'transform', code: 'return 1;', onError: 'continue' },
+    ],
+    output: '{{ nodes.main.output ?? 0 }}',
+    tests: [
+      { name: 'fails', input: {}, expect: { failure: { node: 'main' } } },
     ],
   }),
   // What the organization has: a runtime this deployment cannot run, a
@@ -863,9 +1102,13 @@ const VALIDATION_CODES: IssueCode[] = [
   'INPUT_KEY_UNKNOWN',
   'TEMPLATE_UNTERMINATED',
   'CONNECTOR_INPUT_INVALID',
+  'HTTP_URL_NOT_HTTPS',
+  'HTTP_SECRET_IN_URL',
+  'HTTP_HEADER_RESERVED',
   'LLM_MODEL_UNAVAILABLE',
   'SKILL_UNKNOWN',
   'CONNECTOR_NOT_CONNECTED',
+  'CREDENTIAL_UNKNOWN',
   'SECRET_UNKNOWN',
   'HARNESS_UNKNOWN',
   'EVENT_UNKNOWN',
@@ -887,9 +1130,20 @@ const VALIDATION_CODES: IssueCode[] = [
   'OUTPUT_MAYBE_EMPTY',
   'SUBAUTOMATION_INPUT_INVALID',
   'TRIGGER_INPUT_MISMATCH',
+  'TRIGGER_INPUT_NOT_TEMPLATED',
   'TESTS_INPUT_INVALID',
   'TESTS_EFFECT_UNKNOWN',
   'TESTS_EXPECT_TYPE',
+  'TESTS_TOO_MANY',
+  'TESTS_UNKNOWN_FIELD',
+  'TESTS_NAME_DUPLICATE',
+  'TESTS_MOCK_UNKNOWN_NODE',
+  'TESTS_MOCK_CONFLICT',
+  'TESTS_MOCK_NOT_LIST',
+  'TESTS_MOCK_TYPE',
+  'TESTS_EXPECT_NODE_UNKNOWN',
+  'TESTS_EXPECT_PATH_IMPOSSIBLE',
+  'TESTS_EXPECT_FAILURE_IMPOSSIBLE',
 ];
 
 // ------------------------------------------------------------------- tests

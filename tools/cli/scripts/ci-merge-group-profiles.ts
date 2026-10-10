@@ -111,6 +111,12 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
     '159d83af0f550b45d4e91eb7dbdb9825be8b5b9c53379a0aa3621975f36f21ca',
     shards,
   ),
+  // Current Checks routes the external service pull through the public mirror.
+  profile(
+    'Checks',
+    '7f1958d88c3b9dbd6403f6044ef10d04a18ea741a75235f7771204a2852ca881',
+    shards,
+  ),
   profile(
     'CLI',
     '1d32433aa06366e94f273b89c8cc54a19f97e36be65298cd4bcd5153b8b67570',

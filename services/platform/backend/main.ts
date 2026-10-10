@@ -1,9 +1,14 @@
 import { serve } from '@hono/node-server';
+import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import {
+  startAuthRequestCache,
+  stopAuthRequestCache,
+} from './auth/request-cache.ts';
 import { settleLiveTurns } from './core/automations/stepper.ts';
 import {
   closeKnowledgePools,
@@ -11,6 +16,10 @@ import {
 } from './core/knowledge/pool.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import {
+  startAuditSealer,
+  type AuditSealer,
+} from './domains/audit_logs/sealer.ts';
 import { releaseOwnedRunLeases } from './domains/automations/store.ts';
 import { isBackendDraining } from './domains/control/service.ts';
 import {
@@ -32,6 +41,7 @@ import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules, sweepRunsAtBoot } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import { configureCodeRunner } from './lib/code-runner.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -52,6 +62,10 @@ async function main(): Promise<void> {
     dsn: env.SENTRY_DSN,
     role: env.ROLE,
     tracesSampleRate: env.BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+  });
+  configureCodeRunner({
+    role: env.ROLE,
+    processes: env.AUTOMATION_RUNNER_PROCESSES,
   });
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);
@@ -132,6 +146,7 @@ async function main(): Promise<void> {
     );
     reportError(error, { tags: { 'tale.lane': 'boot' } });
   }
+  let auditSealer: AuditSealer | null = null;
   if (env.ROLE !== 'api') {
     // The corpus pool caps how many indexing jobs commit a slice at once; a
     // worker allowed more concurrent jobs than that queues on it. Said here,
@@ -156,6 +171,7 @@ async function main(): Promise<void> {
     });
     await registerSchedules(boss);
     await sweepRunsAtBoot(sql);
+    auditSealer = startAuditSealer(sql);
   }
 
   // The deployment-default BLOB store. S3 is the only blob backend, so an
@@ -187,6 +203,18 @@ async function main(): Promise<void> {
       }
     } catch (error: unknown) {
       console.warn('[backend] dev seed failed:', error);
+    }
+  }
+
+  // A process that answers requests keeps the sessions and memberships it
+  // resolved for a moment, dropping each the moment the database says it
+  // changed (`auth/request-cache.ts`); `AUTH_REQUEST_CACHE=off` turns it off.
+  if (env.ROLE !== 'worker' && auth !== null) {
+    const cache = startAuthRequestCache(sql, {
+      sessionConfig: sessionIdleWindowSeconds(),
+    });
+    if (cache === null) {
+      console.log('[backend] auth request cache off (AUTH_REQUEST_CACHE=off)');
     }
   }
 
@@ -232,6 +260,9 @@ async function main(): Promise<void> {
     console.log(
       `[backend] ${signal} received — shutting down (drain ${drainMs} ms)`,
     );
+    // The round in flight finishes; what it leaves the next worker seals.
+    await auditSealer?.stop();
+    await stopAuthRequestCache();
     await runShutdownSequence(signal, {
       role: env.ROLE,
       drainMs,

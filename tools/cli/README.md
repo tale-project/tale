@@ -199,6 +199,24 @@ process supervisor when a total deadline is required. A receipt is point-in-time
 correlation, not authentication or a guarantee of later routing. `sourceTag` is
 image-reference metadata; OCI labels and frontend health establish the version.
 
+`tale --json deploy observe --spec <file> --cli-ref <sha> --deployment-ref <sha>
+--machine-id-sha256 <digest>` reads an existing admitted host and retained native
+configuration without preparing a bundle or compiling preserved packs. Private stdin
+is `{"environment":{"UPPERCASE_ENV_NAME":"value"}}`: an explicit map only, at most
+64 KiB, 128 keys and 8192 bytes per value. It uses the pinned compiled CLI and local
+Docker socket, existing account/organization custody and credentials, bounded SQL
+and GET verification, temporary root-owned tooling and temporary authentication.
+It performs no provisioning, configuration apply, migration, restart, prune or
+cutover-lock acquisition. Complete reports have `ok:true` and `data.complete:true`;
+missing retained custody or owned-skill ownership preserves partial host/database
+facts with `ok:false`, `data.complete:false` and exit `3`. Identity drift and unsafe
+custody refuse. Refusal summaries identify a bounded, source-authored verification
+phase without returning private input, paths, command output or native responses;
+they identify where verification stopped, not the underlying host cause. Cleanup
+refusals take precedence. Retain partial reports for investigation; neither result is Ready
+acceptance or authorization for a rollout. An external supervisor must also bound
+filesystem waits. The public CLI guide documents the full input and result contract.
+
 `tale deploy smoke --url <url>` checks any running deployment through its public
 URL as a browser would, without credentials or writes: health and version,
 readiness, the app shell, an anonymous session, and the `/events` and `/api/app`

@@ -1,8 +1,11 @@
 'use client';
 
+import { useT } from '@tale/ui/i18n/client';
 import { Input } from '@tale/ui/input';
 import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
+
+import { useLocalized } from '@/app/features/automations/components/settings-field-control';
 
 import { type CredentialExtraModule } from '../credentials/adapter';
 import { type ConnectorSummary } from './hooks/backend';
@@ -52,6 +55,20 @@ function isSupplied(value: string | number | boolean | undefined): boolean {
   return true;
 }
 
+function isValidFieldValue(
+  field: ConnectorSummary['configFields'][number],
+  value: string | number | boolean | undefined,
+): boolean {
+  if (!isSupplied(value) || field.type !== 'number') return true;
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  return (
+    Number.isFinite(numberValue) &&
+    (field.integer !== true || Number.isInteger(numberValue)) &&
+    (field.min === undefined || numberValue >= field.min) &&
+    (field.max === undefined || numberValue <= field.max)
+  );
+}
+
 function ConnectorConfigFields({
   vendor,
   value,
@@ -63,6 +80,8 @@ function ConnectorConfigFields({
   onChange: (next: ConnectorConfigValue) => void;
   disabled?: boolean;
 }) {
+  const { t } = useT('settings');
+  const localized = useLocalized();
   const fields = fieldsOf(vendor.summary);
   if (fields.length === 0) return null;
 
@@ -72,8 +91,11 @@ function ConnectorConfigFields({
 
   return (
     <>
-      {fields.map((field) => {
+      {fields.map((declared) => {
+        // The declaration's label and help in the reader's language.
+        const field = localized(declared);
         const current = value[field.key];
+        const invalid = !isValidFieldValue(field, current);
         if (field.type === 'boolean') {
           return (
             <Switch
@@ -129,6 +151,11 @@ function ConnectorConfigFields({
             value={current === undefined ? '' : String(current)}
             onChange={(e) => set(field.key, e.target.value)}
             inputMode={field.type === 'number' ? 'numeric' : undefined}
+            min={field.min}
+            max={field.max}
+            step={field.integer === true ? 1 : undefined}
+            errorMessage={invalid ? t('connectors.invalidPort') : undefined}
+            isInvalid={invalid}
             disabled={disabled}
             required={field.required}
           />
@@ -158,9 +185,10 @@ export function connectorConfigExtras<
     isComplete: (value, vendor) =>
       fieldsOf(vendor.summary).every(
         (field) =>
-          !field.required ||
-          isSupplied(value[field.key]) ||
-          field.default !== undefined,
+          (isSupplied(value[field.key]) &&
+            isValidFieldValue(field, value[field.key])) ||
+          (!isSupplied(value[field.key]) &&
+            (!field.required || field.default !== undefined)),
       ),
     // Blank entries are dropped rather than sent as '': the server applies the
     // declared default for an ABSENT field, and would reject '' for a number.

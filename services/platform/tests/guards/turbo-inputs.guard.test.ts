@@ -88,7 +88,7 @@ const OUTSIDE_READS = [
   {
     path: 'configs/platform/custom',
     readers:
-      'backend/core/provisioning/provision_default_automations.test.ts and lib/shared/config/document-skills-catalog.test.ts',
+      'backend/core/provisioning/provision_default_automations.test.ts, lib/shared/config/document-skills-catalog.test.ts and the shipped automation corpus (lib/engine/selftest/corpus.ts)',
   },
   {
     path: 'configs/platform/system',
@@ -119,7 +119,8 @@ const OUTSIDE_READS = [
     // The Docs page a domain spec links: the guard holds each link to a page
     // that exists, so a page that moves must turn its verdict.
     path: 'docs/en/platform',
-    readers: 'tests/guards/domain-specs.guard.test.ts',
+    readers:
+      'tests/guards/domain-specs.guard.test.ts and the shipped automation corpus (lib/engine/selftest/corpus.ts)',
   },
   {
     path: 'services/web/app/content/product-screenshots.ts',
@@ -133,6 +134,10 @@ const OUTSIDE_READS = [
   {
     path: 'packages/shared/src/automation-name.ts',
     readers: 'lib/engine/selftest/purity.test.ts scans the extracted grammar',
+  },
+  {
+    path: 'packages/shared/src/utils/stable-stringify.ts',
+    readers: 'lib/engine/selftest/purity.test.ts scans the stable serializer',
   },
   {
     // Not read as text: the suite runs the postgres.js these patches change

@@ -21,7 +21,7 @@ Das Menü **Automatisierung erstellen** bietet zwei Wege:
 
 | Auswahl | Geeignet, wenn … | Danach |
 | --- | --- | --- |
-| **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Lege Name, Modell, Anweisungen und Ausstattung fest und wähle dann, wann der Agent läuft. Nach dem Erstellen öffnet sich der Editor für weitere Änderungen. |
+| **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Lege Name, Modell, Anweisungen und Ausstattung fest und wähle dann, wann der Agent läuft. **v1 jetzt live schalten** (standardmäßig an) schaltet die erste Version sofort live; sonst bleibt sie ein Entwurf, den du im Editor live schaltest. Was der Trigger sendet, erhält der Agent als seine Eingabe. Nach dem Erstellen öffnet sich der Editor für weitere Änderungen. |
 | **Paket hochladen** | eine Workflow-Datei oder ein wiederverwendbares Pack vorliegt. | Tale prüft die Dateien und speichert eine Entwurfsversion. |
 
 Mitgelieferte Automatisierungen werden beim Erstellen der Organisation eingerichtet. Für den automatischen Einsatz brauchen sie dennoch ihre Konfiguration und eine Live-Version. Der [Workflow-Editor](/de/platform/automations/editor) führt durch Eingaben, Test, Ergebnisprüfung und Live-Schaltung.

@@ -13,11 +13,12 @@ import {
   ReactFlow,
   useReactFlow,
   useStore,
+  useStoreApi,
   type FitViewOptions,
   type ReactFlowProps,
   type Viewport,
 } from '@xyflow/react';
-import { Maximize, Minus, Plus, Sparkles } from 'lucide-react';
+import { Maximize, Minus, Plus } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -27,34 +28,78 @@ import {
   type ReactNode,
 } from 'react';
 
+import { usePrefersReducedMotion } from '../../hooks/use-prefers-reduced-motion';
+import { FLOW_TOUCH_TARGET } from './render/chrome';
+
+export { FLOW_TOUCH_TARGET };
+
+/** The `--ease-out-quint` curve, for viewport moves run from script. */
+export const easeOutQuint = (t: number) => 1 - (1 - t) ** 5;
+
+/** Viewport move durations: the `--duration-*` tokens, 0 under reduced
+ *  motion (React Flow eases in script, out of reach of the CSS rule). */
+export const FLOW_VIEWPORT_DURATION = {
+  zoom: 150,
+  fit: 300,
+  reveal: 200,
+} as const;
+
+/** How a fit treats a graph too big to show whole at a readable size. */
+export type FlowFitPolicy = 'all' | 'auto';
+
+/** Below this zoom an `auto` fit stops shrinking the graph to show it all. */
+const READABLE_ZOOM = 0.5;
+/** Room an `auto` fit leaves above the graph's top. */
+const TOP_MARGIN = 24;
+/** Room the top corners' controls take — the panels' 15 px inset, a 36 px
+ *  control and a 12 px gap, on the 4-px grid: a fit never puts the first
+ *  box under a view switch or a toolbar. */
+const TOP_CONTROLS_INSET = 64;
+
 /**
  * The ONE base React Flow canvas every graph editor in the app builds on
- * (the automation canvas today). Owns the
- * shared chrome and house defaults — theme-reactive `colorMode`, hidden
- * attribution, the fit (initial, and kept while the canvas resizes until the
- * reader moves the view), the corner zoom cluster (zoom in / out / reset)
- * and the bottom-center action toolbar (editor actions + the AI-editor
- * toggle) — so editors differ only in nodes/edges/handlers and
+ * (the workflow canvas). Owns the shared chrome and house defaults —
+ * theme-reactive `colorMode`, hidden attribution, the fit (initial, and
+ * kept while the canvas resizes until the reader moves the view), the
+ * corner zoom cluster (zoom in / out / reset) and the bottom-center action
+ * toolbar — so editors differ only in nodes/edges/handlers and
  * minimap/background styling:
  *
- *  - `backgroundProps` — always rendered; pass variant/gap/color to style.
- *  - `minimapProps`    — renders a MiniMap when provided.
- *  - `centerActions`   — editor-specific buttons in the bottom-center toolbar.
- *  - `onOpenAi`        — adds the ✨ button to the bottom-center toolbar.
+ *  - `backgroundProps`  — always rendered; pass variant/gap/color to style.
+ *  - `minimapProps`     — renders a MiniMap when provided.
+ *  - `centerActions`    — editor-specific buttons in the bottom-center toolbar.
+ *  - `cornerActions`    — extra buttons after zoom/reset in the corner cluster.
+ *  - `topStartActions` / `topEndActions` — the top corners (a view switch,
+ *    the canvas's own verbs).
+ *  - `fitPolicy`        — `all` fits every node; `auto` does too while that
+ *    keeps the graph readable (zoom 0.5 or more), else shows its top at a
+ *    readable zoom, centred on its first node.
+ *  - `fitKey`           — refit when it changes, while the view is still
+ *    where the last fit left it (the graph was laid out again), easing
+ *    over `refitDuration` (a live relayout glides; a new picture jumps).
  *
- * Everything else spreads onto `<ReactFlow>` untouched; overlays and
- * `<Panel>`s ride through `children`.
+ * Viewport moves ease out (quint) over the duration tokens and jump under
+ * reduced motion. Everything else spreads onto `<ReactFlow>` untouched;
+ * overlays and `<Panel>`s ride through `children`.
  */
 export interface FlowCanvasProps extends ReactFlowProps {
   backgroundProps?: ComponentProps<typeof Background>;
   minimapProps?: ComponentProps<typeof MiniMap>;
   /** Editor-specific buttons rendered in the bottom-center toolbar. */
   centerActions?: ReactNode;
-  /** Opens the editor's AI assistant panel (✨ in the bottom-center toolbar). */
-  onOpenAi?: () => void;
-  /** Whether the AI assistant panel is open — drives the ✨ button's pressed
-   *  (active) state so it reads as a toggle rather than a one-way open. */
-  aiOpen?: boolean;
+  /** Buttons after zoom in / zoom out / reset view in the corner cluster. */
+  cornerActions?: ReactNode;
+  /** The top-left corner. */
+  topStartActions?: ReactNode;
+  /** The top-right corner. */
+  topEndActions?: ReactNode;
+  /** @default 'all' */
+  fitPolicy?: FlowFitPolicy;
+  /** Refit when this changes, while the view is still the fit. */
+  fitKey?: unknown;
+  /** How long a refit for a new `fitKey` eases, in ms (0 under reduced
+   *  motion). @default 0 */
+  refitDuration?: number;
 }
 
 /** The view the last fit left, or `null` while a fit is under way. */
@@ -65,64 +110,166 @@ const sameView = (a: Viewport, b: Viewport) =>
   Math.abs(a.y - b.y) < 0.5 &&
   Math.abs(a.zoom - b.zoom) < 0.001;
 
-/** Fit, then remember where the fit left the view. */
-function useFitAndRemember(memo: FitMemo) {
-  const { fitView, getViewport } = useReactFlow();
+/** Fit by the policy, then remember where the fit left the view. With
+ *  `topInset`, the fit keeps the graph's top at least that far below the
+ *  canvas's top edge. */
+function useFitAndRemember(
+  memo: FitMemo,
+  policy: FlowFitPolicy,
+  topInset: number,
+) {
+  const { fitView, getViewport, setViewport, getNodes, getNodesBounds } =
+    useReactFlow();
+  const store = useStoreApi();
+  const reduced = usePrefersReducedMotion();
   return useCallback(
     async (options?: FitViewOptions) => {
       memo.current = null;
-      await fitView(options);
+      const duration = reduced ? 0 : (options?.duration ?? 0);
+      const { width, height } = store.getState();
+      const minZoom = options?.minZoom ?? store.getState().minZoom;
+      const nodes = getNodes();
+      const padding =
+        typeof options?.padding === 'number' ? options.padding : 0.1;
+      // React Flow reads a bare number as a share of each side; the top
+      // takes whichever is more, that share or the controls' room.
+      const fitPadding =
+        topInset > 0 && height > 0
+          ? {
+              top: `${Math.max(topInset, Math.floor((height - height / (1 + padding)) * 0.5))}px` as const,
+              right: padding,
+              bottom: padding,
+              left: padding,
+            }
+          : padding;
+      if (policy === 'auto' && nodes.length > 0 && width > 0 && height > 0) {
+        const bounds = getNodesBounds(nodes);
+        const whole = getViewportForBounds(
+          bounds,
+          width,
+          height,
+          0,
+          Number.POSITIVE_INFINITY,
+          fitPadding,
+        );
+        if (whole.zoom < READABLE_ZOOM) {
+          // Too big to read whole: show its top at a readable zoom, centred
+          // on the topmost box (Start), and let the reader scroll on.
+          const zoom = Math.min(
+            1,
+            Math.max(
+              READABLE_ZOOM,
+              minZoom,
+              width / (bounds.width * (1 + padding)),
+            ),
+          );
+          const top = [...nodes].sort(
+            (a, b) =>
+              a.position.y - b.position.y || a.position.x - b.position.x,
+          )[0];
+          const centreX =
+            top === undefined
+              ? bounds.x + bounds.width / 2
+              : top.position.x + (top.measured?.width ?? top.width ?? 0) / 2;
+          await setViewport(
+            {
+              x: width / 2 - centreX * zoom,
+              y: Math.max(TOP_MARGIN, topInset) - bounds.y * zoom,
+              zoom,
+            },
+            { duration, ease: easeOutQuint, interpolate: 'linear' },
+          );
+          memo.current = getViewport();
+          return;
+        }
+      }
+      await fitView({
+        ...options,
+        padding: fitPadding,
+        duration,
+        ease: easeOutQuint,
+        interpolate: 'linear',
+      });
       memo.current = getViewport();
     },
-    [memo, fitView, getViewport],
+    [
+      memo,
+      policy,
+      topInset,
+      reduced,
+      store,
+      fitView,
+      getViewport,
+      setViewport,
+      getNodes,
+      getNodesBounds,
+    ],
   );
 }
 
 /**
- * Keeps the initial fit true while the canvas's box changes size — a window
+ * Keeps the fit true while the canvas's box changes size — a window
  * resized, a tab strip wrapping onto a second row, an inspector opening
- * beside it. React Flow fits once, against the box it had at mount; a canvas
- * that then narrowed or shortened kept that zoom and cut its last nodes off.
- * It refits only while the view is still where a fit left it: once anything
- * moves it — the reader panning or zooming, the page bringing a picked node
- * into sight — the view is theirs until "reset view" fits it again. And only
- * to a fit that shows every node: past the zoom floor a fit merely
- * re-centres, which would pull a node the page is bringing into sight (a
- * picked box beside the inspector) back out of it.
+ * beside it — and when the graph is laid out again (`fitKey`). It refits
+ * only while the view is still where a fit left it: once anything moves it —
+ * the reader panning or zooming, the page bringing a picked node into
+ * sight — the view is theirs until "reset view" fits it again. Under the
+ * `all` policy, only to a fit that shows every node: past the zoom floor a
+ * fit merely re-centres, which would pull a node the page is bringing into
+ * sight back out of it.
  * Must render INSIDE <ReactFlow>.
  */
 function FlowAutoFit({
   memo,
   fitViewOptions,
+  policy,
+  topInset,
+  fitKey,
+  refitDuration = 0,
 }: {
   memo: FitMemo;
   fitViewOptions?: FitViewOptions;
+  policy: FlowFitPolicy;
+  topInset: number;
+  fitKey: unknown;
+  refitDuration?: number;
 }) {
   const { getViewport, getNodes, getNodesBounds } = useReactFlow();
-  const fitAndRemember = useFitAndRemember(memo);
+  const fitAndRemember = useFitAndRemember(memo, policy, topInset);
   const minZoom = useStore((state) => state.minZoom);
   const width = useStore((state) => state.width);
   const height = useStore((state) => state.height);
   // Nodes, not "nodes initialized": a canvas that gives its nodes explicit
   // sizes has no handles to measure, and that flag never turns true for it.
   const hasNodes = useStore((state) => state.nodeLookup.size > 0);
+  // The key the last fit was for: a new one eases, a resize jumps.
+  const fittedKey = useRef<{ key: unknown } | null>(null);
   useEffect(() => {
     if (!hasNodes || !width || !height) return undefined;
+    const newKey =
+      fittedKey.current !== null && fittedKey.current.key !== fitKey;
+    fittedKey.current = { key: fitKey };
     // Moved since the last fit: the view is not the fit any more.
     const fitted = memo.current;
     if (fitted !== null && !sameView(getViewport(), fitted)) return undefined;
     const frame = requestAnimationFrame(() => {
-      // The zoom that would show every node, before the floor clamps it.
-      const { zoom } = getViewportForBounds(
-        getNodesBounds(getNodes()),
-        width,
-        height,
-        0,
-        Number.POSITIVE_INFINITY,
-        fitViewOptions?.padding ?? 0.1,
+      if (policy === 'all') {
+        // The zoom that would show every node, before the floor clamps it.
+        const { zoom } = getViewportForBounds(
+          getNodesBounds(getNodes()),
+          width,
+          height,
+          0,
+          Number.POSITIVE_INFINITY,
+          fitViewOptions?.padding ?? 0.1,
+        );
+        if (zoom < (fitViewOptions?.minZoom ?? minZoom)) return;
+      }
+      void fitAndRemember(
+        newKey
+          ? { ...fitViewOptions, duration: refitDuration }
+          : fitViewOptions,
       );
-      if (zoom < (fitViewOptions?.minZoom ?? minZoom)) return;
-      void fitAndRemember(fitViewOptions);
     });
     return () => cancelAnimationFrame(frame);
   }, [
@@ -131,70 +278,92 @@ function FlowAutoFit({
     hasNodes,
     minZoom,
     memo,
+    policy,
+    fitKey,
     getViewport,
     getNodes,
     getNodesBounds,
     fitAndRemember,
     fitViewOptions,
+    refitDuration,
   ]);
   return null;
 }
 
-/** Corner cluster: zoom in / zoom out / reset view.
- *  Must render INSIDE <ReactFlow> — `useReactFlow` reads its store. Resetting
- *  hands the view back to the fit, which then follows the canvas's size. */
-function FlowCornerControls({ memo }: { memo: FitMemo }) {
+/** Corner cluster: zoom in / zoom out / reset view, then the host's own.
+ *  Must render INSIDE <ReactFlow> — `useReactFlow` reads its store.
+ *  Resetting hands the view back to the fit, which then follows the
+ *  canvas's size. */
+function FlowCornerControls({
+  memo,
+  policy,
+  topInset,
+  fitViewOptions,
+  children,
+}: {
+  memo: FitMemo;
+  policy: FlowFitPolicy;
+  topInset: number;
+  fitViewOptions?: FitViewOptions;
+  children?: ReactNode;
+}) {
   const { t } = useT('common');
   const { zoomIn, zoomOut } = useReactFlow();
-  const fitAndRemember = useFitAndRemember(memo);
+  const reduced = usePrefersReducedMotion();
+  const fitAndRemember = useFitAndRemember(memo, policy, topInset);
+  const zoom = {
+    duration: reduced ? 0 : FLOW_VIEWPORT_DURATION.zoom,
+    ease: easeOutQuint,
+  };
   return (
     <Panel
       position="bottom-left"
-      className="mb-[max(1rem,var(--mobile-nav-clearance-live,0px))]! flex flex-col gap-1"
+      className="mb-[max(1rem,var(--mobile-nav-clearance-live,0px))]! flex flex-col gap-1 pointer-coarse:gap-2"
     >
       <Button
         size="icon"
         variant="secondary"
+        className={FLOW_TOUCH_TARGET}
         title={t('flow.zoomIn')}
         tooltipSide="right"
-        onClick={() => void zoomIn({ duration: 150 })}
+        onClick={() => void zoomIn(zoom)}
       >
         <Plus className="size-4" />
       </Button>
       <Button
         size="icon"
         variant="secondary"
+        className={FLOW_TOUCH_TARGET}
         title={t('flow.zoomOut')}
         tooltipSide="right"
-        onClick={() => void zoomOut({ duration: 150 })}
+        onClick={() => void zoomOut(zoom)}
       >
         <Minus className="size-4" />
       </Button>
       <Button
         size="icon"
         variant="secondary"
+        className={FLOW_TOUCH_TARGET}
         title={t('flow.resetView')}
         tooltipSide="right"
-        onClick={() => void fitAndRemember({ padding: 0.2, duration: 300 })}
+        onClick={() =>
+          void fitAndRemember({
+            padding: 0.2,
+            ...fitViewOptions,
+            duration: FLOW_VIEWPORT_DURATION.fit,
+          })
+        }
       >
         <Maximize className="size-4" />
       </Button>
+      {children}
     </Panel>
   );
 }
 
-/** Bottom-center toolbar: the editor's primary actions (+ the AI toggle). */
-function FlowCenterToolbar({
-  centerActions,
-  onOpenAi,
-  aiOpen,
-}: {
-  centerActions?: ReactNode;
-  onOpenAi?: () => void;
-  aiOpen?: boolean;
-}) {
-  const { t } = useT('common');
-  if (!centerActions && !onOpenAi) return null;
+/** Bottom-center toolbar: the editor's primary actions. */
+function FlowCenterToolbar({ centerActions }: { centerActions?: ReactNode }) {
+  if (!centerActions) return null;
   return (
     <Panel
       position="bottom-center"
@@ -205,17 +374,6 @@ function FlowCenterToolbar({
         className="ring-border bg-background rounded-lg p-1 shadow-sm ring-1"
       >
         {centerActions}
-        {onOpenAi && (
-          <Button
-            variant="secondary"
-            size="icon"
-            title={t('flow.aiEditor')}
-            aria-pressed={aiOpen}
-            onClick={onOpenAi}
-          >
-            <Sparkles className="size-4" />
-          </Button>
-        )}
       </HStack>
     </Panel>
   );
@@ -225,30 +383,58 @@ export function FlowCanvas({
   backgroundProps,
   minimapProps,
   centerActions,
-  onOpenAi,
-  aiOpen,
+  cornerActions,
+  topStartActions,
+  topEndActions,
+  fitPolicy = 'all',
+  fitKey,
+  refitDuration,
   children,
   ...flowProps
 }: FlowCanvasProps) {
   const { resolvedTheme } = useTheme();
   const fitMemo = useRef<Viewport | null>(null);
+  // The `auto` fit is the canvas's own: React Flow's built-in fit would show
+  // a tall graph whole at an unreadable zoom first.
+  const builtInFit = fitPolicy === 'all' && flowProps.fitView !== false;
+  const topInset = topStartActions || topEndActions ? TOP_CONTROLS_INSET : 0;
   return (
     <ReactFlow
       colorMode={resolvedTheme}
-      fitView
       proOptions={{ hideAttribution: true }}
       {...flowProps}
+      fitView={builtInFit}
     >
       <Background {...backgroundProps} />
       {flowProps.fitView !== false && (
-        <FlowAutoFit memo={fitMemo} fitViewOptions={flowProps.fitViewOptions} />
+        <FlowAutoFit
+          memo={fitMemo}
+          fitViewOptions={flowProps.fitViewOptions}
+          policy={fitPolicy}
+          topInset={topInset}
+          fitKey={fitKey}
+          refitDuration={refitDuration}
+        />
       )}
-      <FlowCornerControls memo={fitMemo} />
-      <FlowCenterToolbar
-        centerActions={centerActions}
-        onOpenAi={onOpenAi}
-        aiOpen={aiOpen}
-      />
+      {topStartActions && (
+        <Panel position="top-left" className="flex items-start gap-1">
+          {topStartActions}
+        </Panel>
+      )}
+      {topEndActions && (
+        <Panel position="top-right" className="flex items-center gap-1">
+          {topEndActions}
+        </Panel>
+      )}
+      <FlowCornerControls
+        memo={fitMemo}
+        policy={fitPolicy}
+        topInset={topInset}
+        fitViewOptions={flowProps.fitViewOptions}
+      >
+        {cornerActions}
+      </FlowCornerControls>
+      <FlowCenterToolbar centerActions={centerActions} />
       {minimapProps && <MiniMap {...minimapProps} />}
       {children}
     </ReactFlow>

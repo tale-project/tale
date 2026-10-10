@@ -6,6 +6,11 @@
 # server/port config the native module reads.
 name: imap-smtp
 displayName: IMAP / SMTP Mailbox
+i18n:
+  de:
+    displayName: IMAP-/SMTP-Postfach
+  fr:
+    displayName: Boîte mail IMAP / SMTP
 description: >-
   Connect a private IMAP + SMTP mail server to Conversations — no Gmail or
   Outlook account required. Optional separate SMTP login for a relay
@@ -18,21 +23,55 @@ configFields:
     type: string
     required: true
     description: Hostname of the IMAP server, e.g. imap.example.com.
+    i18n:
+      de:
+        label: 'IMAP-Server'
+        description: 'Hostname des IMAP-Servers, etwa imap.example.com.'
+      fr:
+        label: 'Serveur IMAP'
+        description: 'Nom d’hôte du serveur IMAP, par exemple imap.example.com.'
   - key: imapPort
     label: IMAP port
     type: number
+    integer: true
+    min: 1
+    max: 65535
     default: 993
     description: IMAP port (993 for implicit TLS).
+    i18n:
+      de:
+        label: 'IMAP-Port'
+        description: 'IMAP-Port (993 für implizites TLS).'
+      fr:
+        label: 'Port IMAP'
+        description: 'Port IMAP (993 pour le TLS implicite).'
   - key: smtpHost
     label: SMTP server
     type: string
     required: true
     description: Hostname of the SMTP server, e.g. smtp.example.com.
+    i18n:
+      de:
+        label: 'SMTP-Server'
+        description: 'Hostname des SMTP-Servers, etwa smtp.example.com.'
+      fr:
+        label: 'Serveur SMTP'
+        description: 'Nom d’hôte du serveur SMTP, par exemple smtp.example.com.'
   - key: smtpPort
     label: SMTP port
     type: number
+    integer: true
+    min: 1
+    max: 65535
     default: 465
     description: SMTP port (465 for implicit TLS, 587 for STARTTLS).
+    i18n:
+      de:
+        label: 'SMTP-Port'
+        description: 'SMTP-Port (465 für implizites TLS, 587 für STARTTLS).'
+      fr:
+        label: 'Port SMTP'
+        description: 'Port SMTP (465 pour le TLS implicite, 587 pour STARTTLS).'
   - key: security
     label: Connection security
     type: string
@@ -41,11 +80,25 @@ configFields:
     description: >-
       Fallback when a port is not standard. Ports 465 and 993 always use
       implicit TLS; ports 587 and 143 always use STARTTLS.
+    i18n:
+      de:
+        label: 'Verbindungssicherheit'
+        description: 'Fallback, wenn ein Port nicht dem Standard entspricht. Die Ports 465 und 993 verwenden immer implizites TLS, die Ports 587 und 143 immer STARTTLS.'
+      fr:
+        label: 'Sécurité de la connexion'
+        description: 'Solution de repli quand un port n’est pas standard. Les ports 465 et 993 utilisent toujours le TLS implicite ; les ports 587 et 143 utilisent toujours STARTTLS.'
   - key: sentMailbox
     label: Sent folder
     type: string
     default: Sent
     description: IMAP folder name used when reading sent mail.
+    i18n:
+      de:
+        label: 'Ordner für Gesendetes'
+        description: 'Name des IMAP-Ordners, aus dem gesendete Mails gelesen werden.'
+      fr:
+        label: 'Dossier des messages envoyés'
+        description: 'Nom du dossier IMAP utilisé pour lire les e-mails envoyés.'
   # Mirrored from the basic-auth username on create/update (and healed on
   # mailbox sync). Not shown in Settings — From and login are the same value.
   - key: fromAddress
@@ -58,6 +111,12 @@ auth:
   - method: basic
 actions:
   - name: list_messages
+    title: List messages
+    i18n:
+      de:
+        title: Nachrichten auflisten
+      fr:
+        title: Lister les messages
     description: >-
       Fetch messages from an IMAP mailbox as standard email objects (from, to,
       subject, body, attachments). Omit mailbox for INBOX; pass `sent` to read
@@ -99,6 +158,12 @@ actions:
       impl: imap-smtp.list_messages
     exampleInput: { mailbox: 'INBOX', limit: 25 }
   - name: get_message
+    title: Get message
+    i18n:
+      de:
+        title: Nachricht abrufen
+      fr:
+        title: Récupérer un message
     description: >-
       Fetch one message by IMAP UID with plain/HTML body, file attachments
       (metadata plus base64 content when under 100 MiB; a larger part is
@@ -142,6 +207,12 @@ actions:
       impl: imap-smtp.get_message
     exampleInput: { uid: '42', mailbox: 'INBOX' }
   - name: send
+    title: Send email
+    i18n:
+      de:
+        title: E-Mail senden
+      fr:
+        title: Envoyer un e-mail
     description: Send an email through the configured SMTP server.
     effects: write
     input:

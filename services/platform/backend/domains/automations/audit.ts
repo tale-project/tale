@@ -19,10 +19,9 @@ import type { AuditLogActorType } from '../audit_logs/types.ts';
  * secret or a webhook token — only names, version numbers and the shape of
  * what changed.
  *
- * Lock order: the organization's audit chain is taken by `createAuditLog`;
- * a writer that also locks a trigger row takes the chain FIRST
- * (`lockAuditChain`), the order `trigger-failures.ts` documents for every
- * transaction that holds both.
+ * Lock order: a definition writer takes the automation's name before any
+ * trigger row (`trigger-failures.ts`); the audit row it writes takes no
+ * lock — the chain is sealed off the write path.
  */
 
 /** The definition writes that are audited, and nothing else. */
@@ -38,7 +37,7 @@ export type AutomationDefinitionAction =
 /** Who an actor string names, as the audit row records it: the person (a
  * bare id, `user:<id>`, `api-key:<id>`) with the door's actor type, or the
  * system for a writer that is not a person (`system:provisioning`). */
-function auditActor(actor: string): {
+export function auditActor(actor: string): {
   actorId: string;
   actorType: AuditLogActorType;
 } {
@@ -96,8 +95,11 @@ const DEPLOYMENT_HISTORY_LIMIT = 20;
  * from before these rows were written, or one the audit retention removed,
  * is not in it — and neither is one of an automation of the same name that
  * was deleted since: only the rows after the name's last
- * `automation.deleted` row (the chain's `ts` is strictly increasing per
- * organization), so a rollback never offers a version of the old one.
+ * `automation.deleted` row, so a rollback never offers a version of the old
+ * one. "After" is the order the name lock gave them: the writing
+ * transaction's id (`writer_xid`), or `ts` for rows written before the
+ * chain was sealed off the write path, when it rose strictly per
+ * organization.
  */
 export async function listDeployments(
   sql: Sql,
@@ -129,13 +131,20 @@ export async function listDeployments(
     WHERE org_id = ${organizationId}
       AND action = 'automation.deployed'
       AND resource_type = 'automation' AND resource_id = ${name}
-      AND ts > coalesce((
-        SELECT max(ts) FROM app.audit_logs
-        WHERE org_id = ${organizationId}
-          AND action = 'automation.deleted'
-          AND resource_type = 'automation' AND resource_id = ${name}
-      ), 0)
-    ORDER BY ts DESC
+      AND NOT EXISTS (
+        SELECT 1 FROM app.audit_logs d
+        WHERE d.org_id = ${organizationId}
+          AND d.action = 'automation.deleted'
+          AND d.resource_type = 'automation' AND d.resource_id = ${name}
+          AND CASE
+            WHEN d.writer_xid IS NOT NULL AND app.audit_logs.writer_xid IS NOT NULL
+              THEN d.writer_xid > app.audit_logs.writer_xid
+            WHEN d.writer_xid IS NOT NULL THEN true
+            WHEN app.audit_logs.writer_xid IS NOT NULL THEN false
+            ELSE d.ts >= app.audit_logs.ts
+          END
+      )
+    ORDER BY writer_xid DESC NULLS LAST, ts DESC
     LIMIT ${DEPLOYMENT_HISTORY_LIMIT}
   `;
   /** A version number a row holds, or null for anything else. */

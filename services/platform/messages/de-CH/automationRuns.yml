@@ -1,0 +1,9 @@
+runtime:
+  codes:
+    HTTP_OFF_ORIGIN:
+      title: Die Adresse liegt ausserhalb der Zugangsdaten
+    HTTP_TOO_LARGE:
+      title: Die Antwort ist zu gross
+      fix: Frage bei der API weniger auf einmal ab, zum Beispiel mit einer Seitengrösse oder einem Filter.
+    FOREACH_NOT_LIST:
+      title: «Für jedes» erhielt keine Liste

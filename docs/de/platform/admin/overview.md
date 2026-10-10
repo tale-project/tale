@@ -32,7 +32,7 @@ Inhaber und Admins verwalten die Organisationseinstellungen. Entwickler erreiche
 
 ## Anmeldung, Integrationen und Darstellung
 
-Richte [Enterprise SSO](/de/platform/admin/enterprise-sso) für deinen Identitätsanbieter und [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) zum Schutz der Konten ein. [API-Schlüssel](/de/platform/admin/api-keys) ermöglichen Software den Zugriff auf Tale.
+Richte [Enterprise SSO](/de/platform/admin/enterprise-sso) für deinen Identitätsanbieter und [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) zum Schutz der Konten ein. [API-Schlüssel](/de/platform/admin/api-keys) ermöglichen Software den Zugriff auf Tale. Ein Coding-Agent, der damit verbunden ist, kann viele dieser Einstellungen selbst ändern, im Rahmen der Rolle der Person, deren Schlüssel er nutzt; welche, steht unter [Einstellungen über MCP](/de/develop/mcp-settings).
 
 Unter [Branding](/de/platform/admin/branding) änderst du Logo und Farben der Organisation. [Sandboxes](/de/platform/admin/sandboxes) zeigt Ausführungskapazität und Limits für die einzelnen Aufgabenarten; mit [Sandbox-Geräten](/de/platform/admin/sandbox-devices) laufen die Sandboxes deiner Organisation auf eigenen Rechnern. Wie ein Projekt-Agent diese Ressourcen nutzen darf, erklärt [Agenten aus Administrationssicht](/de/platform/admin/agents).
 

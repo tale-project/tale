@@ -1,6 +1,7 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { triggerInputSample } from '../../../lib/automations/trigger-input.ts';
 import type {
   DeploymentEntry,
   DispatchStore,
@@ -12,7 +13,6 @@ import type {
   VersionSummary,
   VersionView,
 } from '../../../lib/engine/api/dispatch.ts';
-import type { TriggerKind } from '../../../lib/engine/core/slots.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
 import {
@@ -40,6 +40,7 @@ import {
 } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
 import { listDeployments } from './audit.ts';
+import { nodeRunBytes, writeNodeRunsInTx } from './node-runs.ts';
 import { readOrgFacts } from './org-facts.ts';
 import {
   automationVisible,
@@ -47,6 +48,12 @@ import {
   readableProjectIds,
   runControlAccess,
 } from './project-visibility.ts';
+import { readReplayPlan, replayRunInTx } from './replay.ts';
+import {
+  readNodeDetail,
+  readRunComparison,
+  readRunRecord,
+} from './run-record.ts';
 import {
   AutomationError,
   assertAutomationName,
@@ -242,6 +249,11 @@ function runPosition(raw: string | null): { at: number; id: string } | null {
   return Number.isSafeInteger(at) ? { at, id: raw.slice(split + 1) } : null;
 }
 
+/** A read model's answer as the plain object the engine's door passes on. */
+function asJsonObject(value: object | null): Record<string, unknown> | null {
+  return value === null ? null : Object.fromEntries(Object.entries(value));
+}
+
 export function pgAutomationStore(
   sql: Sql,
   scope: PgStoreScope,
@@ -263,6 +275,25 @@ export function pgAutomationStore(
       return { auth, readable: new Set(await readableProjectIds(sql, auth)) };
     })();
     return viewer;
+  };
+  /** Whether the actor may read the run, as `getRun` reads it: in the
+   * store's project scope, and in a project they can read. */
+  const readableRun = async (runId: string): Promise<boolean> => {
+    const auth = await authorizeActorRun(
+      sql,
+      organizationId,
+      actor,
+      'membership',
+    );
+    const row = await getRun(sql, organizationId, runId);
+    if (row === null) return false;
+    if (scope.projectId !== undefined && row.projectId !== scope.projectId) {
+      return false;
+    }
+    return (
+      row.projectId === null ||
+      (await readableProject(sql, auth, row.projectId)) !== null
+    );
   };
   /** Whether a read of `name` answers "not found" for this actor. */
   const hidden = async (name: string): Promise<boolean> => {
@@ -399,21 +430,13 @@ export function pgAutomationStore(
           }),
         'organization facts',
       )) ?? {},
-    // The enabled triggers of the automation — what the validator checks the
-    // inputs schema against (a schedule's input is known ahead).
-    triggerKinds: async (name) => {
-      const kinds = new Set<TriggerKind>();
-      for (const row of await listTriggers(sql, organizationId, name)) {
-        if (!row.enabled) continue;
-        if (
-          row.kind === 'schedule' ||
-          row.kind === 'webhook' ||
-          row.kind === 'event'
-        ) {
-          kinds.add(row.kind);
-        }
-      }
-      return [...kinds];
+    // What the automation's enabled trigger sends — what the validator
+    // checks the inputs schema and the fixed input against. The same sample
+    // the store's save and deploy warnings check.
+    triggerInput: async (name) => {
+      const row = (await listTriggers(sql, organizationId, name))[0];
+      if (row === undefined || !row.enabled) return null;
+      return triggerInputSample(row, Date.now());
     },
     save: async (automation, message, options) => {
       const name = assertAutomationName(automation.name ?? '');
@@ -552,19 +575,12 @@ export function pgAutomationStore(
         trigger: input,
         actor,
       });
-      return outcome.revoked === undefined && outcome.token === undefined
-        ? undefined
-        : {
-            ...(outcome.revoked === undefined
-              ? {}
-              : { revoked: outcome.revoked }),
-            ...(outcome.token === undefined ? {} : { token: outcome.token }),
-          };
+      return Object.keys(outcome).length === 0 ? undefined : outcome;
     },
     authorizeRun: async (name, mode) => {
       await authorizeInlineRun(sql, name, mode);
     },
-    recordRun: async (name, version, result, mode) => {
+    recordRun: async (name, version, result, mode, run) => {
       // A one-piece run (`run_deployed`) is born terminal — this insert IS
       // its exactly-once terminal transition, so a LIVE one also writes the
       // provenance audit row (the 0.4 contract). Dispatch only executes in
@@ -586,21 +602,28 @@ export function pgAutomationStore(
             org_id, name, version, project_id, status, mode, started_by,
             api_key_id, input, output,
             checkpoints, trace, effects, detail, claim_epoch, started_at_ms,
-            finished_at_ms
+            finished_at_ms, record_bytes
           ) VALUES (
             ${organizationId}, ${name}, ${version}, ${projectId}, ${status}, ${mode},
             ${runStarter(actor)}, ${scope.apiKeyId ?? null},
-            ${tx.json(toJson(JSON.stringify(null)))},
+            ${tx.json(toJson(JSON.stringify(run?.input ?? null)))},
             ${result.output === undefined ? null : tx.json(toJson(result.output))},
             ${tx.json(toJson({ nodes: {}, executions: 0 }))},
             ${tx.json(toJson(boundRunTrace(result.trace)))},
             ${tx.json(toJson(result.effects))}, ${detail ?? null}, 0, ${now},
-            ${now}
+            ${now}, ${nodeRunBytes(run?.nodeRuns)}
           )
           RETURNING id
         `;
         const runId = inserted[0]?.id;
         if (!runId) throw new Error('run insert failed');
+        // Its record, in the transaction that keeps it.
+        await writeNodeRunsInTx(tx, {
+          organizationId,
+          runId,
+          epoch: 0,
+          rows: run?.nodeRuns ?? [],
+        });
         if (mode === 'live') {
           await createAuditLog(tx, {
             organizationId,
@@ -725,6 +748,94 @@ export function pgAutomationStore(
         })
       ).map(toRunSummary);
     },
+    getRunRecord: async (runId, options) =>
+      (await readableRun(runId))
+        ? asJsonObject(
+            await readRunRecord(sql, {
+              organizationId,
+              runId,
+              travels: options.travels,
+            }),
+          )
+        : null,
+    getRunNode: async (runId, unit) => {
+      if (!(await readableRun(runId))) return null;
+      const node = await readNodeDetail(sql, {
+        organizationId,
+        runId,
+        path: unit.node,
+        ...(unit.item !== undefined && { item: unit.item }),
+        ...(unit.pass !== undefined && { pass: unit.pass }),
+      });
+      if (node === null) {
+        throw new AutomationError(
+          'NODE_RUN_NOT_FOUND',
+          `the run has no record of "${unit.node}" at item ${unit.item ?? -1}, pass ${unit.pass ?? -1}`,
+          404,
+        );
+      }
+      return asJsonObject(node);
+    },
+    compareRuns: async (runId, otherRunId) =>
+      (await readableRun(runId)) && (await readableRun(otherRunId))
+        ? asJsonObject(
+            await readRunComparison(sql, { organizationId, runId, otherRunId }),
+          )
+        : null,
+    planReplay: async (runId, request) => {
+      if (!(await readableRun(runId))) return null;
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        'membership',
+      );
+      return asJsonObject(
+        await readReplayPlan(sql, {
+          organizationId,
+          sourceRunId: runId,
+          request,
+          canStartLive: defineAbilityFor(auth.role).can(
+            'read',
+            'developerSettings',
+          ),
+        }),
+      );
+    },
+    replayRun: async (runId, request, options) => {
+      if (!(await readableRun(runId))) return null;
+      const row = await getRun(sql, organizationId, runId);
+      if (row === null) return null;
+      const mode = request.mode ?? row.mode;
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        mode === 'live' ? 'developer' : 'membership',
+      );
+      const sourceProject = row.projectId;
+      const started = await transactSerializable(sql, async (tx) => {
+        // A project run is replayed in its project: a write on it.
+        if (sourceProject !== null) {
+          await writableActorProject(tx, auth, sourceProject);
+        }
+        return replayRunInTx(tx, {
+          organizationId,
+          sourceRunId: runId,
+          request,
+          startedBy: runStarter(actor),
+          canStartLive: defineAbilityFor(auth.role).can(
+            'read',
+            'developerSettings',
+          ),
+          ...(scope.apiKeyId !== undefined && { apiKeyId: scope.apiKeyId }),
+          ...(options.idempotencyKey !== undefined && {
+            idempotencyKey: options.idempotencyKey,
+          }),
+        });
+      });
+      return asJsonObject(started);
+    },
     getRun: async (runId): Promise<RunDetail | null> => {
       const auth = await authorizeActorRun(
         sql,
@@ -801,13 +912,21 @@ export function pgAutomationStore(
           enabled: row.enabled,
         };
         if (row.cron !== null) view.cron = row.cron;
+        if (row.repeat !== null) view.repeat = row.repeat;
+        if (row.startDate !== null) view.startDate = row.startDate;
         if (row.timezone !== null) view.timezone = row.timezone;
+        if (row.catchUp !== null) view.catchUp = row.catchUp;
+        if (row.input !== null) view.input = row.input;
         if (row.event !== null) view.event = row.event;
+        if (row.nextRunAt !== null) view.nextRunAt = row.nextRunAt;
         if (row.lastFiredAt !== null) view.lastFiredAt = row.lastFiredAt;
         if (row.lastRunId !== null) view.lastRunId = row.lastRunId;
         if (row.lastSkippedAt !== null) view.lastSkippedAt = row.lastSkippedAt;
         if (row.lastSkipReason !== null) {
           view.lastSkipReason = row.lastSkipReason;
+        }
+        if (row.lastSkipDetail !== null) {
+          view.lastSkipDetail = row.lastSkipDetail;
         }
         view.consecutiveFailures = row.consecutiveFailures;
         if (row.lastFailedAt !== null) view.lastFailedAt = row.lastFailedAt;

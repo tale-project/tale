@@ -26,8 +26,8 @@ Aktiver Tab und Kategorie stehen in der URL. Du kannst die Ansicht deshalb als L
 | --- | --- |
 | Zeitstempel | Wann Tale die Aktion protokolliert hat. |
 | Aktion | Welcher Vorgang versucht oder abgeschlossen wurde. Manche neueren Aktionen erscheinen mit ihrem technischen Namen. |
-| Benutzer | Welche Person oder welcher Systemakteur verantwortlich war. Eine Änderung mit dem API-Schlüssel einer Person, über die REST-API oder einen Coding-Agent, hat den **Akteurtyp** API, und ihre **Metadaten** nennen die ID des Schlüssels (`apiKeyId`), damit du weißt, welchen Schlüssel du widerrufen musst. |
-| Quelle und Client | Nur bei einer Aktion, die ein Coding-Agent über den [MCP-Endpoint](/de/develop/mcp-endpoint) ausgeführt hat. **Quelle** zeigt Coding-Agent, und **Client** nennt die App des Agents, wenn sie sich bei jedem Aufruf nennt, wie es Apps mit der MCP-Revision 2026-07-28 tun; eine App mit einer früheren Revision nennt sich nur beim Verbinden, deshalb zeigen ihre Ereignisse keinen **Client**. **Benutzer** ist die Person, deren API-Schlüssel der Agent verwendet hat. |
+| Benutzer | Die verantwortliche Person oder der Systemakteur. Bei einem Schreibzugriff mit einem API-Schlüssel nennt Benutzer die Person, die den Schlüssel erstellt hat; der Akteurtyp ist API. Handelt der Schlüssel für ein Mitglied, enthalten die Metadaten dessen ID unter `keyAttribution.subjectUserId`. JSON-Exporte behalten auch die Schlüssel-ID (`apiKeyId`); CSV enthält weder Schlüssel- noch Subjektmetadaten. |
+| Quelle und Client | Nur bei einer Aktion, die ein Coding-Agent über den [MCP-Endpoint](/de/develop/mcp-endpoint) ausgeführt hat. **Quelle** zeigt Coding-Agent, und **Client** nennt die App des Agents, wenn sie sich bei jedem Aufruf nennt, wie es Apps mit der MCP-Revision 2026-07-28 tun; eine App mit einer früheren Revision nennt sich nur beim Verbinden, deshalb zeigen ihre Ereignisse keinen **Client**. **Benutzer** nennt die Person, die den Schlüssel erstellt hat; das Mitglied, für das er handelt, steht in den Metadaten. |
 | Ressource und Ziel | Um welche Art von Eintrag und welchen konkreten Datensatz es geht. |
 | Kategorie | Welche Gruppe der Filter verwendet. |
 | Status | Erfolg, Fehler oder abgelehnt. |
@@ -49,7 +49,7 @@ Exporte berücksichtigen den Kategoriefilter und enthalten höchstens 10.000 Zei
 
 ## Aufbewahrung und Integrität
 
-Wähle im Bereich der Kettenintegrität **Jetzt prüfen**, um die gespeicherte Audit-Kette zu kontrollieren. Der Bereich zeigt den Status und die letzte automatische Prüfung. Wird eine Unterbrechung gemeldet, sichere die Details und untersuche sie mit dem Betreiber, bevor du dich auf diesen Teil der Historie verlässt.
+Wähle im Bereich der Kettenintegrität **Jetzt prüfen**, um die gespeicherte Audit-Kette zu kontrollieren. Neue Einträge werden wenige Sekunden nach der Aufzeichnung in die Kette aufgenommen. Der Bereich zeigt den Status und die letzte automatische Prüfung. Wird eine Unterbrechung gemeldet, sichere die Details und untersuche sie mit dem Betreiber, bevor du dich auf diesen Teil der Historie verlässt.
 
 Eine erfolgreiche Prüfung gilt für die aufbewahrten Datensätze, die sie untersucht hat. Sie belegt keinen unabhängig signierten Ursprung der Historie. Die [Integritätsanleitung für den Betrieb](/de/self-hosted/operate/security/audit-log-integrity) erklärt die Prüfungen und ihre Grenzen.
 

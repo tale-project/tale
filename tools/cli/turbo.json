@@ -20,6 +20,7 @@
         "$TURBO_ROOT$/services/platform/backend/domains/api_keys/owners.ts",
         "$TURBO_ROOT$/services/platform/backend/domains/api_keys/retire.ts",
         "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/hash-input.ts",
+        "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/request-actor.ts",
         "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/service.ts",
         "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/types.ts",
         "$TURBO_ROOT$/services/platform/backend/domains/audit_logs/user-scoped.ts",
@@ -33,6 +34,7 @@
         "$TURBO_ROOT$/services/platform/tests/integration/lib/docker.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
         "$TURBO_ROOT$/.github/release-candidate-contract.json",
+        "$TURBO_ROOT$/packages/ui/src/data/**",
         "$TURBO_ROOT$/packages/ui/src/server/serving-identity.ts"
       ]
     },

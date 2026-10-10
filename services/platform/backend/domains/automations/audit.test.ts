@@ -132,9 +132,23 @@ describe('listDeployments', () => {
     expect(await listDeployments(sql, 'org_1', 'billing/dunning')).toEqual([]);
     const [read] = statements;
     const text = (read?.text ?? '').replace(/\s+/g, ' ');
+    // A deploy is kept only when no delete of the same name came after it:
+    // "after" is the writing transaction's id where both rows carry one, and
+    // the timestamp for rows written before the id was recorded.
     expect(text).toContain(
-      "ts > coalesce(( SELECT max(ts) FROM app.audit_logs WHERE org_id = ? AND action = 'automation.deleted' AND resource_type = 'automation' AND resource_id = ? ), 0)",
+      "AND NOT EXISTS ( SELECT 1 FROM app.audit_logs d WHERE d.org_id = ? AND d.action = 'automation.deleted' AND d.resource_type = 'automation' AND d.resource_id = ?",
     );
+    expect(text).toContain(
+      'WHEN d.writer_xid IS NOT NULL AND app.audit_logs.writer_xid IS NOT NULL THEN d.writer_xid > app.audit_logs.writer_xid',
+    );
+    expect(text).toContain('WHEN d.writer_xid IS NOT NULL THEN true');
+    expect(text).toContain(
+      'WHEN app.audit_logs.writer_xid IS NOT NULL THEN false',
+    );
+    expect(text).toContain('ELSE d.ts >= app.audit_logs.ts');
+    expect(text).not.toContain('max(ts)');
+    // Newest first in the same order: the writer's id, then the timestamp.
+    expect(text).toContain('ORDER BY writer_xid DESC NULLS LAST, ts DESC');
     expect(read?.values).toEqual([
       'org_1',
       'billing/dunning',

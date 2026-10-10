@@ -12,7 +12,6 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
-import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
@@ -50,6 +49,7 @@ import {
   readProviderDefinition,
   saveProviderDefinition,
 } from './config';
+import { mayManageProviders, refreshProviderCatalogs } from './management.ts';
 
 /**
  * /api/app/providers — the AI-providers SETTINGS surface (the 0.4
@@ -75,7 +75,7 @@ export function createProviderSettingRoutes(deps: {
   );
 
   const requireDeveloper = (c: Context<OrgEnv>): Response | null =>
-    isAdminOrDeveloperRole(c.get('orgMember').role)
+    mayManageProviders(c.get('orgMember').role)
       ? null
       : c.json({ error: 'FORBIDDEN' }, 403);
 
@@ -285,34 +285,12 @@ export function createProviderSettingRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    const results = [];
-    for (const provider of resolveProvidersForOrg(orgSlug)) {
-      if (
-        provider.catalog.source === 'static' ||
-        provider.catalog.source === 'none'
-      ) {
-        continue;
-      }
-      try {
-        const bearerToken = await resolveCatalogBearer(
-          deps.sql,
-          c.get('orgId'),
-          provider,
-        );
-        const entries = await getProviderCatalog(provider, {
-          forceRefresh: true,
-          ...(bearerToken !== undefined ? { bearerToken } : {}),
-        });
-        results.push({ name: provider.name, modelCount: entries.length });
-      } catch (error) {
-        results.push({
-          name: provider.name,
-          modelCount: 0,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-    return c.json({ results });
+    return c.json({
+      results: await refreshProviderCatalogs(deps.sql, {
+        organizationId: c.get('orgId'),
+        orgSlug,
+      }),
+    });
   });
 
   app.get('/harness-status', async (c) => {

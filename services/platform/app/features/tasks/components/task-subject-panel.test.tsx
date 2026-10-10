@@ -27,6 +27,9 @@ const mocks = vi.hoisted(() => ({
   pendingAsk: null as unknown,
   inDoubt: null as unknown,
   resolveInDoubt: vi.fn(),
+  askError: false,
+  askFetching: false,
+  refetchAsk: vi.fn(),
   reviewer: undefined as TaskReviewerState | undefined,
   reviewerError: false,
   refetchReviewer: vi.fn(),
@@ -48,7 +51,13 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
       };
     }
     if (query === 'automations/human_asks:getPendingAskForRun') {
-      return { data: mocks.pendingAsk };
+      return {
+        data: mocks.pendingAsk,
+        isError: mocks.askError,
+        isFetching: mocks.askFetching,
+        error: mocks.askError ? new Error('503') : null,
+        refetch: mocks.refetchAsk,
+      };
     }
     if (query === 'automations/queries:getRunInDoubt') {
       return { data: mocks.inDoubt, isError: false, refetch: vi.fn() };
@@ -204,6 +213,9 @@ describe('TaskSubjectPanel', () => {
     mocks.inDoubt = null;
     mocks.resolveInDoubt.mockReset();
     mocks.resolveInDoubt.mockResolvedValue(null);
+    mocks.askError = false;
+    mocks.askFetching = false;
+    mocks.refetchAsk.mockReset();
     mocks.reviewer = {
       reviewer: { kind: 'inherit' },
       projectReviewer: { kind: 'human_default' },
@@ -221,6 +233,109 @@ describe('TaskSubjectPanel', () => {
     mocks.updateStatus.mockResolvedValue(undefined);
     mocks.cancel.mockReset();
     vi.mocked(toast).mockClear();
+  });
+
+  it('retries an unavailable question without showing Working, then recovers to an empty successful read', async () => {
+    mocks.run = { runId: 'run_1', status: 'running', detail: null };
+    mocks.pendingAsk = undefined;
+    mocks.askError = true;
+    const view = renderPanel();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't check for a pending question.",
+    );
+    expect(screen.queryByText(/is working/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel run' })).toBeEnabled();
+    await view.user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mocks.refetchAsk).toHaveBeenCalledOnce();
+    mocks.askError = false;
+    mocks.askFetching = true;
+    view.rerender(panel());
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.queryByText(/is working/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    mocks.askFetching = false;
+    mocks.pendingAsk = null;
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/is working/)).toBeVisible();
+  });
+
+  it('recovers a failed question read to an answerable question', () => {
+    mocks.run = { runId: 'run_1', status: 'running', detail: null };
+    mocks.pendingAsk = undefined;
+    mocks.askError = true;
+    const view = renderPanel();
+    mocks.askError = false;
+    mocks.pendingAsk = {
+      askId: 'ask_1',
+      question: 'Which batch should I inspect?',
+    };
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('Which batch should I inspect?')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toBeEnabled();
+    expect(screen.queryByText(/is working/)).not.toBeInTheDocument();
+  });
+
+  it('keeps a cached question and answer draft during failed refresh and retry', async () => {
+    mocks.run = { runId: 'run_1', status: 'waiting', detail: null };
+    mocks.pendingAsk = {
+      askId: 'ask_1',
+      question: 'Which batch should I inspect?',
+    };
+    const view = renderPanel();
+    await view.user.type(
+      screen.getByRole('textbox', { name: 'Your answer' }),
+      'Batch A',
+    );
+    mocks.askError = true;
+    view.rerender(panel());
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByText(/paused with a question/)).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveValue(
+      'Batch A',
+    );
+    mocks.askError = false;
+    mocks.askFetching = true;
+    view.rerender(panel());
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveValue(
+      'Batch A',
+    );
+    mocks.askFetching = false;
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveValue(
+      'Batch A',
+    );
+  });
+
+  it('does not carry a failed question read into another run or task', () => {
+    mocks.run = { runId: 'run_1', status: 'running', detail: null };
+    mocks.pendingAsk = undefined;
+    mocks.askError = true;
+    const view = renderPanel();
+    mocks.askError = false;
+    mocks.run = { runId: 'run_2', status: 'running', detail: null };
+    mocks.pendingAsk = null;
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText(/is working/)).toBeVisible();
+    mocks.askError = true;
+    mocks.pendingAsk = undefined;
+    view.rerender(panel());
+    mocks.run = null;
+    mocks.askError = false;
+    view.rerender(panel(ownedBy(), true, 'backlog', undefined, 'task_2'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
   });
 
   it('retains ownership through failure and retry, then restores Start after an empty successful read', async () => {

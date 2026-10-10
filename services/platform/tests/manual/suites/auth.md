@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 59 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 60 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -294,6 +294,16 @@ compute codes from the enrollment secret.
   one per line. With `TOTP_ENVIRONMENT=pr` the file is
   `exampleplus-tale-platform-backup-codes.txt`, and with neither set
   `tale-platform-backup-codes.txt`.
+- [ ] `AUTH-F33` · **A role change reaches the other session within a
+  second** — Two browsers on a deployment with more than one API replica if
+  you have one: A as an owner, B as a member A promoted to Admin, with
+  **Settings → Members** open in B. In A, set B back to Member → within about
+  a second B's next navigation within Settings is refused, and B can still use
+  what a member may. Then **Disable** B in A → B's next navigation is refused
+  within about a second; **Enable** B again → B works again just as quickly.
+  Finally, in a third browser signed in as B, change B's password → the
+  sessions it ends are signed out on their next request, B's first browser
+  included.
 
 ## Boundary & error tests
 

@@ -1,0 +1,203 @@
+import { describe, expect, it } from 'vitest';
+
+import type { NodeRunDetail } from '@/app/lib/backend/contract/automations';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
+
+import { RunStepData } from './run-step-data';
+
+function detail(over: Partial<NodeRunDetail> = {}): NodeRunDetail {
+  return {
+    path: 'score',
+    nodeId: 'score',
+    type: 'llm',
+    status: 'succeeded',
+    activeMs: 1200,
+    waitedMs: 0,
+    attempt: 1,
+    attempts: [],
+    decisions: [],
+    waits: [],
+    meta: {},
+    reads: [],
+    readsTotal: 0,
+    ...over,
+  } as NodeRunDetail;
+}
+
+const read = (
+  from: NodeRunDetail['reads'][number]['from'],
+  refPath: Array<string | number>,
+  value: NodeRunDetail['reads'][number]['value'],
+  start: number,
+): NodeRunDetail['reads'][number] =>
+  ({
+    from,
+    to: {
+      path: 'score',
+      field: 'prompt',
+      pointer: '/nodes/2/prompt',
+      range: [start, start + 10],
+    },
+    refPath,
+    at: 1200,
+    ...(value !== undefined && { value }),
+    edge: { source: 'issues', target: 'score', kind: 'data' },
+  }) as NodeRunDetail['reads'][number];
+
+describe('RunStepData', () => {
+  it('says what the step read, in words with the value it read', () => {
+    render(
+      <RunStepData
+        detail={detail({
+          reads: [
+            read(
+              { kind: 'node', nodeId: 'open_issues' },
+              ['issues'],
+              {
+                kind: 'array',
+                length: 12,
+              },
+              3,
+            ),
+            read(
+              { kind: 'input' },
+              ['amount'],
+              { kind: 'number', text: '250' },
+              20,
+            ),
+            // The same read again is listed once.
+            read(
+              { kind: 'input' },
+              ['amount'],
+              { kind: 'number', text: '250' },
+              40,
+            ),
+          ],
+          readsTotal: 3,
+        })}
+      />,
+    );
+    expect(screen.getByText('What was read')).toBeVisible();
+    expect(screen.getByText('issues of Open issues: 12 items')).toBeVisible();
+    expect(screen.getByText('amount of the run input: 250')).toBeVisible();
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('shows what the step received and returned, and says what was cut or hidden', () => {
+    render(
+      <RunStepData
+        detail={detail({
+          input: {
+            value: { prompt: 'Score these issues' },
+            summary: { kind: 'object', keys: 1 },
+            shape: {},
+            bytes: 30,
+            hash: 'h1',
+            redacted: [{ pointer: '/apiKey', why: 'key' }],
+          },
+          output: {
+            summary: { kind: 'array', length: 400 },
+            shape: {},
+            bytes: 9_000_000,
+            hash: null,
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText('Received')).toBeVisible();
+    expect(screen.getByText('Secrets are hidden.')).toBeVisible();
+    expect(screen.getByText('Returned')).toBeVisible();
+    // Too large to keep: the summary in words stands in for the value.
+    expect(screen.getByText('400 items')).toBeVisible();
+  });
+
+  it('shows what a step changed, where its input and output compare', () => {
+    const stored = (
+      value: Record<string, string | number>,
+    ): NonNullable<NodeRunDetail['input']> => ({
+      value,
+      summary: { kind: 'object', keys: Object.keys(value).length },
+      shape: { type: 'object' },
+      bytes: JSON.stringify(value).length,
+      hash: null,
+    });
+    render(
+      <RunStepData
+        detail={detail({
+          type: 'transform',
+          input: stored({ total: 100, currency: 'CHF' }),
+          output: stored({ total: 120, currency: 'CHF', tax: 20 }),
+          change: {
+            equal: false,
+            changes: [],
+            counts: {
+              added: 1,
+              removed: 0,
+              changed: 1,
+              'type-changed': 0,
+              reordered: 0,
+              unknown: 0,
+              unchanged: 1,
+            },
+            total: 2,
+            truncated: false,
+            basis: 'value',
+          },
+        })}
+      />,
+    );
+    const changes = screen
+      .getByRole('heading', { name: 'What it changed' })
+      .closest('section');
+    expect(changes).toHaveTextContent(/total/);
+    expect(changes).toHaveTextContent(/tax/);
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = render(
+      <RunStepData
+        detail={detail({
+          reads: [
+            read(
+              { kind: 'input' },
+              ['amount'],
+              { kind: 'number', text: '250' },
+              20,
+            ),
+          ],
+          readsTotal: 1,
+        })}
+      />,
+    );
+    await checkAccessibility(container);
+  });
+
+  it('says a step that did not run has no data', () => {
+    render(<RunStepData detail={detail({ status: 'skipped' })} />);
+    expect(
+      screen.getByText("This step didn't run, so there's no data."),
+    ).toBeVisible();
+  });
+
+  it('says whether its call to a service was made, and what a person chose', () => {
+    render(
+      <RunStepData
+        detail={detail({
+          call: {
+            kind: 'connector',
+            type: 'github.create_issue',
+            attempt: 2,
+            status: 'started',
+            startedAt: 1,
+            resolution: 'skip',
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText('github.create_issue')).toBeVisible();
+    expect(screen.getByText('May already have run')).toBeVisible();
+    expect(screen.getByText('try 2')).toBeVisible();
+    expect(screen.getByText('A person chose to skip it.')).toBeVisible();
+  });
+});

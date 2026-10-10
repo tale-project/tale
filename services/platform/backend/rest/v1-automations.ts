@@ -1,10 +1,19 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { replayRequestSchema } from '@tale/shared/schemas/automation-replay';
+import {
+  type TriggerWrite,
+  triggerWriteSchema,
+} from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import { RUN_STATUSES } from '../../lib/engine/api/run-statuses.ts';
+import {
+  NODE_PAGE_DEFAULT,
+  NODE_PAGE_MAX,
+} from '../../lib/engine/core/record/read.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
@@ -14,6 +23,16 @@ import {
   automationVisible,
   readableProjectIds,
 } from '../domains/automations/project-visibility.ts';
+import {
+  readReplayPlan,
+  replayRunInTx,
+} from '../domains/automations/replay.ts';
+import {
+  readNodeDetail,
+  readNodePage,
+  readRunComparison,
+  readRunRecord,
+} from '../domains/automations/run-record.ts';
 import {
   AutomationError,
   automationExists,
@@ -43,6 +62,7 @@ import {
   setTrigger,
   toRunDetail,
   toRunSummary,
+  triggerBodyRefusal,
   unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
@@ -59,6 +79,9 @@ import {
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
+  hasDeveloperCapability,
+  houseIssueMessage,
+  invalidBodyResponse,
   invalidQueryResponse,
   loadRestProject,
   mintCursor,
@@ -68,9 +91,11 @@ import {
   parseBody,
   queryFilter,
   readIdempotencyKey,
+  readJsonBody,
   readKeysetCursor,
   readPageLimit,
   readQuery,
+  readSignedCursor,
   requireDeveloper,
   restApiKeyId,
   type RestEnv,
@@ -143,11 +168,20 @@ const RUN_FIELDS = [
 ] as const satisfies readonly (keyof RunRow)[];
 // Every key the full read answers must be selectable: a `RunRow` column
 // added without a `RUN_FIELDS` entry fails here, not as a 400 in production.
-// `askPending` is the read's own input to `waitingFor`, and the two resume
-// stamps the read's input to `lastResume`, stripped before the wire — never
-// fields a caller names.
+// `askPending` is the read's own input to `waitingFor`, the two resume
+// stamps the read's input to `lastResume`, and the three replay columns its
+// input to `replayOf`, stripped before the wire — never fields a caller
+// names.
 type RunFieldsMissing = Exclude<
-  keyof Omit<RunRow, 'askPending' | 'lastResumeReason' | 'lastResumedAt'>,
+  keyof Omit<
+    RunRow,
+    | 'askPending'
+    | 'lastResumeReason'
+    | 'lastResumedAt'
+    | 'replayOfRunId'
+    | 'replayKind'
+    | 'replayFromNode'
+  >,
   (typeof RUN_FIELDS)[number]
 >;
 const RUN_FIELDS_COMPLETE: [RunFieldsMissing] extends [never] ? true : never =
@@ -156,6 +190,35 @@ void RUN_FIELDS_COMPLETE;
 
 /** The query a run read takes: the fields to keep, or all of them. */
 const RUN_READ_QUERY = { fields: queryFilter(256).optional() };
+
+/** The query of a run's record: a delta since a cursor, and what to add. */
+const RUN_RECORD_QUERY = {
+  since: queryFilter(16).optional(),
+  include: queryFilter(64).optional(),
+};
+const RUN_RECORD_INCLUDES = ['travels'] as const;
+
+/** The query of one unit of a run's record. */
+const RUN_NODE_QUERY = {
+  node: queryFilter(512),
+  item: queryFilter(10).optional(),
+  pass: queryFilter(10).optional(),
+};
+
+/** The query of a replay's plan: the request a replay takes. */
+const REPLAY_PLAN_QUERY = {
+  kind: queryFilter(16),
+  from: queryFilter(200).optional(),
+  version: queryFilter(16).optional(),
+  mode: queryFilter(8).optional(),
+};
+
+/** The query of a page of a step's items and passes. */
+const RUN_ITEMS_QUERY = {
+  ...PAGE_QUERY,
+  node: queryFilter(512),
+  status: queryFilter(16).optional(),
+};
 
 /** The most an answer may carry — the store clamps at the same figure. */
 const ASK_ANSWER_MAX = 20_000;
@@ -168,6 +231,7 @@ const RUN_READ_FIELDS = [
   'waitingFor',
   'startedVia',
   'lastResume',
+  'replayOf',
 ] as const;
 
 /** The query every run listing takes: the page pair, a status set and the
@@ -225,50 +289,41 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       version: z.number().int().min(1).optional(),
     })
     .strict();
-  // One shape per kind, each strict: a key of another kind (`cron` on a
-  // webhook) is refused as the unknown key it is, named under `data.issues`
-  // — it used to be stored and read back as a webhook that also ran on a
-  // schedule. The kind's own presence rules (a schedule needs a cron, an
-  // event an event the platform raises) stay the store's, so those refusals
-  // keep their `AUTOMATION_TRIGGER_INVALID` sentence.
-  const triggerBody = z.discriminatedUnion(
-    'kind',
-    [
-      z
-        .object({
-          kind: z.literal('schedule'),
-          cron: z.string().max(200).optional(),
-          timezone: z.string().max(100).optional(),
-          enabled: z.boolean().optional(),
-        })
-        .strict(),
-      z
-        .object({
-          kind: z.literal('webhook'),
-          enabled: z.boolean().optional(),
-          rotateToken: z.boolean().optional(),
-        })
-        .strict(),
-      z
-        .object({
-          kind: z.literal('event'),
-          event: z.string().max(200).optional(),
-          enabled: z.boolean().optional(),
-        })
-        .strict(),
-    ],
-    {
-      // The union's own issue is the discriminator's: absent reads as
-      // required, anything else as the closed set of kinds — the house
-      // phrases, not zod's "no matching discriminator".
+  /**
+   * The trigger body: the shared contract (`triggerWriteSchema`), one strict
+   * shape per kind. A key of another kind (`cron` on a webhook) is refused
+   * as the unknown key it is, named under `data.issues` — it used to be
+   * stored and read back as a webhook that also ran on a schedule. A rule
+   * of the trigger (a schedule with neither a repeat rule nor a cron, a
+   * blank zone, a fixed input naming a trigger field) answers the store's
+   * own `AUTOMATION_TRIGGER_INVALID`, each problem coded, as do the rules
+   * only the store can judge (a cron that cannot be read, an event the
+   * platform never raises).
+   */
+  const triggerBody = async (
+    c: Context<RestEnv>,
+  ): Promise<TriggerWrite | Response> => {
+    const body = await readJsonBody(c);
+    const parsed = triggerWriteSchema.safeParse(body, {
+      reportInput: true,
       error: (issue) => {
-        if (issue.code !== 'invalid_union') return undefined;
-        return isRecord(issue.input) && issue.input.kind === undefined
-          ? 'is required'
-          : 'must be one of "schedule", "webhook", "event"';
+        // The union's own issue is the discriminator's: absent reads as
+        // required, anything else as the closed set of kinds — the house
+        // phrases, not zod's "no matching discriminator".
+        if (issue.code === 'invalid_union') {
+          return isRecord(issue.input) && issue.input.kind === undefined
+            ? 'is required'
+            : 'must be one of "schedule", "webhook", "event"';
+        }
+        return houseIssueMessage(issue);
       },
-    },
-  );
+    });
+    if (parsed.success) return parsed.data;
+    const refusal = triggerBodyRefusal(parsed.error, body);
+    return refusal === null
+      ? invalidBodyResponse(c, parsed.error)
+      : domainErrorResponse(c, refusal);
+  };
 
   /** Whether any version of the automation exists in this org — the
    * trigger and run doors answer 404 for a name nobody saved, never a
@@ -414,7 +469,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * order) and then skips every occurrence as `not_deployed` until a
    * version is deployed — the 200 used to say nothing about it. */
   app.put('/automations/:name/triggers', async (c) => {
-    const body = await parseBody(c, triggerBody);
+    const body = await triggerBody(c);
     if (body instanceof Response) return body;
     try {
       requireDeveloper(c);
@@ -1017,6 +1072,278 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
   app.get('/runs/:runId', readRun);
   app.get('/projects/:id/runs/:runId', readRun);
+
+  // ---- a run step by step ---------------------------------------------------
+  /** Whether the run the URL names is readable on this path, as `readRun`
+   * reads it: on the global path a run outside every project, on a
+   * project's path that project's run. */
+  const restRunVisible = async (
+    c: Context<RestEnv>,
+    runId: string,
+  ): Promise<boolean> => {
+    const projectId = c.req.param('id');
+    if (projectId !== undefined) {
+      const auth = await restProjectAuth(deps.sql, c);
+      await loadRestProject(deps.sql, auth, projectId);
+    }
+    const run = await getRun(deps.sql, c.get('organizationId'), runId);
+    return run !== null && run.projectId === (projectId ?? null);
+  };
+
+  /** A whole number in a query parameter, at least `min`; the 400 naming
+   * it otherwise. */
+  const readWholeQuery = (
+    c: Context<RestEnv>,
+    name: string,
+    raw: string | undefined,
+    min: number,
+  ): number | undefined | Response => {
+    if (raw === undefined) return undefined;
+    const value = /^-?\d{1,15}$/.test(raw) ? Number(raw) : Number.NaN;
+    if (Number.isSafeInteger(value) && value >= min) return value;
+    return invalidQueryResponse(
+      c,
+      'INVALID_QUERY',
+      `invalid query: "${name}" takes a whole number from ${min}`,
+      [{ path: name, message: `is not a whole number from ${min}` }],
+    );
+  };
+
+  const readRecordRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, RUN_RECORD_QUERY);
+    if (query instanceof Response) return query;
+    const since = readWholeQuery(c, 'since', query.since, 0);
+    if (since instanceof Response) return since;
+    const include = readSetQuery(
+      c,
+      'include',
+      query.include,
+      RUN_RECORD_INCLUDES,
+    );
+    if (include instanceof Response) return include;
+    try {
+      const runId = c.req.param('runId') ?? '';
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const record = await readRunRecord(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        ...(since !== undefined && { since }),
+        travels: include?.includes('travels') === true,
+      });
+      return record === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(record);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/record', readRecordRoute);
+  app.get('/projects/:id/runs/:runId/record', readRecordRoute);
+
+  const readNodeRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, RUN_NODE_QUERY);
+    if (query instanceof Response) return query;
+    const item = readWholeQuery(c, 'item', query.item, -1);
+    if (item instanceof Response) return item;
+    const pass = readWholeQuery(c, 'pass', query.pass, -1);
+    if (pass instanceof Response) return pass;
+    try {
+      const runId = c.req.param('runId') ?? '';
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const node = await readNodeDetail(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        path: query.node,
+        ...(item !== undefined && { item }),
+        ...(pass !== undefined && { pass }),
+      });
+      return node === null
+        ? notFound(
+            c,
+            'The run has no record of that step',
+            'NODE_RUN_NOT_FOUND',
+          )
+        : c.json(node);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/record/node', readNodeRoute);
+  app.get('/projects/:id/runs/:runId/record/node', readNodeRoute);
+
+  /** A step's items and passes, a page at a time: `{path, units, isDone,
+   * continueCursor}`, the cursor signed for this run's step. */
+  const readItemsRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, RUN_ITEMS_QUERY);
+    if (query instanceof Response) return query;
+    const limit = readPageLimit(c, {
+      fallback: NODE_PAGE_DEFAULT,
+      max: NODE_PAGE_MAX,
+    });
+    if (limit instanceof Response) return limit;
+    const status = readSetQuery(c, 'status', query.status, ['all', 'failed']);
+    if (status instanceof Response) return status;
+    const runId = c.req.param('runId') ?? '';
+    const list = `run-units:${runId}:${query.node}`;
+    const after = readSignedCursor(c, list);
+    if (after instanceof Response) return after;
+    try {
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const page = await readNodePage(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        path: query.node,
+        ...(after !== null && { cursor: after }),
+        limit,
+        ...(status?.includes('failed') === true && { status: 'failed' }),
+      });
+      if (page === null) return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      return c.json({
+        path: page.path,
+        units: page.units,
+        isDone: page.next === null,
+        continueCursor:
+          page.next === null ? '' : mintCursor(c, list, page.next),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/record/items', readItemsRoute);
+  app.get('/projects/:id/runs/:runId/record/items', readItemsRoute);
+
+  const compareRoute = async (c: Context<RestEnv>) => {
+    try {
+      const runId = c.req.param('runId') ?? '';
+      const otherRunId = c.req.param('otherRunId') ?? '';
+      if (
+        !(await restRunVisible(c, runId)) ||
+        !(await restRunVisible(c, otherRunId))
+      ) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const diff = await readRunComparison(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        otherRunId,
+      });
+      return diff === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(diff);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/compare/:otherRunId', noQuery, compareRoute);
+
+  // ---- run a run again ------------------------------------------------------
+  /** What a replay would do: what it reuses, what it runs again and sends
+   * out a second time, or why it cannot start. */
+  const replayPlanRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, REPLAY_PLAN_QUERY);
+    if (query instanceof Response) return query;
+    const version =
+      query.version === undefined || !/^[1-9]\d{0,6}$/.test(query.version)
+        ? query.version
+        : Number(query.version);
+    const request = replayRequestSchema.safeParse({
+      kind: query.kind,
+      ...(query.from !== undefined && { from: query.from }),
+      ...(version !== undefined && { version }),
+      ...(query.mode !== undefined && { mode: query.mode }),
+    });
+    if (!request.success) {
+      return invalidQueryResponse(
+        c,
+        'INVALID_QUERY',
+        `invalid query: ${request.error.issues[0]?.message ?? 'not a replay'}`,
+        request.error.issues.map((issue) => ({
+          path: issue.path.join('.') || 'kind',
+          message: issue.message,
+        })),
+      );
+    }
+    try {
+      const runId = c.req.param('runId') ?? '';
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const plan = await readReplayPlan(deps.sql, {
+        organizationId: c.get('organizationId'),
+        sourceRunId: runId,
+        request: request.data,
+        canStartLive: hasDeveloperCapability(c),
+      });
+      return plan === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(plan);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/replay', replayPlanRoute);
+  app.get('/projects/:id/runs/:runId/replay', replayPlanRoute);
+
+  /** Run a run again, in its own project: a live replay needs the developer
+   * capability, a project's replay its write access, and every replay draws
+   * from the execution budget like a start. */
+  const replayRoute = async (c: Context<RestEnv>) => {
+    const body = await parseBody(c, replayRequestSchema);
+    if (body instanceof Response) return body;
+    const idempotencyKey = readIdempotencyKey(c);
+    if (idempotencyKey instanceof Response) return idempotencyKey;
+    try {
+      const organizationId = c.get('organizationId');
+      const runId = c.req.param('runId') ?? '';
+      const projectId = c.req.param('id');
+      const auth =
+        projectId === undefined ? null : await restProjectAuth(deps.sql, c);
+      if (auth !== null && projectId !== undefined) {
+        await loadRestProject(deps.sql, auth, projectId, { write: true });
+      }
+      const run = await getRun(deps.sql, organizationId, runId);
+      if (run === null || run.projectId !== (projectId ?? null)) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      // The capability gate before the lane charge, as on a start.
+      if ((body.mode ?? run.mode) === 'live') requireDeveloper(c);
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited) return limited;
+      const keyId = restApiKeyId(c);
+      const started = await transactSerializable(deps.sql, async (tx) => {
+        if (auth !== null && projectId !== undefined) {
+          await loadRestProject(tx, auth, projectId, { write: true });
+        }
+        return replayRunInTx(tx, {
+          organizationId,
+          sourceRunId: runId,
+          request: body,
+          startedBy: `api-key:${c.get('userId')}`,
+          canStartLive: hasDeveloperCapability(c),
+          ...(keyId !== undefined && { apiKeyId: keyId }),
+          ...(idempotencyKey !== undefined && { idempotencyKey }),
+        });
+      });
+      return started === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(started, 202);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.post('/runs/:runId/replay', replayRoute);
+  app.post('/projects/:id/runs/:runId/replay', replayRoute);
+  app.get(
+    '/projects/:id/runs/:runId/compare/:otherRunId',
+    noQuery,
+    compareRoute,
+  );
 
   /** Stop a run at its next node boundary. A run that is not there is a
    * 404 — `{cancelled: false}` is reserved for a run that exists and had

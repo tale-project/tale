@@ -11,6 +11,7 @@ export const MCP_DOC_TOPICS = [
   'authoring',
   'triggers',
   'validation',
+  'settings',
   'skill',
 ] as const;
 

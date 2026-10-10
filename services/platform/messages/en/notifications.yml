@@ -2,6 +2,8 @@ title: Notifications
 ariaUnread: Unread
 emptyCaughtUpTitle: You're all caught up
 emptyCaughtUpDescription: We'll let you know when anything new comes in.
+emptyOlderUnreadTitle: You have older unread notifications
+emptyOlderUnreadDescription: Load more to see them.
 emptyAllTitle: No notifications yet
 emptyAllDescription: Alerts and system updates will appear here when they arrive.
 markAsRead: Mark as read

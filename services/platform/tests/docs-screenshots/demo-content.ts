@@ -539,6 +539,166 @@ export const DEMO_TEST_RUN = {
   input: { owner: 'tale-project', repo: 'tale' },
 } as const;
 
+/**
+ * The skip notice the triggers page shows: the shipped pull-request review
+ * pack, deployed and switched on without the repository its inputs
+ * require, so the start its schedule comes due for is refused and the
+ * trigger says why. Its own schedule is `schedule`; `primer` comes due
+ * within two minutes, so the seed need not wait half an hour for the first
+ * refusal.
+ */
+export const DEMO_TRIGGER_SKIP = {
+  automation: 'github-review-pull-requests',
+  schedule: { frequency: 'minutely', interval: 30 },
+  primer: { frequency: 'minutely', interval: 1 },
+} as const;
+
+/**
+ * The webhook the triggers page shows: an automation that records each
+ * incoming invoice, installed in two projects, with deliveries that
+ * started runs. Its one step is a transform, so a run needs no connector
+ * or model. Each delivery names itself with an `Idempotency-Key`.
+ */
+export const DEMO_WEBHOOK = {
+  automation: 'invoice-intake',
+  name: 'Record incoming invoices',
+  projects: [DEMO_PROJECTS[0].name, DEMO_PROJECTS[1].name],
+  document: {
+    version: 1,
+    name: 'invoice-intake',
+    nodes: [
+      {
+        id: 'record',
+        type: 'transform',
+        input: { invoiceId: '{{ input.payload.invoiceId }}' },
+        code: 'return { invoiceId: input.invoiceId, recorded: true };',
+      },
+    ],
+    output: '{{ nodes.record.output }}',
+  },
+  deliveries: [
+    { key: 'inv-2026-0142', body: { invoiceId: 'INV-2026-0142' } },
+    { key: 'inv-2026-0143', body: { invoiceId: 'INV-2026-0143' } },
+  ],
+} as const;
+
+/**
+ * The failed run the docs show (the run page's failure focus): a TEST run of
+ * a small demo automation, uploaded as a draft, that stops at Totals because
+ * one of the week's invoices carries no amount. Transforms only — no
+ * connector, model or secret — so it fails the same way on every stack.
+ * Its name stays clear of "triage", which the catalog shot searches for.
+ */
+export const DEMO_FAILED_RUN = {
+  automation: 'invoice-digest',
+  failsAt: 'totals',
+  workflow: `name: invoice-digest
+description: Sum the week's open invoices per customer and write the digest.
+nodes:
+  - id: invoices
+    type: transform
+    code: |
+      return {
+        invoices: [
+          { customer: 'Atelier Lumen', amount: 1200 },
+          { customer: 'Northwind', amount: 860 },
+          { customer: 'Globex', amount: null },
+        ],
+      };
+  - id: totals
+    type: transform
+    input:
+      invoices: '{{ nodes.invoices.output.invoices }}'
+    code: |
+      const totals = {};
+      for (const invoice of input.invoices) {
+        if (typeof invoice.amount !== 'number') {
+          throw new Error('The invoice for ' + invoice.customer + ' has no amount');
+        }
+        totals[invoice.customer] = (totals[invoice.customer] ?? 0) + invoice.amount;
+      }
+      return { totals };
+  - id: digest
+    type: transform
+    input:
+      totals: '{{ nodes.totals.output.totals }}'
+    code: |
+      const lines = Object.entries(input.totals).map(([customer, amount]) => customer + ': ' + amount);
+      return { text: lines.join('\\n') };
+output: '{{ nodes.digest.output }}'
+`,
+} as const;
+
+/**
+ * The HTTP page's demo: a credential for a shop's API (an API key sent in a
+ * header, under a base URL) and a small automation whose first step reads
+ * that API as the credential. The automation is only ever opened in the
+ * editor: `api.shop.example` sits under a reserved name that resolves
+ * nowhere, so a live run could never reach it.
+ */
+export const DEMO_HTTP = {
+  credential: 'Shop API',
+  baseUrl: 'https://api.shop.example/v2',
+  apiKey: 'shop-docs-demo-key',
+  automation: 'open-orders',
+  node: 'orders',
+  workflow: `version: 1
+name: open-orders
+description: Read the shop's open orders and count them.
+nodes:
+  - id: orders
+    type: http.get
+    credential: Shop API
+    input:
+      url: /orders
+      query:
+        status: open
+  - id: count
+    type: transform
+    input:
+      answer: '{{ nodes.orders.output.body }}'
+    code: |
+      const orders = Array.isArray(input.answer?.orders) ? input.answer.orders : [];
+      return { open: orders.length };
+output: '{{ nodes.count.output }}'
+`,
+} as const;
+
+/**
+ * The knowledge search page's demo: an automation installed in Website
+ * relaunch whose one step searches the organization's documents, deployed
+ * and run live once in that project — so its run shows real hits from the
+ * project's files and the shared documents, as the run may read them.
+ */
+export const DEMO_KNOWLEDGE_SEARCH = {
+  automation: 'launch-questions',
+  name: 'Answer launch questions',
+  node: 'related',
+  project: DEMO_PROJECTS[0].name,
+  input: { question: 'What happens on launch day?' },
+  document: {
+    version: 1,
+    name: 'launch-questions',
+    inputs: {
+      type: 'object',
+      required: ['question'],
+      properties: { question: { type: 'string' } },
+    },
+    nodes: [
+      {
+        id: 'related',
+        type: 'knowledge.search',
+        input: {
+          query: '{{ input.question }}',
+          corpus: 'documents',
+          limit: 3,
+        },
+      },
+    ],
+    output: '{{ nodes.related.output }}',
+  },
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

@@ -7,8 +7,10 @@
  * The discovery tools list what an automation may name — models, agent
  * runtimes, skills, connectors, secret names, projects and events — from the
  * same readers the editor's pickers use, so an agent is offered what a
- * person at the editor would be, and nothing of another organization's. No
- * answer carries a secret's value.
+ * person at the editor would be, and nothing of another organization's. The
+ * settings tools read, plan and change the organization's settings through
+ * each kind's native reader and writer (`settings/`). No answer carries a
+ * secret's value.
  */
 
 import type { Sql } from 'postgres';
@@ -38,6 +40,7 @@ import {
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
 import type { McpCaller } from './caller.ts';
+import { dispatchSettingsTool } from './settings/tools.ts';
 
 /** The run figures the automations metrics page shows — every member reads
  * them in the app, so every member's agent does. */
@@ -357,6 +360,10 @@ export async function dispatchPlatformTool(
       return listProjectsTool(sql, caller, params);
     case 'list_events':
       return listEvents();
+    case 'get_settings':
+    case 'plan_settings':
+    case 'apply_settings':
+      return dispatchSettingsTool(sql, caller, method, params);
     default:
       return {
         error: `unknown platform tool "${method}"`,

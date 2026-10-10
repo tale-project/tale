@@ -10,8 +10,10 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { resourceId } from '@tale/shared/config/platform-resources';
 import { KNOWLEDGE_EMBEDDING_KEPT_KEYS } from '@tale/shared/schemas/knowledge';
 
+import { platformConfigurationFixture } from '../../../../../packages/shared/src/config/platform-resources.fixture';
 import { preconditionError } from '../../utils/fail';
 import { writeDeploymentBundle } from '../deployment/bundle';
 import {
@@ -26,8 +28,7 @@ import {
   readPlatformConfiguration,
 } from './platform-apply';
 import type { PlatformConfigurationClient } from './platform-client';
-import { platformConfigurationFixture } from './platform-fixture';
-import { parsePlatformConfiguration, resourceId } from './platform-model';
+import { parsePlatformConfiguration } from './platform-model';
 import { valueHash } from './releases/identity';
 
 const directories: string[] = [];

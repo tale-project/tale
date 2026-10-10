@@ -54,7 +54,12 @@ interface ConnectorSummary {
     description?: string;
     required: boolean;
     enum?: string[];
+    integer?: boolean;
+    min?: number;
+    max?: number;
     default?: string | number | boolean;
+    /** Per-locale label and description, resolved by the form's locale. */
+    i18n?: Record<string, { label?: string; description?: string }>;
   }>;
   actionCount: number;
   iconUrl?: string;
@@ -85,6 +90,13 @@ function readConnectorIcon(
     );
     return undefined;
   }
+}
+
+/** A shipped connector's icon as an inline data URL, or `undefined` when it
+ * ships none — the same image the settings catalog shows, for the other
+ * surfaces that name a connector (the automation node-type catalog). */
+export function connectorIconUrl(slug: string): string | undefined {
+  return readConnectorIcon(resolveConnectorsDir(), slug);
 }
 
 /**
@@ -125,7 +137,11 @@ export function listConnectorSummaries(): ConnectorSummary[] {
           description: field.description,
         }),
         ...(field.enum !== undefined && { enum: field.enum }),
+        ...(field.integer !== undefined && { integer: field.integer }),
+        ...(field.min !== undefined && { min: field.min }),
+        ...(field.max !== undefined && { max: field.max }),
         ...(field.default !== undefined && { default: field.default }),
+        ...(field.i18n !== undefined && { i18n: field.i18n }),
       })),
       actionCount: connector.actions.length,
     };

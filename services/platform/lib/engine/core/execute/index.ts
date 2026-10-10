@@ -13,6 +13,14 @@
 import type { ValidateFunction } from 'ajv';
 
 import { connectorIdempotencyKey, subautomationPathPrefix } from '../protocol';
+import {
+  classifyStepFailure,
+  connectorFailureOf,
+  reasonFamily,
+  failureCauseOf,
+} from '../record/failure';
+import { noRecorder, type RunRecorder } from '../record/recorder';
+import { END_PATH, START_PATH, type UnitKey } from '../record/types';
 import type {
   AgentTurnRequest,
   ConnectorHostCapabilities,
@@ -20,11 +28,38 @@ import type {
   StoreAdapter,
 } from '../slots';
 import { agentService, llmService, nodeTypes } from '../slots';
-import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
-import type { Automation, Effect, NodeTrace, RunResult } from '../types';
+import { ptr } from '../syntax/pointer';
+import {
+  evalTemplates,
+  evalTemplatesRendered,
+  explainFailure,
+  ExprError,
+  type RenderedSpan,
+  runCode,
+} from '../template';
+import {
+  type Automation,
+  type Effect,
+  effectPlace,
+  type Issue,
+  type Json,
+  nestedEffectPlace,
+  type NodeTrace,
+  type RunBench,
+  type RunResult,
+} from '../types';
 import { MAX_SUBAUTOMATION_DEPTH } from '../typing/children';
-import { compileSchema } from '../validate/schema';
-import { maxRepeatsOf, refsOf, topoSort } from './controlflow';
+import { compileSchema, inputRefusalMessage } from '../validate/schema';
+import {
+  type BenchPlan,
+  CALL_AS_WRITTEN,
+  itemOutOfRange,
+  planBench,
+  refusalIssue,
+  refusalPath,
+} from './bench';
+import { maxRepeatsOf, topoSort } from './controlflow';
+import { decideNode, repeatSettled, resolveForEach } from './decide';
 import {
   cloneData,
   makeScope,
@@ -93,11 +128,65 @@ export interface ExecuteOptions {
   nesting?: number;
   /** The calling run and the path prefix of a subautomation's own nodes
    * (internal; hosts leave it unset): a nested call presents the key the
-   * durable stepper gives the same call, `<run>:<parent>[<item>:<pass>]/<id>:…`. */
-  within?: { runId: string; pathPrefix: string };
+   * durable stepper gives the same call, `<run>:<parent>[<item>:<pass>]/<id>:…`.
+   * `docRef` names the document the nested nodes come from (`name@version`). */
+  within?: { runId: string; pathPrefix: string; docRef?: string };
+  /**
+   * Where the run's record goes: what each unit of work decided, read,
+   * received and returned. Without one the run executes exactly as before
+   * and its result carries no record; with one, the result's `record` holds
+   * every unit the recorder kept.
+   */
+  recorder?: RunRecorder;
+  /**
+   * What stands in for some nodes' calls, and the narrower scope of a step
+   * test (`./bench`): a test's simulated outputs and failures, `upTo`,
+   * `only` with its pinned data, `item`. Mock runs only — a live run with a
+   * bench is refused — and the automation's own nodes only: a called
+   * automation runs as written.
+   */
+  bench?: RunBench;
+  /** Epoch ms: past it the run stops at its next step, item or pass. */
+  deadline?: number;
+  /** Once aborted, the run stops at its next step, item or pass. */
+  signal?: AbortSignal;
 }
 
 const DEFAULT_MAX_NODE_EXECUTIONS = 100;
+
+/** A run stopped between steps, items or passes: by its time limit or by
+ * its caller. Not a failure of the step it was in, so `onError` never
+ * catches it. */
+class RunStopped extends Error {
+  constructor(readonly by: 'time_limit' | 'cancelled') {
+    super(by === 'cancelled' ? 'stopped' : 'stopped at the time limit');
+  }
+}
+
+/** A run that is refused before any step: an invalid bench. */
+function refusedRun(issue: Issue): RunResult {
+  return {
+    status: 'invalid',
+    trace: [],
+    effects: [],
+    validation: { errors: [issue], warnings: [] },
+  };
+}
+
+/** The failure a test simulates for a step: the test's message, as the
+ * step's English and as the param its readers word it with. */
+function simulatedFailure(nodeId: string, message: string): ExprError {
+  return new ExprError(
+    nodeId,
+    message === ''
+      ? 'a failure simulated by the test'
+      : `${message} (simulated by the test)`,
+    {
+      reason: 'SIMULATED_FAILURE',
+      params: message === '' ? {} : { message },
+    },
+  );
+}
 
 export async function execute(
   doc: Automation,
@@ -106,12 +195,116 @@ export async function execute(
   const input = opts.input;
   const trace: NodeTrace[] = [];
   const effects: Effect[] = [];
-  const fail = (error: RunResult['error']): RunResult => ({
-    status: 'error',
-    error,
-    trace,
-    effects,
-  });
+  const rec = opts.recorder ?? noRecorder;
+  // A nested run records into its caller's recorder; only the outermost run
+  // records the run's own input and output, and answers the record.
+  const outermost = opts.within === undefined;
+
+  // The bench stands in for the automation's own nodes only: a called
+  // automation runs as written, and its stand-in, if any, replaces it whole.
+  let plan: BenchPlan | undefined;
+  if (outermost && opts.bench !== undefined) {
+    if (opts.mode === 'live') {
+      return refusedRun({
+        level: 'error',
+        code: 'BENCH_MOCK_ONLY',
+        message:
+          'simulated outputs, simulated failures and narrower scopes apply to mock runs only',
+        hint: 'run in mock mode — a live run calls every node as written',
+        at: { pointer: '/bench' },
+        params: {},
+      });
+    }
+    const planned = planBench(doc.nodes, opts.bench);
+    if (!planned.ok) {
+      return refusedRun(
+        refusalIssue(planned, ptr('bench', ...refusalPath(planned.refusal))),
+      );
+    }
+    plan = planned.plan;
+  }
+
+  /** A step the run does not get to. One a step test leaves out says so,
+   * whether the run ended before it or not: it would not have run anyway. */
+  const notRun = (node: { id: string; type: string }): NodeTrace =>
+    plan?.call(node.id).kind === 'left-out'
+      ? {
+          node: node.id,
+          type: node.type,
+          status: 'not_run',
+          bench: 'left-out',
+          note: 'left out of this test',
+        }
+      : { node: node.id, type: node.type, status: 'not_run' };
+
+  /** The nodes whose stand-in took the place of a call, or whose pinned
+   * data a step test used. */
+  const used = new Set<string>();
+  /** What a run with a bench says beside its outcome: its scope, and the
+   * stand-ins it never used — their node was skipped, left out or never
+   * got to, or ran over no items. */
+  const benchFacts = (): Pick<RunResult, 'focus' | 'unusedMocks'> => {
+    if (plan === undefined) return {};
+    const unused = plan.standIns.filter((id) => !used.has(id));
+    return {
+      ...(plan.focus !== undefined && { focus: plan.focus }),
+      ...(unused.length > 0 && { unusedMocks: unused }),
+    };
+  };
+  const withRecord = (result: RunResult): RunResult => {
+    const told = { ...result, ...benchFacts() };
+    return outermost && opts.recorder !== undefined
+      ? { ...told, record: rec.snapshot() }
+      : told;
+  };
+  const fail = (error: RunResult['error']): RunResult =>
+    withRecord({
+      status: 'error',
+      error,
+      trace,
+      effects,
+    });
+
+  const startedAt = Date.now();
+  /** Whether the run must stop before its next step, item or pass. */
+  const stopCause = (): 'time_limit' | 'cancelled' | undefined => {
+    if (opts.signal?.aborted === true) return 'cancelled';
+    if (opts.deadline !== undefined && Date.now() >= opts.deadline) {
+      return 'time_limit';
+    }
+    return undefined;
+  };
+  /** The run stopped: what it was in the middle of reads failed, and every
+   * step after it did not run. An open unit of the record stays open, so
+   * the record reads it as stopped. */
+  const stopped = (
+    by: 'time_limit' | 'cancelled',
+    rest: readonly { id: string; type: string }[],
+    inside?: NodeTrace,
+  ): RunResult => {
+    const message =
+      by === 'cancelled'
+        ? 'stopped'
+        : `stopped after ${Math.round((Date.now() - startedAt) / 1000)} s — this run has a time limit`;
+    if (inside !== undefined) {
+      inside.status = 'error';
+      inside.error = message;
+    }
+    for (const node of rest) trace.push(notRun(node));
+    return {
+      ...fail({
+        ...(inside !== undefined && { nodeId: inside.node }),
+        message,
+      }),
+      stoppedBy: by,
+    };
+  };
+
+  if (outermost) {
+    const startKey = { path: START_PATH, item: -1, pass: -1 };
+    rec.unitStarted(startKey, { nodeId: START_PATH, nodeType: 'input' });
+    rec.unitFinished(startKey, { status: 'ok', output: input });
+  }
 
   // Runtime input contract. An unparseable inputs schema is validation's
   // finding, not a run failure — skip the check rather than crash here.
@@ -121,11 +314,8 @@ export async function execute(
     try {
       const check = compileSchema(doc.inputs);
       if (!check(input)) {
-        const msg = (check.errors ?? [])
-          .map((e) => `input${e.instancePath} ${e.message}`)
-          .join('; ');
         return fail({
-          message: `run input does not match the automation "inputs" schema: ${msg}`,
+          message: inputRefusalMessage(check.errors),
           hint: `you passed: ${JSON.stringify(input)}`,
         });
       }
@@ -151,74 +341,217 @@ export async function execute(
   const pathPrefix = opts.within?.pathPrefix ?? '';
   const maxExecutions = opts.maxNodes ?? DEFAULT_MAX_NODE_EXECUTIONS;
   let executions = 0;
+  const rankOf = new Map(ordered.map((node, index) => [node.id, index]));
+  const walk = {
+    outputs: nodeOutputs,
+    skipped,
+    whenSkipped,
+    rank: (id: string) => rankOf.get(id) ?? Number.MAX_SAFE_INTEGER,
+  };
 
-  for (const n of ordered) {
+  const focus = plan?.focus;
+  for (const [position, n] of ordered.entries()) {
+    const stop = stopCause();
+    if (stop !== undefined) return stopped(stop, ordered.slice(position));
+    const call = plan?.call(n.id) ?? CALL_AS_WRITTEN;
+    if (call.kind === 'left-out') {
+      // Outside the step test's scope: nothing of it runs, and it has no
+      // record — the record reads it as not run, its trace says why.
+      trace.push(notRun(n));
+      continue;
+    }
     const def = nodeTypes().get(n.type);
     const t0 = performance.now();
     const entry: NodeTrace = { node: n.id, type: n.type, status: 'ok' };
     trace.push(entry);
+    const path = `${pathPrefix}${n.id}`;
+    const pointer = `/nodes/${doc.nodes.indexOf(n)}`;
+    const nodeKey: UnitKey = { path, item: -1, pass: -1 };
+    // The units of this step still open, outermost first: a failure ends
+    // each of them.
+    const openUnits: UnitKey[] = [nodeKey];
+    rec.unitStarted(nodeKey, { nodeId: n.id, nodeType: n.type });
+    if (opts.within?.docRef !== undefined) {
+      rec.meta(nodeKey, { docRef: opts.within.docRef });
+    }
     const finish = () => {
       entry.ms = Math.round((performance.now() - t0) * 10) / 10;
     };
-    const markSkipped = (note: string) => {
+    if (call.kind === 'pinned') {
+      // Data a step test hands the node it runs alone: its output, with
+      // nothing of it evaluated.
+      const pin = cloneData(call.output);
+      entry.output = pin;
+      entry.bench = 'pinned';
+      entry.note = 'pinned data';
+      used.add(n.id);
+      nodeOutputs[n.id] = { output: pin };
+      finish();
+      rec.meta(nodeKey, { bench: 'pinned' });
+      rec.unitFinished(nodeKey, { status: 'ok', output: pin });
+      continue;
+    }
+    const markSkipped = (
+      note: string,
+      reason: 'upstream' | 'else' | 'when',
+      via?: string[],
+    ) => {
       entry.status = 'skipped';
       entry.note = note;
       skipped.add(n.id);
       nodeOutputs[n.id] = { output: null };
       finish();
+      rec.unitFinished(nodeKey, {
+        status: 'skipped',
+        skip: { reason, ...(via !== undefined && { via }) },
+      });
     };
 
     try {
       if (!def) throw new ExprError(n.type, `unknown node type "${n.type}"`);
 
-      // Skip propagation from upstream DATA dependencies.
-      const upstream = [...refsOf(n).data].filter((r) => skipped.has(r));
-      if (upstream.length > 0) {
-        markSkipped(
-          `skipped: reads from skipped node(s) ${upstream.join(', ')}`,
+      if (focus?.kind === 'only' && focus.node === n.id) {
+        // Run alone, the node runs whatever its condition says: it is
+        // evaluated against the pinned data, and a false one is noted. Its
+        // alternative's partner is not consulted.
+        const { elseOf: _elseOf, ...alone } = n;
+        const decision = await decideNode(
+          alone,
+          input,
+          walk,
+          { key: nodeKey, pointer },
+          rec,
         );
-        continue;
-      }
-
-      // elseOf: run exactly when the partner was when-skipped.
-      if (typeof n.elseOf === 'string' && !whenSkipped.has(n.elseOf)) {
-        markSkipped(`skipped: elseOf partner "${n.elseOf}" ran`);
-        continue;
-      }
-
-      if (typeof n.when === 'string') {
-        const cond = await evalCondition(n.when, makeScope(input, nodeOutputs));
-        if (!cond) {
-          whenSkipped.add(n.id);
-          markSkipped(`skipped: when=${JSON.stringify(n.when)} was falsy`);
+        if (decision.kind === 'skip') {
+          entry.whenWouldSkip = true;
+          rec.meta(nodeKey, { whenWouldSkip: true });
+        }
+      } else {
+        // The skip rules: data dependencies first, then the else-branch
+        // rule, then the node's own condition.
+        const decision = await decideNode(
+          n,
+          input,
+          walk,
+          { key: nodeKey, pointer },
+          rec,
+        );
+        if (decision.kind === 'skip') {
+          if (decision.reason === 'when') whenSkipped.add(n.id);
+          markSkipped(decision.note, decision.reason, decision.via);
           continue;
         }
       }
+      // A stand-in replaces the node's call, never the node: it applies
+      // only once the skip rules let the node run, and it is marked where
+      // it takes a call's place — a node that runs per item over no items
+      // makes no call, and its stand-in goes unused.
+      const markStandIn = (): void => {
+        if (used.has(n.id)) return;
+        used.add(n.id);
+        entry.bench = call.kind === 'mock' ? 'mocked' : 'failed';
+        rec.meta(nodeKey, { bench: entry.bench });
+      };
 
       const connectorCheck = def.connector
         ? connectorValidator(def.connector)
         : null;
 
+      /** The forEach node's simulated outputs, one per item, once its list
+       * is known. */
+      let itemMocks: readonly Json[] | undefined;
+      /** What stands in for this unit's call: the simulated output, or the
+       * failure the test simulates (thrown, after the unit's input was
+       * resolved); undefined for a call that runs as written. */
+      const standIn = (
+        extra: Record<string, unknown>,
+      ): { output: unknown } | undefined => {
+        if (call.kind === 'fail') {
+          markStandIn();
+          throw simulatedFailure(n.id, call.message);
+        }
+        if (call.kind !== 'mock') return undefined;
+        markStandIn();
+        if (itemMocks !== undefined) {
+          return { output: cloneData(itemMocks[Number(extra.index ?? 0)]) };
+        }
+        return { output: cloneData(call.output) };
+      };
+
       /** Run the node's behavior once for one scope (per item under
        * forEach). */
+      /** Run the node once for one scope; a recorded run's failing
+       * expression is evaluated once more with probes, so the failure says
+       * which value was missing. */
       const runOnce = async (
         extra: Record<string, unknown>,
         record: boolean,
         pass: number,
+        unit: UnitKey,
+      ): Promise<unknown> => {
+        try {
+          return await runBody(extra, record, pass, unit);
+        } catch (error) {
+          if (rec.enabled) {
+            await explainFailure(error, makeScope(input, nodeOutputs, extra));
+          }
+          throw error;
+        }
+      };
+
+      const runBody = async (
+        extra: Record<string, unknown>,
+        record: boolean,
+        pass: number,
+        unit: UnitKey,
       ): Promise<unknown> => {
         executions++;
         if (executions > maxExecutions) {
           throw new ExprError(
             n.id,
             `run exceeded the ${maxExecutions}-execution guard — a forEach over a huge array or a runaway repeat; split the automation or raise maxNodes deliberately`,
+            { reason: 'EXECUTION_LIMIT', params: { limit: maxExecutions } },
           );
         }
         const scope = () => makeScope(input, nodeOutputs, extra);
+        // Where each `{{ }}` unit landed in the text a step sends: a recorded
+        // run keeps it beside the text.
+        const rendered: Record<string, RenderedSpan[]> = {};
+        const resolve = async (
+          value: unknown,
+          at: string,
+        ): Promise<unknown> => {
+          if (!rec.enabled) return await evalTemplates(value, scope(), at);
+          const answer = await evalTemplatesRendered(value, scope(), at);
+          Object.assign(rendered, answer.rendered);
+          return answer.value;
+        };
+        const noteRendered = (): void => {
+          if (Object.keys(rendered).length > 0) rec.meta(unit, { rendered });
+        };
+        // A pass's input is also its item's or step's: the row shows what
+        // its latest pass worked on.
+        const noteInput = (at: UnitKey, value: unknown): void => {
+          rec.unitInput(at, value);
+          if (at.pass >= 0) {
+            rec.unitInput(
+              at.item >= 0 ? { path, item: at.item, pass: -1 } : nodeKey,
+              value,
+            );
+          }
+        };
         let out: unknown;
 
         if (n.type === 'transform') {
-          const resolved = await evalTemplates(n.input ?? {}, scope());
+          const resolved = await evalTemplates(
+            n.input ?? {},
+            scope(),
+            `${pointer}/input`,
+          );
           if (record) entry.input = resolved;
+          noteInput(unit, resolved);
+          const stood = standIn(extra);
+          if (stood !== undefined) return stood.output;
           out = await runCode(
             n.code ?? '',
             {
@@ -228,29 +561,41 @@ export async function execute(
               index: extra.index,
             },
             opts.timeoutMs,
+            `${pointer}/code`,
           );
           if (out === undefined || out === null) {
             throw new ExprError(
               '[code]',
               'transform code returned nothing — it must return a value',
+              {
+                reason: 'CODE_NO_RESULT',
+                params: {},
+                at: { pointer: `${pointer}/code` },
+              },
             );
           }
         } else if (n.type === 'llm') {
           const model = n.model ?? '';
           const prompt = asPromptText(
-            await evalTemplates(n.prompt ?? '', scope()),
+            await resolve(n.prompt ?? '', `${pointer}/prompt`),
           );
           const system = n.system
-            ? asPromptText(await evalTemplates(n.system, scope()))
+            ? asPromptText(await resolve(n.system, `${pointer}/system`))
             : undefined;
+          noteRendered();
           const llmInput = {
             model,
             prompt,
             ...(system !== undefined && { system }),
           };
           if (record) entry.input = llmInput;
+          noteInput(unit, llmInput);
+          rec.meta(unit, { model });
+          const stood = standIn(extra);
           const service = llmService();
-          if (opts.mode === 'live' && service) {
+          if (stood !== undefined) {
+            out = stood.output;
+          } else if (opts.mode === 'live' && service) {
             const reply = await service({
               model,
               prompt,
@@ -266,6 +611,11 @@ export async function execute(
                 throw new ExprError(
                   n.id,
                   'the llm service returned plain text for a node with outputSchema — structured output was required',
+                  {
+                    reason: 'LLM_OUTPUT_INVALID',
+                    params: { model },
+                    at: { pointer: `${pointer}/outputSchema` },
+                  },
                 );
               }
             } else {
@@ -280,27 +630,34 @@ export async function execute(
                 ? stubFromSchema(n.outputSchema)
                 : { text: mockLlmText(model, prompt) };
           }
-          effects.push({ node: n.id, connector: 'llm', input: llmInput });
+          effects.push({
+            node: n.id,
+            connector: 'llm',
+            input: llmInput,
+            ...effectPlace(unit),
+          });
         } else if (n.type === 'agent') {
           const model = n.model ?? '';
           const prompt = asPromptText(
-            await evalTemplates(n.prompt ?? '', scope()),
+            await resolve(n.prompt ?? '', `${pointer}/prompt`),
           );
           const system = n.system
-            ? asPromptText(await evalTemplates(n.system, scope()))
+            ? asPromptText(await resolve(n.system, `${pointer}/system`))
             : undefined;
+          noteRendered();
           const files =
             n.files === undefined
               ? undefined
               : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- evalTemplates preserves the record shape of `files`
-                ((await evalTemplates(n.files, scope())) as Record<
-                  string,
-                  unknown
-                >);
+                ((await evalTemplates(
+                  n.files,
+                  scope(),
+                  `${pointer}/files`,
+                )) as Record<string, unknown>);
           const context =
             n.input === undefined
               ? undefined
-              : await evalTemplates(n.input, scope());
+              : await evalTemplates(n.input, scope(), `${pointer}/input`);
           const agentInput: AgentTurnRequest = {
             model,
             ...(n.modelProvider !== undefined && {
@@ -317,8 +674,13 @@ export async function execute(
             ...(context !== undefined && { input: context }),
           };
           if (record) entry.input = agentInput;
+          noteInput(unit, agentInput);
+          rec.meta(unit, { model });
+          const stood = standIn(extra);
           const service = agentService();
-          if (opts.mode === 'live' && service) {
+          if (stood !== undefined) {
+            out = stood.output;
+          } else if (opts.mode === 'live' && service) {
             const reply = await service(agentInput);
             out = {
               text: reply.text,
@@ -336,7 +698,24 @@ export async function execute(
               status: 'ok',
             };
           }
-          effects.push({ node: n.id, connector: 'agent', input: agentInput });
+          effects.push({
+            node: n.id,
+            connector: 'agent',
+            input: agentInput,
+            ...effectPlace(unit),
+          });
+        } else if (n.type === 'subautomation' && call.kind !== 'call') {
+          // A stand-in replaces the whole called automation: its input is
+          // resolved, and nothing of it runs or is looked up.
+          const ref = n.automation ?? '';
+          const resolved = await evalTemplates(
+            n.input ?? {},
+            scope(),
+            `${pointer}/input`,
+          );
+          if (record) entry.input = { automation: ref, input: resolved };
+          noteInput(unit, { automation: ref, input: resolved });
+          out = standIn(extra)?.output;
         } else if (n.type === 'subautomation') {
           const ref = n.automation ?? '';
           const store = opts.store;
@@ -346,6 +725,7 @@ export async function execute(
               'no automation store was supplied for this run — the host must pass one for subautomation nodes',
             );
           }
+          const automationAt = { pointer: `${pointer}/automation` };
           const [subName, subVerRaw] = ref.split('@');
           const subVer = subVerRaw
             ? Number(subVerRaw)
@@ -355,6 +735,11 @@ export async function execute(
             throw new ExprError(
               'subautomation',
               `no saved automation "${ref}" — save_automation it first`,
+              {
+                reason: 'SUBAUTOMATION_NOT_FOUND',
+                params: { automation: ref },
+                at: automationAt,
+              },
             );
           }
           const depth = opts.nesting ?? 0;
@@ -362,10 +747,20 @@ export async function execute(
             throw new ExprError(
               'subautomation',
               `subautomations nest at most ${MAX_SUBAUTOMATION_DEPTH} levels deep`,
+              {
+                reason: 'SUBAUTOMATION_TOO_DEEP',
+                params: { max: MAX_SUBAUTOMATION_DEPTH },
+                at: { pointer },
+              },
             );
           }
-          const resolved = await evalTemplates(n.input ?? {}, scope());
+          const resolved = await evalTemplates(
+            n.input ?? {},
+            scope(),
+            `${pointer}/input`,
+          );
           if (record) entry.input = { automation: ref, input: resolved };
+          noteInput(unit, { automation: ref, input: resolved });
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
           const sub = await execute(found.automation as Automation, {
             ...opts,
@@ -378,36 +773,84 @@ export async function execute(
                 Number(extra.index ?? 0),
                 pass,
               ),
+              docRef: `${subName}@${found.meta.version}`,
             },
           });
-          if (sub.status !== 'success') {
-            throw new ExprError(
-              'subautomation',
-              `subautomation "${ref}" ${sub.status}: ${sub.error?.message ?? 'see its validation errors'}`,
-            );
-          }
+          // What the called automation did happened, whether it finished,
+          // failed or was stopped: its effects are this step's, under its
+          // path — as the durable runtime folds them before it reads the
+          // sub-run's outcome.
           for (const ef of sub.effects) {
             effects.push({
               node: `${n.id}/${ef.node}`,
               connector: ef.connector,
               input: ef.input,
+              ...nestedEffectPlace(ef),
             });
+          }
+          // A stop inside the called automation stops this run too; it is no
+          // failure of this step.
+          if (sub.stoppedBy !== undefined) throw new RunStopped(sub.stoppedBy);
+          if (sub.status !== 'success') {
+            throw new ExprError(
+              'subautomation',
+              `subautomation "${ref}" ${sub.status}: ${sub.error?.message ?? 'see its validation errors'}`,
+              {
+                reason: 'SUBAUTOMATION_FAILED',
+                params: {
+                  automation: subName,
+                  version: found.meta.version,
+                  childPath: sub.error?.nodeId ?? '',
+                },
+                at: automationAt,
+              },
+            );
           }
           out = sub.output;
         } else if (def.connector && connectorCheck) {
-          const resolved = await evalTemplates(n.input ?? {}, scope());
+          const resolved = await resolve(n.input ?? {}, `${pointer}/input`);
+          noteRendered();
           if (record) entry.input = resolved;
+          noteInput(unit, resolved);
+          rec.meta(unit, {
+            connector: def.connector.name,
+            action: n.type,
+            effect: def.connector.hasEffect ? 'write' : 'read',
+          });
           if (!connectorCheck(resolved)) {
-            const msg = (connectorCheck.errors ?? [])
+            const errors = connectorCheck.errors ?? [];
+            const msg = errors
               .map((e) => `input${e.instancePath} ${e.message}`)
               .join('; ');
+            const first = errors[0];
+            // The sentence names the action and what is wrong, never the
+            // input itself: the step's record shows that, with its secrets
+            // withheld, where this text would have carried them whole.
             throw new ExprError(
               n.type,
-              `resolved input does not match the ${n.type} schema: ${msg}. Resolved input was: ${JSON.stringify(resolved)}`,
+              `resolved input does not match the ${n.type} schema: ${msg}`,
+              {
+                reason: 'CONNECTOR_INPUT_REFUSED',
+                params: {
+                  connector: def.connector.name,
+                  action: n.type,
+                  ...(first !== undefined && {
+                    keyword: first.keyword,
+                    property: first.instancePath,
+                  }),
+                  detail: msg,
+                },
+                at: {
+                  pointer: `${pointer}/input${first?.instancePath ?? ''}`,
+                },
+              },
             );
           }
+          const stood = standIn(extra);
           const host = opts.connectorHost?.(def.connector.name);
-          if (opts.mode === 'live' && def.connector.live && host) {
+          if (stood !== undefined) {
+            out = stood.output;
+          } else if (opts.mode === 'live' && def.connector.live && host) {
             const secretMap = opts.secrets?.[def.connector.name] ?? {};
             try {
               out = await def.connector.live(resolved, {
@@ -431,6 +874,10 @@ export async function execute(
               throw new ExprError(
                 n.type,
                 `live call failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`,
+                {
+                  ...connectorFailureOf(e, def.connector.name, n.type),
+                  at: { pointer },
+                },
               );
             }
           } else {
@@ -442,7 +889,12 @@ export async function execute(
             out = await def.connector.mock(resolved);
           }
           if (def.connector.hasEffect) {
-            effects.push({ node: n.id, connector: n.type, input: resolved });
+            effects.push({
+              node: n.id,
+              connector: n.type,
+              input: resolved,
+              ...effectPlace(unit),
+            });
           }
         } else {
           throw new ExprError(
@@ -457,22 +909,36 @@ export async function execute(
       const runWithRepeat = async (
         extra: Record<string, unknown>,
         record: boolean,
+        unit: UnitKey,
       ): Promise<unknown> => {
-        if (typeof n.repeatUntil !== 'string') return runOnce(extra, record, 0);
+        const repeatUntil = n.repeatUntil;
+        if (typeof repeatUntil !== 'string') {
+          return runOnce(extra, record, 0, unit);
+        }
         const max = maxRepeatsOf(n);
         let out: unknown;
         let iters = 0;
         let done = false;
         for (; iters < max; iters++) {
-          out = await runOnce(extra, record && iters === 0, iters);
+          const passStop = iters === 0 ? undefined : stopCause();
+          if (passStop !== undefined) throw new RunStopped(passStop);
+          const passKey: UnitKey = { path, item: unit.item, pass: iters };
+          rec.unitStarted(passKey, { nodeId: n.id, nodeType: n.type });
+          openUnits.push(passKey);
+          out = await runOnce(extra, record && iters === 0, iters, passKey);
           // The in-flight result is visible BOTH as `output` and as this
           // node's own nodes.<id>.output — authors naturally write either.
-          const withSelf = { ...nodeOutputs, [n.id]: { output: out } };
-          const cond = await evalCondition(
-            n.repeatUntil,
-            makeScope(input, withSelf, { ...extra, output: out }),
+          const settled = await repeatSettled(
+            n,
+            repeatUntil,
+            input,
+            walk,
+            { key: passKey, pointer, index: iters, max, extra, output: out },
+            rec,
           );
-          if (cond) {
+          openUnits.pop();
+          rec.unitFinished(passKey, { status: 'ok', output: out });
+          if (settled) {
             done = true;
             iters++;
             break;
@@ -486,64 +952,145 @@ export async function execute(
 
       let output: unknown;
       if (typeof n.forEach === 'string') {
-        const arr = await evalTemplates(
+        const arr = await resolveForEach(
           n.forEach,
-          makeScope(input, nodeOutputs),
+          input,
+          walk,
+          { key: nodeKey, pointer },
+          rec,
         );
-        if (!Array.isArray(arr)) {
-          throw new ExprError(
-            n.forEach,
-            `forEach must resolve to an array, got ${arr === undefined ? 'undefined' : typeof arr} — check the referenced path`,
+        entry.input = { forEach: `${arr.length} item(s)` };
+        // Run alone with one item picked, the node runs that item only, and
+        // its output is that item's.
+        const picked =
+          focus?.kind === 'only' && focus.node === n.id
+            ? focus.item
+            : undefined;
+        if (picked !== undefined && picked >= arr.length) {
+          // Only now is the list known: the bench is refused as it would
+          // have been before the run, with nothing of the run kept.
+          return refusedRun(
+            refusalIssue(
+              itemOutOfRange(n.id, picked, arr.length),
+              ptr('bench', 'item'),
+            ),
           );
         }
-        entry.input = { forEach: `${arr.length} item(s)` };
+        if (call.kind === 'mock' && plan !== undefined) {
+          // A forEach stand-in is a list: item i returns entry i — of the
+          // items that run.
+          const fits = plan.itemOutputs(n.id, arr.length, picked);
+          if (!fits.ok) {
+            // The stand-in is what the node fails on.
+            markStandIn();
+            throw new ExprError(n.id, fits.message);
+          }
+          itemMocks = fits.outputs;
+        }
         const outs: unknown[] = [];
         for (const [index, item] of arr.entries()) {
-          outs.push(await runWithRepeat({ item, index }, false));
+          if (picked !== undefined && index !== picked) continue;
+          const itemStop = outs.length === 0 ? undefined : stopCause();
+          if (itemStop !== undefined) throw new RunStopped(itemStop);
+          const itemKey: UnitKey = { path, item: index, pass: -1 };
+          rec.unitStarted(itemKey, { nodeId: n.id, nodeType: n.type });
+          openUnits.push(itemKey);
+          const out = await runWithRepeat({ item, index }, false, itemKey);
+          openUnits.pop();
+          rec.unitFinished(itemKey, { status: 'ok', output: out });
+          outs.push(out);
         }
-        output = outs;
+        output = picked !== undefined ? outs[0] : outs;
       } else {
-        output = await runWithRepeat({}, true);
+        output = await runWithRepeat({}, true, nodeKey);
       }
 
       entry.output = output;
       nodeOutputs[n.id] = { output };
       finish();
+      rec.unitFinished(nodeKey, { status: 'ok', output });
     } catch (e) {
+      if (e instanceof RunStopped) {
+        finish();
+        return stopped(e.by, ordered.slice(position + 1), entry);
+      }
       const message = e instanceof Error ? e.message : String(e);
       entry.status = 'error';
       entry.error = message;
       finish();
-      if (n.onError === 'continue') {
-        entry.note = 'onError: continue — dependents are skipped';
-        skipped.add(n.id);
-        nodeOutputs[n.id] = { output: null };
-        continue;
-      }
-      for (const rest of ordered.slice(ordered.indexOf(n) + 1)) {
-        trace.push({ node: rest.id, type: rest.type, status: 'not_run' });
-      }
       const hint = /is not defined/.test(message)
         ? 'in templates and code, only `input` and `nodes.<id>.output` are available'
         : /Cannot read propert/.test(message)
           ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
           : undefined;
-      return fail({ nodeId: n.id, message, ...(hint && { hint }) });
+      const cause = failureCauseOf(e);
+      const failure = classifyStepFailure(e, {
+        code: reasonFamily(cause?.reason ?? 'UNKNOWN', cause?.params),
+        message,
+        ...(hint !== undefined && { hint }),
+        pointer,
+      });
+      // The item or pass it was on failed with it.
+      for (const unit of openUnits.slice(1).toReversed()) {
+        rec.unitFinished(unit, { status: 'failed', failure });
+      }
+      if (n.onError === 'continue') {
+        entry.note = 'onError: continue — dependents are skipped';
+        skipped.add(n.id);
+        nodeOutputs[n.id] = { output: null };
+        rec.decision(nodeKey, { kind: 'onError', policy: 'continue' });
+        rec.unitFinished(nodeKey, {
+          status: 'skipped',
+          skip: { reason: 'error' },
+          failure,
+        });
+        continue;
+      }
+      rec.unitFinished(nodeKey, { status: 'failed', failure });
+      for (const rest of ordered.slice(position + 1)) {
+        trace.push(notRun(rest));
+      }
+      return fail({ nodeId: n.id, message, ...(hint && { hint }), failure });
     }
   }
 
+  if (focus !== undefined) {
+    // A step test's run answers its node's output; the document output is
+    // not evaluated, so it has no record either.
+    return withRecord({
+      status: 'success',
+      output: nodeOutputs[focus.node]?.output ?? null,
+      trace,
+      effects,
+    });
+  }
+
+  const endKey: UnitKey = { path: END_PATH, item: -1, pass: -1 };
+  if (outermost) {
+    rec.unitStarted(endKey, { nodeId: END_PATH, nodeType: 'output' });
+  }
   try {
     const output =
       doc.output !== undefined
         ? await evalTemplates(
             cloneData(doc.output),
             makeScope(input, nodeOutputs),
+            '/output',
           )
         : null;
-    return { status: 'success', output, trace, effects };
+    if (outermost) rec.unitFinished(endKey, { status: 'ok', output });
+    return withRecord({ status: 'success', output, trace, effects });
   } catch (e) {
-    return fail({
-      message: `failed to evaluate automation "output": ${e instanceof Error ? e.message : String(e)}`,
+    const message = `failed to evaluate automation "output": ${e instanceof Error ? e.message : String(e)}`;
+    if (outermost && rec.enabled) {
+      await explainFailure(e, makeScope(input, nodeOutputs));
+    }
+    const failure = classifyStepFailure(e, {
+      code: 'node_error',
+      message,
+      pointer: '/output',
     });
+    if (outermost) rec.unitFinished(endKey, { status: 'failed', failure });
+    return fail({ message, failure });
   }
 }

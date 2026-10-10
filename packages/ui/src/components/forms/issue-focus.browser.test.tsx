@@ -260,6 +260,27 @@ describe('useRequestIssueFocus', () => {
     expect(focus).toHaveBeenCalledWith([1, 2]);
   });
 
+  // A code editor showing JSON finds the key inside its value itself: a
+  // request for a part of its anchor reaches it with the rest of the path
+  // and the range, which is offsets into that part.
+  it('hands a custom target the part a deeper request names', () => {
+    const focus = vi.fn();
+    function Custom() {
+      useIssueFocusTarget('/nodes/0/input', { focus });
+      return null;
+    }
+    render(
+      <Surface>
+        <Custom />
+      </Surface>,
+    );
+    act(() => request('/nodes/0/input/to/name', [2, 5]));
+    expect(focus).toHaveBeenCalledWith(undefined, {
+      rest: '/to/name',
+      range: [2, 5],
+    });
+  });
+
   it('forgets a target that unmounted', () => {
     function Toggle() {
       const [shown, setShown] = useState(true);

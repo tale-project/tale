@@ -1,5 +1,6 @@
 'use client';
 
+import { valueHash } from '@tale/ui/data/hash';
 import { useDebounce } from '@tale/ui/use-debounce';
 import {
   keepPreviousData,
@@ -9,12 +10,18 @@ import {
 import { useCallback, useMemo, useRef } from 'react';
 
 import { runAdapted } from '@/app/lib/backend/adapters';
-import { validateAutomationDraft } from '@/app/lib/backend/automation-validation';
+import {
+  validateAutomationDraft,
+  type DraftCheck,
+  type ValidationDetail,
+} from '@/app/lib/backend/automation-validation';
 import { backendKey } from '@/app/lib/backend/query-keys';
-import type { Automation } from '@/lib/engine/core/types';
-import type { ValidationAnswer } from '@/lib/shared/schemas/automation-issues';
-import { stableStringify } from '@/lib/shared/utils/stable-stringify';
+import type {
+  AnalysisView,
+  TypesView,
+} from '@/lib/shared/schemas/automation-issues';
 
+import type { RawDocument } from '../lib/draft-document';
 import { withIssueIds, type AutomationIssue } from '../lib/issues';
 
 /** How long the editor waits after the last edit before it checks a draft. */
@@ -89,28 +96,11 @@ export function useInvalidateAutomationValidation(
   }, [client, organizationId, automationSlug]);
 }
 
-/**
- * cyrb53: a fast 53-bit string hash. It names a document in a query key and
- * says which document a shown result belongs to — not a security boundary.
- */
-function cyrb53(text: string): string {
-  let h1 = 0xdeadbeef;
-  let h2 = 0x41c6ce57;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    h1 = Math.imul(h1 ^ code, 2654435761);
-    h2 = Math.imul(h2 ^ code, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
-  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
-  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
-}
-
-/** The same document hashes the same, whatever order its keys were written in. */
-export function documentHash(document: Automation): string {
-  return cyrb53(stableStringify(document));
+/** The same document hashes the same, whatever order its keys were written
+ * in. It names a document in a query key and says which document a shown
+ * result belongs to. */
+export function documentHash(document: RawDocument): string {
+  return valueHash(document);
 }
 
 export type AutomationValidationStatus =
@@ -133,16 +123,30 @@ export interface AutomationValidation {
   warnings: AutomationIssue[];
   /** Hash of the document the shown result belongs to. */
   settledFor: string | null;
+  /** The document the shown result belongs to: the text an issue's range
+   * indexes into, while the one on screen may have moved on. */
+  settledDocument: RawDocument | null;
   /** Hash of the document on screen. */
   currentHash: string | null;
   /** Why the last check failed, when it did. */
   failure?: unknown;
+  /** The last result's analysis: why each node can fail, what the result
+   * may leave empty — of the document on screen when `ready`. */
+  analysis: AnalysisView | null;
+  /** The last result's inferred shapes: the run input, each node's output,
+   * the result. */
+  types: TypesView | null;
 }
 
 interface Settled {
   hash: string;
-  answer: ValidationAnswer;
+  answer: DraftCheck;
+  document: RawDocument;
 }
+
+/** What every check asks for beside the issues: the canvas words why a
+ * node can fail and shows what each node returns. */
+const DETAIL: readonly ValidationDetail[] = ['analysis', 'types'];
 
 const NO_ISSUES: AutomationIssue[] = [];
 
@@ -167,8 +171,9 @@ export function useAutomationValidation({
 }: {
   organizationId: string;
   automationSlug: string;
-  /** The draft, or the stored version on screen. */
-  document: Automation | null;
+  /** The draft, or the stored version on screen — raw, every key kept, as
+   * a save would send it. */
+  document: RawDocument | null;
   /** A draft waits for a pause in the edits; a stored version does not. */
   isDraft: boolean;
   /** Only authors may have a document checked (the route is author-gated). */
@@ -197,6 +202,7 @@ export function useAutomationValidation({
         runAdapted(() =>
           validateAutomationDraft(organizationId, automationSlug, target, {
             signal: bounded,
+            detail: DETAIL,
           }),
         ),
       ),
@@ -212,11 +218,16 @@ export function useAutomationValidation({
   if (
     query.data !== undefined &&
     !query.isPlaceholderData &&
+    target !== null &&
     targetHash !== null &&
     (settledRef.current?.hash !== targetHash ||
       settledRef.current.answer !== query.data)
   ) {
-    settledRef.current = { hash: targetHash, answer: query.data };
+    settledRef.current = {
+      hash: targetHash,
+      answer: query.data,
+      document: target,
+    };
   }
   const settled = enabled ? settledRef.current : null;
 
@@ -242,7 +253,10 @@ export function useAutomationValidation({
     errors,
     warnings,
     settledFor: settled?.hash ?? null,
+    settledDocument: settled?.document ?? null,
     currentHash,
     ...(status === 'failed' && { failure: query.error }),
+    analysis: settled?.answer.analysis ?? null,
+    types: settled?.answer.types ?? null,
   };
 }

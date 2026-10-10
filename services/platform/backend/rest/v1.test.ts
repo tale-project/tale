@@ -1,11 +1,13 @@
 // @vitest-environment node
 
-import type { Context } from 'hono';
+import { Hono, type Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../auth/auth.ts';
+import { createAuditLog } from '../domains/audit_logs/service.ts';
+import { runInRequestChannel } from '../lib/request-channel.ts';
 import type { RestEnv } from './shared.ts';
 import { createRestV1Routes } from './v1.ts';
 
@@ -872,6 +874,179 @@ describe('/api/v1 door — an unavailable database', () => {
       warn.mockRestore();
       errors.mockRestore();
     }
+  });
+});
+
+/** F-B-32: exercise the verified door AND the persisted-row writer, not a
+ * mock of either attribution boundary. The transaction only stands in for
+ * the chain head and captures the INSERT values. */
+describe('/api/v1 door — key-made audit rows [AUDIT-R7]', () => {
+  function auditTransaction() {
+    const inserts: unknown[][] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FOR UPDATE')) {
+        return Promise.resolve([{ lastHash: '', lastTs: 0 }]);
+      }
+      if (text.includes('INSERT INTO app.audit_logs')) {
+        inserts.push(values);
+        return Promise.resolve([{ id: 'audit-1' }]);
+      }
+      return Promise.resolve([]);
+    };
+    tag.json = (value: unknown) => value;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recording transaction double
+    return { tx: tag as unknown as TransactionSql, inserts };
+  }
+
+  function auditDoor(sql: Sql, auth: Auth, tx: TransactionSql) {
+    const app = createRestV1Routes({ sql, auth });
+    app.post('/audit-probe', async (ctx) => {
+      for (const status of ['success', 'failure', 'denied'] as const) {
+        await createAuditLog(tx, {
+          organizationId: ctx.get('organizationId'),
+          actorId: ctx.get('userId'),
+          actorEmail: ctx.get('userEmail'),
+          actorRole: ctx.get('role'),
+          actorType: 'user',
+          action: 'skill.updated',
+          category: 'skill',
+          resourceType: 'skill',
+          resourceId: 'sample',
+          status,
+          metadata: { etag: 'tag-1', apiKeyId: 'spoof' },
+        });
+      }
+      return ctx.json({ subject: ctx.get('userId'), role: ctx.get('role') });
+    });
+    return app;
+  }
+
+  it('records the admin maker and verified key, keeping the member as subject on every status', async () => {
+    const { sql } = fakeSql(new Set(), {
+      keyOwners: {
+        'key-1': {
+          apiKeyId: 'key-1',
+          organizationId: 'org-1',
+          kind: 'member',
+          keyUserId: 'user-1',
+          principalUserId: 'mia',
+          teamId: null,
+          projectId: null,
+          role: null,
+          name: 'Member key',
+          createdBy: 'admin-1',
+          createdAt: '1',
+          revokedAt: null,
+          revokedBy: null,
+        },
+      },
+      roles: { 'admin-1': 'admin' },
+    });
+    const { auth } = fakeAuth();
+    const { tx, inserts } = auditTransaction();
+    const response = await runInRequestChannel(
+      {
+        via: 'mcp',
+        tool: 'audit-probe',
+        apiKeyId: 'key-1',
+        requestId: 'req-channel',
+      },
+      async () =>
+        auditDoor(sql, auth, tx).request('http://localhost/audit-probe', {
+          method: 'POST',
+          ...bearer(GOOD_KEY),
+        }),
+    );
+    expect(response.status).toBe(200);
+    // Audit attribution must never lend the admin's authority to the write.
+    expect(await response.json()).toEqual({ subject: 'mia', role: 'member' });
+    expect(inserts).toHaveLength(3);
+    for (const values of inserts) {
+      expect(values.slice(0, 6)).toEqual([
+        'org-1',
+        'admin-1',
+        null,
+        null,
+        null,
+        'api',
+      ]);
+      expect(values[22]).toEqual({
+        via: 'mcp',
+        tool: 'audit-probe',
+        etag: 'tag-1',
+        apiKeyId: 'key-1',
+        keyAttribution: {
+          makerUserId: 'admin-1',
+          subjectUserId: 'mia',
+          eventActorId: 'mia',
+        },
+      });
+      expect(values).toContain('req-channel');
+      expect(JSON.stringify(values)).not.toContain(GOOD_KEY);
+    }
+    expect(inserts.map((values) => values[20])).toEqual([
+      'success',
+      'failure',
+      'denied',
+    ]);
+  });
+
+  it('retains the actual key id for a member’s own key, whose maker is also its subject', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const { tx, inserts } = auditTransaction();
+    const response = await auditDoor(sql, auth, tx).request(
+      'http://localhost/audit-probe',
+      { method: 'POST', ...bearer(GOOD_KEY) },
+    );
+    expect(response.status).toBe(200);
+    expect(inserts[0]?.slice(0, 6)).toEqual([
+      'org-1',
+      'user-1',
+      null,
+      null,
+      null,
+      'api',
+    ]);
+    expect(inserts[0]?.[22]).toMatchObject({
+      apiKeyId: 'key-1',
+      keyAttribution: {
+        makerUserId: 'user-1',
+        subjectUserId: 'user-1',
+      },
+    });
+  });
+
+  it('keeps a non-key session write’s actor and metadata intact', async () => {
+    const { tx, inserts } = auditTransaction();
+    const app = new Hono();
+    app.post('/session-write', async (ctx) => {
+      await createAuditLog(tx, {
+        organizationId: 'org-1',
+        actorId: 'mia',
+        actorEmail: 'mia@example.com',
+        actorRole: 'member',
+        actorType: 'user',
+        action: 'skill.updated',
+        category: 'skill',
+        resourceType: 'skill',
+        status: 'success',
+        metadata: { via: 'app' },
+      });
+      return ctx.body(null, 204);
+    });
+    const response = await app.request('/session-write', { method: 'POST' });
+    expect(response.status).toBe(204);
+    expect(inserts[0]?.slice(0, 6)).toEqual([
+      'org-1',
+      'mia',
+      'mia@example.com',
+      null,
+      'member',
+      'user',
+    ]);
+    expect(inserts[0]?.[22]).toEqual({ via: 'app' });
   });
 });
 

@@ -1,3 +1,4 @@
+import type { PlatformResource } from '@tale/shared/config/platform-resources';
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
   managedPlatformResourceSchema,
@@ -8,7 +9,6 @@ import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
 import type { PlatformConfigurationClient } from './platform-client';
-import type { PlatformResource } from './platform-model';
 import { valueHash } from './releases/identity';
 
 export function isManagedResource(
