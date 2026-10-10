@@ -84,17 +84,35 @@ const isPresent = (locator: Locator): Promise<boolean> =>
     .isVisible()
     .catch(() => false);
 
+/** A table's body rows: every row but the one of column headers. */
+const bodyRows = (page: Page): Locator =>
+  page.getByRole('row').filter({ hasNot: page.getByRole('columnheader') });
+
 /**
- * A table's data rows once they have arrived: rows of cells with text. A
- * loading table paints skeleton rows (rows of empty cells) before its query
- * answers, and reading one as "the rows are in" made a check-then-create file
- * a duplicate.
+ * Words in a row: a letter or a digit. A loading table paints skeleton rows
+ * whose cells hold only zero-width spaces, which `\S` counts as text.
+ */
+const ROW_WORDS = /[\p{L}\p{N}]/u;
+
+/**
+ * A table's data rows once they have arrived: body rows with words. Reading
+ * a skeleton row as "the rows are in" made a check-then-create file a
+ * duplicate.
  */
 const dataRows = (page: Page): Locator =>
-  page
-    .getByRole('row')
-    .filter({ has: page.getByRole('cell') })
-    .filter({ hasText: /\S/ });
+  bodyRows(page).filter({ hasText: ROW_WORDS });
+
+/**
+ * Wait until no skeleton row is left: the first filled row does not mean
+ * the others are in, and a check for one of them in that window files it
+ * again.
+ */
+async function settleSkeletonRows(page: Page): Promise<void> {
+  await expect(bodyRows(page).filter({ hasNotText: ROW_WORDS })).toHaveCount(
+    0,
+    { timeout: TIMEOUT.VISIBLE },
+  );
+}
 
 /**
  * Block until a list page's rows have actually resolved.
@@ -810,6 +828,7 @@ async function ensureProducts(
   // The hero flashes while the query is in flight — grant it one window, or a
   // reseed files duplicates the create dialog then refuses to close on.
   if (await isPresent(productsEmpty)) await page.waitForTimeout(750);
+  await settleSkeletonRows(page);
   for (const product of products) {
     if (
       await isPresent(page.getByRole('row').filter({ hasText: product.name }))
@@ -1050,6 +1069,7 @@ async function ensureHttpCredential(page: Page, orgId: string): Promise<void> {
     dataRows(page),
     t('emptyStates.connectors.title'),
   );
+  await settleSkeletonRows(page);
   const existing = page
     .getByRole('row')
     .filter({ hasText: DEMO_HTTP.credential });
@@ -1967,23 +1987,25 @@ async function ensureAutomationFailedRun(
     exact: true,
   });
   // Test run starts nothing until the editor has read the stored version,
-  // so click until the start request leaves.
+  // so click until a start is accepted. The answer, not the request: a
+  // refused start begins no run, and waiting on the request alone left the
+  // step watching the runs page for a failed run that never came.
   await expect(async () => {
     const started = page
-      .waitForRequest(
-        (request) =>
-          request.method() === 'POST' &&
-          request
+      .waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          response
             .url()
             .includes(`/automations/${DEMO_FAILED_RUN.automation}/start`),
         { timeout: 3_000 },
       )
       .then(
-        () => true,
-        () => false,
+        (response) => response.status(),
+        () => null,
       );
     await testRun.click();
-    expect(await started).toBe(true);
+    expect(await started).toBe(201);
   }).toPass({ timeout: TIMEOUT.PERSIST });
 
   const failed = page.getByText(t('automations.runs.status.failed'), {
