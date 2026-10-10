@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
   chmodSync,
+  cpSync,
   linkSync,
   mkdirSync,
   readFileSync,
@@ -218,6 +219,35 @@ testPosix(
     ]);
     expect(JSON.stringify(observed)).not.toContain('synthetic-password');
     expect(JSON.stringify(observed)).not.toContain('synthetic-session');
+  },
+);
+
+testPosix(
+  'uses a retained deployment reference to disambiguate duplicate stages',
+  async () => {
+    const f = await retained();
+    const deploymentRef = 'd'.repeat(40);
+    const duplicate = join(f.stateDirectory, 'compiled', 'duplicate');
+    cpSync(f.stageDirectory, duplicate, { recursive: true });
+    chmodSync(join(duplicate, 'deployment.json'), 0o600);
+    writeFileSync(
+      join(duplicate, 'deployment.json'),
+      JSON.stringify({
+        ...JSON.parse(readFileSync(join(duplicate, 'deployment.json'), 'utf8')),
+        deploymentRef,
+      }),
+    );
+    const receipt = { ...f.receipt, deployment: { deploymentRef } };
+    writeFileSync(f.receiptFile, JSON.stringify(receipt), { mode: 0o600 });
+    const observed = await observeNativeDeployment(f.input, {
+      dataDirectory: f.dataDirectory,
+      fetch: f.fetcher,
+    });
+    expect(observed.status).toBe('observed');
+    expect(readdirSync(join(f.stateDirectory, 'compiled'))).toEqual([
+      'duplicate',
+      'retained',
+    ]);
   },
 );
 
