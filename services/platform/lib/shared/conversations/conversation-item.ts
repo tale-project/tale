@@ -18,6 +18,7 @@ import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 
 import { getConversationMessageSortTime } from './message-order';
 import { cleanMessagePreview } from './message-preview';
+import { UNKNOWN_CONTACT_EMAIL } from './reply-recipient';
 
 const LAST_MESSAGE_PREVIEW_MAX_CHARS = 200;
 
@@ -192,7 +193,7 @@ export function projectConversationItem(args: {
   const metadata = isRecord(conversation.metadata) ? conversation.metadata : {};
   const messages = args.messages.map(projectConversationMessage);
   const missingEmail =
-    conversation.channel === 'api' ? '' : 'unknown@example.com';
+    conversation.channel === 'api' ? '' : UNKNOWN_CONTACT_EMAIL;
   // A missing name stays undefined so the client renders its localized
   // fallback instead of a hardcoded English string.
   const contact =

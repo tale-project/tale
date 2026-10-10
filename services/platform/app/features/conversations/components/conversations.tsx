@@ -490,6 +490,7 @@ export function Conversations({
         <BulkSendDialog
           selectedCount={selectedCount}
           isSending={bulkSendDialog.isSending}
+          refused={bulkSendDialog.refused}
           onConfirm={handleSendMessages}
           onCancel={closeBulkSendDialog}
         />

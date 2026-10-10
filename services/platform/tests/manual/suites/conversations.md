@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 63 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 64 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -576,6 +576,23 @@ subject.
   first pass (Gmail/Outlook learn it from the account; IMAP from the login).
   Reply from the mail client itself and sync again → that reply, when it is
   in the thread, is **outbound** (right), never a new customer message.
+- [ ] `CONV-F39` · **Bulk Send reaches every lane and keeps what it could not
+  send** — In an isolated organization with one conversation mirrored over the
+  REST API whose contact has no email address (as in CONV-F11) and two email
+  conversations, make the second email conversation's send fail (for example,
+  stop its mailbox's SMTP host). Tick all three, **Send messages**
+  (`conversations.bulk.sendMessages`), type `Use <price> & A&B`, a line break
+  and `Thanks`, then **Send** (`conversations.bulkSend.send`) → One toast says
+  two were sent and one failed, with the reason
+  (`conversations.bulk.outcomeWithReason`); the dialog stays open with the
+  text as typed, names the failed conversation and why
+  (`conversations.bulkSend.refused`, `conversations.bulkSend.refusedEntry`),
+  its title counts one, focus is in **Message**, and only that conversation is
+  still ticked behind it. While a send runs, Escape and **Cancel** do nothing.
+  Unblock the host and **Send** again → Only that conversation gets the
+  message; each customer and the API source receive it once, the source with
+  the literal text and its line break; the dialog closes and the selection
+  clears
 
 ## Boundary & error tests
 

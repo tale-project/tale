@@ -539,6 +539,7 @@ export function HomeInboxList({
         <BulkSendDialog
           selectedCount={selection.selectedCount}
           isSending={bulk.bulkSendDialog.isSending}
+          refused={bulk.bulkSendDialog.refused}
           onConfirm={bulk.handleSendMessages}
           onCancel={bulk.closeBulkSendDialog}
         />
