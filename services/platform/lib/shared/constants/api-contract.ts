@@ -625,6 +625,11 @@
  * `StepFailure.reason` gains the HTTP connector's causes: `HTTP_STATUS`,
  * `HTTP_TIMEOUT`, `HTTP_UNREACHABLE`, `HTTP_BLOCKED_HOST`, `HTTP_OFF_ORIGIN`,
  * `HTTP_URL_INVALID`, `HTTP_HEADER_RESERVED`, `HTTP_TOO_LARGE`,
- * `HTTP_NOT_JSON` and `HTTP_RATE_LIMITED`.
+ * `HTTP_NOT_JSON` and `HTTP_RATE_LIMITED`. Validation answers four more
+ * codes: `HTTP_URL_NOT_HTTPS` (a warning), `HTTP_SECRET_IN_URL` and
+ * `HTTP_HEADER_RESERVED` (errors) for an HTTP step's written-out address and
+ * headers, and `CREDENTIAL_UNKNOWN` (a warning) for a connector step that
+ * names a credential its connector does not hold in service. The rate-limit
+ * catalog gains `automation:http`, 120 calls a minute per organization.
  */
 export const API_CONTRACT_VERSION = '3.31.0';
