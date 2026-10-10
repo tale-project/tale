@@ -708,7 +708,7 @@ Ein Lauf, den ein Trigger gestartet hat (`startedBy: "trigger:<id>"`), trägt au
 
 | Fehlergruppe | Beispiele und nächster Schritt |
 | --- | --- |
-| Automatisierung | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt`: Prüfe den betroffenen Knoten und die Ablaufspur. Korrigiere Eingabe oder Definition. Wurde eine Aktion abgelehnt, kläre den Grund vor einem neuen Lauf. |
+| Automatisierung | `node_error`, `connector_error`, `connector_unavailable`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt`: Prüfe den betroffenen Knoten und die Ablaufspur. Korrigiere Eingabe oder Definition. Wurde eine Aktion abgelehnt, kläre den Grund vor einem neuen Lauf. |
 | Modellanbieter | Etwa `credit_exhausted` oder `rate_limited`: Behebe die Ursache beim Anbieter vor dem nächsten Versuch. |
 | Agentenausführung | Etwa `harness_error`, `session_gone` oder `deadline`: Prüfe die Fehlerbeschreibung und Grenzen des Agenten. Die vollständige Auswahl steht in OpenAPI. |
 | Budgetlimit | `budget_exceeded`: Ein Budgetlimit hat einen Zug eines Agenten oder den Aufruf eines `llm`-Schritts abgelehnt, oder ein Zug hat den Rahmen aufgebraucht, mit dem er gestartet ist. Lies `detail`, und warte dann, bis das Limit zurückgesetzt wird, oder bitte einen Administrator, es zu erhöhen. |
