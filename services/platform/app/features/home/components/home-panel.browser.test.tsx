@@ -1,4 +1,6 @@
 import '@testing-library/jest-dom/vitest';
+import { AccentColorProvider } from '@tale/ui/accent-color';
+import axe from 'axe-core';
 import { useState, type AnchorHTMLAttributes, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -1068,6 +1070,275 @@ describe('a long PROJECTS list in Chromium', () => {
     ).toBeInTheDocument();
   });
 });
+
+/**
+ * Task rows use the shared age class and keep their ages visible on hover
+ * (chat actions replace ages on desktop). The active fill is a sibling
+ * SlidingHighlight, not a row ancestor.
+ */
+describe.each(['light', 'dark'] as const)(
+  'rendered Home row ages (%s)',
+  (theme) => {
+    it.each([
+      [1280, undefined],
+      [1280, '#000000'],
+      [1280, '#056CFF'],
+      [390, undefined],
+      [390, '#000000'],
+      [390, '#056CFF'],
+    ] as const)(
+      'clears AA and axe for visible row ages at %ipx (accent %s)',
+      async (width, accent) => {
+        await resizeViewport(width, 800);
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        const palette = accent ? deriveAccentPalette(accent, theme) : undefined;
+        const now = Date.now();
+        backend.home = {
+          ...homeData([], []),
+          items: Array.from({ length: 3 }, (_, index): HomeItem => ({
+            kind: 'task',
+            id: `task-${index}`,
+            title: `Task ${index + 1}`,
+            activityAt: now - index * 60_000,
+            unread: false,
+            status: 'in_progress',
+            awaitingMyReview: false,
+          })),
+        } satisfies HomeData;
+        backend.location = {
+          pathname: `/dashboard/${ORG}/tasks/task-0`,
+          search: {},
+        };
+        localStorage.setItem(`home-view-${ORG}`, JSON.stringify('tasks'));
+        const { container } = render(
+          <AccentColorProvider accentColor={palette?.text}>
+            <div className="bg-background flex h-160" style={{ width: 280 }}>
+              {width >= 768 ? (
+                <HomePanelProvider organizationId={ORG}>
+                  <HomePanel organizationId={ORG} />
+                </HomePanelProvider>
+              ) : (
+                <HomeNavigator organizationId={ORG} variant="screen" />
+              )}
+            </div>
+          </AccentColorProvider>,
+        );
+        const current = screen.getByRole('link', { name: /Task 1/ });
+        const idle = screen.getByRole('link', { name: /Task 2/ });
+        expect(current).toHaveAttribute('aria-current', 'page');
+        expect(idle).not.toHaveAttribute('aria-current');
+        const scroller = streamRows();
+        const highlight = scroller.querySelector(
+          ':scope > span[aria-hidden="true"]',
+        );
+        if (!(highlight instanceof HTMLElement))
+          throw new Error('No Home highlight');
+        const highlightElement: HTMLElement = highlight;
+
+        function ageOf(row: HTMLElement) {
+          const age = row.querySelector('span.tabular-nums');
+          if (!(age instanceof HTMLElement)) throw new Error('No Home row age');
+          expect(age.textContent).not.toBe('');
+          return age;
+        }
+
+        function statusOf(row: HTMLElement) {
+          const status = within(row).getByText('In progress');
+          expect(status).toHaveClass('truncate');
+          return status;
+        }
+
+        function measuredContrast(
+          row: HTMLElement,
+          highlighted: boolean,
+          text: HTMLElement = ageOf(row),
+        ) {
+          const age = text;
+          const layers: Element[] = [];
+          for (
+            let node: Element | null = age;
+            node;
+            node = node.parentElement
+          ) {
+            layers.push(node);
+          }
+          let background = '#ffffff';
+          for (const node of layers.reverse()) {
+            background = painted(
+              getComputedStyle(node).backgroundColor,
+              background,
+            );
+            if (highlighted && node === scroller) {
+              const style = getComputedStyle(highlightElement);
+              background = painted(
+                style.backgroundColor,
+                background,
+                Number(style.opacity),
+              );
+            }
+          }
+          const style = getComputedStyle(age);
+          expect(style.opacity).toBe('1');
+          expect(box(age).width).toBeGreaterThan(0);
+          expect(box(age).height).toBeGreaterThan(0);
+          const ratio = contrastRatio(
+            painted(style.color, background, Number(style.opacity)),
+            background,
+          );
+          console.info(
+            'TALE-452 rendered contrast',
+            JSON.stringify({
+              theme,
+              width,
+              accent: accent ?? null,
+              state: highlighted
+                ? 'highlighted'
+                : row.matches(':hover')
+                  ? 'hovered'
+                  : 'idle',
+              text: text.textContent,
+              foreground: style.color,
+              background,
+              opacity: style.opacity,
+              ratio,
+            }),
+          );
+          return ratio;
+        }
+
+        async function assertPanel() {
+          // Wait for the real highlight to settle underneath the current age.
+          await expect
+            .poll(() => {
+              const fill = box(highlightElement);
+              const age = box(ageOf(current));
+              return (
+                fill.left <= age.left &&
+                fill.right >= age.right &&
+                fill.top <= age.top &&
+                fill.bottom >= age.bottom &&
+                getComputedStyle(highlightElement).opacity === '1'
+              );
+            })
+            .toBe(true);
+          expect(measuredContrast(idle, false)).toBeGreaterThanOrEqual(4.5);
+          expect(measuredContrast(current, true)).toBeGreaterThanOrEqual(4.5);
+          expect(
+            measuredContrast(idle, false, statusOf(idle)),
+          ).toBeGreaterThanOrEqual(4.5);
+          expect(
+            measuredContrast(current, true, statusOf(current)),
+          ).toBeGreaterThanOrEqual(4.5);
+          // Whole neutral Home panel; additional branded coverage targets
+          // ages, the repaired ink contract, rather than unrelated labels.
+          const ageNodes = [ageOf(idle), ageOf(current)];
+          const checkedNodes = [...ageNodes, statusOf(idle), statusOf(current)];
+          const result = await axe.run(palette ? checkedNodes : container, {
+            runOnly: ['color-contrast'],
+            elementRef: true,
+          });
+          const plainCheck = (check: axe.CheckResult) => ({
+            id: check.id,
+            impact: check.impact,
+            message: check.message,
+            data: check.data,
+            relatedNodes: check.relatedNodes?.map(
+              (related: axe.RelatedNode) => ({
+                html: related.html,
+                target: related.target,
+              }),
+            ),
+          });
+          const plainNode = (node: axe.NodeResult) => ({
+            any: node.any?.map(plainCheck),
+            all: node.all?.map(plainCheck),
+            none: node.none?.map(plainCheck),
+            html: node.html,
+            impact: node.impact,
+            target: node.target,
+            failureSummary: node.failureSummary,
+          });
+          const plainRule = (rule: axe.Result) => ({
+            id: rule.id,
+            impact: rule.impact,
+            help: rule.help,
+            helpUrl: rule.helpUrl,
+            description: rule.description,
+            tags: rule.tags,
+            nodes: rule.nodes?.map(plainNode),
+          });
+          console.info(
+            'TALE-452 axe',
+            JSON.stringify({
+              theme,
+              width,
+              accent: accent ?? null,
+              hovered: idle.matches(':hover'),
+              scope: palette ? 'row ages and status' : 'whole Home panel',
+              violations: result.violations.map(plainRule),
+              agePasses: result.passes
+                .flatMap((rule) => rule.nodes)
+                .filter((node) => ageNodes.includes(node.element!))
+                .map(plainNode),
+            }),
+          );
+          expect(result.violations).toEqual([]);
+          expect(
+            result.passes.some((rule) => rule.id === 'color-contrast'),
+          ).toBe(true);
+          // A visible age must be evaluated, not deferred to manual inspection.
+          for (const age of checkedNodes) {
+            expect(
+              result.passes
+                .flatMap((rule) => rule.nodes)
+                .some((node) => node.element === age),
+            ).toBe(true);
+          }
+        }
+
+        await page
+          .elementLocator(screen.getByPlaceholderText(/Search/i))
+          .hover();
+        await assertPanel();
+        await page.elementLocator(idle).hover();
+        await expect.poll(() => idle.matches(':hover')).toBe(true);
+        // Wait for the hover fill transition before measuring it.
+        await expect
+          .poll(() => getComputedStyle(idle).backgroundColor)
+          .not.toBe('rgba(0, 0, 0, 0)');
+        await expect.poll(() => idle.getAnimations().length).toBe(0);
+        await assertPanel();
+
+        if (theme === 'light' && !palette) {
+          // Negative control: the pre-#4171 age class on the same real DOM
+          // must fail both the measured AA floor and axe. Restore in finally.
+          const age = ageOf(idle);
+          const repairedClass = age.className;
+          try {
+            age.className =
+              'text-muted-foreground/80 shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150';
+            expect(measuredContrast(idle, false)).toBeLessThan(4.5);
+            const old = await axe.run(age, {
+              runOnly: ['color-contrast'],
+              elementRef: true,
+            });
+            expect(
+              old.violations.some(
+                (rule) =>
+                  rule.id === 'color-contrast' &&
+                  rule.nodes.some((node) => node.element === age),
+              ),
+            ).toBe(true);
+          } finally {
+            age.className = repairedClass;
+          }
+          await assertPanel();
+        }
+      },
+      15_000,
+    );
+  },
+);
 
 describe('desktop Home panel resizing', () => {
   function mountPanel() {

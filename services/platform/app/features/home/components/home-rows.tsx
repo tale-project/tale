@@ -169,7 +169,7 @@ function RowText({
           </span>
         )}
       </span>
-      <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs leading-4">
+      <span className="text-muted-foreground [[aria-current=page]_&]:text-foreground flex min-w-0 items-center gap-1.5 text-xs leading-4">
         {draft && (
           <span className="flex shrink-0 items-center gap-1 font-medium text-amber-600 dark:text-amber-500">
             <PencilLine aria-hidden className="size-3" />
