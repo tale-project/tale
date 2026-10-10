@@ -15,6 +15,7 @@ import { ConfigurationError } from '../../core/lib/config_store/precondition.ts'
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   autoSubscribe,
@@ -474,10 +475,23 @@ async function mintTaskReview(
  * where an actionable request would point at a card nobody can act on
  * until it is restored.
  */
+type RetargetTask = Pick<
+  TaskRow,
+  | 'id'
+  | 'organizationId'
+  | 'projectId'
+  | 'title'
+  | 'reviewerUserId'
+  | 'reviewerAgentId'
+  | 'createdBy'
+  | 'createdByType'
+  | 'archivedAt'
+>;
+
 export async function retargetPendingTaskReview(
   tx: TransactionSql,
   args: {
-    task: TaskRow;
+    task: RetargetTask;
     actorUserId?: string;
     excludeUserId?: string;
     silent?: boolean;
@@ -535,6 +549,73 @@ export async function retargetPendingTaskReview(
     });
   }
   return reviewer;
+}
+
+/** Revalidate open human reviews after membership or audience access changes. */
+export async function retargetPendingTaskReviewsForUser(
+  tx: TransactionSql,
+  args: { organizationId: string; userId: string; teamIds?: readonly string[] },
+): Promise<void> {
+  const teamIds = args.teamIds ?? [];
+  const rows = await tx<
+    {
+      id: string;
+      projectId: string;
+      title: string;
+      organizationId: string;
+      reviewerUserId: string | null;
+      reviewerAgentId: string | null;
+      createdBy: string;
+      createdByType: string;
+      archivedAt: number | null;
+    }[]
+  >`
+    SELECT t.id, t.project_id AS "projectId", t.title,
+      t.org_id AS "organizationId", t.reviewer_user_id AS "reviewerUserId",
+      t.reviewer_agent_id AS "reviewerAgentId", t.created_by AS "createdBy",
+      t.created_by_type AS "createdByType",
+      t.archived_at_ms::float8 AS "archivedAt"
+    FROM app.tasks t
+    JOIN app.projects p ON p.id = t.project_id AND p.org_id = t.org_id
+    WHERE t.org_id = ${args.organizationId}
+      AND (${teamIds.length === 0} OR (${tx.unsafe(PROJECT_TEAM_IDS_SQL.replaceAll('team_ids', 'p.team_ids').replaceAll('team_id', 'p.team_id').replaceAll('shared_with_team_ids', 'p.shared_with_team_ids'))} && ${teamIds}))
+      AND (
+        t.reviewer_user_id = ${args.userId}
+        OR EXISTS (
+          SELECT 1 FROM app.approvals a
+          WHERE a.org_id = t.org_id AND a.resource_type = 'task_review'
+            AND a.resource_id = t.id AND a.status = 'pending'
+            AND (
+              a.metadata ->> 'requestedFor' = ${args.userId}
+              OR a.metadata -> 'reviewer' ->> 'userId' = ${args.userId}
+            )
+        )
+      )
+    FOR UPDATE OF t
+  `;
+  // Clear the live designation for every task, including tasks whose review
+  // gate has not opened yet. The pending approval metadata above preserves
+  // creator fallback intent so open reviews can be rerouted below.
+  await tx`
+    UPDATE app.tasks AS t
+    SET reviewer_user_id = NULL, updated_at_ms = ${Date.now()}
+    FROM app.projects AS p
+    WHERE p.id = t.project_id AND p.org_id = t.org_id
+      AND t.org_id = ${args.organizationId} AND t.reviewer_user_id = ${args.userId}
+      AND (${teamIds.length === 0} OR (${tx.unsafe(PROJECT_TEAM_IDS_SQL.replaceAll('team_ids', 'p.team_ids').replaceAll('team_id', 'p.team_id').replaceAll('shared_with_team_ids', 'p.shared_with_team_ids'))} && ${teamIds}))
+  `;
+  for (const row of rows) {
+    await retargetPendingTaskReview(tx, {
+      task: { ...row, reviewerUserId: null },
+      excludeUserId: args.userId,
+      silent: row.archivedAt !== null,
+    });
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: 'task',
+      entityId: row.id,
+    });
+  }
 }
 
 export interface TaskReviewPolicyOutcome {
