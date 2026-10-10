@@ -239,6 +239,10 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   // state — not just pushed via `setValue` — so it is part of the seeded `data`
   // and survives a `useFormEditor` reset triggered by a reactive server update.
   const [revealedClientId, setRevealedClientId] = useState<string | null>(null);
+  // Intent history must survive RHF becoming clean after a save or clearing
+  // back to the baseline. A pending reveal predates either operation.
+  const clientIdEditRevision = useRef(0);
+  const saveRevision = useRef(0);
 
   const connected = !!config?.enabled;
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -480,6 +484,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   // actions below are instant actions and keep their own toasts.
   const save = useCallback(
     async (values: SsoFormData) => {
+      saveRevision.current += 1;
       const provisioning = {
         autoProvisionRole: values.autoRole,
         defaultRole: values.defaultRole,
@@ -612,12 +617,18 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     if (revealedRef.current) return;
     if (!config?.configured || !config.oidc) return;
     revealedRef.current = true;
+    const editAtRequest = clientIdEditRevision.current;
+    const saveAtRequest = saveRevision.current;
     revealClientId
       .mutateAsync({ organizationId })
       .then((value) => {
-        if (value) {
-          // Seed (survives resets) + push to the live field (covers the case
-          // where the form is already dirty, so a reset wouldn't re-apply it).
+        if (
+          value &&
+          clientIdEditRevision.current === editAtRequest &&
+          saveRevision.current === saveAtRequest
+        ) {
+          // Guard the seed as well as the field: changing the seed can reset
+          // the whole form when it is clean, including a just-saved name.
           setRevealedClientId(value);
           setValue('clientId', value, { shouldDirty: false });
         }
@@ -985,7 +996,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                       id="sso-client-id"
                       aria-label={t('enterpriseSso.clientIdLabel')}
                       errorMessage={errors.clientId?.message}
-                      {...register('clientId')}
+                      {...register('clientId', {
+                        onChange: () => {
+                          clientIdEditRevision.current += 1;
+                        },
+                      })}
                       wrapperClassName="w-full"
                     />
                   </SettingsFieldRow>
