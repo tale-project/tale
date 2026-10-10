@@ -16,6 +16,7 @@
  */
 
 import { registerNativeImpl } from '../dispatcher';
+import { httpNatives, type HttpNativeDeps } from './http';
 import {
   imapSmtpNatives,
   nodeMailTransport,
@@ -107,6 +108,9 @@ export interface NativeConnectorDeps {
   readonly mailAttachments: MailAttachmentResolver;
   readonly mailTransport?: MailTransport;
   readonly mailConfig?: MailboxConfigResolver;
+  /** The HTTP connector's lane and outbound client. A host leaves the
+   * budget out only where nothing outside a test calls an API. */
+  readonly http?: HttpNativeDeps;
 }
 
 /** The impl ids the shipped native actions declare — the contract this
@@ -127,6 +131,8 @@ export const NATIVE_IMPL_IDS = [
   'glitchtip.get_import_issue',
   'glitchtip.list_import_issues',
   'glitchtip.refresh_import_issues',
+  'http.get',
+  'http.send',
   'imap-smtp.list_messages',
   'imap-smtp.get_message',
   'imap-smtp.send',
@@ -160,6 +166,7 @@ export function registerNativeConnectors(
 ): () => void {
   const impls = {
     ...issueImportNatives(),
+    ...httpNatives(deps.http ?? {}),
     ...imapSmtpNatives({
       transport: deps.mailTransport ?? nodeMailTransport(),
       resolveAttachment: deps.mailAttachments,
