@@ -17,6 +17,12 @@ nodes:
       query: { status: open }
 ```
 
+<Frame caption="The step in the editor: the credential it signs in with, and its input, a path under the credential's base URL with a query.">
+
+![The Editor tab of Open orders: Start, Orders, Count and End on the canvas, with Orders, an HTTP · Get step, selected. Beside the canvas, its fields show Shop API under Credential, and an Input with the url /orders and the query status open. The toolbar reads No problems.](/images/platform/automation-http-step.webp)
+
+</Frame>
+
 | Input          | What it holds                                                                                                  |
 | -------------- | -------------------------------------------------------------------------------------------------------------- |
 | `url`          | A full `https://` address, or with a credential a path under its base URL, such as `/orders`.                  |
@@ -48,6 +54,12 @@ nodes:
 ## Sign in with a credential
 
 In **Settings › Connectors**, add a credential to **HTTP**. Choose how it signs in: a bearer token, an API key sent in a header, or a user name and password. Enter its **Base URL**, such as `https://api.example.com/v2`; for an API key, **API key header** names the header, `X-Api-Key` by default. Give the credential a name, and name it in the step's `credential` field.
+
+<Frame caption="An HTTP credential with an API key: the name a step picks it by, the key, the base URL every call stays under, and the header the key is sent in.">
+
+![The Add credential dialog for HTTP: Authentication method set to API key, Name Shop API, the API key hidden, Base URL https://api.shop.example/v2, and API key header left empty with X-Api-Key as its placeholder, above Cancel and Add credential.](/images/platform/automation-http-credential.webp)
+
+</Frame>
 
 A credentialed step stays under the base URL. A path is placed under it, a full address must start with it, and a redirect may not leave it. Only the credential signs the request. Wherever an answer would hand back one of the credential's values, Tale replaces it with `[redacted]`, so it never reaches a run's record.
 

@@ -188,6 +188,32 @@
       "height": 1280
     },
     {
+      "file": "images/platform/automation-http-credential.webp",
+      "shot": "automation-http-credential",
+      "route": "/dashboard/:orgId/settings/connectors",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 1368,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-http-step.webp",
+      "shot": "automation-http-step",
+      "route": "/dashboard/:orgId/automations/open-orders/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-run-detail.webp",
       "shot": "automation-run-detail",
       "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
