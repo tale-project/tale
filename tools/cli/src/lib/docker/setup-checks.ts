@@ -66,16 +66,24 @@ const ZSTD_DOCKER_ENGINE_MAJOR = 23;
 
 const engineSchema = z.object({
   Version: z.string().optional(),
+  Platform: z.object({ Name: z.string() }).optional(),
   Components: z
     .array(z.object({ Name: z.string(), Version: z.string() }))
     .optional(),
 });
 
+/** A server that names Podman: the Docker CLI appends an `Engine` component
+ * of its own, carrying the server's version, to any server that lists none —
+ * so Podman 5.x would read as "Docker Engine 5". */
+const PODMAN_RE = /podman/i;
+
 /**
  * Judge the server `docker version --format '{{json .Server}}'` describes.
  * Only Docker's own engine, the component named `Engine`, is judged by its
  * version: another engine behind the Docker API, such as Podman, numbers its
- * releases its own way. An engine too old to list components is Docker's.
+ * releases its own way, and one that names itself is never judged by the
+ * `Engine` component the Docker CLI adds for it. An engine too old to list
+ * components is Docker's.
  */
 export function checkDockerEngine(server: unknown): SetupCheck {
   const supported = `Docker Engine ${MIN_DOCKER_ENGINE_MAJOR}.0 or later`;
@@ -87,12 +95,22 @@ export function checkDockerEngine(server: unknown): SetupCheck {
   };
   const result = engineSchema.safeParse(server);
   if (!result.success) return unknown;
-  const { Components: components } = result.data;
-  const engine = components
-    ? components.find((component) => component.Name === 'Engine')
-    : { Version: result.data.Version };
+  const { Components: components, Platform: platform } = result.data;
+  const otherEngine =
+    PODMAN_RE.test(platform?.Name ?? '') ||
+    (components ?? []).some(
+      (component) =>
+        component.Name !== 'Engine' && PODMAN_RE.test(component.Name),
+    );
+  const engine = otherEngine
+    ? undefined
+    : components
+      ? components.find((component) => component.Name === 'Engine')
+      : { Version: result.data.Version };
   if (!engine) {
-    const names = components?.map((component) => component.Name) ?? [];
+    const names = (components ?? [])
+      .map((component) => component.Name)
+      .filter((name) => name !== 'Engine' || !otherEngine);
     return {
       id: 'engine',
       status: 'warn',

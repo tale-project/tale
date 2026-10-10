@@ -8,7 +8,7 @@ Un appareil est une machine que tu connectes à ton organisation pour que ses sa
 ## Vérifier ce dont la machine a besoin
 
 - Linux sur x86_64 ou arm64, ou macOS sur Apple Silicon ou Intel.
-- Docker : Docker Engine sous Linux ; Docker Desktop, OrbStack ou Colima sous macOS. Si Docker manque, la CLI Tale propose de l’installer.
+- Docker : Docker Engine 24.0 ou une version ultérieure sous Linux ; Docker Desktop, OrbStack ou Colima sous macOS. Si Docker manque, la CLI Tale propose de l’installer. Les couches des images Tale sont compressées en zstd, ce que les moteurs plus anciens ne savent pas télécharger : `tale sandbox connect` et `tale sandbox update` refusent donc un moteur plus ancien avant d’utiliser la commande de connexion ou de télécharger quoi que ce soit.
 - Un accès HTTPS sortant vers ton site Tale. C’est l’appareil qui se connecte à Tale ; rien ne doit joindre la machine depuis l’extérieur, donc cela fonctionne aussi derrière un routeur ou un pare-feu.
 - De l’espace disque pour les images de sandbox, plusieurs gigaoctets, et pour les espaces de travail qu’il accueillera.
 

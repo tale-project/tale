@@ -8,7 +8,7 @@ A device is a machine you connect to your organization so its sandboxes run ther
 ## Check what the machine needs
 
 - Linux on x86_64 or arm64, or macOS on Apple silicon or Intel.
-- Docker: Docker Engine on Linux; Docker Desktop, OrbStack or Colima on macOS. If Docker is missing, the Tale CLI offers to install it.
+- Docker: Docker Engine 24.0 or later on Linux; Docker Desktop, OrbStack or Colima on macOS. If Docker is missing, the Tale CLI offers to install it. Tale's images have zstd-compressed layers, which older engines cannot download, so `tale sandbox connect` and `tale sandbox update` refuse an older engine before they use the connect command or download anything.
 - Outbound HTTPS to your Tale site. The device connects out to Tale; nothing has to reach the machine, so it works behind a router or firewall.
 - Disk space for the sandbox images, several gigabytes, and for the workspaces it will hold.
 

@@ -8,7 +8,7 @@ Ein Gerät ist ein Rechner, den du mit deiner Organisation verbindest, damit ihr
 ## Prüfen, was der Rechner braucht
 
 - Linux auf x86_64 oder arm64 oder macOS auf Apple Silicon oder Intel.
-- Docker: Docker Engine unter Linux, unter macOS Docker Desktop, OrbStack oder Colima. Fehlt Docker, bietet die Tale CLI an, es zu installieren.
+- Docker: Docker Engine 24.0 oder neuer unter Linux, unter macOS Docker Desktop, OrbStack oder Colima. Fehlt Docker, bietet die Tale CLI an, es zu installieren. Die Schichten der Tale-Images sind mit zstd komprimiert, und ältere Engines können sie nicht laden. Deshalb brechen `tale sandbox connect` und `tale sandbox update` bei einer älteren Engine ab, bevor sie den Verbindungsbefehl einlösen oder etwas herunterladen.
 - Ausgehendes HTTPS zu deiner Tale-Seite. Das Gerät baut die Verbindung zu Tale selbst auf; nichts muss den Rechner von außen erreichen, deshalb funktioniert es auch hinter einem Router oder einer Firewall.
 - Speicherplatz für die Sandbox-Images, einige Gigabyte, und für die Arbeitsbereiche, die es aufnehmen wird.
 
