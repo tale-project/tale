@@ -186,6 +186,7 @@ function capturedReview(
 ): TaskReviewerState {
   return {
     reviewer: { kind: 'user', userId: 'future' },
+    resolvedReviewer: { kind: 'agent', agentId: 'reviewer' },
     projectReviewer: { kind: 'agent', agentId: 'reviewer' },
     pendingReview: {
       approvalId: `approval_${round}`,
@@ -218,6 +219,7 @@ describe('TaskSubjectPanel', () => {
     mocks.refetchAsk.mockReset();
     mocks.reviewer = {
       reviewer: { kind: 'inherit' },
+      resolvedReviewer: null,
       projectReviewer: { kind: 'human_default' },
       pendingReview: null,
     };

@@ -92,7 +92,7 @@ export function TaskReviewerField({ task, canEdit }: TaskReviewerFieldProps) {
                 projectReviewer={
                   state?.projectReviewer ?? { kind: 'human_default' }
                 }
-                currentReviewer={recipient}
+                currentReviewer={recipient ?? state?.resolvedReviewer}
                 hasPendingReview={pending != null}
                 implementationAgentId={
                   pending

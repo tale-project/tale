@@ -119,6 +119,7 @@ import {
   getPendingReviewForTask,
   replacePendingTaskReviewer,
   requestTaskReview,
+  resolveTaskReviewer,
   retargetPendingTaskReview,
   reviewerEligibility,
   type TaskReviewTrigger,
@@ -2207,6 +2208,7 @@ export async function getTaskReviewer(
   assertTaskReadable(project, auth);
   return {
     reviewer: taskReviewerFromIds(task),
+    resolvedReviewer: await resolveTaskReviewer(sql, task),
     projectReviewer: projectTaskReviewerFromId(
       project.defaultTaskReviewerAgentId,
     ),
@@ -2345,6 +2347,7 @@ export async function setTaskReviewer(
     taskAudit(auth, task, TASK_AUDIT_ACTIONS.updated, {
       previousState: {
         reviewer: taskReviewerFromIds(task),
+        resolvedReviewer: await resolveTaskReviewer(sql, task),
         approvalId: args.expected.pendingReview?.approvalId ?? null,
       },
       newState: {
