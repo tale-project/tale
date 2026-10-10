@@ -117,6 +117,12 @@ Danach folgen drei Tabs:
 
 Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch **Probleme** warnt dann, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Modell wechseln** in der Kopfzeile verwendet ein anderes Modell in jeder `llm`-Node, die ein bestimmtes Modell nennt — die betroffenen Schritte werden vorher aufgeführt — als eine Änderung, die du dann speicherst.
 
+<Frame caption="Modell wechseln in der Gmail-Inbox-Triage: das Modell, das ihre zwei Sprachmodell-Schritte nennen, das bediente Modell, das stattdessen verwendet wird, und die Schritte, die sich ändern.">
+
+![Der Dialog Use another model in all steps. Replace zeigt anthropic/claude-haiku-4-5 mit 2 steps, With zeigt Claude Sonnet 4.6, und Steps that change listet Triage und Draft, über Cancel und Use this model.](/images/platform/automation-model-swap.webp)
+
+</Frame>
+
 Öffne **Ablaufsteuerung** für Bedingung, Wiederholung und Fehlerbehandlung der Node; nutzt die Node eines davon, ist der Abschnitt schon offen. **Wenn**, **Für jedes** und **Wiederholen bis** nehmen Ausdrücke auf. **Sonst zu** bietet nur Nodes mit einer Bedingung an, und **Keine** entfernt die Alternative. **Maximale Wiederholungen** erscheint mit **Wiederholen bis** und nimmt eine ganze Zahl von 1 bis 20. **Bei Fehler** wählt zwischen **Lauf stoppen** und **Ohne sie weiterlaufen**; geht der Lauf weiter, wird jede Node übersprungen, die die Ausgabe der fehlgeschlagenen Node liest. Unter einer Bedingung, einer Liste oder einer Alternative sagt ein Satz in Worten, was die Einstellung bewirkt.
 
 Mit **Schließen** kehrst du zum Canvas zurück. Auf einem breiten Bildschirm schließt sich der Bereich auch, wenn du auf den leeren Canvas klickst oder außerhalb eines Textfelds Esc drückst. Trigger und Projekteinstellungen der Automatisierung findest du im Tab **Allgemein**. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Node-Typen und Ausdrücke.

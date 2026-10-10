@@ -1657,6 +1657,44 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // The Editor of the Gmail inbox triage with Change model open on the
+    // model its two language model steps name: the steps that change, and a
+    // model the organization's provider serves, picked to use instead.
+    name: 'automation-model-swap',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await page
+        .getByRole('button', {
+          name: t('automations.editor.modelSwap.open'),
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('automations.editor.modelSwap.title'),
+      });
+      await dialog
+        .getByText(t('automations.editor.llm.modelPlaceholder'))
+        .click();
+      await page
+        .getByRole('option', { name: /sonnet/i })
+        .first()
+        .click();
+    },
+    // Ready once a model is picked: the apply button is enabled.
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('automations.editor.modelSwap.title') })
+        .locator('button:enabled', {
+          hasText: t('automations.editor.modelSwap.apply'),
+        }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('automations.editor.modelSwap.title'),
+      }),
+  },
+  {
     // The Editor's Problems list under the canvas: a draft whose triage
     // prompt reads a node that does not exist — the node's error chip, the
     // reason under the Prompt field, Save waiting with its reason, and the

@@ -117,6 +117,12 @@ Three tabs follow:
 
 The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but **Problems** then warns that a live run would fail at that node until its provider is connected. **Change model**, in the header, uses another model in every `llm` node that names one model — the steps it changes are listed first — as one edit you then save.
 
+<Frame caption="Change model on the Gmail inbox triage: the model its two language model steps name, the served model picked to use instead, and the steps that change.">
+
+![The Use another model in all steps dialog. Replace shows anthropic/claude-haiku-4-5 with 2 steps, With shows Claude Sonnet 4.6, and Steps that change lists Triage and Draft, above Cancel and Use this model.](/images/platform/automation-model-swap.webp)
+
+</Frame>
+
 Open **Control flow** for the node's condition, iteration and failure handling; it is already open on a node that uses one of them. **When**, **For each** and **Repeat until** take expressions. **Else of** offers only nodes that have a condition, and **None** removes the alternative. **Maximum repeats** appears with **Repeat until** and takes a whole number from 1 to 20. **On error** chooses between **Stop the run** and **Continue without it**; continuing skips every node that reads the failed node's output. Under a condition, a list or an alternative, a sentence says in words what the setting does.
 
 Use **Close** to return to the canvas. On a wide screen, clicking the empty canvas or pressing Escape outside a text field also closes the panel. The automation's trigger and project settings are on the **General** tab. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
