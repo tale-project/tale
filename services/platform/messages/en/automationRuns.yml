@@ -304,7 +304,7 @@ runtime:
       fix: Check the service for the write, then run again if it's missing.
     SIMULATED_FAILURE:
       title: The test made this step fail
-      explanation: A test can make a step fail on purpose, to check how the automation handles the failure. The step itself didn't run.
+      explanation: The test made this step fail on purpose, to check what happens next.
       cause: '{messageLabel, select, none {The test failed it without a message.} other {The test failed it with {messageLabel}.}}'
       fix: To run the step as written in this test, remove it from the test's simulated failures.
     UNKNOWN:

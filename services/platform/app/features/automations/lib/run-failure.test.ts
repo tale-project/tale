@@ -169,6 +169,21 @@ describe('stepFailureText — every reason in every language', () => {
     expect(agent.cause).toBe('Claude Code stopped after 3 attempts.');
   });
 
+  it('explains a simulated failure without saying the step did not run', () => {
+    // The step's skip rules ran and its input was resolved: only its call
+    // was replaced.
+    const failure = failureOf('SIMULATED_FAILURE', true);
+    expect(stepFailureText(failure, context('en')).explanation).toBe(
+      'The test made this step fail on purpose, to check what happens next.',
+    );
+    expect(stepFailureText(failure, context('de')).explanation).toBe(
+      'Der Test hat diesen Schritt absichtlich fehlschlagen lassen, um zu prüfen, was danach passiert.',
+    );
+    expect(stepFailureText(failure, context('fr')).explanation).toBe(
+      'Le test a fait échouer cette étape exprès, pour vérifier ce qui se passe ensuite.',
+    );
+  });
+
   it('reads a reason this build does not know as the run’s code', () => {
     const text = stepFailureText(
       {

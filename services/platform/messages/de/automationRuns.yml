@@ -304,7 +304,7 @@ runtime:
       fix: Prüfe im Dienst, ob der Schreibvorgang angekommen ist, und führe den Lauf erneut aus, falls er fehlt.
     SIMULATED_FAILURE:
       title: Der Test hat diesen Schritt fehlschlagen lassen
-      explanation: Ein Test kann einen Schritt absichtlich fehlschlagen lassen, um zu prüfen, wie die Automatisierung mit dem Fehler umgeht. Der Schritt selbst ist nicht gelaufen.
+      explanation: Der Test hat diesen Schritt absichtlich fehlschlagen lassen, um zu prüfen, was danach passiert.
       cause: '{messageLabel, select, none {Der Test hat ihn ohne Meldung fehlschlagen lassen.} other {Der Test hat ihn mit {messageLabel} fehlschlagen lassen.}}'
       fix: Damit der Schritt in diesem Test wie geschrieben läuft, entferne ihn aus den simulierten Fehlern des Tests.
     UNKNOWN:
