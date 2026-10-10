@@ -67,7 +67,12 @@ runs:
         set -euo pipefail
         test "$(git rev-parse HEAD)" = "$TALE_CLI_REVISION"
         test -z "$(git status --porcelain --untracked-files=all)"
-        bun install --frozen-lockfile --filter @tale/cli
+        # The CLI bundles platform engine modules reached through repository
+        # source imports. A filtered install omits their workspace packages
+        # (notably @tale/ui) and makes deployment builds fail in a clean
+        # checkout even though the release workflow succeeds. Keep this
+        # source-coupled build on the complete locked workspace install.
+        bun install --frozen-lockfile
         # Generation records the clean source commit in the executable.
         bun run --filter @tale/cli generate
         case "$RUNNER_OS/$RUNNER_ARCH/${TALE_CLI_LINUX_BASELINE:-false}" in
