@@ -316,8 +316,13 @@ codes:
   TRIGGER_INPUT_MISMATCH:
     title: Trigger input is refused
     explanation: The trigger starts runs with input the automation's inputs don't accept, so every run it starts is refused.
-    cause: '{kind, select, schedule {The schedule} other {The trigger}} {missingCount, plural, =0 {starts runs with input the inputs schema refuses.} other {starts runs without {missingList}.}}'
-    fix: Make those inputs optional, or start this automation from a webhook, an event or the API.
+    cause: '{kind, select, schedule {The schedule} webhook {The webhook} other {The event}} {missingCount, plural, =0 {starts runs with input the inputs schema refuses.} other {starts runs without {missingList}.}}'
+    fix: Give the trigger a fixed input with those fields, or make them optional.
+  TRIGGER_INPUT_NOT_TEMPLATED:
+    title: Fixed input isn't filled in
+    explanation: The fixed input is plain data. A template in it arrives as text and is never evaluated.
+    cause: '{pathsList} {pathsCount, plural, one {contains} other {contain}} a template.'
+    fix: Map values from the payload field with a transform node instead.
   TESTS_INPUT_INVALID:
     title: Test input is refused
     explanation: The input of the test doesn't match the automation's inputs, so the run refuses it and the test can't pass.

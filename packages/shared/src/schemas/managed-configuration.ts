@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AGENT_TOOL_CATALOG, normalizeToolGrants } from '../agent-tool-grants';
 import { isValidAutomationName } from '../automation-name';
 import { TASK_DESCRIPTION_MAX } from '../task-limits';
+import { isoDateSchema, staticInputSchema } from './automation-trigger';
 import { configurationHashSchema } from './configuration';
 import {
   PROJECT_AGENT_INSTRUCTIONS_MAX,
@@ -10,6 +11,7 @@ import {
   projectAgentInputSchema,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
 } from './projects';
+import { normalizeScheduleRule, scheduleRuleSchema } from './schedule-rule';
 
 /** Explicit identities: these resources never find a target by display name.
  * Review contexts alone may explicitly create their declared UUID. Native writers retain the
@@ -115,17 +117,56 @@ export const managedAutomationDeploymentSchema = z.strictObject({
   name,
   definitionSha256: configurationHashSchema,
 });
-export const managedAutomationScheduleSchema = z.strictObject({
-  ...project,
-  name,
-  cron: z.string().min(1).max(200),
-  timezone: z.string().min(1).max(100),
-  enabled: z.boolean(),
+/** What a managed schedule may add beside its definition: `catchUp` only
+ * when it is `skip` (the default `latest` is left out), a fixed input only
+ * when it has one, and the slot-wake opt-in only when it is on, so a
+ * schedule that sets none of them hashes as before. */
+const scheduleExtras = {
+  catchUp: z.literal('skip').optional(),
+  input: staticInputSchema.optional(),
   // Fire this schedule early when an agent of its project frees its slot
   // (#4540). Only `true` is declared: an absent key is the opt-out, so a
   // readback and an equivalent declaration always hash alike.
   wakeOnSlotFreed: z.literal(true).optional(),
-});
+};
+
+/** A managed schedule's zone, stored the way the declaration spells it (any
+ * spelling `Intl` resolves): spaces around it are refused, since a stored
+ * zone with them never compared equal to its declaration. */
+const managedZone = z
+  .string()
+  .min(1)
+  .max(100)
+  .refine(
+    (zone) => zone.trim() === zone,
+    'A time zone cannot start or end with a space.',
+  );
+
+/** A managed schedule runs on a cron expression or a repeat rule. The cron
+ * shape keeps exactly the keys it always had, so an existing schedule's hash
+ * does not move and nothing reads as drifted. A repeat rule reads in its
+ * normal form (times and weekdays sorted and once each, a window that spans
+ * the whole week dropped) — the form the platform stores — so a declaration
+ * and its readback hash alike whatever order the file lists them in. */
+export const managedAutomationScheduleSchema = z.union([
+  z.strictObject({
+    ...project,
+    name,
+    cron: z.string().min(1).max(200),
+    timezone: managedZone,
+    enabled: z.boolean(),
+    ...scheduleExtras,
+  }),
+  z.strictObject({
+    ...project,
+    name,
+    repeat: scheduleRuleSchema.transform(normalizeScheduleRule),
+    startDate: isoDateSchema,
+    timezone: managedZone,
+    enabled: z.boolean(),
+    ...scheduleExtras,
+  }),
+]);
 
 export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({

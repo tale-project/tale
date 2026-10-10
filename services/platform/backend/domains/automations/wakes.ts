@@ -1,6 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { scheduleTriggerInput } from '../../../lib/engine/core/slots.ts';
+import { triggerRunInput } from '../../../lib/engine/core/slots.ts';
 import { tryLockAuditChain } from '../audit_logs/service.ts';
 import { failedRunRetryPending } from '../tasks/agent-runs.ts';
 import {
@@ -81,6 +81,9 @@ interface TargetRow {
   lastFailureCode: string | null;
   lastRunId: string | null;
   updatedAt: number;
+  /** The trigger's fixed input: a woken occurrence receives it as any
+   * occurrence of the schedule does. */
+  runInput: Record<string, unknown> | null;
 }
 
 /** The target's state as the wake mirrors it — `null` while T may fire. */
@@ -161,7 +164,8 @@ async function readTarget(
            t.last_skip_reason AS "lastSkipReason",
            t.last_failure_code AS "lastFailureCode",
            t.last_run_id AS "lastRunId",
-           t.updated_at_ms::float8 AS "updatedAt"
+           t.updated_at_ms::float8 AS "updatedAt",
+           t.run_input AS "runInput"
     FROM app.automation_triggers t
     WHERE t.id = ${row.triggerId} AND t.org_id = ${row.organizationId}
   `;
@@ -362,7 +366,10 @@ async function fireProjectWake(
     started = await beginRunInTx(tx, {
       organizationId: row.organizationId,
       name: target.name,
-      input: scheduleTriggerInput(minute),
+      input: triggerRunInput(
+        { kind: 'schedule', firedAt: minute },
+        target.runInput,
+      ),
       mode: 'live',
       startedBy: `trigger:${target.id}`,
     });

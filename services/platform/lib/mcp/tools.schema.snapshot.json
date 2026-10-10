@@ -526,17 +526,334 @@
                 },
                 "enabled": {
                   "type": "boolean",
-                  "description": "Whether the trigger starts runs; false keeps it bound but paused."
+                  "description": "Whether it starts runs. Omitted reads as true."
+                },
+                "input": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
                 },
                 "cron": {
-                  "description": "Five fields — minute hour day-of-month month day-of-week — e.g. \"0 9 * * 1\" for 09:00 every Monday; required. An expression that can never fire (a 30 February) is refused.",
+                  "description": "A five-field cron expression — the advanced form; give it or `repeat`, not both.",
                   "type": "string",
                   "maxLength": 200
                 },
+                "repeat": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "minutely"
+                        },
+                        "interval": {
+                          "type": "number",
+                          "enum": [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30],
+                          "description": "Every how many minutes; divides 60."
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "weekdays": {
+                              "minItems": 1,
+                              "maxItems": 7,
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 6
+                              },
+                              "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                            },
+                            "hours": {
+                              "description": "Run only from `from` until before `to`, local time. A `to` earlier than `from` runs overnight into the next day; \"00:00\" runs until midnight. Omit to run all day.",
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                },
+                                "to": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                }
+                              },
+                              "required": ["from", "to"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["weekdays"],
+                          "additionalProperties": false,
+                          "description": "The weekdays and hours a grid schedule runs in."
+                        }
+                      },
+                      "required": ["frequency", "interval"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "hourly"
+                        },
+                        "interval": {
+                          "type": "number",
+                          "enum": [1, 2, 3, 4, 6, 8, 12],
+                          "description": "Every how many hours; divides 24."
+                        },
+                        "minute": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 59,
+                          "description": "The minute past the hour it starts at."
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "weekdays": {
+                              "minItems": 1,
+                              "maxItems": 7,
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 6
+                              },
+                              "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                            },
+                            "hours": {
+                              "description": "Run only from `from` until before `to`, local time. A `to` earlier than `from` runs overnight into the next day; \"00:00\" runs until midnight. Omit to run all day.",
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                },
+                                "to": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                }
+                              },
+                              "required": ["from", "to"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["weekdays"],
+                          "additionalProperties": false,
+                          "description": "The weekdays and hours a grid schedule runs in."
+                        }
+                      },
+                      "required": ["frequency", "interval", "minute"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "daily"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": ["frequency", "interval", "times"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "weekly"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "weekdays": {
+                          "minItems": 1,
+                          "maxItems": 7,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 6
+                          },
+                          "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": [
+                        "frequency",
+                        "interval",
+                        "weekdays",
+                        "times"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "monthly"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "monthDay": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31,
+                          "description": "The day of the month, 1 to 31; a shorter month's last day stands in for a day it lacks."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": [
+                        "frequency",
+                        "interval",
+                        "monthDay",
+                        "times"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "yearly"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "month": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12,
+                          "description": "The month, 1 (January) to 12."
+                        },
+                        "monthDay": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31,
+                          "description": "The day of the month, 1 to 31; a shorter month's last day stands in for a day it lacks."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": [
+                        "frequency",
+                        "interval",
+                        "month",
+                        "monthDay",
+                        "times"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "When a schedule starts: every N minutes or hours (optionally only on some weekdays and hours), or at times of day on a daily, weekly, monthly or yearly rule."
+                },
+                "startDate": {
+                  "description": "The day a repeat rule starts on, in its time zone: no start comes before it, and \"every 2 weeks\" counts from it. Omitted means today. Send back the one you read to keep the rule in step.",
+                  "type": "string"
+                },
                 "timezone": {
-                  "description": "The IANA time zone the cron reads its clock in, e.g. \"Europe/Zurich\"; UTC when omitted.",
+                  "description": "The time zone the schedule reads in. Required with `repeat`; a cron expression without one reads in UTC.",
                   "type": "string",
                   "maxLength": 100
+                },
+                "catchUp": {
+                  "type": "string",
+                  "enum": ["latest", "skip"],
+                  "description": "Missed occurrences: \"latest\" (the default) starts the most recent one once, however late; \"skip\" starts it only when it is at most 10 minutes late. Either way the others are counted, not run."
                 }
               },
               "required": ["kind"],
@@ -551,10 +868,44 @@
                 },
                 "enabled": {
                   "type": "boolean",
-                  "description": "Whether the trigger starts runs; false keeps it bound but paused."
+                  "description": "Whether it starts runs. Omitted reads as true."
+                },
+                "input": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
                 },
                 "rotateToken": {
-                  "description": "true mints a new token, answered once in this call, and the URL of the old one stops working; re-binding the webhook without it keeps its token.",
+                  "description": "Mint a new address; the one it replaces stops working at once.",
                   "type": "boolean"
                 }
               },
@@ -570,10 +921,44 @@
                 },
                 "enabled": {
                   "type": "boolean",
-                  "description": "Whether the trigger starts runs; false keeps it bound but paused."
+                  "description": "Whether it starts runs. Omitted reads as true."
+                },
+                "input": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
                 },
                 "event": {
-                  "description": "The event that starts a run — one list_events names; required.",
+                  "description": "The platform event that starts a run.",
                   "type": "string",
                   "maxLength": 200
                 }
@@ -582,7 +967,7 @@
               "additionalProperties": false
             }
           ],
-          "description": "The trigger — {kind: \"schedule\" | \"webhook\" | \"event\", …}, one shape per kind (a key of another kind is refused by name); get_docs with topic \"triggers\" describes each kind. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one."
+          "description": "The trigger — {kind: \"schedule\" | \"webhook\" | \"event\", …}, one shape per kind (a key of another kind is refused by name); get_docs with topic \"triggers\" describes each kind. A schedule takes a repeat rule (repeat, startDate, timezone) or a cron expression; any kind may carry a fixed input. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one."
         }
       },
       "required": ["name", "trigger"],

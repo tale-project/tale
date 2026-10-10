@@ -383,6 +383,33 @@ describe('dispatch — the shared method table', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('set_trigger records a schedule given as a repeat rule, and refuses one with both or neither', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    const set = async (trigger: Record<string, unknown>) =>
+      (await dispatch(
+        'set_trigger',
+        { name: 'order-report', trigger },
+        { store },
+      )) as { ok?: boolean; error?: string };
+    const repeat = { frequency: 'daily', interval: 1, times: ['09:00'] };
+    expect(
+      await set({ kind: 'schedule', repeat, timezone: 'Europe/Zurich' }),
+    ).toMatchObject({ ok: true });
+    const listed = (await dispatch(
+      'list_triggers',
+      { name: 'order-report' },
+      { store },
+    )) as { triggers?: { repeat?: unknown }[] };
+    expect(listed.triggers?.[0]?.repeat).toEqual(repeat);
+    expect(
+      (await set({ kind: 'schedule', repeat, cron: '0 9 * * *' })).error,
+    ).toContain('a repeat rule or a cron expression, not both');
+    expect((await set({ kind: 'schedule' })).error).toContain(
+      'a repeat rule or a cron expression',
+    );
+  });
+
   it('set_trigger refuses the retired api-key kind', async () => {
     const store = dispatchStore();
     await deployedExample(store);

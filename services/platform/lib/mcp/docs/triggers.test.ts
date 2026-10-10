@@ -16,7 +16,7 @@ import { type TriggerFacts, triggersReference } from './triggers';
 
 const FACTS: TriggerFacts = {
   defaultTimezone: 'UTC',
-  catchUpMs: 60 * 60_000,
+  onTimeGraceMs: 10 * 60_000,
   pauseAfterFailures: 5,
   webhookBodyBytes: 256 * 1024,
   deliveryIdHeaders: ['idempotency-key', 'webhook-id'],
@@ -63,8 +63,8 @@ describe('the triggers reference', () => {
   });
 
   test('states the delivery rules from the facts it is given', () => {
-    expect(text).toContain('(UTC when it names none)');
-    expect(text).toContain('at most 60 minutes back');
+    expect(text).toContain('a cron without one reads UTC');
+    expect(text).toContain('at most 10 minutes late');
     expect(text).toContain('After 5 runs in a row fail');
     expect(text).toContain('at most 256 KiB');
     expect(text).toContain(

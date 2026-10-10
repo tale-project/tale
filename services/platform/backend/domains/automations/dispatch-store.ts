@@ -1,6 +1,7 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { triggerInputSample } from '../../../lib/automations/trigger-input.ts';
 import type {
   DeploymentEntry,
   DispatchStore,
@@ -12,7 +13,6 @@ import type {
   VersionSummary,
   VersionView,
 } from '../../../lib/engine/api/dispatch.ts';
-import type { TriggerKind } from '../../../lib/engine/core/slots.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
 import {
@@ -399,21 +399,13 @@ export function pgAutomationStore(
           }),
         'organization facts',
       )) ?? {},
-    // The enabled triggers of the automation — what the validator checks the
-    // inputs schema against (a schedule's input is known ahead).
-    triggerKinds: async (name) => {
-      const kinds = new Set<TriggerKind>();
-      for (const row of await listTriggers(sql, organizationId, name)) {
-        if (!row.enabled) continue;
-        if (
-          row.kind === 'schedule' ||
-          row.kind === 'webhook' ||
-          row.kind === 'event'
-        ) {
-          kinds.add(row.kind);
-        }
-      }
-      return [...kinds];
+    // What the automation's enabled trigger sends — what the validator
+    // checks the inputs schema and the fixed input against. The same sample
+    // the store's save and deploy warnings check.
+    triggerInput: async (name) => {
+      const row = (await listTriggers(sql, organizationId, name))[0];
+      if (row === undefined || !row.enabled) return null;
+      return triggerInputSample(row, Date.now());
     },
     save: async (automation, message, options) => {
       const name = assertAutomationName(automation.name ?? '');
@@ -552,14 +544,7 @@ export function pgAutomationStore(
         trigger: input,
         actor,
       });
-      return outcome.revoked === undefined && outcome.token === undefined
-        ? undefined
-        : {
-            ...(outcome.revoked === undefined
-              ? {}
-              : { revoked: outcome.revoked }),
-            ...(outcome.token === undefined ? {} : { token: outcome.token }),
-          };
+      return Object.keys(outcome).length === 0 ? undefined : outcome;
     },
     authorizeRun: async (name, mode) => {
       await authorizeInlineRun(sql, name, mode);
@@ -801,13 +786,21 @@ export function pgAutomationStore(
           enabled: row.enabled,
         };
         if (row.cron !== null) view.cron = row.cron;
+        if (row.repeat !== null) view.repeat = row.repeat;
+        if (row.startDate !== null) view.startDate = row.startDate;
         if (row.timezone !== null) view.timezone = row.timezone;
+        if (row.catchUp !== null) view.catchUp = row.catchUp;
+        if (row.input !== null) view.input = row.input;
         if (row.event !== null) view.event = row.event;
+        if (row.nextRunAt !== null) view.nextRunAt = row.nextRunAt;
         if (row.lastFiredAt !== null) view.lastFiredAt = row.lastFiredAt;
         if (row.lastRunId !== null) view.lastRunId = row.lastRunId;
         if (row.lastSkippedAt !== null) view.lastSkippedAt = row.lastSkippedAt;
         if (row.lastSkipReason !== null) {
           view.lastSkipReason = row.lastSkipReason;
+        }
+        if (row.lastSkipDetail !== null) {
+          view.lastSkipDetail = row.lastSkipDetail;
         }
         view.consecutiveFailures = row.consecutiveFailures;
         if (row.lastFailedAt !== null) view.lastFailedAt = row.lastFailedAt;

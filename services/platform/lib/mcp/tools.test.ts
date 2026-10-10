@@ -176,6 +176,64 @@ describe('MCP tool annotations', () => {
 });
 
 /**
+ * `set_trigger` publishes the shared trigger contract
+ * (`@tale/shared/schemas/automation-trigger`) — the same shape the REST door
+ * and the app's editor send — so an agent learns a repeat rule, a time zone,
+ * a catch-up policy and a fixed input from the tool list itself, and a key
+ * of another kind is refused before it reaches the store.
+ */
+describe('set_trigger input schema', () => {
+  const tool = MCP_TOOLS.find((candidate) => candidate.name === 'set_trigger');
+  const trigger = (
+    (tool === undefined ? undefined : toolJsonSchema(tool.args, 'input')) as
+      | { properties?: { trigger?: { oneOf?: Record<string, unknown>[] } } }
+      | undefined
+  )?.properties?.trigger;
+
+  test('one strict shape per kind, each with the keys the contract names', () => {
+    const shapes = (trigger?.oneOf ?? []).map((shape) => ({
+      kind: (shape.properties as Record<string, { const?: string }>).kind
+        ?.const,
+      keys: Object.keys(shape.properties as object).toSorted(),
+      strict: shape.additionalProperties === false,
+    }));
+    expect(shapes).toEqual([
+      {
+        kind: 'schedule',
+        keys: [
+          'catchUp',
+          'cron',
+          'enabled',
+          'input',
+          'kind',
+          'repeat',
+          'startDate',
+          'timezone',
+        ],
+        strict: true,
+      },
+      {
+        kind: 'webhook',
+        keys: ['enabled', 'input', 'kind', 'rotateToken'],
+        strict: true,
+      },
+      {
+        kind: 'event',
+        keys: ['enabled', 'event', 'input', 'kind'],
+        strict: true,
+      },
+    ]);
+  });
+
+  test('carries no definition it would need its own root to resolve', () => {
+    const text = JSON.stringify(trigger);
+    expect(text).not.toContain('$ref');
+    expect(text).not.toContain('$defs');
+    expect(text).not.toContain('$schema');
+  });
+});
+
+/**
  * What a client does with an advertised input schema decides whether the
  * tool is usable at all: Claude Code drops a tool whose top-level property
  * names break `^[A-Za-z0-9_.-]{1,64}$` or whose schema fails the 2020-12
@@ -197,6 +255,9 @@ describe('MCP tool input schemas', () => {
       }
       // A typo is refused, never dropped.
       expect(schema.additionalProperties).toBe(false);
+      // Every definition written in place: a client that resolves no
+      // reference still reads the whole shape.
+      expect(JSON.stringify(schema)).not.toMatch(/"\$(ref|defs)"/);
       const properties = Object.keys(
         (schema.properties ?? {}) as Record<string, unknown>,
       );

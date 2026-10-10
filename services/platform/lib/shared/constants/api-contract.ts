@@ -537,5 +537,24 @@
  * recorded with the call and on the versions and audit rows it writes.
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
+ *
+ * 3.28.0 — 2026-10-09: a schedule trigger runs on a repeat rule
+ * (`repeat`, the `ScheduleRule` schema, from `startDate` in `timezone`) or
+ * on a cron expression, and says what it does with occurrences it missed
+ * (`catchUp`: `latest` or `skip`); every trigger kind takes a fixed `input`
+ * that each run it starts receives under the trigger's own fields. The
+ * `PUT …/triggers` body is the shared trigger contract, and a rule it
+ * breaks answers `AUTOMATION_TRIGGER_INVALID` with each problem coded
+ * under `data.issues`; its 200 adds `nextRunAt` and `warnings`
+ * (`TRIGGER_INPUT_MISMATCH`, `TRIGGER_INPUT_NOT_TEMPLATED`). `Trigger`
+ * reads `repeat`, `startDate`, `catchUp`, `input`, `nextRunAt` and
+ * `lastSkipDetail`, and `lastSkipReason` gains `missed_occurrences`; the
+ * listing's `trigger` adds `nextRunAt`. Newly refused, as fixes: a blank
+ * `timezone` (it saved and never fired) and `cron` together with `repeat`.
+ * The MCP `set_trigger` takes the same trigger as its `trigger` argument,
+ * and `deploy_automation` answers the bound `trigger` (`kind`, `enabled`,
+ * `nextRunAt`, `warnings`) beside `previousVersion`; the triggers reference
+ * (`get_docs {topic: "triggers"}`) states repeat rules, catch-up and the
+ * fixed input. Additive otherwise.
  */
-export const API_CONTRACT_VERSION = '3.27.0';
+export const API_CONTRACT_VERSION = '3.28.0';

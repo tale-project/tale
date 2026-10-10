@@ -157,7 +157,7 @@ Passe `baseVersion`, la version dont ta modification est partie. Si quelqu’un 
 | `get_automation_metrics` | Les chiffres d’exécution de l’organisation sur 7, 30 ou 90 jours (`periodDays`), exécutions réelles par défaut ou simulées : exécutions par résultat, taux de réussite, durée moyenne, une série par jour et les automatisations les plus utilisées, chacun comparé à la période précédente. |
 | `list_triggers` | Lire les déclencheurs sans révéler le secret du webhook. |
 | `delete_trigger` | Supprimer le déclencheur ; conserver les versions et l'historique des exécutions. |
-| `set_trigger` | Configurer un déclencheur planifié, webhook ou événement. Le `token` d’un webhook est répondu une fois, ici, et plus jamais — conserve-le ; `deployed` dit si les livraisons tourneront : un déclencheur lié à une automatisation sans version déployée est enregistré et ne déclenche rien tant qu’une version n’est pas déployée. |
+| `set_trigger` | Définir ce qui démarre l’automatisation : une planification (une règle de répétition ou une expression cron, dans un fuseau horaire), un webhook ou un événement de la plateforme, chacun avec une entrée fixe `input` facultative. L’appel remplace tout le déclencheur : renvoie donc le `startDate` et l’`input` que lit `list_triggers` pour les conserver. Le `token` d’un webhook est répondu une fois, ici, et plus jamais — conserve-le ; `deployed` dit si les livraisons tourneront : un déclencheur lié à une automatisation sans version déployée est enregistré et ne déclenche rien tant qu’une version n’est pas déployée. `warnings` indique ce que la version déployée ferait de l’entrée du déclencheur. |
 
 | Outil | Quand le choisir |
 | --- | --- |

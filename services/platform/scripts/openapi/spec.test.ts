@@ -371,6 +371,71 @@ const run = {
   finishedAt: 1_700_000_000_500,
 };
 
+/** Trigger rows as the store selects them: a schedule on a repeat rule
+ * that missed occurrences, and a webhook with a fixed input. */
+const triggerRow = {
+  id: 't-1',
+  name: 'billing/dunning',
+  kind: 'schedule',
+  cron: null,
+  timezone: 'Europe/Zurich',
+  event: null,
+  scheduleRule: {
+    repeat: {
+      frequency: 'weekly',
+      interval: 1,
+      weekdays: [1, 2, 3, 4, 5],
+      times: ['09:00', '17:30'],
+    },
+    startDate: '2026-10-08',
+  },
+  catchUp: 'skip',
+  nextDueAt: 1_791_536_400_000,
+  input: { owner: 'tale' },
+  hasToken: false,
+  enabled: true,
+  lastFiredAt: 1_791_450_000_000,
+  lastRunId: 'run-2',
+  lastSkippedAt: 1_791_460_000_000,
+  lastSkipReason: 'missed_occurrences',
+  lastSkipDetail: {
+    reason: 'missed_occurrences',
+    missed: {
+      count: 3,
+      capped: false,
+      firstAt: 1_791_400_000_000,
+      lastAt: 1_791_450_000_000,
+      policy: 'skip',
+    },
+    firedLatest: false,
+  },
+  consecutiveFailures: 0,
+  lastFailedAt: null,
+  lastFailureCode: null,
+  lastFailedRunId: null,
+};
+
+const webhookTriggerRow = {
+  ...triggerRow,
+  id: 't-2',
+  kind: 'webhook',
+  timezone: null,
+  scheduleRule: null,
+  catchUp: null,
+  nextDueAt: null,
+  hasToken: true,
+  lastSkippedAt: 1_791_460_000_000,
+  lastSkipReason: 'start_refused',
+  lastSkipDetail: {
+    reason: 'start_refused',
+    occurrence: 1_791_460_000_000,
+    code: 'AUTOMATION_INPUT_INVALID',
+    version: 2,
+    message: 'input.owner is required',
+    issues: [{ path: 'owner', message: 'is required' }],
+  },
+};
+
 /** A run a schedule started — its input names the kind, its starter the
  * binding, and the read answers `startedVia: "schedule"`. */
 const triggerRun = {
@@ -485,6 +550,49 @@ describe('handler responses validate against the spec', () => {
                   text.includes('FROM app.automation_triggers')
                 ? []
                 : undefined,
+          ),
+        }),
+      rows: [automation],
+      request: '/automations',
+      spec: ['/api/v1/automations', 'get', '200'],
+    },
+    {
+      // A schedule on a repeat rule, its next start and the occurrences it
+      // missed; a webhook whose start was refused — the shared read shape.
+      name: 'GET /automations/{name}/triggers',
+      routes: () =>
+        createAutomationRestRoutes({
+          sql: fakeSql([automation], (text) =>
+            text.includes('FROM app.automation_triggers')
+              ? [triggerRow, webhookTriggerRow]
+              : undefined,
+          ),
+        }),
+      rows: [triggerRow],
+      request: '/automations/billing__dunning/triggers',
+      spec: ['/api/v1/automations/{name}/triggers', 'get', '200'],
+    },
+    {
+      // The listing's trigger carries the schedule's next start.
+      name: 'GET /automations (with a trigger)',
+      routes: () =>
+        createAutomationRestRoutes({
+          sql: fakeSql([automation], (text) =>
+            text.includes('FROM app.projects')
+              ? [
+                  {
+                    id: 'p-1',
+                    organizationId: 'org-1',
+                    teamId: null,
+                    sharedWithTeamIds: [],
+                    archivedAt: null,
+                  },
+                ]
+              : text.includes('FROM app.automation_triggers')
+                ? [triggerRow]
+                : text.includes('FROM app.automation_project_bindings')
+                  ? []
+                  : undefined,
           ),
         }),
       rows: [automation],
@@ -1142,10 +1250,15 @@ describe('new project routes answer the published wire schemas', () => {
       JSON.stringify({ errors: validate.errors, body }),
     ).toBe(true);
     if (route.endsWith('/automations'))
+      // The fixture's own fields, named: other doors in this file stamp
+      // what they read onto the shared row.
       expect(body).toEqual({
         automations: [
           {
-            ...automation,
+            name: automation.name,
+            latestVersion: automation.latestVersion,
+            deployedVersion: automation.deployedVersion,
+            presentation: automation.presentation,
             description: null,
             inputs: null,
             projectIds: ['p-1'],

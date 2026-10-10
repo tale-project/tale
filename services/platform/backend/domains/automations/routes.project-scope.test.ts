@@ -9,7 +9,7 @@
  * like a missing one.
  */
 
-import type { Context } from 'hono';
+import { Hono, type Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
@@ -29,6 +29,7 @@ const store = vi.hoisted(() => ({
   getRun: vi.fn(),
   listAutomationsForApp: vi.fn(),
   listRuns: vi.fn(),
+  listTriggerRuns: vi.fn(),
   // The read model over the fake rows: identity and the input the hidden
   // run must never leak.
   toRunDetail: vi.fn((row: { id: string; input: string }) => ({
@@ -195,6 +196,47 @@ describe('app automation door — runs follow the project read rule', () => {
         name: 'ops/sync',
         visibleProjectIds: [SHARED],
       }),
+    );
+  });
+
+  it('lists the runs the trigger started, of organization and readable projects only [AUTO-R2]', async () => {
+    store.listTriggerRuns.mockResolvedValue([
+      {
+        runId: 'r-org',
+        startedAt: 2,
+        status: 'success',
+        deliverySource: 'header',
+        header: 'x-github-delivery',
+      },
+    ]);
+    // Mounted where the app serves it: the name rides after the prefix.
+    const app = new Hono().route(
+      '/api/app/automations',
+      createAutomationRoutes({ sql: {} as never, auth: {} as never }),
+    );
+    const res = await app.request(
+      '/api/app/automations/ops/sync/trigger/runs?limit=5',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      runs: [
+        {
+          runId: 'r-org',
+          startedAt: 2,
+          status: 'success',
+          deliverySource: 'header',
+          header: 'x-github-delivery',
+        },
+      ],
+    });
+    expect(store.listTriggerRuns).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      {
+        name: 'ops/sync',
+        limit: 5,
+        visibleProjectIds: [SHARED],
+      },
     );
   });
 

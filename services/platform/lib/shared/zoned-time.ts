@@ -241,25 +241,9 @@ export function isTimeZone(value: string): boolean {
   }
 }
 
-/**
- * The zone `value` names, trimmed and spelled the way `Intl` spells it
- * (`utc` → `UTC`, `europe/zurich` → `Europe/Zurich`), or null when it names
- * none — a blank value included. Runtimes differ on links: Bun keeps
- * `US/Eastern` where Node answers `America/New_York`; both are valid
- * everywhere.
- */
-export function canonicalTimeZone(value: string): string | null {
-  const trimmed = value.trim();
-  if (trimmed === '') return null;
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: trimmed,
-    }).resolvedOptions().timeZone;
-  } catch (error) {
-    if (error instanceof RangeError) return null;
-    throw error;
-  }
-}
+/** The zone a value names, in its one spelling, or null — shared with the
+ * trigger schema that refuses a zone nobody can resolve. */
+export { canonicalTimeZone } from '@tale/shared/time-zone';
 
 /** The zone this runtime reads dates in — the browser's, in the app. */
 export function localTimeZone(): string {

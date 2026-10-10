@@ -176,6 +176,34 @@ describe('approval decision adapter', () => {
  * run's own doors, and both live under the run's cache key: the run hint a
  * decision emits refreshes the card wherever the run is open.
  */
+describe('trigger runs adapter', () => {
+  it('reads the runs the trigger started under the run entity, ten by default', async () => {
+    const runs = [
+      {
+        runId: 'r1',
+        startedAt: 2,
+        status: 'success',
+        deliverySource: 'body',
+        header: null,
+      },
+    ];
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { runs }));
+    const query = automationReadAdapters[
+      'automations/queries:listTriggerRuns'
+    ]?.({ organizationId: 'org1', name: 'ops/github sync' }, {});
+    // A run hint refreshes it: a new run, or a status one reaches.
+    expect(query?.queryKey).toEqual(
+      backendKey('org1', 'automation_run', 'trigger', 'ops/github sync', '10'),
+    );
+    expect(await query?.queryFn()).toEqual(runs);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/github%20sync/trigger/runs?limit=10&orgId=org1',
+    );
+  });
+});
+
 describe('in-doubt adapters', () => {
   it('reads the open in-doubt write under the run', async () => {
     const fetchSpy = vi
