@@ -506,7 +506,10 @@ agentRuns:
     noLiveDetail: Aucun transcript en direct n'est disponible pour cette exécution.
 timeline:
   updates: '{count, plural, one {# modification} other {# modifications}}'
+  agentRuns: '{count, plural, one {# exécution d’agent} other {# exécutions d’agent}}'
   runLabel: Exécution d'agent
+  hideExecution: Masquer
+  toolActions: '{count, plural, one {# action d’outil} other {# actions d’outil}}'
   startedByAgent: lancé par
   systemActor: Système
   unresolvedWorkflow: Automatisation

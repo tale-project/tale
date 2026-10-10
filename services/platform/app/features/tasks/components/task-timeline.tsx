@@ -4,16 +4,24 @@ import {
   taskAgentReviewReceiptSchema,
   taskReviewerSchema,
 } from '@tale/shared/schemas/task-review';
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Row, Stack } from '@tale/ui/layout';
 import { mentionPlainText } from '@tale/ui/mentions/scan-mentions';
+import { Text } from '@tale/ui/text';
 import { ThreadEvent, ThreadEventActor } from '@tale/ui/thread/thread-event';
 import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
+import { Loader2 } from 'lucide-react';
 import {
   Ban,
   Bot,
   CalendarDays,
   CheckCheck,
+  ChevronRight,
   CircleDot,
   Link2,
   Paperclip,
@@ -25,11 +33,14 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 
+import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { MENTION_KINDS } from '@/lib/shared/mention-handles';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
+import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import {
@@ -52,6 +63,7 @@ import {
 import {
   inferWorkflowContextFromRuns,
   mergeTaskTimeline,
+  type TaskAgentRunRow,
 } from '../utils/task-timeline';
 import { TaskActorName } from './task-actor-preview-popover';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
@@ -76,6 +88,112 @@ type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
  *  line that printed them both was a wall of text — and seconds of layout on
  *  a task with a few of them. */
 const ACTIVITY_TEXT_MAX = 160;
+
+function TaskAgentRunTimelineDetail({
+  organizationId,
+  run,
+}: {
+  organizationId: string;
+  run: TaskAgentRunRow;
+}) {
+  const { t } = useT('tasks');
+  const { t: tAutomations } = useT('automations');
+  const { t: tCommon } = useT('common');
+  const query = useBackendQuery('tasks/queries:getTaskAgentRunSandboxOp', {
+    organizationId,
+    runId: run.runId,
+  });
+  const op = query.data ?? null;
+  const retryFocus = useRetryFocus(
+    query.isError ? 'failed' : op === null ? 'loading' : 'ready',
+    run.runId,
+  );
+  if (query.isError) {
+    return (
+      <div ref={retryFocus.ref}>
+        <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              retryFocus.arm();
+              void query.refetch();
+            }}
+          >
+            {tCommon('actions.tryAgain')}
+          </Button>
+        </Alert>
+      </div>
+    );
+  }
+  if (op !== null) {
+    const toolActions = (op.liveTimeline ?? []).filter(
+      (part) => part.toolCallId !== undefined && part.toolCallId !== '',
+    ).length;
+    return (
+      <Stack gap={2}>
+        <Row gap={1} className="text-muted-foreground flex-wrap text-xs">
+          <span>{t(`agentRuns.status.${run.status}`)}</span>
+          {run.durationMs !== undefined && (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                {formatDurationSeconds(Math.ceil(run.durationMs / 1000))}
+              </span>
+            </>
+          )}
+          {toolActions > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{t('timeline.toolActions', { count: toolActions })}</span>
+            </>
+          )}
+          {run.costCents > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                {t('agentRuns.totalCost', {
+                  amount: formatCents(run.costCents),
+                })}
+              </span>
+            </>
+          )}
+        </Row>
+        <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
+      </Stack>
+    );
+  }
+  if (query.isFetching) {
+    return (
+      <Row gap={2} role="status">
+        <Loader2
+          className="text-muted-foreground size-4 animate-spin"
+          aria-hidden
+        />
+        <Text variant="muted">{tCommon('actions.loading')}</Text>
+      </Row>
+    );
+  }
+  return run.error !== undefined ? (
+    <Stack gap={1}>
+      <Text as="h3" variant="label">
+        {t('agentRun.reported')}
+      </Text>
+      <Text
+        as="p"
+        variant="muted"
+        className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
+      >
+        {run.error}
+      </Text>
+    </Stack>
+  ) : (
+    <Text as="p" variant="muted">
+      {tAutomations('runs.agentLog.empty')}
+    </Text>
+  );
+}
 
 function quoteActivityText(value: string): string {
   return value.length > ACTIVITY_TEXT_MAX
@@ -177,6 +295,9 @@ function TaskTimelineEntryContent({
   timeFormat?: 'time' | 'relative';
 }) {
   const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   const {
     resolveActor,
     resolveAssigneeId,
@@ -216,7 +337,32 @@ function TaskTimelineEntryContent({
           }
           time={<ThreadTime value={run.startedAt} format={timeFormat} />}
           trailing={
-            <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
+            <Row gap={2} align="center" className="shrink-0">
+              <TaskAgentRunStatusBadge
+                run={run}
+                agentName={agentPreview.name}
+              />
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-6 gap-1 px-0 text-xs"
+                aria-expanded={detailsOpen}
+                {...(detailsOpen ? { 'aria-controls': detailsId } : {})}
+                onClick={() => setDetailsOpen((open) => !open)}
+              >
+                {detailsOpen
+                  ? t('timeline.hideExecution')
+                  : tCommon('actions.view')}
+                <ChevronRight
+                  aria-hidden="true"
+                  className={cn(
+                    'size-3 shrink-0 transition-transform motion-reduce:transition-none',
+                    detailsOpen && 'rotate-90',
+                  )}
+                />
+              </Button>
+            </Row>
           }
         >
           <ThreadEventActor>
@@ -248,6 +394,14 @@ function TaskTimelineEntryContent({
             </>
           ) : null}
         </ThreadEvent>
+        {detailsOpen ? (
+          <div id={detailsId} className="text-muted-foreground pl-8 text-xs">
+            <TaskAgentRunTimelineDetail
+              organizationId={organizationId}
+              run={run}
+            />
+          </div>
+        ) : null}
         {isAgentRunWaiting(run) ? (
           // Why the run waits, under its line, in the sentence's column.
           <div className="pl-8">

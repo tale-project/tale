@@ -24,12 +24,9 @@ import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { CheckCircle2, Loader2, Play, RotateCcw, XCircle } from 'lucide-react';
-import { useState } from 'react';
 
-import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
-import { taskRunFailureClass } from '@/lib/shared/task-run-failure';
 
 import { useTaskAgentRunControls } from '../hooks/use-task-agent-run-controls';
 import {
@@ -58,143 +55,6 @@ interface TaskAgentRunEntryProps {
   assigneeLive?: boolean;
 }
 
-/**
- * The run's sandbox transcript, inspected WITHOUT leaving the task — the
- * agent twin of the subject panel's `TaskRunDetailsDialog`. Nothing is
- * fetched until it opens. A failed run leads with what it means and what it
- * reported; a run whose turn never wrote an op (it could not start) shows
- * that alone, and any other run without one degrades to the empty line.
- */
-function TaskAgentRunDetailsDialog({
-  organizationId,
-  runId,
-  name,
-  live,
-  failure,
-  open,
-}: {
-  organizationId: string;
-  runId: string;
-  name: string;
-  /** The RUN row's liveness, not the op's — a queued run has no op yet, and
-   * an op can settle a beat before its run row does. It picks the title's
-   * tense ("progress" only while there is progress to watch) and the
-   * header's spinner. */
-  live: boolean;
-  /** Set for a failed run: its classification and the raw reason it kept. */
-  failure?: { failureCode?: string; error?: string };
-  open: boolean;
-}) {
-  const { t } = useT('tasks');
-  const { t: tAutomations } = useT('automations');
-  const { t: tCommon } = useT('common');
-  const opQuery = useBackendQuery(
-    'tasks/queries:getTaskAgentRunSandboxOp',
-    open ? { organizationId, runId } : 'skip',
-  );
-  const op = opQuery.data ?? null;
-  const readStatus =
-    !open || op !== null
-      ? 'ready'
-      : opQuery.isFetching
-        ? 'loading'
-        : opQuery.isError
-          ? 'failed'
-          : opQuery.data === null
-            ? 'ready'
-            : 'loading';
-  const retryFocus = useRetryFocus(readStatus, `${runId}:${open}`);
-  // A harness often ends its transcript on the very words the run reported
-  // (its own API error as its last text): then the log below says them, and
-  // the reported block would only repeat them. A reason the run row alone
-  // keeps — a watchdog's, a refused start's — still shows.
-  const reported = failure?.error?.trim();
-  const reportedInLog =
-    reported !== undefined &&
-    op !== null &&
-    [...(op.liveTimeline ?? []).map((part) => part.text), op.progressText].some(
-      (text) => text?.trim() === reported,
-    );
-
-  if (!open) return null;
-  const title = live
-    ? t('run.detailsTitleLive', { name })
-    : t('run.detailsTitle', { name });
-  return (
-    <div
-      role="region"
-      aria-label={title}
-      className="bg-muted/20 mt-2 rounded-lg border p-3"
-    >
-      <div className="text-foreground flex items-center gap-2 pb-3 text-sm font-semibold">
-        {title}
-        {live && (
-          <Loader2
-            className="text-muted-foreground size-4 shrink-0 animate-spin"
-            aria-hidden
-          />
-        )}
-      </div>
-      {failure !== undefined && (
-        <Stack gap={2}>
-          <Text as="p">
-            {t(`agentRun.failure.${taskRunFailureClass(failure.failureCode)}`)}
-          </Text>
-          {failure.error !== undefined && !reportedInLog && (
-            <Stack gap={1}>
-              <Text as="h3" variant="label">
-                {t('agentRun.reported')}
-              </Text>
-              <Text
-                as="p"
-                variant="muted"
-                className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
-              >
-                {failure.error}
-              </Text>
-            </Stack>
-          )}
-        </Stack>
-      )}
-      {op !== null ? (
-        <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
-      ) : readStatus === 'failed' ? (
-        <div ref={retryFocus.ref}>
-          <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                retryFocus.arm();
-                void opQuery.refetch();
-              }}
-            >
-              {tCommon('actions.tryAgain')}
-            </Button>
-          </Alert>
-        </div>
-      ) : readStatus === 'ready' ? (
-        // A failed run said why above; "no log" would only repeat that it
-        // never got to work.
-        failure === undefined && (
-          <Text as="p" variant="muted">
-            {tAutomations('runs.agentLog.empty')}
-          </Text>
-        )
-      ) : (
-        <Row gap={2} role="status">
-          <Loader2
-            className="text-muted-foreground size-4 animate-spin"
-            aria-hidden
-          />
-          <Text variant="muted">{tCommon('actions.loading')}</Text>
-        </Row>
-      )}
-    </div>
-  );
-}
-
 export function TaskAgentRunEntry({
   organizationId,
   taskId,
@@ -213,7 +73,6 @@ export function TaskAgentRunEntry({
     { organizationId, taskId },
   );
   const { start, cancel, busy } = useTaskAgentRunControls(taskId);
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const run = runQuery.data;
   const readStatus =
@@ -290,15 +149,14 @@ export function TaskAgentRunEntry({
           {t('agentRun.previousRun', { name: run.agentName ?? run.harness })}
         </Text>
       )}
-      {/* The status itself opens the transcript. A separate Details verb made
-          this narrow property row wrap; the status is the obvious target. */}
+      {/* Run output belongs in the activity thread; the property bar only
+          exposes the current state and available controls. */}
       <Row align="center" gap={2} className="min-w-0">
         <button
           type="button"
-          className="focus-visible:ring-ring inline-flex min-w-0 items-center gap-2 rounded-md text-left focus-visible:ring-1 focus-visible:outline-none"
-          onClick={() => setDetailsOpen((open) => !open)}
+          className="inline-flex min-w-0 items-center gap-2 rounded-md text-left"
           aria-label={statusLabel}
-          aria-expanded={detailsOpen}
+          disabled
         >
           {run.status === 'failed' ? (
             <Badge variant="destructive" icon={XCircle}>
@@ -316,10 +174,7 @@ export function TaskAgentRunEntry({
                   className="text-muted-foreground size-3.5 shrink-0 animate-spin"
                 />
               ) : (
-                <StatusIndicator
-                  size="sm"
-                  variant={run.status === 'settled' ? 'success' : 'neutral'}
-                />
+                <StatusIndicator size="sm" variant="neutral" />
               )}
               <Text
                 as="span"
@@ -395,23 +250,6 @@ export function TaskAgentRunEntry({
           </Button>
         ) : null}
       </Row>
-      <TaskAgentRunDetailsDialog
-        organizationId={organizationId}
-        runId={run._id}
-        name={run.agentName ?? run.harness}
-        live={live}
-        {...(run.status === 'failed'
-          ? {
-              failure: {
-                ...(run.failureCode !== undefined
-                  ? { failureCode: run.failureCode }
-                  : {}),
-                ...(run.error !== undefined ? { error: run.error } : {}),
-              },
-            }
-          : {})}
-        open={detailsOpen}
-      />
     </Stack>
   );
 }

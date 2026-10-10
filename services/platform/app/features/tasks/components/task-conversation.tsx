@@ -72,7 +72,7 @@ function openingFrom(newestFirst: readonly TaskCommentData[]): number {
     : Number.NEGATIVE_INFINITY;
 }
 
-/** Three events in a row or more fold into one line that opens in place. */
+/** Three non-run activity events in a row or more fold into one line. */
 const FOLD_EVENTS_AT = 3;
 /** A comment by the same author this soon after their last, with nothing
  * between, continues it: no second identity row. */
@@ -81,7 +81,7 @@ const CONTINUATION_MS = 5 * 60_000;
 type EventEntry = Extract<ConversationEntry, { kind: 'event' }>;
 
 /** A day's entries as they render: a comment, a lone event, or a fold of
- * consecutive events. */
+ * consecutive activity events or agent runs. */
 type Segment =
   | {
       kind: 'comment';
@@ -90,11 +90,13 @@ type Segment =
       continuation: boolean;
     }
   | { kind: 'event'; key: string; entry: EventEntry }
-  | { kind: 'fold'; key: string; events: EventEntry[] };
+  | { kind: 'fold'; key: string; events: EventEntry[] }
+  | { kind: 'runFold'; key: string; events: EventEntry[] };
 
 function segmentsOf(entries: readonly ConversationEntry[]): Segment[] {
   const segments: Segment[] = [];
   let run: EventEntry[] = [];
+  let agentRuns: EventEntry[] = [];
   const flush = () => {
     const first = run[0];
     if (first !== undefined && run.length >= FOLD_EVENTS_AT) {
@@ -106,12 +108,35 @@ function segmentsOf(entries: readonly ConversationEntry[]): Segment[] {
     }
     run = [];
   };
+  const flushAgentRuns = () => {
+    const first = agentRuns[0];
+    if (first !== undefined && agentRuns.length >= 2) {
+      segments.push({
+        kind: 'runFold',
+        key: `run-fold-${first.key}`,
+        events: agentRuns,
+      });
+    } else {
+      for (const entry of agentRuns) {
+        segments.push({ kind: 'event', key: entry.key, entry });
+      }
+    }
+    agentRuns = [];
+  };
   let previous: ConversationEntry | undefined;
   for (const entry of entries) {
     if (entry.kind === 'event') {
+      if (entry.item.kind === 'agentRun') {
+        flush();
+        agentRuns.push(entry);
+        previous = entry;
+        continue;
+      }
+      flushAgentRuns();
       run.push(entry);
     } else {
       flush();
+      flushAgentRuns();
       const continuation =
         previous?.kind === 'comment' &&
         previous.comment.authorType === entry.comment.authorType &&
@@ -122,6 +147,7 @@ function segmentsOf(entries: readonly ConversationEntry[]): Segment[] {
     previous = entry;
   }
   flush();
+  flushAgentRuns();
   return segments;
 }
 
@@ -331,9 +357,38 @@ function TaskConversationContent({
                       <li
                         key={segment.key}
                         data-task-history-entry
-                        className="-my-3"
+                        className="-my-2.5"
                       >
                         {eventLine(segment.entry)}
+                      </li>
+                    );
+                  }
+                  if (segment.kind === 'runFold') {
+                    const firstAt = segment.events[0]?.at ?? 0;
+                    const lastAt = segment.events.at(-1)?.at ?? firstAt;
+                    const firstTime = formatDate(new Date(firstAt), 'time');
+                    const lastTime = formatDate(new Date(lastAt), 'time');
+                    return (
+                      <li
+                        key={segment.key}
+                        data-task-history-entry
+                        className="-my-2.5"
+                      >
+                        <ThreadEventGroup
+                          icon={History}
+                          summary={t('timeline.agentRuns', {
+                            count: segment.events.length,
+                          })}
+                          time={
+                            firstTime === lastTime
+                              ? firstTime
+                              : `${firstTime}–${lastTime}`
+                          }
+                        >
+                          {segment.events.map((entry) => (
+                            <li key={entry.key}>{eventLine(entry)}</li>
+                          ))}
+                        </ThreadEventGroup>
                       </li>
                     );
                   }
@@ -343,7 +398,7 @@ function TaskConversationContent({
                     <li
                       key={segment.key}
                       data-task-history-entry
-                      className="-my-3"
+                      className="-my-2.5"
                     >
                       <ThreadEventGroup
                         icon={History}

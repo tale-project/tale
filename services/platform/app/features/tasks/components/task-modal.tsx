@@ -2349,12 +2349,7 @@ export function EditTaskBody({
                 run exists — the subject panel's Start is the way in. */}
       {ownedBy !== null && latestRun !== null && (
         <PropertyRow label={t('run.label')}>
-          <TaskAutomationRunEntry
-            organizationId={task.organizationId}
-            projectId={task.projectId}
-            run={latestRun}
-            name={ownedBy.displayName}
-          />
+          <TaskAutomationRunEntry run={latestRun} />
         </PropertyRow>
       )}
       <PropertyRow label={t('fields.reviewer')}>

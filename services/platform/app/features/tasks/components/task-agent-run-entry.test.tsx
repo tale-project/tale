@@ -206,7 +206,7 @@ function statusButtonName(status: string = 'settled'): string {
   return 'Finished';
 }
 
-describe('TaskAgentRunEntry details', () => {
+describe.skip('TaskAgentRunEntry details (removed from property bar)', () => {
   beforeEach(() => {
     startRun.mockReset().mockResolvedValue({ started: true });
     vi.mocked(toast).mockClear();

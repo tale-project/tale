@@ -1,14 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-// The row exists so a run that has FINISHED keeps its step timeline
-// reachable from the task — the subject panel's Details goes away with the
-// live run. Pinned here: every state gets a badge and Details, and the dialog
-// speaks in the past tense once nothing is moving.
+// The row keeps the latest run's state visible. Run output is read in the
+// activity thread beside the run that produced it.
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
@@ -66,40 +63,32 @@ function run(status: 'success' | 'failed' | 'running') {
 }
 
 function renderEntry(status: 'success' | 'failed' | 'running') {
-  return render(
-    <TaskAutomationRunEntry
-      organizationId="org_1"
-      projectId="project_1"
-      run={run(status)}
-      name="Swiss VAT return desk"
-    />,
-  );
+  return render(<TaskAutomationRunEntry run={run(status)} />);
 }
 
 describe('TaskAutomationRunEntry', () => {
-  it('a finished run keeps its state and a Details entry', async () => {
+  it('a finished run keeps its state without duplicating the result', () => {
     renderEntry('success');
     expect(screen.getByText('Succeeded')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
     expect(
-      screen.getByRole('heading', {
-        name: 'Swiss VAT return desk — run details',
-      }),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'Details' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('a failed run is offered the same way — failure is what the reader debugs', () => {
+  it('a failed run keeps its state without duplicating the result', () => {
     renderEntry('failed');
     expect(screen.getByText('Failed')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Details' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('a live run reads in the present tense', async () => {
+  it('a live run keeps its state without opening a duplicate panel', () => {
     renderEntry('running');
-    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
+    expect(screen.getByText('Running')).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Swiss VAT return desk — progress' }),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'Details' }),
+    ).not.toBeInTheDocument();
   });
 
   it('only queued, running and waiting count as live', () => {

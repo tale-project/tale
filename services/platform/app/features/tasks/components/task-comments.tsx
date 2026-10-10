@@ -143,7 +143,9 @@ function TaskCommentViewContent({
     currentUserId !== undefined &&
     c.authorId === currentUserId;
   const canManage = canComment && own;
-  const canDelete = canManage || (canComment && canWork && isAdmin === true);
+  const canDelete =
+    c.authorType === 'user' &&
+    (canManage || (canComment && canWork && isAdmin === true));
 
   const actions =
     !editing && (canManage || canDelete) ? (

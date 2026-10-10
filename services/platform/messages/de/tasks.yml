@@ -508,7 +508,10 @@ agentRuns:
     noLiveDetail: Für diesen Durchlauf gibt es kein Live-Transkript.
 timeline:
   updates: '{count, plural, one {# Änderung} other {# Änderungen}}'
+  agentRuns: '{count, plural, one {# Agentenlauf} other {# Agentenläufe}}'
   runLabel: Agentenlauf
+  hideExecution: Ausblenden
+  toolActions: '{count, plural, one {# Tool-Aktion} other {# Tool-Aktionen}}'
   startedByAgent: gestartet von
   systemActor: System
   unresolvedWorkflow: Automatisierung

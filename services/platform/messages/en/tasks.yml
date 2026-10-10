@@ -503,7 +503,10 @@ agentRuns:
     noLiveDetail: No live transcript is available for this run.
 timeline:
   updates: '{count, plural, one {# update} other {# updates}}'
+  agentRuns: '{count, plural, one {# agent run} other {# agent runs}}'
   runLabel: Agent run
+  hideExecution: Hide
+  toolActions: '{count, plural, one {# tool action} other {# tool actions}}'
   startedByAgent: started by
   systemActor: System
   unresolvedWorkflow: Automation

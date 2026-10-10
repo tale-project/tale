@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow, TaskAgentRunRow } from '../utils/task-timeline';
@@ -55,6 +56,23 @@ const timelineMocks: { activity: TaskActivityRow[]; runs: TaskAgentRunRow[] } =
 vi.mock('../hooks/queries', () => ({
   useTaskActivity: () => ({ activity: timelineMocks.activity }),
   useTaskAgentRuns: () => ({ runs: timelineMocks.runs }),
+}));
+
+vi.mock('@/app/features/automations/components/agent-execution-log', () => ({
+  ExecutionLogView: () => <div data-testid="execution-log" />,
+}));
+
+const sandboxOp = vi.hoisted(() => ({
+  value: null as unknown,
+}));
+
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
+    data: sandboxOp.value,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
@@ -136,11 +154,16 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'agentRuns.refused.agent_disabled':
           'agent is not installed or is disabled',
         'timeline.runLabel': 'Agent run',
+        'actions.view': 'View',
+        'timeline.hideExecution': 'Hide',
+        'timeline.toolActions': `${String(values?.count)} tool actions`,
         'timeline.deletedAgent': 'Deleted agent',
         'timeline.startedByAgent': 'started by',
         'agentRuns.trigger.automation': 'automation',
         'agentRuns.trigger.delegated': 'delegated',
         'agentRuns.trigger.manual': 'manual',
+        'agentRuns.status.settled': 'settled',
+        'agentRuns.totalCost': `${String(values?.amount)} total`,
         'agentRun.waiting.org_limit': 'Waiting for a worker',
         'agentRun.waitingWhy.org_limit':
           "All of your organization's agent workers are busy.",
@@ -439,6 +462,7 @@ describe('TaskTimeline — runs no person started', () => {
   beforeEach(() => {
     timelineMocks.activity = [];
     timelineMocks.runs = [];
+    sandboxOp.value = null;
   });
 
   it('names the automation run that started an agent run', () => {
@@ -464,6 +488,53 @@ describe('TaskTimeline — runs no person started', () => {
     expect(screen.getByText('automation')).toBeInTheDocument();
     expect(screen.getByText('Fleet manager cycle')).toBeInTheDocument();
     expect(screen.queryByText(/started by/)).not.toBeInTheDocument();
+  });
+
+  it('shows an explicit execution control and its compact run metadata', async () => {
+    const user = userEvent.setup();
+    timelineMocks.runs = [
+      {
+        runId: 'run_completed',
+        agentSlug: 'agent-worker',
+        trigger: 'manual',
+        status: 'settled',
+        startedAt: Date.now(),
+        durationMs: 14 * 60 * 1000,
+        costCents: 12,
+      },
+    ];
+    sandboxOp.value = {
+      status: 'completed',
+      execId: 'exec-1',
+      liveTimeline: [
+        { type: 'tool-Bash', toolCallId: 'tool-1' },
+        { type: 'tool-Read', toolCallId: 'tool-2' },
+      ],
+    };
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    const viewButton = screen.getByRole('button', { name: 'View' });
+    expect(viewButton).toHaveAttribute('aria-expanded', 'false');
+    await user.click(viewButton);
+    expect(screen.getByRole('button', { name: 'Hide' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getAllByText('settled')).not.toHaveLength(0);
+    expect(screen.getByText('14m')).toBeInTheDocument();
+    expect(screen.getByText('2 tool actions')).toBeInTheDocument();
+    expect(screen.getByText('0.12 total')).toBeInTheDocument();
+    expect(screen.getByTestId('execution-log')).toBeInTheDocument();
+    await user.click(viewButton);
+    expect(viewButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('execution-log')).not.toBeInTheDocument();
   });
 
   it('names the agent whose run started a delegated one', () => {
