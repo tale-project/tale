@@ -149,6 +149,7 @@
             "platform/automations/http",
             "platform/automations/knowledge-search",
             "platform/automations/add-tasks",
+            "platform/automations/notify-members",
             "platform/automations/execution-logs",
             "platform/automations/approvals-in-workflows",
             "platform/automations/assistant"
