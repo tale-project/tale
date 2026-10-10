@@ -265,10 +265,10 @@ describe('AutomationSettingsDialog', () => {
     await user.clear(screen.getByLabelText(/Legal name/));
     await user.type(screen.getByLabelText(/Legal name/), 'New name');
     await user.click(screen.getByRole('tab', { name: /Validation policy/ }));
-    await user.selectOptions(
-      screen.getByLabelText(/Validation profile/),
-      'strict_rules',
+    await user.click(
+      screen.getByRole('combobox', { name: /Validation profile/ }),
     );
+    await user.click(screen.getByRole('option', { name: 'Strict checklist' }));
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(convexMocks.write).toHaveBeenCalledTimes(2));
