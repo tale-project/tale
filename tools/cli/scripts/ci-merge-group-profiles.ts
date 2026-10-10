@@ -151,6 +151,12 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
     '5eacba51efee9cd3be29d0bc5f740296f701c03efaa73da66b55ab39eead6841',
     buildMatrices,
   ),
+  // Current Build tolerates advisory SARIF upload failures on ephemeral merge-group refs.
+  profile(
+    'Build',
+    'b8dfca3f6d6b6d9b4047fa9d2bc9dcdd44102ac728e6cfd342830be2c7b3447d',
+    buildMatrices,
+  ),
   profile(
     'E2E',
     'f3107852e2afeb469fe123e5b8f4d0cf6cc2962501e18d7558ea4d5231bce48a',
