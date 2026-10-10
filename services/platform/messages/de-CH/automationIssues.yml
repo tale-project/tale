@@ -88,7 +88,7 @@ codes:
     cause: Der Test «{name}» erwartet «{connector}».{possibleCount, plural, =0 { Keine Node hier führt eine Aktion aus.} one { Die Nodes hier führen {possibleList} aus.} other { Die Nodes hier führen {possibleList} aus.}}
     fix: '{suggestion, select, none {Erwarte eine Aktion, die eine Node ausführt.} other {Meintest du «{suggestion}»?}}'
   TESTS_EXPECT_TYPE:
-    cause: Der Test «{name}» erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
+    cause: '{property, select, none {Der Test «{name}» erwartet als Ausgabe {expectedText}, aber die Automatisierung gibt {actualText} zurück.} other {Der Test «{name}» erwartet für output{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.}}'
   LLM_MODEL_UNAVAILABLE:
     cause: '{nodeLabel} verwendet «{model}», das kein verbundener Anbieter bereitstellt.'
   SKILL_UNKNOWN:
@@ -118,7 +118,7 @@ codes:
   TESTS_MOCK_NOT_LIST:
     cause: Der Test «{name}» gibt {nodeLabel} {kindLabel}.
   TESTS_MOCK_TYPE:
-    cause: '{property, select, none {Im Test «{name}» ist die simulierte Ausgabe {actualText}, aber {nodeLabel} gibt {expectedText} zurück.} other {Im Test «{name}» ist output.{property} {actualText}, aber {nodeLabel} gibt dort {expectedText} zurück.}}'
+    cause: '{property, select, none {Im Test «{name}» ist die simulierte Ausgabe {actualText}, aber {nodeLabel} gibt {expectedText} zurück.} other {Im Test «{name}» ist output{property} {actualText}, aber {nodeLabel} gibt dort {expectedText} zurück.}}'
   TESTS_EXPECT_NODE_UNKNOWN:
     cause: Der Test «{name}» nennt «{node}».
     fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du «{suggestion}»?}}'

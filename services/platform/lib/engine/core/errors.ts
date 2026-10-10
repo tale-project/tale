@@ -475,6 +475,8 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'test',
     params: ['test', 'name', 'connector', 'suggestion?', 'possible'],
   },
+  // `property`: the place in the output as the message writes it after
+  // `output` (`.rows[0]`, `[1].id`), empty for the output itself.
   TESTS_EXPECT_TYPE: {
     level: 'warning',
     family: 'test',
@@ -515,7 +517,7 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['test', 'name', 'node', 'kind'],
   },
   // `expected` is what the node returns there, `actual` what the test
-  // gives, each as a type.
+  // gives, each as a type; `property` is written as for TESTS_EXPECT_TYPE.
   TESTS_MOCK_TYPE: {
     level: 'warning',
     family: 'test',

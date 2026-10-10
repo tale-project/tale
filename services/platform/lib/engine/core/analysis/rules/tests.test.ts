@@ -165,21 +165,21 @@ describe('TESTS_EXPECT_TYPE', () => {
     [
       'a number expected as text',
       { count: 'one' },
-      'count',
+      '.count',
       'string',
       'number',
     ],
     [
       'a list item of the wrong kind',
       { rows: [5] },
-      'rows[0]',
+      '.rows[0]',
       'number',
       '{ id: string }',
     ],
     [
       'a key the output never has',
       { total: 1 },
-      'total',
+      '.total',
       'number',
       'undefined',
     ],
@@ -873,7 +873,7 @@ describe('what the existing test rules judge of the new grammar', () => {
     );
     expect(issue).toMatchObject({
       at: { pointer: '/tests/0/expect/outputIncludes/count' },
-      params: { property: 'count', expected: 'string', actual: 'number' },
+      params: { property: '.count', expected: 'string', actual: 'number' },
     });
   });
 });

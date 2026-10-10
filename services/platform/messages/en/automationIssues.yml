@@ -331,7 +331,7 @@ codes:
   TESTS_EXPECT_TYPE:
     title: Test expects the wrong type
     explanation: The test expects a value of a type the automation never returns, so it can't pass.
-    cause: The test "{name}" expects output.{property} to be {expectedText}, but the automation returns {actualText} there.
+    cause: '{property, select, none {The test "{name}" expects the output to be {expectedText}, but the automation returns {actualText}.} other {The test "{name}" expects output{property} to be {expectedText}, but the automation returns {actualText} there.}}'
     fix: Fix the expectation, or change the output.
   TESTS_TOO_MANY:
     title: Too many tests
@@ -366,7 +366,7 @@ codes:
   TESTS_MOCK_TYPE:
     title: Simulated output has the wrong shape
     explanation: The simulated output doesn't look like what the node really returns, so the nodes that read it may behave differently than in a real run.
-    cause: '{property, select, none {In the test "{name}", the simulated output is {actualText}, but {nodeLabel} returns {expectedText}.} other {In the test "{name}", output.{property} is {actualText}, but {nodeLabel} returns {expectedText} there.}}'
+    cause: '{property, select, none {In the test "{name}", the simulated output is {actualText}, but {nodeLabel} returns {expectedText}.} other {In the test "{name}", output{property} is {actualText}, but {nodeLabel} returns {expectedText} there.}}'
     fix: Give the simulated output the node's real shape.
   TESTS_EXPECT_NODE_UNKNOWN:
     title: Expects a node that doesn't exist

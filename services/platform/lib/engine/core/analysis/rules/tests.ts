@@ -206,7 +206,9 @@ function expectMismatch(
   return null;
 }
 
-/** `path` the way the messages write a place in a value: `.rows[0]`. */
+/** `path` the way the messages write a place in a value: `.rows[0]`, or
+ * `[1].id` in a list; empty for the value itself. The `property` param
+ * carries it so, and a sentence writes `output{property}`. */
 function propertyOf(path: Array<string | number>): string {
   return renderPath(path.map((key) => ({ key })));
 }
@@ -357,7 +359,7 @@ function standIns(cx: RuleContext, at: TestAt, out: Issue[]): void {
             test: index,
             name,
             node,
-            property: property.replace(/^\./, ''),
+            property,
             expected: m.actual,
             actual: m.expected,
           },
@@ -742,7 +744,7 @@ export function testRules(cx: RuleContext, out: Issue[]): void {
             params: {
               test: index,
               name,
-              property: property.replace(/^\./, ''),
+              property,
               expected: m.expected,
               actual: m.actual,
             },

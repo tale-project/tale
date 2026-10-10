@@ -426,13 +426,56 @@ describe('issueText — what a person reads', () => {
       params: {
         test: 0,
         name: 'counts',
-        property: 'count',
+        property: '.count',
         expected: 'number',
         actual: 'Array<string>',
       },
     };
     expect(issueText(test, context('fr')).cause).toBe(
       'Le test «\u00a0counts\u00a0» attend que output.count soit un nombre, mais l’automatisation y renvoie une liste.',
+    );
+  });
+
+  it('writes a place in an output the way the engine does, at its root too', () => {
+    const mock: WireIssue = {
+      level: 'warning',
+      code: 'TESTS_MOCK_TYPE',
+      message: '',
+      params: {
+        test: 0,
+        name: 'two',
+        node: 'each',
+        property: '[1].id',
+        expected: 'string',
+        actual: 'number',
+      },
+    };
+    expect(issueText(mock, context('en')).cause).toBe(
+      'In the test "two", output[1].id is a number, but "each" returns text there.',
+    );
+    expect(issueText(mock, context('de')).cause).toBe(
+      'Im Test „two“ ist output[1].id eine Zahl, aber „each“ gibt dort Text zurück.',
+    );
+    const root: WireIssue = {
+      level: 'warning',
+      code: 'TESTS_EXPECT_TYPE',
+      message: '',
+      params: {
+        test: 0,
+        name: 'shape',
+        property: '',
+        expected: '{ a: number }',
+        actual: 'string',
+      },
+    };
+    expect(issueText(root, context('en')).cause).toBe(
+      'The test "shape" expects the output to be an object, but the automation returns text.',
+    );
+    expect(issueText(root, context('de')).cause).toBe(
+      'Der Test „shape“ erwartet als Ausgabe ein Objekt, aber die Automatisierung gibt Text zurück.',
+    );
+    expect(issueText(root, context('fr')).cause).toBe(
+      'Le test «\u00a0shape\u00a0» attend que la sortie soit un objet, mais l’automatisation renvoie du texte.',
     );
   });
 

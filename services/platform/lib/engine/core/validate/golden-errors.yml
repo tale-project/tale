@@ -1257,7 +1257,7 @@ tests-expect-type:
       params:
         test: 0
         name: counts
-        property: count
+        property: .count
         expected: string
         actual: number
 tests-invalid-parts:
@@ -1451,7 +1451,7 @@ tests-mock-type:
         test: 0
         name: counts
         node: calc
-        property: count
+        property: .count
         expected: number
         actual: string
 tests-expect-node-unknown:

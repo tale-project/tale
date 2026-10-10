@@ -326,7 +326,7 @@ codes:
   TESTS_EXPECT_TYPE:
     title: Test erwartet den falschen Typ
     explanation: Der Test erwartet einen Wert von einem Typ, den die Automatisierung nie zurückgibt. Er kann deshalb nicht bestehen.
-    cause: Der Test „{name}“ erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
+    cause: '{property, select, none {Der Test „{name}“ erwartet als Ausgabe {expectedText}, aber die Automatisierung gibt {actualText} zurück.} other {Der Test „{name}“ erwartet für output{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.}}'
     fix: Korrigiere die Erwartung oder ändere die Ausgabe.
   TESTS_TOO_MANY:
     title: Zu viele Tests
@@ -361,7 +361,7 @@ codes:
   TESTS_MOCK_TYPE:
     title: Simulierte Ausgabe hat die falsche Form
     explanation: Die simulierte Ausgabe sieht nicht aus wie das, was die Node wirklich zurückgibt, deshalb können sich die Nodes, die sie lesen, anders verhalten als in einem echten Lauf.
-    cause: '{property, select, none {Im Test „{name}“ ist die simulierte Ausgabe {actualText}, aber {nodeLabel} gibt {expectedText} zurück.} other {Im Test „{name}“ ist output.{property} {actualText}, aber {nodeLabel} gibt dort {expectedText} zurück.}}'
+    cause: '{property, select, none {Im Test „{name}“ ist die simulierte Ausgabe {actualText}, aber {nodeLabel} gibt {expectedText} zurück.} other {Im Test „{name}“ ist output{property} {actualText}, aber {nodeLabel} gibt dort {expectedText} zurück.}}'
     fix: Gib der simulierten Ausgabe die echte Form der Node.
   TESTS_EXPECT_NODE_UNKNOWN:
     title: Erwartet eine Node, die es nicht gibt

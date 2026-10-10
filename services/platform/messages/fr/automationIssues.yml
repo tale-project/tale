@@ -326,7 +326,7 @@ codes:
   TESTS_EXPECT_TYPE:
     title: Le test attend le mauvais type
     explanation: Le test attend une valeur d’un type que l’automatisation ne renvoie jamais, donc il ne peut pas réussir.
-    cause: Le test « {name} » attend que output.{property} soit {expectedText}, mais l’automatisation y renvoie {actualText}.
+    cause: '{property, select, none {Le test « {name} » attend que la sortie soit {expectedText}, mais l’automatisation renvoie {actualText}.} other {Le test « {name} » attend que output{property} soit {expectedText}, mais l’automatisation y renvoie {actualText}.}}'
     fix: Corrige l’attente, ou modifie la sortie.
   TESTS_TOO_MANY:
     title: Trop de tests
@@ -361,7 +361,7 @@ codes:
   TESTS_MOCK_TYPE:
     title: La sortie simulée n’a pas la bonne forme
     explanation: 'La sortie simulée ne ressemble pas à ce que le nœud renvoie réellement : les nœuds qui la lisent peuvent donc se comporter autrement que dans une vraie exécution.'
-    cause: '{property, select, none {Dans le test « {name} », la sortie simulée est {actualText}, mais {nodeLabel} renvoie {expectedText}.} other {Dans le test « {name} », output.{property} vaut {actualText}, mais {nodeLabel} y renvoie {expectedText}.}}'
+    cause: '{property, select, none {Dans le test « {name} », la sortie simulée est {actualText}, mais {nodeLabel} renvoie {expectedText}.} other {Dans le test « {name} », output{property} vaut {actualText}, mais {nodeLabel} y renvoie {expectedText}.}}'
     fix: Donne à la sortie simulée la vraie forme du nœud.
   TESTS_EXPECT_NODE_UNKNOWN:
     title: Attend un nœud qui n’existe pas
