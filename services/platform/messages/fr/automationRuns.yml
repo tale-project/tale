@@ -312,6 +312,16 @@ runtime:
       explanation: Le fournisseur d’embedding n’a pas pu transformer la requête en recherche, donc rien n’a été cherché.
       cause: Le fournisseur du modèle d’embedding de l’organisation a refusé l’appel ou a échoué.
       fix: Relance ; si cela se reproduit, un administrateur peut vérifier le modèle d’embedding dans Paramètres › Résidence des données. Les détails techniques disent ce qui a échoué.
+    TASK_PROJECT_NOT_BOUND:
+      title: Le projet de la tâche n’est pas celui de l’automatisation
+      explanation: Une automatisation ne crée des tâches que dans un projet où elle est installée, et une exécution dans un projet seulement dans celui-ci.
+      cause: L’exécution ne peut pas créer de tâches dans le projet que nomme l’étape.
+      fix: Installe l’automatisation dans ce projet, ou nomme un projet où elle est installée.
+    TASK_ASSIGNEE_UNKNOWN:
+      title: La personne assignée à la tâche est inconnue
+      explanation: Une tâche va à un membre de l’organisation ou à un agent de son projet.
+      cause: 'Aucun membre ni agent du projet n’est {assignee}, ou il ne peut pas y travailler.'
+      fix: Nomme l’e-mail ou l’identifiant d’un membre, ou un agent du projet.
     LLM_OUTPUT_INVALID:
       title: La réponse du modèle ne correspondait pas
       explanation: L’étape a demandé au modèle une réponse structurée, et la réponse ne correspondait pas au schéma de sortie.

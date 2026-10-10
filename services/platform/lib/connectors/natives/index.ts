@@ -73,6 +73,8 @@ export {
 export {
   type WorkflowAgentStart,
   type WorkflowTaskComment,
+  type WorkflowTaskCreateAnswer,
+  type WorkflowTaskCreated,
   type WorkflowTaskStore,
   type WorkflowTaskView,
 } from './platform-tasks';
@@ -151,6 +153,7 @@ export const NATIVE_IMPL_IDS = [
   'knowledge.search',
   'sandbox.run_script',
   'task.comment',
+  'task.create',
   'task.get',
   'task.get_import_cursor',
   'task.list_comments',

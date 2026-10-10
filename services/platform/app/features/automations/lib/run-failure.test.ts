@@ -58,6 +58,8 @@ const SAMPLE: StepFailure['params'] = {
   contentType: 'text/html',
   perMinute: 120,
   atOnce: 10,
+  assignee: 'nobody@example.com',
+  projectId: 'prj_relaunch',
 };
 
 /** The run-level code each reason's failure carries. */

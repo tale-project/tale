@@ -17,6 +17,7 @@ import {
 import { z } from 'zod';
 
 import { importedTaskTitleRefusal } from '../../../backend/core/tasks/helpers';
+import type { FailureCause } from '../../engine/core/record/failure';
 import {
   taskCommentBodiesSchema,
   type TaskCommentBodies,
@@ -92,8 +93,44 @@ export interface WorkflowIssueResult {
   title: string;
 }
 
+/** A task `task.create` made — or found, on a retry of the same execution. */
+export interface WorkflowTaskCreated {
+  taskId: string;
+  /** The task's number in its project. */
+  number: number;
+  title: string;
+  /** Where the task opens in the app. */
+  url: string;
+}
+
+/** What `task.create` answers: the task, or why none was made. */
+export type WorkflowTaskCreateAnswer =
+  | { ok: true; task: WorkflowTaskCreated }
+  | {
+      ok: false;
+      /** `project`: the run may not create tasks in the project (its
+       * automation is not bound there, the run is pinned to another
+       * project, or the project is gone); `assignee`: no member or agent of
+       * the project answers to the name, or it may not work there. */
+      refusal: { kind: 'project' | 'assignee'; detail: string };
+    };
+
 /** What the rim needs from the platform's task domain. */
 export interface WorkflowTaskStore {
+  /** Create one task as an automation run's step: in a project the run may
+   * write in, one per execution (`idempotencyKey`). */
+  create(args: {
+    organizationId: string;
+    caller: ConnectorCaller;
+    idempotencyKey: string;
+    projectId: string;
+    title: string;
+    description?: string;
+    assignee?: string;
+    status?: 'backlog' | 'todo' | 'in_progress';
+    dueDate?: number;
+    labels?: string[];
+  }): Promise<WorkflowTaskCreateAnswer>;
   upsertIssues(args: {
     organizationId: string;
     caller: ConnectorCaller;
@@ -345,6 +382,56 @@ const listCommentsInput = taskRef
   })
   .strict();
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A step's due date as the board stores it, in ms. A date alone is noon UTC
+ * that day — the board keeps a picked day as its local start, which no zone
+ * the server knows of; noon reads as the same day almost everywhere. A date
+ * and time is taken as written.
+ */
+function dueDateMs(value: string): number | null {
+  const ms = DATE_ONLY.test(value)
+    ? Date.parse(`${value}T12:00:00Z`)
+    : Date.parse(value);
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
+const createInput = z
+  .object({
+    projectId: z.string().min(1),
+    // No minLength: a blank title is refused with the sentence every task
+    // door answers (`refuseBlankTitle`); an over-long one is cut.
+    title: z.string().max(10_000),
+    description: z.string().max(100_000).optional(),
+    assignee: z.string().min(1).max(320).optional(),
+    status: z.enum(['backlog', 'todo', 'in_progress']).optional(),
+    dueDate: z
+      .string()
+      .min(1)
+      .max(40)
+      .refine((value) => dueDateMs(value) !== null, {
+        message: 'is a date such as 2026-10-17, or an ISO date and time',
+      })
+      .optional(),
+    labels: z.array(z.string().min(1).max(64)).max(50).optional(),
+  })
+  .strict();
+
+/** A refusal that knows its cause in the run record's words. */
+class TaskCreateRefusal extends ConnectorError {
+  readonly failure: FailureCause;
+
+  constructor(message: string, failure: FailureCause, hint: string) {
+    super('LIVE_BODY_FAILED', message, {
+      connector: 'task',
+      action: 'create',
+      hint,
+    });
+    this.failure = failure;
+  }
+}
+
 function refuse(action: string, issues: z.ZodError): never {
   throw new ConnectorError(
     'INPUT_INVALID',
@@ -593,6 +680,47 @@ export function platformTaskNatives(
     });
   };
 
+  const create: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = createInput.safeParse(input);
+    if (!parsed.success) refuse('create', parsed.error);
+    refuseBlankTitle(parsed.data.title);
+    if (ctx.caller?.kind !== 'workflow') {
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'task.create runs only as an automation step',
+        {},
+      );
+    }
+    const { dueDate, ...rest } = parsed.data;
+    const due = dueDate === undefined ? null : dueDateMs(dueDate);
+    const answer = await store.create({
+      ...rest,
+      ...(due !== null && { dueDate: due }),
+      organizationId: ctx.organizationId,
+      caller: ctx.caller,
+      idempotencyKey: ctx.idempotencyKey,
+    });
+    if (answer.ok) return answer.task;
+    const { kind, detail } = answer.refusal;
+    if (kind === 'project') {
+      throw new TaskCreateRefusal(
+        `task.create cannot create a task in project "${rest.projectId}": ${detail}`,
+        {
+          reason: 'TASK_PROJECT_NOT_BOUND',
+          params: { projectId: rest.projectId },
+        },
+        'install the automation in the project, or run it in a project it is installed in',
+      );
+    }
+    throw new TaskCreateRefusal(
+      `task.create cannot assign the task to "${rest.assignee ?? ''}": ${detail}`,
+      {
+        reason: 'TASK_ASSIGNEE_UNKNOWN',
+        params: { assignee: rest.assignee ?? '' },
+      },
+      "name a member's email or user id, or an agent of the project",
+    );
+  };
   const workflowCaller = (
     action: string,
     ctx: NativeConnectorContext,
@@ -626,6 +754,7 @@ export function platformTaskNatives(
   };
 
   return {
+    'task.create': create,
     'task.start_agent': startAgent,
     'task.get_import_cursor': getImportCursor,
     'task.save_import_cursor': saveImportCursor,
