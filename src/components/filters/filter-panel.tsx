@@ -1,0 +1,515 @@
+'use client';
+
+import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
+import { Checkbox } from '@tale/ui/checkbox';
+import { cn } from '@tale/ui/cn';
+import { FilterButton } from '@tale/ui/filters/filter-button';
+import { FilterSection } from '@tale/ui/filters/filter-section';
+import { useT } from '@tale/ui/i18n/client';
+import { Popover } from '@tale/ui/popover';
+import { Text } from '@tale/ui/text';
+import { Circle } from 'lucide-react';
+import { Fragment, useId, useRef, useState } from 'react';
+
+/**
+ * THE filter affordance: one button that opens every facet group at once,
+ * collapsed by default, with the active-selection dot and "Clear all" in the
+ * panel header.
+ *
+ * It lives here rather than inside `DataTableFilters` because it is not a table
+ * concern — the card catalogs (AI providers, connectors, the skill library) need
+ * the same control, and before this split they each grew their own row of
+ * `MultiSelect` dropdowns instead. Table and catalog now render the same button,
+ * the same panel, and the same disabled rule, so "filter" looks and behaves
+ * identically wherever it appears.
+ */
+
+export interface FilterOption {
+  value: string;
+  label: string;
+  /**
+   * Heading this option sits under. Options sharing one group render beneath a
+   * single heading, which is how one facet can hold two kinds of thing — the
+   * inbox's Assignee lists People and Teams in one list. Ungrouped options at
+   * the head of the list render with no heading above them.
+   */
+  group?: string;
+}
+
+interface OptionSegment {
+  group?: string;
+  options: FilterOption[];
+}
+
+/**
+ * Split a facet's options into consecutive runs that share a `group`. Order is
+ * the caller's — a run ends where the group changes, so ungrouped options stay
+ * above the first heading instead of being collected into one.
+ */
+function toSegments(options: readonly FilterOption[]): OptionSegment[] {
+  const segments: OptionSegment[] = [];
+  for (const option of options) {
+    const current = segments.at(-1);
+    if (current && current.group === option.group) {
+      current.options.push(option);
+      continue;
+    }
+    segments.push({
+      ...(option.group === undefined ? {} : { group: option.group }),
+      options: [option],
+    });
+  }
+  return segments;
+}
+
+/** The keys Radix moves a radio group's focus with, and the choice with it. */
+const FOCUS_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+]);
+/** The keys Radix checks the option for itself, while the key is down. */
+const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
+export interface FilterConfig {
+  /** Unique key for this filter */
+  key: string;
+  /** Display title */
+  title: string;
+  /** Available options */
+  options: FilterOption[];
+  /** Currently selected values */
+  selectedValues: string[];
+  /** Callback when selection changes */
+  onChange: (values: string[]) => void;
+  /**
+   * The filter's resting selection — for a mandatory filter (one that always
+   * carries a value, like a metrics period), the value it falls back to.
+   * A selection equal to it does not count as ACTIVE: no indicator dot, and
+   * "Clear all" restores it instead of emptying the filter.
+   */
+  defaultValues?: string[];
+  /**
+   * Number of columns for the options grid.
+   * @default 1
+   */
+  columns?: 1 | 2;
+  /** Whether multiple options can be selected (default: false) */
+  multiSelect?: boolean;
+  /**
+   * This filter can WIDEN the result set beyond the default view (e.g.
+   * "show archived" reveals rows the default query hides). Its presence keeps
+   * the filter affordance enabled on an empty unfiltered list — rows may
+   * exist outside the default set, so the set isn't guaranteed empty.
+   */
+  widensResultSet?: boolean;
+}
+
+/**
+ * Whether a filter is narrowing anything beyond its resting state. Order is
+ * ignored so a multi-select reads as inactive however its defaults were
+ * re-ticked.
+ */
+export function isFilterActive(
+  filter: Pick<FilterConfig, 'selectedValues' | 'defaultValues'>,
+): boolean {
+  const defaults = new Set(filter.defaultValues ?? []);
+  if (filter.selectedValues.length !== defaults.size) return true;
+  return filter.selectedValues.some((value) => !defaults.has(value));
+}
+
+/**
+ * The shared disabled rule for a filter affordance: nothing exists to narrow,
+ * and no filter is currently doing the narrowing. Loading never disables — the
+ * set isn't known yet — nor does a failed read, whose empty result says
+ * nothing about the set; a filtered-to-empty result stays enabled so the
+ * reader can undo it.
+ *
+ * A widening filter keeps the affordance usable on an empty unfiltered set,
+ * because items may exist outside the default view.
+ */
+export function isFilterAffordanceDisabled({
+  isLoading = false,
+  isError = false,
+  itemCount,
+  hasActiveFilters,
+  filters,
+}: {
+  isLoading?: boolean;
+  /** The read failed: its empty result is an unknown set, not an empty one. */
+  isError?: boolean;
+  itemCount: number;
+  hasActiveFilters: boolean;
+  filters?: readonly FilterConfig[];
+}): boolean {
+  if (isLoading || isError || itemCount > 0 || hasActiveFilters) return false;
+  return !filters?.some((filter) => filter.widensResultSet);
+}
+
+interface FilterPanelProps {
+  filters: readonly FilterConfig[];
+  /**
+   * Runs when the panel's "Clear all" is pressed. The caller owns it because
+   * clearing usually reaches past the facets — a search box, a date range.
+   */
+  onClearAll: () => void;
+  /** Swap the icon for a spinner while the facet options are still resolving. */
+  isLoading?: boolean;
+  /**
+   * Render the button disabled and refuse to open the panel — for an empty set
+   * with no active filters (see `isFilterAffordanceDisabled`).
+   *
+   * It keeps a closed panel shut; it never pulls an open one, or the reader's
+   * focus, from under them. A panel disabled while open stays open until the
+   * reader closes it. A button that holds focus when it turns disabled — or
+   * gets it back from the panel closing — stays focusable as `aria-disabled`
+   * until focus moves on, and only then leaves the tab order: a natively
+   * disabled button drops the focus to the page.
+   */
+  disabled?: boolean;
+  /**
+   * Which edge of the button the panel pins to. Keep `'start'` for
+   * left-anchored toolbars; pass `'end'` when the button sits at the right edge
+   * of the page, so the panel doesn't run off-viewport.
+   */
+  align?: 'start' | 'end';
+  /** Show the button as its icon alone — see `FilterButton`'s `iconOnly`. */
+  iconOnly?: boolean;
+  /** The compact toolbar height — see `FilterButton`'s `compact`. */
+  compact?: boolean;
+}
+
+export function FilterPanel({
+  filters,
+  onClearAll,
+  isLoading = false,
+  disabled = false,
+  align = 'start',
+  iconOnly = false,
+  compact = false,
+}: FilterPanelProps) {
+  const { t } = useT('common');
+  const [isOpen, setIsOpen] = useState(false);
+  // The button holds the reader's focus, or is about to get it back from the
+  // closing panel — while it does, disabling it must not drop the focus.
+  const [holdsFocus, setHoldsFocus] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The reader pressed or focused something outside the open panel: closing,
+  // it leaves the focus there instead of handing it back to the button.
+  const interactedOutside = useRef(false);
+  const facetsRef = useRef<HTMLDivElement>(null);
+  // The option a focus key was pressed on, and whether an arrow key is down —
+  // what the options' `onClick` and `onFocus` read.
+  const navigatedFrom = useRef<EventTarget | null>(null);
+  const arrowDown = useRef(false);
+  const headingId = useId();
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({});
+
+  // No facet, no panel — and a panel that goes is closed, not left set to
+  // pop open, unasked, when facets come back.
+  if (filters.length === 0) {
+    if (isOpen) setIsOpen(false);
+    return null;
+  }
+
+  const activeFilterCount = filters.filter(isFilterActive).length;
+
+  // `disabled` can arrive while the panel is open: unticking the last facet
+  // over an empty list does it, and so does a server-side facet sending the
+  // list back to its first page. The panel stays open then, and the reader
+  // closes it. It can also arrive with the close itself — "Clear all" over an
+  // empty list — so the button is one element throughout, for the popover to
+  // hand focus back to, and it leaves the tab order only once it has let go of
+  // the focus.
+  const unavailable = disabled && !isOpen;
+
+  const close = () => {
+    setIsOpen(false);
+    setHoldsFocus(true);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) close();
+    else if (!disabled) setIsOpen(true);
+  };
+
+  const handleFilterChange = (
+    filter: FilterConfig,
+    value: string,
+    checked: boolean,
+  ) => {
+    filter.onChange(
+      checked
+        ? [...filter.selectedValues, value]
+        : filter.selectedValues.filter((entry) => entry !== value),
+    );
+  };
+
+  return (
+    <Popover
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+      // The panel is a `role="dialog"` layer; name it after its visible heading
+      // so assistive technology announces "Filters" on entry.
+      aria-labelledby={headingId}
+      // Never a modal layer: a modal popover marks the rest of the page
+      // aria-hidden, so the grid it narrows would vanish from the accessibility
+      // tree while the panel is open.
+      modal={false}
+      align={align}
+      onOpenAutoFocus={(event) => {
+        // The reader lands on the first facet's header, inside the panel: left
+        // on the button, their next Tab went on down the page and closed the
+        // panel unseen. Not on "Clear all", which a reflexive Enter would fire.
+        event.preventDefault();
+        facetsRef.current
+          ?.querySelector<HTMLElement>('button')
+          ?.focus({ preventScroll: true });
+      }}
+      onInteractOutside={(event) => {
+        // A press on the button closes the panel through the button, which
+        // keeps the focus.
+        const { target } = event;
+        if (target instanceof Node && triggerRef.current?.contains(target)) {
+          return;
+        }
+        interactedOutside.current = true;
+      }}
+      onCloseAutoFocus={() => {
+        // The reader took the focus elsewhere, so it is not coming back.
+        if (
+          interactedOutside.current &&
+          document.activeElement !== triggerRef.current
+        ) {
+          setHoldsFocus(false);
+        }
+        interactedOutside.current = false;
+      }}
+      contentClassName="bg-card flex max-h-[min(32rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden p-0"
+      trigger={
+        <FilterButton
+          ref={triggerRef}
+          hasActiveFilters={!unavailable && activeFilterCount > 0}
+          isLoading={isLoading}
+          iconOnly={iconOnly}
+          compact={compact}
+          disabled={unavailable && !holdsFocus}
+          aria-disabled={unavailable || undefined}
+          onFocus={() => setHoldsFocus(true)}
+          onBlur={(event) => {
+            // The window losing focus blurs the button but leaves it the
+            // page's focused element, to be focused again on return.
+            if (document.activeElement !== event.currentTarget) {
+              setHoldsFocus(false);
+            }
+          }}
+        />
+      }
+    >
+      <div className="border-border flex shrink-0 items-center justify-between border-b p-3">
+        <Text as="span" id={headingId} variant="label" className="text-sm">
+          {t('labels.filters')}
+        </Text>
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              onClearAll();
+              close();
+            }}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring rounded-md px-2 py-0.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none"
+          >
+            {t('actions.clearAll')}
+          </button>
+        )}
+      </div>
+
+      <div
+        ref={facetsRef}
+        className="divide-border min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain"
+      >
+        {filters.map((filter) => (
+          <FilterSection
+            key={filter.key}
+            title={filter.title}
+            isExpanded={expandedSections[filter.key] ?? false}
+            onToggle={() =>
+              setExpandedSections((prev) => ({
+                ...prev,
+                [filter.key]: !prev[filter.key],
+              }))
+            }
+            selectedCount={
+              filter.multiSelect ? filter.selectedValues.length : 0
+            }
+            hasSelection={!filter.multiSelect && isFilterActive(filter)}
+          >
+            {toSegments(filter.options).map((segment, segmentIndex) => {
+              const groupHeadingId = `filter-${filter.key}-group-${segmentIndex}`;
+              return (
+                <Fragment
+                  key={segment.group ?? `ungrouped-${String(segmentIndex)}`}
+                >
+                  {segment.group !== undefined && (
+                    <Text
+                      as="span"
+                      variant="label-sm"
+                      id={groupHeadingId}
+                      className="text-muted-foreground px-2 pt-2"
+                    >
+                      {segment.group}
+                    </Text>
+                  )}
+                  {filter.multiSelect ? (
+                    <div
+                      {...(segment.group === undefined
+                        ? {}
+                        : { role: 'group', 'aria-labelledby': groupHeadingId })}
+                      className={cn(
+                        'flex flex-col gap-1',
+                        filter.columns === 2 && 'grid grid-cols-2',
+                      )}
+                    >
+                      {segment.options.map((option) => {
+                        const checkboxId = `filter-${filter.key}-${option.value}`;
+                        const isChecked = filter.selectedValues.includes(
+                          option.value,
+                        );
+                        return (
+                          <label
+                            key={option.value}
+                            htmlFor={checkboxId}
+                            className={cn(
+                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                              isChecked ? 'bg-muted' : 'hover:bg-muted/70',
+                            )}
+                          >
+                            <Checkbox
+                              id={checkboxId}
+                              checked={isChecked}
+                              onCheckedChange={(checked) =>
+                                handleFilterChange(
+                                  filter,
+                                  option.value,
+                                  !!checked,
+                                )
+                              }
+                            />
+                            <Text
+                              as="span"
+                              variant="muted"
+                              className="font-medium"
+                            >
+                              {option.label}
+                            </Text>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // The radio group primitive `RadioGroup` is built on: one
+                    // Tab stop (the chosen option, else the first), keys that
+                    // move the focus and the choice together, and Tab and
+                    // Shift+Tab to leave the group.
+                    <RadioGroupPrimitive.Root
+                      value={filter.selectedValues[0] ?? null}
+                      onValueChange={(value) => filter.onChange([value])}
+                      onKeyDown={(event) => {
+                        if (FOCUS_KEYS.has(event.key)) {
+                          navigatedFrom.current = event.target;
+                        }
+                        if (ARROW_KEYS.has(event.key)) arrowDown.current = true;
+                      }}
+                      onKeyUp={() => {
+                        arrowDown.current = false;
+                      }}
+                      onPointerDown={() => {
+                        navigatedFrom.current = null;
+                      }}
+                      aria-label={segment.group ?? filter.title}
+                      className={cn(
+                        'flex flex-col gap-1',
+                        filter.columns === 2 && 'grid grid-cols-2',
+                      )}
+                    >
+                      {segment.options.map((option) => {
+                        const isSelected =
+                          filter.selectedValues[0] === option.value;
+                        return (
+                          <RadioGroupPrimitive.Item
+                            key={option.value}
+                            value={option.value}
+                            // Pressing the chosen option again (a click or
+                            // Space) sets the facet back to its resting
+                            // selection: how an optional one is cleared. The
+                            // click Radix sends an option an arrow key lands
+                            // on is no such press.
+                            onClick={() => {
+                              if (isSelected && !arrowDown.current) {
+                                filter.onChange(filter.defaultValues ?? []);
+                              }
+                            }}
+                            // A key that moves the focus to this option moves
+                            // the choice with it. Radix checks the option only
+                            // for an arrow key still down when its deferred
+                            // focus lands; Home, End, and an arrow key a busy
+                            // page lets come up first left the focus on one
+                            // option and the choice on another. Those choose
+                            // here, so one of the two chooses, never both.
+                            onFocus={(event) => {
+                              const navigated =
+                                event.relatedTarget !== null &&
+                                event.relatedTarget === navigatedFrom.current;
+                              navigatedFrom.current = null;
+                              if (
+                                navigated &&
+                                !arrowDown.current &&
+                                !isSelected
+                              ) {
+                                filter.onChange([option.value]);
+                              }
+                            }}
+                            className={cn(
+                              'focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-lg p-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+                              isSelected ? 'bg-muted' : 'hover:bg-muted/70',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'border-primary flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+                                isSelected && 'text-primary',
+                              )}
+                              aria-hidden="true"
+                            >
+                              {isSelected && (
+                                <Circle className="size-2.5 fill-current" />
+                              )}
+                            </span>
+                            <Text
+                              as="span"
+                              variant="muted"
+                              className="font-medium"
+                            >
+                              {option.label}
+                            </Text>
+                          </RadioGroupPrimitive.Item>
+                        );
+                      })}
+                    </RadioGroupPrimitive.Root>
+                  )}
+                </Fragment>
+              );
+            })}
+          </FilterSection>
+        ))}
+      </div>
+    </Popover>
+  );
+}
