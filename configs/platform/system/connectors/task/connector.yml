@@ -81,7 +81,7 @@ actions:
             type: array,
             maxItems: 50,
             items: { type: string, minLength: 1, maxLength: 64 },
-            description: 'Label names; the project''s catalog gains those it lacks.',
+            description: 'Label names; the project''s catalog gains those it lacks when the run''s starter may edit the project, or a trigger started the run.',
           }
     output: '{ taskId: string, number: number, title: string, url: string }'
     mock: |

@@ -1379,6 +1379,9 @@ export interface CreateTaskOptions {
   /** Who the task says created it when it is not the person `auth` names:
    * an automation (`app`, by its name) or the workflow engine (`agent`). */
   readonly creator?: { readonly id: string; readonly type: 'app' | 'agent' };
+  /** Add the labels the project's catalog lacks instead of refusing them,
+   * as an import does for a writer who may edit the project. */
+  readonly mintLabels?: boolean;
 }
 
 export async function createTask(
@@ -1399,6 +1402,7 @@ export async function createTask(
     projectId: args.projectId,
     names: args.labels,
     createdBy: auth.userId,
+    ...(options.mintLabels === true && { createIfMissing: true }),
   });
   assertScheduleOrder(args.startDate, args.dueDate);
   const repeat =

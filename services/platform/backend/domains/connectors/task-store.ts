@@ -580,6 +580,12 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
             },
             {
               taskId,
+              // Labels the catalog lacks are added for a writer who may edit
+              // the project — or for the automation alone, on a trigger's
+              // run — as an import adds them.
+              mintLabels:
+                scope.person === null ||
+                boardTaskAccess(scope.project, scope.person).canEdit,
               // The automation that made it, as an import names it.
               creator:
                 owner !== null

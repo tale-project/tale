@@ -204,6 +204,26 @@ describe('an automation step creates a task', () => {
   });
 });
 
+describe('the labels a step names', () => {
+  it.each([
+    ['an editor started the run', 'user:user-1', 'editor', true],
+    ['a trigger started it', 'trigger:t-1', 'editor', true],
+    ['a reader started it', 'user:user-1', 'member', false],
+  ])(
+    'adds what the catalog lacks when %s: %s',
+    async (_case, startedBy, role, mint) => {
+      vi.mocked(getRun).mockResolvedValue({
+        name: 'support/triage',
+        projectId: null,
+        startedBy,
+      } as never);
+      vi.mocked(authorizeActorRun).mockResolvedValue({ ...ada, role } as never);
+      await pgTaskStore(sql).create({ ...ask, labels: ['support'] });
+      expect(vi.mocked(createTask).mock.calls[0]?.[3]?.mintLabels).toBe(mint);
+    },
+  );
+});
+
 describe('a refused task.create [CONN-R24]', () => {
   it('refuses a project the automation is not installed in, writing nothing', async () => {
     vi.mocked(resolveRunProject).mockRejectedValue(
