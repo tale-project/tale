@@ -24,7 +24,6 @@ vi.mock('../collab/service.ts', () => ({ notifyTaskComment: vi.fn() }));
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(),
-  auditChainQueueKey: (id: string) => `audit-chain:${id}`,
 }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));

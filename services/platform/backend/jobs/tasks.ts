@@ -285,7 +285,7 @@ export interface TaskPayloads {
    * valid clamped policy sweeps its expired rows. */
   'governance.retention_cleanup': Record<string, never>;
   /** Daily incremental audit-chain integrity walk (progress row per org). */
-  'audit.integrity_check': Record<string, never>;
+  'audit.chain_check': Record<string, never>;
   /** Copy an org's blobs default-store -> BYO bucket (admin-triggered). */
   'object_storage.backfill': { runId: string; organizationId: string };
   /** Crash-recovery sweep: fail backfill runs whose process died mid-copy, so
@@ -644,7 +644,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'governance.process_erasure': { retryLimit: 1, expireInSeconds: 1_800 },
   'governance.retention_cleanup': { retryLimit: 1, expireInSeconds: 1_500 },
-  'audit.integrity_check': { retryLimit: 1, expireInSeconds: 1_500 },
+  'audit.chain_check': { retryLimit: 1, expireInSeconds: 1_500 },
   'object_storage.backfill': { retryLimit: 0, expireInSeconds: 3_600 },
   'watchdog.object_storage': { retryLimit: 1, expireInSeconds: 300 },
   'governance.effect_hold_releases': { retryLimit: 1, expireInSeconds: 300 },

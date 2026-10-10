@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 93 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 94 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -578,6 +578,16 @@ agent.
   **Period** (`settings.logs.activity.period.label`) → **Last 30 days**
   (`settings.logs.activity.period.last30Days`) → the caption and the totals
   change together.
+- [ ] `GOV-F64` · **A burst of changes joins the chain within seconds** — As an
+  admin, in two browser tabs change organization settings at the same moment
+  (rename a team in one, change a policy in the other), five times in quick
+  succession, then open `logs` → **Chain integrity** → **Verify now**. → Every
+  save returns at once in both tabs; **Audit logs** lists all ten changes;
+  **Verify now** reports the chain verified over every entry, and a note that
+  entries are not in the chain yet
+  (`settings.logs.integrity.awaitingSealNote`) appears at most right after
+  the burst and is gone on a second click a few seconds later; no **Chain
+  integrity broken** at any point.
 - [ ] `GOV-F33` · **A blocked erasure receipt tells the truth about the
   hold** — Place a custodian hold on a member (GOV-F7), then file an erasure
   request for them (GOV-F8) → the receipt is **Blocked** and its panel reads

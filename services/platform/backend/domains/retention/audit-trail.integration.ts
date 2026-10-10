@@ -7,7 +7,7 @@ import type { Sql } from 'postgres';
 
 import { getConfigRoot } from '../../core/lib/file_io.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import { createAuditLog, sealAuditChainNow } from '../audit_logs/service.ts';
 import { verifyAuditChain } from '../audit_logs/verify.ts';
 /**
  * Real Postgres proof of the cleanup's audit trail, on a seeded sweep in an
@@ -173,6 +173,8 @@ export async function checkRetentionAuditTrail(
     );
   }
   await applyRetentionBounds(sql, { organizationId: orgId, actorId: userId });
+  // The worker's sealer chains the prefix and the bounds row; here, now.
+  await sealAuditChainNow(sql, orgId);
   for (const [index, id] of prefix.entries()) {
     await sql`
       UPDATE app.audit_logs SET ts = ${pastAuditWindow + index} WHERE id = ${id}
@@ -320,10 +322,13 @@ export async function checkRetentionAuditTrail(
   await runRetentionCleanup(sql);
   const retry = (await retentionRuns(sql, orgId))[3] ?? [];
   const feedbackAfterRetry = await agedFeedback(sql, orgId, tag);
+  await sealAuditChainNow(sql, orgId);
   const verified = await verifyAuditChain(sql, orgId);
+  // The first surviving row in the chain's order holds the anchor.
   const anchor = await sql<{ previousHash: string | null }[]>`
     SELECT previous_hash AS "previousHash" FROM app.audit_logs
-    WHERE org_id = ${orgId} ORDER BY ts ASC, id ASC LIMIT 1
+    WHERE org_id = ${orgId} AND integrity_hash IS NOT NULL
+    ORDER BY chain_seq ASC NULLS FIRST, ts ASC, id ASC LIMIT 1
   `;
   const cut = destruction.find(
     (row) => row.action === 'audit_log.retention_deleted',

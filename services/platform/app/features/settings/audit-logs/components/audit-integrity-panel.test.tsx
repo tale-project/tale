@@ -107,6 +107,7 @@ describe('AuditIntegrityPanel', () => {
         checkpointsVerified: 2,
         truncated: false,
         unsignedScrubCount: 0,
+        awaitingSeal: { count: 0 },
       },
       isPending: false,
       isError: false,
@@ -130,6 +131,7 @@ describe('AuditIntegrityPanel', () => {
         checkpointsVerified: 0,
         truncated: true,
         unsignedScrubCount: 0,
+        awaitingSeal: { count: 0 },
       },
       isPending: false,
       isError: false,
@@ -154,6 +156,7 @@ describe('AuditIntegrityPanel', () => {
         checkpointsVerified: 0,
         truncated: false,
         unsignedScrubCount: 2,
+        awaitingSeal: { count: 0 },
       },
       isPending: false,
       isError: false,
@@ -166,6 +169,28 @@ describe('AuditIntegrityPanel', () => {
     expect(screen.queryByText(/signing key/)).not.toBeInTheDocument();
   });
 
+  it('says when entries written moments ago are not in the chain yet', () => {
+    state.verify = {
+      data: {
+        valid: true,
+        verifiedCount: 42,
+        checkpointsVerified: 0,
+        truncated: false,
+        unsignedScrubCount: 0,
+        awaitingSeal: { count: 3, oldestTimestamp: 1_760_000_000_000 },
+      },
+      isPending: false,
+      isError: false,
+      mutate: vi.fn(),
+    };
+    renderPanel();
+    expect(
+      screen.getByText(
+        /3 entries were written moments ago and are not in the chain yet/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('renders broken-chain details and wires the open-row button', async () => {
     state.verify = {
       data: {
@@ -174,6 +199,7 @@ describe('AuditIntegrityPanel', () => {
         checkpointsVerified: 1,
         truncated: false,
         unsignedScrubCount: 0,
+        awaitingSeal: { count: 0 },
         firstBrokenAt: {
           logId: 'log_bad',
           timestamp: NOW,
@@ -227,6 +253,7 @@ describe('AuditIntegrityPanel', () => {
         checkpointsVerified: 1,
         truncated: false,
         unsignedScrubCount: 0,
+        awaitingSeal: { count: 0 },
         firstBrokenAt: {
           logId: 'log_bad',
           timestamp: NOW,

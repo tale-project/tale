@@ -3,10 +3,10 @@
 /**
  * The task comment queue's contract with the shared retry queue: the task
  * key is locked before anything else, a serialization failure inside the
- * write carries the task key in front of any key an inner write (the org's
- * audit chain head) already put on it, and other failures pass untouched. A
- * comment write, which always ends on the chain head, queues a loss anywhere
- * in it on both keys.
+ * write carries the task key in front of any key an inner write (a
+ * project's work key) already put on it, and other failures pass untouched.
+ * A comment write then holds its organization's comment key shared, and
+ * queues a loss anywhere in it on its task and on that key.
  */
 
 import {
@@ -17,11 +17,11 @@ import {
 import type { TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { auditChainQueueKey } from '../audit_logs/service.ts';
 import {
   addTaskComment,
   deleteTaskComment,
   lockTaskCommentQueue,
+  orgCommentQueueKey,
   queuedOnTask,
   taskCommentQueueKey,
 } from './comments.ts';
@@ -81,16 +81,16 @@ describe('queuedOnTask', () => {
     expect(retryQueueKeysOf(failure)).toEqual([taskCommentQueueKey('t_1')]);
   });
 
-  it('keeps an inner audit mark behind the task key', async () => {
+  it('keeps an inner project mark behind the task key', async () => {
     const { tx } = fakeTx();
     const failure = await queuedOnTask(tx, 't_1', () =>
       Promise.reject(
-        markRetryQueueKey(sqlstateError('40001'), 'audit-chain:org_1'),
+        markRetryQueueKey(sqlstateError('40001'), 'project-work:p_1'),
       ),
     ).catch((error: unknown) => error);
     expect(retryQueueKeysOf(failure)).toEqual([
       taskCommentQueueKey('t_1'),
-      'audit-chain:org_1',
+      'project-work:p_1',
     ]);
   });
 
@@ -141,8 +141,27 @@ describe('comment writes', () => {
     }) as unknown as TransactionSql;
   }
 
-  it('queue a loss before the audit write on the task and the chain head', async () => {
-    // The queue lock answers; the task read loses to another comment write.
+  it("take the task's lock, then the organization's comment key shared", async () => {
+    const { tx, statements } = fakeTx();
+    // The task read finds nothing; only the locks before it matter here.
+    await addTaskComment(tx, auth, { taskId: 't_1', body: 'hello' }).catch(
+      (error: unknown) => error,
+    );
+    expect(statements.slice(0, 2)).toEqual([
+      {
+        text: 'SELECT pg_advisory_xact_lock(?, hashtext(?))',
+        values: [RETRY_QUEUE_LOCK_CLASS, taskCommentQueueKey('t_1')],
+      },
+      {
+        text: 'SELECT pg_advisory_xact_lock_shared(?, hashtext(?))',
+        values: [RETRY_QUEUE_LOCK_CLASS, orgCommentQueueKey('org_1')],
+      },
+    ]);
+  });
+
+  it("queue a loss on the task, then on the organization's comment key", async () => {
+    // The task lock answers; the next statement loses to another comment
+    // write.
     const failure = await addTaskComment(
       scriptedTx([[]], sqlstateError('40001')),
       auth,
@@ -150,11 +169,11 @@ describe('comment writes', () => {
     ).catch((error: unknown) => error);
     expect(retryQueueKeysOf(failure)).toEqual([
       taskCommentQueueKey('t_1'),
-      auditChainQueueKey('org_1'),
+      orgCommentQueueKey('org_1'),
     ]);
   });
 
-  it('queue a lost delete on the task and the chain head', async () => {
+  it("queue a lost delete on the task and the organization's comment key", async () => {
     const meta = {
       taskId: 't_1',
       authorType: 'user',
@@ -168,7 +187,7 @@ describe('comment writes', () => {
     ).catch((error: unknown) => error);
     expect(retryQueueKeysOf(failure)).toEqual([
       taskCommentQueueKey('t_1'),
-      auditChainQueueKey('org_1'),
+      orgCommentQueueKey('org_1'),
     ]);
   });
 

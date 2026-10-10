@@ -623,10 +623,8 @@ export async function uploadAutomationImpl(
             }),
           });
         }
-        // The audit rows go in only after the last bundle write: the first
-        // row takes the organization's audit-chain lock until commit, so
-        // recording while bundles are still being written would stall every
-        // other audited write in the organization behind this install.
+        // One audit row per bundle, after the last write: each records what
+        // its write stored.
         for (const write of written) {
           await writer.recordSkillWrite(write);
         }

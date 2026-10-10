@@ -44,7 +44,6 @@ import {
   checkIpRateLimit,
   checkKeyedRateLimit,
 } from '../../lib/rate-limit.ts';
-import { lockAuditChain } from '../audit_logs/service.ts';
 import type { EventOrigin } from '../events/origin.ts';
 import {
   AutomationError,
@@ -786,15 +785,10 @@ async function raisingRun(
  * triggers are disabled instead (`refused` answers that and a loop-held
  * event).
  *
- * Before it stamps a trigger, the dispatch takes the organization's audit
- * chain (`lockAuditChain`): a run of that trigger landing meanwhile holds
- * the chain for its audit row and only then writes the trigger's failure
- * streak (`trigger-failures.ts`), so the chain comes first here too. Most
- * producers audit before they emit and hold it already; one that emits
- * first (a comment edit, a conversation opened before its first message, an
- * external-ref intake) now takes it at the dispatch instead of at its own
- * audit a few statements later — never the trigger row first, which is
- * what deadlocked against the landing run. */
+ * The stamps take the triggers' rows in id order, so two producers of one
+ * event never wait on each other in a cycle; a run of one of them landing
+ * meanwhile holds only its own run row before it writes the trigger's
+ * failure streak (`trigger-failures.ts`). */
 export async function dispatchAutomationEvent(
   tx: TransactionSql,
   args: {
@@ -812,6 +806,7 @@ export async function dispatchAutomationEvent(
     FROM app.automation_triggers t
     WHERE org_id = ${args.organizationId} AND kind = 'event'
       AND enabled = true AND event = ${args.event}
+    ORDER BY t.id
   `;
   if (listening.length === 0) return { started: [], refused: false };
   let triggers: OrgCheckedTriggerRow[] = listening;
@@ -833,12 +828,11 @@ export async function dispatchAutomationEvent(
     }
     if (triggers.length === 0) return { started: [], refused: false };
   }
-  await lockAuditChain(tx, args.organizationId);
   if (triggers.some((trigger) => trigger.orgMissing)) {
     // The event names an organization that no longer exists: a producer
     // still writing rows its deletion left behind. Nothing may start in
     // its name, so the bindings listening for it are switched off instead —
-    // after the audit chain, like any other write to a trigger here. The
+    // in id order, like any other write to a trigger here. The
     // switch commits with the producer: one that rolls back takes it along,
     // and the next event switches them off, and names them, again.
     const retired = await retireOrphanedTriggers(
