@@ -13,6 +13,7 @@ import { getOutputMode } from '../../utils/output-mode';
 import { confirm as promptConfirm } from '../../utils/prompt';
 import { ensureDocker } from '../docker/ensure-docker';
 import type { ExecResult } from '../docker/exec';
+import { assertDockerEngineSupported } from '../docker/setup-checks';
 import {
   buildSandboxDeviceConfig,
   cliServerUrl,
@@ -123,6 +124,18 @@ async function dockerMachine(
   };
 }
 
+/** Refuse an engine that cannot pull Tale's images (zstd-compressed layers)
+ * before anything is spent on it: a connect's one-time join token, or an
+ * update's release. */
+function assertDeviceEngine(
+  docker: (args: string[]) => Promise<ExecResult>,
+): Promise<void> {
+  return assertDockerEngineSupported(async (args) => {
+    const res = await docker(args);
+    return res.success ? res.stdout : null;
+  });
+}
+
 function serverFailure(err: unknown, what: string): CliError {
   if (err instanceof SandboxDeviceServerError) {
     if (err.code === 'JOIN_TOKEN_INVALID') {
@@ -199,6 +212,7 @@ export async function connectSandboxDevice(
       'Install Docker (https://docs.docker.com/get-docker/), start it, and run the command again.',
     ]);
   }
+  await assertDeviceEngine(deps.docker);
   const machine = await dockerMachine(deps.docker);
   const name = deviceNameFrom(options.name ?? deps.hostname());
   const maxSessions =
@@ -487,6 +501,7 @@ export async function updateSandboxDevice(
       ['tale sandbox update --image-tag <release>'],
     );
   }
+  await assertDeviceEngine(deps.docker);
   logger.step(`Updating the sandbox device to Tale ${version}…`);
   await applyDeviceStack(current, path, version, deps);
   logger.success(`The sandbox device runs Tale ${version}.`);
