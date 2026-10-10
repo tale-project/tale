@@ -60,7 +60,7 @@ function worker(credential: string | undefined) {
 }
 
 describe('a connector step and its credential', () => {
-  it('acts as the credential the step names', async () => {
+  it('acts as the credential the step names [CONN-R19]', async () => {
     const run = worker('Shop API');
     await expect(
       stepRunImpl(run.ctx, { organizationId: 'org-ada', runId: 'run-1' }),

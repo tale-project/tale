@@ -1013,7 +1013,7 @@ describe('a connector whose credential is optional', () => {
     installConnectorCatalog([...shipped, DEMO, OPEN]);
   });
 
-  it('runs a call that names no credential with none — never the default', async () => {
+  it('runs a call that names no credential with none — never the default [CONN-R15]', async () => {
     const { ctx, calls } = await call();
     expect(calls).toEqual([]);
     expect(ctx?.credentialId).toBe('none');
@@ -1021,7 +1021,7 @@ describe('a connector whose credential is optional', () => {
     expect(ctx?.secrets.get('token')).toBe('');
   });
 
-  it('acts as the credential a call names', async () => {
+  it('acts as the credential a call names [CONN-R19]', async () => {
     const { ctx, calls } = await call('Shop API');
     expect(calls).toEqual([[ORG, 'open', 'Shop API']]);
     expect(ctx?.credentialId).toBe('cred_1');

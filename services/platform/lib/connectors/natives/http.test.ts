@@ -107,7 +107,7 @@ afterEach(() => {
   setSafeFetchResolverForTests(null);
 });
 
-describe('a call without a credential', () => {
+describe('a call without a credential [CONN-R15]', () => {
   it('calls a public HTTPS address with no credential at all', async () => {
     const api = client({
       headers: {
@@ -240,7 +240,7 @@ describe('a call without a credential', () => {
     expect(api.fetch).not.toHaveBeenCalled();
   });
 
-  it('refuses Authorization and Cookie from the step itself', async () => {
+  it('refuses Authorization and Cookie from the step itself [CONN-R17]', async () => {
     const api = client();
     const call = natives({ fetch: api.fetch })['http.get'];
     for (const header of ['Authorization', 'cookie', 'Proxy-Authorization']) {
@@ -261,7 +261,7 @@ describe('a call without a credential', () => {
 });
 
 describe('a call with a credential', () => {
-  it('signs with it and places a path under its base URL', async () => {
+  it('signs with it and places a path under its base URL [CONN-R16]', async () => {
     const api = client();
     await natives({ fetch: api.fetch })['http.get'](
       { url: '/orders', query: { page: 2 } },
@@ -283,18 +283,21 @@ describe('a call with a credential', () => {
     ['a path that climbs out', '/../admin'],
     ['an encoded climb', '/%2e%2e/admin'],
     ['plain http to the same host', 'http://api.example.com/v2/orders'],
-  ])('refuses an address outside the base: %s', async (_case, url) => {
-    const api = client();
-    await expect(
-      causeOf(
-        natives({ fetch: api.fetch })['http.get']({ url }, context(BEARER)),
-      ),
-    ).resolves.toMatchObject({
-      reason: 'HTTP_OFF_ORIGIN',
-      params: { baseUrl: 'https://api.example.com/v2' },
-    });
-    expect(api.fetch).not.toHaveBeenCalled();
-  });
+  ])(
+    'refuses an address outside the base: %s [CONN-R16]',
+    async (_case, url) => {
+      const api = client();
+      await expect(
+        causeOf(
+          natives({ fetch: api.fetch })['http.get']({ url }, context(BEARER)),
+        ),
+      ).resolves.toMatchObject({
+        reason: 'HTTP_OFF_ORIGIN',
+        params: { baseUrl: 'https://api.example.com/v2' },
+      });
+      expect(api.fetch).not.toHaveBeenCalled();
+    },
+  );
 
   it('accepts a full address under the base', async () => {
     const api = client();
@@ -305,7 +308,7 @@ describe('a call with a credential', () => {
     expect(api.calls[0]?.url).toBe('https://api.example.com/v2/orders/7');
   });
 
-  it('refuses the answer of a redirect chain that ended outside the base', async () => {
+  it('refuses the answer of a redirect chain that ended outside the base [CONN-R16]', async () => {
     const api = client({ finalUrl: 'https://api.example.com/admin/keys' });
     await expect(
       causeOf(
@@ -395,7 +398,7 @@ describe('a call with a credential', () => {
     expect(answer).toMatchObject({ body: 'you sent [redacted]' });
   });
 
-  it('scrubs the credential from every answer and failure it hands back', async () => {
+  it('scrubs the credential from every answer and failure it hands back [CONN-R17]', async () => {
     const echo = client({
       headers: {
         'content-type': 'application/json',
@@ -556,7 +559,7 @@ describe('sending', () => {
   });
 });
 
-describe('the organization’s lane', () => {
+describe('the organization’s lane [CONN-R18]', () => {
   it('refuses a call once the minute’s budget is spent, before any request', async () => {
     const api = client();
     await expect(
