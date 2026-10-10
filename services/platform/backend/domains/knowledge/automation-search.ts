@@ -113,7 +113,11 @@ export function knowledgeSearchForRuns(sql: Sql): WorkflowKnowledgeSearch {
         if (UNAVAILABLE_CODES.has(error.code)) {
           return {
             ok: false,
-            refusal: { kind: 'unavailable', detail: error.message },
+            refusal: {
+              kind: 'unavailable',
+              detail: error.message,
+              providerCode: error.code,
+            },
           };
         }
       }

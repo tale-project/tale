@@ -231,6 +231,7 @@ describe('reasonFamily', () => {
     ['HTTP_STATUS', { status: 503 }],
     ['HTTP_STATUS', { status: 429 }],
     ['CONNECTOR_FAILED', { status: 502 }],
+    ['KNOWLEDGE_UNAVAILABLE', { providerCode: 'EMBEDDING_UPSTREAM_ERROR' }],
   ])(
     'a service that may answer next time is unavailable, not a failing connector: %s %j',
     (reason, params) => {
@@ -243,6 +244,9 @@ describe('reasonFamily', () => {
     ['CONNECTOR_FAILED', { status: 400 }],
     ['CONNECTOR_FAILED', undefined],
     ['KNOWLEDGE_NOT_CONFIGURED', undefined],
+    // A refused account or credential repeats at the next occurrence.
+    ['KNOWLEDGE_UNAVAILABLE', { providerCode: 'EMBEDDING_CREDIT_EXHAUSTED' }],
+    ['KNOWLEDGE_UNAVAILABLE', undefined],
   ])(
     'a refusal the next occurrence would repeat stays a connector failure: %s %j',
     (reason, params) => {

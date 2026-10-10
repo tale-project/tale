@@ -43,7 +43,9 @@ export interface KnowledgeRunHit {
 /** Why a search did not run. */
 export type KnowledgeRunRefusal =
   | { kind: 'not_configured' }
-  | { kind: 'unavailable'; detail: string }
+  /** The provider refused or failed; `providerCode` is the platform's code
+   * for how (an upstream failure may pass, a refused credit will not). */
+  | { kind: 'unavailable'; detail: string; providerCode?: string }
   | { kind: 'budget'; detail: string }
   /** The run is gone, or pinned to a project whose row is gone. */
   | { kind: 'no_scope' };
@@ -100,7 +102,15 @@ function refused(refusal: KnowledgeRunRefusal): ConnectorError {
     return new KnowledgeRefusal(
       'LIVE_BODY_FAILED',
       `The knowledge search failed: ${refusal.detail}`,
-      { reason: 'KNOWLEDGE_UNAVAILABLE', params: { detail: refusal.detail } },
+      {
+        reason: 'KNOWLEDGE_UNAVAILABLE',
+        params: {
+          detail: refusal.detail,
+          ...(refusal.providerCode !== undefined && {
+            providerCode: refusal.providerCode,
+          }),
+        },
+      },
       'run again; if it repeats, check the embedding model',
     );
   }

@@ -261,7 +261,11 @@ describe('a refused search', () => {
         'EMBEDDING_UPSTREAM_ERROR',
         'The provider failed: 502',
       ),
-      { kind: 'unavailable', detail: 'The provider failed: 502' },
+      {
+        kind: 'unavailable',
+        detail: 'The provider failed: 502',
+        providerCode: 'EMBEDDING_UPSTREAM_ERROR',
+      },
     ],
     [
       new KnowledgeError('BUDGET_EXCEEDED', 'Usage limit reached.'),
