@@ -1214,6 +1214,12 @@ reads what the run's agent steps read (its project, its automation's bound proje
 hub), spends as the run, and a refused search says why. `AUTO-F127` and `AUTO-F128` keep a
 live search over real documents and its failures on the run page in the manual layer.
 
+Which connector failures count toward pausing a schedule is automated: a service that did not
+answer, answered too slowly, was busy or failed on its own side is `connector_unavailable`
+(`lib/engine/core/record/failure.test.ts`, `backend/domains/automations/shim.connector-failure.test.ts`),
+and `backend/core/automations/failure.test.ts` keeps it out of the count. `AUTO-F129`
+keeps the run page's words for both codes against a real API in the manual layer.
+
 ## Moving a box here
 
 When a spec takes a box over end to end, **delete the box and add its row to
