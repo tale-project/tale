@@ -504,6 +504,30 @@ describe('what a policy change does', () => {
       'removes-human-approval',
     ]);
     expect(governanceEffects('approval_policy', null, gated)).toEqual([]);
+    // Without a rule, a write leaving the platform waits for a person, so a
+    // rule that lets one run unseen removes that approval too.
+    const waived = { connector: 'github', decision: 'auto_approve' };
+    expect(
+      governanceEffects('approval_policy', null, { rules: [waived] }),
+    ).toEqual(['removes-human-approval']);
+    expect(
+      governanceEffects('approval_policy', gated, {
+        rules: [
+          ...gated.rules,
+          { action: 'imap-smtp.send', decision: 'auto_approve' },
+        ],
+      }),
+    ).toEqual(['removes-human-approval']);
+    // Keeping a waiver and adding an approval removes none.
+    expect(
+      governanceEffects(
+        'approval_policy',
+        { rules: [waived] },
+        {
+          rules: [waived, { connector: 'slack', decision: 'require_approval' }],
+        },
+      ),
+    ).toEqual([]);
     expect(
       governanceEffects(
         'review_policy',
