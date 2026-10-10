@@ -25,8 +25,9 @@ export function useSnapshotBrandingHistory() {
 }
 
 /** An image upload field toasts a failed upload itself (too large, wrong
- * type, …) and passes `errorToast: false`; the logo's derived favicon only
- * logs, so it keeps the default toast. */
+ * type, …) and passes `errorToast: false`; so does the logo's derived
+ * favicon, which reports a failure itself and stays quiet when it was
+ * refused because the branding changed since (`CONFIG_VERSION_CONFLICT`). */
 export function useSaveImage(options?: { errorToast?: false }) {
   const invalidate = useInvalidateBranding();
   return useBackendAction('branding/file_actions:saveImage', {

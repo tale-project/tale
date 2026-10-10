@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Image } from '@/app/components/image';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import type { BrandingWriteVersions } from '@/app/lib/backend/contract/branding';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteImage, useSaveImage } from '../hooks/mutations';
@@ -70,6 +71,9 @@ interface ImageUploadFieldProps {
   runWrite?: BrandingWriteRunner;
   currentUrl?: string | null;
   imageType: 'logo' | 'favicon-light' | 'favicon-dark';
+  /** The branding versions an upload or removal moved between, reported in
+   * its write's turn before `onUpload` / `onRemove`. */
+  onWritten?: (written: BrandingWriteVersions) => void;
   onUpload: (filename: string, file: File) => void;
   onRemove?: () => void;
   onPreviewUrlChange?: (url: string | null) => void;
@@ -83,6 +87,7 @@ export function ImageUploadField({
   runWrite = runBrandingWrite,
   currentUrl,
   imageType,
+  onWritten,
   onUpload,
   onRemove,
   onPreviewUrlChange,
@@ -182,6 +187,7 @@ export function ImageUploadField({
             base64,
             mimeType: file.type,
           });
+          onWritten?.(result);
           onUpload(result.filename, file);
         });
       } catch (err) {
@@ -216,6 +222,7 @@ export function ImageUploadField({
       runWrite,
       saveImage,
       imageType,
+      onWritten,
       onUpload,
       onPreviewUrlChange,
       toast,
@@ -260,7 +267,11 @@ export function ImageUploadField({
     setIsDeleting(true);
     try {
       await runWrite(async () => {
-        await deleteImage.mutateAsync({ organizationId, type: imageType });
+        const removed = await deleteImage.mutateAsync({
+          organizationId,
+          type: imageType,
+        });
+        onWritten?.(removed);
         setPreviewUrl(null);
         onPreviewUrlChange?.(null);
         setIsRemoved(true);
@@ -282,6 +293,7 @@ export function ImageUploadField({
     deleteImage,
     organizationId,
     imageType,
+    onWritten,
     onRemove,
     onPreviewUrlChange,
   ]);

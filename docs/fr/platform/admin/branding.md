@@ -25,7 +25,7 @@ En l’absence de logo, le nom de l’organisation sert de marque textuelle. Mod
 
 Sélectionne l’image dans le champ correspondant. Le chargement ou le retrait d’une image prend effet immédiatement, sans attendre Enregistrer. L’aperçu et l’apparence de l’organisation se mettent à jour lorsque l’opération aboutit.
 
-Sans favicon explicite, Tale peut en créer une à partir du logo chargé. Fournis une icône dédiée si le logo complet devient difficile à reconnaître dans un onglet. Après le chargement, vérifie l’icône et la barre latérale, y compris dans l’autre thème.
+Sans favicon explicite, Tale peut en créer une à partir du logo chargé. Si quelqu’un choisit une favicon pendant que Tale en crée encore une, sur cette page ou dans une autre fenêtre, ce choix est conservé et la favicon créée n’est pas enregistrée. Fournis une icône dédiée si le logo complet devient difficile à reconnaître dans un onglet. Après le chargement, vérifie l’icône et la barre latérale, y compris dans l’autre thème.
 
 <Note>
 
@@ -37,6 +37,8 @@ L’action Abandonner de l’en-tête concerne les modifications du formulaire e
 
 Modifie **Couleur d'accentuation** et examine l’aperçu. Sélectionne **Enregistrer** dans l’en-tête pour conserver la modification, ou **Abandonner** pour revenir à la valeur enregistrée. Le champ reflète le thème courant : la couleur dérivée du thème sombre peut donc différer de la valeur stockée pour le thème clair. L’aperçu montre la couleur telle qu’elle apparaîtra une fois enregistrée. Dans le thème sombre, elle peut donc différer de la valeur du champ. Enregistrer une modification, charger une image ou en retirer une laisse chaque fois une entrée dans le journal d’audit, sous **Paramètres > Gouvernance > Journaux**.
 
+Si l’apparence change après l’ouverture de la page, parce que quelqu’un l’enregistre, charge une image ou la réinitialise dans une autre fenêtre, ton **Enregistrer** est refusé au lieu d’écraser ce changement, et ta saisie reste dans le champ. Sélectionne **Abandonner** pour charger l’apparence actuelle, puis refais ta modification.
+
 Les boutons conservent ta couleur aussi fidèlement que la lisibilité le permet. Les autres repères tracés dans l’accent n’utilisent ta couleur que si elle se lit comme du texte sur la page. Sinon, Tale en prend une nuance plus foncée, ou plus claire dans le thème sombre. Ces repères comprennent un lien, une mention, un renvoi vers une source, l’élément de navigation sélectionné, un point de non-lu, le contour du focus clavier, un interrupteur activé et une barre de progression. Sur un lien ou un interrupteur, une couleur de ton moyen peut donc paraître légèrement différente de celle d’un bouton.
 
 Après l’enregistrement, recharge la page et vérifie un élément de navigation sélectionné, un bouton et le focus au clavier. Une couleur convaincante sur une grande surface peut être difficile à distinguer sur un petit contrôle.
@@ -45,4 +47,4 @@ Après l’enregistrement, recharge la page et vérifie un élément de navigati
 
 La personnalisation s’applique à l’intérieur de l’espace de travail. Changer d’organisation charge l’apparence de la destination. Les pages de connexion s’affichent avant le choix d’une organisation et utilisent l’apparence par défaut de la plateforme.
 
-Si le navigateur montre encore une ancienne icône, recharge la page et vérifie les champs de favicon. Une favicon explicite a priorité sur celle dérivée du logo. Utilise **Réinitialiser** seulement pour retirer la personnalisation enregistrée de l’organisation, après avoir lu la confirmation. La confirmation prend effet immédiatement : les images sont supprimées et la couleur d’accent effacée est enregistrée, sans autre **Enregistrer** et sans rien laisser de non enregistré.
+Si le navigateur montre encore une ancienne icône, recharge la page et vérifie les champs de favicon. Une favicon explicite a priorité sur celle dérivée du logo. Utilise **Réinitialiser** seulement pour retirer la personnalisation enregistrée de l’organisation, après avoir lu la confirmation. La confirmation prend effet immédiatement : les images sont supprimées et la couleur d’accent effacée est enregistrée, sans autre **Enregistrer** et sans rien laisser de non enregistré. Un **Enregistrer** sélectionné avant la réinitialisation ne peut plus ramener les anciennes valeurs une fois celle-ci terminée.

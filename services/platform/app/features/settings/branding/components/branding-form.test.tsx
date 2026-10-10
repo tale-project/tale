@@ -30,12 +30,16 @@ vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: mockToast }),
 }));
 
-// Mock branding mutations
-const mockMutateAsync = vi.fn().mockResolvedValue(undefined);
-const mockDeleteImage = vi.fn().mockResolvedValue(undefined);
-const mockSaveImage = vi
+// Mock branding mutations; each write answers the branding version it left.
+const mockMutateAsync = vi.fn().mockResolvedValue({ hash: 'saved' });
+const mockDeleteImage = vi
   .fn()
-  .mockResolvedValue({ filename: 'favicon-light.png' });
+  .mockResolvedValue({ hash: 'removed', previousHash: 'saved' });
+const mockSaveImage = vi.fn().mockResolvedValue({
+  filename: 'favicon-light.png',
+  hash: 'derived',
+  previousHash: 'h-logo',
+});
 vi.mock('../hooks/mutations', () => ({
   useSaveBranding: () => ({ mutateAsync: mockMutateAsync }),
   useSnapshotBrandingHistory: () => ({ mutateAsync: mockMutateAsync }),
@@ -90,23 +94,26 @@ vi.mock('@/app/components/image', () => ({
   ),
 }));
 
-// Mock ImageUploadField — clicking fires `onUpload(filename, file)` so the
-// form's upload wiring (incl. favicon derivation) can be exercised.
+// Mock ImageUploadField — clicking reports the write's versions, as the
+// field does, and fires `onUpload(filename, file)` so the form's upload
+// wiring (incl. favicon derivation) can be exercised.
 vi.mock('./image-upload-field', () => ({
   ImageUploadField: (props: {
     ariaLabel?: string;
     label?: string;
     imageType: string;
+    onWritten?: (written: { hash: string; previousHash: null }) => void;
     onUpload: (filename: string, file: File) => void;
   }) => (
     <button
       data-testid={`upload-${props.imageType}`}
-      onClick={() =>
+      onClick={() => {
+        props.onWritten?.({ hash: `h-${props.imageType}`, previousHash: null });
         props.onUpload(
           `${props.imageType}.png`,
           new File(['x'], `${props.imageType}.png`, { type: 'image/png' }),
-        )
-      }
+        );
+      }}
     >
       {props.label ?? 'upload'}
     </button>

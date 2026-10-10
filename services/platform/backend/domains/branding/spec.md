@@ -48,6 +48,17 @@ other person left them.
 - **Example**: Ada and Noah, both admins, open **Branding**. Noah saves a new accent color.
   Ada then saves from the page she opened earlier → refused, and Noah's color stays.
 
+### BRAND-R6 · An image sent with an outdated version of the branding is refused
+
+An image upload can say which version of the branding it was decided on; the favicon Tale
+makes from a newly uploaded logo always does. When the branding changed in between, it is
+refused (`CONFIG_VERSION_CONFLICT`): nothing is stored and nothing is written to the audit log.
+An upload that names no version is stored as it comes. Every image upload and deletion answers
+the version it left and the one it found.
+
+- **Example**: Ada uploads a logo, and while Tale makes a favicon from it, Noah uploads a
+  favicon in another window → the favicon made from Ada's logo is refused, and Noah's stays.
+
 ### BRAND-R4 · A save writes one audit entry naming what changed, and none for no change
 
 The entry lists the fields that were added, removed or changed.
