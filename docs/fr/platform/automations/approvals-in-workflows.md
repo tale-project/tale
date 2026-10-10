@@ -25,7 +25,7 @@ Tu ne peux pas modifier les paramètres sur la carte. Rejette une demande incorr
 
 ## Laisser une automatisation écrire sans approbation
 
-Une écriture qui attend une personne à chaque exécution — un résumé du matin publié dans Slack — peut être autorisée pour cette seule automatisation. Ouvre l’onglet **Général** de l’automatisation : **S’exécute sans approbation** liste chaque écriture que fait sa dernière version. Un propriétaire ou un admin active l’écriture et enregistre ; dès lors, ses exécutions réelles font cette écriture tout de suite, et sa boîte sur le canevas indique **S’exécute sans approbation**. Toute autre automatisation, et toute autre écriture de celle-ci, demande toujours.
+Une écriture qui attend une personne à chaque exécution — un résumé du matin publié dans Slack — peut être autorisée pour cette seule automatisation. Ouvre l’onglet **Général** de l’automatisation : **S’exécute sans approbation** liste chaque écriture vers un système externe que fait sa dernière version ; une écriture dans Tale même, comme la création d’une tâche, n’attend jamais par défaut. Un propriétaire ou un admin active l’écriture et enregistre ; dès lors, ses exécutions réelles font cette écriture tout de suite, et sa boîte sur le canevas indique **S’exécute sans approbation**. Toute autre automatisation, et toute autre écriture de celle-ci, demande toujours.
 
 Une règle de la [politique d’approbation](/fr/self-hosted/configuration/approvals) qui exige une personne pour l’action l’emporte toujours sur une autorisation. Chaque autorisation et chaque retrait figurent dans le [journal d’audit](/fr/platform/admin/governance/audit-logs), et supprimer l’automatisation supprime ses autorisations.
 

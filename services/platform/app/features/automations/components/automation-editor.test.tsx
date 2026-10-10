@@ -64,6 +64,7 @@ const {
     allowances: [] as Array<{
       type: string;
       used: boolean;
+      policy: 'requires' | 'allows' | null;
       allowance: null | {
         grantedBy: string;
         grantedByName: string | null;

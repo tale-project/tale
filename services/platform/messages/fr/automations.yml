@@ -604,6 +604,8 @@ allowances:
   formerMember: un ancien membre
   asks: Demande à une personne avant chaque exécution en direct.
   unused: Aucune étape de la dernière version ne le fait.
+  policyRequires: La politique d’approbation de ton organisation exige une personne pour cette écriture, quoi qu’il soit autorisé ici.
+  policyAllows: La politique d’approbation de ton organisation laisse déjà cette écriture s’exécuter sans approbation.
   none: Cette automatisation ne fait aucune écriture qui attend une approbation.
   readOnly: Seuls les propriétaires et les admins peuvent modifier cela.
 bindings:

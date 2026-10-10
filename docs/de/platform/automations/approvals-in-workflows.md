@@ -25,7 +25,7 @@ Auf der Freigabekarte kannst du keine Parameter ändern. Lehne eine falsche Anfr
 
 ## Eine Automatisierung ohne Freigabe schreiben lassen
 
-Ein Schreibzugriff, der bei jedem Lauf auf eine Person wartet — ein Morgen-Digest, der in Slack postet —, lässt sich für genau diese Automatisierung erlauben. Öffne den Tab **Allgemein** der Automatisierung: **Läuft ohne Freigabe** listet jeden Schreibzugriff ihrer neuesten Version. Ein Inhaber oder Admin schaltet den Schreibzugriff ein und speichert; ab dann führen ihre Live-Läufe ihn sofort aus, und ihr Kasten auf dem Canvas zeigt **Läuft ohne Freigabe**. Jede andere Automatisierung und jeder andere Schreibzugriff dieser einen fragt weiterhin.
+Ein Schreibzugriff, der bei jedem Lauf auf eine Person wartet — ein Morgen-Digest, der in Slack postet —, lässt sich für genau diese Automatisierung erlauben. Öffne den Tab **Allgemein** der Automatisierung: **Läuft ohne Freigabe** listet jeden Schreibzugriff auf ein externes System, den ihre neueste Version ausführt; ein Schreibzugriff in Tale selbst, etwa das Erstellen einer Aufgabe, wartet standardmäßig nie. Ein Inhaber oder Admin schaltet den Schreibzugriff ein und speichert; ab dann führen ihre Live-Läufe ihn sofort aus, und ihr Kasten auf dem Canvas zeigt **Läuft ohne Freigabe**. Jede andere Automatisierung und jeder andere Schreibzugriff dieser einen fragt weiterhin.
 
 Eine Regel der [Freigaberichtlinie](/de/self-hosted/configuration/approvals), die für die Aktion eine Person verlangt, hat weiterhin Vorrang vor einer Erlaubnis. Jede Erlaubnis und jede Rücknahme steht im [Audit-Protokoll](/de/platform/admin/governance/audit-logs), und das Löschen der Automatisierung entfernt ihre Erlaubnisse.
 

@@ -13,10 +13,16 @@ const setAllowances = vi.fn();
 const allowancesData = vi.hoisted(() => ({
   canGrant: true,
   actions: [
-    { type: 'slack.send_message', used: true, allowance: null },
+    {
+      type: 'slack.send_message',
+      used: true,
+      policy: null,
+      allowance: null,
+    },
   ] as Array<{
     type: string;
     used: boolean;
+    policy: 'requires' | 'allows' | null;
     allowance: null | {
       grantedBy: string;
       grantedByName: string | null;
@@ -126,7 +132,12 @@ beforeEach(() => {
   setAllowances.mockResolvedValue({ granted: [], withdrawn: [] });
   allowancesData.canGrant = true;
   allowancesData.actions = [
-    { type: 'slack.send_message', used: true, allowance: null },
+    {
+      type: 'slack.send_message',
+      used: true,
+      policy: null,
+      allowance: null,
+    },
   ];
 });
 
@@ -238,12 +249,33 @@ describe('AutomationGeneralTab', () => {
     });
   });
 
+  it("says when the organization's approval policy decides a write", () => {
+    allowancesData.actions = [
+      {
+        type: 'slack.send_message',
+        used: true,
+        policy: 'requires',
+        allowance: null,
+      },
+    ];
+    renderGeneralTab();
+    expect(
+      screen.getByText(
+        "Your organization's approval policy requires a person for it, whatever is allowed here.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText('Asks a person before each live run.'),
+    ).toBeNull();
+  });
+
   it('says who allowed a write, and shows a developer the writes read-only', () => {
     allowancesData.canGrant = false;
     allowancesData.actions = [
       {
         type: 'slack.send_message',
         used: true,
+        policy: null,
         allowance: {
           grantedBy: 'u-ada',
           grantedByName: 'Ada Lovelace',

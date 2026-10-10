@@ -126,6 +126,11 @@ export function ApprovalAllowancesSection({
   };
   const description = (action: (typeof actions)[number]): string => {
     const words: string[] = [];
+    // A rule of the organization's approval policy decides whatever the
+    // switch says: the switch is still kept, for when the rule goes.
+    if (action.policy === 'requires')
+      words.push(t('allowances.policyRequires'));
+    if (action.policy === 'allows') words.push(t('allowances.policyAllows'));
     if (action.allowance !== null && allowed.has(action.type)) {
       words.push(
         t('allowances.grantedBy', {
@@ -133,7 +138,7 @@ export function ApprovalAllowancesSection({
           date: formatDate(new Date(action.allowance.grantedAt), 'medium'),
         }),
       );
-    } else if (!allowed.has(action.type)) {
+    } else if (!allowed.has(action.type) && action.policy === null) {
       words.push(t('allowances.asks'));
     }
     if (!action.used) words.push(t('allowances.unused'));

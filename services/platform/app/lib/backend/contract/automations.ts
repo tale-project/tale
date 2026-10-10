@@ -21,6 +21,9 @@ export interface AutomationApprovalAllowanceRow {
   /** `<connector>.<action>`. */
   type: string;
   used: boolean;
+  /** What the organization's approval policy decides for it whatever the
+   * allowance says; null when the allowance decides. */
+  policy: 'requires' | 'allows' | null;
   allowance: {
     grantedBy: string;
     /** The granter's name or email; null for someone erased or gone. */

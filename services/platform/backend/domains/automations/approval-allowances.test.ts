@@ -10,6 +10,11 @@ import {
 import { auditDefinitionWrite } from './audit.ts';
 
 vi.mock('./audit.ts', () => ({ auditDefinitionWrite: vi.fn() }));
+const governance = vi.hoisted(() => ({ policy: null as unknown }));
+vi.mock('../../lib/org-config.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/org-config.ts')>()),
+  readGovernancePolicyForOrg: () => Promise.resolve(governance.policy),
+}));
 
 /** The allowances on file, as `connector.action`, and whether the
  * automation exists. */
@@ -67,6 +72,7 @@ beforeEach(() => {
   onFile = [];
   exists = true;
   latestDocument = undefined;
+  governance.policy = null;
   statements.length = 0;
   vi.mocked(auditDefinitionWrite).mockReset();
 });
@@ -77,6 +83,9 @@ describe('the writes an automation may make without approval [APV-R13]', () => {
     ['http.send', { connector: 'http', action: 'send' }],
     // A read changes nothing and is never gated.
     ['http.get', null],
+    // A write on the platform's own surface never waits by default.
+    ['task.create', null],
+    ['conversation.record_triage', null],
     ['slack.nonexistent', null],
     ['nothing', null],
   ])('reads %s as a write action of the catalog: %o', (type, expected) => {
@@ -199,10 +208,16 @@ describe('the write actions an automation lists in its General tab', () => {
         automation: 'morning-digest',
       }),
     ).resolves.toEqual([
-      { type: 'github.create_issue', used: true, allowance: null },
+      {
+        type: 'github.create_issue',
+        used: true,
+        policy: null,
+        allowance: null,
+      },
       {
         type: 'http.send',
         used: false,
+        policy: null,
         allowance: {
           grantedBy: 'user-ada',
           grantedByName: 'Ada Lovelace',
@@ -212,6 +227,7 @@ describe('the write actions an automation lists in its General tab', () => {
       {
         type: 'slack.send_message',
         used: true,
+        policy: null,
         allowance: {
           grantedBy: 'user-ada',
           grantedByName: 'Ada Lovelace',
@@ -233,5 +249,34 @@ describe('the write actions an automation lists in its General tab', () => {
         automation: 'x',
       }),
     ).resolves.toEqual([]);
+  });
+});
+
+describe("a write the organization's approval policy decides", () => {
+  it('says when a rule requires a person, or already lets it run', async () => {
+    latestDocument = {
+      version: 1,
+      name: 'digest',
+      nodes: [
+        { id: 'post', type: 'slack.send_message' },
+        { id: 'file', type: 'github.create_issue' },
+        { id: 'call', type: 'http.send' },
+      ],
+    };
+    governance.policy = {
+      rules: [
+        { action: 'slack.send_message', decision: 'require_approval' },
+        { connector: 'github', decision: 'auto_approve' },
+      ],
+    };
+    const rows = await readApprovalAllowanceRows(tx as unknown as Sql, {
+      organizationId: 'org-1',
+      automation: 'digest',
+    });
+    expect(rows.map((row) => [row.type, row.policy])).toEqual([
+      ['github.create_issue', 'allows'],
+      ['http.send', null],
+      ['slack.send_message', 'requires'],
+    ]);
   });
 });

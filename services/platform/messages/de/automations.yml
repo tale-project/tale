@@ -603,6 +603,8 @@ allowances:
   formerMember: einem ehemaligen Mitglied
   asks: Fragt vor jedem Live-Lauf eine Person.
   unused: Kein Schritt der neuesten Version macht das.
+  policyRequires: Die Freigaberichtlinie deiner Organisation verlangt dafür eine Person, egal was hier erlaubt ist.
+  policyAllows: Die Freigaberichtlinie deiner Organisation lässt den Schreibzugriff bereits ohne Freigabe laufen.
   none: Diese Automatisierung führt keine Schreibzugriffe aus, die auf eine Freigabe warten.
   readOnly: Nur Inhaber und Admins können das ändern.
 bindings:

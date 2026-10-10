@@ -1,6 +1,8 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { findConnector } from '../../../lib/connectors/catalog.ts';
+import { resolveApprovalDecision } from '../../core/approvals/policy.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { auditDefinitionWrite } from './audit.ts';
 import {
   AutomationError,
@@ -16,9 +18,12 @@ import {
  * where a rule of the organization's `approval_policy` that requires a
  * person for the action still wins.
  *
- * An allowance names a write action of the shipped connector catalog, as an
- * automation's step names it (`slack.send_message`): a read changes nothing
- * and is never gated, and an action the catalog does not know cannot run.
+ * An allowance names a write to an outside system, as an automation's step
+ * names it (`slack.send_message`): a read changes nothing and is never
+ * gated; a write on the platform's own surface (a `platform`-auth
+ * connector: tasks, documents, conversations) runs without a person
+ * already, so an allowance could change nothing for it; and an action the
+ * catalog does not know cannot run.
  * It outlives the versions that use it — a later version that stops using
  * the action leaves it in place, listed as unused — and is removed with the
  * automation.
@@ -35,8 +40,8 @@ export interface ApprovalAllowance {
   note: string | null;
 }
 
-/** The connector and action of a step type, when it names a write action of
- * the shipped catalog. */
+/** The connector and action of a step type, when it names a write to an
+ * outside system in the shipped catalog. */
 export function writeActionOf(
   type: string,
 ): { connector: string; action: string } | null {
@@ -44,7 +49,11 @@ export function writeActionOf(
   if (dot <= 0 || dot === type.length - 1) return null;
   const connector = type.slice(0, dot);
   const action = type.slice(dot + 1);
-  const declared = findConnector(connector)?.actions.find(
+  const definition = findConnector(connector);
+  if (definition?.auth.some((method) => method.method === 'platform')) {
+    return null;
+  }
+  const declared = definition?.actions.find(
     (candidate) => candidate.name === action,
   );
   return declared?.effects === 'write' ? { connector, action } : null;
@@ -125,7 +134,7 @@ export async function setApprovalAllowances(
   if (invalid.length > 0) {
     throw new AutomationError(
       'APPROVAL_ALLOWANCE_INVALID',
-      'Only a write action of a connector can run without approval.',
+      'Only a write to an outside system can be allowed to run without approval.',
       400,
       { types: invalid },
     );
@@ -207,6 +216,10 @@ export interface ApprovalAllowanceRow {
   type: string;
   /** Whether a step of the latest version makes it. */
   used: boolean;
+  /** What the organization's approval policy decides for it whatever the
+   * allowance says — a rule that `requires` a person, or one that already
+   * `allows` it — or null when no rule speaks and the allowance decides. */
+  policy: 'requires' | 'allows' | null;
   /** Who allowed it to run without a person, and when; null while it asks. */
   allowance: {
     grantedBy: string;
@@ -259,11 +272,42 @@ export async function readApprovalAllowanceRows(
     ).map((user) => [user.id, user.name ?? user.email ?? null]),
   );
   const byType = new Map(allowances.map((row) => [row.type, row]));
+  // The policy as it stands, read leniently: a file that does not parse
+  // stops every write at the gate, and here it only leaves the rows
+  // without a policy note.
+  const policy = await readGovernancePolicyForOrg(
+    db,
+    args.organizationId,
+    'approval_policy',
+  ).catch((error: unknown) => {
+    console.warn(
+      '[automations] approval policy unreadable for the allowance list:',
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  });
+  const policyOn = (type: string): ApprovalAllowanceRow['policy'] => {
+    const dot = type.indexOf('.');
+    const decide = (allowance: boolean) =>
+      resolveApprovalDecision({
+        connector: type.slice(0, dot),
+        action: type.slice(dot + 1),
+        platformInternal: false,
+        policy,
+        allowance,
+      });
+    if (decide(true).requirement === 'require') return 'requires';
+    const without = decide(false);
+    return without.requirement === 'allow' && without.by === 'rule'
+      ? 'allows'
+      : null;
+  };
   return [...new Set([...used, ...byType.keys()])].sort().map((type) => {
     const allowance = byType.get(type);
     return {
       type,
       used: used.has(type),
+      policy: policyOn(type),
       allowance:
         allowance === undefined
           ? null
