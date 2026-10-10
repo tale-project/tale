@@ -73,6 +73,9 @@ blank:
   openAutomation: Automatisierung öffnen
   enableNow: Jetzt aktivieren
   enableNowHint: Aus lässt den Trigger pausiert — es startet nichts, bis du ihn auf der Trigger-Karte einschaltest.
+  deployNow: v1 jetzt live schalten
+  deployNowHint: v1 ist sofort live, und sein Trigger startet Läufe, solange er aktiviert ist. Aus lässt v1 einen Entwurf, den du im Editor live schaltest.
+  deployFailed: 'Die Automatisierung wurde angelegt, aber v1 ließ sich nicht live schalten: {error}. Schalte sie im Editor live.'
   triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
     sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
   cancel: Abbrechen
