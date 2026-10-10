@@ -1422,6 +1422,8 @@ logs:
       project.deleted: Project deleted
       policy.created: Policy created
       policy.updated: Policy updated
+      governance_policy.created: Policy created
+      governance_policy.updated: Policy updated
       policy.retention_bounds_proposal_applied: Retention bounds proposal applied
       policy.retention_bounds_initial_applied: Retention bounds initially applied
       retention.run_completed: Retention run completed
