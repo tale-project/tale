@@ -191,11 +191,16 @@ function standingBefore(
       undefaulted.add(at.name);
     }
   }
-  return rows
-    .filter((row) => !removed.has(row.name))
-    .map((row) =>
+  // A copy for each row an earlier change takes the default from: the rows
+  // read stay as they were read.
+  const standing: CredentialListItem[] = [];
+  for (const row of rows) {
+    if (removed.has(row.name)) continue;
+    standing.push(
       undefaulted.has(row.name) ? { ...row, isDefault: false } : row,
     );
+  }
+  return standing;
 }
 
 /**
