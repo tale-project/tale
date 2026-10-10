@@ -29,9 +29,21 @@ Eine leere `message` oder ein leerer `link` — eine Vorlage, die nichts gefunde
 
 Der Schritt gibt `{ delivered, skipped }` zurück: `delivered` listet jedes erreichte Mitglied als `{ to, userId }` unter dem Namen, den der Schritt ihm gab, und `skipped` listet `{ to, userId, reason }` für jedes nicht erreichte.
 
+<Frame caption="Ein Live-Lauf von Announce the weekly report: Der Schritt hat die Woche aus der Laufeingabe gelesen und der Person Bescheid gegeben, die den Lauf gestartet hat.">
+
+![Die Seite eines erfolgreichen Live-Laufs von Announce the weekly report mit ausgewähltem Schritt Tell, einem Schritt Notify · Notify members. Sein Tab Last run sagt, dass er notify.member ausgeführt und week aus der Laufeingabe gelesen hat; unter Received stehen to, eine Liste mit 1 Eintrag, der Link zu reports.example.com, der Titel Weekly report ready und die Nachricht. Unter dem Canvas listet der Lauf 1 effect.](/images/platform/automation-notify-run.webp)
+
+</Frame>
+
 ## Wer sie bekommt
 
 Jedes Mitglied bekommt eine Benachrichtigung, auch wenn der Schritt es zweimal nennt — per E-Mail-Adresse und per Benutzer-ID. Die E-Mail folgt eine Minute später, außer es hat die Nachricht bis dahin in Tale gelesen oder **Handlungsrelevante Alerts per E-Mail** unter Einstellungen › Benachrichtigungen ausgeschaltet. Sie geht über das verbundene Gmail-, Outlook- oder SMTP-Postfach deiner Organisation hinaus; ohne eines bleibt es bei der Benachrichtigung in Tale.
+
+<Frame caption="Die Nachricht in den Benachrichtigungen der Person, die den Lauf gestartet hat: Titel, Text, die Automatisierung, die sie geschickt hat, und die Website, die ihr Link öffnet.">
+
+![Das Panel Notifications mit 1 ungelesenen Benachrichtigung: der Titel Weekly report ready, die Nachricht zur Woche 41, die Zeile Sent by the automation Announce the weekly report und darunter Open reports.example.com mit einem Symbol für einen neuen Tab.](/images/platform/automation-notify-bell.webp)
+
+</Frame>
 
 Zwei Fälle werden übersprungen und in `skipped` mit ihrem Grund aufgeführt:
 

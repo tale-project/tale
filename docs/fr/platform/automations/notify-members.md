@@ -29,9 +29,21 @@ Un `message` ou un `link` vide — un modèle qui n’a rien trouvé — est lai
 
 L’étape renvoie `{ delivered, skipped }` : `delivered` liste chaque membre atteint sous la forme `{ to, userId }`, sous le nom que l’étape lui a donné, et `skipped` liste `{ to, userId, reason }` pour chaque personne non atteinte.
 
+<Frame caption="Une exécution en direct de Announce the weekly report : l’étape a lu la semaine dans l’entrée de l’exécution et a prévenu la personne qui l’a lancée.">
+
+![La page d’une exécution réussie en direct de Announce the weekly report, avec l’étape Tell sélectionnée, une étape Notify · Notify members. Son onglet Last run indique qu’elle a exécuté notify.member et lu week dans l’entrée de l’exécution ; sous Received figurent to, une liste de 1 élément, le lien vers reports.example.com, le titre Weekly report ready et le message. Sous le canevas, l’exécution liste 1 effect.](/images/platform/automation-notify-run.webp)
+
+</Frame>
+
 ## Qui le reçoit
 
 Chaque membre reçoit une seule notification, même quand l’étape le nomme deux fois — par e-mail et par identifiant. L’e-mail suit une minute plus tard, sauf si la personne a lu le message dans Tale entre-temps ou a désactivé **M'envoyer les alertes actionnables par e-mail** dans Paramètres › Notifications. Il part par la boîte Gmail, Outlook ou SMTP connectée de ton organisation ; sans elle, la personne n’a que la notification dans Tale.
+
+<Frame caption="Le message dans les notifications de la personne qui a lancé l’exécution : son titre, son texte, l’automatisation qui l’a envoyé et le site qu’ouvre son lien.">
+
+![Le panneau Notifications avec 1 notification non lue : le titre Weekly report ready, le message sur la semaine 41, la ligne Sent by the automation Announce the weekly report, et dessous Open reports.example.com avec une icône d’ouverture dans un nouvel onglet.](/images/platform/automation-notify-bell.webp)
+
+</Frame>
 
 Deux cas sont ignorés, et listés dans `skipped` avec leur raison :
 

@@ -741,6 +741,44 @@ export const DEMO_TASK_CREATE = {
   },
 } as const;
 
+/**
+ * The notify page's demo: an automation whose one step tells the person who
+ * started its run that the weekly report is ready, with a link to it —
+ * deployed and run live once, so the run shows whom the step reached and
+ * that person's bell shows the message.
+ */
+export const DEMO_NOTIFY = {
+  automation: 'weekly-report-ready',
+  name: 'Announce the weekly report',
+  node: 'tell',
+  project: DEMO_PROJECTS[0].name,
+  input: { week: 41 },
+  title: 'Weekly report ready',
+  document: {
+    version: 1,
+    name: 'weekly-report-ready',
+    inputs: {
+      type: 'object',
+      required: ['week'],
+      properties: { week: { type: 'number' } },
+    },
+    nodes: [
+      {
+        id: 'tell',
+        type: 'notify.member',
+        input: {
+          to: ['run-starter'],
+          title: 'Weekly report ready',
+          message:
+            'Week {{ input.week }}: revenue is up 4 % on last week, and three invoices are overdue.',
+          link: 'https://reports.example.com/weekly/{{ input.week }}',
+        },
+      },
+    ],
+    output: '{{ nodes.tell.output }}',
+  },
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

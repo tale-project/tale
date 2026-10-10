@@ -29,9 +29,21 @@ A blank `message` or `link` — a template that found nothing — is left out.
 
 The step returns `{ delivered, skipped }`: `delivered` lists each member it reached as `{ to, userId }`, under the name the step gave them, and `skipped` lists `{ to, userId, reason }` for each one it did not.
 
+<Frame caption="A live run of Announce the weekly report: the step read the week from the run's input, and told the person who started the run.">
+
+![The page of a succeeded live run of Announce the weekly report with its Tell step selected, a Notify · Notify members step. Its Last run tab says it ran notify.member and read week from the run input; under Received are its to, a list of 1 item, its link to reports.example.com, its title Weekly report ready and its message. Below the canvas the run lists 1 effect.](/images/platform/automation-notify-run.webp)
+
+</Frame>
+
 ## Who gets it
 
 Each member gets one notification, even when the step names them twice — by email and by user id. The email follows a minute later, unless they read the message in Tale by then or switched off **Email me actionable alerts** in Settings › Notifications. It leaves through your organization's connected Gmail, Outlook or SMTP mailbox; without one, they get the notification in Tale only.
+
+<Frame caption="The message in the notifications of the person who started the run: its title, its words, the automation that sent it, and the site its link opens.">
+
+![The Notifications panel with 1 unread notification: the title Weekly report ready, the message about week 41, the line Sent by the automation Announce the weekly report, and below them Open reports.example.com with an icon for a new tab.](/images/platform/automation-notify-bell.webp)
+
+</Frame>
 
 Two kinds of recipient are skipped, and listed in `skipped` with their reason:
 

@@ -37,6 +37,7 @@ import {
   DEMO_HTTP,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_SEARCH,
+  DEMO_NOTIFY,
   DEMO_TASK_CREATE,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
@@ -2208,6 +2209,44 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByText(t('automationRuns.data.returned'), { exact: true }),
+  },
+  {
+    // The seeded live run of the notify demo, with its step selected: what
+    // the step sent, and whom it reached — the owner, who started the run.
+    name: 'automation-notify-run',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_NOTIFY.automation}/runs`,
+    prepare: async (page) => {
+      await runRow(page, 'success').click();
+      await page
+        .locator(
+          `[data-flow-node="${DEMO_NOTIFY.node}"][data-flow-state="succeeded"]`,
+        )
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByText(t('automationRuns.data.returned'), { exact: true }),
+  },
+  {
+    // The owner's bell, open on the notify demo's message: the step's title
+    // and words in the frame that names the automation, and the action that
+    // opens the report's site in a new tab.
+    name: 'automation-notify-bell',
+    section: 'platform',
+    route: '/dashboard/:orgId',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', {
+          name: new RegExp(`^${t('navigation.notifications')}`),
+        })
+        .click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('navigation.notifications') })
+        .getByText(DEMO_NOTIFY.title, { exact: true }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('navigation.notifications') }),
   },
   {
     // Settings > API > MCP — outbound MCP-server management is retired, so the

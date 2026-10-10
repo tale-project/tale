@@ -38,6 +38,7 @@ import {
   DEMO_HTTP,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_SEARCH,
+  DEMO_NOTIFY,
   DEMO_TASK_CREATE,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
@@ -2539,6 +2540,13 @@ export async function seedDemoOrg(
     ensureLiveRun(page, orgId, projects, {
       ...DEMO_TASK_CREATE,
       input: (projectId) => ({ ...DEMO_TASK_CREATE.input, projectId }),
+    }),
+  );
+  // Last of the runs, so its message tops the owner's bell.
+  await step('notify run', () =>
+    ensureLiveRun(page, orgId, projects, {
+      ...DEMO_NOTIFY,
+      input: () => DEMO_NOTIFY.input,
     }),
   );
   if (relaunchId) {
