@@ -52,6 +52,12 @@ import {
 } from './syntax/probe';
 import { isSingleTemplate, tokenizeTemplate } from './syntax/tokens';
 import { collectRefs, renderPath, SCOPE_ROOTS } from './syntax/walk';
+import {
+  fastPathEnabled,
+  resolveFast,
+  RUNNER,
+  unitPlan,
+} from './template-fast';
 
 /**
  * An expression, template or piece of code that failed. `failure` says why
@@ -144,6 +150,27 @@ async function evalExpr(
 }
 
 /**
+ * A plain evaluation: a unit the fast path can read is read from the scope
+ * (`template-fast.ts`), every other unit, and any read it cannot be sure
+ * of, by the runner. Traced evaluations keep the runner, so the probes and
+ * the run record they write read exactly as before.
+ */
+async function evalExprPlain(
+  expr: string,
+  scope: Record<string, unknown>,
+  where?: ExprWhere,
+): Promise<unknown> {
+  if (fastPathEnabled()) {
+    const plan = unitPlan(expr);
+    if (plan.kind === 'fast') {
+      const value = resolveFast(plan.term, scope);
+      if (value !== RUNNER) return value;
+    }
+  }
+  return await evalExpr(expr, scope, where);
+}
+
+/**
  * Every static member read in `expr`, as the chain read and the key read
  * from it — `nodes.fetch.output.items.length` reads `output` of
  * `nodes.fetch`, `items` of `nodes.fetch.output` and `length` of
@@ -220,7 +247,7 @@ export async function evalTemplates(
     const exprs = tokens.segments.filter((s) => s.kind === 'expr');
     if (exprs.length === 0) return value;
     if (isSingleTemplate(value, tokens)) {
-      return await evalExpr(
+      return await evalExprPlain(
         exprs[0].source ?? '',
         scope,
         whereOf(pointer, unitRange(exprs[0])),
@@ -234,7 +261,7 @@ export async function evalTemplates(
       }
       const expr = segment.source ?? '';
       const where = whereOf(pointer, unitRange(segment));
-      const v = await evalExpr(expr, scope, where);
+      const v = await evalExprPlain(expr, scope, where);
       if (v === undefined || v === null) {
         throw new ExprError(
           expr,
@@ -289,7 +316,11 @@ export async function evalCondition(
   pointer?: string,
 ): Promise<unknown> {
   if (cond.includes('{{')) return await evalTemplates(cond, scope, pointer);
-  return await evalExpr(cond.trim(), scope, whereOf(pointer, bareRange(cond)));
+  return await evalExprPlain(
+    cond.trim(),
+    scope,
+    whereOf(pointer, bareRange(cond)),
+  );
 }
 
 /** The `[start, end)` of a bare expression's text, whitespace aside. */
@@ -646,7 +677,8 @@ export async function evalTemplatesRendered(
   pointer: string,
 ): Promise<RenderedValue> {
   const rendered: Record<string, RenderedSpan[]> = {};
-  const plain: UnitEvaluator = (expr, where) => evalExpr(expr, scope, where);
+  const plain: UnitEvaluator = (expr, where) =>
+    evalExprPlain(expr, scope, where);
   const render = async (v: unknown, at: string): Promise<unknown> => {
     if (typeof v === 'string') {
       const spans: RenderedSpan[] = [];
