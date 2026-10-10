@@ -48,35 +48,40 @@ export async function sealPendingAuditChains(
   return { sealed, organizations: orgIds.length };
 }
 
+/** Wait `ms`, or until `signal` aborts if that comes first. */
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal.addEventListener('abort', done, { once: true });
+  });
+}
+
 export function startAuditSealer(
   sql: Sql,
   options: { intervalMs?: number } = {},
 ): AuditSealer {
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
-  let stopped = false;
-  let wake: (() => void) | null = null;
+  const stopping = new AbortController();
+  const { signal } = stopping;
   const loop = (async () => {
-    while (!stopped) {
+    while (!signal.aborted) {
       try {
         await sealPendingAuditChains(sql);
       } catch (error) {
         console.error('[audit-sealer] round failed; retrying:', error);
       }
-      if (stopped) break;
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, intervalMs);
-        wake = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-      });
-      wake = null;
+      if (signal.aborted) break;
+      await pause(intervalMs, signal);
     }
   })();
   return {
     async stop() {
-      stopped = true;
-      wake?.();
+      stopping.abort();
       await loop;
     },
   };
