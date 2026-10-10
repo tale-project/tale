@@ -70,7 +70,7 @@ seo:
   changelog:
     title: Was ist neu in Tale? — Changelog
     description: Release Notes zu jeder Tale-Version, neueste zuerst — Features,
-      Fixes und Breaking Changes jeder Version, veröffentlicht aus GitHub
+      Fixes und inkompatible Änderungen jeder Version, veröffentlicht aus GitHub
       Releases.
 notFound:
   title: Diese Seite gibt es nicht
