@@ -1229,6 +1229,8 @@ logs:
     topActors:
       title: Utilisateurs les plus actifs
     empty: Aucune activité sur cette période.
+    readFailed: Impossible de charger le résumé de l’activité. Réessayer.
+    retry: Réessayer
   errors:
     entityLabel: journaux d'erreurs
     entityLabelOne: journal d'erreur

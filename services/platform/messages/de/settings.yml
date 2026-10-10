@@ -1199,6 +1199,8 @@ logs:
     topActors:
       title: Aktivste Benutzer
     empty: Keine Aktivität in diesem Zeitraum.
+    readFailed: Die Aktivitätsübersicht konnte nicht geladen werden. Erneut versuchen.
+    retry: Erneut versuchen
   errors:
     entityLabel: Fehlerprotokolle
     entityLabelOne: Fehlerprotokoll

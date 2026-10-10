@@ -26,13 +26,23 @@ const EMPTY_SUMMARY = {
 
 // The summary read, steered per test; every test starts on the busy week.
 const read = vi.hoisted(() => ({
-  current: { data: undefined as unknown, isLoading: false },
+  current: {
+    data: undefined as unknown,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
 }));
 vi.mock('../hooks/queries', () => ({
   useActivitySummary: () => read.current,
 }));
 beforeEach(() => {
-  read.current = { data: SUMMARY, isLoading: false };
+  read.current = {
+    data: SUMMARY,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  };
 });
 
 // 2026-09-26 evaluation, E-03: the tab showed "1,310 actions" without saying
@@ -67,7 +77,12 @@ describe('ActivityLogView', () => {
 // default leaves out, so an empty week never disables it.
 describe('ActivityLogView period filter', () => {
   it('stays usable over a week with no action, and widens the window', async () => {
-    read.current = { data: EMPTY_SUMMARY, isLoading: false };
+    read.current = {
+      data: EMPTY_SUMMARY,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
     const { user } = render(<ActivityLogView organizationId="org-1" />);
 
     const filter = screen.getByRole('button', { name: /filter/i });
@@ -86,7 +101,12 @@ describe('ActivityLogView period filter', () => {
   });
 
   it('is not disabled while the summary loads', () => {
-    read.current = { data: undefined, isLoading: true };
+    read.current = {
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      refetch: vi.fn(),
+    };
     const { container } = render(<ActivityLogView organizationId="org-1" />);
     // The loading skeleton masks the whole view — the button sits inert under
     // it, out of the accessibility tree — so it is found by its label; the
@@ -95,4 +115,18 @@ describe('ActivityLogView period filter', () => {
     expect(filter).not.toBeNull();
     expect(filter).toBeEnabled();
   });
+});
+
+it('shows a retry state instead of fabricated zero totals when the summary fails', async () => {
+  const refetch = vi.fn();
+  read.current = { data: undefined, isLoading: false, isError: true, refetch };
+  const { user } = render(<ActivityLogView organizationId="org-1" />);
+
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Couldn’t load activity summary. Try again.',
+  );
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  expect(screen.queryByText('0')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetch).toHaveBeenCalledOnce();
 });
