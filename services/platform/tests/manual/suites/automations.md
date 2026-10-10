@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 184 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 185 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1356,6 +1356,12 @@ output:
       fails at the step with `automationRuns.reasons.NOTIFY_NOT_A_MEMBER` and
       nobody is told. Started by a schedule, `run-starter` is listed as
       skipped with `reason: no_starter`.
+- [ ] `AUTO-F134` · **In an automation whose `llm` steps name a model,
+      click Change model (`automations.editor.modelSwap.open`)** → a
+      dialog lists the model with its count of steps and the steps that
+      change; pick another model with the keyboard and Use this model →
+      both steps show it, Save and Discard arm, and Discard brings the old
+      model back. The button is absent when no `llm` step names a model.
 
 ## Boundary & error tests
 

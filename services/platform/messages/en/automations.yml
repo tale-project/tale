@@ -531,6 +531,18 @@ editor:
     typeUnlisted: Type a model that is not listed
     modelIdLabel: Model id
     modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
+  # Another model in every llm step that names one model: it edits the
+  # draft, and Save keeps it.
+  modelSwap:
+    open: Change model
+    title: Use another model in all steps
+    description: Replace one model in every language model step that names it. The change stays a draft until you save it.
+    from: Replace
+    fromOption: '{model} · {count, plural, one {# step} other {# steps}}'
+    to: With
+    steps: Steps that change
+    cancel: Cancel
+    apply: Use this model
   resolvedInput: Resolved input
   output: Output
   fields:

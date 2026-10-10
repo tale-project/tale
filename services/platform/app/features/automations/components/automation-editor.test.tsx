@@ -58,6 +58,8 @@ const {
   projectsData: {
     list: [] as Array<{ _id: string; name: string }>,
     bound: [] as string[],
+    /** The served-model roster the model pickers list. */
+    models: [] as unknown[],
   },
   /** Newest-first run log. Empty unless a test is pinning last-run chrome. */
   runsData: [] as Array<{
@@ -158,9 +160,11 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // sets the roster it needs on `projectsData`.
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({ projects: projectsData.list, isLoading: false }),
-  // The llm node's Model picker reads the served-model roster; the editor
-  // tests select llm nodes but never pick a model.
-  useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
+  // The model pickers read the served-model roster; empty unless a test
+  // picks a model.
+  useProjectHarnesses: () => ({
+    data: { harnesses: [], models: projectsData.models },
+  }),
 }));
 
 vi.mock('../hooks/queries', async (importOriginal) => {
@@ -519,6 +523,7 @@ beforeEach(() => {
   deploy.mutate.mockReset();
   projectsData.list = [];
   projectsData.bound = [];
+  projectsData.models = [];
   runsData.length = 0;
   state.document = {
     name: 'billing/dunning',
@@ -1510,6 +1515,71 @@ describe('AutomationEditor', () => {
     expect(toastSpy).not.toHaveBeenCalled();
     expect(saveButton()).toBeEnabled();
     expect(whenField()).toHaveValue('x');
+  });
+
+  it('offers no model swap when no llm step names a model', () => {
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Change model' })).toBeNull();
+  });
+
+  it('uses another model in every llm step that names one, as a draft the save keeps', async () => {
+    state.document = {
+      name: 'billing/dunning',
+      nodes: [
+        {
+          id: 'summary',
+          type: 'llm',
+          prompt: 'One sentence, please.',
+          model: 'anthropic/claude-haiku-4-5',
+        },
+        {
+          id: 'reply',
+          type: 'llm',
+          prompt: 'Reply, please.',
+          model: 'anthropic/claude-haiku-4-5',
+        },
+      ],
+    };
+    projectsData.models = [
+      {
+        id: 'gpt-5-mini',
+        label: 'GPT-5 mini',
+        providerSlug: 'openai',
+        providerLabel: 'OpenAI',
+        credential: { authMethod: 'api-key' },
+        tools: true,
+        contextWindow: 128_000,
+      },
+    ];
+    const { user } = renderPage();
+    expect(saveButton()).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Change model' }));
+    await user.click(screen.getByText('Choose the model to call'));
+    await user.click(screen.getByRole('option', { name: /GPT-5 mini/ }));
+    await user.click(screen.getByRole('button', { name: 'Use this model' }));
+
+    // A draft like any edit: the cluster arms, and Save carries it.
+    expect(saveButton()).toBeEnabled();
+    await user.click(saveButton());
+    await user.type(
+      screen.getByRole('textbox', { name: 'Version message' }),
+      'use gpt-5-mini',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => {
+      expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(saveMutation.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        automation: expect.objectContaining({
+          nodes: [
+            expect.objectContaining({ id: 'summary', model: 'gpt-5-mini' }),
+            expect.objectContaining({ id: 'reply', model: 'gpt-5-mini' }),
+          ],
+        }),
+      }),
+    );
   });
 
   it('appends the version with the typed message and clears the draft', async () => {

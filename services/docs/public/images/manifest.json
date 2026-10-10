@@ -240,6 +240,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-model-swap.webp",
+      "shot": "automation-model-swap",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1024,
+      "height": 828,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-notify-bell.webp",
       "shot": "automation-notify-bell",
       "route": "/dashboard/:orgId",
