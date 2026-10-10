@@ -69,8 +69,8 @@ Sie liest nie eine Team-Bibliothek, die dem Lauf nicht gegeben ist, und nie die 
 
 Die Seite des Laufs sagt, warum ein Suchschritt gescheitert ist und wie du es behebst.
 
-| Fehler                                         | Was geschehen ist                                                                                                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Die Wissenssuche ist nicht eingerichtet**    | Die Organisation hat kein Embedding-Modell. Deine Administration wählt eines unter **Einstellungen › Datenresidenz**.                                   |
-| **Die Wissenssuche ist fehlgeschlagen**        | Der Anbieter des Embedding-Modells hat den Aufruf abgelehnt oder ist dabei fehlgeschlagen.                                                              |
-| **Ein Nutzungslimit hat den Schritt gestoppt** | Ein Limit, das für den Lauf gilt, hat keinen Spielraum mehr. Es zählt als Limit, nicht als Fehler, der sich wiederholt, deshalb pausiert kein Zeitplan. |
+| Fehler                                         | Was geschehen ist                                                                                                                                                                                                         |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Die Wissenssuche ist nicht eingerichtet**    | Die Organisation hat kein Embedding-Modell. Deine Administration wählt eines unter **Einstellungen › Datenresidenz**.                                                                                                     |
+| **Die Wissenssuche ist fehlgeschlagen**        | Der Anbieter des Embedding-Modells hat den Aufruf abgelehnt oder ist dabei fehlgeschlagen. Ein Fehler auf seiner Seite zählt nicht zur Pause eines Zeitplans, ein abgelehntes Konto oder ein abgelehnter Schlüssel schon. |
+| **Ein Nutzungslimit hat den Schritt gestoppt** | Ein Limit, das für den Lauf gilt, hat keinen Spielraum mehr. Es zählt als Limit, nicht als Fehler, der sich wiederholt, deshalb pausiert kein Zeitplan.                                                                   |

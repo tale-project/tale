@@ -69,8 +69,8 @@ It never reads a team library the run isn't given, nor the uploads and mail of a
 
 The run page says why a search step failed and how to fix it.
 
-| Failure                            | What happened                                                                                                            |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **Knowledge search isn't set up**  | The organization has no embedding model. An administrator chooses one in **Settings › Data residency**.                  |
-| **Knowledge search failed**        | The provider of the embedding model refused or failed the call.                                                          |
-| **A usage limit stopped the step** | A limit that binds the run has no room left. It counts as a limit, not as a failure that repeats, so no schedule pauses. |
+| Failure                            | What happened                                                                                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Knowledge search isn't set up**  | The organization has no embedding model. An administrator chooses one in **Settings › Data residency**.                                                                  |
+| **Knowledge search failed**        | The provider of the embedding model refused or failed the call. A failure on the provider's side doesn't count toward pausing a schedule; a refused account or key does. |
+| **A usage limit stopped the step** | A limit that binds the run has no room left. It counts as a limit, not as a failure that repeats, so no schedule pauses.                                                 |
