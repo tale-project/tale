@@ -12,17 +12,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { member, readBrandingConfig, saveBranding } = vi.hoisted(() => ({
+const {
+  member,
+  readBrandingConfig,
+  saveBranding,
+  saveBrandingImage,
+  deleteBrandingImage,
+} = vi.hoisted(() => ({
   // The role the mocked organization gate grants.
   member: { role: 'admin' },
   readBrandingConfig: vi.fn(),
   saveBranding: vi.fn(),
+  saveBrandingImage: vi.fn(),
+  deleteBrandingImage: vi.fn(),
 }));
 
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   readBrandingConfig,
   saveBranding,
+  saveBrandingImage,
+  deleteBrandingImage,
 }));
 
 vi.mock('../../lib/org-config.ts', () => ({
@@ -65,11 +75,26 @@ async function save(body: unknown): Promise<Response> {
 }
 
 const HASH = 'a'.repeat(64);
+const NEXT = 'b'.repeat(64);
+
+async function upload(body: unknown): Promise<Response> {
+  return await app().request('/images?orgId=o1', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
   member.role = 'admin';
   saveBranding.mockResolvedValue({ hash: HASH });
+  saveBrandingImage.mockResolvedValue({
+    filename: 'favicon-light.png',
+    hash: NEXT,
+    previousHash: HASH,
+  });
+  deleteBrandingImage.mockResolvedValue({ hash: NEXT, previousHash: HASH });
   readBrandingConfig.mockResolvedValue({
     config: { accentColor: '#112233' },
     hash: HASH,
@@ -145,5 +170,78 @@ describe('the branding door', () => {
       error: 'CONFIG_VERSION_CONFLICT',
       message: 'Configuration changed since it was reviewed.',
     });
+  });
+});
+
+describe('the image door [BRAND-R6]', () => {
+  const image = {
+    type: 'favicon-light',
+    base64: 'UE5H',
+    mimeType: 'image/png',
+  };
+
+  it('hands the writer the version an image was decided on, and answers the versions it moved between', async () => {
+    const response = await upload({ ...image, expectedHash: HASH });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      filename: 'favicon-light.png',
+      hash: NEXT,
+      previousHash: HASH,
+    });
+    expect(saveBrandingImage).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      { ...image, expectedHash: HASH },
+      { organizationId: 'o1', userId: 'u1', email: 'ada@example.test' },
+    );
+  });
+
+  it('hands an upload sent without a version over as it came', async () => {
+    expect((await upload(image)).status).toBe(200);
+    expect(saveBrandingImage).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      image,
+      expect.anything(),
+    );
+  });
+
+  it('answers a refused version with its code, sentence and status', async () => {
+    saveBrandingImage.mockRejectedValue(
+      new ConfigurationError(
+        'CONFIG_VERSION_CONFLICT',
+        'Configuration changed since it was reviewed.',
+      ),
+    );
+    const response = await upload({ ...image, expectedHash: HASH });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'CONFIG_VERSION_CONFLICT',
+      message: 'Configuration changed since it was reviewed.',
+    });
+  });
+
+  it('refuses a version that is not one before the writer is called', async () => {
+    const response = await upload({ ...image, expectedHash: 'stale' });
+    expect(response.status).toBe(400);
+    expect(saveBrandingImage).not.toHaveBeenCalled();
+  });
+
+  it('answers the versions a removal moved between', async () => {
+    const response = await app().request('/images/favicon-light?orgId=o1', {
+      method: 'DELETE',
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      hash: NEXT,
+      previousHash: HASH,
+    });
+    expect(deleteBrandingImage).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      'favicon-light',
+      { organizationId: 'o1', userId: 'u1', email: 'ada@example.test' },
+    );
   });
 });

@@ -17,8 +17,13 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { SettingsFieldList } from '@/app/features/settings/components/settings-field-list';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
+import { failureDetail } from '@/app/lib/backend/adapters';
+import type { BrandingWriteVersions } from '@/app/lib/backend/contract/branding';
 import { useT } from '@/lib/i18n/client';
-import { backendRefusalReason } from '@/lib/utils/backend-error';
+import {
+  backendErrorCode,
+  backendRefusalReason,
+} from '@/lib/utils/backend-error';
 import { adjustColorForTheme, isHexColor } from '@/lib/utils/color';
 import {
   deriveFaviconPngBase64,
@@ -48,6 +53,15 @@ interface BrandingData {
   logoFilename?: string;
   faviconLightFilename?: string;
   faviconDarkFilename?: string;
+  /** The version of the stored branding this read shows; empty when there
+   * is no readable branding file. */
+  hash?: string;
+}
+
+/** A write refused because the branding changed since it was read
+ * (BRAND-R3): nothing was stored. */
+function isBrandingMoved(err: unknown): boolean {
+  return backendErrorCode(err) === 'CONFIG_VERSION_CONFLICT';
 }
 
 interface BrandingFormProps {
@@ -71,7 +85,7 @@ export function BrandingForm({
   const saveBranding = useSaveBranding();
   const snapshotHistory = useSnapshotBrandingHistory();
   const deleteImage = useDeleteImage();
-  const saveImage = useSaveImage();
+  const saveImage = useSaveImage({ errorToast: false });
   const { resolvedTheme } = useTheme();
 
   // The stored accent is ALWAYS the light-mode color; dark mode derives its
@@ -146,6 +160,29 @@ export function BrandingForm({
 
   const runWrite = useBrandingWriteQueue();
 
+  // The version of the stored branding the form's values were read or saved
+  // at. A Save and a logo-derived favicon are sent against it, so the server
+  // refuses one that would land on branding changed meanwhile — a Reset
+  // confirmed while that Save was still being processed, a favicon chosen in
+  // another session — instead of overwriting it (`CONFIG_VERSION_CONFLICT`,
+  // BRAND-R3). It follows each new read while nothing is left unsaved, moves
+  // with every write made here that landed on it, and stays where it was when
+  // another session's write turns up, so a draft made before that write is
+  // refused rather than saved over it. Before a readable branding file exists
+  // it is unknown, and a Save goes unchecked, as a plain save always has.
+  const versionRef = useRef<string | undefined>(undefined);
+  const readVersion = branding?.hash || undefined;
+
+  // An upload or removal made here is the admin's own choice and is stored
+  // as it comes; it moves the version only when it landed on that version. A
+  // write that found another session's write before it leaves the version
+  // behind, so the next Save is refused rather than overwriting that write.
+  const followImageWrite = useCallback((written: BrandingWriteVersions) => {
+    if ((written.previousHash ?? undefined) === versionRef.current) {
+      versionRef.current = written.hash;
+    }
+  }, []);
+
   // Counts the admin's own favicon choices: an upload or removal on either
   // favicon field counts the moment it starts, before it waits for its slot,
   // and so does a confirmed Reset. A favicon derived from the logo was decided
@@ -160,8 +197,9 @@ export function BrandingForm({
     [runWrite],
   );
 
+  /** Saves `values`, sent against `expectedHash` when it names a version. */
   const persistBranding = useCallback(
-    async (values: BrandingFormData) => {
+    async (values: BrandingFormData, expectedHash: string | undefined) => {
       try {
         const pickedAccent = values.accentColor || undefined;
         const config = {
@@ -172,7 +210,12 @@ export function BrandingForm({
         };
         // Snapshot the prior baseline AFTER save succeeds (fix to inherited
         // snapshot-then-save bug). Best-effort; failure is non-fatal.
-        await saveBranding.mutateAsync({ organizationId, config });
+        const saved = await saveBranding.mutateAsync({
+          organizationId,
+          config,
+          ...(expectedHash !== undefined ? { expectedHash } : {}),
+        });
+        versionRef.current = saved.hash;
         snapshotHistory
           .mutateAsync({ organizationId })
           .catch((e) => console.warn('[branding history snapshot]', e));
@@ -180,9 +223,14 @@ export function BrandingForm({
         void refetchBranding();
       } catch (err) {
         console.error('[branding] save failed', err);
-        throw new Error(tToast('error.brandingUpdateFailed.title'), {
-          cause: err,
-        });
+        // A refusal for a version that moved keeps the draft, and says how
+        // to see what changed: the server's sentence is for its API callers.
+        throw new Error(
+          isBrandingMoved(err)
+            ? tToast('error.brandingUpdateFailed.changedElsewhere')
+            : tToast('error.brandingUpdateFailed.title'),
+          { cause: err },
+        );
       }
     },
     [
@@ -196,13 +244,18 @@ export function BrandingForm({
     ],
   );
 
+  // The version is read when the Save's turn in the queue comes, so it
+  // includes the writes made here before it.
   const save = useCallback(
     (values: BrandingFormData) =>
       runWrite(() =>
-        persistBranding({
-          ...values,
-          ...Object.fromEntries(savedImageFilenamesRef.current),
-        }),
+        persistBranding(
+          {
+            ...values,
+            ...Object.fromEntries(savedImageFilenamesRef.current),
+          },
+          versionRef.current,
+        ),
       ),
     [runWrite, persistBranding],
   );
@@ -216,8 +269,24 @@ export function BrandingForm({
         register(filename);
         resetField(filename, { defaultValue: value });
       }
+      // Discard loads the branding as last read: the next draft starts there.
+      versionRef.current = readVersion;
     },
   });
+
+  // A read becomes the version a draft starts from as the form takes its
+  // values: the first one always (the editor reads as dirty until then), a
+  // later one only while nothing is left unsaved — a draft under way was made
+  // against the version it started from.
+  const isDirtyRef = useRef(editor.isDirty);
+  isDirtyRef.current = editor.isDirty;
+  const readTakenRef = useRef(false);
+  useEffect(() => {
+    if (branding === undefined) return;
+    if (readTakenRef.current && isDirtyRef.current) return;
+    readTakenRef.current = true;
+    versionRef.current = readVersion;
+  }, [branding, readVersion]);
 
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const hasAnyBranding =
@@ -303,7 +372,10 @@ export function BrandingForm({
   // When a logo is uploaded and no favicon is set yet, derive a square favicon
   // from the same image so the org gets a tab icon without a second upload.
   // A favicon choice made after the request retires it, whether it comes
-  // before the derivation's slot starts or during the image conversion.
+  // before the derivation's slot starts or during the image conversion. The
+  // write is sent against the version the decision was made on, so a choice
+  // this form never saw — made in another session, or by a write whose
+  // answer was lost — makes the server store nothing instead.
   const maybeDeriveFavicon = useCallback(
     async (file: File) => {
       const choices = faviconChoicesRef.current;
@@ -320,16 +392,28 @@ export function BrandingForm({
           faviconDarkUrl: branding?.faviconDarkUrl,
         };
         if (superseded() || !shouldDeriveFavicon(faviconState)) return;
+        // An automatic write is never sent unchecked: with no version to send
+        // it against, the admin's own choice is left to them.
+        const version = versionRef.current;
+        if (version === undefined) {
+          console.warn(
+            '[branding] no branding version to derive a favicon against',
+          );
+          return;
+        }
 
         try {
           const base64 = await deriveFaviconPngBase64(file);
           if (superseded()) return;
-          const { filename } = await saveImage.mutateAsync({
+          const saved = await saveImage.mutateAsync({
             organizationId,
             type: 'favicon-light',
             base64,
             mimeType: 'image/png',
+            expectedHash: version,
           });
+          versionRef.current = saved.hash;
+          const { filename } = saved;
           // Already on the server: the image write records its reference, so
           // the field mirrors the saved state rather than staging an edit.
           savedImageFilenamesRef.current.set('faviconLightFilename', filename);
@@ -344,9 +428,23 @@ export function BrandingForm({
             variant: 'success',
           });
         } catch (err) {
+          // Refused because the branding moved since the decision: whatever
+          // moved it stands, and nothing failed.
+          if (isBrandingMoved(err)) {
+            console.info(
+              '[branding] the branding changed; the derived favicon was not stored',
+            );
+            return;
+          }
           // Non-fatal: the logo still uploaded; the admin can set a favicon
           // manually. Surface rather than swallow so canvas/upload bugs show up.
           console.warn('[branding] favicon derivation from logo failed', err);
+          toast({
+            title: tToast('error.generic.title'),
+            description:
+              failureDetail(err) ?? tToast('error.generic.description'),
+            variant: 'destructive',
+          });
         }
       });
     },
@@ -383,18 +481,24 @@ export function BrandingForm({
     setResetting(true);
     try {
       await runWrite(async () => {
-        const deletions = await Promise.allSettled([
-          deleteImage.mutateAsync({ organizationId, type: 'logo' }),
-          deleteImage.mutateAsync({ organizationId, type: 'favicon-light' }),
-          deleteImage.mutateAsync({ organizationId, type: 'favicon-dark' }),
-        ]);
-        for (const deletion of deletions) {
-          if (deletion.status === 'rejected') {
+        // Reset clears whatever is stored, so its writes are sent unchecked
+        // and the version follows each one; a Save still under way from
+        // before is the one refused (it was sent against an older version).
+        // The images go one after the other, so the version after the last is
+        // the one a retried save of the cleared values is sent against.
+        for (const type of ['logo', 'favicon-light', 'favicon-dark'] as const) {
+          try {
+            const deleted = await deleteImage.mutateAsync({
+              organizationId,
+              type,
+            });
+            versionRef.current = deleted.hash;
+          } catch (err) {
             // Non-fatal: the config save below drops the reference either way;
             // surface the blob-deletion failure rather than swallow it.
             console.warn(
               '[branding] failed to delete an image blob on reset',
-              deletion.reason,
+              err,
             );
           }
         }
@@ -402,7 +506,7 @@ export function BrandingForm({
           savedImageFilenamesRef.current.set('logoFilename', '');
           savedImageFilenamesRef.current.set('faviconLightFilename', '');
           savedImageFilenamesRef.current.set('faviconDarkFilename', '');
-          await persistBranding(cleared);
+          await persistBranding(cleared, undefined);
         } catch (err) {
           // The images are gone but the config is not: keep the clear staged
           // so the header's Save can retry it, and say why.
@@ -465,6 +569,7 @@ export function BrandingForm({
               // Uploads and removals take effect on the server as they
               // happen (the image write records its own reference); the
               // fields only mirror that, so they never dirty the Save cluster.
+              onWritten={followImageWrite}
               onUpload={(filename, file) => {
                 savedImageFilenamesRef.current.set('logoFilename', filename);
                 setValue('logoFilename', filename);
@@ -491,6 +596,7 @@ export function BrandingForm({
                 runWrite={runFaviconWrite}
                 currentUrl={faviconPreviewUrl ?? branding?.faviconLightUrl}
                 imageType="favicon-light"
+                onWritten={followImageWrite}
                 onUpload={(filename) => {
                   savedImageFilenamesRef.current.set(
                     'faviconLightFilename',
@@ -515,6 +621,7 @@ export function BrandingForm({
                 runWrite={runFaviconWrite}
                 currentUrl={branding?.faviconDarkUrl}
                 imageType="favicon-dark"
+                onWritten={followImageWrite}
                 onUpload={(filename) => {
                   savedImageFilenamesRef.current.set(
                     'faviconDarkFilename',

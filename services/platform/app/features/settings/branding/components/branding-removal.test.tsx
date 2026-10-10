@@ -664,10 +664,18 @@ it('queues Save until the derived favicon has finished and keeps the derived ref
     if (path === '/branding/images') {
       if (mockDeriveFavicon.mock.calls.length === 0) {
         authoritative.logoFilename = 'replacement.svg';
-        return { filename: 'replacement.svg' };
+        return {
+          filename: 'replacement.svg',
+          hash: 'after-logo',
+          previousHash: null,
+        };
       }
       authoritative.faviconLightFilename = 'derived.png';
-      return { filename: 'derived.png' };
+      return {
+        filename: 'derived.png',
+        hash: 'after-derived',
+        previousHash: 'after-logo',
+      };
     }
     if (path === '/branding/save') Object.assign(authoritative, options?.body);
     return { ok: true };
@@ -711,6 +719,7 @@ it('queues Save until the derived favicon has finished and keeps the derived ref
       type: 'favicon-light',
       base64: 'DERIVED_PNG',
       mimeType: 'image/png',
+      expectedHash: 'after-logo',
     },
   });
 });
@@ -733,10 +742,18 @@ it('queues a derived favicon behind Save and does not let an older Save overwrit
     if (path === '/branding/images') {
       if (mockDeriveFavicon.mock.calls.length === 0) {
         authoritative.logoFilename = 'replacement.svg';
-        return { filename: 'replacement.svg' };
+        return {
+          filename: 'replacement.svg',
+          hash: 'after-logo',
+          previousHash: null,
+        };
       }
       authoritative.faviconLightFilename = 'derived.png';
-      return { filename: 'derived.png' };
+      return {
+        filename: 'derived.png',
+        hash: 'after-derived',
+        previousHash: 'after-logo',
+      };
     }
     return { ok: true };
   });
@@ -974,6 +991,13 @@ describe('Logo-derived favicon and an explicit favicon choice', () => {
       faviconDarkFilename: undefined,
     };
     const writes: string[] = [];
+    // Each write answers the version it left and the one it found.
+    let version = 0;
+    const versions = () => {
+      const previousHash = version === 0 ? null : `v${version}`;
+      version += 1;
+      return { hash: `v${version}`, previousHash };
+    };
     vi.mocked(backendFetch).mockImplementation(async (path, options) => {
       const body = options?.body;
       if (
@@ -989,14 +1013,21 @@ describe('Logo-derived favicon and an explicit favicon choice', () => {
         writes.push(`${type}:${filename}`);
         await (derived ? hold.derived : type === 'logo' ? hold.logo : null);
         stored[fieldOf(type)] = filename;
-        return { filename };
+        return { filename, ...versions() };
       }
       if (path.startsWith('/branding/images/')) {
         stored[fieldOf(path.slice('/branding/images/'.length))] = undefined;
+        return { ok: true, ...versions() };
       }
       if (path === '/branding/save') {
         await hold.save;
-        Object.assign(stored, body);
+        if (body !== null && typeof body === 'object') {
+          const config = Object.entries(body).filter(
+            ([key]) => key !== 'expectedHash',
+          );
+          Object.assign(stored, Object.fromEntries(config));
+        }
+        return versions();
       }
       return { ok: true };
     });
