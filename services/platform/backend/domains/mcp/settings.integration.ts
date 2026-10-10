@@ -10,6 +10,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { SETTINGS_KINDS } from '@tale/shared/schemas/settings-kinds';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
@@ -194,12 +195,12 @@ export async function checkMcpSettingsConfig(
   record(
     'MCP get_settings serves every kind, and says what the role may do with each (MCP-R10)',
     ownerKinds.success &&
-      ownerKinds.data.length === 10 &&
+      ownerKinds.data.length === SETTINGS_KINDS.length &&
       ownerKinds.data.every((entry) => entry.available) &&
       access(ownerKinds, 'governance') === '[[true,true]]' &&
       access(memberKinds, 'governance') === '[[true,false]]' &&
       access(memberKinds, 'branding') === '[[false,false]]',
-    `owner=${ownerKinds.success ? ownerKinds.data.length : 'unread'} kinds, member governance=${access(memberKinds, 'governance')}, member branding=${access(memberKinds, 'branding')}`,
+    `owner=${ownerKinds.success ? ownerKinds.data.length : 'unread'} of ${SETTINGS_KINDS.length} kinds, member governance=${access(memberKinds, 'governance')}, member branding=${access(memberKinds, 'branding')}`,
   );
 
   // A policy: the owner's agent changes it, a member's is refused, and a
