@@ -652,6 +652,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (deleted > 0) {
         console.log(`[realtime] reclaim_outbox removed ${deleted} rows`);
       }
+      // The realtime schema's other bus: the auth invalidation log every API
+      // process tails (`auth/request-cache.ts`).
+      const { reclaimAuthInvalidations } =
+        await import('../auth/request-cache.ts');
+      const invalidations = await reclaimAuthInvalidations(deps.sql);
+      if (invalidations > 0) {
+        console.log(
+          `[realtime] reclaim_outbox removed ${invalidations} auth invalidation rows`,
+        );
+      }
     },
     'maintenance.login_attempts_ttl': async () => {
       // ONE window for every table this job touches — the 0.4

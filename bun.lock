@@ -346,6 +346,7 @@
         "jsdom": "29.0.2",
         "jszip": "3.10.1",
         "libphonenumber-js": "1.12.42",
+        "lru-cache": "^11.5.2",
         "lucide-react": "1.8.0",
         "mailparser": "3.9.28",
         "mammoth": "1.12.0",

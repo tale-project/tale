@@ -1,9 +1,14 @@
 import { serve } from '@hono/node-server';
+import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import {
+  startAuthRequestCache,
+  stopAuthRequestCache,
+} from './auth/request-cache.ts';
 import { settleLiveTurns } from './core/automations/stepper.ts';
 import {
   closeKnowledgePools,
@@ -201,6 +206,18 @@ async function main(): Promise<void> {
     }
   }
 
+  // A process that answers requests keeps the sessions and memberships it
+  // resolved for a moment, dropping each the moment the database says it
+  // changed (`auth/request-cache.ts`); `AUTH_REQUEST_CACHE=off` turns it off.
+  if (env.ROLE !== 'worker' && auth !== null) {
+    const cache = startAuthRequestCache(sql, {
+      sessionConfig: sessionIdleWindowSeconds(),
+    });
+    if (cache === null) {
+      console.log('[backend] auth request cache off (AUTH_REQUEST_CACHE=off)');
+    }
+  }
+
   const server =
     env.ROLE === 'worker' || auth === null
       ? null
@@ -245,6 +262,7 @@ async function main(): Promise<void> {
     );
     // The round in flight finishes; what it leaves the next worker seals.
     await auditSealer?.stop();
+    await stopAuthRequestCache();
     await runShutdownSequence(signal, {
       role: env.ROLE,
       drainMs,
