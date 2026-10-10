@@ -72,10 +72,13 @@ for (const [mode, executable] of commandTargets(process.env.TALE_BINARY)) {
       expect(result.stdout).not.toContain('synthetic-secret');
       expect(result.stderr).toBe('');
       expect(JSON.parse(result.stdout).ok).toBe(false);
-      expect(JSON.parse(result.stdout).error.summary).toContain(
-        command[0] === 'observe'
-          ? 'private input'
-          : 'native input and executable custody',
+      const summary = JSON.parse(result.stdout).error.summary as string;
+      expect(summary).toContain(
+        process.platform === 'win32'
+          ? 'POSIX host'
+          : command[0] === 'observe'
+            ? 'private input'
+            : 'native input and executable custody',
       );
     }
     expect(await readdir(cwd)).toEqual(startup);

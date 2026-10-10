@@ -449,7 +449,7 @@ describe('Checks execution optimizations', () => {
     const platform = jobs['test-platform-shards'];
     expect(platform.services).toEqual({
       bgutil: {
-        image: 'brainicism/bgutil-ytdlp-pot-provider:1.3.1',
+        image: 'mirror.gcr.io/brainicism/bgutil-ytdlp-pot-provider:1.3.1',
         ports: ['4416:4416'],
       },
     });
