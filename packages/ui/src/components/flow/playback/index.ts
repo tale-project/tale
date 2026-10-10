@@ -5,6 +5,8 @@
  * replay with. The bar itself is `@tale/ui/flow/playback-bar`.
  */
 export type {
+  FlowCompareNode,
+  FlowCompareOverlay,
   FlowEdgeRunState,
   FlowEdgeTravel,
   FlowFrameState,
@@ -17,11 +19,16 @@ export type {
   FlowTimelineMark,
 } from './types';
 export { FLOW_PLAYBACK_SPEEDS } from './types';
-export { flowStateAt, flowStateFromOverlay } from './derive-state';
+export {
+  flowSpanStateAt,
+  flowStateAt,
+  flowStateFromOverlay,
+} from './derive-state';
 export {
   buildPlaybackTimeline,
   type BuildPlaybackTimelineOptions,
   type FlowBuiltTimeline,
+  type FlowRealMark,
   type FlowRealRun,
   type FlowRealSpan,
   type FlowRealTravel,

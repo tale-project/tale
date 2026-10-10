@@ -160,7 +160,12 @@ test('draws a condition with Yes and No, saves a field edit and shows the branch
     await page.goto(runsRoute);
     await expect(succeeded.first()).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   }).toPass({ timeout: TIMEOUT.EXECUTION });
-  await page.locator('a[href*="/runs/"]').first().click();
+  // A row opens its run on click.
+  await page
+    .getByRole('row')
+    .filter({ hasText: t('automations.runs.status.success') })
+    .first()
+    .click();
   await page.waitForURL(/\/runs\/[^/?#]+(?:[?#]|$)/, { timeout: TIMEOUT.NAV });
 
   // The run page's canvas says how the condition decided: No, so the line

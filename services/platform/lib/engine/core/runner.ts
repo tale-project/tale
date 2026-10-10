@@ -17,6 +17,8 @@
  * without executing anything, and only a backend has a parser.
  */
 
+import type { ValueSummary } from '@tale/ui/data/value-summary';
+
 export interface RunnerLimits {
   /** Wall-clock cap for one evaluation. Backends enforce it hard. */
   timeoutMs: number;
@@ -36,6 +38,41 @@ export interface BodyOptions {
   async?: boolean;
 }
 
+/**
+ * What an instrumented expression answered: its value (as {@link
+ * CodeRunner.evalExpr} would have answered it) or the error it threw, and the
+ * summary of every probed sub-expression it evaluated, by probe index.
+ */
+export interface ProbedResult {
+  value: unknown;
+  probes: Array<[number, ValueSummary]>;
+  /** The expression threw: the thrown value as text, and its `name` when it
+   * had one. The probes are the ones taken until the throw. */
+  error?: { message: string; name?: string };
+}
+
+/**
+ * The runner itself stopped an evaluation: it killed the process that ran it
+ * past its deadline, or that process died (out of memory, a crash), or the
+ * session it runs in could not be reached. Never the expression's own error.
+ * An evaluation that ended this way is not tried again — the same source
+ * would meet the same end, and a second death costs every evaluation that
+ * shares the runner.
+ */
+export class RunnerStopped extends Error {
+  /** The runner stopped this evaluation because it outlived its deadline
+   * (and replaced the process it ran in), not because the runner broke. */
+  readonly timedOut: boolean;
+  constructor(
+    message: string,
+    options?: { cause?: unknown; timedOut?: boolean },
+  ) {
+    super(message, options);
+    this.name = 'RunnerStopped';
+    this.timedOut = options?.timedOut === true;
+  }
+}
+
 export interface CodeRunner {
   /** Evaluate a single JavaScript EXPRESSION against a data-only scope. */
   evalExpr(
@@ -43,6 +80,19 @@ export interface CodeRunner {
     scope: Record<string, unknown>,
     limits: RunnerLimits,
   ): Promise<unknown>;
+  /**
+   * Evaluate an expression instrumented with probes (`syntax/probe.ts`) in
+   * the wrapper `probedExprSource` builds, with the same isolation and limits
+   * as {@link evalExpr}. An error the expression throws is answered, not
+   * thrown; an evaluation the runner itself stops — a timeout, a runner that
+   * died — still rejects. Optional: without it, conditions are evaluated
+   * plainly and their sub-expression values are not recorded.
+   */
+  evalExprProbed?(
+    instrumented: string,
+    scope: Record<string, unknown>,
+    limits: RunnerLimits,
+  ): Promise<ProbedResult>;
   /** Run a function BODY (must `return`) against a data-only scope. */
   runBody(
     code: string,

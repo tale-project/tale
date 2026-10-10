@@ -180,6 +180,7 @@ describe('reviewed embedding HTTP updates', () => {
       'acme',
       config,
       null,
+      { organizationId: 'o1', userId: 'u1', email: 'u@example.test' },
     );
     expect(requeueEmbeddingBlockedDocuments).toHaveBeenCalledWith(
       expect.anything(),

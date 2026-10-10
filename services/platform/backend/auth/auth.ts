@@ -787,6 +787,9 @@ export function createAuth(config: AuthConfig) {
     // afterDeleteTeam hook retires the scopes and audits the deletion.
     disabledPaths: [
       ...OIDC_DISABLED_PATHS,
+      // Writes a session's additional fields from a request body; the app
+      // never calls it, and those fields are the server's (below).
+      '/update-session',
       '/organization/leave',
       '/organization/add-team-member',
       '/organization/remove-team-member',
@@ -843,14 +846,18 @@ export function createAuth(config: AuthConfig) {
       additionalFields: {
         // The role a trusted-headers proxy asserted at sign-in, and the ONE
         // organization it holds for; the org middleware applies the override
-        // to that organization only (`backend/auth/org.ts`).
+        // to that organization only (`backend/auth/org.ts`). Only the
+        // trusted-headers door writes them (`domains/sso/trusted-headers.ts`,
+        // in SQL), never a request body.
         trustedRole: {
           type: 'string' as const,
           required: false,
+          input: false,
         },
         trustedOrganizationId: {
           type: 'string' as const,
           required: false,
+          input: false,
         },
       },
     },

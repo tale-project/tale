@@ -108,6 +108,7 @@ describe('deploy', () => {
       name: 'ops/greet',
       version: 2,
       previousVersion: 1,
+      trigger: null,
     });
     const { chain, nameLock } = lockOrder(fake.statements, 'ops/greet');
     expect(chain).toBeGreaterThanOrEqual(0);
@@ -166,6 +167,7 @@ describe('deploy', () => {
       name: 'ops/greet',
       version: 2,
       previousVersion: null,
+      trigger: null,
     });
   });
 });

@@ -18,11 +18,6 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
 } from '../../../lib/connectors/natives/index.ts';
-import {
-  hasCodeRunner,
-  setCodeRunner,
-} from '../../../lib/engine/core/runner.ts';
-import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
   ingestEmails,
@@ -31,6 +26,7 @@ import {
   querySyncCursor,
   syncMailbox,
 } from '../../core/conversations/sync_mailbox.ts';
+import { installCodeRunner } from '../../lib/code-runner.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -41,6 +37,7 @@ import {
   listUntriagedConversations,
   recordConversationTriage,
 } from '../conversations/triage.ts';
+import { withAutomationOrigin } from '../events/origin.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
 import { recordConnectorUsage } from '../governance/service.ts';
 import {
@@ -287,7 +284,7 @@ function connectorUsageSink(
 /** Install the seams one invocation needs — cheap and idempotent (the
  * catalog read is stat-memoized). */
 function assembleConnectorHost(sql: Sql): void {
-  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+  installCodeRunner();
   loadConnectorCatalog();
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),
@@ -338,8 +335,22 @@ export interface RunConnectorArgs {
 /**
  * Invoke one connector action — the platform's single door. Coded refusals
  * surface as {@link ConnectorError}; callers branch on `code`.
+ *
+ * A step of an automation run acts as that run: the events its natives
+ * raise, and those of every domain service they call, name the run as their
+ * origin, so the event triggers can keep a run from starting its own
+ * automation again (`events/origin.ts`).
  */
 export async function runConnectorAction(
+  sql: Sql,
+  args: RunConnectorArgs,
+): Promise<ConnectorDispatchResult> {
+  return args.caller.kind === 'workflow'
+    ? withAutomationOrigin(args.caller.runId, () => invokeConnector(sql, args))
+    : invokeConnector(sql, args);
+}
+
+async function invokeConnector(
   sql: Sql,
   args: RunConnectorArgs,
 ): Promise<ConnectorDispatchResult> {

@@ -1,61 +1,71 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
-import { cn } from '@tale/ui/cn';
-import { useT } from '@tale/ui/i18n/client';
-import { lazyComponent } from '@tale/ui/lazy-component';
-import { SkeletonText } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { CheckIcon, CopyIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-const ReactJsonView = lazyComponent(
-  () => import('@microlink/react-json-view'),
-  {
-    loading: () => (
-      <Skeletonize loading className="font-mono">
-        <SkeletonText lines={3} />
-      </Skeletonize>
-    ),
-  },
-);
+import { useT } from '../../i18n/client';
+import { cn } from '../../lib/cn';
+import { Button } from '../primitives/button';
+import { ValueTree } from './value-tree/value-tree';
 
+export interface JsonViewerProps {
+  /** A value, or JSON text that is read first. */
+  data: unknown;
+  /** `false` (the default) opens everything; `true` shows the top level
+   *  with its lists and objects closed; a number opens that many levels. */
+  collapsed?: boolean | number;
+  /** @deprecated The viewer always caps its height at 24rem. */
+  maxHeight?: boolean;
+  /** A Copy button for the whole value as JSON, and copy actions on every
+   *  row (⌘C / ⇧⌘C from the keyboard). */
+  enableClipboard?: boolean;
+  /** Spaces per level of the JSON text it copies and of a plain value. */
+  indentWidth?: number;
+  className?: string;
+}
+
+/**
+ * A JSON value to read: a `ValueTree` of an object or a list (keys, values
+ * coloured by type, keyboard navigation, long text cut to a line), or the
+ * JSON text of a plain value (`null`, a string, a number). JSON text is
+ * read first, so `'{"a":1}'` shows as the object.
+ */
 export function JsonViewer({
   data,
   collapsed = false,
   enableClipboard = false,
   indentWidth = 2,
   className,
-}: {
-  data: unknown;
-  collapsed?: boolean | number;
-  maxHeight?: boolean;
-  enableClipboard?: boolean;
-  indentWidth?: number;
-  className?: string;
-}) {
+}: JsonViewerProps) {
   const { t } = useT('common');
+  const { t: tTree } = useT('valueTree');
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+
   const json = useMemo(() => {
     try {
       return JSON.stringify(data, null, indentWidth);
-    } catch {
+    } catch (error) {
+      console.warn('JsonViewer could not write its data as JSON', error);
       return String(data);
     }
   }, [data, indentWidth]);
 
   const parsedData = useMemo(() => {
+    if (typeof data !== 'string') return data;
     try {
-      return typeof data === 'string' ? JSON.parse(data) : data;
+      const parsed: unknown = JSON.parse(data);
+      return parsed;
     } catch {
+      // Text that is not JSON is shown as the text it is.
       return data;
     }
   }, [data]);
 
-  // `react-json-view` accepts only an object or array `src` — anything else
-  // renders as the library's own {ERROR: …} placeholder. JSON scalars are
-  // honest values too (an automation that maps no `output` returns null, a
-  // node can output a bare string), so they render as plain JSON text.
+  // An object or a list opens as a tree. A plain value is honest too (an
+  // automation that maps no `output` returns null; a node can output a bare
+  // string), so it renders as its JSON text.
   const isJsonContainer = typeof parsedData === 'object' && parsedData !== null;
   const scalarText = useMemo(() => {
     const text = JSON.stringify(parsedData, null, indentWidth);
@@ -65,78 +75,56 @@ export function JsonViewer({
 
   const handleCopy = async () => {
     try {
+      await navigator.clipboard.writeText(json ?? '');
       setCopied(true);
-      await navigator.clipboard.writeText(json);
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
     } catch (e) {
       console.error('Failed to copy JSON', e);
     }
   };
 
-  // Convert collapsed prop: false stays false, true becomes 1, number stays as is
-  const collapsedDepth =
-    collapsed === false ? false : collapsed === true ? 1 : collapsed;
+  // `false` opens every level; `true` the top level; a number that many.
+  const expandDepth =
+    collapsed === false
+      ? Number.POSITIVE_INFINITY
+      : collapsed === true
+        ? 1
+        : Math.max(1, collapsed);
 
   return (
-    <div
-      className={cn(
-        'bg-background relative max-h-[24rem] overflow-auto p-3 text-xs',
-        className,
-      )}
-    >
+    <div className={cn('bg-background relative text-xs', className)}>
       {enableClipboard && (
         <div className="absolute top-2 right-2 z-10">
           <Button
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             title={t('actions.copy')}
-            className="p-1"
-            onClick={handleCopy}
+            onClick={() => void handleCopy()}
           >
             {copied ? (
-              <CheckIcon className="text-success size-4 p-0.5" />
+              <CheckIcon aria-hidden="true" className="text-success size-4" />
             ) : (
-              <CopyIcon className="size-4 p-0.5" />
+              <CopyIcon aria-hidden="true" className="size-4" />
             )}
           </Button>
         </div>
       )}
       {isJsonContainer ? (
-        <ReactJsonView
-          src={parsedData}
-          name={false}
-          collapsed={collapsedDepth}
-          displayObjectSize={false}
-          displayDataTypes={false}
-          enableClipboard={false}
-          quotesOnKeys={false}
-          indentWidth={indentWidth}
-          theme={{
-            base00: 'hsl(var(--background))',
-            base01: 'hsl(var(--muted))',
-            base02: 'hsl(var(--muted))',
-            base03: 'hsl(var(--foreground))',
-            base04: 'hsl(var(--foreground))',
-            base05: 'hsl(var(--foreground))',
-            base06: 'hsl(var(--muted-foreground))',
-            base07: 'hsl(var(--foreground))',
-            base08: 'hsl(var(--foreground))',
-            base09: 'hsl(var(--destructive))',
-            base0A: 'rgba(70, 70, 230, 1)',
-            base0B: 'rgba(70, 70, 230, 1)',
-            base0C: 'rgba(70, 70, 230, 1)',
-            base0D: 'rgba(70, 70, 230, 1)',
-            base0E: 'rgba(70, 70, 230, 1)',
-            base0F: 'rgba(70, 70, 230, 1)',
-          }}
-          style={{
-            backgroundColor: 'transparent',
-            fontSize: '12px',
-          }}
+        <ValueTree
+          value={parsedData}
+          aria-label={tTree('label')}
+          defaultExpandDepth={expandDepth}
+          copyable={enableClipboard}
+          density="compact"
+          className={cn('max-h-[24rem] p-3', enableClipboard && 'pr-11')}
         />
       ) : (
-        <pre className="font-mono break-words whitespace-pre-wrap">
-          {scalarText}
-        </pre>
+        <div className="max-h-[24rem] overflow-auto p-3">
+          <pre className="font-mono break-words whitespace-pre-wrap">
+            {scalarText}
+          </pre>
+        </div>
       )}
     </div>
   );

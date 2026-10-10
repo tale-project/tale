@@ -1,0 +1,488 @@
+again:
+  button: Erneut ausführen
+  edit: Eingabe bearbeiten und ausführen…
+  editScope: Ein neuer Lauf von v{version} startet mit dieser Eingabe aus Lauf {id}.
+  menu: Weitere Möglichkeiten zum erneuten Ausführen
+  latest: Erneut mit v{version} als Test ausführen
+  asTest: Erneut als Test ausführen
+  live: Live mit v{version} ausführen
+  notLive: v{version} ist nicht mehr live. Führe sie als Test aus oder v{live} live.
+  noneLive: Keine Version ist live, deshalb kann v{version} nur als Test erneut laufen.
+  liveConfirm:
+    title: Erneut live ausführen?
+    body: '{count, plural, one {Dabei wird erneut # Schreibvorgang an {connectors} gesendet, wie im letzten Lauf.} other {Dabei werden erneut # Schreibvorgänge an {connectors} gesendet, wie im letzten Lauf.}}'
+    confirm: Erneut live ausführen
+  refused: Der Lauf konnte nicht gestartet werden. {detail}
+  comparePrevious: Mit dem vorherigen Lauf vergleichen
+  copyId: Lauf-ID kopieren
+  idCopied: Lauf-ID kopiert
+  copyLink: Link kopieren
+  linkCopied: Link kopiert
+failure:
+  title: Der Lauf ist bei {step} fehlgeschlagen
+  titleRun: Der Lauf ist fehlgeschlagen
+  showStep: Schritt zeigen
+  retry: Ab diesem Schritt wiederholen
+  showInEditor: Im Editor zeigen
+  location: '{step} › {field}'
+lineage:
+  again: Wiederholung von Lauf {id}
+  edited: Wiederholung von Lauf {id} · geänderte Eingabe
+  from: Wiederholung von Lauf {id} · ab {step}
+  deleted: Wiederholung eines gelöschten Laufs
+  open: Lauf {id} öffnen
+  compare: Damit vergleichen
+playback:
+  reason:
+    when: 'Übersprungen: Bedingung traf nicht zu'
+    else: 'Übersprungen: {partner} lief'
+    upstream: 'Übersprungen: {via} wurde übersprungen'
+    error: Fehlgeschlagen, der Lauf ging weiter
+  wait:
+    approval: Auf Freigabe gewartet
+    ask: Auf eine Antwort gewartet
+    room: Auf einen Sandbox-Platz gewartet
+    repeat: Pause zwischen Durchgängen
+    in_doubt: Auf eine Entscheidung gewartet
+conditions:
+  ran: '{step} lief, weil seine Bedingung zutraf.'
+  skippedWhen: '{step} wurde übersprungen, weil seine Bedingung nicht zutraf.'
+  skippedElse: '{step} wurde übersprungen, weil {partner} lief.'
+  ranElse: '{step} lief, weil {partner} durch seine eigene Bedingung übersprungen wurde.'
+  skippedUpstream: '{step} wurde übersprungen, weil er {via} liest und {via} übersprungen wurde.'
+  failedContinued: '{step} ist fehlgeschlagen, und der Lauf ging ohne ihn weiter.'
+  onlyIf: Nur wenn
+  repeatUntil: Wiederholen bis
+  raw: Diese Bedingung ist als Code geschrieben.
+  joined:
+    and: 'Alle müssen zutreffen:'
+    or: 'Eine muss zutreffen:'
+  verdict:
+    yes: Ja
+    no: Nein
+    notChecked: Nicht geprüft
+compare:
+  canvas: 'Beide Läufe im Diagramm'
+  diff:
+    output: 'Ausgabe: A → B'
+    input: 'Eingabe: A → B'
+  title: Läufe vergleichen
+  swap: A und B tauschen
+  same: Wähle zwei verschiedene Läufe.
+  notFound: 'Diese beiden Läufe lassen sich nicht vergleichen: Einer davon ist weg, oder sie gehören zu verschiedenen Automatisierungen.'
+  loadFailed: Die Läufe konnten nicht verglichen werden.
+  run: Lauf {id}
+  differs:
+    title: Was sich unterscheidet
+    version: 'A lief mit v{a}, B mit v{b}: {count, plural, =0 {dazwischen wurde kein Schritt geändert} one {dazwischen wurde # Schritt geändert} other {dazwischen wurden # Schritte geändert}}.'
+    input: '{count, plural, one {Eingabe: # Feld unterscheidet sich.} other {Eingabe: # Felder unterscheiden sich.}}'
+    split: 'Sie trennten sich bei {step}: {why, select, missing {nur einer der Läufe kam dort an} status {er endete unterschiedlich} decision {seine Bedingung ging anders aus} input {er erhielt eine andere Eingabe} other {er gab etwas anderes zurück}}.'
+    outcome: A {a, select, success {war erfolgreich} failed {ist fehlgeschlagen} cancelled {wurde gestoppt} other {läuft noch}}; B {b, select, success {war erfolgreich} failed {ist fehlgeschlagen} cancelled {wurde gestoppt} other {läuft noch}}.
+    output: '{count, plural, one {Ausgabe: # Feld unterscheidet sich.} other {Ausgabe: # Felder unterscheiden sich.}}'
+    effects: 'Schreibvorgänge: A {a}, B {b}.'
+    nothing: Gleiche Version, gleiche Eingabe, gleicher Pfad – nur die Zeiten unterscheiden sich.
+  table:
+    label: Schritte in A und B
+    step: Schritt
+    data: Daten
+    same: gleich
+    differs: unterschiedlich
+    none: –
+  status:
+    ok: Erfolgreich
+    failed: Fehlgeschlagen
+    skipped: Übersprungen
+    running: Läuft
+    waiting: Wartet
+    reused: Wiederverwendet
+    none: Nicht gelaufen
+data:
+  reads: Was gelesen wurde
+  readValue: '{operand}: {value}'
+  received: Erhalten
+  returned: Zurückgegeben
+  changes: 'Was er geändert hat'
+  elided: Manche Werte waren zu umfangreich, um sie vollständig zu speichern.
+  redacted: Geheimnisse sind ausgeblendet.
+  call:
+    title: Aufruf
+    status:
+      done: Erledigt
+      failed: Fehlgeschlagen
+      started: Ist vielleicht schon gelaufen
+    attempt: Versuch {n}
+    resolution:
+      retry: Eine Person hat entschieden, ihn erneut auszuführen.
+      skip: Eine Person hat entschieden, ihn zu überspringen.
+      fail: Eine Person hat entschieden, den Lauf fehlschlagen zu lassen.
+  notReached: Dieser Schritt lief nicht, deshalb gibt es keine Daten.
+items:
+  items: '{count, plural, one {# Element} other {# Elemente}}'
+  passes: '{count, plural, one {# Durchgang} other {# Durchgänge}}'
+  failedCount: '{count} fehlgeschlagen'
+  keptHint: Tale speichert die ersten 200 Elemente und jedes fehlgeschlagene.
+  failedOnly: Nur fehlgeschlagene
+  item: Element {index}
+  pass: Durchgang {index}
+  more: Mehr anzeigen
+  label: Elemente und Durchgänge von {step}
+list:
+  caption: Läufe dieser Automatisierung
+  columns:
+    status: Status
+    started: Gestartet
+    result: Ergebnis
+    version: Version
+    mode: Modus
+    startedBy: Gestartet von
+  filters:
+    status: Status
+    mode: Modus
+  compare: Vergleichen
+  compareDisabled: Wähle zwei Läufe zum Vergleichen.
+  selected: '{count, plural, one {# Lauf ausgewählt} other {# Läufe ausgewählt}}'
+  clear: Auswahl aufheben
+  entity:
+    one: Lauf
+    other: Läufe
+  noMatch: Keine Läufe passen zu diesen Filtern
+attempts:
+  title: Versuche
+  row: Versuch {n}
+  outcome:
+    ok: Erledigt
+    failed: Fehlgeschlagen
+    retried: Erneut versucht
+    interrupted: Durch einen Neustart unterbrochen
+values:
+  items: '{count, plural, one {# Element} other {# Elemente}}'
+  fields: '{count, plural, one {# Feld} other {# Felder}}'
+  missing: nicht vorhanden
+  withheld: zurückgehalten
+  tooLarge: zu umfangreich zum Speichern
+runtime:
+  codes:
+    EXPR_SYNTAX:
+      title: Ein Ausdruck ist nicht lesbar
+      explanation: Der Ausdruck ist kein gültiges JavaScript, deshalb konnte er nicht ausgewertet werden.
+      cause: '{fieldLabel, select, none {Ein Ausdruck hat einen Syntaxfehler.} other {Der Ausdruck in {fieldLabel} hat einen Syntaxfehler.}}'
+      fix: Such nach einer fehlenden Klammer, einem fehlenden Anführungszeichen oder Operator. Die technischen Details zeigen, wo das Lesen abbrach.
+    EXPR_READ_MISSING:
+      title: Ein gelesener Wert fehlt
+      explanation: Ein Ausdruck hat ein Feld eines Werts abgefragt, den es nicht gab, deshalb ging es nicht weiter.
+      cause: '{chain, select, none {{expr} liest {keyLabel} aus einem Wert, der {base, select, null {null} other {nicht vorhanden}} ist.} other {{expr} liest {keyLabel} aus {chain}, und das ist {base, select, null {null} other {nicht vorhanden}}.}}{sourceLabel, select, none {} other { Dieser Wert stammt aus dem, was {sourceLabel} zurückgegeben hat.}}'
+      fix: '{suggestion, select, none {Lies ein Feld, das es gibt, oder lies es mit ?., damit ein fehlender Wert undefined ergibt, statt fehlzuschlagen.} other {Lies ein Feld, das es gibt, oder lies es mit ?., damit ein fehlender Wert undefined ergibt, statt fehlzuschlagen, etwa {suggestion}.}}'
+    EXPR_NAME_UNKNOWN:
+      title: Unbekannter Name
+      explanation: Ein Ausdruck verwendet einen Namen, den es beim Ausführen des Schritts nicht gibt.
+      cause: '{fieldLabel, select, none {{nameLabel} ist nicht definiert.} other {{nameLabel} ist in {fieldLabel} nicht definiert.}}'
+      fix: Verwende input, nodes, item oder index, oder definiere den Namen im Code.
+    EXPR_NOT_FUNCTION:
+      title: Aufruf von etwas, das keine Funktion ist
+      explanation: Ein Ausdruck hat einen Wert wie eine Funktion aufgerufen, aber er ist keine.
+      cause: '{fieldLabel, select, none {{callee} ist keine Funktion.} other {In {fieldLabel} ist {callee} keine Funktion.}}'
+      fix: Prüfe den Namen der Methode und die Art des Werts, auf dem sie aufgerufen wird, im Tab Daten des Schritts.
+    EXPR_FAILED:
+      title: Ein Ausdruck ist fehlgeschlagen
+      explanation: Ein Ausdruck hat beim Auswerten einen Fehler ausgelöst.
+      cause: '{fieldLabel, select, none {{expr} hat {errorName, select, none {einen Fehler} Error {einen Fehler} other {einen {errorName}}} ausgelöst.} other {In {fieldLabel} hat {expr} {errorName, select, none {einen Fehler} Error {einen Fehler} other {einen {errorName}}} ausgelöst.}}'
+      fix: Prüfe die gelesenen Werte im Tab Daten des Schritts. Die technischen Details enthalten den genauen Wortlaut des Fehlers.
+    EXPR_TIMEOUT:
+      title: Ein Ausdruck dauerte zu lange
+      explanation: Jeder Ausdruck hat ein kurzes Zeitlimit, und dieser wurde nicht rechtzeitig fertig.
+      cause: '{fieldLabel, select, none {Ein Ausdruck lief länger als {limit}.} other {Der Ausdruck in {fieldLabel} lief länger als {limit}.}}'
+      fix: Verschiebe aufwendige Arbeit in einen Transform-Schritt oder vereinfache den Ausdruck.
+    TEMPLATE_VALUE_MISSING:
+      title: Ein Wert im Text fehlt
+      explanation: Ein in Text eingesetzter Wert war leer, deshalb hat der Schritt angehalten, statt undefined in den Text zu schreiben.
+      cause: '{fieldLabel, select, none {{expr} ergab im Text {base, select, null {null} other {nichts}}.} other {{expr} in {fieldLabel} ergab {base, select, null {null} other {nichts}}.}}'
+      fix: Gib einen Ersatzwert an, etwa {expr} ?? "".
+    FOREACH_NOT_LIST:
+      title: „Für jedes“ erhielt keine Liste
+      explanation: Der Schritt soll einmal pro Element einer Liste laufen, aber dieser Wert war keine Liste.
+      cause: '{expr} ist {kindLabel}, keine Liste.'
+      fix: Gib eine Liste an, etwa nodes.fetch.output.items.
+    CODE_NO_RESULT:
+      title: Der Code hat nichts zurückgegeben
+      explanation: Der Code eines Transform-Schritts muss einen Wert zurückgeben, und dieser Code hat nichts zurückgegeben.
+      cause: Der Code endete, ohne einen Wert zurückzugeben.
+      fix: Beende den Code mit einer return-Anweisung, etwa return result.
+    CODE_FAILED:
+      title: Der Code hat einen Fehler ausgelöst
+      explanation: Der Code des Transform-Schritts wurde mit einem Fehler beendet.
+      cause: '{errorName, select, none {Der Code hat einen Fehler ausgelöst.} Error {Der Code hat einen Fehler ausgelöst.} other {Der Code hat einen {errorName} ausgelöst.}}'
+      fix: Prüfe die Werte, die der Code gelesen hat, im Tab Daten des Schritts. Die technischen Details enthalten den genauen Wortlaut des Fehlers.
+    CODE_TIMEOUT:
+      title: Der Code dauerte zu lange
+      explanation: Transform-Code hat ein kurzes Zeitlimit, und dieser Code wurde nicht rechtzeitig fertig.
+      cause: Der Code lief länger als {limit}.
+      fix: Erledige weniger in einem Durchlauf des Codes oder verteile die Arbeit auf mehrere Schritte oder Elemente.
+    CONNECTOR_CREDENTIAL_MISSING:
+      title: Keine funktionierende Verbindung
+      explanation: Der Schritt ruft einen Dienst auf, aber es gibt keine funktionierende Verbindung zu ihm.
+      cause: '{connectorLabel} ist nicht verbunden, oder seine Verbindung wurde entfernt.'
+      fix: Verbinde {connectorLabel} unter Connectors und führe den Lauf dann erneut aus.
+    CONNECTOR_INPUT_REFUSED:
+      title: Die Eingabe passt nicht zur Aktion
+      explanation: Bevor Tale einen Dienst aufruft, prüft es die Eingabe des Schritts gegen das, was die Aktion annimmt. Diese Eingabe passte nicht, deshalb wurde nichts gesendet.
+      cause: '{keyword, select, required {{propertyLabel, select, none {Der Eingabe fehlt} other {In {propertyLabel} fehlt}} ein Feld, das {actionLabel} braucht.} type {{propertyLabel, select, none {Die Eingabe} other {{propertyLabel}}} hat den falschen Typ für {actionLabel}.} enum {{propertyLabel, select, none {Die Eingabe} other {{propertyLabel}}} ist keiner der Werte, die {actionLabel} erlaubt.} additionalProperties {{propertyLabel, select, none {Die Eingabe} other {{propertyLabel}}} hat ein Feld, das {actionLabel} nicht annimmt.} other {{propertyLabel, select, none {Die Eingabe} other {{propertyLabel}}} passt nicht zu dem, was {actionLabel} annimmt.}}'
+      fix: Vergleiche die aufgelöste Eingabe des Schritts mit dem, was {actionLabel} von {connectorLabel} annimmt. Die technischen Details nennen jede Abweichung.
+    CONNECTOR_AUTH:
+      title: Der Dienst verweigerte den Zugriff
+      explanation: Der Dienst akzeptierte die Zugangsdaten der Verbindung nicht, oder sie erlauben diese Aktion nicht.
+      cause: '{connectorLabel} antwortete auf {actionLabel} mit {status}.'
+      fix: Verbinde {connectorLabel} neu oder gib seinem Konto die Rechte, die {actionLabel} braucht.
+    CONNECTOR_NOT_FOUND:
+      title: Der Dienst fand es nicht
+      explanation: Der Dienst antwortete, dass es das Angefragte nicht gibt.
+      cause: '{connectorLabel} antwortete auf {actionLabel} mit {status}.'
+      fix: Prüfe die IDs und Namen in der aufgelösten Eingabe des Schritts.
+    CONNECTOR_RATE_LIMITED:
+      title: Der Dienst bat um weniger Anfragen
+      explanation: Der Dienst erhielt zu viele Anfragen und lehnte diese vorerst ab.
+      cause: '{connectorLabel} begrenzt die Anfragen und lehnte {actionLabel} ab ({status}).'
+      fix: Führe den Lauf später erneut aus oder verarbeite weniger Elemente auf einmal.
+    CONNECTOR_UNREACHABLE:
+      title: Der Dienst war nicht erreichbar
+      explanation: Tale konnte den Dienst nicht erreichen, deshalb lief der Schritt nicht.
+      cause: '{connectorLabel} hat auf {actionLabel} nicht geantwortet.'
+      fix: Prüfe den Status des Dienstes und führe den Lauf dann erneut aus.
+    CONNECTOR_FAILED:
+      title: Der Dienst ist fehlgeschlagen
+      explanation: Der Dienst antwortete mit einem Fehler.
+      cause: '{status, select, none {{connectorLabel} ist bei {actionLabel} fehlgeschlagen.} other {{connectorLabel} antwortete auf {actionLabel} mit {status}.}}'
+      fix: Die technischen Details enthalten den Wortlaut des Dienstes. Korrigiere die Eingabe oder versuche es erneut.
+    LLM_OUTPUT_INVALID:
+      title: Die Antwort des Modells passte nicht
+      explanation: Der Schritt hat das Modell um eine strukturierte Antwort gebeten, und die Antwort entsprach nicht dem Ausgabeschema.
+      cause: '{modelLabel, select, none {Das Modell} other {{modelLabel}}} hat nicht in der Form des Ausgabeschemas geantwortet.'
+      fix: Lass den Prompt genau nach den Feldern des Schemas fragen oder lockere das Schema.
+    LLM_PROVIDER:
+      title: Der Modellanbieter ist fehlgeschlagen
+      explanation: Der Anbieter des Modells hat den Aufruf abgelehnt oder ist dabei fehlgeschlagen.
+      cause: '{modelLabel, select, none {Es geschah beim Aufruf des Modells des Schritts.} other {Es geschah beim Aufruf von {modelLabel}.}}'
+      fix: Führe den Lauf erneut aus; wenn es wieder passiert, wähle ein anderes Modell.
+    AGENT_FAILED:
+      title: Der Agent ist fehlgeschlagen
+      explanation: Der Coding-Agent konnte seinen Durchlauf nicht beenden.
+      cause: '{harnessLabel, select, none {Der Agent} other {{harnessLabel}}} hat{attempts, select, none {} other { nach {attempts, plural, one {# Versuch} other {# Versuchen}}}} aufgehört.'
+      fix: Führe den Lauf erneut aus und lies das Protokoll des Agenten.
+    SUBAUTOMATION_FAILED:
+      title: Die aufgerufene Automatisierung ist fehlgeschlagen
+      explanation: Die Automatisierung, die dieser Schritt aufruft, ist fehlgeschlagen, deshalb ist auch dieser Schritt fehlgeschlagen.
+      cause: '{childLabel, select, none {{automationLabel} v{version} ist fehlgeschlagen.} other {{automationLabel} v{version} ist bei {childLabel} fehlgeschlagen.}}'
+      fix: Öffne diesen Schritt, um die Schritte der aufgerufenen Automatisierung zu sehen, und korrigiere dann {automationLabel}.
+    SUBAUTOMATION_INPUT_REFUSED:
+      title: Die aufgerufene Automatisierung lehnte die Eingabe ab
+      explanation: Die übergebenen Werte passten nicht zu den Eingaben, die die aufgerufene Automatisierung annimmt.
+      cause: Die Werte, die dieser Schritt übergeben hat, passen nicht zu den Eingaben der aufgerufenen Automatisierung.
+      fix: Übergib die Eingaben, die sie angibt, unter den Namen, die sie verwendet.
+    SUBAUTOMATION_NOT_FOUND:
+      title: Die aufgerufene Automatisierung gibt es nicht
+      explanation: Der Schritt ruft eine Automatisierung auf, die nicht gefunden wurde, deshalb konnte er nicht laufen.
+      cause: '{automationLabel} ist nicht gespeichert oder wurde gelöscht oder umbenannt.'
+      fix: Speichere {automationLabel} oder lass den Schritt eine Automatisierung aufrufen, die es gibt.
+    SUBAUTOMATION_TOO_DEEP:
+      title: Automatisierungen rufen sich zu tief auf
+      explanation: Eine Automatisierung darf eine andere aufrufen, die wieder eine andere aufruft, aber nur bis zu einer begrenzten Tiefe.
+      cause: Hier sind die Aufrufe mehr als {max} Ebenen tief verschachtelt.
+      fix: Flache die Aufrufe ab, damit weniger Automatisierungen hintereinander einander aufrufen.
+    APPROVAL_REJECTED:
+      title: Eine Person lehnte den Schritt ab
+      explanation: Der Schritt brauchte eine Freigabe, und sie wurde abgelehnt, deshalb endete der Lauf.
+      cause: Seine Freigabe wurde abgelehnt.
+      fix: Ändere, was der Schritt sendet, oder führe den Lauf erneut aus, um noch einmal zu fragen.
+    EXECUTION_LIMIT:
+      title: Der Lauf hatte zu viele Schritte
+      explanation: Ein Lauf darf nur eine begrenzte Zahl von Schrittausführungen machen, jedes Element und jeder Durchgang zählt mit. Dieser Lauf hat sie erreicht.
+      cause: Der Lauf hat {limit} Schrittausführungen erreicht.
+      fix: Teile die Arbeit auf mehrere Automatisierungen auf oder geh weniger Elemente durch.
+    EFFECT_IN_DOUBT_FAILED:
+      title: Bei einem unterbrochenen Schreibvorgang gestoppt
+      explanation: Der Lauf wurde beim Senden an einen Dienst unterbrochen, und eine Person hat entschieden, ihn fehlschlagen zu lassen.
+      cause: Eine Person hat den Lauf hier fehlschlagen lassen, weil der Schreibvorgang den Dienst vielleicht schon erreicht hatte.
+      fix: Prüfe im Dienst, ob der Schreibvorgang angekommen ist, und führe den Lauf erneut aus, falls er fehlt.
+    UNKNOWN:
+      title: Der Schritt ist fehlgeschlagen
+      explanation: Tale konnte den Grund nicht bestimmen. Die technischen Details enthalten den Wortlaut der Engine.
+      cause: Der Schritt endete mit einem Fehler, für den Tale keine Worte hat.
+      fix: Lies die technischen Details oder führe den Lauf erneut aus.
+runFailure:
+  codes:
+    node_error:
+      title: Ein Schritt ist fehlgeschlagen
+      explanation: Der Code, ein Template oder ein Ausdruck eines Schritts ist fehlgeschlagen.
+      fix: Öffne den fehlgeschlagenen Schritt, um den Grund zu sehen.
+    connector_error:
+      title: Ein Dienstaufruf ist fehlgeschlagen
+      explanation: Ein verbundener Dienst hat einen Aufruf abgelehnt oder ist dabei fehlgeschlagen.
+      fix: Prüfe die Eingabe des Schritts und die Verbindung zum Dienst.
+    llm_output_invalid:
+      title: Die Antwort des Modells passte nicht
+      explanation: Die Antwort entsprach nicht dem Ausgabeschema des Schritts.
+      fix: Lass den Prompt nach den Feldern des Schemas fragen oder lockere das Schema.
+    approval_rejected:
+      title: Eine Person lehnte einen Schritt ab
+      explanation: Eine Freigabe wurde abgelehnt, deshalb endete der Lauf.
+      fix: Ändere die Anfrage oder führe den Lauf erneut aus, um noch einmal zu fragen.
+    execution_limit:
+      title: Der Lauf hatte zu viele Schritte
+      explanation: Der Lauf hat die Grenze der Schrittausführungen erreicht.
+      fix: Teile die Arbeit auf oder geh weniger Elemente durch.
+    automation_deleted:
+      title: Die Automatisierung wurde gelöscht
+      explanation: Sie wurde gelöscht, während der Lauf lief.
+      fix: Stelle sie wieder her oder verwende eine andere Automatisierung.
+    engine_incompatible:
+      title: Der Fortschritt dieses Laufs war nicht lesbar
+      explanation: Der Lauf hat angehalten, statt von vorn zu beginnen, deshalb lief nichts doppelt.
+      fix: Führe ihn erneut aus.
+    effect_in_doubt:
+      title: Bei einem unterbrochenen Schreibvorgang gestoppt
+      explanation: Eine Person hat den Lauf bei einem Schreibvorgang fehlschlagen lassen, der den Dienst vielleicht schon erreicht hatte.
+      fix: Prüfe den Dienst und führe den Lauf bei Bedarf erneut aus.
+    missing_api_key:
+      title: Kein Schlüssel für den Modellanbieter
+      explanation: Für den Anbieter dieses Modells ist kein Schlüssel eingerichtet.
+      fix: Deine Administration hinterlegt einen Schlüssel in den Anbieter-Einstellungen.
+    credit_exhausted:
+      title: Das Guthaben beim Anbieter ist aufgebraucht
+      explanation: Der Anbieter hat den Aufruf mangels Guthaben abgelehnt.
+      fix: Lade das Konto auf oder wähle ein anderes Modell.
+    model_not_entitled:
+      title: Kein Zugriff auf dieses Modell
+      explanation: Das Konto darf dieses Modell nicht verwenden.
+      fix: Wähle ein anderes Modell oder frag deine Administration.
+    auth_error:
+      title: Der Anbieter lehnte den Schlüssel ab
+      explanation: Der Anbieter hat den Schlüssel nicht akzeptiert.
+      fix: Deine Administration ersetzt den Schlüssel.
+    model_not_found:
+      title: Das Modell gibt es nicht
+      explanation: Der Anbieter kennt dieses Modell nicht.
+      fix: Wähle ein Modell aus der Liste.
+    unsupported_parameter:
+      title: Das Modell lehnte eine Einstellung ab
+      explanation: Dieses Modell unterstützt eine Einstellung nicht.
+      fix: Entferne die Einstellung oder wähle ein anderes Modell.
+    output_cap_too_high:
+      title: Das Antwortlimit ist zu hoch
+      explanation: Der Schritt hat eine längere Antwort verlangt, als das Modell erlaubt.
+      fix: Senke das Antwortlimit.
+    token_limit:
+      title: Die Antwort wurde abgeschnitten
+      explanation: Das Modell hat sein Antwortlimit erreicht.
+      fix: Verlange eine kürzere Antwort oder erhöhe das Limit.
+    rate_limited:
+      title: Der Anbieter bat um weniger Anfragen
+      explanation: Zu viele Anfragen in kurzer Zeit.
+      fix: Führe den Lauf später erneut aus.
+    content_filter:
+      title: Der Filter des Anbieters hat blockiert
+      explanation: Der Anbieter hat den Inhalt abgelehnt.
+      fix: Ändere den Prompt oder die Eingabe.
+    context_length:
+      title: Der Prompt ist zu lang
+      explanation: Der Prompt und seine Daten übersteigen, was das Modell auf einmal liest.
+      fix: Sende weniger Daten oder wähle ein Modell mit mehr Kontext.
+    provider_unreachable:
+      title: Der Anbieter war nicht erreichbar
+      explanation: Keine Antwort vom Modellanbieter.
+      fix: Führe den Lauf später erneut aus.
+    provider_error:
+      title: Der Anbieter ist fehlgeschlagen
+      explanation: Der Anbieter antwortete mit einem Fehler.
+      fix: Führe den Lauf erneut aus; wenn es wieder passiert, wähle ein anderes Modell.
+    budget_exceeded:
+      title: Ein Budget ist aufgebraucht
+      explanation: Ein Ausgabenlimit für dich, das Projekt oder die Organisation wurde erreicht.
+      fix: Deine Administration erhöht das Budget, oder warte auf den nächsten Zeitraum.
+    harness_error:
+      title: Die Laufzeitumgebung des Agenten ist fehlgeschlagen
+      explanation: Der Coding-Agent wurde mit einem Fehler beendet.
+      fix: Führe den Lauf erneut aus und lies das Protokoll des Agenten.
+    turn_crashed:
+      title: Der Agent stoppte unerwartet
+      explanation: Die Sandbox des Agenten wurde mitten in seinem Durchlauf beendet.
+      fix: Führe den Lauf erneut aus.
+    session_gone:
+      title: Die Sitzung des Agenten endete
+      explanation: Die Sandbox-Sitzung war beendet, bevor der Durchlauf fertig war.
+      fix: Führe den Lauf erneut aus.
+    start_failed:
+      title: Der Agent konnte nicht starten
+      explanation: Keine Sandbox und kein Konto war frei, um den Durchlauf zu starten.
+      fix: Führe den Lauf später erneut aus.
+    harvest_failed:
+      title: Die Dateien des Agenten konnten nicht abgeholt werden
+      explanation: Der Durchlauf war fertig, aber seine Dateien konnten nicht zurückgeholt werden.
+      fix: Führe den Lauf erneut aus.
+    resume_failed:
+      title: Der Agent konnte nicht weitermachen
+      explanation: Das Fortsetzen der Unterhaltung nach einer Antwort ist fehlgeschlagen.
+      fix: Führe den Lauf erneut aus.
+    deadline:
+      title: Der Agent hatte keine Zeit mehr
+      explanation: Der Durchlauf hat sein Zeitfenster überschritten.
+      fix: Gib ihm weniger zu tun oder mehr Zeit.
+    ask_expired:
+      title: Eine Frage blieb unbeantwortet
+      explanation: Der Agent hat eine Frage gestellt, die nicht rechtzeitig beantwortet wurde.
+      fix: Führe den Lauf erneut aus und beantworte die Frage.
+  unknown:
+    title: Der Lauf ist fehlgeschlagen
+    explanation: Tale konnte den Grund nicht bestimmen. Die technischen Details enthalten den Wortlaut der Engine.
+    fix: Öffne den fehlgeschlagenen Schritt oder führe den Lauf erneut aus.
+replay:
+  from:
+    title: Ab {step} erneut ausführen?
+    titleRetry: Ab {step} wiederholen?
+    body: Ein neuer Lauf von v{version} startet mit der Eingabe von Lauf {run}. Er verwendet wieder, was die Schritte vor {step} zurückgegeben haben, und führt {step} und alle Schritte danach erneut aus.
+    reused: Wiederverwendet ({count})
+    rerun: Läuft erneut ({count})
+    nothingReused: Nichts wird wiederverwendet; jeder Schritt läuft erneut.
+    confirm: Ab {step} erneut ausführen
+    confirmRetry: Ab {step} wiederholen
+  version:
+    label: Ausführen mit
+    same: v{version} – Version dieses Laufs
+    latest: v{version} – neueste
+    deployed: v{version} – live
+  mode:
+    label: Modus
+    mock: Testlauf
+    live: Live-Lauf
+    liveNeedsRole: Deine Rolle kann keine Live-Läufe starten.
+    liveNeedsDeployed: Diese Version ist nicht live, deshalb läuft sie nur als Test.
+    mockStaysMock: Die Ergebnisse eines Testlaufs sind erfunden, deshalb bleibt die Wiederholung ab einem Schritt ein Test.
+  writes:
+    live: '{count, plural, one {Live wird # Schreibvorgang erneut gesendet, aus {list}.} other {Live werden # Schreibvorgänge erneut gesendet, aus {list}.}}'
+    mock: Ein Testlauf sendet nichts.
+  refusal:
+    REPLAY_NODE_UNKNOWN:
+      title: Den Schritt gibt es in dieser Version nicht
+      body: '{step} gibt es nicht in beiden Versionen, der dieses Laufs und der auszuführenden.'
+    REPLAY_GRAPH_CHANGED:
+      title: Die Version hat wiederverwendete Schritte geändert
+      body: Die auszuführende Version hat {nodes} geändert, deshalb passen ihre Ergebnisse aus diesem Lauf nicht. Führe ab einem früheren Schritt oder mit der Version dieses Laufs erneut aus.
+    REPLAY_RUN_NOT_FINISHED:
+      title: Der Lauf ist noch nicht beendet
+      body: Ein Lauf lässt sich erst ab einem Schritt erneut ausführen, wenn er beendet ist.
+    REPLAY_MODE_MISMATCH:
+      title: Ein Testlauf bleibt ein Test
+      body: Die Ergebnisse dieses Laufs sind erfunden, deshalb kann die Wiederholung ab einem Schritt nur ein Test sein.
+    REPLAY_PROGRESS_UNREADABLE:
+      title: Sein Fortschritt ist nicht lesbar
+      body: Was dieser Lauf erledigt hat, ist nicht lesbar, deshalb lässt sich keiner seiner Schritte wiederverwenden. Führe ihn stattdessen von vorn erneut aus.
+    REPLAY_INPUT_UNAVAILABLE:
+      title: Seine Eingabe wurde nicht gespeichert
+      body: Dieser Lauf hat keine Eingabe gespeichert, mit der er erneut laufen könnte. Führe die Automatisierung mit einer Eingabe erneut aus.
+  loadFailed: Es konnte nicht ermittelt werden, was dies tun würde.
+  loading: Wird ermittelt, was dies tun würde
+  tryAgain: Erneut versuchen
+  refused: Der Lauf konnte nicht gestartet werden. {detail}
+  cancel: Abbrechen
+view:
+  label: 'Lauf anzeigen als'
+  chart: 'Diagramm'
+  steps: 'Schritte'

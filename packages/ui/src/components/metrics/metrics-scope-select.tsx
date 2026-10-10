@@ -76,12 +76,9 @@ export function MetricsScopeSelect({
           )}
         >
           {selected ? (
-            // Text flow, NOT a nested flex row: the trigger's own
-            // `[&>span]:line-clamp-1` sets `display:-webkit-box` on this direct
-            // child, which silently overrides `flex` and drops the gap — the
-            // label and value then render jammed as "ProjectGetting started".
-            // A literal separator can't be undone by that cascade, and
-            // line-clamp still truncates a long name.
+            // Text flow with a literal separator between label and value:
+            // the trigger's own `[&>span]:truncate` keeps this direct child
+            // on one line and ends a long name in an ellipsis.
             <span className="min-w-0">
               <span className="text-muted-foreground">{label}</span>
               {': '}

@@ -1,5 +1,6 @@
 'use client';
 
+import { valueHash } from '@tale/ui/data/hash';
 import { useDebounce } from '@tale/ui/use-debounce';
 import {
   keepPreviousData,
@@ -19,7 +20,6 @@ import type {
   AnalysisView,
   TypesView,
 } from '@/lib/shared/schemas/automation-issues';
-import { stableStringify } from '@/lib/shared/utils/stable-stringify';
 
 import type { RawDocument } from '../lib/draft-document';
 import { withIssueIds, type AutomationIssue } from '../lib/issues';
@@ -96,28 +96,11 @@ export function useInvalidateAutomationValidation(
   }, [client, organizationId, automationSlug]);
 }
 
-/**
- * cyrb53: a fast 53-bit string hash. It names a document in a query key and
- * says which document a shown result belongs to — not a security boundary.
- */
-function cyrb53(text: string): string {
-  let h1 = 0xdeadbeef;
-  let h2 = 0x41c6ce57;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    h1 = Math.imul(h1 ^ code, 2654435761);
-    h2 = Math.imul(h2 ^ code, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
-  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
-  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
-}
-
-/** The same document hashes the same, whatever order its keys were written in. */
+/** The same document hashes the same, whatever order its keys were written
+ * in. It names a document in a query key and says which document a shown
+ * result belongs to. */
 export function documentHash(document: RawDocument): string {
-  return cyrb53(stableStringify(document));
+  return valueHash(document);
 }
 
 export type AutomationValidationStatus =

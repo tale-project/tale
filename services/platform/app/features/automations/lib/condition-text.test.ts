@@ -60,10 +60,10 @@ describe('conditionText', () => {
       '{{ nodes.inbox.output.items.length > 3 }}',
       'the number of items of Inbox is greater than 3',
     ],
-    ['{{ input.notify }}', 'notify of the run input is set'],
-    ['{{ !!input.notify }}', 'notify of the run input is set'],
-    ['{{ Boolean(input.notify) }}', 'notify of the run input is set'],
-    ['{{ !input.notify }}', 'notify of the run input is not set'],
+    ['{{ input.notify }}', 'notify of the run input counts as yes'],
+    ['{{ !!input.notify }}', 'notify of the run input counts as yes'],
+    ['{{ Boolean(input.notify) }}', 'notify of the run input counts as yes'],
+    ['{{ !input.notify }}', 'notify of the run input counts as no'],
     [
       '{{ nodes.issue.output.labels.includes("bug") }}',
       'labels of Issue contains "bug"',
@@ -80,23 +80,23 @@ describe('conditionText', () => {
     ['{{ output.done === true }}', "done of this pass's result is true"],
     ['{{ index > 2 }}', "the item's position is greater than 2"],
     ['{{ nodes.check.output === null }}', 'the output of Check is empty'],
-    ['{{ nodes.check.output?.ok ?? false }}', 'ok of Check is set'],
+    ['{{ nodes.check.output?.ok ?? false }}', 'ok of Check counts as yes'],
     [
       '{{ (input.a > 1) && input.b }}',
-      'a of the run input is greater than 1 and b of the run input is set',
+      'a of the run input is greater than 1 and b of the run input counts as yes',
     ],
     [
       '{{ input.a || input.b || input.c }}',
-      'a of the run input is set, b of the run input is set, or c of the run input is set',
+      'a of the run input counts as yes, b of the run input counts as yes, or c of the run input counts as yes',
     ],
-    ['nodes.check.output.ok', 'ok of Check is set'],
+    ['nodes.check.output.ok', 'ok of Check counts as yes'],
     [
       '{{ input.a && (input.b || input.c) }}',
-      'a of the run input is set and (b of the run input is set or c of the run input is set)',
+      'a of the run input counts as yes and (b of the run input counts as yes or c of the run input counts as yes)',
     ],
     [
       '{{ (input.a && input.b) || input.c }}',
-      '(a of the run input is set and b of the run input is set) or c of the run input is set',
+      '(a of the run input counts as yes and b of the run input counts as yes) or c of the run input counts as yes',
     ],
   ])('says %s', (text, words) => {
     expect(say(text)).toBe(words);
@@ -136,7 +136,7 @@ describe('conditionText', () => {
       'labels von Issue „bug“ enthält',
     );
     expect(say('{{ input.a > 1 && input.b }}', 'de')).toBe(
-      'a der Laufeingabe größer als 1 ist und b der Laufeingabe gesetzt ist',
+      'a der Laufeingabe größer als 1 ist und b der Laufeingabe als Ja zählt',
     );
   });
 

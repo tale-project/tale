@@ -32,6 +32,7 @@ const GROUP_ANCHORS: Record<McpToolGroup, string> = {
   authoring: 'authoring',
   management: 'management',
   discovery: 'discovery',
+  settings: 'settings',
   capability: 'capabilities',
 };
 

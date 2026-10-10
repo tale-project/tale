@@ -1,7 +1,7 @@
 'use client';
 
 import type { NodeProps } from '@xyflow/react';
-import { Box, CornerDownRight } from 'lucide-react';
+import { Box, CornerDownRight, GitCompareArrows } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
 
 import { useT } from '../../../i18n/client';
@@ -50,8 +50,8 @@ function FlowChipPill({ chip }: { chip: FlowChip }) {
 }
 
 /** The title row every box shares: icon tile, title, glyphs, problems and,
- *  in a run, the state's glyph. Start and End (`terminal`) wear the accent
- *  tile. */
+ *  in a run, the state's glyph — or, where two runs compared differ, the
+ *  "Differs" glyph. Start and End (`terminal`) wear the accent tile. */
 export function FlowNodeTitleRow({
   id,
   icon: Icon,
@@ -65,9 +65,11 @@ export function FlowNodeTitleRow({
   trailing?: ReactNode;
   terminal?: boolean;
 }) {
+  const { t } = useT('flow');
   const { issues, looks } = useFlowRender();
   const counts = issues.get(id);
-  const state = looks.get(id)?.state ?? 'idle';
+  const look = looks.get(id);
+  const state = look?.state ?? 'idle';
   return (
     <span className="flex h-5 items-center gap-2">
       <span
@@ -89,6 +91,15 @@ export function FlowNodeTitleRow({
             errors={counts.errors}
             warnings={counts.warnings}
           />
+        )}
+        {look?.differs === true && (
+          <span
+            title={t('compare.differs')}
+            data-slot="flow-node-differs"
+            className="text-muted-foreground inline-flex"
+          >
+            <GitCompareArrows aria-hidden="true" className="size-3.5" />
+          </span>
         )}
         <FlowNodeStatusIcon state={state} className="size-3.5" />
       </span>

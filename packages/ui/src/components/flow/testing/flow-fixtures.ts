@@ -14,7 +14,7 @@ import {
   Square,
 } from 'lucide-react';
 
-import type { FlowRealRun } from '../playback/build-timeline';
+import type { FlowRealRun, FlowRealSpan } from '../playback/build-timeline';
 import type { FlowRunOverlay } from '../playback/types';
 import type {
   FlowEdge,
@@ -960,5 +960,87 @@ export function branchRunOverlay(): FlowRunOverlay {
       },
       __end: { state: 'succeeded', detail: 'Succeeded in 4.6 s' },
     },
+  };
+}
+
+/**
+ * Another run of the branch fixture, to compare with `branchRunOverlay`:
+ * Urgent's condition said Yes this time, so Urgent ran and Normal's
+ * condition was never asked; Notify sent its message.
+ */
+export function branchRunOverlayB(): FlowRunOverlay {
+  return {
+    finished: true,
+    nodes: {
+      __start: { state: 'succeeded', detail: 'Started 08:00 by hand' },
+      fetch: { state: 'succeeded', detail: '410 ms' },
+      enrich: { state: 'succeeded', detail: '470 ms' },
+      classify: { state: 'succeeded', detail: '1.1 s' },
+      '__gate:urgent': {
+        state: 'succeeded',
+        decision: true,
+        explanation: 'urgent of Classify (true) is true, so Urgent ran',
+      },
+      urgent: { state: 'succeeded', detail: '2.4 s' },
+      merge: { state: 'succeeded', detail: '80 ms' },
+      notify: { state: 'succeeded', detail: '300 ms' },
+      poll: {
+        state: 'succeeded',
+        detail: '1 s',
+        pass: { current: 2, max: 5 },
+      },
+      __end: { state: 'succeeded', detail: 'Succeeded in 5.1 s' },
+    },
+  };
+}
+
+/**
+ * The failing Triage run told in full: each stretch says why it went as it
+ * did (`explanation`), Score's own span knows its list holds 12 issues,
+ * the run waits for an approval on Report's way and a server restart hands
+ * it on — a recorded run for the Steps view and the canvas's tooltips.
+ */
+export function triageExplainedRun(): FlowRealRun {
+  const at = (ms: number) => RUN_STARTED + ms;
+  const run = triageFailedRun();
+  const spans: FlowRealSpan[] = [];
+  for (const span of run.spans)
+    spans.push(
+      span.nodeId === 'score' && span.outcome === 'failed'
+        ? Object.assign({}, span, {
+            explanation:
+              'The model provider refused the request for the third issue: the prompt was too long.',
+          })
+        : span,
+    );
+  return {
+    ...run,
+    spans: [
+      ...spans,
+      {
+        nodeId: 'score',
+        startedAt: at(1_300),
+        endedAt: at(5_000),
+        outcome: 'failed' as const,
+        total: 12,
+        reason: 'The model provider refused the request',
+      },
+    ],
+    waits: [
+      {
+        startedAt: at(1_260),
+        endedAt: at(1_290),
+        label: 'Waited 30 ms for approval (Ada)',
+        nodeId: 'open_issues',
+      },
+    ],
+    marks: [
+      {
+        at: at(2_900),
+        kind: 'restart',
+        label: 'The server restarted; another took over',
+        nodeId: 'score',
+      },
+    ],
   };
 }

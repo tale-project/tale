@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import {
+  resourceId,
+  type PlatformConfiguration,
+} from '@tale/shared/config/platform-resources';
 import { z } from 'zod';
 
 import { preconditionError, externalDepError } from '../../utils/fail';
@@ -13,8 +17,6 @@ import { configurationClient } from '../config/platform-client';
 import {
   configurationPlanSchema,
   configurationTargetSchema,
-  resourceId,
-  type PlatformConfiguration,
 } from '../config/platform-model';
 import { sha256, valueHash } from '../config/releases/identity';
 import { sha } from '../config/releases/model';

@@ -39,6 +39,10 @@ export interface NodeCheckpoint {
   trace: NodeTrace;
   /** Effects this node performed, in order. */
   effects: Effect[];
+  /** The step was not run by this run: a replay from a later step took its
+   * result from the run it replays. Its effects are that run's, not this
+   * one's. */
+  reused?: { runId: string };
 }
 
 /** A file an agent turn produced, as harvested into blob storage. */
@@ -426,7 +430,8 @@ export function whenSkippedFrom(checkpoints: RunCheckpoints): Set<string> {
   return whenSkipped;
 }
 
-/** The run's trace, in the order the nodes were reached. */
+/** The run's trace, in the order the nodes were reached. A step a replay
+ * took from the run it replays says so in its note. */
 export function traceFrom(
   checkpoints: RunCheckpoints,
   order: readonly string[],
@@ -434,12 +439,18 @@ export function traceFrom(
   const trace: NodeTrace[] = [];
   for (const id of order) {
     const entry = checkpoints.nodes[id];
-    if (entry) trace.push(entry.trace);
+    if (!entry) continue;
+    trace.push(
+      entry.reused === undefined
+        ? entry.trace
+        : { ...entry.trace, note: `reused from run ${entry.reused.runId}` },
+    );
   }
   return trace;
 }
 
-/** The run's effects, in the order the nodes performed them. */
+/** The run's effects, in the order the nodes performed them: what THIS run
+ * did — a step a replay took from the run it replays did nothing here. */
 export function effectsFrom(
   checkpoints: RunCheckpoints,
   order: readonly string[],
@@ -447,7 +458,7 @@ export function effectsFrom(
   const effects: Effect[] = [];
   for (const id of order) {
     const entry = checkpoints.nodes[id];
-    if (entry) effects.push(...entry.effects);
+    if (entry && entry.reused === undefined) effects.push(...entry.effects);
   }
   return effects;
 }

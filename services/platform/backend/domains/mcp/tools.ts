@@ -16,17 +16,15 @@
 
 import type { z } from 'zod';
 
-import { isCodedRefusal } from '../../../lib/engine/api/refusal';
 import { type McpToolListing, toolListing } from '../../../lib/mcp/listing';
 import { MCP_TOOLS, type McpToolSpec } from '../../../lib/mcp/tools';
 import { defineAbilityFor } from '../../../lib/permissions/ability';
 import { reportError } from '../../error-reporting';
-import { codedAppError } from '../../lib/app-error-response';
-import { rateLimitExceededCause } from '../../lib/rate-limit-response';
 import { runInRequestChannel } from '../../lib/request-channel';
 import { houseIssueMessage } from '../../rest/shared';
 import type { McpCallOutcome } from './activity';
 import type { McpCaller } from './caller';
+import { refusalFromThrown } from './refusals';
 
 /** The whole inventory, in the advertised order. */
 export function listTools(): McpToolListing[] {
@@ -111,59 +109,7 @@ function invalidArguments(
   };
 }
 
-// ------------------------------------------------------------ refusals
-
-/** A refusal as the agent reads it. */
-interface Refusal {
-  error: string;
-  code: string;
-  hint?: string;
-  data?: Record<string, unknown>;
-}
-
-function plainData(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined;
-}
-
-/**
- * A thrown refusal as data, or null when what was thrown is a fault. A
- * refusal keeps its code and its own sentence: a spent budget is
- * `RATE_LIMITED` with the wait; a coded `AppError` gives its `data.message`
- * (its `message` serializes the whole payload, which never reaches an
- * agent); a domain error (`AutomationError`, `ConfigurationError`,
- * `ActorAuthError`, …) gives its code, sentence, hint and data.
- */
-function refusalFromThrown(error: unknown): Refusal | null {
-  const limited = rateLimitExceededCause(error);
-  if (limited !== null) {
-    return {
-      error: `this key holder's budget for the call is spent; retry in ${Math.max(1, Math.ceil(limited.retryAfter / 1000))} s`,
-      code: 'RATE_LIMITED',
-      hint: 'wait data.retryAfterMs, then call again',
-      data: { retryAfterMs: limited.retryAfter },
-    };
-  }
-  const coded = codedAppError(error);
-  if (coded !== null) {
-    return {
-      error: coded.message,
-      code: coded.code,
-      ...(coded.data === undefined ? {} : { data: coded.data }),
-    };
-  }
-  // One rule with the engine's dispatch (`lib/engine/api/refusal.ts`): a
-  // stable code and a 4xx status, or a class that refuses without one.
-  if (!isCodedRefusal(error)) return null;
-  const { code } = error;
-  const hint: unknown = Reflect.get(error, 'hint');
-  const data = plainData(Reflect.get(error, 'data'));
-  return {
-    error: error.message,
-    code,
-    ...(typeof hint === 'string' && hint !== '' ? { hint } : {}),
-    ...(data === undefined ? {} : { data }),
-  };
-}
+// ------------------------------------------------------------ faults
 
 /** What an agent hears of a fault: that it happened and the request id to
  * quote — nothing of the error itself, which may name internals. */
@@ -336,24 +282,39 @@ export interface ToolCallContext {
   /** Asked before the call runs when the request already spent its first
    * call (a batch); a wait refuses this call at the protocol level. */
   readonly admit?: () => Promise<{ retryAfterMs: number } | null>;
-  /** Draws one execution from the caller's budget for an `execute` tool,
-   * after its role check; a wait refuses the call as `RATE_LIMITED`. */
+  /** Draws one unit from the caller's budget for a tool that executes an
+   * automation (`rest:execute`) or changes settings (`rest:settings`), after
+   * its role check; a wait refuses the call as `RATE_LIMITED`. */
   readonly charge?: (
-    lane: 'rest:execute',
+    lane: 'rest:execute' | 'rest:settings',
   ) => Promise<{ retryAfterMs: number } | null>;
 }
 
-/** The refusal of a call whose execution budget is spent. */
+/** The budget a tool's lane draws from, beyond the request itself. */
+const LANE_BUDGETS = {
+  execute: 'rest:execute',
+  settings: 'rest:settings',
+} as const;
+
+/** The refusal of a call whose execution or settings budget is spent. */
 function rateLimited(
   tool: McpToolSpec,
   retryAfterMs: number,
 ): Record<string, unknown> {
-  return {
-    error: `${tool.name} is refused for now: this key holder has started as many executions as a minute allows; retry in ${Math.max(1, Math.ceil(retryAfterMs / 1000))} s`,
-    code: 'RATE_LIMITED',
-    hint: 'wait data.retryAfterMs before calling it again; reads, validation and saving do not draw from this budget',
-    data: { retryAfterMs },
-  };
+  const wait = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  return tool.lane === 'settings'
+    ? {
+        error: `${tool.name} is refused for now: this key holder has changed settings as often as a minute allows; retry in ${wait} s`,
+        code: 'RATE_LIMITED',
+        hint: 'wait data.retryAfterMs before calling it again; get_settings and plan_settings do not draw from this budget',
+        data: { retryAfterMs },
+      }
+    : {
+        error: `${tool.name} is refused for now: this key holder has started as many executions as a minute allows; retry in ${wait} s`,
+        code: 'RATE_LIMITED',
+        hint: 'wait data.retryAfterMs before calling it again; reads, validation and saving do not draw from this budget',
+        data: { retryAfterMs },
+      };
 }
 
 /** What the protocol layer answers a `tools/call` with: a tool result, or —
@@ -403,8 +364,8 @@ export async function callTool(
       };
     }
   }
-  if (tool.lane === 'execute' && context.charge !== undefined) {
-    const wait = await context.charge('rest:execute');
+  if (tool.lane !== 'api' && context.charge !== undefined) {
+    const wait = await context.charge(LANE_BUDGETS[tool.lane]);
     if (wait !== null) {
       return {
         kind: 'answer',

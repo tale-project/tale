@@ -39,6 +39,7 @@ import {
 import { BackendApiError, readBackendApiError } from './api-client';
 import {
   automationActionQueryAdapters,
+  automationPaginatedAdapters,
   automationReadAdapters,
   automationWriteAdapters,
 } from './automations';
@@ -199,6 +200,7 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
 
 export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
   ...adminPaginatedAdapters,
+  ...automationPaginatedAdapters,
   ...engagementPaginatedAdapters,
   ...metricsPaginatedAdapters,
   ...documentPaginatedAdapters,

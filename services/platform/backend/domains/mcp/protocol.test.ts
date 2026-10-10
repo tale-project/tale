@@ -249,6 +249,9 @@ describe('tools/list', () => {
     'start_run',
     'list_runs',
     'get_run',
+    'get_run_node',
+    'compare_runs',
+    'replay_run',
     'cancel_run',
     'answer_run_ask',
     'list_versions',
@@ -264,6 +267,10 @@ describe('tools/list', () => {
     'list_agent_secrets',
     'list_projects',
     'list_events',
+    // The platform's settings tools — read, plan, apply.
+    'get_settings',
+    'plan_settings',
+    'apply_settings',
     // The platform capability tools — real schemas, a different backend.
     'search_capabilities',
     'invoke_capability',
@@ -1067,7 +1074,7 @@ describe('tools/call — arguments are held to the advertised schema [MCP-R7]', 
       {
         path: 'trigger.kind',
         code: 'invalid_union',
-        message: 'must name its kind: "schedule", "webhook" or "event"',
+        message: 'must be one of "schedule", "webhook", "event"',
       },
     ]);
   });

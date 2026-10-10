@@ -7,6 +7,7 @@ import {
   CircleMinus,
   CircleX,
   Clock,
+  History,
   Hourglass,
   LoaderCircle,
   type LucideIcon,
@@ -33,7 +34,10 @@ export type FlowNodeState =
   | 'failed'
   | 'skipped'
   | 'stopped'
-  | 'not-run';
+  | 'not-run'
+  /** Not run in this run: its result was taken from an earlier one (a run
+   *  retried from a later step). */
+  | 'reused';
 
 export type FlowShownState = Exclude<FlowNodeState, 'idle'>;
 
@@ -110,6 +114,12 @@ export const FLOW_NODE_STATE: Readonly<
     badge: 'slate',
     iconClass: 'text-muted-foreground',
     labelKey: 'state.notRun',
+  },
+  reused: {
+    icon: History,
+    badge: 'slate',
+    iconClass: 'text-muted-foreground',
+    labelKey: 'state.reused',
   },
 };
 

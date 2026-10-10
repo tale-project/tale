@@ -90,6 +90,16 @@ the switch stayed where it was.
 - **Example**: Ada turns the switch on and raises the ceiling in one save → one audit entry,
   recorded as trusted headers turned on.
 
+### THDR-R10 · A session keeps a proxy's role only while the organization still allows it
+
+A session carries the role a proxy asserted at sign-in. It counts only while trusted headers
+are on, a key is not revoked, and the role is one a proxy may assert under the current ceiling —
+never Owner. Otherwise the member's own seat decides. Nobody can write that role into a session
+but the sign-in itself.
+
+- **Example**: A session row says Owner for a member's organization → the member gets their own
+  seat, because no proxy can assert Owner.
+
 ## Not yet
 
 - **The sign-in itself**: what happens to a member, to an address Tale has never seen, to an

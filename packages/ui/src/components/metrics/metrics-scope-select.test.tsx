@@ -48,9 +48,8 @@ describe('MetricsScopeSelect', () => {
     const trigger = screen.getByRole('button', {
       name: 'Project: Getting started',
     });
-    // Separated, not jammed: the trigger's `[&>span]:line-clamp-1` overrides a
-    // nested flex row's display, so a gap utility would render
-    // "ProjectGetting started" — the separator has to survive the cascade.
+    // Separated, not jammed: a literal separator joins the label and the
+    // value, so the words never run together as "ProjectGetting started".
     expect(trigger).toHaveTextContent('Project: Getting started');
     expect(within(trigger).getByText('Project')).toBeInTheDocument();
   });

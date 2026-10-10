@@ -56,8 +56,10 @@ import {
   DEMO_SKILLS,
   DEMO_TEAMS,
   DEMO_TEST_RUN,
+  DEMO_TRIGGER_SKIP,
   DEMO_WEBDAV_LABELS,
   DEMO_WEBDAV_RETIRED_LABEL,
+  DEMO_WEBHOOK,
   MOCK_PROVIDER_DISPLAY_NAME,
   MOCK_PROVIDER_SLUG,
   type DemoDocument,
@@ -444,6 +446,11 @@ async function ensureEmbeddingModel(page: Page, orgId: string): Promise<void> {
     name: t('settings.dataResidency.orgEmbedding.title'),
   });
   await expect(toggle).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The page stays masked until every read answers, and until then the
+  // switch reads OFF even for a saved model.
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
   const model = page.getByRole('textbox', {
     name: t('settings.dataResidency.orgEmbedding.model'),
   });
@@ -1523,9 +1530,8 @@ async function ensureAutomationTestRun(
   orgId: string,
 ): Promise<void> {
   const runsRoute = `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/runs`;
-  const runRow = page.locator(`a[href*="/runs/"]`);
   await page.goto(runsRoute);
-  if (await alreadySeeded(runRow)) return;
+  if (await hasRun(page, orgId, DEMO_TEST_RUN.automation)) return;
 
   await page.goto(
     `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/editor`,
@@ -1536,13 +1542,19 @@ async function ensureAutomationTestRun(
       exact: true,
     }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await page
-    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
-    .click();
+  const testRun = page.getByRole('button', {
+    name: t('automations.detail.runMock'),
+    exact: true,
+  });
   const dialog = page.getByRole('dialog', {
     name: t('automations.detail.runMock'),
     exact: true,
   });
+  // Test run opens nothing until the editor has read the stored version.
+  await expect(async () => {
+    if (!(await dialog.isVisible())) await testRun.click();
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: TIMEOUT.PERSIST });
   await dialog
     .getByRole('textbox', { name: t('automations.detail.runInput.label') })
     .fill(JSON.stringify(DEMO_TEST_RUN.input, null, 2));
@@ -1560,6 +1572,277 @@ async function ensureAutomationTestRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/** What an app API call answered: its status and its parsed body. */
+interface AppAnswer {
+  status: number;
+  body: unknown;
+}
+
+/**
+ * One call of the app API as the signed-in owner, from the page, so it
+ * carries the page's session as the editor's own calls do. A body makes it
+ * a POST. The page must be on the app's origin.
+ */
+async function appApi(
+  page: Page,
+  orgId: string,
+  route: string,
+  body?: unknown,
+): Promise<AppAnswer> {
+  return page.evaluate(
+    async (call) => {
+      const separator = call.route.includes('?') ? '&' : '?';
+      const response = await fetch(
+        `/api/app${call.route}${separator}orgId=${encodeURIComponent(call.orgId)}`,
+        call.body === undefined
+          ? { credentials: 'include' }
+          : {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(call.body),
+            },
+      );
+      const text = await response.text();
+      let parsed: unknown = null;
+      try {
+        parsed = text === '' ? null : JSON.parse(text);
+      } catch (error) {
+        console.warn(`${call.route} answered no JSON`, error);
+      }
+      return { status: response.status, body: parsed };
+    },
+    { orgId, route, body },
+  );
+}
+
+/** An app API call that must succeed; its body. */
+async function appApiOk(
+  page: Page,
+  orgId: string,
+  route: string,
+  body?: unknown,
+): Promise<unknown> {
+  const answer = await appApi(page, orgId, route, body);
+  if (answer.status < 200 || answer.status >= 300) {
+    throw new Error(
+      `${route} answered ${answer.status}: ${JSON.stringify(answer.body)}`,
+    );
+  }
+  return answer.body;
+}
+
+/**
+ * Whether the automation has any run, read from the runs list's own API —
+ * instant either way, where waiting for a row to appear costs its whole
+ * timeout on a fresh seed. The page must be on the app's origin.
+ */
+async function hasRun(
+  page: Page,
+  orgId: string,
+  automation: string,
+): Promise<boolean> {
+  const answer = await appApi(
+    page,
+    orgId,
+    `/automations/runs?limit=1&name=${automation}`,
+  );
+  const runs =
+    answer.status === 200 &&
+    typeof answer.body === 'object' &&
+    answer.body !== null &&
+    'runs' in answer.body
+      ? answer.body.runs
+      : null;
+  return Array.isArray(runs) && runs.length > 0;
+}
+
+/** The stored trigger of an automation, as `GET …/triggers` reads it. */
+async function storedTrigger(
+  page: Page,
+  orgId: string,
+  automation: string,
+): Promise<Record<string, unknown> | undefined> {
+  const body = await appApiOk(
+    page,
+    orgId,
+    `/automations/${automation}/triggers`,
+  );
+  const triggers =
+    typeof body === 'object' && body !== null && 'triggers' in body
+      ? body.triggers
+      : null;
+  const first: unknown = Array.isArray(triggers) ? triggers[0] : undefined;
+  return typeof first === 'object' && first !== null
+    ? (first as Record<string, unknown>)
+    : undefined;
+}
+
+/** The latest version of an automation. */
+async function latestVersion(
+  page: Page,
+  orgId: string,
+  automation: string,
+): Promise<number> {
+  const body = await appApiOk(page, orgId, `/automations/${automation}`);
+  const version =
+    typeof body === 'object' && body !== null && 'version' in body
+      ? body.version
+      : null;
+  if (typeof version !== 'number') {
+    throw new Error(`${automation} has no version to deploy`);
+  }
+  return version;
+}
+
+/**
+ * The skip notice of the triggers page: the shipped pull-request review
+ * pack, deployed and switched on without the `owner` and `repo` its inputs
+ * require, so the start its schedule comes due for is refused and the
+ * trigger records why (`start_refused`, with the version and the missing
+ * fields). The pack's own schedule comes due every 30 minutes, so a
+ * one-minute primer brings the first refusal; the pack's schedule then goes
+ * back, still on, and keeps the notice current at every occurrence.
+ * Idempotent: a recorded refusal is enough.
+ */
+async function ensureTriggerSkipNotice(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  const { automation, schedule, primer } = DEMO_TRIGGER_SKIP;
+  await page.goto(`/dashboard/${orgId}/automations/${automation}/general`);
+  const refused = (trigger: Record<string, unknown> | undefined) =>
+    trigger?.lastSkipReason === 'start_refused';
+  if (refused(await storedTrigger(page, orgId, automation))) return;
+
+  const version = await latestVersion(page, orgId, automation);
+  await appApiOk(page, orgId, `/automations/${automation}/deploy`, {
+    version,
+  });
+  const bind = (repeat: typeof schedule | typeof primer) =>
+    appApiOk(page, orgId, `/automations/${automation}/trigger`, {
+      kind: 'schedule',
+      enabled: true,
+      repeat,
+      timezone: 'UTC',
+    });
+  await bind(primer);
+  // The scan claims a new schedule's first instant, then starts it when it
+  // comes due: a minute or two.
+  await expect(async () => {
+    expect(refused(await storedTrigger(page, orgId, automation))).toBe(true);
+  }).toPass({ timeout: 4 * 60_000, intervals: [5_000] });
+  await bind(schedule);
+}
+
+/**
+ * The webhook of the triggers page: an automation that records incoming
+ * invoices, installed in two demo projects, deployed, its webhook on, and
+ * a delivery to each project's URL that started a run. Written through the
+ * app API the editor uses; the token the bind mints is used here once and
+ * never stored, and the panel shows it masked. Idempotent: the deliveries'
+ * runs are enough, and each delivery's `Idempotency-Key` makes a repeat
+ * answer the run it already started.
+ */
+async function ensureWebhookDeliveries(
+  page: Page,
+  orgId: string,
+  projects: ReadonlyMap<string, string>,
+): Promise<void> {
+  const { automation, name, document, deliveries } = DEMO_WEBHOOK;
+  const projectIds = DEMO_WEBHOOK.projects.map((project) => {
+    const id = projects.get(project);
+    if (!id) throw new Error(`No seeded project "${project}" for the webhook`);
+    return id;
+  });
+  await page.goto(`/dashboard/${orgId}/automations`);
+  const runsRoute = `/automations/${automation}/trigger/runs?limit=10`;
+  const readRuns = async (): Promise<{ status?: unknown }[]> => {
+    const answer = await appApi(page, orgId, runsRoute);
+    const runs =
+      answer.status === 200 &&
+      typeof answer.body === 'object' &&
+      answer.body !== null &&
+      'runs' in answer.body
+        ? answer.body.runs
+        : null;
+    return Array.isArray(runs) ? (runs as { status?: unknown }[]) : [];
+  };
+  const succeeded = (runs: { status?: unknown }[]) =>
+    runs.filter((run) => run.status === 'success').length >= deliveries.length;
+  if (succeeded(await readRuns())) return;
+
+  const created = await appApi(page, orgId, `/automations/${automation}/save`, {
+    document,
+    message: 'Record incoming invoices',
+    presentation: { name },
+    create: true,
+  });
+  // 201 is the saved version; 409: an earlier seed saved it already.
+  if (created.status !== 201 && created.status !== 409) {
+    throw new Error(
+      `Saving ${automation} answered ${created.status}: ${JSON.stringify(created.body)}`,
+    );
+  }
+  await appApiOk(page, orgId, `/automations/${automation}/projects`, {
+    projectIds,
+  });
+  await appApiOk(page, orgId, `/automations/${automation}/deploy`, {
+    version: await latestVersion(page, orgId, automation),
+  });
+  // A bind mints the token only when there is none, so rotate one an
+  // earlier, interrupted seed left behind: its plaintext is gone.
+  const existing = await storedTrigger(page, orgId, automation);
+  const bound = await appApiOk(
+    page,
+    orgId,
+    `/automations/${automation}/trigger`,
+    {
+      kind: 'webhook',
+      enabled: true,
+      ...(existing?.kind === 'webhook' ? { rotateToken: true } : {}),
+    },
+  );
+  const token =
+    typeof bound === 'object' && bound !== null && 'token' in bound
+      ? bound.token
+      : null;
+  if (typeof token !== 'string') {
+    throw new Error(`Binding the ${automation} webhook minted no token`);
+  }
+
+  const failures = await page.evaluate(
+    async (send) => {
+      const failed: string[] = [];
+      for (const [index, delivery] of send.deliveries.entries()) {
+        const projectId = send.projectIds[index % send.projectIds.length];
+        const response = await fetch(
+          `/api/projects/${projectId}/automations/webhook/${send.token}`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': delivery.key,
+            },
+            body: JSON.stringify(delivery.body),
+          },
+        );
+        if (!response.ok) {
+          failed.push(`${delivery.key}: ${response.status}`);
+        }
+      }
+      return failed;
+    },
+    { token, projectIds, deliveries },
+  );
+  if (failures.length > 0) {
+    throw new Error(`Webhook deliveries failed: ${failures.join('; ')}`);
+  }
+  await expect(async () => {
+    expect(succeeded(await readRuns())).toBe(true);
+  }).toPass({ timeout: TIMEOUT.EXECUTION, intervals: [2_000] });
+}
+
 /**
  * One failed test run of the demo invoice digest, so the failed-run shot
  * shows the run page's failure focus. The digest is uploaded as a draft
@@ -1573,9 +1856,8 @@ async function ensureAutomationFailedRun(
 ): Promise<void> {
   const automationRoute = `/dashboard/${orgId}/automations/${DEMO_FAILED_RUN.automation}`;
   const runsRoute = `${automationRoute}/runs`;
-  const runRow = page.locator(`a[href*="/runs/"]`);
   await page.goto(runsRoute);
-  if (await alreadySeeded(runRow)) return;
+  if (await hasRun(page, orgId, DEMO_FAILED_RUN.automation)) return;
 
   const versionSelect = page.getByRole('button', {
     name: t('automations.detail.versionSelect'),
@@ -1587,9 +1869,29 @@ async function ensureAutomationFailedRun(
     await page.goto(`${automationRoute}/editor`);
   }
   await expect(versionSelect).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await page
-    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
-    .click();
+  const testRun = page.getByRole('button', {
+    name: t('automations.detail.runMock'),
+    exact: true,
+  });
+  // Test run starts nothing until the editor has read the stored version,
+  // so click until the start request leaves.
+  await expect(async () => {
+    const started = page
+      .waitForRequest(
+        (request) =>
+          request.method() === 'POST' &&
+          request
+            .url()
+            .includes(`/automations/${DEMO_FAILED_RUN.automation}/start`),
+        { timeout: 3_000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+    await testRun.click();
+    expect(await started).toBe(true);
+  }).toPass({ timeout: TIMEOUT.PERSIST });
 
   const failed = page.getByText(t('automations.runs.status.failed'), {
     exact: true,
@@ -2013,6 +2315,10 @@ export async function seedDemoOrg(
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('automation test run', () => ensureAutomationTestRun(page, orgId));
+  await step('trigger skip notice', () => ensureTriggerSkipNotice(page, orgId));
+  await step('webhook deliveries', () =>
+    ensureWebhookDeliveries(page, orgId, projects),
+  );
   await step('automation failed run', () =>
     ensureAutomationFailedRun(page, orgId),
   );

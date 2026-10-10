@@ -17,6 +17,12 @@ Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs 
 
 Auf dem Smartphone startet eine geöffnete Automatisierung mit kompakter Navigation. Der Canvas des Editors nutzt die verfügbare Höhe, und Lauf- und Bereitstellungsaktionen stehen in einer Leiste am unteren Rand des Canvas. Wenn du eine Node auswählst, öffnen sich ihre Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
 
+<Frame caption="Auf dem Smartphone nimmt der Canvas die Höhe des Bildschirms ein, und seine Laufaktionen stehen in einer Leiste am unteren Rand.">
+
+![Der Editor von Triage the Gmail inbox auf dem Smartphone: kompakte Navigation mit Editor, General und Runs, der Canvas mit Start, Inbox und Due und eine Leiste am unteren Rand des Canvas mit Deploy v1, Test run und No problems.](/images/platform/automation-editor-canvas-mobile.webp)
+
+</Frame>
+
 <Frame caption="Wähle auf einem breiten Bildschirm eine Node, um ihre Felder neben dem Canvas zu prüfen.">
 
 ![Der Workflow-Editor zeigt die Nodes von Gmail triage inbox zwischen Start und Ende, eine in Worten formulierte Bedingung über einer Node und die Felder der ausgewählten Node neben dem Canvas.](/images/platform/automation-editor-canvas.webp)
@@ -83,6 +89,12 @@ Die Bedingungen eines Laufs entscheiden, welche Nodes laufen. Die Pfad-Schaltfl�
 
 Zeig auf einen Pfad oder wechsle mit den Pfeiltasten zu ihm, um ihn im Canvas als Vorschau zu sehen. Klick ihn an oder drück die Eingabetaste, damit er angezeigt bleibt: Nodes abseits des Pfads werden gestrichelt und sagen, warum sie nicht laufen, Ende markiert die Ausgaben, die auf diesem Pfad leer bleiben, und ein Screenreader hört, welcher Pfad angezeigt wird. **Alle zeigen** oder Esc zeigt wieder jede Node. Die Liste bleibt offen, während du Nodes auswählst, damit du einen Pfad mit den Feldern einer Node vergleichen kannst.
 
+<Frame caption="Drei Wege, die ein Lauf der Gmail-Triage nehmen kann; Pfad 2 bleibt angezeigt: der Weg, auf dem Propose fehlschlägt und der Lauf weitergeht.">
+
+![Possible paths neben dem Canvas von Triage the Gmail inbox: Path 1 führt 6 von 6 Nodes aus; Path 2, angeheftet, 5 von 6 Nodes, weil Triage läuft und Propose fehlschlägt, während der Lauf weitergeht; Path 3 nur 1 von 6 Nodes, weil Triage übersprungen wird. Darunter sagt Ends the run when it fails, woran Inbox scheitert.](/images/platform/automation-editor-paths.webp)
+
+</Frame>
+
 Unter **Beendet den Lauf, wenn sie fehlschlägt** nennt die Liste die Nodes, deren Fehler den Lauf stoppt, und was jede von ihnen fehlschlagen lassen kann. Zeig auf eine davon, um alle rot einzukreisen; wähle eine aus, um sie zu öffnen.
 
 Auf dem Smartphone öffnet sich die Liste in einem Bereich am unteren Bildschirmrand. Wählst du einen Pfad, schließt sich der Bereich, und oben im Canvas bleibt eine Pille mit dem Namen des Pfads und **Alle zeigen**. Nimmt jeder Lauf denselben Pfad, sagt die Liste das. Bei mehr als 12 Bedingungen und hingenommenen Fehlern gibt es zu viele Pfade für eine Liste; **Wann sie läuft** sagt trotzdem bei jeder Node, wann sie läuft. Ein Canvas mit einem Zyklus hat keine Pfad-Schaltfläche. [Pfade, die ein Lauf nehmen kann](/de/platform/automations/concepts#paths) erklärt, wie Tale die Pfade ermittelt.
@@ -97,6 +109,12 @@ Danach folgen drei Tabs:
 - **Struktur** zeigt, was die Node erhält und zurückgibt, woher Tale diese Struktur kennt und welche Nodes ihre Ausgabe lesen. Wähle eine lesende Node, um sie zu öffnen. **Als TypeScript zeigen** zeigt dieselbe Struktur als Typ.
 - **Letzter Lauf** zeigt **Aufgelöste Eingabe**, **Ausgabe** und Effekte der Node in dem Lauf, den der Canvas zeigt. Der Tab erscheint, solange der Canvas einen Lauf zeigt.
 
+<Frame caption="Der Tab Struktur: was Triage zurückgibt, woher diese Struktur stammt und welche Nodes sie lesen.">
+
+![Der Bereich von Triage, einer Sprachmodell-Node, auf Shape geöffnet: When it runs nennt 2 von 3 Pfaden und übersprungen, wenn ihre Bedingung falsch ist; Returns listet aus ihrem Ausgabeschema items mit action, reason, priority und conversationId sowie summary, darunter Show as TypeScript; Read by bietet Record, Due und The automation output an.](/images/platform/automation-editor-node-shape.webp)
+
+</Frame>
+
 Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch **Probleme** warnt dann, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist.
 
 Öffne **Ablaufsteuerung** für Bedingung, Wiederholung und Fehlerbehandlung der Node; nutzt die Node eines davon, ist der Abschnitt schon offen. **Wenn**, **Für jedes** und **Wiederholen bis** nehmen Ausdrücke auf. **Sonst zu** bietet nur Nodes mit einer Bedingung an, und **Keine** entfernt die Alternative. **Maximale Wiederholungen** erscheint mit **Wiederholen bis** und nimmt eine ganze Zahl von 1 bis 20. **Bei Fehler** wählt zwischen **Lauf stoppen** und **Ohne sie weiterlaufen**; geht der Lauf weiter, wird jede Node übersprungen, die die Ausgabe der fehlgeschlagenen Node liest. Unter einer Bedingung, einer Liste oder einer Alternative sagt ein Satz in Worten, was die Einstellung bewirkt.
@@ -107,6 +125,12 @@ Mit **Schließen** kehrst du zum Canvas zurück. Auf einem breiten Bildschirm sc
 
 Code, Prompts, Bedingungen und JSON-Felder sind Code-Editoren. Sie färben die Syntax und jedes `{{ }}`-Template ein und kennen die Automatisierung. Tippst du `{{` in einen Prompt, erscheinen die schließenden Klammern mit dem Cursor dazwischen; nach `nodes.` siehst du nur die Nodes, die vorher laufen, und nach `.output.` die Felder dieser Node mit ihren Typen. Strg+Leertaste öffnet die Vorschläge überall. Zeig auf eine Referenz, um ihren Typ zu sehen, oder drück ⌘K ⌘I (Strg+K Strg+I), damit der Typ an der Cursorposition angezeigt und vorgelesen wird.
 
+<Frame caption="Nach nodes. in einem Template schlägt der Editor die Nodes vor, die vorher laufen, jede mit ihrer Struktur.">
+
+![Das Feld Prompt von Triage im Code-Editor: Die letzte Zeile ist ein Template mit dem Cursor nach nodes., und die Vorschlagsliste bietet inbox mit der Struktur an, die es zurückgibt, einem Objekt mit einer Liste von conversations.](/images/platform/automation-editor-code.webp)
+
+</Frame>
+
 Kurz nachdem du aufhörst zu tippen, ist ein Problem genau dort unterstrichen, wo es steht. F8 und Umschalt+F8 springen zum nächsten und vorherigen Problem und lesen es vor; ⌘. (Strg+.) wendet eine vorgeschlagene Korrektur an, etwa den ähnlichsten Node-Namen. In einem mehrzeiligen Feld rückt Tab ein; um es mit der Tastatur zu verlassen, drück Esc und dann Tab. **Editor vergrößern** öffnet ein langes Feld in einem größeren Editor, und **Zurück zum Feld** kehrt mit deiner Änderung und deinem Cursor an derselben Stelle zurück.
 
 Ein JSON-Feld wie **Eingabe** ändert die Node erst, wenn sein Text gültiges JSON der richtigen Art ist. Während du tippst, behält die Node ihren letzten gültigen Wert, und das Feld sagt, was fehlt, etwa „Das muss ein JSON-Objekt in geschweiften Klammern sein.“
@@ -115,11 +139,23 @@ Ein JSON-Feld wie **Eingabe** ändert die Node erst, wenn sein Text gültiges JS
 
 Wähle **Start**, um zu sehen, was die Automatisierung startet. **Trigger** nennt es in Worten; **In Allgemein ändern** öffnet den Tab **Allgemein**, in dem du den Trigger einstellst. Unter **Felder** zeigt **Eingaben** die Felder der Laufeingabe als Baum, und **Eingabeschema** enthält das JSON-Schema dahinter, das du bearbeiten kannst. **Struktur** zeigt die Eingabe so, wie Tale sie liest, und **Letzter Lauf** die Eingabe des angezeigten Laufs.
 
+<Frame caption="Die Felder von Start: der Trigger in Worten, die Felder der Laufeingabe und das JSON-Schema dahinter.">
+
+![Start ist im Canvas ausgewählt, daneben sein Bereich: der Trigger Every 6 hours · UTC, ausgeschaltet, und By hand, the API or MCP, darunter Change in General; unter Fields listet Inputs limit, firedAt und trigger mit ihren Beschreibungen, und Input schema enthält das JSON-Schema in einem Code-Editor.](/images/platform/automation-editor-start.webp)
+
+</Frame>
+
 Wähle **Ende**, um zu sehen, was ein Lauf zurückgibt. **Wie ein Lauf endet** nennt die drei Ausgänge; unter **Fehlgeschlagen** ist jede Node, deren Fehler den Lauf stoppt, eine Schaltfläche, die sie öffnet. Unter **Felder** enthält **Ausgabe** den JSON-Wert, den ein erfolgreicher Lauf zurückgibt, mit Templates wie `{{ nodes.report.output }}`. **Struktur** zeigt die Struktur der Ausgabe und **Letzter Lauf** die Ausgabe des angezeigten Laufs.
 
 ## Den Quelltext lesen
 
 Wähle im Ansichtsschalter **Quelltext**, um das ganze Dokument als YAML zu lesen: eingefärbt, mit Zeilennummern, Einklappen und Suche (⌘F oder Strg+F). Jedes Problem, das die Prüfung gefunden hat, ist in der Zeile unterstrichen, die es betrifft. So hat auch ein Problem in einem Teil ohne eigenes Feld, etwa in einem Test oder im Namen, einen Ort, an dem du es liest. Der Quelltext ist schreibgeschützt: **YAML kopieren** kopiert ihn, und **YAML herunterladen** speichert ihn als Datei, die nach Automatisierung und Version benannt ist, etwa `gmail-triage-inbox-v3.yml`; solange du ungespeicherte Änderungen hast, kommt `-draft` dazu. Um das Dokument zu ändern, nutze die Felder oder deinen Coding-Agent.
+
+<Frame caption="Quelltext: das ganze Dokument als eingefärbtes YAML, zum Kopieren oder Herunterladen.">
+
+![Die Ansicht Source von Triage the Gmail inbox: YAML mit Zeilennummern und Einklapp-Markierungen, von name: gmail-triage-inbox bis zu den Nodes inbox und triage, unter der Zeile To change the document, use the fields or your coding agent, darüber Copy YAML, Download YAML und Edit with your coding agent.](/images/platform/automation-editor-source.webp)
+
+</Frame>
 
 ## Mit deinem Coding-Agent bearbeiten
 
@@ -130,6 +166,12 @@ Größere Änderungen, etwa neue Nodes oder ein umgebauter Ablauf, kommen von ei
 Während du bearbeitest, prüft Tale den Entwurf so, wie es auch jedes Speichern prüft. Kurz nachdem du aufhörst zu tippen, zeigt die Schaltfläche **Probleme** neben **Speichern**, was die Prüfung gefunden hat: ein rotes Fehlersymbol und ein gelbes Warnsymbol, jeweils mit ihrer Anzahl, oder **Keine Probleme**. Auf dem Smartphone sitzt die Schaltfläche in der Leiste über dem Canvas. Ein Fehler ist etwas, woran ein Lauf scheitern würde, etwa eine Referenz auf eine Node, die es nicht gibt. Eine Warnung ist etwas, das schiefgehen kann, etwa das Lesen der Ausgabe einer Node, die manchmal übersprungen wird. Eine Node, eine Bedingung, Start oder Ende mit Problemen zeigt dieselben Zahlen auf ihrem Kasten, und ein Feld mit einem Problem erklärt es direkt darunter.
 
 Klicke auf **Probleme**, um sie aufzulisten. Auf einem breiten Bildschirm öffnet sich die Liste unter dem Canvas, auf schmaleren Bildschirmen in einem eigenen Bereich. Jeder Eintrag sagt, was falsch ist, wo, warum und wie du es behebst. **Technische Details** zeigt die Meldung der Engine selbst, und der Code neben dem Titel hilft dir bei der Suche oder im Support. **Alle**, **Fehler** und **Warnungen** filtern die Liste, Esc schließt sie.
+
+<Frame caption="Eine Referenz auf eine Node, die es nicht gibt: Das Feld markiert sie, Speichern wartet, und Probleme sagt, warum und wie du sie behebst.">
+
+![Der Editor mit einem Fehler: Der Prompt von Triage endet mit einem Template, das nodes.nope.output liest, rot unterstrichen und mit dem Grund unter dem Feld; die Kopfzeile zeigt 1 Fehler neben dem deaktivierten Save, und Problems unter dem Canvas listet Reference to an unknown node bei triage › Prompt mit dem Code REF_UNKNOWN_NODE, dem Grund, warum das Lesen scheitert, und der Behebung.](/images/platform/automation-editor-problems.webp)
+
+</Frame>
 
 Wähle einen Eintrag oder drücke darauf die Eingabetaste, um dorthin zu gelangen: Die Node öffnet sich, ihr Feld erhält den Fokus, und die Stelle, die das Problem verursacht, ist markiert. Ein Problem ohne eigenes Feld, etwa ein Modell, das deine Organisation nicht bereitstellt, steht unter **Probleme in dieser Node** oben in den Feldern der Node. Ein Problem in den Eingaben öffnet **Start**, eines in der Ausgabe öffnet **Ende**, und eines in einem anderen Teil des Dokuments, etwa in einem Test oder im Namen, öffnet **Quelltext** an dieser Zeile. Ein Problem in einer Node, die dein Entwurf nicht mehr hat, sagt „Ändere das mit deinem Coding-Agent.“
 

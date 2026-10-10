@@ -16,7 +16,7 @@ describe('the references get_docs serves beside the authoring one', () => {
         expect(mcpDocs(topic)?.length ?? 0, topic).toBeGreaterThan(0);
       }
     }
-    expect(mcpDocs('settings')).toBeUndefined();
+    expect(mcpDocs('billing')).toBeUndefined();
   });
 
   it('states the trigger delivery rules the backend enforces', () => {
@@ -27,6 +27,6 @@ describe('the references get_docs serves beside the authoring one', () => {
     expect(text).toContain(
       `at most ${Math.round(MAX_WEBHOOK_BODY_BYTES / 1024)} KiB`,
     );
-    expect(text).toContain('(UTC when it names none)');
+    expect(text).toContain('a cron without one reads UTC');
   });
 });

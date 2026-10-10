@@ -15,7 +15,10 @@ requires:
     - conversation
 triggers:
   - kind: schedule
-    cron: 0 */6 * * *
+    repeat:
+      frequency: hourly
+      interval: 6
+      minute: 0
     timezone: UTC
 i18n:
   de:

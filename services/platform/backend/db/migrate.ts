@@ -198,6 +198,42 @@ async function verifyProvisionedAccounts(
   }
 }
 
+/** The `app.boot_repairs` name of {@link revokeClientWrittenTrustFields}. */
+const REVOKE_CLIENT_TRUST_FIELDS = 'revoke-client-written-trust-fields';
+
+/**
+ * Sign out, once, every session that carries trusted-headers fields, so each
+ * is minted again by the trusted-headers door — the only writer of those
+ * fields from now on (`backend/auth/auth.ts`). A proxy's users get a fresh
+ * session through the proxy's sign-in hand-off on their next visit; anyone
+ * else signs in again.
+ *
+ * Recorded in `app.boot_repairs` (0193) so it runs once per database: the
+ * sessions are Better Auth's, and exist only after its migrator ran.
+ */
+async function revokeClientWrittenTrustFields(
+  sql: postgres.Sql,
+  log: (message: string) => void,
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    const recorded = await tx`
+      INSERT INTO app.boot_repairs (name) VALUES (${REVOKE_CLIENT_TRUST_FIELDS})
+      ON CONFLICT (name) DO NOTHING
+      RETURNING name
+    `;
+    if (recorded.length === 0) return;
+    const revoked = await tx`
+      DELETE FROM "session"
+      WHERE "trustedRole" IS NOT NULL OR "trustedOrganizationId" IS NOT NULL
+    `;
+    if (revoked.count > 0) {
+      log(
+        `[backend] reset ${revoked.count} session(s) carrying a trusted role`,
+      );
+    }
+  });
+}
+
 /**
  * A numbered `.ts` migration: a DATA migration whose decision is a rule the
  * application already owns — a backfill keyed on which files an extractor
@@ -361,6 +397,7 @@ async function migrateOnce(
       }
       await defaultTeamMemberCount(sql);
       await verifyProvisionedAccounts(sql, log);
+      await revokeClientWrittenTrustFields(sql, log);
     }
     // The e-mail index builds concurrently, which must not happen under
     // this lock (see `indexUserEmailLower`).

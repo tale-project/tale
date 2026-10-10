@@ -13,8 +13,8 @@ import { describe, expect, it } from 'vitest';
  * flows through the slots. The backends under `runners/` are the ONE
  * sanctioned exception — `node-vm.ts` exists to wrap `node:vm` and to
  * supervise the child process (`node-vm-child.ts`) it evaluates in; test
- * files and the test-support modules under `selftest/` are host code and
- * exempt.
+ * and bench files and the test-support modules under `selftest/` are host
+ * code and exempt.
  */
 
 const ENGINE_ROOT = path.join(
@@ -22,13 +22,28 @@ const ENGINE_ROOT = path.join(
   '..',
 );
 
+/** The platform workspace, which sanctioned modules are named from. */
+const PLATFORM_ROOT = path.resolve(ENGINE_ROOT, '..', '..');
+
 const PURE_DIRS = ['core', 'api'];
 const PURE_SHARED_HELPERS = [
   path.resolve(
     ENGINE_ROOT,
     '../../../../packages/shared/src/automation-name.ts',
   ),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/automation-replay.ts',
+  ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/secret-scan.ts'),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/utils/stable-stringify.ts',
+  ),
+  path.resolve(ENGINE_ROOT, '../shared/utils/bound-json.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/utils/storable-text.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/audit-redaction.ts'),
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -36,7 +51,11 @@ function sourceFiles(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(full));
-    else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) {
+    else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.includes('.test.') &&
+      !entry.name.includes('.bench.')
+    ) {
       out.push(full);
     }
   }
@@ -78,12 +97,23 @@ describe('engine purity', () => {
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
     // periscopic scopes, the zimmerframe walker, is-reference), the shared
-    // safe YAML loader, type guards, name grammar and stable serializer are
-    // runtime-neutral; everything else outside the engine tree is a layering
-    // violation.
+    // safe YAML loader, type guards, name grammar, stable serializer, JSON
+    // bounding, the secret-key list and the credential detector are
+    // runtime-neutral, and so is `@tale/ui`'s data core (summaries, shapes,
+    // diffs, pointers, hashes), whose own guard
+    // (`packages/ui/src/data/pure.test.ts`) holds it to imports of itself;
+    // everything else outside the engine tree is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/shared/utils/stable-stringify',
+      '@tale/shared/automation-replay',
+      '@tale/ui/data/hash',
+      '@tale/ui/data/infer-schema',
+      '@tale/ui/data/json-pointer',
+      '@tale/ui/data/stable-stringify',
+      '@tale/ui/data/value-diff',
+      '@tale/ui/data/value-summary',
       'acorn',
       'estree',
       'is-reference',
@@ -94,14 +124,22 @@ describe('engine purity', () => {
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
+      path.join('lib', 'shared', 'secret-scan'),
+      path.join('lib', 'shared', 'utils', 'bound-json'),
+      path.join('lib', 'shared', 'utils', 'storable-text'),
+      path.join('lib', 'shared', 'audit-redaction'),
     ];
     const offenders: string[] = [];
     for (const f of files) {
       for (const s of importsOf(f)) {
         if (s.startsWith('.')) {
-          const resolved = path.resolve(path.dirname(f), s);
-          const insideEngine = resolved.startsWith(ENGINE_ROOT);
-          const sanctioned = allowedModules.some((m) => resolved.endsWith(m));
+          const resolved = path
+            .resolve(path.dirname(f), s)
+            .replace(/\.ts$/, '');
+          const insideEngine = resolved.startsWith(ENGINE_ROOT + path.sep);
+          const sanctioned = allowedModules.some(
+            (m) => resolved === path.join(PLATFORM_ROOT, m),
+          );
           if (!insideEngine && !sanctioned) offenders.push(`${f} → ${s}`);
         } else if (!allowedPackages.has(s)) {
           offenders.push(`${f} → ${s}`);
@@ -189,11 +227,13 @@ describe('engine purity', () => {
       ]),
     );
     // The supervisor forks and talks to its child; the child wraps node:vm;
-    // the sandbox-exec backend reaches nothing on the host at all.
+    // the pool's tenant rides on the host's async context; the sandbox-exec
+    // backend reaches nothing on the host at all.
     expect(nodeImportsByFile).toEqual({
       'node-vm-child.ts': ['node:vm'],
       'node-vm.ts': ['node:child_process', 'node:net', 'node:url', 'node:vm'],
       'sandbox-exec.ts': [],
+      'tenant.ts': ['node:async_hooks'],
     });
   });
 });

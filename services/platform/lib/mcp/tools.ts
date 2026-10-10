@@ -30,6 +30,7 @@ export const MCP_TOOL_GROUPS = [
   'authoring',
   'management',
   'discovery',
+  'settings',
   'capability',
 ] as const;
 
@@ -70,14 +71,16 @@ export interface McpToolSpec {
   readonly group: McpToolGroup;
   /** Who may call it, checked before it runs: `developer` takes the owner,
    * admin or developer role (the in-app equivalent's bar); `member` leaves it
-   * to the surface's own rules; `live-developer` takes the developer bar for
-   * a live call (`mode: "live"`, the default) and leaves a mock one to every
-   * member. A tool a role cannot use stays listed. */
+   * to the surface's own rules (each settings kind's native writer decides
+   * for itself); `live-developer` takes the developer bar for a live call
+   * (`mode: "live"`, the default) and leaves a mock one to every member. A
+   * tool a role cannot use stays listed. */
   readonly role: 'member' | 'developer' | 'live-developer';
   /** The budget a call draws from once its role check passed: `api` only
    * the request the door already charged; `execute` also one execution
-   * (`rest:execute`, the REST API's run-start budget). */
-  readonly lane: 'api' | 'execute';
+   * (`rest:execute`, the REST API's run-start budget); `settings` also one
+   * settings change (`rest:settings`). */
+  readonly lane: 'api' | 'execute' | 'settings';
   /** What every answer that is not a refusal carries — read tools only:
    * `tools/list` advertises it as the `outputSchema`, and the answer carries
    * it as `structuredContent` beside the same JSON as text. */
@@ -94,14 +97,15 @@ export interface McpToolSpec {
 }
 
 /** Tools that put a version live, decide what starts one or where it runs,
- * remove one, or speak for a person: a client asks the person before each
- * call, whatever its permission mode. */
+ * remove one, speak for a person or change the organization's settings: a
+ * client asks the person before each call, whatever its permission mode. */
 const ASK_FIRST_TOOLS: ReadonlySet<string> = new Set([
   'deploy_automation',
   'delete_automation',
   'set_trigger',
   'answer_run_ask',
   'set_automation_projects',
+  'apply_settings',
 ]);
 
 /** The tools whose answers run long — the reference, the catalog, an
@@ -114,7 +118,10 @@ const MAX_RESULT_CHARS: Readonly<Record<string, number>> = {
   run_automation: 200_000,
   get_automation: 200_000,
   run_deployed: 200_000,
-  get_run: 250_000,
+  get_run: 500_000,
+  get_run_node: 300_000,
+  compare_runs: 500_000,
+  get_settings: 250_000,
 };
 
 const RESULTS: ReadonlyMap<string, z.ZodObject> = new Map(
@@ -134,7 +141,9 @@ function withContract(spec: Omit<McpToolSpec, ContractFields>): McpToolSpec {
   return Object.assign(spec, {
     lane: EXECUTE_TOOLS.has(spec.name)
       ? ('execute' as const)
-      : ('api' as const),
+      : SETTINGS_WRITE_TOOLS.has(spec.name)
+        ? ('settings' as const)
+        : ('api' as const),
     result: RESULTS.get(spec.name) ?? null,
     requiresUserInteraction: ASK_FIRST_TOOLS.has(spec.name),
     ...(maxResultChars === undefined ? {} : { maxResultChars }),
@@ -177,9 +186,15 @@ const EXECUTE_TOOLS: ReadonlySet<string> = new Set([
   'deploy_automation',
   'run_deployed',
   'start_run',
+  'replay_run',
   'answer_run_ask',
   'invoke_capability',
 ]);
+
+/** Tools that change the organization's settings and draw from the settings
+ * budget (`rest:settings`): an agent loops, and every change runs a native
+ * writer that may snapshot a history file or reach a vendor. */
+const SETTINGS_WRITE_TOOLS: ReadonlySet<string> = new Set(['apply_settings']);
 
 /** A read: changes nothing, repeats freely, stays inside the platform. */
 const READ: McpToolAnnotations = {
@@ -242,6 +257,17 @@ const EXECUTE_MOCK: McpToolAnnotations = {
   openWorldHint: false,
 };
 
+/** A settings change: it may replace or remove what exists, repeating one is
+ * no no-op (an action runs again; a change whose hash moved is refused), and
+ * some kinds reach outside the platform — an invitation e-mails a person, a
+ * connector check reaches its vendor. */
+const SETTINGS_WRITE: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+};
+
 /** Every engine method's annotations — exhaustive over `Method`, so a new
  * method cannot ship without saying what it does to the world. */
 const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
@@ -261,6 +287,9 @@ const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
   start_run: EXECUTE_LIVE,
   list_runs: READ,
   get_run: READ,
+  get_run_node: READ,
+  compare_runs: READ,
+  replay_run: EXECUTE_LIVE,
   cancel_run: REPLACE,
   answer_run_ask: ANSWER,
   list_versions: READ,
@@ -299,7 +328,13 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   list_runs:
     'Recent runs the caller can read, newest first — of one automation or of the current scope; filter by mode and statuses, and page with nextCursor.',
   get_run:
-    'One run in full: status, output, trace and effects (detail: [] answers the status alone — poll with it). A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
+    'One run in full: status, output, trace and effects (detail: [] answers the status alone — poll with it). include: ["record"] adds the run step by step — why each step ran, was skipped or failed, each condition explained with the values it read. A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
+  get_run_node:
+    "One step of a run read whole — or one of its items or passes: what it received and returned (secrets withheld), where its templates' text landed, what it read from earlier steps, how its output differs from its input, and its call to a connector or a model.",
+  compare_runs:
+    'Two runs of one automation side by side, step by step: what changed in the version, how input and output differ, and the first step where the runs went different ways — the decision that flipped and the values that flipped it.',
+  replay_run:
+    'Run a run again, in its own project: with its own input ("again"), with an edited input ("edited"), or from one step ("from"), reusing what it finished outside that step. dryRun: true answers the plan first — what runs again and which writes go out a second time. A live replay needs the developer role and the deployed version.',
   cancel_run: 'Stop a run at its next node boundary.',
   answer_run_ask:
     'Answer the question a waiting run asked a person (get_run answers it as run.ask: askId and question); the run resumes on the answer. The answer speaks for the person: ask them first.',
@@ -318,7 +353,10 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
  * writes one, so it belongs with the trigger management, not the authoring
  * loop). Exhaustive over `Method`, so a new engine method cannot ship
  * unclassified. */
-const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
+const METHOD_GROUPS: Record<
+  Method,
+  Exclude<McpToolGroup, 'settings' | 'capability'>
+> = {
   get_docs: 'authoring',
   get_catalog: 'authoring',
   search_catalog: 'authoring',
@@ -335,6 +373,9 @@ const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
   start_run: 'management',
   list_runs: 'management',
   get_run: 'management',
+  get_run_node: 'management',
+  compare_runs: 'management',
+  replay_run: 'management',
   cancel_run: 'management',
   answer_run_ask: 'management',
   list_versions: 'management',
@@ -402,6 +443,27 @@ const PLATFORM_TOOLS = [
     annotations: READ,
     group: 'discovery',
   },
+  {
+    name: 'get_settings',
+    description:
+      "The organization's settings your role may read. Without kinds: the catalog — each kind, what it is, its operations and actions, its risk, whether this deployment serves it and whether your role may read and change it. With kinds (and ids): each resource with its key, its config and its hash, the value apply_settings expects. A secret never comes back: it reads as {masked: true, preview}; send that back unchanged to keep it.",
+    annotations: READ,
+    group: 'settings',
+  },
+  {
+    name: 'plan_settings',
+    description:
+      'Plan settings changes without making any: for each, what it would do (create, update, delete, act or unchanged), the diff member by member, its effects and its risk — or why it is refused. Show the plan to the person, then call apply_settings with the same changes.',
+    annotations: READ,
+    group: 'settings',
+  },
+  {
+    name: 'apply_settings',
+    description:
+      "Make the settings changes you planned and showed the person. expected names each changed resource's key with the hash you read (null for one you create): if any resource changed since, or any change is refused, nothing is applied. Changes run in a fixed order across kinds; one that fails stops the rest, and the answer lists what was applied, what failed and what was skipped. Never send a secret: a person enters it in Tale.",
+    annotations: SETTINGS_WRITE,
+    group: 'settings',
+  },
 ] as const satisfies ReadonlyArray<{
   name: keyof typeof PLATFORM_TOOL_ARGS;
   description: string;
@@ -441,8 +503,8 @@ const CAPABILITY_TOOL_ANNOTATIONS: Record<
 /**
  * Every tool this endpoint serves, in the order it advertises them: the engine's
  * method table first (authoring, then management, exactly as the engine lists
- * them), then the platform's own reads (its management read, then
- * discovery), then the capability tools.
+ * them), then the platform's own tools (its management read, discovery,
+ * then settings), then the capability tools.
  */
 export const MCP_TOOLS: readonly McpToolSpec[] = [
   ...METHODS.map((name) =>

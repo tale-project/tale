@@ -98,6 +98,8 @@ export const CODES = {
     "a subautomation's input matches the inputs schema of the automation it calls",
   TRIGGER_INPUT_MISMATCH:
     "the inputs schema accepts the input the automation's triggers start runs with",
+  TRIGGER_INPUT_NOT_TEMPLATED:
+    "a trigger's fixed input is plain data; a template in it is never evaluated",
 
   // Tests.
   TESTS_INPUT_INVALID: 'a test input matches the inputs schema',
@@ -440,6 +442,11 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'contract',
     params: ['kind', 'missing', 'problems'],
     technical: ['problems'],
+  },
+  TRIGGER_INPUT_NOT_TEMPLATED: {
+    level: 'warning',
+    family: 'contract',
+    params: ['paths'],
   },
   TESTS_INPUT_INVALID: {
     level: 'warning',

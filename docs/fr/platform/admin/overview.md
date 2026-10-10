@@ -32,7 +32,7 @@ Les propriétaires et les admins gèrent les paramètres de l’organisation. Le
 
 ## Connexion, intégrations et apparence
 
-Configure [le SSO d’entreprise](/fr/platform/admin/enterprise-sso) pour ton fournisseur d’identité et [l’authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) pour protéger les comptes. Les [clés API](/fr/platform/admin/api-keys) permettent à un logiciel d’appeler Tale.
+Configure [le SSO d’entreprise](/fr/platform/admin/enterprise-sso) pour ton fournisseur d’identité et [l’authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) pour protéger les comptes. Les [clés API](/fr/platform/admin/api-keys) permettent à un logiciel d’appeler Tale. Un agent de code connecté avec l’une d’elles peut modifier lui-même bon nombre de ces paramètres, dans les limites du rôle de la personne à qui appartient la clé ; [Paramètres par MCP](/fr/develop/mcp-settings) indique lesquels.
 
 La page [Personnalisation visuelle](/fr/platform/admin/branding) sert à modifier le logo et les couleurs. [Sandboxes](/fr/platform/admin/sandboxes) présente la capacité d’exécution et les limites par type de tâche ; avec les [appareils de sandbox](/fr/platform/admin/sandbox-devices), les sandboxes de ton organisation tournent sur tes propres machines. Pour les accès d’un agent de projet à ces ressources, consulte [Agents côté administration](/fr/platform/admin/agents).
 

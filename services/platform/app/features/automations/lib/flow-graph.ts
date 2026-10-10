@@ -381,12 +381,23 @@ function endNode(
   } else if (output !== undefined) {
     outputs.push({ id: 'output', label: JSON.stringify(output), code: true });
   }
-  const shape =
+  // End holds a row for the shape of what a run returns whenever the check
+  // may work it out, so the box never grows when the check answers: the
+  // shape once known, a placeholder while the check runs, words when it
+  // could not tell.
+  const known =
     ctx.outputShape !== undefined &&
     ctx.outputShape !== null &&
     !isUnknown(ctx.outputShape)
       ? toTs(ctx.outputShape, 2)
       : undefined;
+  const shape: FlowExitNode['shape'] =
+    known ??
+    (ctx.returns.status === 'off' || outputs.length === 0
+      ? undefined
+      : ctx.returns.status === 'pending'
+        ? null
+        : { text: t('canvas.node.returnsUnknown'), code: false });
   return {
     id: END_ID,
     kind: 'exit',

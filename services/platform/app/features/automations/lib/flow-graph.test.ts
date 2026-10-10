@@ -248,7 +248,7 @@ describe('toFlowGraph rules', () => {
     expect(edges).toContain('a>b:data');
     expect(edges.filter((edge) => edge.startsWith('a>b'))).toHaveLength(1);
     expect(graph.nodes.find((node) => node.id === gateIdOf('a'))).toMatchObject(
-      { mode: 'only-if', condition: 'go of the run input is set' },
+      { mode: 'only-if', condition: 'go of the run input counts as yes' },
     );
   });
 
@@ -357,7 +357,8 @@ describe('toFlowGraph rules', () => {
       {
         id: 'repeat:poll',
         kind: 'repeat',
-        label: "Repeats until done of this pass's result is set, at most 3×",
+        label:
+          "Repeats until done of this pass's result counts as yes, at most 3×",
         members: ['poll'],
       },
     ]);
@@ -435,6 +436,39 @@ describe('Start and End', () => {
     expect(end.notice).toEqual({
       tone: 'info',
       text: 'Some runs return empty values',
+    });
+  });
+
+  it('holds End’s shape row whenever the check may work it out, so End never grows', () => {
+    const triage = shipped('github/triage-issues');
+    const shapeOf = (extra: Partial<FlowGraphContext>) => {
+      const end = build(triage, extra).graph.nodes.at(-1);
+      if (end?.kind !== 'exit') throw new Error('no End');
+      return end.shape;
+    };
+    // Nobody checks this document: no row.
+    expect(shapeOf({})).toBeUndefined();
+    // The check is running: the row waits.
+    expect(
+      shapeOf({ returns: { status: 'pending', outputs: null } }),
+    ).toBeNull();
+    // It answered with a shape, or could not tell.
+    expect(
+      shapeOf({
+        returns: { status: 'ready', outputs: {} },
+        outputShape: {
+          type: 'object',
+          properties: { reviewed: { type: 'number' } },
+        },
+      }),
+    ).toEqual(expect.stringContaining('reviewed'));
+    expect(shapeOf({ returns: { status: 'ready', outputs: {} } })).toEqual({
+      text: 'Shape known after a run',
+      code: false,
+    });
+    expect(shapeOf({ returns: { status: 'failed', outputs: null } })).toEqual({
+      text: 'Shape known after a run',
+      code: false,
     });
   });
 

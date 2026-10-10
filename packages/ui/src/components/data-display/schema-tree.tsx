@@ -1,8 +1,16 @@
 'use client';
 
 import type { TFunction } from 'i18next';
+import {
+  ArrowLeftRight,
+  CircleDashed,
+  Minus,
+  Plus,
+  type LucideIcon,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import type { SchemaTreeSchema } from '../../data/infer-schema';
 import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 import { HighlightedCode } from '../../markdown/highlighted-code';
@@ -15,25 +23,7 @@ import { CollapsibleDetails } from '../navigation/collapsible-details';
  * starts with, what a step receives and returns, a webhook's payload.
  */
 
-/** A JSON Schema subset: what describes the fields of a value. */
-export interface SchemaTreeSchema {
-  type?:
-    | 'string'
-    | 'number'
-    | 'integer'
-    | 'boolean'
-    | 'object'
-    | 'array'
-    | 'null'
-    | ReadonlyArray<string>;
-  properties?: Readonly<Record<string, SchemaTreeSchema>>;
-  required?: readonly string[];
-  items?: SchemaTreeSchema;
-  enum?: readonly unknown[];
-  anyOf?: readonly SchemaTreeSchema[];
-  /** Written by the author; shown as is (document content, not translated). */
-  description?: string;
-}
+export type { SchemaTreeSchema } from '../../data/infer-schema';
 
 export interface SchemaTreeProps {
   schema: SchemaTreeSchema;
@@ -50,8 +40,56 @@ export interface SchemaTreeProps {
   maybeEmpty?: (path: readonly string[]) => boolean;
   /** The same shape as TypeScript, behind "Show as TypeScript". */
   typeScript?: string;
+  /**
+   * Highlights a field against an expected shape: `added` (the expected
+   * shape has no such field), `removed` (expected, not there),
+   * `type-changed` (not the expected kind), `optional` (expected always,
+   * not always there). Each says so in words and with a glyph.
+   */
+  marks?: (path: readonly string[]) => SchemaTreeMark | undefined;
+  /** Says in how many of the items read a field was there ("in 9 of 12
+   *  items"), from the `x-count` an inferred shape carries. */
+  counts?: boolean;
   'aria-label'?: string;
   className?: string;
+}
+
+export type SchemaTreeMark = 'added' | 'removed' | 'type-changed' | 'optional';
+
+/** Each mark's row tint, glyph and glyph colour (the tints of the value
+ *  tree, so a shape and its values highlight alike). */
+const MARK_STYLE: Readonly<
+  Record<SchemaTreeMark, { row: string; icon: LucideIcon; iconClass: string }>
+> = {
+  added: { row: 'bg-success/10', icon: Plus, iconClass: 'text-success' },
+  removed: {
+    row: 'bg-destructive/10',
+    icon: Minus,
+    iconClass: 'text-destructive',
+  },
+  'type-changed': {
+    row: 'bg-amber-500/15',
+    icon: ArrowLeftRight,
+    iconClass: 'text-amber-700 dark:text-amber-500',
+  },
+  optional: {
+    row: '',
+    icon: CircleDashed,
+    iconClass: 'text-muted-foreground',
+  },
+};
+
+function markWords(t: TFunction, mark: SchemaTreeMark): string {
+  switch (mark) {
+    case 'added':
+      return t('mark.added');
+    case 'removed':
+      return t('mark.removed');
+    case 'type-changed':
+      return t('mark.typeChanged');
+    default:
+      return t('mark.optional');
+  }
 }
 
 type PluralKind =
@@ -200,6 +238,8 @@ interface RowsProps {
   maxRows: number | undefined;
   tagOf: SchemaTreeProps['tagOf'];
   maybeEmpty: SchemaTreeProps['maybeEmpty'];
+  marks: SchemaTreeProps['marks'];
+  counts: boolean;
   t: TFunction;
   locale: string;
   label?: string;
@@ -213,6 +253,8 @@ function Rows({
   maxRows,
   tagOf,
   maybeEmpty,
+  marks,
+  counts,
   t,
   locale,
   label,
@@ -238,6 +280,8 @@ function Rows({
         const isRequired = fields.required.includes(name);
         const tag = tagOf?.(fieldPath);
         const empty = maybeEmpty?.(fieldPath) ?? false;
+        const mark = marks?.(fieldPath);
+        const count = counts ? field['x-count'] : undefined;
         const notes = [
           schemaKindLabel(t, field, locale),
           ...(isRequired
@@ -247,20 +291,48 @@ function Rows({
               : []),
           ...(tag !== undefined ? [tag] : []),
           ...(empty ? [t('maybeEmpty')] : []),
+          ...(count !== undefined
+            ? [t('inItems', { count: count.present, total: count.of })]
+            : []),
+          ...(mark !== undefined ? [markWords(t, mark)] : []),
         ];
+        const markStyle = mark === undefined ? undefined : MARK_STYLE[mark];
+        const MarkIcon = markStyle?.icon;
         return (
           <li
             key={name}
             className={cn(
               'flex flex-col justify-center',
               comfortable ? 'min-h-8 py-1' : 'min-h-6',
+              markStyle !== undefined && 'rounded-sm px-1',
+              markStyle?.row,
             )}
           >
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-              <span className="text-foreground font-mono text-xs break-all">
+              {MarkIcon !== undefined ? (
+                <MarkIcon
+                  aria-hidden="true"
+                  className={cn(
+                    'size-3.5 shrink-0 self-center',
+                    markStyle?.iconClass,
+                  )}
+                />
+              ) : null}
+              <span
+                className={cn(
+                  'text-foreground font-mono text-xs break-all',
+                  mark === 'removed' && 'decoration-destructive line-through',
+                )}
+              >
                 {name}
               </span>{' '}
-              <span className="text-muted-foreground text-xs">
+              <span
+                className={cn(
+                  'text-xs',
+                  // Muted grey drops under 4.5:1 on a tinted row.
+                  markStyle?.row ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
                 {notes.join(' · ')}
               </span>
             </span>
@@ -277,6 +349,8 @@ function Rows({
                 maxRows={undefined}
                 tagOf={tagOf}
                 maybeEmpty={maybeEmpty}
+                marks={marks}
+                counts={counts}
                 t={t}
                 locale={locale}
                 nested
@@ -306,6 +380,8 @@ export function SchemaTree({
   tagOf,
   maybeEmpty,
   typeScript,
+  marks,
+  counts = false,
   'aria-label': ariaLabel,
   className,
 }: SchemaTreeProps) {
@@ -327,6 +403,8 @@ export function SchemaTree({
           maxRows={maxRows}
           tagOf={tagOf}
           maybeEmpty={maybeEmpty}
+          marks={marks}
+          counts={counts}
           t={t}
           locale={locale}
           label={ariaLabel ?? t('label')}

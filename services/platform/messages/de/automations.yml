@@ -66,7 +66,6 @@ blank:
   promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
     neue eine Aufgabe anlegen.
   equipmentLabel: Ausrüstung
-  timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
   webhookHint: Die Webhook-URL erscheint genau einmal, direkt nach dem
     Anlegen — kopiere sie, bevor du den Editor öffnest.
   stepWebhook: Kopiere die Webhook-URL — sie wird nur jetzt angezeigt.
@@ -74,6 +73,9 @@ blank:
   openAutomation: Automatisierung öffnen
   enableNow: Jetzt aktivieren
   enableNowHint: Aus lässt den Trigger pausiert — es startet nichts, bis du ihn auf der Trigger-Karte einschaltest.
+  deployNow: v1 jetzt live schalten
+  deployNowHint: v1 ist sofort live, und sein Trigger startet Läufe, solange er aktiviert ist. Aus lässt v1 einen Entwurf, den du im Editor live schaltest.
+  deployFailed: 'Die Automatisierung wurde angelegt, aber v1 ließ sich nicht live schalten: {error}. Schalte sie im Editor live.'
   triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
     sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
   cancel: Abbrechen
@@ -82,6 +84,7 @@ blank:
   submit: Automatisierung erstellen
   submitting: Erstellt …
   initialMessage: Erste Version
+  kindQuestion: 'Wann läuft sie?'
 notFound:
   title: Automatisierung nicht gefunden
   description:
@@ -157,19 +160,12 @@ trigger:
   cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
   cronInvalid: Dieser Cron-Ausdruck ist ungültig.
   cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
-  cronNext: 'Nächster Lauf {at}'
-  paused: Pausiert — es starten keine Läufe
-  notDeployed: 'Startet erst, wenn eine Version bereitgestellt ist · nächster Lauf wäre {at}'
-  cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
-  cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'
-  cronDailyAt: 'Jeden Tag um {time}'
   timezoneLabel: Zeitzone
   timezoneSearch: Zeitzonen suchen
   timezoneEmpty: Keine passende Zeitzone
   eventLabel: Ereignisname
   eventPlaceholder: Ereignis wählen
   enabledLabel: Aktiv
-  lastFired: 'Zuletzt ausgelöst {at}'
   failures:
     pausedTitle: 'Nach wiederholten Fehlern pausiert'
     pausedBody: '{count, plural, one {# Lauf ist} other {# Läufe sind}} nacheinander mit einem Fehler fehlgeschlagen, den ein erneuter Versuch nicht behebt, deshalb hat sich der Zeitplan ausgeschaltet. Behebe den Fehler in der Automatisierung, schalte den Trigger dann wieder ein und speichere.'
@@ -184,12 +180,8 @@ trigger:
   tokenHint: Der Token ist der letzte Teil der URL, erscheint genau einmal
     und liegt nur als Hash gespeichert.
   webhookEndpointLabel: Webhook-Endpunkt
-  webhookHowto: Diese URL gilt für Automatisierungen, die keinem Projekt zugeordnet sind.
-  hasToken: Ein Token ist aktiv — die URL braucht den beim Anlegen einmalig
-    gezeigten Token; rotiere, um eine neue URL zu erzeugen.
   noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
     einmal.
-  webhookProjectHint: Für ein aktives Projekt, in dem die Automatisierung eingerichtet ist, setzt du dessen ID in die folgende URL ein.
   rotate: Token rotieren
   revokeConfirm:
     title: Webhook ersetzen?
@@ -199,6 +191,182 @@ trigger:
     title: Webhook-Token rotieren?
     body: Die aktuelle URL funktioniert nicht mehr, sobald das neue Token erzeugt ist. Kopiere die neue URL und aktualisiere jedes sendende System.
   revokedToast: Die bisherige Webhook-URL wurde widerrufen — Absender, die sie nutzen, bekommen jetzt 404.
+  loadFailed: 'Der Trigger konnte nicht geladen werden.'
+  retry: 'Erneut versuchen'
+  kindHint:
+    schedule: 'Zu den Zeiten, die du wählst.'
+    webhook: 'Wenn ein anderes System eine Anfrage an seine URL sendet.'
+    event: 'Wenn in Tale etwas passiert, etwa eine neue Aufgabe.'
+  schedule:
+    label: 'Zeitplan'
+    description: 'Wann die Automatisierung startet.'
+    format: 'Format des Zeitplans'
+    formatRepeat: 'Wiederholung'
+    formatCron: 'Cron (erweitert)'
+    inZone: 'Zeiten in {zone}'
+    savedAsCron: 'Gespeichert als Cron-Ausdruck {cron}. Änderst du den Zeitplan und speicherst, wird daraus eine Wiederholungsregel.'
+    cronNotConvertible: 'Dieser Cron-Ausdruck lässt sich nicht als Wiederholung darstellen. Speicherst du unter Wiederholung, wird er ersetzt.'
+    repeatNoCron: '„{sentence}“ lässt sich nicht als ein Cron-Ausdruck schreiben. Gib einen ein oder wechsle zurück zu Wiederholung.'
+    cronReadsAs: 'Bedeutet: {sentence}'
+    anchor:
+      daily: 'Gezählt ab {date}.'
+      weekly: 'Gezählt ab der Woche vom {date}.'
+      monthly: 'Gezählt ab {month}.'
+      yearly: 'Gezählt ab {year}.'
+  timezoneYours: 'Deine Zeitzone'
+  catchUp:
+    label: 'Verpasste Läufe'
+    description: 'Wenn Tale zum geplanten Zeitpunkt nicht verfügbar war, etwa während eines Updates.'
+    latest: 'Den letzten nachholen, sobald Tale wieder läuft'
+    skip: 'Auslassen'
+    latestHint: 'Läuft einmal für den letzten verpassten Zeitpunkt, egal wie spät. Frühere verpasste Zeitpunkte werden gezählt, nicht nachgeholt.'
+    skipHint: 'Ein Lauf, der mehr als 10 Minuten zu spät ist, startet nicht und wird als verpasst gezählt.'
+  nextRuns:
+    title: 'Nächste Läufe'
+    titleUnsaved: 'Nächste Läufe (nicht gespeichert)'
+    wouldRun: 'Würde laufen um'
+    paused: 'Pausiert: Schalte „Aktiv“ ein und speichere, damit diese Läufe starten.'
+    notDeployed: 'Es startet nichts, solange keine Version bereitgestellt ist.'
+    unavailable: 'Korrigiere den Zeitplan oben, um die nächsten Läufe zu sehen.'
+  health:
+    lastRun: 'Letzter Lauf {at}'
+    noRunYet: 'Hat noch keinen Lauf gestartet.'
+  skip:
+    technicalDetails: 'Technische Details'
+    openEditor: 'Editor öffnen'
+    editSchedule: 'Zeitplan bearbeiten'
+    editProjects: 'Projekte bearbeiten'
+    alsoMissed: '{count, plural, one {Ein früherer Lauf wurde ebenfalls verpasst.} other {# frühere Läufe wurden ebenfalls verpasst.}}'
+    notDeployed:
+      title: 'Ausgelassen: keine Version bereitgestellt'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber es ist keine Version bereitgestellt, deshalb startete kein Lauf. Stelle im Editor eine getestete Version bereit.'
+    inputRefused:
+      title: 'Ausgelassen: Die Eingabe des Laufs wurde abgelehnt'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber Version {version} lehnte ab, was der Trigger sendet. Passe die Eingaben der Automatisierung oder die feste Eingabe des Triggers an, damit sie zusammenpassen.'
+    projectRefused:
+      title: 'Ausgelassen: Das Projekt kann keine Läufe starten'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber {reason, select, archived {das Projekt ist archiviert} other {das Projekt fehlt oder erlaubt diese Automatisierung nicht mehr}}, deshalb startete kein Lauf. Prüfe die Projekte der Automatisierung.'
+    startRefused:
+      title: 'Ausgelassen: Der Lauf konnte nicht starten'
+      body: '{kind, select, event {Ein Ereignis traf am {at} ein} other {Er war am {at} fällig}}, aber der Lauf konnte nicht starten. Die technischen Details nennen den Grund.'
+    unusableSchedule:
+      title: 'Ausgelassen: Der Zeitplan ist nicht lesbar'
+      body: 'Er war am {at} fällig, aber Zeitplan oder Zeitzone waren nicht lesbar. Korrigiere sie und speichere; bis dahin startet nichts.'
+    missed:
+      title: '{count, plural, one {# Lauf wurde verpasst} other {# Läufe wurden verpasst}}'
+      titleCapped: 'Mehr als {count, number} Läufe wurden verpasst'
+      body: '{count, plural, one {Ein Lauf war am {from} fällig, während Tale nicht verfügbar war.} other {Zwischen {from} und {to} waren Läufe fällig, während Tale nicht verfügbar war.}} {policy}'
+      policyLatest: 'Der letzte wurde nachgeholt, als Tale wieder lief.'
+      policySkip: 'Sie wurden ausgelassen, wie unter „Verpasste Läufe“ eingestellt.'
+  input:
+    title: 'Dieser Lauf erhält'
+    copy: 'Eingabe kopieren'
+    firedAt: 'firedAt: der Fälligkeitszeitpunkt in Millisekunden seit 1970 (UTC). Hier {at}.'
+    webhook: 'Dein Request-Body kommt als payload an: JSON bleibt strukturiert, alles andere kommt als Text.'
+    event: 'Die Ereignisdaten kommen als payload an. Sie enthalten IDs; lies den vollständigen Datensatz mit einem Schritt.'
+    accepted: 'Version {version} akzeptiert diese Eingabe.'
+    refusedTitle: 'Version {version} akzeptiert diese Eingabe nicht'
+    refusedBody: 'Ihre Eingaben lehnen ab, was dieser Trigger sendet, also würde jeder Start ausgelassen. Ergänze die fehlenden Felder in der festen Eingabe oder passe die Eingaben im Editor an.'
+  runNow:
+    label: 'Jetzt ausführen'
+    unsaved: 'Speichere zuerst deine Änderungen am Trigger.'
+    body: 'Führt Version {version} live mit der Eingabe unten aus, wie es der Trigger täte — Mails gehen raus, Daten ändern sich. Der Zeitplan bleibt, wie er ist.'
+    confirm: 'Lauf starten'
+    started: 'Lauf gestartet.'
+    failed: 'Der Lauf konnte nicht starten: {error}'
+  webhook:
+    projectUrls: 'Projekt-URLs'
+    orgUnused: 'Diese Automatisierung ist in Projekten eingerichtet und läuft deshalb nur über eine Projekt-URL.'
+    tokenHidden: 'Webhook-URL, Token verborgen'
+    tokenHiddenHint: 'Der Token wurde nur einmal angezeigt, beim Erzeugen. Rotiere ihn, um eine neue URL zu bekommen.'
+    sampleTitle: 'Testanfrage senden'
+    sampleCopy: 'Anfrage kopieren'
+    sampleHint: 'Sende für jedes Ereignis einen neuen Idempotency-Key: Wiederholst du einen innerhalb von 24 Stunden, kommt der erste Lauf zurück.'
+    sampleEnv: 'Lege die URL im sendenden System in TALE_WEBHOOK_URL ab; sie wirkt wie ein Passwort.'
+    deliveries:
+      title: 'Letzte Zustellungen'
+      empty: 'Noch keine Zustellungen. Sende eine Testanfrage, um hier eine zu sehen.'
+      loadFailed: 'Die Zustellungen konnten nicht geladen werden.'
+      byHeader: 'ID aus {header}'
+      byBody: 'Ohne Zustell-ID'
+      refusedNote: 'Abgelehnte Anfragen stehen nicht in der Liste; der Absender sieht den Grund in der Antwort.'
+  events:
+    search: 'Ereignisse suchen'
+    empty: 'Kein passendes Ereignis'
+    scopeOrg: 'Startet bei passenden Ereignissen in allen Projekten und bei Ereignissen, die zu keinem Projekt gehören.'
+    scopeProjects: 'Startet bei passenden Ereignissen in {projects} und bei Ereignissen, die zu keinem Projekt gehören, etwa Kontakten.'
+    loopBounded: 'Ihre eigenen Läufe starten sie nie erneut, und ein Lauf, den ein Ereignis gestartet hat, startet keine weiteren Automatisierungen.'
+    group:
+      tasks: 'Aufgaben'
+      comments: 'Kommentare'
+      conversations: 'Konversationen'
+      contacts: 'Kontakte'
+      projects: 'Projekte'
+    contactCreated:
+      label: 'Kontakt erstellt'
+      description: 'Ein Kontakt wird über die API, die App oder einen Import angelegt.'
+    contactUpdated:
+      label: 'Kontakt geändert'
+      description: 'Die Angaben eines Kontakts ändern sich.'
+    contactDeleted:
+      label: 'Kontakt gelöscht'
+      description: 'Ein Kontakt wird gelöscht.'
+    conversationCreated:
+      label: 'Konversation gestartet'
+      description: 'Eine Konversation öffnet sich in der Inbox: Eine E-Mail trifft ein oder eine externe Konversation wird gespiegelt.'
+    conversationMessageReceived:
+      label: 'Nachricht erhalten'
+      description: 'Eine Nachricht kommt in einer bestehenden Konversation an.'
+    projectCreated:
+      label: 'Projekt erstellt'
+      description: 'Ein Projekt wird erstellt.'
+    taskCreated:
+      label: 'Aufgabe erstellt'
+      description: 'Eine Aufgabe wird auf einem Board, über die API oder durch einen Import erstellt.'
+    taskStatusChanged:
+      label: 'Aufgabenstatus geändert'
+      description: 'Eine Person verschiebt eine Aufgabe in einen anderen Status. Eigene Verschiebungen eines Agenten zählen nicht.'
+    commentCreated:
+      label: 'Kommentar hinzugefügt'
+      description: 'Zu einer Aufgabe wird ein Kommentar geschrieben.'
+    commentMentioned:
+      label: 'In einem Kommentar erwähnt'
+      description: 'Ein Aufgabenkommentar erwähnt jemanden mit @.'
+  deployNotice:
+    title: 'Ihr Trigger ist ausgeschaltet'
+    body: '{kind, select, schedule {Der Zeitplan startet keine Läufe, bis du den Trigger einschaltest.} webhook {Anfragen an seine URL starten keine Läufe, bis du den Trigger einschaltest.} other {Ereignisse starten keine Läufe, bis du den Trigger einschaltest.}}'
+    turnOn: 'Trigger einschalten'
+    review: 'Trigger prüfen'
+    turnedOn: 'Der Trigger ist eingeschaltet.'
+    turnOnFailed: 'Der Trigger konnte nicht eingeschaltet werden: {error}'
+  issues:
+    keyOtherKind: 'Diese Einstellung gehört zu einem anderen Trigger-Typ.'
+    schedule:
+      cronOrRepeat: 'Gib dem Zeitplan entweder eine Wiederholungsregel oder einen Cron-Ausdruck, nicht beides.'
+      cronUnreadable: 'Dieser Cron-Ausdruck ist nicht lesbar.'
+      cronImpossibleDate: 'Dieser Cron-Ausdruck nennt ein Datum, das nie eintritt.'
+      timesRequired: 'Füge mindestens eine Uhrzeit hinzu.'
+      timeFormat: 'Schreibe Uhrzeiten als HH:MM, zum Beispiel 09:30.'
+      timesTooMany: 'Verwende höchstens {max} Uhrzeiten pro Tag.'
+      intervalUnsupported: 'Wähle eines der angebotenen Intervalle.'
+      monthDayImpossible: 'Diesen Tag hat der Monat nie.'
+      windowHoursEqual: 'Beginn und Ende sind gleich. Lass die Uhrzeiten weg, damit es den ganzen Tag läuft.'
+      startDate: 'Das Startdatum ist kein Kalenderdatum.'
+    input:
+      notObject: 'Die feste Eingabe muss ein JSON-Objekt sein.'
+      reservedKey: 'Entferne {keys}: Diese Felder setzt der Trigger selbst.'
+      tooLarge: 'Die feste Eingabe ist größer als 16 KiB.'
+      unstorableText: 'Die feste Eingabe enthält ein Zeichen, das sich nicht speichern lässt: ein NUL-Zeichen oder ein halbes Emoji.'
+    event:
+      required: 'Wähle ein Ereignis.'
+      unknown: 'Dieses Ereignis löst Tale nicht aus.'
+  fixedInput:
+    label: 'Feste Eingabe'
+    description: 'Werte, die dieser Trigger jeder Laufeingabe hinzufügt, als JSON. Die eigenen Felder des Triggers (trigger, firedAt, event, payload) überschreiben sie.'
+    add: 'Feste Eingabe hinzufügen'
+    fillMissing: '{count, plural, one {Fehlendes Feld ergänzen} other {Die # fehlenden Felder ergänzen}}'
+    notJson: 'Das ist kein gültiges JSON.'
+  timezoneInvalid: 'Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).'
 canvas:
   ariaLabel: Canvas der Automatisierung
   unpinnedModel: Kein fester Anbieter — der Lauf wählt ihn automatisch.
@@ -268,6 +436,8 @@ canvas:
     scheduleZone: '{schedule} · {zone}'
     off: Aus
     notLive: Wartet auf eine Live-Version
+    paused: Pausiert — es starten keine Läufe
+    nextRun: 'Nächster Lauf {at}'
     anyInput: Beliebige JSON-Eingabe
     noFields: Keine Eingabefelder
     fromTrigger: vom Trigger
@@ -685,12 +855,19 @@ condition:
   neq: '{a} nicht gleich {b} ist'
   empty: '{a} leer ist'
   notEmpty: '{a} nicht leer ist'
-  set: '{a} gesetzt ist'
-  notSet: '{a} nicht gesetzt ist'
+  set: '{a} als Ja zählt'
+  notSet: '{a} als Nein zählt'
   contains: '{a} {b} enthält'
   notContains: '{a} {b} nicht enthält'
   startsWith: '{a} mit {b} beginnt'
   endsWith: '{a} auf {b} endet'
+  notGt: '{a} nicht größer als {b} ist'
+  notGte: '{a} nicht mindestens {b} ist'
+  notLt: '{a} nicht kleiner als {b} ist'
+  notLte: '{a} nicht höchstens {b} ist'
+  notStartsWith: '{a} nicht mit {b} beginnt'
+  notEndsWith: '{a} nicht auf {b} endet'
+  withValue: '{operand} ({value})'
   ref:
     node: '{path} von {node}'
     nodeOutput: 'die Ausgabe von {node}'

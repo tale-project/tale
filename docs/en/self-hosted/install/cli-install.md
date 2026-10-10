@@ -14,7 +14,7 @@ For your first instance, use the [quickstart](/self-hosted/install/quickstart). 
 You need:
 
 - A workstation running macOS, Linux, or Windows with PowerShell.
-- For local container operations: Docker Engine 24.0 or later with Compose and a running Docker daemon. Tale’s images have zstd-compressed layers, which Docker pulls from Engine 23.0 on; `tale doctor` reports an older engine, and `tale dev` and `tale deploy` refuse it before downloading images.
+- For local container operations: Docker Engine 24.0 or later with Compose and a running Docker daemon. Tale’s images have zstd-compressed layers, which Docker pulls from Engine 23.0 on; `tale doctor` reports an older engine, and `tale dev` and `tale deploy`, a bundle deployment included, refuse it before downloading images.
 - For a remote workspace: access to its Docker daemon, running Docker Engine 24.0 or later, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
 The bundled object store currently ships only a `linux/amd64` image. On an ARM64 host, local development and workspace deployment need working amd64 emulation: Docker Desktop includes it; a standalone Linux Docker host needs [QEMU registered on the host](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale selects the amd64 image but does not install emulation. Managed bundles still require native images for their declared architecture, so an ARM64 managed deployment must wait for a native object-store image.

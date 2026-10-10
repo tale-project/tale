@@ -276,6 +276,7 @@
         "develop/contributing-docker",
         "develop/api-reference",
         "develop/mcp-endpoint",
+        "develop/mcp-settings",
         "develop/use-tale-from-your-editor",
         "develop/webhooks",
         "develop/webdav-api",

@@ -8,19 +8,24 @@
  * version (a trigger always runs the deployed version), or paused after
  * repeated failures.
  *
- * Schedule words come from the cron preview the trigger editor shows under
- * its Cron field ("Every day at 07:00"); a cron it has no words for is
- * shown as written.
+ * A schedule reads the way its trigger card says it ("Every weekday at
+ * 09:00"): its repeat rule, or the rule its cron says exactly; a cron no
+ * rule says is shown as written. Its next run is the one the platform's
+ * own evaluator answered with the binding, never worked out here.
  */
 
+import type { ScheduleRule } from '@tale/shared/schemas/schedule-rule';
 import type { FlowRow } from '@tale/ui/flow/types';
 import { Clock, Hand, Radio, Webhook } from 'lucide-react';
 
-import {
-  cronPatternText,
-  previewCronExpression,
-  type CronTranslate,
-} from './cron-preview';
+import { storedRule } from './trigger-draft';
+
+/** The translate function of the session's language, bound to the
+ *  `automations` namespace. */
+type TriggerTranslate = (
+  key: string,
+  options?: Record<string, unknown>,
+) => string;
 
 /** Whether a binding would start a run now, and if not, why. */
 export type TriggerState = 'on' | 'off' | 'notLive' | 'paused';
@@ -29,10 +34,14 @@ export type TriggerState = 'on' | 'off' | 'notLive' | 'paused';
 export interface TriggerBinding {
   kind: string;
   enabled: boolean;
-  cron?: string;
-  timezone?: string;
-  event?: string;
+  cron?: string | null;
+  /** A schedule's repeat rule. */
+  repeat?: ScheduleRule | null;
+  timezone?: string | null;
+  event?: string | null;
   lastSkipReason?: string | null;
+  /** A schedule's next start, from the platform's evaluator. */
+  nextRunAt?: number | null;
 }
 
 export type TriggerLine =
@@ -84,8 +93,9 @@ export function triggerLines(
   ctx: {
     /** A version is deployed: a trigger has something to run. */
     deployed: boolean;
-    t: CronTranslate;
-    now?: Date;
+    t: TriggerTranslate;
+    /** A repeat rule in words, the way the trigger card says it. */
+    scheduleText: (rule: ScheduleRule) => string;
   },
 ): TriggerLine[] {
   const lines: TriggerLine[] = [];
@@ -93,19 +103,15 @@ export function triggerLines(
     const state = stateOf(binding, ctx.deployed);
     switch (binding.kind) {
       case 'schedule': {
-        const cron = binding.cron ?? '';
-        const zone = binding.timezone ?? 'UTC';
-        const preview = previewCronExpression(cron, zone, ctx.now);
+        const stored = storedRule(binding);
         const words =
-          preview.kind === 'ok'
-            ? cronPatternText(preview.pattern, ctx.t)
-            : undefined;
+          stored === null ? undefined : ctx.scheduleText(stored.rule);
         lines.push({
           kind: 'schedule',
-          text: words ?? cron,
+          text: words ?? binding.cron ?? '',
           code: words === undefined,
-          zone,
-          ...(preview.kind === 'ok' && { nextAt: preview.nextAt.getTime() }),
+          zone: binding.timezone ?? 'UTC',
+          ...(binding.nextRunAt != null && { nextAt: binding.nextRunAt }),
           state,
         });
         break;
@@ -114,7 +120,7 @@ export function triggerLines(
         lines.push({ kind: 'webhook', state });
         break;
       case 'event':
-        if (binding.event !== undefined && binding.event !== '') {
+        if (binding.event != null && binding.event !== '') {
           lines.push({ kind: 'event', name: binding.event, state });
         }
         break;
@@ -130,7 +136,7 @@ export function triggerLines(
 
 function badgeOf(
   state: TriggerState,
-  t: CronTranslate,
+  t: TriggerTranslate,
 ): FlowRow['badge'] | undefined {
   switch (state) {
     case 'off':
@@ -138,7 +144,7 @@ function badgeOf(
     case 'notLive':
       return { label: t('canvas.start.notLive'), tone: 'neutral' };
     case 'paused':
-      return { label: t('trigger.paused'), tone: 'warning' };
+      return { label: t('canvas.start.paused'), tone: 'warning' };
     default:
       // `on`: it starts runs, nothing to say beside it.
       return undefined;
@@ -148,7 +154,7 @@ function badgeOf(
 /** The lines as Start's rows: an icon, the words, the next run, a state. */
 export function triggerRows(
   lines: readonly TriggerLine[],
-  ctx: { t: CronTranslate; formatDate: (at: Date) => string },
+  ctx: { t: TriggerTranslate; formatDate: (at: Date) => string },
 ): FlowRow[] {
   const { t } = ctx;
   return lines.map((line, index): FlowRow => {
@@ -167,7 +173,7 @@ export function triggerRows(
           ...(line.code && { code: true }),
           ...(runs &&
             line.nextAt !== undefined && {
-              note: t('trigger.cronNext', {
+              note: t('canvas.start.nextRun', {
                 at: ctx.formatDate(new Date(line.nextAt)),
               }),
             }),

@@ -66,7 +66,6 @@ blank:
   promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
     new one.
   equipmentLabel: Equipment
-  timezoneInvalid: Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).
   webhookHint: The webhook URL is shown once, right after the automation is
     created — copy it before opening the editor.
   stepWebhook: Copy the webhook URL — it is shown only now.
@@ -74,6 +73,9 @@ blank:
   openAutomation: Open the automation
   enableNow: Enable now
   enableNowHint: Off keeps the trigger paused — nothing starts until you switch it on from the Trigger card.
+  deployNow: Deploy v1 now
+  deployNowHint: v1 goes live at once, so its trigger starts runs while it is enabled. Off keeps v1 a draft you deploy from the editor.
+  deployFailed: 'The automation was created, but v1 could not go live: {error}. Deploy it from the editor.'
   triggerFailed: 'The automation was created, but its trigger could not be
     set: {error}. Set it from the Trigger card.'
   cancel: Cancel
@@ -82,6 +84,7 @@ blank:
   submit: Create automation
   submitting: Creating…
   initialMessage: Initial version
+  kindQuestion: 'When does it run?'
 notFound:
   title: Automation not found
   description: It may have been renamed, or it may belong to another
@@ -156,19 +159,12 @@ trigger:
   cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
   cronInvalid: That cron expression is not valid.
   cronInvalidReason: 'That cron expression is not valid: {reason}'
-  cronNext: 'Next run {at}'
-  paused: Paused — no runs start
-  notDeployed: "Won't start until a version is deployed · would next run {at}"
-  cronEveryMinutes: '{n, plural, one {Every minute} other {Every # minutes}}'
-  cronEveryHours: '{n, plural, one {Every hour} other {Every # hours}}'
-  cronDailyAt: 'Every day at {time}'
   timezoneLabel: Timezone
   timezoneSearch: Search timezones
   timezoneEmpty: No timezones match
   eventLabel: Event name
   eventPlaceholder: Select an event
   enabledLabel: Enabled
-  lastFired: 'Last fired {at}'
   failures:
     pausedTitle: 'Paused after repeated failures'
     pausedBody: '{count, plural, one {# run} other {# runs}} in a row failed with an error a retry won''t fix, so the schedule turned itself off. Fix the automation, then turn the trigger back on and save.'
@@ -182,10 +178,7 @@ trigger:
   tokenTitle: Webhook URL — copy it now
   tokenHint: The token is the last part of the URL, shown once and stored only as a hash.
   webhookEndpointLabel: Webhook endpoint
-  webhookHowto: Use this URL only when the automation has no project bindings.
-  hasToken: A token is active — the URL needs the token shown once when it was created; rotate to generate a new URL.
   noToken: Save to mint the token; the full URL is shown once.
-  webhookProjectHint: To run in an installed project, use its ID in the URL below. The project must be active.
   rotate: Rotate token
   revokeConfirm:
     title: Replace the webhook?
@@ -195,6 +188,182 @@ trigger:
     title: Rotate the webhook token?
     body: The current URL stops working the moment the new token is minted. Copy the new URL and update every sending system.
   revokedToast: The previous webhook URL has been revoked — senders using it now get 404.
+  loadFailed: 'Couldn''t load the trigger.'
+  retry: 'Try again'
+  kindHint:
+    schedule: 'At the times you choose.'
+    webhook: 'When another system sends a request to its URL.'
+    event: 'When something happens in Tale, such as a new task.'
+  schedule:
+    label: 'Schedule'
+    description: 'When the automation starts.'
+    format: 'Schedule format'
+    formatRepeat: 'Repeat'
+    formatCron: 'Cron (advanced)'
+    inZone: 'Times in {zone}'
+    savedAsCron: 'Stored as the cron expression {cron}. Saving a change to the schedule stores it as a repeat rule.'
+    cronNotConvertible: 'This cron expression can''t be shown as a repeat. Saving in Repeat replaces it.'
+    repeatNoCron: '"{sentence}" has no single cron expression. Enter one, or go back to Repeat.'
+    cronReadsAs: 'Reads as: {sentence}'
+    anchor:
+      daily: 'Counted from {date}.'
+      weekly: 'Counted from the week of {date}.'
+      monthly: 'Counted from {month}.'
+      yearly: 'Counted from {year}.'
+  timezoneYours: 'Your time zone'
+  catchUp:
+    label: 'Missed runs'
+    description: 'When Tale was unavailable at the due time, for example during an update.'
+    latest: 'Start the latest one when Tale is back'
+    skip: 'Skip them'
+    latestHint: 'Runs once for the most recent time it missed, however late. Earlier missed times are counted, not run.'
+    skipHint: 'A run more than 10 minutes late doesn''t start; it''s counted as missed.'
+  nextRuns:
+    title: 'Next runs'
+    titleUnsaved: 'Next runs (unsaved)'
+    wouldRun: 'Would run at'
+    paused: 'Paused: turn on Enabled and save to start these runs.'
+    notDeployed: 'Nothing starts until a version is deployed.'
+    unavailable: 'Fix the schedule above to see the next runs.'
+  health:
+    lastRun: 'Last run {at}'
+    noRunYet: 'Hasn''t started a run yet.'
+  skip:
+    technicalDetails: 'Technical details'
+    openEditor: 'Open the editor'
+    editSchedule: 'Edit the schedule'
+    editProjects: 'Edit the projects'
+    alsoMissed: '{count, plural, one {An earlier run was missed too.} other {# earlier runs were missed too.}}'
+    notDeployed:
+      title: 'Skipped: no version is deployed'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but no version is deployed, so no run started. Deploy a tested version in the editor.'
+    inputRefused:
+      title: 'Skipped: the run''s input was refused'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but version {version} refused what the trigger sends. Change the automation''s inputs, or the trigger''s fixed input, so they match.'
+    projectRefused:
+      title: 'Skipped: its project can''t start runs'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but {reason, select, archived {its project is archived} other {its project is missing or no longer allows this automation}}, so no run started. Check the automation''s projects.'
+    startRefused:
+      title: 'Skipped: the run couldn''t start'
+      body: '{kind, select, event {An event arrived on {at}} other {It came due on {at}}}, but the run couldn''t start. The technical details say why.'
+    unusableSchedule:
+      title: 'Skipped: the schedule can''t be read'
+      body: 'It came due on {at}, but its schedule or time zone couldn''t be read. Correct it and save; nothing starts until then.'
+    missed:
+      title: '{count, plural, one {# run was missed} other {# runs were missed}}'
+      titleCapped: 'More than {count, number} runs were missed'
+      body: '{count, plural, one {A run was due on {from} while Tale was unavailable.} other {Runs were due between {from} and {to} while Tale was unavailable.}} {policy}'
+      policyLatest: 'The latest one started when Tale was back.'
+      policySkip: 'They were skipped, as set under Missed runs.'
+  input:
+    title: 'This run receives'
+    copy: 'Copy the input'
+    firedAt: 'firedAt: the due time in milliseconds since 1970 (UTC). Here, {at}.'
+    webhook: 'Your request body arrives as payload: JSON stays structured, anything else arrives as text.'
+    event: 'The event data arrives as payload. It holds IDs; read the full record with a step.'
+    accepted: 'Version {version} accepts this input.'
+    refusedTitle: 'Version {version} doesn''t accept this input'
+    refusedBody: 'Its inputs refuse what this trigger sends, so every start would be skipped. Add the missing fields to the fixed input, or change the inputs in the editor.'
+  runNow:
+    label: 'Run now'
+    unsaved: 'Save your trigger changes first.'
+    body: 'Runs version {version} for real with the input below, as the trigger would — emails send, records change. The schedule doesn''t change.'
+    confirm: 'Start run'
+    started: 'Run started.'
+    failed: 'Couldn''t start the run: {error}'
+  webhook:
+    projectUrls: 'Project URLs'
+    orgUnused: 'This automation is installed in projects, so it runs only through a project URL.'
+    tokenHidden: 'Webhook URL, token hidden'
+    tokenHiddenHint: 'The token was shown once, when it was created. Rotate it to get a new URL.'
+    sampleTitle: 'Send a test request'
+    sampleCopy: 'Copy the request'
+    sampleHint: 'Send a new Idempotency-Key for each event: repeating one within 24 hours returns the first run.'
+    sampleEnv: 'Keep the URL in TALE_WEBHOOK_URL in the sending system; it works like a password.'
+    deliveries:
+      title: 'Recent deliveries'
+      empty: 'No deliveries yet. Send a test request to see one here.'
+      loadFailed: 'Couldn''t load the deliveries.'
+      byHeader: 'ID from {header}'
+      byBody: 'No delivery ID'
+      refusedNote: 'Refused requests aren''t listed; the sender sees why in its response.'
+  events:
+    search: 'Search events'
+    empty: 'No events match'
+    scopeOrg: 'Starts for matching events in every project, and for events that belong to no project.'
+    scopeProjects: 'Starts for matching events in {projects}, and for events that belong to no project, such as contacts.'
+    loopBounded: 'Its own runs never start it again, and a run that an event started doesn''t start other automations.'
+    group:
+      tasks: 'Tasks'
+      comments: 'Comments'
+      conversations: 'Conversations'
+      contacts: 'Contacts'
+      projects: 'Projects'
+    contactCreated:
+      label: 'Contact created'
+      description: 'A contact is added through the API, the app or an import.'
+    contactUpdated:
+      label: 'Contact updated'
+      description: 'A contact''s details change.'
+    contactDeleted:
+      label: 'Contact deleted'
+      description: 'A contact is deleted.'
+    conversationCreated:
+      label: 'Conversation started'
+      description: 'A conversation opens in Inbox: an email arrives, or an external conversation is mirrored in.'
+    conversationMessageReceived:
+      label: 'Message received'
+      description: 'A message lands on an existing conversation.'
+    projectCreated:
+      label: 'Project created'
+      description: 'A project is created.'
+    taskCreated:
+      label: 'Task created'
+      description: 'A task is created on a board, through the API or by an import.'
+    taskStatusChanged:
+      label: 'Task status changed'
+      description: 'A person moves a task to another status. An agent''s own moves don''t count.'
+    commentCreated:
+      label: 'Comment added'
+      description: 'A comment is posted on a task.'
+    commentMentioned:
+      label: 'Mentioned in a comment'
+      description: 'A task comment mentions someone with @.'
+  deployNotice:
+    title: 'Its trigger is off'
+    body: '{kind, select, schedule {The schedule starts no runs until you turn it on.} webhook {Requests to its URL start no runs until you turn it on.} other {Events start no runs until you turn it on.}}'
+    turnOn: 'Turn on the trigger'
+    review: 'Review the trigger'
+    turnedOn: 'The trigger is on.'
+    turnOnFailed: 'Couldn''t turn on the trigger: {error}'
+  issues:
+    keyOtherKind: 'This setting belongs to a different trigger type.'
+    schedule:
+      cronOrRepeat: 'Give the schedule either a repeat rule or a cron expression, not both.'
+      cronUnreadable: 'This cron expression can''t be read.'
+      cronImpossibleDate: 'This cron expression names a date that never comes.'
+      timesRequired: 'Add at least one time of day.'
+      timeFormat: 'Write times as HH:MM, for example 09:30.'
+      timesTooMany: 'Use at most {max} times a day.'
+      intervalUnsupported: 'Pick one of the offered intervals.'
+      monthDayImpossible: 'That month never has this day.'
+      windowHoursEqual: 'Start and end are the same. Leave out the hours to run all day.'
+      startDate: 'The start date isn''t a calendar date.'
+    input:
+      notObject: 'The fixed input must be a JSON object.'
+      reservedKey: 'Remove {keys}: the trigger sets these fields itself.'
+      tooLarge: 'The fixed input is larger than 16 KiB.'
+      unstorableText: 'The fixed input contains a character that can''t be stored: a NUL character or half of an emoji.'
+    event:
+      required: 'Pick an event.'
+      unknown: 'Tale doesn''t raise this event.'
+  fixedInput:
+    label: 'Fixed input'
+    description: 'Values this trigger adds to every run''s input, as JSON. The trigger''s own fields (trigger, firedAt, event, payload) are set over them.'
+    add: 'Add fixed input'
+    fillMissing: '{count, plural, one {Add the missing field} other {Add the # missing fields}}'
+    notJson: 'This isn''t valid JSON.'
+  timezoneInvalid: 'Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).'
 canvas:
   ariaLabel: Automation canvas
   unpinnedModel: No pinned provider — each run picks one automatically.
@@ -264,6 +433,8 @@ canvas:
     scheduleZone: '{schedule} · {zone}'
     off: 'Off'
     notLive: Waits for a live version
+    paused: Paused — no runs start
+    nextRun: 'Next run {at}'
     anyInput: Any JSON input
     noFields: No input fields
     fromTrigger: from the trigger
@@ -675,12 +846,19 @@ condition:
   neq: '{a} is not {b}'
   empty: '{a} is empty'
   notEmpty: '{a} is not empty'
-  set: '{a} is set'
-  notSet: '{a} is not set'
+  set: '{a} counts as yes'
+  notSet: '{a} counts as no'
   contains: '{a} contains {b}'
   notContains: "{a} doesn't contain {b}"
   startsWith: '{a} starts with {b}'
   endsWith: '{a} ends with {b}'
+  notGt: '{a} is not greater than {b}'
+  notGte: '{a} is not at least {b}'
+  notLt: '{a} is not less than {b}'
+  notLte: '{a} is not at most {b}'
+  notStartsWith: "{a} doesn't start with {b}"
+  notEndsWith: "{a} doesn't end with {b}"
+  withValue: '{operand} ({value})'
   ref:
     node: '{path} of {node}'
     nodeOutput: 'the output of {node}'

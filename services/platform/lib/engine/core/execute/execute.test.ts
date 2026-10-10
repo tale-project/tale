@@ -880,6 +880,25 @@ describe('guards and contracts', () => {
     );
   });
 
+  // REGRESSION: the refusal pasted the whole resolved input into its
+  // sentence, so a secret the record withholds came back in the failure.
+  it('never repeats a refused connector input in the failure', async () => {
+    const secret = `sk-${'s'.repeat(40)}`;
+    const doc = automationDoc([
+      {
+        id: 'bad',
+        type: 'notes.append',
+        input: { wrong: true, apiKey: secret },
+      },
+    ]);
+    const result = await execute(doc, { input: {} });
+    expect(result.status).toBe('error');
+    expect(JSON.stringify(result.error)).not.toContain(secret);
+    expect(result.error?.message).toContain(
+      'does not match the notes.append schema',
+    );
+  });
+
   it('stops a runaway document at the execution guard', async () => {
     const doc = automationDoc([
       {

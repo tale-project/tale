@@ -104,3 +104,12 @@ export function useRequestLegacyRunStop() {
     errorToast: false,
   });
 }
+
+/** Run a run again — whole, with an edited input, or from one of its
+ * steps. Its refusals (`REPLAY_*`, a live run's role or version) are the
+ * caller's to word. */
+export function useReplayRun() {
+  return useBackendMutation('automations/mutations:replayRun', {
+    errorToast: false,
+  });
+}

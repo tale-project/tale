@@ -1,23 +1,16 @@
 'use client';
 
 import { ContentArea } from '@tale/ui/content-area';
-import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
-import { useId, useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRuns } from '../hooks/queries';
-import { RunList } from './run-list';
-
-/** How much of the log the tab shows — the newest runs, the ones being watched. */
-const RUNS_TAB_LIMIT = 50;
+import { RunsTable } from './runs-table';
 
 /**
- * The Runs tab: the automation's run log, newest first, at the configuration
- * measure like a project's list tabs. A row opens that run's page under the
- * same chrome.
+ * The Runs tab: the automation's runs as a table, newest first, a page at
+ * a time, narrowed by status and mode. A row opens that run's page under
+ * the same chrome; two selected runs open their comparison.
  */
 export function AutomationRunsTab({
   organizationId,
@@ -30,45 +23,19 @@ export function AutomationRunsTab({
   projectId?: string;
 }) {
   const { t } = useT('automations');
-  const headingId = useId();
-  const headingRef = useRef<HTMLSpanElement>(null);
-  const runsQuery = useAutomationRuns(
-    organizationId,
-    automationSlug,
-    RUNS_TAB_LIMIT,
-  );
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    <ContentArea gap={6}>
       <StickySectionHeader
         as="h2"
-        title={
-          <span id={headingId} ref={headingRef} tabIndex={-1}>
-            {t('runs.title')}
-          </span>
-        }
+        title={t('runs.title')}
         description={t('runs.description')}
       />
-      {runsQuery.isError ? (
-        <div role="alert">
-          <ErrorDisplayCompact
-            error={runsQuery.error}
-            organizationId={organizationId}
-            reset={() => void runsQuery.refetch()}
-            onFocusLost={() => headingRef.current?.focus()}
-          />
-        </div>
-      ) : (
-        <Skeletonize loading={runsQuery.isPending} label={t('runs.title')}>
-          <RunList
-            organizationId={organizationId}
-            automationSlug={automationSlug}
-            {...(projectId !== undefined && { projectId })}
-            runs={runsQuery.data ?? []}
-            headingId={headingId}
-          />
-        </Skeletonize>
-      )}
+      <RunsTable
+        organizationId={organizationId}
+        automationSlug={automationSlug}
+        {...(projectId !== undefined && { projectId })}
+      />
     </ContentArea>
   );
 }

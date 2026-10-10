@@ -20,8 +20,9 @@ import { triggerArgSchema } from '../trigger-args';
 export interface TriggerFacts {
   /** The zone a schedule reads its clock in when it names none. */
   readonly defaultTimezone: string;
-  /** How far back one scan catches up a missed occurrence. */
-  readonly catchUpMs: number;
+  /** How late a schedule may start an occurrence it may only start on
+   *  time (`catchUp: "skip"`). */
+  readonly onTimeGraceMs: number;
   /** Runs in a row that fail for good before a schedule pauses itself. */
   readonly pauseAfterFailures: number;
   /** The largest webhook body a delivery may carry. */
@@ -85,22 +86,23 @@ function kindNotes(kind: string, facts: TriggerFacts): string[] {
   switch (kind) {
     case 'schedule':
       return [
-        `A run starts with the input {"trigger": "schedule", "firedAt": <the occurrence, milliseconds since 1970>}; the inputs schema must accept it.`,
-        `The cron reads the wall clock of the trigger's timezone (${facts.defaultTimezone} when it names none): 09:00 stays 09:00 when daylight saving time begins or ends.`,
-        `Schedules are checked every minute. An occurrence missed while Tale was down is caught up once, at most ${minutes(facts.catchUpMs)} minutes back — one run, however many occurrences were missed.`,
+        `A run starts with the input {"trigger": "schedule", "firedAt": <the occurrence, milliseconds since 1970>}, beside the trigger's fixed input (input); the inputs schema must accept it.`,
+        `A repeat rule (repeat, from startDate) or a cron expression reads the wall clock of the trigger's timezone — a repeat rule names one, a cron without one reads ${facts.defaultTimezone}: 09:00 stays 09:00 when daylight saving time begins or ends.`,
+        `Occurrences missed while Tale was not running are counted, never all run: with catchUp "latest" (the default) the most recent one starts once, however late; with "skip" it starts only when it is at most ${minutes(facts.onTimeGraceMs)} minutes late.`,
         `After ${facts.pauseAfterFailures} runs in a row fail for a reason a retry cannot fix, the schedule pauses itself (enabled: false) and the organization's owners and admins are told; saving the trigger again starts afresh.`,
       ];
     case 'webhook':
       return [
         "set_trigger answers the token once. It is the credential: whoever has the URL can start runs, so it belongs in the sender's secret store, never in a document, a commit or a chat. list_triggers never returns it (hasToken says one exists); rotateToken: true replaces it.",
         'A delivery is a POST to <your Tale>/api/automations/webhook/<token>, or <your Tale>/api/projects/<projectId>/automations/webhook/<token> for an automation installed in a project. It answers 202 with the runId.',
-        `The run starts with the input {"trigger": "webhook", "payload": <the body>}: parsed JSON, or the text when it is not JSON; at most ${Math.round(facts.webhookBodyBytes / 1024)} KiB.`,
+        `The run starts with the input {"trigger": "webhook", "payload": <the body>}, beside the trigger's fixed input: parsed JSON, or the text when it is not JSON; at most ${Math.round(facts.webhookBodyBytes / 1024)} KiB.`,
         `A redelivery starts nothing new and answers the first run: the same delivery id within ${minutes(facts.deliveryIdWindowMs) / 60} hours (read from ${facts.deliveryIdHeaders.join(', ')}), or a byte-identical body within ${minutes(facts.identicalBodyWindowMs)} minutes.`,
       ];
     case 'event':
       return [
-        'The run starts with the input {"trigger": "event", "event": "<name>", "payload": <the event\'s data>}.',
-        'An event an automation raised never starts an event trigger, so automations cannot start each other in a loop.',
+        'The run starts with the input {"trigger": "event", "event": "<name>", "payload": <the event\'s data>}, beside the trigger\'s fixed input.',
+        'An event of a project starts the automations installed in that project and those installed in none; an automation installed only in other projects does not react to it.',
+        "An event an automation's run raised never starts that same automation, and a run an event started does not start other automations, so automations cannot start themselves or each other in a loop.",
       ];
     default:
       return [];

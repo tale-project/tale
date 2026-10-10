@@ -5,8 +5,8 @@
 The knowledge base holds an organization's documents and the pages of the websites it added,
 prepared for search (indexed). These rules cover whose content a search reads, what it finds
 for the person asking, what is indexed and what is refused, what happens when the embedding
-model is missing or fails, how much a search returns, and what the website crawler will not
-fetch. The settings pages, the repair of the search index, the removal of indexed content,
+model is missing or fails, who changed the embedding model, how much a search returns, and
+what the website crawler will not fetch. The settings pages, the repair of the search index, the removal of indexed content,
 ranking and most of the crawler are not covered; see Not yet.
 
 ## One organization's knowledge base
@@ -266,6 +266,22 @@ is raised, after what it had already stored.
   indexed.
 - **Example**: A REST client searches with a key whose daily request limit is reached → 429
   `BUDGET_EXCEEDED`, naming the key's limit and when it resets.
+
+## Who changed the embedding model
+
+### KNOW-R19 · Every change to the embedding model leaves an audit entry naming who made it
+
+Saving a model that differs from the stored one, and removing a stored model, each leave one
+entry in the organization's audit log naming the person, with the model before and after. The
+entry is written together with the change: a change that fails leaves none, and an entry never
+names a change that did not happen. Saving the model that is already stored, or removing a
+model when none is set, leaves none. A model whose settings no longer read is still removed,
+and its entry then names no model.
+
+- **Example**: Ada switches the embedding model from `text-embedding-3-small` to
+  `text-embedding-3-large` → the audit log shows **Embedding model saved** by Ada with both
+  models. She saves the page again without changing it → no new entry. Noah, also an admin,
+  removes the model → **Embedding model removed** by Noah.
 
 ## How much a search returns
 

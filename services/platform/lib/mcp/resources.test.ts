@@ -113,7 +113,7 @@ describe('the resource addresses', () => {
   test('an address it does not serve is unknown; a served one with a part that cannot be one is invalid', () => {
     for (const uri of [
       'https://example.test/x',
-      'tale://docs/settings',
+      'tale://docs/billing',
       'tale://catalog/connectors',
       'tale://projects/p1',
       'tale://docs/',

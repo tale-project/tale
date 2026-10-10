@@ -1,6 +1,18 @@
 condition:
   gt: '{a} grösser als {b} ist'
+  notGt: '{a} nicht grösser als {b} ist'
   quote: '«{text}»'
 runs:
   quarantine:
     changed: Die Sperre hat sich geändert. Schliesse diesen Dialog und prüfe die aktuellen Angaben, bevor du entscheidest.
+trigger:
+  schedule:
+    repeatNoCron: '«{sentence}» lässt sich nicht als ein Cron-Ausdruck schreiben. Gib einen ein oder wechsle zurück zu Wiederholung.'
+  nextRuns:
+    paused: 'Pausiert: Schalte «Aktiv» ein und speichere, damit diese Läufe starten.'
+  skip:
+    missed:
+      policySkip: 'Sie wurden ausgelassen, wie unter «Verpasste Läufe» eingestellt.'
+  issues:
+    input:
+      tooLarge: 'Die feste Eingabe ist grösser als 16 KiB.'

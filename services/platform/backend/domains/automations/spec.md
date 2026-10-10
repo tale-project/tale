@@ -6,8 +6,8 @@ The rules an automation is held to between the editor and a finished run: who ca
 and run it live, what a saved version and a deployment guarantee, what a check for problems
 reports, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
-to another and what a resumed run never repeats, whose approval policy a run's steps ask, and
-what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
+to another and what a resumed run never repeats, what a run records of each step, whose
+approval policy a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
 agent steps and their retries, the rest of approvals and questions inside a run, package upload
 and managed configuration are not covered; see Not yet.
 
@@ -196,16 +196,20 @@ to no project.
   read. Mia's API key starts a test run of it at the organization's address → refused, and the
   answer names Billing only.
 
-### AUTO-R8 · An archived project takes no new runs from people, API keys or webhooks
+### AUTO-R8 · An archived project takes no new runs from people, API keys, webhooks or events
 
 Starting a run in an archived project is refused (`PROJECT_ARCHIVED`), and so is choosing an
 archived project in an automation's project settings. A webhook sent to an archived project's
 address gets the same refusal as for a project that does not exist
-(`AUTOMATION_PROJECT_FORBIDDEN`), so the address tells nothing about the project. The runs the
-project already has stay readable.
+(`AUTOMATION_PROJECT_FORBIDDEN`), so the address tells nothing about the project. An event
+that would start a run in an archived project, its own or the only one the automation is
+installed in, starts none, and the trigger records the refusal (`start_refused`, with
+`PROJECT_ARCHIVED`). The runs the project already has stay readable.
 
 - **Example**: The project Billing was archived. Noah, a developer, starts a run of an
   automation installed only in Billing → refused, and no run is created.
+- **Example**: An automation installed only in the archived Billing listens for "contact
+  created". Mia adds a contact → no run starts, and the trigger says its project is archived.
 
 ### AUTO-R9 · A repeated webhook delivery or keyed API start starts no second run
 
@@ -226,24 +230,33 @@ be sent again.
 
 An automation's trigger is a schedule, a webhook or a platform event. Saving another kind
 replaces the one it had. A trigger starts a live run of the deployed version (`AUTO-R5`) and
-hands it a fixed input:
+hands it an input of its own fields. A trigger may also carry a fixed input, values every run
+it starts receives; the trigger's own fields are set over it:
 
 | Trigger | Starts a run when | The run's input |
 | --- | --- | --- |
-| Schedule | its cron expression comes due in its time zone | `{ trigger: "schedule", firedAt }` |
-| Webhook | a request reaches its address | `{ trigger: "webhook", payload }` |
-| Platform event | the named event happens in the organization | `{ trigger: "event", event, payload }` |
+| Schedule | its repeat rule or cron expression comes due in its time zone | `{ …input, trigger: "schedule", firedAt }` |
+| Webhook | a request reaches its address | `{ …input, trigger: "webhook", payload }` |
+| Platform event | the named event happens in the organization, in a project it is installed in when it has one (`AUTO-R35`) | `{ …input, trigger: "event", event, payload }` |
 
 ### AUTO-R10 · A trigger that could never start a run is refused when it is saved
 
-Refused (`AUTOMATION_TRIGGER_INVALID`), with nothing saved, are: a schedule without a cron
-expression, with one that cannot be read, or with one that names a date no calendar has, such
-as 30 February; a schedule in a time zone that does not exist; an event trigger without an
-event name, or with a name the platform never raises; and a field that belongs to another kind
-of trigger, such as a cron expression on a webhook.
+Refused (`AUTOMATION_TRIGGER_INVALID`), with nothing saved and each problem named by a code,
+are: a schedule with neither a repeat rule nor a cron expression, or with both; a cron
+expression that cannot be read, or one that names a date no calendar has, such as 30 February;
+a repeat rule with no time of day, a time not written HH:MM, more than twelve times a day, an
+interval the rule does not offer, a day the named month never has, a window whose start is its
+end or in which no start ever falls, or a start date that is not a calendar day; a repeat rule
+without a time zone; a time zone that is blank or does not exist; an event trigger without an
+event name, or with a name the platform never raises; a fixed input that is not a JSON object,
+names a field the trigger sets itself, or is larger than 16 KiB; and a field that belongs to
+another kind of trigger, such as a cron expression on a webhook. A window may run overnight,
+from 22:00 to 06:00.
 
 - **Example**: Noah saves a schedule with the cron expression `0 0 30 2 *` → refused, with the
   message "day-of-month 30 never occurs in month 2", and the trigger he had stays.
+- **Example**: Noah saves a repeat rule "every day" with no time of day → refused with the code
+  `schedule.times_required`, and the trigger he had stays.
 
 ### AUTO-R11 · A webhook address is handed out once, when it is created or rotated
 
@@ -257,14 +270,40 @@ apart.
 - **Example**: Noah saves a webhook trigger and copies the address. A week later he opens the
   trigger and saves it unchanged → no address is shown, and the one he copied still works.
 
-### AUTO-R12 · An event raised by an automation run starts no automation
+### AUTO-R12 · An event a run raises never starts that run's own automation again
 
-Event triggers fire on events that come from the platform itself. An event that an
-automation's own run raises fires none of them, so an automation cannot start itself, or
-another one, in a loop.
+An event that an automation's run raises, through a connector step or its agent's tools,
+starts the other automations listening for it, but never the automation whose run raised it.
+When that run was itself started by an event, its events start nothing at all. A chain of
+event starts is therefore one start long, and no automation starts itself, or another one, in
+a loop. Events a person, an import or the platform raise start every listening automation.
+Work a run hands to a project agent is that agent's own: an event the project agent raises is
+not attributed to the run, so it starts the automations listening for it, the run's own
+included.
 
-- **Example**: An automation listens for "contact created", and its run creates a contact →
-  that event starts no run.
+- **Example**: The mailbox sync runs on a schedule and files an incoming email. The triage
+  automation listening for "message received" starts. The reply the triage run drafts raises
+  events too → they start no automation.
+- **Example**: An automation listens for "task created", and its run creates a task → that
+  event starts no run of it.
+
+### AUTO-R35 · An event of a project starts only automations installed there or nowhere
+
+Task, comment and project events belong to a project; contact and conversation events belong
+to none. An event of a project starts the automations installed in that project and those
+installed in no project, and their runs start in that project; an automation installed only
+in other projects does not hear it. An event of no project starts an automation installed in
+exactly one project in that project. Each automation starts on its own: one whose start is
+refused, because its inputs refuse the event or its project cannot take a run, records why on
+its trigger (`start_refused`), and the runs of the others start as if it had not been
+listening.
+
+- **Example**: An automation installed in the project Billing listens for "task created". Mia
+  creates a task in Sales → it starts nothing. She creates one in Billing → a run starts in
+  Billing.
+- **Example**: Two automations listen for "contact created", and the inputs of one require a
+  field the event does not carry. Mia adds a contact → the other one's run starts, and the
+  first one's trigger says its input was refused.
 
 ### AUTO-R13 · A schedule turns itself off after five failures in a row a retry cannot fix
 
@@ -282,12 +321,54 @@ would repeat:
 A success sets the count back to zero. At the fifth failure in a row the schedule is switched
 off and marked `paused_after_failures`, the pause is written to the audit log, and a notice of
 it is sent. A paused schedule keeps its count, whatever a run still in progress does, until
-the trigger is saved; saving it starts a new count and clears the pause. Webhook and event
-triggers count the same way and are never switched off.
+the trigger is saved; saving it starts a new count and clears the pause, and its next run is
+the first occurrence after the save: the occurrences it was off for are not made up. Webhook
+and event triggers count the same way and are never switched off.
 
 - **Example**: A schedule's runs have failed four times in a row on a connector error. The
   fifth run fails the same way → the schedule is switched off and marked
   `paused_after_failures`.
+
+### AUTO-R34 · A schedule starts each occurrence once, at the local time it names
+
+A schedule keeps the time of day it names in its time zone through daylight-saving changes. A
+time the clock skips that day starts once, moved forward by the gap; a time the clock repeats
+starts once, at its first instant. "Every N minutes" and "every N hours" keep their pace in
+real time instead, so an hour the clock repeats runs twice and one it skips not at all. A cron
+expression follows the same rule: one whose minute and hour are spelled out names times of
+day, one whose minute or hour starts with `*` keeps its pace.
+
+- **Example**: Ada's schedule runs "every day at 02:30" in Europe/Zurich → it starts at 03:30
+  on 29 March 2026, when the clock skips 02:30, and once, at the first 02:30, on 25 October
+  2026, when the clock shows 02:30 twice.
+
+### AUTO-R37 · A schedule that missed occurrences starts one at most, and counts the rest
+
+When the platform was not running at an occurrence, the schedule decides what to start when it
+is back. "Latest", the default, starts the most recent missed occurrence once, however late.
+"Skip" starts it only when it is at most ten minutes late. The other missed occurrences are
+counted, up to 1,000, and none of them runs; the trigger shows how many and when
+(`missed_occurrences`). The time a schedule was switched off or paused, and the time before it
+was saved, are not missed.
+
+- **Example**: Ada's schedule runs every day at 09:00, and the platform is down from 08:30 to
+  10:15 → with Latest, a run starts at 10:15 for the 09:00 occurrence; with Skip, no run
+  starts, and the trigger shows one missed occurrence.
+
+### AUTO-R36 · A trigger whose input the deployed version refuses is saved with a warning
+
+Saving a trigger, and deploying a version, checks what the trigger will hand each run against
+the inputs of the version that runs: its own fields and its fixed input, an event's payload
+too, but never a webhook's body, which is unknown until a request comes. A refusal there would
+refuse every run the trigger starts, so the save names it (`TRIGGER_INPUT_MISMATCH`), and a
+template in the fixed input, which arrives as text and is never filled in, too
+(`TRIGGER_INPUT_NOT_TEMPLATED`). The trigger is saved either way, and the deploy answers
+whether the trigger is on.
+
+- **Example**: Ada turns on the GitHub triage schedule, whose inputs require `owner` and
+  `repo`, without a fixed input → it is saved, with a warning naming both; she adds both as
+  its fixed input and saves again → no warning.
+
 
 ## Waking a standing role
 
@@ -463,6 +544,64 @@ inferred. There is no resume, retry or skip action for this hold.
   → the run appears on hold. She requests a stop → the decision is recorded, but the run
   remains on hold and its task cannot start a replacement run.
 
+## What a run records
+
+A run keeps a record of each unit of work it did: its input, each step, each item of a step
+that runs per item, each pass of a step that repeats, and its output. Whoever may read the run
+may read its record.
+
+### AUTO-R38 · A run's record shows what each step read and returned, secrets withheld
+
+Each unit is recorded with when it started and ended, what it received and returned, the
+condition that decided whether it ran (with the values that condition read), and why it was
+skipped or failed. A value under a name that marks a secret, and text that looks like a
+credential, is withheld from the record: it reads empty and the record says where. The run's
+own input and output stay whole, for whoever may read the run. Each value is cut to a bound,
+and a run stores at most 2 MiB of values; past that a step keeps its summary, shape and size,
+never its value.
+
+- **Example**: Leo's run fetches an issue; the `fetch` step returns
+  `{ title: "Fix login", apiKey: "sk-…" }` → the run's record shows `fetch` with what it
+  received, `title: "Fix login"`, and `apiKey` withheld.
+
+### AUTO-R39 · A resumed run records each step once and counts its attempts
+
+A run that moved to another server, waited for a person or was handed on keeps one record per
+unit: the next turn updates it instead of adding another, and a wait ends when the run comes
+back. A step a stopped server was running counts as an interrupted attempt, and the record
+says how each attempt ended; a loop handed on between two items is not a new attempt. A server
+that lost the run records nothing, and a late write of an earlier server never replaces a
+later one's.
+
+- **Example**: Mia's run stops in the middle of its `list` step when its server restarts →
+  the next server runs `list` again, and the record shows one `list` at attempt 2, the first
+  attempt interrupted.
+
+### AUTO-R40 · A run's record is read like the run, and two runs compare only side by side
+
+Whoever may read a run may read its record, one step of it, a page of a step's items, and its
+comparison with another run of the same automation; a run hidden from them answers exactly like
+one that does not exist, and so does a comparison with a run hidden from them. Two runs of
+different automations are not compared. What a reader sees of the run's events names where and
+why something happened, never the server that saw it.
+
+- **Example**: Noor can read the runs of the Billing project but not of Payroll → reading the
+  record of a Payroll run answers "not found", the same as a run that never existed, and
+  comparing a Billing run with a Payroll run answers "not found" too.
+
+### AUTO-R41 · A run runs again in its own project, as a start would, a fork never more real
+
+Whoever may read a run may see what running it again would do. Running it again takes what
+starting a run takes: an author and the deployed version for a live run, the project's write
+access where a start needs it. The replay keeps the run's project and starts anew with the
+run's input, an edited input, or from one step — reusing the results and record of the steps
+the run finished outside that step and what it feeds, never their effects. A fork of a mock
+run stays mock, and a live replay is audited.
+
+- **Example**: Leo's live import failed at `send`. He runs it again from `send` → `fetch` and
+  `score` are reused, `send` runs again live and writes again, and the new run says it
+  replays Leo's run.
+
 ## Approvals inside a run
 
 ### AUTO-R21 · Each run asks its own organization's approval policy
@@ -501,7 +640,9 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   (`backend/core/automations/stepper.ts`, `checkpoints.ts`, `liveness.ts`, `agent_host.ts`,
   `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
   server steps a run, `AUTO-R22` how a restart hands it on, `AUTO-R18` what a run says once it
-  moved to another, and `AUTO-R19` and `AUTO-R20` what a resumed run never repeats.
+  moved to another, `AUTO-R19` and `AUTO-R20` what a resumed run never repeats, and
+  `AUTO-R38` and `AUTO-R39` what its record keeps, `AUTO-R40` who may read it, `AUTO-R41` how
+  it runs again.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
   (`backend/core/automations/stepper.ts`, `shim.ts`); `AUTO-R21` covers whose policy decides.
   An approval cannot be decided over the API; the contract debt ledger in
@@ -515,8 +656,9 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
 - **Webhook limits**: the 256 KiB body limit, the two rate limits, and a delivery repeated
   across the organization's address and a project's (`triggers.ts`,
   `backend/core/automations/webhook_delivery.ts`).
-- **Schedules in detail**: daylight-saving changes, two scans meeting the same occurrence, a
-  cron expression that became unreadable (`triggers.ts`, `backend/core/automations/cron.ts`).
+- **Schedules in detail**: two scans meeting the same occurrence, and a schedule that became
+  unreadable (`triggers.ts`, `lib/automations/schedule/occurrences.ts`); `AUTO-R34` covers
+  daylight-saving changes and `AUTO-R37` missed occurrences.
 - **Triggers of an organization that no longer exists** (`triggers.ts`).
 - **The wake fire end to end**: that a pending wake fires its schedule early, at most once a
   minute and never while an occurrence of it is live; that each scan visits the pending wakes
@@ -567,24 +709,23 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   again (`docs/en/platform/automations/concepts.md`), and that a version whose saved tests
   failed needs a new version (`docs/en/platform/automations/editor.md`). `AUTO-R4` holds under
   both.
-- **Undecided: should a schedule or a platform event start a run in an archived project?**
-  `AUTO-R8` refuses people, API keys and webhooks. A schedule or an event still starts a run of
-  an automation installed in exactly one project when that project is archived, and a test
-  holds that (`resolveRunProject` in `store.ts`). `TASK-R7` says nothing in an archived project
-  can be changed.
-- **Undecided: where does a schedule or an event run an automation installed in several
-  projects?** `AUTO-R7` refuses that start over the API and by webhook. A schedule or an event
-  starts it as a run of the organization, in no project (`resolveRunProject` in `store.ts`). No
-  test and no page of the docs says which is meant.
-- **Undecided: does a schedule make up for an occurrence it missed?** The user docs say a
-  missed occurrence is not replayed (`docs/en/platform/automations/triggers.md`). The code
-  starts the latest occurrence missed within the last hour, once, and nothing older
-  (`dueOccurrence` in `backend/core/automations/cron.ts`), and a test holds that.
+- **Undecided: should a schedule start a run in an archived project?** `AUTO-R8` refuses
+  people, API keys, webhooks and events. A schedule still starts a run of an automation
+  installed in exactly one project when that project is archived, and a test holds that
+  (`resolveRunProject` in `store.ts`). `TASK-R7` says nothing in an archived project can be
+  changed.
+- **Undecided: where does a schedule, or an event of no project, run an automation installed
+  in several projects?** `AUTO-R7` refuses that start over the API and by webhook. A schedule,
+  or an event that belongs to no project, starts it as a run of the organization, in no project
+  (`resolveRunProject` in `store.ts`, `dispatchAutomationEvent` in `triggers.ts`). An event of a
+  project starts it in that project (`AUTO-R35`). No page of the docs says which is meant.
 - **Undecided: can a new automation be created inside an archived project, or one its author
   cannot read?** Creating an automation with a project, and uploading a package into one,
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in
   `store.ts`). The project settings of an existing automation refuse an archived project
   (`AUTO-R8`) and answer a project the author cannot read like a missing one.
-- **`AUTO-R6` gives a webhook no warning when it is saved.** A webhook trigger can be saved for
-  a version whose inputs no delivery fits, and every delivery is then refused; the same ledger
-  records it.
+- **A webhook's body is never checked when it is saved.** `AUTO-R36` warns about what is known
+  before a request comes — a required field the fixed input lacks, a `payload` the inputs do
+  not take — but a delivery whose body the inputs refuse is refused only when it comes, and the
+  contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records that it
+  moves no trigger stamp.

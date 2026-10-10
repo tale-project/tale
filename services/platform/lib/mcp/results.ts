@@ -66,6 +66,28 @@ export const READ_TOOL_RESULTS = {
         .looseObject({ askId: z.string(), question: z.string() })
         .optional(),
     }),
+    // With include: ["record"], the run step by step.
+    record: z
+      .looseObject({
+        format: z.number(),
+        nodes: z.array(z.looseObject({ path: z.string(), status: z.string() })),
+      })
+      .optional(),
+  }),
+  get_run_node: z.looseObject({
+    node: z.looseObject({
+      path: z.string(),
+      item: z.number(),
+      pass: z.number(),
+      status: z.string(),
+    }),
+  }),
+  compare_runs: z.looseObject({
+    diff: z.looseObject({
+      a: z.looseObject({ id: z.string() }),
+      b: z.looseObject({ id: z.string() }),
+      nodes: z.array(z.looseObject({ path: z.string() })),
+    }),
   }),
   list_versions: z.looseObject({
     deployedVersion: z.number().nullable(),
@@ -140,6 +162,44 @@ export const READ_TOOL_RESULTS = {
       z.looseObject({ name: z.string(), description: z.string() }),
     ),
     hint: z.string(),
+  }),
+  get_settings: z.looseObject({
+    kinds: z
+      .array(
+        z.looseObject({
+          kind: z.string(),
+          available: z.boolean(),
+          read: z.boolean(),
+          write: z.boolean(),
+        }),
+      )
+      .optional(),
+    resources: z.array(
+      z.looseObject({
+        kind: z.string(),
+        key: z.string(),
+        id: z.string().nullable(),
+        hash: z.string(),
+      }),
+    ),
+    refused: z.array(
+      z.looseObject({ kind: z.string(), code: z.string(), error: z.string() }),
+    ),
+    nextCursor: z.string().nullable(),
+    hint: z.string(),
+  }),
+  plan_settings: z.looseObject({
+    ok: z.boolean(),
+    changes: z.array(
+      z.looseObject({
+        kind: z.string(),
+        key: z.string(),
+        op: z.string(),
+        diff: z.array(z.looseObject({ path: z.string() })),
+        effects: z.array(z.string()),
+        risk: z.string(),
+      }),
+    ),
   }),
   search_capabilities: z.looseObject({
     capabilities: z.array(z.looseObject({ id: z.string() })),

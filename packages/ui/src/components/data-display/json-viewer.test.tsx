@@ -1,40 +1,33 @@
-import { vi, describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 import { JsonViewer } from './json-viewer';
 
-vi.mock('@tale/ui/lazy-component', () => ({
-  lazyComponent: (_factory: () => Promise<unknown>) => {
-    // A pre-based stand-in for the react-json-view tree, with a testid so
-    // tests can assert WHICH rendering path a value took.
-    const Component = (props: { src: unknown }) => (
-      <pre data-testid="react-json-view">
-        {JSON.stringify(props.src, null, 2)}
-      </pre>
-    );
-    Component.displayName = 'LazyComponent';
-    return Component;
-  },
-}));
+const NESTED = { name: 'test', meta: { tags: ['a', 'b'], owner: { id: 7 } } };
+
+function rowNames() {
+  return screen
+    .queryAllByRole('treeitem')
+    .map((row) => row.getAttribute('aria-label'));
+}
 
 describe('JsonViewer', () => {
-  // react-json-view accepts only an object/array `src` — anything else used
-  // to surface as the library's own {ERROR: "src property must be a valid
-  // json object"} placeholder (e.g. a run whose automation maps no `output`
-  // shows a null output). Scalars must render as plain JSON text instead.
+  // Plain JSON values are honest too (a run whose automation maps no
+  // `output` shows a null output), so they render as plain JSON text and
+  // never as an empty tree.
   describe('non-container values', () => {
-    it('renders null as JSON text, never through the object-only tree', () => {
+    it('renders null as JSON text, never through the tree', () => {
       render(<JsonViewer data={null} />);
       expect(screen.getByText('null')).toBeInTheDocument();
-      expect(screen.queryByTestId('react-json-view')).not.toBeInTheDocument();
+      expect(screen.queryByRole('tree')).not.toBeInTheDocument();
     });
 
     it('renders a bare string in its JSON form', () => {
       render(<JsonViewer data="hello" />);
       expect(screen.getByText('"hello"')).toBeInTheDocument();
-      expect(screen.queryByTestId('react-json-view')).not.toBeInTheDocument();
+      expect(screen.queryByRole('tree')).not.toBeInTheDocument();
     });
 
     it('renders numbers and booleans as text', () => {
@@ -48,26 +41,86 @@ describe('JsonViewer', () => {
     it('a JSON string that parses to a scalar renders as that scalar', () => {
       render(<JsonViewer data='"quoted"' />);
       expect(screen.getByText('"quoted"')).toBeInTheDocument();
-      expect(screen.queryByTestId('react-json-view')).not.toBeInTheDocument();
+      expect(screen.queryByRole('tree')).not.toBeInTheDocument();
     });
 
     it('renders undefined as text instead of an empty tree', () => {
       render(<JsonViewer data={undefined} />);
       expect(screen.getByText('undefined')).toBeInTheDocument();
-      expect(screen.queryByTestId('react-json-view')).not.toBeInTheDocument();
+      expect(screen.queryByRole('tree')).not.toBeInTheDocument();
     });
 
-    it('still renders objects and arrays through the tree view', () => {
+    it('still renders objects and arrays as a value tree', () => {
       const { unmount } = render(<JsonViewer data={{ a: 1 }} />);
-      expect(screen.getByTestId('react-json-view')).toBeInTheDocument();
+      expect(screen.getByRole('tree', { name: 'Value' })).toBeInTheDocument();
+      expect(rowNames()).toEqual(['a, 1']);
       unmount();
       render(<JsonViewer data={[1, 2]} />);
-      expect(screen.getByTestId('react-json-view')).toBeInTheDocument();
+      expect(rowNames()).toEqual(['0, 1', '1, 2']);
     });
 
     it('passes axe audit with null data', async () => {
       const { container } = render(<JsonViewer data={null} />);
       await checkAccessibility(container);
+    });
+  });
+
+  describe('collapsed', () => {
+    it('opens every level by default', () => {
+      render(<JsonViewer data={NESTED} />);
+      expect(rowNames()).toEqual([
+        'name, "test"',
+        'meta, an object with 2 fields',
+        'tags, a list of 2 items',
+        '0, "a"',
+        '1, "b"',
+        'owner, an object with 1 field',
+        'id, 7',
+      ]);
+    });
+
+    it('shows the top level with its containers closed when true', () => {
+      render(<JsonViewer data={NESTED} collapsed />);
+      expect(rowNames()).toEqual([
+        'name, "test"',
+        'meta, an object with 2 fields',
+      ]);
+    });
+
+    it('opens that many levels when a number', () => {
+      render(<JsonViewer data={NESTED} collapsed={2} />);
+      expect(rowNames()).toEqual([
+        'name, "test"',
+        'meta, an object with 2 fields',
+        'tags, a list of 2 items',
+        'owner, an object with 1 field',
+      ]);
+    });
+
+    it('reads JSON text into the tree', () => {
+      render(<JsonViewer data='{"parsed": "from string"}' collapsed />);
+      expect(rowNames()).toEqual(['parsed, "from string"']);
+    });
+  });
+
+  describe('clipboard', () => {
+    it('copies the whole value as JSON with its indent', async () => {
+      const { user } = render(
+        <JsonViewer data={{ key: 'value' }} enableClipboard indentWidth={4} />,
+      );
+      const writeText = vi.spyOn(navigator.clipboard, 'writeText');
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(writeText).toHaveBeenCalledWith(
+        JSON.stringify({ key: 'value' }, null, 4),
+      );
+    });
+
+    it('has no copy controls without enableClipboard', () => {
+      render(<JsonViewer data={{ key: 'value' }} />);
+      expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+      expect(
+        document.querySelectorAll('[role="treeitem"] button'),
+      ).toHaveLength(0);
     });
   });
 
@@ -83,10 +136,7 @@ describe('JsonViewer', () => {
       const { container } = render(
         <JsonViewer data={{ key: 'value' }} enableClipboard />,
       );
-      // The copy button in JsonViewer lacks an accessible name — skip button-name rule
-      await checkAccessibility(container, {
-        rules: { 'button-name': { enabled: false } },
-      });
+      await checkAccessibility(container);
     });
 
     it('passes axe audit with string data', async () => {

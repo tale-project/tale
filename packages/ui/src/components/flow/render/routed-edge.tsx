@@ -101,8 +101,11 @@ const FADE =
  * A highlight or a run changes how it looks — thinner when it steps back,
  * thicker when it stands out, the emphasis colour once a run travelled it,
  * red into the node a run failed at — and the change crossfades two
- * stacked lines (colour and width never animate). Hidden from assistive
- * technology: the nodes say what the lines mean.
+ * stacked lines (colour and width never animate). Two runs compared stand
+ * out on a line both took, step back from one neither took, and a line only
+ * one took says "Only in A" — on its Yes or No pill, else when a pointer
+ * rests on it. Hidden from assistive technology: the nodes say what the
+ * lines mean.
  */
 export const FlowRoutedEdgeView = memo(function FlowRoutedEdgeView({
   data,
@@ -122,6 +125,10 @@ export const FlowRoutedEdgeView = memo(function FlowRoutedEdgeView({
     edge.kind === 'branch-yes' || edge.kind === 'branch-no'
       ? edge.source
       : null;
+  // What a pointer resting on the line reads: the host's words, and in a
+  // comparison which run alone took it.
+  const note = leaving ? undefined : context.edgeNotes.get(edge.id);
+  const hover = [edge.detail, note].filter(Boolean).join(' · ');
   const hoverable = branchGate !== null && context.branchHover && !leaving;
   return (
     <g
@@ -163,15 +170,16 @@ export const FlowRoutedEdgeView = memo(function FlowRoutedEdgeView({
           opacity: look === 'base' ? 0 : 1,
         }}
       />
-      {edge.detail && !leaving && (
+      {hover !== '' && !leaving && (
         <path
           d={full}
           fill="none"
           stroke="transparent"
           strokeWidth={HIT_WIDTH}
+          data-flow-edge-note={note}
           style={{ pointerEvents: 'stroke' }}
         >
-          <title>{edge.detail}</title>
+          <title>{hover}</title>
         </path>
       )}
       {label && (
