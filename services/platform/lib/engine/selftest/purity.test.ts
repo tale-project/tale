@@ -227,11 +227,13 @@ describe('engine purity', () => {
       ]),
     );
     // The supervisor forks and talks to its child; the child wraps node:vm;
-    // the sandbox-exec backend reaches nothing on the host at all.
+    // the pool's tenant rides on the host's async context; the sandbox-exec
+    // backend reaches nothing on the host at all.
     expect(nodeImportsByFile).toEqual({
       'node-vm-child.ts': ['node:vm'],
       'node-vm.ts': ['node:child_process', 'node:net', 'node:url', 'node:vm'],
       'sandbox-exec.ts': [],
+      'tenant.ts': ['node:async_hooks'],
     });
   });
 });

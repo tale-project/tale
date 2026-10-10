@@ -112,7 +112,20 @@ describe('the code runner', () => {
     },
     { iterations: 3 },
   );
-  bench.todo('16 CPU-bound transform bodies at once, a pool of 2 and of 4');
+  for (const processes of [2, 4]) {
+    const pool = nodeVmRunner({ processes, pipeline: 1 });
+    bench(
+      `16 CPU-bound transform bodies at once, a pool of ${processes}`,
+      async () => {
+        await Promise.all(
+          Array.from({ length: 16 }, (_, n) =>
+            pool.runBody(CPU_BODY, { input: { n }, nodes: {} }, LIMITS),
+          ),
+        );
+      },
+      { iterations: 3 },
+    );
+  }
 });
 
 /** Forty transforms, each returning about 9 KB, each reading the previous
