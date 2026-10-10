@@ -286,6 +286,47 @@ describe('issueText — what a person reads', () => {
     );
   });
 
+  it('says whether an unknown field is the test’s or an expected action’s', () => {
+    const unknownField = (params: WireIssue['params']): WireIssue => ({
+      level: 'warning',
+      code: 'TESTS_UNKNOWN_FIELD',
+      message: '',
+      params,
+    });
+    expect(
+      issueText(
+        unknownField({
+          test: 0,
+          name: 'typos',
+          field: 'absnt',
+          effect: 1,
+          suggestion: 'absent',
+        }),
+        context('en'),
+      ),
+    ).toMatchObject({
+      cause: 'The test "typos" has "absnt" in an expected action.',
+      fix: 'Did you mean "absent"?',
+    });
+    expect(
+      issueText(
+        unknownField({ test: 0, name: 'typos', field: 'note', effect: 0 }),
+        context('fr'),
+      ).fix,
+    ).toBe(
+      'Supprime-le. Une action attendue a connector, node, input, inputIncludes et absent.',
+    );
+    expect(
+      issueText(
+        unknownField({ test: 0, name: 'typos', field: 'owner' }),
+        context('de'),
+      ),
+    ).toMatchObject({
+      cause: 'Der Test „typos“ hat „owner“.',
+      fix: 'Entferne es. Ein Test hat name, description, input, mocks, failures und expect.',
+    });
+  });
+
   it('reads a code this build does not know as words, never as a key', () => {
     const text = issueText(
       {

@@ -108,7 +108,7 @@ export const CODES = {
     'a test expects output values of the types the automation returns',
   TESTS_TOO_MANY: 'an automation carries at most 50 tests',
   TESTS_UNKNOWN_FIELD:
-    'a test has only name, description, input, mocks, failures and expect',
+    'a test has only name, description, input, mocks, failures and expect, and an effect it expects only connector, node, input, inputIncludes and absent',
   TESTS_NAME_DUPLICATE: 'every test has its own name',
   TESTS_MOCK_UNKNOWN_NODE:
     "a test simulates only the outputs and failures of the automation's nodes",
@@ -485,10 +485,12 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'test',
     params: ['count', 'max'],
   },
+  // `effect`: the place of the expected effect the field is in, absent for
+  // a field of the test itself.
   TESTS_UNKNOWN_FIELD: {
     level: 'warning',
     family: 'test',
-    params: ['test', 'name', 'field', 'suggestion?'],
+    params: ['test', 'name', 'field', 'effect?', 'suggestion?'],
   },
   TESTS_NAME_DUPLICATE: {
     level: 'warning',

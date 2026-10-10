@@ -843,6 +843,19 @@ const fixtures: Record<string, unknown> = {
   'tests-unknown-field': flow({
     tests: [{ name: 'stands in', input: {}, mock: { main: 2 } }],
   }),
+  // A misspelled field of an expected effect is ignored when the test is
+  // judged, so the test checks less than it says, or the opposite.
+  'tests-unknown-field-effect': flow({
+    nodes: [{ id: 'send', type: 'mail.send', input: { to: 'a@b.test' } }],
+    output: '{{ nodes.send.output }}',
+    tests: [
+      {
+        name: 'never sends',
+        input: {},
+        expect: { effects: [{ connector: 'mail.send', absnt: true }] },
+      },
+    ],
+  }),
   'tests-name-duplicate': flow({
     tests: [
       { name: 'same', input: {} },

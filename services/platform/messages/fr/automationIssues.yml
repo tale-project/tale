@@ -336,8 +336,8 @@ codes:
   TESTS_UNKNOWN_FIELD:
     title: Champ de test inconnu
     explanation: 'Un test a un champ que Tale ne connaît pas : il est donc ignoré.'
-    cause: Le test « {name} » a « {field} ».
-    fix: '{suggestion, select, none {Supprime-le. Un test a name, description, input, mocks, failures et expect.} other {Voulais-tu dire « {suggestion} » ?}}'
+    cause: 'Le test « {name} » a « {field} »{effect, select, none {} other { dans une action attendue}}.'
+    fix: '{suggestion, select, none {{effect, select, none {Supprime-le. Un test a name, description, input, mocks, failures et expect.} other {Supprime-le. Une action attendue a connector, node, input, inputIncludes et absent.}}} other {Voulais-tu dire « {suggestion} » ?}}'
   TESTS_NAME_DUPLICATE:
     title: Deux tests portent le même nom
     explanation: 'Les résultats sont listés par nom : deux tests du même nom sont difficiles à distinguer.'

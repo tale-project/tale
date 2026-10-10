@@ -106,8 +106,8 @@ codes:
     cause: 'Der Trigger wartet auf «{event}».'
     fix: '{suggestion, select, none {Wähle ein Ereignis aus der Liste.} other {Meintest du «{suggestion}»?}}'
   TESTS_UNKNOWN_FIELD:
-    cause: Der Test «{name}» hat «{field}».
-    fix: '{suggestion, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Meintest du «{suggestion}»?}}'
+    cause: 'Der Test «{name}» hat «{field}»{effect, select, none {} other { in einer erwarteten Aktion}}.'
+    fix: '{suggestion, select, none {{effect, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Entferne es. Eine erwartete Aktion hat connector, node, input, inputIncludes und absent.}}} other {Meintest du «{suggestion}»?}}'
   TESTS_NAME_DUPLICATE:
     cause: Test {testNumber} trägt den Namen «{name}», wie Test {firstPosition}.
   TESTS_MOCK_UNKNOWN_NODE:

@@ -341,8 +341,8 @@ codes:
   TESTS_UNKNOWN_FIELD:
     title: Unknown test field
     explanation: A test has a field Tale doesn't know, so it is ignored.
-    cause: The test "{name}" has "{field}".
-    fix: '{suggestion, select, none {Remove it. A test has name, description, input, mocks, failures and expect.} other {Did you mean "{suggestion}"?}}'
+    cause: 'The test "{name}" has "{field}"{effect, select, none {} other { in an expected action}}.'
+    fix: '{suggestion, select, none {{effect, select, none {Remove it. A test has name, description, input, mocks, failures and expect.} other {Remove it. An expected action has connector, node, input, inputIncludes and absent.}}} other {Did you mean "{suggestion}"?}}'
   TESTS_NAME_DUPLICATE:
     title: Two tests share a name
     explanation: Results are listed by name, so two tests with one name are hard to tell apart.

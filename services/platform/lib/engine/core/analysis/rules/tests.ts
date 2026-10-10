@@ -3,9 +3,11 @@
  *
  *  - TESTS_TOO_MANY (error) — more than {@link MAX_TESTS} tests: every
  *    save and every deploy runs them all.
- *  - TESTS_UNKNOWN_FIELD — a test field outside the grammar, which the
- *    tests ignore (`mock:` for `mocks:`); never an error, so a managed
- *    document carrying a field of its own still saves.
+ *  - TESTS_UNKNOWN_FIELD — a field of a test, or of an effect it expects,
+ *    outside the grammar, which the tests ignore (`mock:` for `mocks:`,
+ *    `absnt:` for `absent:` — the effect is then judged without it); never
+ *    an error, so a managed or stored document carrying a field of its own
+ *    still saves and deploys.
  *  - TESTS_NAME_DUPLICATE — two tests with one name: results are listed by
  *    name.
  *  - TESTS_MOCK_UNKNOWN_NODE, TESTS_MOCK_CONFLICT — a stand-in for a node
@@ -73,6 +75,15 @@ const TEST_FIELDS = [
   'mocks',
   'failures',
   'expect',
+] as const;
+
+/** The fields of an effect a test expects. */
+const EFFECT_FIELDS = [
+  'connector',
+  'node',
+  'input',
+  'inputIncludes',
+  'absent',
 ] as const;
 
 /**
@@ -211,6 +222,35 @@ function unknownFields(at: TestAt, out: Issue[]): void {
         },
       ),
     );
+  }
+  const effects = isRecord(test.expect) ? test.expect.effects : undefined;
+  if (!Array.isArray(effects)) return;
+  for (const [j, effect] of effects.entries()) {
+    if (!isRecord(effect)) continue;
+    for (const field of Object.keys(effect)) {
+      if ((EFFECT_FIELDS as readonly string[]).includes(field)) continue;
+      const suggestion = closestName(field, EFFECT_FIELDS);
+      out.push(
+        warn(
+          'TESTS_UNKNOWN_FIELD',
+          `tests[${index}] "${name}" has an unknown field "${field}" in expect.effects[${j}]`,
+          {
+            hint: `${suggestion === undefined ? '' : `did you mean "${suggestion}"? `}an expected effect has connector, node, input, inputIncludes and absent`,
+            at: {
+              pointer: ptr('tests', index, 'expect', 'effects', j, field),
+              subject: 'key',
+            },
+            params: {
+              test: index,
+              name,
+              field,
+              effect: j,
+              ...(suggestion !== undefined && { suggestion }),
+            },
+          },
+        ),
+      );
+    }
   }
 }
 

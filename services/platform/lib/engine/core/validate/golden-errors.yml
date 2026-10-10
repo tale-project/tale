@@ -1369,6 +1369,21 @@ tests-unknown-field:
         name: stands in
         field: mock
         suggestion: mocks
+tests-unknown-field-effect:
+  errors: []
+  warnings:
+    - code: TESTS_UNKNOWN_FIELD
+      message: tests[0] "never sends" has an unknown field "absnt" in expect.effects[0]
+      hint: did you mean "absent"? an expected effect has connector, node, input, inputIncludes and absent
+      at:
+        pointer: /tests/0/expect/effects/0/absnt
+        subject: key
+      params:
+        test: 0
+        name: never sends
+        field: absnt
+        effect: 0
+        suggestion: absent
 tests-name-duplicate:
   errors: []
   warnings:

@@ -336,8 +336,8 @@ codes:
   TESTS_UNKNOWN_FIELD:
     title: Unbekanntes Testfeld
     explanation: Ein Test hat ein Feld, das Tale nicht kennt, deshalb wird es ignoriert.
-    cause: Der Test „{name}“ hat „{field}“.
-    fix: '{suggestion, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Meintest du „{suggestion}“?}}'
+    cause: 'Der Test „{name}“ hat „{field}“{effect, select, none {} other { in einer erwarteten Aktion}}.'
+    fix: '{suggestion, select, none {{effect, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Entferne es. Eine erwartete Aktion hat connector, node, input, inputIncludes und absent.}}} other {Meintest du „{suggestion}“?}}'
   TESTS_NAME_DUPLICATE:
     title: Zwei Tests mit gleichem Namen
     explanation: Ergebnisse werden nach Namen aufgelistet, deshalb lassen sich zwei Tests mit einem Namen schwer unterscheiden.

@@ -348,6 +348,62 @@ describe('TESTS_UNKNOWN_FIELD', () => {
     ]);
     expect(found.every((i) => i.level === 'warning')).toBe(true);
   });
+
+  it('a field of an expected effect outside the grammar, which would change what the test checks', async () => {
+    // Each typo is ignored when the test is judged: the first entry would
+    // pass on any mail, the second would pass although a mail was sent.
+    const { warnings } = await validate(
+      rawDoc(
+        [send],
+        [
+          {
+            name: 'typos',
+            input: {},
+            expect: {
+              effects: [
+                { connector: 'mail.send', inputInclude: { to: 'x@b.test' } },
+                { connector: 'mail.send', absnt: true, owner: 'Ada' },
+              ],
+            },
+          },
+        ],
+      ),
+    );
+    const found = warnings.filter((i) => i.code === 'TESTS_UNKNOWN_FIELD');
+    expect(found.map((i) => [i.at, i.params])).toEqual([
+      [
+        {
+          pointer: '/tests/0/expect/effects/0/inputInclude',
+          subject: 'key',
+        },
+        {
+          test: 0,
+          name: 'typos',
+          field: 'inputInclude',
+          effect: 0,
+          suggestion: 'inputIncludes',
+        },
+      ],
+      [
+        { pointer: '/tests/0/expect/effects/1/absnt', subject: 'key' },
+        {
+          test: 0,
+          name: 'typos',
+          field: 'absnt',
+          effect: 1,
+          suggestion: 'absent',
+        },
+      ],
+      [
+        { pointer: '/tests/0/expect/effects/1/owner', subject: 'key' },
+        { test: 0, name: 'typos', field: 'owner', effect: 1 },
+      ],
+    ]);
+    expect(found.every((i) => i.level === 'warning')).toBe(true);
+    expect(found[1]?.hint).toBe(
+      'did you mean "absent"? an expected effect has connector, node, input, inputIncludes and absent',
+    );
+  });
 });
 
 describe('TESTS_NAME_DUPLICATE', () => {
