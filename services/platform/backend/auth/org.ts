@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Sql } from 'postgres';
 
+import { withRunnerTenant } from '../../lib/engine/runners/tenant.ts';
 import {
   defineAbilityFor,
   type AppAction,
@@ -117,7 +118,9 @@ export function requireOrgMember<E extends OrgEnv>(
       }
       throw error;
     }
-    return next();
+    // Automation code the request evaluates queues as its organization's,
+    // so the runner serves organizations in turn (`runners/tenant.ts`).
+    return withRunnerTenant(orgId, next);
   };
 }
 
