@@ -18,15 +18,29 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { workspaceToolStatusImpl } from '../../core/node_only/sandbox/workspace_tools_bridge.ts';
+import { currentEventOrigin } from '../events/origin.ts';
 import { SANDBOX_DOOR_MAX_BODY_BYTES } from './door-body-limit.ts';
 
 const { workspaceToolStatusImpl: listGrantedTools } = await vi.importActual<
   typeof import('../../core/node_only/sandbox/workspace_tools_bridge.ts')
 >('../../core/node_only/sandbox/workspace_tools_bridge.ts');
 
-const { dispatchWorkspaceToolImpl, getSessionTokenByHash } = vi.hoisted(() => ({
+const {
+  dispatchWorkspaceToolImpl,
+  getSessionTokenByHash,
+  workflowRunOfSession,
+  deferredEmbeddingMeter,
+  resolveSessionOpAttribution,
+} = vi.hoisted(() => ({
   dispatchWorkspaceToolImpl: vi.fn(),
   getSessionTokenByHash: vi.fn(),
+  workflowRunOfSession: vi.fn(),
+  deferredEmbeddingMeter: vi.fn(() => ({
+    open: vi.fn(),
+    settle: vi.fn(),
+    release: vi.fn(),
+  })),
+  resolveSessionOpAttribution: vi.fn(),
 }));
 
 vi.mock(
@@ -45,7 +59,12 @@ vi.mock(
 );
 vi.mock('../../lib/ctx-shim.ts', () => ({ createCtxShim: vi.fn(() => ({})) }));
 vi.mock('./shim.ts', () => ({ sandboxToolShimHandlers: vi.fn(() => ({})) }));
-vi.mock('./sessions.ts', () => ({ getSessionTokenByHash }));
+vi.mock('./sessions.ts', () => ({
+  getSessionTokenByHash,
+  workflowRunOfSession,
+}));
+vi.mock('../knowledge/embedding-meter.ts', () => ({ deferredEmbeddingMeter }));
+vi.mock('./op-attribution.ts', () => ({ resolveSessionOpAttribution }));
 
 const { createToolDispatchRoutes } = await import('./dispatch-routes.ts');
 
@@ -74,6 +93,7 @@ describe('POST /api/tools/execute — request-body cap', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
+    workflowRunOfSession.mockResolvedValue(null);
     dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
   });
 
@@ -134,10 +154,38 @@ describe('POST /api/tools/execute — request-body cap', () => {
 describe('POST /api/tools/execute — the turn a token serves', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    workflowRunOfSession.mockResolvedValue(null);
     dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
   });
 
-  it('hands the token scope’s turnOp to the dispatch, never the body’s', async () => {
+  it('keeps discovery out of domain grants without disabling a granted task call [SBX-R6]', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { toolGrants: ['task_get'] },
+    });
+    const refused = await post(
+      JSON.stringify({ tool: 'workspace_status', args: {} }),
+    );
+    expect(await refused.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+
+    const granted = await post(
+      JSON.stringify({ tool: 'task_get', args: { taskId: 'task_1' } }),
+    );
+    expect(await granted.json()).toEqual({ status: 'ok', output: {} });
+    expect(dispatchWorkspaceToolImpl).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        tool: 'task_get',
+        callArgs: { taskId: 'task_1' },
+      }),
+    );
+  });
+
+  it('hands the token scope’s turnOp to the dispatch, never the body’s [SBX-R5]', async () => {
     getSessionTokenByHash.mockResolvedValue({
       ...TOKEN_ROW,
       scope: {
@@ -177,7 +225,7 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
     expect(call).not.toHaveProperty('turn');
   });
 
-  it('refuses generate_image when the token was not granted it', async () => {
+  it('refuses generate_image when the token was not granted it [SBX-R6]', async () => {
     getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
     const res = await post(
       JSON.stringify({ tool: 'generate_image', args: { prompt: 'a cat' } }),
@@ -185,6 +233,63 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
     expect(await res.json()).toMatchObject({
       status: 'unavailable',
       blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+  });
+
+  it('refuses knowledge_entry_write when the token was granted only the entry find [SBX-R6]', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { toolGrants: ['knowledge_entry_find'] },
+    });
+    const res = await post(
+      JSON.stringify({
+        tool: 'knowledge_entry_write',
+        args: { topic: 'Support hours', content: 'Mon–Fri 8–18' },
+      }),
+    );
+    expect(await res.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+  });
+
+  it('acts as the organization, session and person the token names, whatever the body claims [SBX-R5]', async () => {
+    getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
+    const res = await post(
+      JSON.stringify({
+        tool: 'document_find',
+        args: {},
+        organizationId: 'org_forged',
+        sessionId: 'sess_forged',
+        userId: 'user_forged',
+        toolGrants: ['task_create'],
+      }),
+    );
+    expect(res.status).toBe(200);
+    const [, call] = dispatchWorkspaceToolImpl.mock.calls[0] as [
+      unknown,
+      Record<string, unknown>,
+    ];
+    expect(call).toEqual({
+      organizationId: 'org_1',
+      sessionId: 'sess_1',
+      userId: 'user_1',
+      tool: 'document_find',
+      callArgs: {},
+      // A knowledge search's embedding is metered as the turn's spend.
+      embeddingMeter: expect.objectContaining({ open: expect.any(Function) }),
+    });
+  });
+
+  it('refuses a tool call without a live session token and dispatches nothing [SBX-R5]', async () => {
+    getSessionTokenByHash.mockResolvedValue(null);
+    const res = await post(JSON.stringify({ tool: 'document_find', args: {} }));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      status: 'error',
+      message: 'Unauthorized.',
     });
     expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
   });
@@ -227,7 +332,7 @@ describe('POST /api/tools/status — the serving platform version', () => {
     vi.unstubAllEnvs();
   });
 
-  it('adds the release beside the granted tools, which it lists unchanged', async () => {
+  it('adds the release beside the granted tools, which it lists unchanged [SBX-R6]', async () => {
     const grants = ['document_find', 'task_create'];
     getSessionTokenByHash.mockResolvedValue({
       ...TOKEN_ROW,
@@ -261,7 +366,7 @@ describe('POST /api/tools/status — the serving platform version', () => {
     }
   });
 
-  it('refuses a caller without a live session token and discloses nothing', async () => {
+  it('refuses a caller without a live session token and discloses nothing [SBX-R5]', async () => {
     getSessionTokenByHash.mockResolvedValue(null);
     for (const authorization of [
       undefined,
@@ -286,7 +391,7 @@ describe('POST /api/tools/status — the serving platform version', () => {
     expect(workspaceToolStatusImpl).not.toHaveBeenCalled();
   });
 
-  it('reports its own build and grants, whatever the request claims', async () => {
+  it('reports its own build and grants, whatever the request claims [SBX-R5]', async () => {
     const baseline = await (await postStatus()).json();
     expect(baseline).toEqual({
       ...listGrantedTools(['document_find']),
@@ -352,5 +457,102 @@ describe('POST /api/tools/status — the serving platform version', () => {
     });
     // The label itself is never echoed: an image can be stamped with anything.
     expect(text).not.toContain(SHA);
+  });
+});
+
+/**
+ * An automation's agent step writes through this door, so an event its
+ * write raises must name the run (`events/origin.ts`): the run's own
+ * automation must not start again from it. Every other session acts as
+ * the platform.
+ */
+describe('POST /api/tools/execute — the run a session works for', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { toolGrants: ['task_create'] },
+    });
+  });
+
+  it('dispatches a workflow_run session’s call as its run [AUTO-R12]', async () => {
+    workflowRunOfSession.mockResolvedValue('run_7');
+    let seen: unknown;
+    dispatchWorkspaceToolImpl.mockImplementation(() => {
+      seen = currentEventOrigin();
+      return Promise.resolve({ status: 'ok', output: {} });
+    });
+    const res = await post(JSON.stringify({ tool: 'task_create', args: {} }));
+    expect(res.status).toBe(200);
+    expect(workflowRunOfSession).toHaveBeenCalledWith(
+      expect.anything(),
+      'org_1',
+      'sess_1',
+    );
+    expect(seen).toEqual({ kind: 'automation', runId: 'run_7' });
+    expect(currentEventOrigin()).toEqual({ kind: 'platform' });
+  });
+
+  it('dispatches any other session’s call as the platform', async () => {
+    workflowRunOfSession.mockResolvedValue(null);
+    let seen: unknown;
+    dispatchWorkspaceToolImpl.mockImplementation(() => {
+      seen = currentEventOrigin();
+      return Promise.resolve({ status: 'ok', output: {} });
+    });
+    await post(JSON.stringify({ tool: 'task_create', args: {} }));
+    expect(seen).toEqual({ kind: 'platform' });
+  });
+});
+
+describe('POST /api/tools/execute — whose spend a search is', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
+  });
+
+  it('meters a knowledge search as the turn the token serves — its person, key and projects [GOV-R5]', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: {
+        ...TOKEN_ROW.scope,
+        toolGrants: ['rag_search'],
+        turnOp: { kind: 'task-agent', execId: 'exec_1' },
+      },
+    });
+    resolveSessionOpAttribution.mockResolvedValue({
+      userId: 'starter_1',
+      agentSlug: 'support-agent',
+      apiKeyId: 'key_1',
+      projectIds: ['project_1'],
+    });
+
+    const res = await post(
+      JSON.stringify({ tool: 'rag_search', args: { query: 'refunds' } }),
+    );
+    expect(res.status).toBe(200);
+
+    const [, meterArgs] = deferredEmbeddingMeter.mock.calls[0] as unknown as [
+      unknown,
+      { organizationId: string; subject: () => Promise<unknown> },
+    ];
+    expect(meterArgs.organizationId).toBe('org_1');
+    // Read only once a search actually embeds.
+    expect(resolveSessionOpAttribution).not.toHaveBeenCalled();
+    await expect(meterArgs.subject()).resolves.toEqual({
+      userId: 'starter_1',
+      agentSlug: '__embedding__',
+      apiKeyId: 'key_1',
+      projectIds: ['project_1'],
+    });
+    expect(resolveSessionOpAttribution).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        organizationId: 'org_1',
+        sessionId: 'sess_1',
+        execId: 'exec_1',
+        kind: 'task-agent',
+      },
+    );
   });
 });

@@ -4,6 +4,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 
+import { readCatalog } from './internals/catalog';
+
 interface MessagesUsageConfig {
   /** Absolute path to the service root (e.g. `services/web`). */
   serviceRoot: string;
@@ -40,16 +42,6 @@ type Messages = Record<string, unknown>;
 
 function isMessages(v: unknown): v is Messages {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-export function readJson(file: string): Messages {
-  const raw: unknown = parseYaml(fs.readFileSync(file, 'utf8'));
-  if (!isMessages(raw)) {
-    throw new Error(
-      `Expected JSON object at top level of ${file}, got ${Array.isArray(raw) ? 'array' : typeof raw}.`,
-    );
-  }
-  return raw;
 }
 
 export function flatten(
@@ -483,9 +475,9 @@ export function defineMessagesUsageTests(config: MessagesUsageConfig): void {
 
   const allKeys = new Set<string>();
   for (const file of baseFiles) {
-    const full = path.join(messagesDir, file);
-    if (!fs.existsSync(full)) continue;
-    for (const k of flatten(readJson(full))) allKeys.add(k);
+    const catalog = readCatalog(messagesDir, file);
+    if (catalog === undefined) continue;
+    for (const k of flatten(catalog)) allKeys.add(k);
   }
 
   const allowlist = loadAllowlist(allowlistPath);

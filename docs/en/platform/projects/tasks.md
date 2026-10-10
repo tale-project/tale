@@ -16,8 +16,12 @@ A task keeps a piece of work together: its purpose, owner, status, files, and th
 1. Open the project’s **Tasks** tab and click **Create task**.
 2. Write a **Title** that names the result, such as “Review the launch brief”.
 3. Use **Description** to explain what is needed and how the result will be checked. Add supporting files under **Attachments** when the work depends on them.
-4. Choose **Status**, **Priority**, and an **Assignee** as needed. New tasks default to **To do**; use **Backlog** for a proposal the team has not committed to.
-5. Click **Create task**. Open the new card to continue adding details. When an agent is the **Assignee**, **Create and start agent** creates the task and starts the agent in one step.
+4. Choose **Status**, **Priority**, and an **Assignee** as needed. A new task starts in **To do** with **Medium** priority and today as its **Start date**; use **Backlog** for a proposal the team has not committed to, and clear the start date when there is none yet. A start date after the **Due date** is named under the dates, and **Create task** waits until you fix it.
+5. Click **Create task**, or press **⌘+Enter** (**Ctrl+Enter** on Windows and Linux) in the title or the description; **Enter** in the title moves on to the description. A message confirms the new task, with **Open** to go to it. When an agent is the **Assignee**, **Create and start agent** creates the task and starts the agent in one step.
+
+To create several tasks in a row, switch on **Create another** at the bottom left of the dialog before you create. The dialog then stays open: the title, description and attachments are cleared for the next task, while its status, priority, assignee, dates, repeat and labels stay as you set them. Tale remembers the switch in this browser.
+
+On **Board**, each column can create in its own status: the **+** beside the column's name opens the same dialog with that status, and **Add task** at the foot of the column takes just a title. Type it and press **Enter** to add the task to that column with **Medium** priority and today as its start date, and with the priority or assignee the board is filtered to; the field stays open for the next one, and **Esc** closes it.
 
 A title can have up to 200 characters and a description up to 20,000; most emoji count as 2. A longer description, pasted in or left on a task by an earlier import, is not cut: the field names the limit and counts the length, and **Create task** or **Save** stays unavailable until you shorten it.
 
@@ -53,6 +57,8 @@ The same goes for the subtasks under such a task, whoever added them, for exampl
 
 On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing. Everyone can edit and delete their own comments on any task they can read, and Owners and Admins can also delete other people's comments.
 
+An archived task can be read but not changed. Until someone restores it, nobody can comment on it, edit or delete its comments, or change its dependencies; a task it blocks can still remove it under **Blocked by**. An agent run that was already working on the task still posts its result there.
+
 Handing a task that was assigned to you to someone else, a person or an agent, also hands over the right to change it, unless you created the task. A run you started still answers to you, though: when your @mention hands the task to an agent, you can guide that run with further mentions and stop it with **Cancel run** until it ends.
 
 A dependency belongs to the task it blocks, so a Member records dependencies for their own tasks only: under **Blocked by** on a task of theirs, or under **Blocks** on any task they can open, picking one of their tasks as the blocked one. The project's settings, agents, files, and label catalog stay with Editors and higher roles; a Member picks from the labels the project already has. Only Owners and Admins can delete a task; everyone else who can change it archives it instead.
@@ -64,9 +70,9 @@ Automations follow a narrower rule, because an automation acts as itself, with t
 A run started by someone who can't edit the project, such as a Member, keeps to its task:
 
 - Its platform tools change only that task and the subtasks under it: the agent creates new tasks only as subtasks of that task, uses only labels the project already has, and can't sync items from other systems into the project.
-- It can't save documents to the project. The files it produces still arrive on the task under **Deliverables**.
+- It can't save documents to the project or write knowledge entries. The files it produces still arrive on the task under **Deliverables**.
 - The run gets neither the agent's **Secrets** nor the token of an equipped GitHub connection. The agent learns which credentials were held back and is asked to say so in its report when the work needs them; an Editor or higher then has to start it. Connectors equipped on the agent keep working and act for the person who started the run.
-- It works in a workspace of its own, kept for that person's runs with this agent: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The same person's later runs with the agent find it again, until Tale deletes it: when the person leaves the organization or the agent is deleted, or once no run has used it for the number of days the organization sets under [**Days without use**](/platform/admin/sandboxes#delete-unused-workspaces-automatically).
+- It works in a worker kept for that person's runs with this agent, with a workspace of its own: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The person gets one such worker for each of their runs with the agent that work at the same time. Their later runs with the agent find the workspace again, until Tale deletes it: when the person leaves the organization or the agent is deleted, or once no run has used it for the number of days the organization sets under [**Days without use**](/platform/admin/sandboxes#delete-unused-workspaces-automatically).
 
 The run can still read the project's tasks and knowledge, and it keeps these limits when an Editor guides it later. A run that an Editor or higher starts has the agent's full equipment, on any task. A Member's comment can change that: when the agent's runtime restarts to take in the comment, as [every runtime except Claude Code](/platform/agents/harnesses) does, the rest of the run counts as the Member's, with the same limits on its tools and credentials.
 
@@ -100,13 +106,15 @@ An agent default applies only when a native project-agent run produced the resul
 
 Open the task and read **Current review** below **Reviewer**: it names who owns the waiting review, which can differ from the current project default. Choosing another reviewer also transfers that pending review, without changing the assignee or starting a run. Choose **Project default** to hand it to the project's current default. If the reviewer or result changed since the task was read, the transfer is refused; check the refreshed review before choosing again.
 
-An agent can review only a completed project-agent result from a different implementation agent. Changing the task's assignee does not change who produced that result. A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
+An agent can review only a completed project-agent result from a different implementation agent. Assigning the task to someone else keeps the original result's producer but blocks the pending agent decision. To keep the new assignment and review that result, explicitly transfer the review to an eligible person; the organization's review policy still applies.
+
+A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
 
 The current review also explains self-review, changed implementation ownership, and unavailable policy. Restore the indicated condition or transfer it explicitly; settlement still records the result. A repeated task retains an explicit agent reviewer even if that agent was deleted or lost its grant, so repair that choice instead of silently inheriting a different reviewer.
 
 ## Use statuses to communicate progress
 
-Change **Status** in the task details, or drag a card to another column on **Board**. The status picker is the keyboard-accessible alternative to dragging.
+Change **Status** in the task details, or drag a card to another column on **Board**. The status picker is the keyboard-accessible alternative to dragging. **Done** and **Cancelled** fold to a narrow rail with the fold icon beside their name, so finished work stays out of the way: the rail keeps the column's count, opens again when you select it, and still takes a card you drag onto it. Each board remembers its folded columns in this browser.
 
 | Status | Meaning |
 | --- | --- |
@@ -119,17 +127,25 @@ Change **Status** in the task details, or drag a card to another column on **Boa
 
 For an agent-owned task, changing status can start or cancel execution. Read the action hint before moving it. An agent reports back at **In review**; it cannot mark its own work **Done**.
 
+### Follow a connected source workflow
+
+A task connected to a source that owns its business workflow can show **Source workflow** in its details. Choose the source's action, complete its fields, and select **Send request**. The source checks your identity, role and transition rules before updating the task. Provide the required verification note, closure evidence or reopening reason in this form; a board column alone cannot express those details or distinguish two source stages that both appear as **In review**.
+
+While the source validates a request, the task shows its pending state and prevents a second submission. Its accepted result or refusal explanation remains visible after a reload. A refusal keeps the source's accepted state; read the explanation before submitting another action. A source may offer a guarded reopening action on an archived record. These actions require a verified, active account and permission to work the task.
+
 ## Keep decisions with the work
 
-Open the task to add a description, attachments, dates, labels, subtasks, or comments. Use comments for questions, decisions, and feedback that future reviewers need to understand.
+Open the task to add a description, attachments, dates, labels, subtasks, or comments. Use comments for questions, decisions, and feedback that future reviewers need to understand. A task reads the same in the board's dialog and on its own page: the brief first, then the discussion as one conversation with the task's history between the comments, and the comment box at the bottom. On a larger screen it opens at the latest message; scroll up for the brief. On a phone the dialog scrolls as one column from the brief: the conversation, then the comment box, then the details. [Open your tasks from Home](#open-your-tasks-from-home) describes each part.
 
 Typing `@` in a comment opens the mention picker. A mention of an assigned agent is an instruction: it can steer a running agent or start another run when the agent is idle. A plain comment records the discussion without requesting that agent action.
+
+The picker finds people and agents by name or by handle; an agent's handle, such as `@my-opus-agent-3` for “My Opus Agent #3”, appears beside it. The field and the posted comment show the name of whoever you mention. Tale saves whom a mention names rather than the words you typed, so after a rename the mention shows the new name. **Backspace** right after a name removes the whole mention, and typing inside a name turns it into plain text. A mention inside code stays text and notifies no one.
 
 Mentions in the task description work the same way when you save the task: the people you name are notified, and a named agent is steered or starts a run as described above. A run it starts moves the task to **In progress**, whichever column you created it in. When you edit the description later, only the mentions you add take effect. Rewording the text around an existing mention notifies no one again. The agent reads the description as it is when its run starts, so an edit you make while the run is still waiting is the version it works from.
 
 Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. While any of its subtasks is still open, a parent task cannot move to **Done** or **Cancelled**; every other status stays available, **To do** included. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
 
-When you change a field, the task's **Activity** shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
+When you change a field, the line it adds to the task's conversation shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
 
 ## Repeat a task
 
@@ -196,14 +212,15 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 
 ## Open your tasks from Home
 
-[Home](/platform#home) lists the open tasks assigned to you and those waiting for your review, from every project you can read; **Tasks** above the list shows only them. A task you open there appears as a page of its own beside the Home panel, not in the board's dialog:
+[Home](/platform#home) lists the open tasks assigned to you and those waiting for your review, from every project you can read; **Tasks** above the list shows only them. A task you open there appears as a page of its own beside the Home panel, laid out like the board's dialog:
 
 - The brief comes first as a card: the description, attachments, and subtasks.
-- The discussion follows like a conversation, oldest first under day labels. It combines the comments with the task's history, such as status changes, assignments, and agent runs.
+- The discussion follows like a conversation, oldest first under day labels that stay at the top while you scroll through their day. Your own comments sit on the right, as in a chat; everyone else's, people and agents, read on the left under their name, with an **Agent** label for an agent and the time. A long comment, such as an agent's report, shows its beginning with **Read more** to open the rest in place and **Show less** to fold it again.
+- The task's history sits between the comments as short lines, such as status changes, assignments, and agent runs. Three or more in a row fold into one line, such as **5 updates**, with who made them; select it to see each one.
 - The comment box sits at the bottom. Send with **⌘+Enter** or **Ctrl+Enter**, or with the round send button; **Enter** alone starts a new line. Type `@` to mention an agent or a person, with the same effect as in the board's dialog. Text you have not sent stays in the box for that task, here and in the board's dialog, and the task's row in Home shows **Draft** while you work elsewhere.
-- **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, repeat, labels, and dependencies, together with **Watch** and **Archive**. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
+- **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, repeat, labels, and dependencies, together with **Watch** and **Archive**. When the task's agent runs have cost anything, **Agent cost** there shows their total. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
 
-**Board** in the header opens the project's task board. A task you open from the board still appears in its dialog; both views edit the same task. **Copy link**, the link icon beside **Board**, copies a link to this task page. To copy the task's identifier, such as `WEB-2`, click it in the line under the title; a message confirms each copy.
+**Board** in the header opens the project's task board. A task you open from the board still appears in its dialog, which shows the same title line; both views edit the same task. **Open as page**, the expand icon beside **Close** in the dialog, opens the task here on its own page, and the browser's Back returns to the board with the dialog open. A description you are still editing is not carried over, so save it first. **Copy link** in the dialog copies the same page link. **Copy link**, the link icon beside **Board**, copies a link to this task page. To copy the task's identifier, such as `WEB-2`, click it in the line under the title; a message confirms each copy.
 
 ## Find work that needs attention
 

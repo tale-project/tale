@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 
+import { resourceId } from '@tale/shared/config/platform-resources';
 import { Command } from 'commander';
 
 import {
@@ -12,7 +13,6 @@ import { connectPlatformConfiguration } from '../../lib/config/platform-client';
 import {
   configurationPlanSchema,
   parsePlatformConfiguration,
-  resourceId,
 } from '../../lib/config/platform-model';
 import { valueHash } from '../../lib/config/releases/identity';
 import { boundedJson, writePrivateJson } from '../../lib/state/private-files';

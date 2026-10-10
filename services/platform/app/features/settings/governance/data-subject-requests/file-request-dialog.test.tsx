@@ -15,6 +15,21 @@ import { FileRequestDialog } from './file-request-dialog';
 // same open -> heading-visible -> Cancel -> closed flow the E2E asserted.
 
 const mockRequestErasure = vi.fn();
+const memberQuery = vi.hoisted(() => ({
+  data: [] as
+    | Array<{
+        userId: string;
+        displayName: string;
+        email: string;
+      }>
+    | undefined,
+  isLoading: false,
+  isError: false,
+  isFetching: false,
+  errorUpdateCount: 0,
+  error: undefined as unknown,
+  refetch: vi.fn(),
+}));
 
 vi.mock('./hooks/mutations', () => ({
   useRequestErasure: () => ({
@@ -26,7 +41,7 @@ vi.mock('./hooks/mutations', () => ({
 // The subject picker query — return an empty member list so the dialog renders
 // without a live Convex backend. Open/close never reads member data.
 vi.mock('./hooks/queries', () => ({
-  useOrgMembersForErasurePicker: () => ({ data: [], isLoading: false }),
+  useOrgMembersForErasurePicker: () => memberQuery,
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -51,6 +66,50 @@ const TITLE = 'File erasure request';
 describe('FileRequestDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    memberQuery.data = [];
+    memberQuery.isLoading = false;
+    memberQuery.isError = false;
+    memberQuery.isFetching = false;
+    memberQuery.errorUpdateCount = 0;
+    memberQuery.error = undefined;
+  });
+
+  it('shows a retryable read error instead of the empty state', async () => {
+    memberQuery.data = undefined;
+    memberQuery.isError = true;
+    memberQuery.errorUpdateCount = 1;
+
+    const { user } = render(
+      <FileRequestDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        organizationId="org-1"
+      />,
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Members could not be loaded.');
+    expect(alert).not.toHaveTextContent('No matching members.');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'File request' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(memberQuery.refetch).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the normal empty state for a successful empty read', async () => {
+    const { user } = render(
+      <FileRequestDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        organizationId="org-1"
+      />,
+    );
+
+    await user.click(screen.getByLabelText('Subject'));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('No matching members.')).toBeInTheDocument();
   });
 
   it('renders the dialog with its erasure-request heading when open', async () => {

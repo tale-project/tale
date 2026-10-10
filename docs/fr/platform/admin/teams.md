@@ -56,7 +56,7 @@ Pour les conversations entrantes, [les règles de routage](/fr/platform/admin/go
 
 ## Retirer une équipe sans perdre de vue les accès
 
-Sélectionne **Supprimer** dans le menu de la ligne. La confirmation compte les membres de l’équipe, les projets, dossiers et documents dont elle fait partie de l’audience, et les conversations dans sa file. Elle indique aussi combien de ces éléments n’ont pas d’autre équipe et deviendront visibles pour toute l’organisation. Réattribue d’abord le travail dont l’accès doit rester limité.
+Sélectionne **Supprimer** dans le menu de la ligne. La confirmation compte les membres de l’équipe, les projets, dossiers et documents dont elle fait partie de l’audience, et les conversations dans sa file. Elle indique aussi combien de ces éléments n’ont pas d’autre équipe et deviendront visibles pour toute l’organisation, et combien de [clés API](/fr/platform/admin/api-keys#create-a-key-for-someone-else) appartiennent à l’équipe : elles cesseront de fonctionner avec elle. Réattribue d’abord le travail dont l’accès doit rester limité.
 
 <Warning>
 

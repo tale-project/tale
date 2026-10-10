@@ -14,14 +14,16 @@ Auf dem Smartphone schwebt die Navigation als abgerundete Leiste über der Seite
 
 Beim Scrollen nach unten wird die Leiste kleiner, rückt etwas nach unten und zeigt nur noch die Symbole. Scrollst du nach oben, erscheinen die Leiste in voller Größe und die Beschriftungen wieder. Alle Bereiche bleiben in beiden Größen erreichbar.
 
-Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Start** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Am Computer macht nur **Start** dort weiter, wo du aufgehört hast, und öffnet den Chat, den du zuletzt gelesen hast – oder einen neuen Chat, falls es noch keinen gibt. Wählst du **Start** erneut, während du schon dort bist, beginnt ein neuer Chat. Dasselbe erreichst du mit **⌥⌘N** auf dem Mac oder **Alt+Ctrl+N** unter Windows und Linux.
+Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle: **Start** öffnet einen neuen Chat, **Wissen** die **Dokumente** und **Automatisierungen** die Liste der Automatisierungen. Das gilt auch, wenn du den Bereich wählst, in dem du gerade bist. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Wissen** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Auf dem Smartphone öffnet **Start** statt eines neuen Chats die Liste von **Start**. Einen neuen Chat beginnst du auch mit **⌥⌘N** auf dem Mac oder **Alt+Ctrl+N** unter Windows und Linux.
+
+Eine Automatisierung, die du im Tab **Automatisierungen** eines Projekts öffnest, gehört zu **Automatisierungen**: Die Navigationsleiste markiert **Automatisierungen**, und der Navigationspfad über der Automatisierung beginnt mit dem Projekt. Wähle den Projektnamen, um zum Projekt zurückzukehren, oder **Automatisierungen**, um zu seinen Automatisierungen zurückzukehren.
 
 Die **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite auf, und die Kopfzeile nennt die geöffnete Seite; auf dem Smartphone beginnen sie mit einer Liste ihrer Seiten. **Wissen** zeigt seine Seiten als Tabs unter der Kopfzeile.
 
 | Du möchtest … | So gehst du vor |
 | --- | --- |
 | Einen anderen Bereich öffnen | Wähle den Bereich in der Navigationsleiste oder auf dem Smartphone in der Tab-Leiste. |
-| Einen neuen Chat beginnen | Am Computer wählst du **Neuer Chat** im Bereich **Start** oder wählst **Start** erneut, während du bereits dort bist. Auf dem Smartphone öffnest du **Start**, wählst **Chats** und dann **Neuer Chat**. |
+| Einen neuen Chat beginnen | Am Computer wählst du **Start** oder **Neuer Chat** im Bereich **Start**. Auf dem Smartphone öffnest du **Start**, wählst **Chats** und dann **Neuer Chat**. |
 | Ein Projekt öffnen | Am Computer wählst du das Projekt im Bereich **Start** unter **Projekte**. Auf dem Smartphone wählst du das Projekt und dann **Projekt öffnen**. |
 | Zur Projektliste zurückkehren | Wähle **Alle Projekte** im Bereich **Start** oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
 | Zur Dokumentenliste zurückkehren | Wähle **Wissen**. |
@@ -48,8 +50,8 @@ Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste �
 
 Auf dem Smartphone unterscheidet sich die Liste in drei Punkten:
 
-- **Neuer Chat** steht oben in der Ansicht **Chats**, nicht in der Kopfzeile. **Neues Projekt** gibt es dort nicht, und das Menü eines Projekts bietet nur **Projekt anheften**.
-- Wählst du unter **Projekte** ein Projekt, zeigen **Alle**, **Chats** und **Aufgaben** nur die Chats dieses Projekts und deine offenen Aufgaben darin. Eine Leiste über der Liste nennt das Projekt. **Projekt öffnen** führt zu seiner Seite, **Alle anzeigen** hebt die Einschränkung auf. **Inbox** wird nie eingeschränkt, weil eine Konversation zu keinem Projekt gehört.
+- **Neuer Chat** steht oben in der Ansicht **Chats**, nicht in der Kopfzeile. **Neues Projekt** gibt es dort nicht, und das Menü eines Projekts bietet **Projekt öffnen** und **Projekt anheften**.
+- Wählst du unter **Projekte** ein Projekt, zeigen **Alle**, **Chats** und **Aufgaben** nur die Chats dieses Projekts und deine offenen Aufgaben darin. Die ausgewählte Projektzeile ist hervorgehoben. Die Einschränkung bleibt bestehen, wenn du zwischen diesen Ansichten wechselst. Wähle die Projektzeile erneut, um den Filter aufzuheben. **Inbox** wird nie nach Projekt eingeschränkt.
 - **Alle Projekte** ist ein beschrifteter Link neben der Überschrift **Projekte**, kein Symbol.
 
 Jede Zeile beginnt mit einer Sprechblase, einem farbigen Kreis für den Status der Aufgabe oder den Initialen des Kontakts. Es folgen der Titel mit der Zeit seit der letzten Änderung und darunter eine Zeile Kontext: bei einem Chat sein Projekt, bei einer Aufgabe Kennung und Status wie `WEB-2` **In Prüfung** oder **Wartet auf dein Review**, bei einer Konversation der Kontakt mit seiner letzten Nachricht. Ein Punkt in der Akzentfarbe markiert ungelesene Chats und Konversationen sowie Aufgaben, die auf dein Review warten. Ein Stift mit **Entwurf** am Anfang der Kontextzeile zeigt dir, wo du Text geschrieben, aber noch nicht gesendet hast – bei einem Chat, einer Aufgabe oder einer Konversation, nur nicht beim gerade geöffneten Eintrag. Entwürfe bleiben in dem Browser, in dem du sie geschrieben hast. Das Menü eines Chats bietet **Chat anheften**, **Als gelesen markieren** oder **Als ungelesen markieren**, **Umbenennen**, **In Projekt verschieben…**, **Teilen**, bei einem geteilten Chat **Teilen beenden**, **Archivieren** und **Löschen**. Archivierte Chats wandern unter **Archiviert** ans Ende der Liste.
@@ -100,7 +102,7 @@ Dateien, Anweisungen, persönliche und geteilte Chats sowie Aufgaben zusammenhal
 
 <Card title="Agenten" icon="bot" href="/de/platform/agents/concepts">
 
-Agenten mit passendem Harness, Modell und Ausstattung für Projektaufgaben einrichten.
+Agenten mit einer passenden Agent-Laufzeit, einem passenden Modell und passender Ausstattung für Projektaufgaben einrichten.
 
 </Card>
 

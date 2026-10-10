@@ -16,6 +16,7 @@ import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { policyEnabled } from '../lib/policy-enabled';
 import type { PiiConfigPanelValue } from './pii/pii-config-panel';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 // The PII engine (which `PiiConfigPanel` transitively imports from
 // `@/lib/pii`) ships 43 typed locale modules + libphonenumber-js
@@ -130,7 +131,7 @@ function readRecord(value: unknown): Record<string, unknown> {
 // stay client-owned (the upsert mutation patches the `getPolicy` read
 // optimistically), so the panel never flickers on each save round-trip.
 // =============================================================================
-export function PiiConfig({ organizationId }: PiiConfigProps) {
+function PiiConfigContent({ organizationId }: PiiConfigProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
@@ -262,3 +263,8 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     </Skeletonize>
   );
 }
+
+export const PiiConfig = withGovernancePolicyReadBoundary(
+  PiiConfigContent,
+  'pii_config',
+);

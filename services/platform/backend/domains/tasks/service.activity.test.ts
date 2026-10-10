@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
-import { type TaskRow, updateTask } from './service.ts';
+import { listTaskActivity, type TaskRow, updateTask } from './service.ts';
 
 vi.mock('../collab/service.ts', () => ({
   autoSubscribe: vi.fn(),
@@ -323,5 +323,86 @@ describe('updateTask — a stored date no Date can hold', () => {
     await expect(
       updateTask(tx, auth, { taskId: 't-1', startDate: 5_000 }),
     ).rejects.toMatchObject({ code: 'TASK_SCHEDULE_INVALID' });
+  });
+});
+
+// A description change keeps both whole descriptions (up to 20,000
+// characters each) on its row, and the timeline quotes a line's length of
+// them: the read answered megabytes for a task edited a few dozen times.
+describe('listTaskActivity — what a changed description carries', () => {
+  const row = (action: string, fromValue: string, toValue: string) => ({
+    id: `a-${action}`,
+    organizationId: 'org-1',
+    taskId: 't-1',
+    projectId: 'p-1',
+    actorType: 'user',
+    actorId: 'u-owner',
+    action,
+    fromValue,
+    toValue,
+    createdAt: 1,
+  });
+
+  it('quotes a changed description, never splitting a character', async () => {
+    const before = 'x'.repeat(19_000);
+    // An odd prefix puts a high surrogate right at the cut.
+    const after = 'a' + '😀'.repeat(600);
+    const title = 'T'.repeat(180);
+    const { tx } = fakeTx(taskRow(), (text) =>
+      text.includes('FROM app.task_activity')
+        ? [
+            row('description.changed', before, after),
+            row('title.changed', title, 'Short'),
+          ]
+        : undefined,
+    );
+
+    const [description, renamed] = await listTaskActivity(tx, auth, 't-1');
+
+    expect(description?.fromValue).toBe('x'.repeat(1000));
+    expect(description?.toValue).toHaveLength(999);
+    expect(description?.toValue?.endsWith('😀')).toBe(true);
+    // Every other change reads as stored.
+    expect(renamed?.fromValue).toBe(title);
+  });
+});
+
+/** The stamp `updateTask` writes for the start-date bell, read off the
+ * UPDATE's own parameters: the value bound right after `startChanged`. */
+function startStamp(statements: { text: string; values: unknown[] }[]) {
+  const update = statements.find((statement) =>
+    statement.text.startsWith('UPDATE app.tasks SET title'),
+  );
+  if (update === undefined) throw new Error('no task update');
+  const marker = 'start_notified_at_ms = CASE WHEN ?';
+  const before = update.text.slice(0, update.text.indexOf(marker));
+  const changedIndex = before.split('?').length - 1;
+  return {
+    changed: update.values[changedIndex],
+    stamp: update.values[changedIndex + 1],
+  };
+}
+
+describe('updateTask — a start date that has already arrived raises no bell [TASK-R23]', () => {
+  it('stamps a start moved to today or earlier as already announced', async () => {
+    const before = Date.now();
+    const { tx, statements } = fakeTx(
+      taskRow({ startDate: null, dueDate: null }),
+    );
+    await updateTask(tx, auth, { taskId: 't-1', startDate: before - 60_000 });
+    const { changed, stamp } = startStamp(statements);
+    expect(changed).toBe(true);
+    expect(stamp).toBeGreaterThanOrEqual(before);
+  });
+
+  it('leaves a start still ahead unstamped, so its day rings', async () => {
+    const { tx, statements } = fakeTx(
+      taskRow({ startDate: null, dueDate: null }),
+    );
+    await updateTask(tx, auth, {
+      taskId: 't-1',
+      startDate: Date.now() + 3 * 86_400_000,
+    });
+    expect(startStamp(statements)).toEqual({ changed: true, stamp: null });
   });
 });

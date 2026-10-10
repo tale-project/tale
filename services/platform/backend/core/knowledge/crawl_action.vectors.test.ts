@@ -9,8 +9,12 @@ import type { ActionCtx } from '../lib/ctx';
 import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
 import { PageIndexer, type StoreOutcome, storePageText } from './crawl_action';
-import { EmbeddingDimensionMismatch, pinDimensions } from './dimensions';
-import { embedderForOrg, EmbeddingNotConfigured } from './embedding';
+import { EmbeddingDimensionMismatch } from './dimensions';
+import {
+  embedderForOrg,
+  EmbeddingBudgetExceeded,
+  EmbeddingNotConfigured,
+} from './embedding';
 
 vi.mock('./connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./connection')>()),
@@ -20,10 +24,6 @@ vi.mock('./embedding', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./embedding')>()),
   embedderForOrg: vi.fn(),
 }));
-vi.mock('./dimensions', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./dimensions')>()),
-  pinDimensions: vi.fn(),
-}));
 vi.mock('./index_health', () => ({ assertCorpusWritable: vi.fn() }));
 vi.mock('./pool', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./pool')>()),
@@ -32,30 +32,60 @@ vi.mock('./pool', async (importOriginal) => ({
 
 /**
  * Pages crawled while the organization had no embedding model are chunked
- * with NULL vectors. The regression: a later scan found their text
- * unchanged and their chunks present and left them alone, so configuring a
- * model never embedded them — the dense leg could not see them until the
- * site happened to change a page. Unchanged text whose chunks lack vectors
- * is now `vectorless`, and the indexer embeds it once a model can.
+ * without vectors. The regression: a later scan found their text unchanged
+ * and their chunks present and left them alone, so configuring a model never
+ * embedded them — the dense leg could not see them until the site happened
+ * to change a page. The indexer now embeds, at the end of each link, every
+ * page whose chunks have no vector of the scanning organization's width.
+ *
+ * Vectors are kept per width (`chunk_vectors_<width>`), and a site's chunks
+ * are shared by every organization that registered its domain — so "has its
+ * vectors" is asked for one width, and embedding a page for one organization
+ * leaves the vectors other organizations hold for it alone.
  */
 
 const TEXT = 'Ruler GmbH was founded in Spiez in 2020.';
 
-/** A corpus double: every write succeeds, the chunk probe answers `chunks`. */
+const identity = {
+  domain: 'ruler.example',
+  orgSlug: 'ruler',
+  organizationId: 'org-1',
+};
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the embedder is mocked; the ctx is never dispatched
+const ctx = {} as ActionCtx;
+
+/** The organization's embedding settings, as the indexer reads them. */
+const settings = (dimensions: number) =>
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `dimensions` is read
+  ({ providerSlug: 'p', model: 'm', dimensions }) as Awaited<
+    ReturnType<typeof readOrgEmbeddingConfig>
+  >;
+
+/** A resolved model: `dimensions`, and `embedAll` where a test embeds. */
+const model = (
+  dimensions: number,
+  embedAll?: (texts: string[]) => Promise<number[][]>,
+) =>
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only what the indexer calls
+  ({ dimensions, embedAll }) as unknown as Awaited<
+    ReturnType<typeof embedderForOrg>
+  >;
+
+interface Statement {
+  readonly text: string;
+  readonly params: readonly unknown[];
+}
+
+/** A corpus double: records every statement, answers the ones `answer`
+ * knows, and runs a transaction on the same recorder. */
 function corpus(
-  chunks: { present: boolean; current?: boolean; vectorless: boolean } | null,
-): {
-  sql: Sql;
-  statements: string[];
-} {
-  const statements: string[] = [];
-  const unsafe = (text: string): Promise<unknown[]> => {
-    statements.push(text.replace(/\s+/g, ' ').trim());
-    return Promise.resolve(
-      text.includes('bool_or(embedding IS NULL)') && chunks !== null
-        ? [{ current: true, ...chunks }]
-        : [],
-    );
+  answer: (text: string, params: readonly unknown[]) => unknown[] | undefined,
+): { sql: Sql; statements: Statement[] } {
+  const statements: Statement[] = [];
+  const unsafe = (text: string, params: unknown[] = []): Promise<unknown[]> => {
+    const flat = text.replace(/\s+/g, ' ').trim();
+    statements.push({ text: flat, params });
+    return Promise.resolve(answer(flat, params) ?? []);
   };
   const sql = {
     unsafe,
@@ -66,6 +96,14 @@ function corpus(
   return { sql: sql as unknown as Sql, statements };
 }
 
+/** The chunk probe `storePageText` runs for unchanged text. */
+const chunkProbe =
+  (chunks: { present: boolean; current?: boolean } | null) =>
+  (text: string): unknown[] | undefined =>
+    text.includes('bool_and(content_hash') && chunks !== null
+      ? [{ current: true, ...chunks }]
+      : undefined;
+
 const page = (contentHash: string | null) => ({
   url: 'https://ruler.example/about',
   content_hash: contentHash,
@@ -75,29 +113,24 @@ const page = (contentHash: string | null) => ({
 describe('storePageText', () => {
   const unchangedPage = page(computeContentHash(TEXT));
 
-  it('reports unchanged text chunked without vectors as vectorless', async () => {
-    const { sql } = corpus({ present: true, vectorless: true });
-    await expect(
-      storePageText(sql, 'ruler.example', unchangedPage, 'About', TEXT),
-    ).resolves.toBe('vectorless');
-  });
-
-  it('leaves unchanged text with embedded chunks alone', async () => {
-    const { sql } = corpus({ present: true, vectorless: false });
+  // Whether the chunks have their vectors depends on the width of the
+  // organization scanning, so storing the text does not ask.
+  it('leaves unchanged text with current chunks alone, without asking for vectors', async () => {
+    const { sql, statements } = corpus(chunkProbe({ present: true }));
     await expect(
       storePageText(sql, 'ruler.example', unchangedPage, 'About', TEXT),
     ).resolves.toBe('unchanged');
+    for (const { text } of statements) {
+      expect(text).not.toContain('chunk_vectors_');
+      expect(text).not.toContain('embedding');
+    }
   });
 
   // The text was stored and the scan stopped before it was indexed: the
   // chunks still hold the page's earlier text, which the index kept serving
   // until the page changed again.
   it('re-indexes unchanged text whose chunks were cut from other text', async () => {
-    const { sql } = corpus({
-      present: true,
-      current: false,
-      vectorless: false,
-    });
+    const { sql } = corpus(chunkProbe({ present: true, current: false }));
     await expect(
       storePageText(sql, 'ruler.example', unchangedPage, 'About', TEXT),
     ).resolves.toBe('changed');
@@ -106,38 +139,31 @@ describe('storePageText', () => {
   // The visit is stamped once the page is indexed too, so a link cut off in
   // between leaves the page due for the scan that resumes it.
   it('stores the page without stamping it as visited', async () => {
-    const { sql, statements } = corpus(null);
+    const { sql, statements } = corpus(chunkProbe(null));
     await storePageText(sql, 'ruler.example', page('old'), 'About', TEXT);
-    const update = statements.find((text) =>
+    const update = statements.find(({ text }) =>
       text.startsWith('UPDATE public_web.website_urls'),
     );
-    expect(update).toContain("status = 'active'");
-    expect(update).not.toContain('last_crawled_at');
+    expect(update?.text).toContain("status = 'active'");
+    expect(update?.text).not.toContain('last_crawled_at');
   });
 
   it('still re-indexes unchanged text whose chunks are missing, and changed text', async () => {
-    const missing = corpus({ present: false, vectorless: false });
+    const missing = corpus(chunkProbe({ present: false }));
     await expect(
       storePageText(missing.sql, 'ruler.example', unchangedPage, 'About', TEXT),
     ).resolves.toBe('changed');
-    const changed = corpus(null);
+    const changed = corpus(chunkProbe(null));
     await expect(
       storePageText(changed.sql, 'ruler.example', page('old'), 'About', TEXT),
     ).resolves.toBe('changed');
-    expect(changed.statements.some((text) => text.includes('bool_or'))).toBe(
-      false,
-    );
+    expect(
+      changed.statements.some(({ text }) => text.includes('bool_and')),
+    ).toBe(false);
   });
 });
 
 describe('PageIndexer.settle', () => {
-  const identity = {
-    domain: 'ruler.example',
-    orgSlug: 'ruler',
-    organizationId: 'org-1',
-  };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the embedder is mocked; the ctx is never dispatched
-  const ctx = {} as ActionCtx;
   let indexPage: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -145,7 +171,6 @@ describe('PageIndexer.settle', () => {
     indexPage = vi
       .spyOn(PageIndexer.prototype, 'indexPage')
       .mockResolvedValue(undefined);
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -154,24 +179,9 @@ describe('PageIndexer.settle', () => {
   });
 
   const settle = async (outcome: StoreOutcome): Promise<void> => {
-    const indexer = new PageIndexer(ctx, corpus(null).sql, identity);
+    const indexer = new PageIndexer(ctx, corpus(() => undefined).sql, identity);
     await indexer.settle('https://ruler.example/about', outcome);
   };
-
-  it('embeds vectorless text once a model can, and not before', async () => {
-    vi.mocked(embedderForOrg).mockRejectedValue(
-      new EmbeddingNotConfigured('ruler'),
-    );
-    await settle('vectorless');
-    expect(indexPage).not.toHaveBeenCalled();
-
-    vi.mocked(embedderForOrg).mockResolvedValue(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `dimensions` is read before indexPage
-      { dimensions: 8 } as Awaited<ReturnType<typeof embedderForOrg>>,
-    );
-    await settle('vectorless');
-    expect(indexPage).toHaveBeenCalledTimes(1);
-  });
 
   it('always indexes changed text and never touches unchanged text', async () => {
     vi.mocked(embedderForOrg).mockRejectedValue(
@@ -185,43 +195,145 @@ describe('PageIndexer.settle', () => {
   });
 });
 
-describe('PageIndexer.indexPage — the embedding provider fails', () => {
-  const identity = {
-    domain: 'ruler.example',
-    orgSlug: 'ruler',
-    organizationId: 'org-1',
-  };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the embedder is mocked; the ctx is never dispatched
-  const ctx = {} as ActionCtx;
+/** A corpus double holding one stored page and nothing else; a chunk it
+ * stores gets its `chunk_index` as its id. `legacyColumn` is the previous
+ * release's column as the catalog declares it; undeclared without. */
+const storedPage = (legacyColumn?: string) =>
+  corpus((text, params) => {
+    if (text.includes('SELECT content, title')) {
+      return [{ content: TEXT.repeat(20), title: 'About' }];
+    }
+    if (text.startsWith('INSERT INTO public_web.chunks')) {
+      return [{ id: `chunk-${String(params[4])}` }];
+    }
+    if (text.includes('FROM pg_attribute') && legacyColumn !== undefined) {
+      return [{ declared: legacyColumn }];
+    }
+    return undefined;
+  });
 
-  /** A corpus double holding one stored page and nothing else. */
-  function storedPage(): Sql {
-    const unsafe = (text: string): Promise<unknown[]> =>
-      Promise.resolve(
-        text.includes('SELECT content, title')
-          ? [{ content: TEXT.repeat(20), title: 'About' }]
-          : [],
-      );
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-    return { unsafe } as unknown as Sql;
-  }
-
-  const indexWith = (embedAll: () => Promise<number[][]>): Promise<void> => {
+describe('PageIndexer.indexPage — where the vectors go [KNOW-R11]', () => {
+  beforeEach(() => {
     vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.mocked(embedderForOrg).mockReset();
+  });
+
+  it('stores each chunk with its vector in the table of the model’s width', async () => {
     vi.mocked(embedderForOrg).mockResolvedValue(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only what indexPage calls
-      { dimensions: 8, embedAll } as unknown as Awaited<
-        ReturnType<typeof embedderForOrg>
-      >,
+      model(1024, async (texts) => texts.map(() => [0.25])),
     );
-    return new PageIndexer(ctx, storedPage(), identity).indexPage(
+    const { sql, statements } = storedPage();
+
+    await new PageIndexer(ctx, sql, identity).indexPage(
+      'https://ruler.example/about',
+    );
+
+    const chunkWrites = statements.flatMap(({ text }, index) =>
+      text.startsWith('INSERT INTO public_web.chunks') ? [index] : [],
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const index of chunkWrites) {
+      // The previous release's column, undeclared here, gets nothing.
+      expect(statements[index]?.params[10]).toBeNull();
+      // The vector follows its chunk, in the same transaction.
+      expect(statements[index + 1]?.text).toContain(
+        'INSERT INTO public_web.chunk_vectors_1024 (chunk_id, embedding)',
+      );
+      expect(statements[index + 1]?.params).toEqual([
+        `chunk-${String(statements[index]?.params[4])}`,
+        JSON.stringify([0.25]),
+      ]);
+    }
+  });
+
+  // The previous release's column stays for one release while a deployment
+  // rolls, read by the previous image alone at the width it declared it at.
+  // Declared at this width, each chunk carries its vector there too, so that
+  // image finds the page beside this one, and again after a rollback.
+  it('writes each vector to the previous release’s column too, when it is declared at this width', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(1024, async (texts) => texts.map(() => [0.25])),
+    );
+    const { sql, statements } = storedPage('vector(1024)');
+
+    await new PageIndexer(ctx, sql, identity).indexPage(
+      'https://ruler.example/about',
+    );
+
+    const chunkWrites = statements.flatMap(({ text }, index) =>
+      text.startsWith('INSERT INTO public_web.chunks') ? [index] : [],
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const index of chunkWrites) {
+      expect(statements[index]?.text).toContain('suffix_overlap, embedding)');
+      expect(statements[index]?.params[10]).toBe(JSON.stringify([0.25]));
+      // The migrations' trigger mirrors the column into the width's table,
+      // where the insert then finds the vector.
+      expect(statements[index + 1]?.text).toContain(
+        'ON CONFLICT (chunk_id) DO NOTHING',
+      );
+    }
+  });
+
+  it('leaves the previous release’s column NULL when it is declared at another width', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(1024, async (texts) => texts.map(() => [0.25])),
+    );
+    const { sql, statements } = storedPage('vector(1536)');
+
+    await new PageIndexer(ctx, sql, identity).indexPage(
+      'https://ruler.example/about',
+    );
+
+    const chunkWrites = statements.filter(({ text }) =>
+      text.startsWith('INSERT INTO public_web.chunks'),
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    for (const { params } of chunkWrites) {
+      expect(params[10]).toBeNull();
+    }
+  });
+
+  it('stores the chunks without vectors while there is no model', async () => {
+    vi.mocked(embedderForOrg).mockRejectedValue(
+      new EmbeddingNotConfigured('ruler'),
+    );
+    const { sql, statements } = storedPage();
+
+    await new PageIndexer(ctx, sql, identity).indexPage(
+      'https://ruler.example/about',
+    );
+
+    expect(
+      statements.some(({ text }) =>
+        text.startsWith('INSERT INTO public_web.chunks'),
+      ),
+    ).toBe(true);
+    for (const { text } of statements) {
+      expect(text).not.toContain('chunk_vectors_');
+    }
+  });
+});
+
+describe('PageIndexer.indexPage — the embedding provider fails', () => {
+  const indexWith = (
+    embedAll: () => Promise<number[][]>,
+    dimensions = 1024,
+  ): Promise<void> => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockResolvedValue(model(dimensions, embedAll));
+    return new PageIndexer(ctx, storedPage().sql, identity).indexPage(
       'https://ruler.example/about',
     );
   };
 
   afterEach(() => {
     vi.mocked(embedderForOrg).mockReset();
-    vi.mocked(pinDimensions).mockReset();
   });
 
   // Regression: a rejected embedding key left the provider's bare words on
@@ -241,15 +353,29 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
     );
   });
 
-  it('names the model when the corpus cannot hold its vectors', async () => {
-    vi.mocked(pinDimensions).mockRejectedValue(
-      new EmbeddingDimensionMismatch(1536, 1024, 'organization "ruler"'),
+  it('names the model when it answers vectors of another width than stated', async () => {
+    const mismatch = new EmbeddingDimensionMismatch(
+      1536,
+      1024,
+      'the embedding model "flash"',
     );
-    await expect(indexWith(() => Promise.resolve([]))).rejects.toThrow(
+    await expect(indexWith(() => Promise.reject(mismatch))).rejects.toThrow(
       new RegExp(
         `^${WEBSITE_EMBEDDING_FAILED_PREFIX} \\[dimension\\]: .*1024-dimensional`,
       ),
     );
+  });
+
+  // A settings file written before the widths were a list: refused before a
+  // page is embedded, under the same class.
+  it('names the model when its width has no table [KNOW-R11]', async () => {
+    const embedAll = vi.fn(async () => []);
+    await expect(indexWith(embedAll, 1000)).rejects.toThrow(
+      new RegExp(
+        `^${WEBSITE_EMBEDDING_FAILED_PREFIX} \\[dimension\\]: .*vector width of 1000`,
+      ),
+    );
+    expect(embedAll).not.toHaveBeenCalled();
   });
 
   // The refusal an admin has to lift, met before the first page is read:
@@ -264,9 +390,9 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
         },
       }),
     );
-    const indexer = new PageIndexer(ctx, storedPage(), identity);
+    const indexer = new PageIndexer(ctx, storedPage().sql, identity);
     await expect(
-      indexer.settle('https://ruler.example/about', 'vectorless'),
+      indexer.indexPage('https://ruler.example/about'),
     ).rejects.toThrow(
       `${WEBSITE_EMBEDDING_FAILED_PREFIX} [unresolved]: The credential "OpenRouter" is disabled.`,
     );
@@ -309,46 +435,38 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
  * embeds them from their stored text before the scan ends.
  */
 describe('PageIndexer.embedVectorless', () => {
-  const identity = {
-    domain: 'ruler.example',
-    orgSlug: 'ruler',
-    organizationId: 'org-1',
-  };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the embedder is mocked; the ctx is never dispatched
-  const ctx = {} as ActionCtx;
-  let indexPage: ReturnType<typeof vi.spyOn>;
+  let embedPage: ReturnType<typeof vi.spyOn>;
 
   /** A corpus double whose pages without vectors are `vectorless`; an
-   * indexed page leaves the set. */
-  function withVectorless(vectorless: string[]): Sql {
+   * embedded page leaves the set. It also holds one stored page, for the
+   * link that indexes a changed page before the sweep. */
+  function withVectorless(vectorless: string[]): {
+    sql: Sql;
+    statements: Statement[];
+  } {
     const left = new Set(vectorless);
-    indexPage.mockImplementation(async (url: string) => {
+    embedPage.mockImplementation(async (url: string) => {
       left.delete(url);
     });
-    const unsafe = (text: string, params: unknown[] = []) => {
+    return corpus((text, params) => {
+      if (text.includes('SELECT content, title')) {
+        return [{ content: TEXT.repeat(20), title: 'About' }];
+      }
       if (text.includes('count(DISTINCT c.url)')) {
-        return Promise.resolve([{ n: String(left.size) }]);
+        return [{ n: String(left.size) }];
       }
-      if (text.includes('c.embedding IS NULL')) {
+      if (text.includes('SELECT DISTINCT c.url')) {
         const limit = Number(params[1] ?? left.size);
-        return Promise.resolve(
-          [...left].slice(0, limit).map((url) => ({ url })),
-        );
+        return [...left].slice(0, limit).map((url) => ({ url }));
       }
-      return Promise.resolve([]);
-    };
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-    return { unsafe } as unknown as Sql;
+      return undefined;
+    });
   }
 
-  const model = () =>
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `dimensions` is read before indexPage
-    ({ dimensions: 8 }) as Awaited<ReturnType<typeof embedderForOrg>>;
-
   beforeEach(() => {
-    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
-    indexPage = vi
-      .spyOn(PageIndexer.prototype, 'indexPage')
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(settings(1024));
+    embedPage = vi
+      .spyOn(PageIndexer.prototype, 'embedPage')
       .mockResolvedValue(undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
@@ -359,7 +477,7 @@ describe('PageIndexer.embedVectorless', () => {
   });
 
   it('asks for no model when every page has its vectors', async () => {
-    const indexer = new PageIndexer(ctx, withVectorless([]), identity);
+    const indexer = new PageIndexer(ctx, withVectorless([]).sql, identity);
 
     await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
 
@@ -367,34 +485,77 @@ describe('PageIndexer.embedVectorless', () => {
   });
 
   it('leaves them, and counts none left, while there is no model', async () => {
-    vi.mocked(embedderForOrg).mockRejectedValue(
-      new EmbeddingNotConfigured('ruler'),
-    );
-    const indexer = new PageIndexer(ctx, withVectorless(['a', 'b']), identity);
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    const { sql, statements } = withVectorless(['a', 'b']);
+    const indexer = new PageIndexer(ctx, sql, identity);
 
     await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
 
-    expect(indexPage).not.toHaveBeenCalled();
+    expect(embedPage).not.toHaveBeenCalled();
+    expect(embedderForOrg).not.toHaveBeenCalled();
+    // Without a stated width there is no table to ask.
+    expect(statements).toEqual([]);
+  });
+
+  // "Without vectors" is asked for the width the organization's settings
+  // state: pages another organization's scan embedded at another width are
+  // this organization's to embed.
+  it.each([1024, 1536])(
+    'looks for the pages without a vector of the stated width (%s)',
+    async (dimensions) => {
+      vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(settings(dimensions));
+      vi.mocked(embedderForOrg).mockResolvedValue(model(dimensions));
+      const { sql, statements } = withVectorless(['https://ruler.example/a']);
+      const indexer = new PageIndexer(ctx, sql, identity);
+
+      await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(
+        0,
+      );
+
+      const table = `public_web.chunk_vectors_${dimensions}`;
+      for (const { text } of statements) {
+        expect(text).toContain(
+          `NOT EXISTS (SELECT 1 FROM ${table} v WHERE v.chunk_id = c.id)`,
+        );
+      }
+      expect(embedPage).toHaveBeenCalledWith('https://ruler.example/a', table);
+    },
+  );
+
+  it('ends the scan when the stated width has no table [KNOW-R11]', async () => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(settings(1000));
+    const indexer = new PageIndexer(ctx, withVectorless(['a']).sql, identity);
+
+    await expect(indexer.embedVectorless(Date.now() + 60_000)).rejects.toThrow(
+      new RegExp(
+        `^${WEBSITE_EMBEDDING_FAILED_PREFIX} \\[dimension\\]: .*vector width of 1000`,
+      ),
+    );
+    expect(embedderForOrg).not.toHaveBeenCalled();
   });
 
   it('embeds each of them once a model is saved, although the link found none before', async () => {
     const indexer = new PageIndexer(
       ctx,
-      withVectorless(['https://ruler.example/a', 'https://ruler.example/b']),
+      withVectorless(['https://ruler.example/a', 'https://ruler.example/b'])
+        .sql,
       identity,
     );
     // The link's first pages met no model and were stored without vectors.
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
     vi.mocked(embedderForOrg).mockRejectedValueOnce(
       new EmbeddingNotConfigured('ruler'),
     );
-    await indexer.settle('https://ruler.example/a', 'vectorless');
-    expect(indexPage).not.toHaveBeenCalled();
+    await indexer.settle('https://ruler.example/a', 'changed');
+    await indexer.settle('https://ruler.example/b', 'changed');
+    expect(embedPage).not.toHaveBeenCalled();
 
     // An admin saves a model while the scan runs.
-    vi.mocked(embedderForOrg).mockResolvedValue(model());
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(settings(1024));
+    vi.mocked(embedderForOrg).mockResolvedValue(model(1024));
     await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
 
-    expect(indexPage.mock.calls.map(([url]: unknown[]) => url)).toEqual([
+    expect(embedPage.mock.calls.map(([url]: unknown[]) => url)).toEqual([
       'https://ruler.example/a',
       'https://ruler.example/b',
     ]);
@@ -403,11 +564,265 @@ describe('PageIndexer.embedVectorless', () => {
   });
 
   it('hands what the link had no time for to a later link', async () => {
-    vi.mocked(embedderForOrg).mockResolvedValue(model());
-    const indexer = new PageIndexer(ctx, withVectorless(['a', 'b']), identity);
+    vi.mocked(embedderForOrg).mockResolvedValue(model(1024));
+    const indexer = new PageIndexer(
+      ctx,
+      withVectorless(['a', 'b']).sql,
+      identity,
+    );
 
     await expect(indexer.embedVectorless(Date.now() - 1)).resolves.toBe(2);
 
-    expect(indexPage).not.toHaveBeenCalled();
+    expect(embedPage).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Two organizations registered one site, with embedding models of different
+ * widths. Embedding the site for one of them must not take the other's
+ * vectors away: the chunks stay, and only the missing width is added.
+ */
+describe('PageIndexer.embedPage [KNOW-R11]', () => {
+  const VECTORS = 'public_web.chunk_vectors_1024';
+  const URL = 'https://ruler.example/about';
+
+  /** A page whose listed chunks lack a vector of this width, on a database
+   * whose previous-release column is declared `legacyColumn` (undeclared
+   * without). */
+  const pageLacking = (
+    chunks: { id: string; chunk_content: string }[],
+    legacyColumn?: string,
+  ) =>
+    corpus((text) => {
+      if (text.startsWith('SELECT c.id::text AS id, c.chunk_content')) {
+        return chunks;
+      }
+      if (text.includes('FROM pg_attribute') && legacyColumn !== undefined) {
+        return [{ declared: legacyColumn }];
+      }
+      return undefined;
+    });
+
+  beforeEach(() => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(settings(1024));
+  });
+
+  afterEach(() => {
+    vi.mocked(embedderForOrg).mockReset();
+  });
+
+  it('adds this width’s vectors to the stored chunks and leaves the chunks alone', async () => {
+    const embedAll = vi.fn(async (texts: string[]) =>
+      texts.map((_text, index) => [index]),
+    );
+    vi.mocked(embedderForOrg).mockResolvedValue(model(1024, embedAll));
+    const { sql, statements } = pageLacking([
+      { id: '11', chunk_content: 'first stored chunk' },
+      { id: '12', chunk_content: 'second stored chunk' },
+    ]);
+
+    await new PageIndexer(ctx, sql, identity).embedPage(URL, VECTORS);
+
+    // The stored text is what is embedded — no re-chunking.
+    expect(embedAll).toHaveBeenCalledWith([
+      'first stored chunk',
+      'second stored chunk',
+    ]);
+    const inserts = statements.filter(({ text }) => text.startsWith('INSERT'));
+    expect(inserts.map(({ params }) => params)).toEqual([
+      ['11', JSON.stringify([0])],
+      ['12', JSON.stringify([1])],
+    ]);
+    for (const { text } of inserts) {
+      expect(text).toContain(`INSERT INTO ${VECTORS} (chunk_id, embedding)`);
+    }
+    // Deleting a chunk would delete its vectors of every width — the other
+    // organizations' included.
+    for (const { text } of statements) {
+      expect(text).not.toContain('DELETE');
+      expect(text).not.toContain('INSERT INTO public_web.chunks');
+      expect(text).not.toContain('UPDATE public_web.chunks');
+    }
+  });
+
+  // The previous release's column, declared at this width, gets the vector
+  // too — through the chunk row, before the width's table, which the
+  // migrations' trigger fills from it.
+  it('writes each vector to the previous release’s column too, when it is declared at this width', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(
+        1024,
+        vi.fn(async (texts: string[]) => texts.map((_text, index) => [index])),
+      ),
+    );
+    const { sql, statements } = pageLacking(
+      [
+        { id: '11', chunk_content: 'first stored chunk' },
+        { id: '12', chunk_content: 'second stored chunk' },
+      ],
+      'vector(1024)',
+    );
+
+    await new PageIndexer(ctx, sql, identity).embedPage(URL, VECTORS);
+
+    const writes = statements.filter(
+      ({ text }) => text.startsWith('UPDATE') || text.startsWith('INSERT'),
+    );
+    expect(
+      writes.map(({ text, params }) => [text.split(' ')[0], ...params]),
+    ).toEqual([
+      ['UPDATE', '11', JSON.stringify([0])],
+      ['INSERT', '11', JSON.stringify([0])],
+      ['UPDATE', '12', JSON.stringify([1])],
+      ['INSERT', '12', JSON.stringify([1])],
+    ]);
+    for (const { text } of writes) {
+      if (text.startsWith('UPDATE')) {
+        expect(text).toContain('UPDATE public_web.chunks SET embedding');
+      }
+    }
+  });
+
+  it('asks only for the chunks that lack a vector of this width', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(model(1024));
+    const { sql, statements } = pageLacking([]);
+
+    await new PageIndexer(ctx, sql, identity).embedPage(URL, VECTORS);
+
+    expect(statements.length).toBe(1);
+    expect(statements[0]?.text).toContain(
+      `NOT EXISTS (SELECT 1 FROM ${VECTORS} v WHERE v.chunk_id = c.id)`,
+    );
+    expect(statements[0]?.params).toEqual(['ruler.example', URL]);
+    // Nothing to embed: the model is not resolved.
+    expect(embedderForOrg).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A usage limit that binds whoever a scan is for stops its embedding, not
+ * the scan: the page is stored without vectors — the site's own content
+ * search still reads it — the rest of the link embeds nothing, and the
+ * website row says why, so the hourly pass can resume the scan once the
+ * limit allows it.
+ */
+describe('PageIndexer at a usage limit', () => {
+  const requested = {
+    domain: 'ruler.example',
+    orgSlug: 'ruler',
+    organizationId: 'org-1',
+    requestedBy: { userId: 'user-1', apiKeyId: 'key-1' },
+  };
+
+  function storedPageCorpus(): { sql: Sql; inserts: unknown[][] } {
+    const inserts: unknown[][] = [];
+    const unsafe = (text: string, params: unknown[] = []) => {
+      if (text.includes('SELECT content, title')) {
+        return Promise.resolve([{ content: TEXT.repeat(20), title: 'About' }]);
+      }
+      if (text.includes('INSERT INTO public_web.chunks')) inserts.push(params);
+      return Promise.resolve([]);
+    };
+    const sql = {
+      unsafe,
+      begin: async (run: (tx: { unsafe: typeof unsafe }) => Promise<void>) =>
+        run({ unsafe }),
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return { sql: sql as unknown as Sql, inserts };
+  }
+
+  afterEach(() => {
+    vi.mocked(embedderForOrg).mockReset();
+    vi.restoreAllMocks();
+  });
+
+  it('stores the page without vectors, embeds nothing more, and notes the limit on the row [GOV-R4] [WEB-R11]', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    const embedAll = vi.fn(() =>
+      Promise.reject(new EmbeddingBudgetExceeded('Usage limit reached.')),
+    );
+    vi.mocked(embedderForOrg).mockResolvedValue(model(1024, embedAll));
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const { sql, statements } = storedPage();
+    const indexer = new PageIndexer(rowCtx, sql, requested, meter);
+
+    await indexer.indexPage('https://ruler.example/about');
+    await indexer.indexPage('https://ruler.example/team');
+    await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
+    await indexer.finish();
+
+    expect(embedderForOrg).toHaveBeenCalledWith(
+      rowCtx,
+      expect.objectContaining({ meter }),
+    );
+    // Asked once; the second page went straight to text without vectors.
+    expect(embedAll).toHaveBeenCalledTimes(1);
+    const chunkWrites = statements.filter(({ text }) =>
+      text.startsWith('INSERT INTO public_web.chunks'),
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    // No vector is written, in this width's table or the previous column.
+    expect(chunkWrites.every(({ params }) => params[10] === null)).toBe(true);
+    for (const { text } of statements) {
+      expect(text).not.toContain('chunk_vectors_');
+    }
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+      reason: 'Usage limit reached.',
+      requestedBy: { userId: 'user-1', apiKeyId: 'key-1' },
+    });
+  });
+
+  it('clears the note once a link embedded again', async () => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(1024, async (texts) => texts.map(() => [0])),
+    );
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(rowCtx, storedPage().sql, requested);
+
+    await indexer.indexPage('https://ruler.example/about');
+    await indexer.finish();
+
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+    });
+  });
+
+  it('clears the note when nothing is left without vectors, though the link embedded nothing [WEB-R11]', async () => {
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(rowCtx, storedPageCorpus().sql, requested);
+
+    // Another organization's scan of the shared domain embedded what was
+    // left, or the pages went: the backfill found none.
+    await indexer.finish(0);
+
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+    });
+  });
+
+  it('leaves the note alone while pages still wait for vectors, or when the backfill did not run', async () => {
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(rowCtx, storedPageCorpus().sql, requested);
+
+    await indexer.finish(3);
+    await indexer.finish();
+
+    expect(runMutation).not.toHaveBeenCalled();
   });
 });

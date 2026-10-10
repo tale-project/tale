@@ -4,10 +4,15 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { useRestoreFocus } from '@tale/ui/use-restore-focus';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
+
+import { respectEscapeClaims } from '../overlays/claims-escape';
+import { CLOSE_BUTTON_CLASS } from '../overlays/close-button-class';
+import { PagePointerPin } from '../overlays/page-pointer-pin';
 
 // Tracks dialog nesting so a child Dialog opened from inside another
 // Dialog doesn't stack a second 80%-black overlay on top of the parent's.
@@ -111,7 +116,7 @@ function DialogCloseButton() {
   const { t } = useT('common');
   return (
     <DialogPrimitive.Close
-      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex items-center justify-center rounded-lg p-2 transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none"
+      className={CLOSE_BUTTON_CLASS}
       aria-label={t('aria.close')}
       onClick={(e) => e.stopPropagation()}
     >
@@ -172,6 +177,12 @@ export interface DialogProps {
   onBack?: () => void;
   /** Visible + accessible label for the back control (see `onBack`). */
   backLabel?: string;
+  /**
+   * Disables the back control (see `onBack`) while the sub-view can't be left,
+   * such as during a save, when the sub-view also disables its Cancel. Stepping
+   * back then would discard the input the pending request was sent from.
+   */
+  backDisabled?: boolean;
   /** Custom header content - completely replaces the default header */
   customHeader?: React.ReactNode;
   /** Optional trigger element that opens the dialog */
@@ -183,6 +194,8 @@ export interface DialogProps {
    * close (e.g. a dropdown menu item). Passed to `useRestoreFocus`.
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Called after the dialog's close focus restoration handler completes. */
+  onCloseAutoFocus?: (event: Event) => void;
   /**
    * Where focus lands when the overlay opens. `default` is the body's first
    * form field (a form opens ready to type; on a touch screen, where that
@@ -235,10 +248,12 @@ export function Dialog({
   icon,
   onBack,
   backLabel,
+  backDisabled = false,
   customHeader,
   trigger,
   preventCloseAutoFocus = false,
   restoreFocusRef,
+  onCloseAutoFocus,
   openAutoFocus = 'default',
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
@@ -250,6 +265,10 @@ export function Dialog({
   const restoreFocus = useRestoreFocus(open, restoreFocusRef);
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const { isComposing, compositionProps } = useImeComposition(open);
+  const onEscapeKeyDown = respectEscapeClaims<KeyboardEvent>((event) => {
+    if (isComposing(event)) event.preventDefault();
+  });
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (
@@ -265,7 +284,10 @@ export function Dialog({
           )}
           <DialogPrimitive.Content
             ref={contentRef}
+            {...compositionProps}
+            onEscapeKeyDown={onEscapeKeyDown}
             aria-modal="true"
+            data-tale-modal=""
             className={cn(dialogContentVariants({ size }), className)}
             onClick={(e) => e.stopPropagation()}
             {...(customHeader || !description
@@ -290,10 +312,13 @@ export function Dialog({
                 contentRef.current?.focus({ preventScroll: true });
               }
             }}
-            onCloseAutoFocus={
-              preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
-            }
+            onCloseAutoFocus={(event) => {
+              if (preventCloseAutoFocus) event.preventDefault();
+              else restoreFocus(event);
+              onCloseAutoFocus?.(event);
+            }}
           >
+            <PagePointerPin />
             {/* Close sits in the header row when headerActions exist, so it
                 shares one axis with the rest of the chrome instead of floating
                 `absolute` while actions sit in flow (a gap + a height mismatch).
@@ -323,8 +348,9 @@ export function Dialog({
                     <button
                       type="button"
                       onClick={onBack}
+                      disabled={backDisabled}
                       aria-label={backLabel}
-                      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -ml-2 inline-flex max-w-[calc(100%-3rem)] min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none"
+                      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -ml-2 inline-flex max-w-[calc(100%-3rem)] min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                     >
                       <ChevronLeft
                         className="size-4 shrink-0"

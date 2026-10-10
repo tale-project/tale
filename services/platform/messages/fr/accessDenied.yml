@@ -1,0 +1,23 @@
+title: Accès refusé
+connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
+  aux paramètres de connectors.
+apiKeys: Utiliser des clés API demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
+apiTab: Cette page est réservée aux propriétaires, admins et développeurs.
+apiModels: La configuration des endpoints de modèles est réservée aux propriétaires, admins et développeurs, et aux membres qui ont la compétence « Appeler les modèles par l'API ».
+organization:
+  Tu dois disposer des permissions Admin pour accéder aux paramètres
+  de l'organisation.
+branding: Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.
+knowledge: Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.
+automations: Les automatisations sont réservées aux propriétaires, admins et développeurs.
+workspaceNotFound: L'espace de travail que tu recherches n'existe pas ou a été supprimé.
+disabled: Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.
+noMembership: Tu n'es pas membre de cet espace de travail. Contacte un administrateur pour obtenir l'accès.
+enterpriseSso:
+  Vous devez disposer des autorisations Administrateur pour accéder
+  aux paramètres SSO d'entreprise.
+dataResidency: Tu dois disposer des permissions Admin pour accéder aux
+  paramètres de résidence des données.
+providers:
+  Tu dois disposer des permissions Admin ou Développeur pour gérer les
+  fournisseurs IA.

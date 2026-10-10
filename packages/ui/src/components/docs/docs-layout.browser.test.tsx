@@ -16,27 +16,9 @@ import { PageActions } from './page-actions';
 
 import '../../globals.css';
 
-// Browser-mode factories cannot reach the file's own imports, so the stub is
-// built from the real module and React alone: a `Link` that renders the
-// anchor the router would, outside any router context.
-vi.mock('@tanstack/react-router', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@tanstack/react-router')>();
-  const { createElement } = await import('react');
-  return {
-    ...actual,
-    Link: ({
-      to,
-      children,
-      activeOptions: _activeOptions,
-      ...rest
-    }: {
-      to: string;
-      children: ReactNode;
-      activeOptions?: unknown;
-    }) => createElement('a', { href: to, ...rest }, children),
-    useNavigate: () => () => undefined,
-  };
+vi.mock('@tanstack/react-router', async () => {
+  const { createRouterStub } = await import('@/tests/utils/router-stub');
+  return createRouterStub();
 });
 
 beforeEach(async () => {

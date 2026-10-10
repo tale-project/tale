@@ -18,7 +18,12 @@
 // A dropped connection is retried with capped, jittered backoff; running
 // sessions keep running meanwhile — only calls into them wait.
 
-import { jsonResponse } from '../http-util.ts';
+import {
+  handleSandboxRequest,
+  reportSandboxError,
+  sandboxServerError,
+} from '../error-reporting.ts';
+import { jsonResponse, sessionRequestBodyLimit } from '../http-util.ts';
 import { runDocker } from '../spawn-util.ts';
 import { readUpdateStatus, type DeviceConfig } from './device-config.ts';
 import {
@@ -46,6 +51,8 @@ import {
 
 const RENEW_EVERY_MS = 5 * 60_000;
 const DEFAULT_STATUS_INTERVAL_MS = 15_000;
+/** How often the sessions' fingerprint is compared with the last report. */
+const INVENTORY_CHECK_MS = 1_000;
 const MIN_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 60_000;
 /** A connection that lived this long resets the backoff. */
@@ -146,6 +153,10 @@ export interface DeviceAgentOptions {
   dispatch: (req: Request, url: URL, body: string) => Promise<Response>;
   /** What this device runs right now. */
   observe: () => Promise<DeviceObservation>;
+  /** A cheap fingerprint of the sessions the device runs (no Docker call),
+   * checked every second: a change is reported at once instead of at the
+   * next heartbeat, so the hub places creates on what the device runs now. */
+  inventoryKey?: () => string;
   /** Launch the helper that moves the device to `version`. */
   selfUpdate: (version: string) => Promise<void>;
   fetch?: (input: string, init: RequestInit) => Promise<Response>;
@@ -252,6 +263,12 @@ export class DeviceAgent {
   private lastObservation: DeviceObservation = NOTHING_OBSERVED;
   private wakeSleep: (() => void) | null = null;
   private platformCache: DevicePlatform | null = null;
+  /** The sessions' fingerprint as the last STATUS reported them. */
+  private reportedInventory: string | null = null;
+  private statusInFlight: {
+    endpoint: TunnelEndpoint;
+    report: Promise<void>;
+  } | null = null;
 
   constructor(private readonly opts: DeviceAgentOptions) {
     this.fetchImpl = opts.fetch ?? ((input, init) => fetch(input, init));
@@ -406,6 +423,7 @@ export class DeviceAgent {
     );
     this.opts.selfUpdate(serverVersion).catch((err: unknown) => {
       console.error('[sandbox.devices] launching the update failed:', err);
+      reportSandboxError(err, 'device-update');
     });
   }
 
@@ -429,6 +447,7 @@ export class DeviceAgent {
       let lastReceived = this.now();
       let statusIntervalMs = DEFAULT_STATUS_INTERVAL_MS;
       let statusTimer: ReturnType<typeof setInterval> | null = null;
+      let inventoryTimer: ReturnType<typeof setInterval> | null = null;
       const timers: Array<ReturnType<typeof setInterval>> = [];
       const scheduleStatus = () => {
         if (statusTimer !== null) clearInterval(statusTimer);
@@ -439,6 +458,8 @@ export class DeviceAgent {
       const stopTimers = () => {
         if (statusTimer !== null) clearInterval(statusTimer);
         statusTimer = null;
+        if (inventoryTimer !== null) clearInterval(inventoryTimer);
+        inventoryTimer = null;
         for (const t of timers) clearInterval(t);
         timers.length = 0;
       };
@@ -460,6 +481,15 @@ export class DeviceAgent {
           this.welcomed = true;
           statusIntervalMs = Math.max(5_000, welcome.statusIntervalMs);
           scheduleStatus();
+          const inventoryKey = this.opts.inventoryKey;
+          if (inventoryKey !== undefined && inventoryTimer === null) {
+            inventoryTimer = setInterval(() => {
+              if (
+                this.inventoryKeyOrNull(inventoryKey) !== this.reportedInventory
+              )
+                void this.sendStatus(endpoint);
+            }, INVENTORY_CHECK_MS);
+          }
           console.log(
             `[sandbox.devices] connected to the hub as device ${welcome.deviceId} (hub ${welcome.hubVersion})`,
           );
@@ -584,12 +614,45 @@ export class DeviceAgent {
       });
     } catch (err) {
       console.error('[sandbox.devices] announcing the device failed:', err);
+      reportSandboxError(err, 'device-announcement');
       this.socket?.close(4000, 'hello failed');
     }
   }
 
-  private async sendStatus(endpoint: TunnelEndpoint): Promise<void> {
+  /** The sessions' fingerprint, or null when it cannot be taken (logged):
+   * the heartbeat still reports. */
+  private inventoryKeyOrNull(inventoryKey: () => string): string | null {
+    try {
+      return inventoryKey();
+    } catch (err) {
+      console.warn(
+        '[sandbox.devices] fingerprinting the sessions failed:',
+        err,
+      );
+      return null;
+    }
+  }
+
+  /** Report what the device runs: on the heartbeat and when its sessions
+   * change. Reports on one connection never overlap; one asked for
+   * meanwhile shares it. */
+  private sendStatus(endpoint: TunnelEndpoint): Promise<void> {
+    const inFlight = this.statusInFlight;
+    if (inFlight?.endpoint === endpoint) return inFlight.report;
+    const report = this.reportStatus(endpoint).finally(() => {
+      if (this.statusInFlight?.report === report) this.statusInFlight = null;
+    });
+    this.statusInFlight = { endpoint, report };
+    return report;
+  }
+
+  private async reportStatus(endpoint: TunnelEndpoint): Promise<void> {
     if (endpoint.closed) return;
+    const inventoryKey = this.opts.inventoryKey;
+    // Taken before observing: a change while the observation runs is
+    // reported by the next check.
+    this.reportedInventory =
+      inventoryKey === undefined ? null : this.inventoryKeyOrNull(inventoryKey);
     try {
       const [observation, update] = await Promise.all([
         this.observation(),
@@ -637,7 +700,10 @@ export class DeviceAgent {
     }
     let body: string;
     try {
-      body = await readCapped(stream.body, this.opts.maxRequestBodyBytes);
+      body = await readCapped(
+        stream.body,
+        sessionRequestBodyLimit(path, this.opts.maxRequestBodyBytes),
+      );
     } catch (err) {
       stream.reset(
         'bad_request',
@@ -661,6 +727,7 @@ export class DeviceAgent {
         `[sandbox.devices] serving ${method} ${url.pathname} failed:`,
         err,
       );
+      reportSandboxError(err, 'device-handler', req.signal, req);
       res = jsonResponse(
         {
           error: 'internal',
@@ -687,10 +754,15 @@ export class DeviceAgent {
             hostname: '0.0.0.0',
             // LLM streams can pause while a model thinks; stay under Bun's cap.
             idleTimeout: 255,
-            fetch: (req) => this.relayRequest(relay.name, req),
+            fetch: (req) =>
+              handleSandboxRequest(req, (request) =>
+                this.relayRequest(relay.name, request),
+              ),
+            error: sandboxServerError,
           }),
         );
       } catch (err) {
+        reportSandboxError(err, 'device-relay-listener');
         console.error(
           `[sandbox.devices] cannot answer ${relay.url} for sessions (port ${port}):`,
           err,

@@ -72,3 +72,55 @@ export async function lockTaskRunStart(
     WHERE id = ${taskId} AND org_id = ${organizationId}
   `;
 }
+
+/** The decision an in-place kick continues. The caller holds the task lock:
+ * native status/assignment/archive/review writers take it too, so the cursor
+ * cannot race those decisions. bigint stays text; a JS number can lose a move.
+ * Comments and other metadata leave the original work authorized. */
+export async function readInPlaceRetryState(
+  tx: TransactionSql,
+  organizationId: string,
+  taskId: string,
+): Promise<{ status: string; activityId: string } | undefined> {
+  const rows = await tx<{ status: string; activityId: string }[]>`
+    SELECT status, coalesce((
+      SELECT id FROM app.task_activity
+      WHERE task_id = ${taskId} AND org_id = ${organizationId}
+        AND action IN ('status.changed', 'assignee.changed', 'archived', 'restored', 'review.responded')
+      ORDER BY id DESC LIMIT 1
+    ), 0)::text AS "activityId"
+    FROM app.tasks
+    WHERE id = ${taskId} AND org_id = ${organizationId}
+  `;
+  return rows[0];
+}
+
+/** The agent row as a start locks it: what the kick needs to run it. */
+export interface LockedAgent {
+  id: string;
+  projectId: string;
+  harness: string;
+  model: string;
+  modelProvider: string | null;
+}
+
+/**
+ * Share delegated admission's agent row fence with managed review-context
+ * enrollment. A write invalidates an overlapping SERIALIZABLE snapshot too.
+ * Callers that lock both take the agent before the task; worker capacity is
+ * owned separately by agent-workers.ts. Null means no matching agent.
+ */
+export async function lockAgentForStart(
+  tx: TransactionSql,
+  args: { organizationId: string; agentId: string; projectId?: string },
+): Promise<LockedAgent | null> {
+  const agents = await tx<LockedAgent[]>`
+    UPDATE app.project_agents SET updated_at_ms = updated_at_ms
+    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+      AND (${args.projectId ?? null}::text IS NULL
+           OR project_id = ${args.projectId ?? null})
+    RETURNING id, project_id AS "projectId", harness, model,
+              model_provider AS "modelProvider"
+  `;
+  return agents[0] ?? null;
+}

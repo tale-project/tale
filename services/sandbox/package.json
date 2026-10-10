@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
+    "@sentry/bun": "10.54.0",
     "ip-address": "10.7.1",
     "yaml": "2.8.3"
   },

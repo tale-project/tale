@@ -1,5 +1,7 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { Link } from '@tanstack/react-router';
 
@@ -13,12 +15,20 @@ import { useT } from '@/lib/i18n/client';
 import { MCP_TOOL_GROUPS, MCP_TOOLS } from '@/lib/mcp/tools';
 import { useSiteUrl } from '@/lib/site-url-context';
 
+/** The inventory by group, in the documented order. Every group listed has
+ * tools: `lib/mcp/tools.test.ts` fails on a group the inventory leaves
+ * empty, so a group arrives on this page with its first tool. */
+const TOOL_GROUPS = MCP_TOOL_GROUPS.map((group) => ({
+  group,
+  tools: MCP_TOOLS.filter((tool) => tool.group === group),
+}));
+
 /**
  * The INBOUND MCP surface: the platform's own MCP endpoint. An MCP client (an
  * IDE, a desktop assistant, an external agent) points at the endpoint with an
  * org API key and gets the same tools the in-platform builder drives, plus the
  * organization's capability surface. The list renders `MCP_TOOLS` — the very
- * inventory the endpoint answers `tools/list` with, in the same three groups
+ * inventory the endpoint answers `tools/list` with, in the same groups
  * the endpoint docs draw — so this section can never advertise a tool the
  * server would refuse. Lives on the API settings page with the other inbound
  * surfaces. (Managing OUTBOUND MCP servers for agents is a separate, retired
@@ -42,8 +52,10 @@ export function McpEndpointSection({
   // organization's slug — a copied request works for every key, not only a
   // single-organization one.
   const organization = useOrganization(organizationId);
-  const orgSlug = organization.data?.slug;
-  const example = `curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'X-Organization-Slug: ${orgSlug ?? '<org-slug>'}' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
+  const orgSlug = organization.isError ? undefined : organization.data?.slug;
+  const example = orgSlug
+    ? `curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'X-Organization-Slug: ${orgSlug}' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
+    : undefined;
 
   return (
     <SettingsSection
@@ -51,6 +63,14 @@ export function McpEndpointSection({
       title={t('mcpEndpoint.title')}
       description={t('mcpEndpoint.description')}
     >
+      {organization.isError && (
+        <Alert variant="destructive">
+          <p>{t('mcpEndpoint.organizationReadFailed')}</p>
+          <Button type="button" onClick={() => void organization.refetch()}>
+            {t('mcpEndpoint.organizationReadRetry')}
+          </Button>
+        </Alert>
+      )}
       {/* Same divided rows as every settings section — label + hint left,
           the value pinned right. */}
       <SettingsFieldList>
@@ -91,35 +111,49 @@ export function McpEndpointSection({
           </SettingsFieldRow>
         )}
 
-        {/* The inventory in the same three groups the docs table draws —
-            authoring, run & trigger management, capabilities & knowledge —
-            so a reader can map this list onto the MCP endpoint docs 1:1. */}
-        {MCP_TOOL_GROUPS.map((group) => (
+        {/* The inventory in the same groups the docs tables draw —
+            authoring, run & trigger management, discovery, capabilities &
+            knowledge — so a reader can map this list onto the MCP endpoint
+            docs 1:1. Each list is named and described by its row, so a
+            screen reader announces which group it is in. */}
+        {TOOL_GROUPS.map(({ group, tools }) => (
           <SettingsFieldRow
             key={group}
             label={t(`mcpEndpoint.tools.${group}.title`)}
             description={t(`mcpEndpoint.tools.${group}.description`)}
           >
-            <ul className="grid grid-cols-2 gap-1">
-              {MCP_TOOLS.filter((tool) => tool.group === group).map((tool) => (
-                <li key={tool.name}>
-                  <code className="text-xs">{tool.name}</code>
-                </li>
-              ))}
-            </ul>
+            {({ labelId, descriptionId }) => (
+              // A column is as wide as a long tool name (`ch` counts in the
+              // list's own monospace font), so the list takes two columns
+              // only where two names fit side by side and never runs one
+              // name into the next.
+              <ul
+                aria-labelledby={labelId}
+                aria-describedby={descriptionId}
+                className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,24ch),1fr))] gap-1 font-mono text-xs"
+              >
+                {tools.map((tool) => (
+                  <li key={tool.name}>
+                    <code>{tool.name}</code>
+                  </li>
+                ))}
+              </ul>
+            )}
           </SettingsFieldRow>
         ))}
 
-        <SettingsFieldRow
-          label={t('mcpEndpoint.exampleTitle')}
-          description={t('mcpEndpoint.exampleHelp')}
-        >
-          <CopyableField
-            value={example}
-            mono
-            copyAriaLabel={t('mcpEndpoint.copyExample')}
-          />
-        </SettingsFieldRow>
+        {example !== undefined && (
+          <SettingsFieldRow
+            label={t('mcpEndpoint.exampleTitle')}
+            description={t('mcpEndpoint.exampleHelp')}
+          >
+            <CopyableField
+              value={example}
+              mono
+              copyAriaLabel={t('mcpEndpoint.copyExample')}
+            />
+          </SettingsFieldRow>
+        )}
       </SettingsFieldList>
     </SettingsSection>
   );

@@ -4,9 +4,12 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { buildkitdEndpoint } from '../buildkitd.ts';
+import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
 import type { SpawnerConfig } from '../types.ts';
-import { buildDockerSessionRunArgs } from './docker-session-args.ts';
+import {
+  buildDockerSessionRunArgs,
+  sessionPinsEgressAddress,
+} from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
 
 const cfg: SpawnerConfig = {
@@ -52,6 +55,114 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('light agents retain the agent user and caps without DinD or its storage', () => {
+    const args = buildDockerSessionRunArgs(
+      {
+        ...cfg,
+        runtimeTier: 'runc',
+        dockerInContainer: true,
+        transparentEgress: false,
+        session: {
+          ...cfg.session,
+          agentProfile: {
+            ...cfg.session.agentProfile,
+            memory: '8g',
+            memoryWithoutDocker: '4g',
+          },
+        },
+      },
+      { ...goodInput, profile: 'agent-light', docker: true },
+    );
+    expect(args).toContain('10001:10001');
+    expect(args).toContain('tale.profile=agent-light');
+    expect(args).toContain('--memory=4g');
+    expect(args).not.toContain('--privileged');
+    expect(args).not.toContain('TALE_DIND=1');
+    expect(args).toContain('--read-only');
+  });
+  test('records the internal create attempt as a validated ownership label', () => {
+    const createAttemptId = '01020304-0506-4708-890a-0b0c0d0e0f10';
+    const args = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      createAttemptId,
+    });
+    expect(args).toContain(`tale.create-attempt=${createAttemptId}`);
+    expect(() =>
+      buildDockerSessionRunArgs(cfg, {
+        ...goodInput,
+        createAttemptId: 'unsafe\nattempt',
+      }),
+    ).toThrow(/createAttemptId/);
+  });
+
+  test('records the egress proxy address the session pins as a validated label', () => {
+    const args = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      egressAddress: '172.30.0.3',
+    });
+    expect(args).toContain('tale.egress-ip=172.30.0.3');
+    // No address read, no label: the argv is the one without it.
+    expect(buildDockerSessionRunArgs(cfg, goodInput)).toEqual(
+      args.filter(
+        (arg, i) =>
+          arg !== 'tale.egress-ip=172.30.0.3' &&
+          args[i + 1] !== 'tale.egress-ip=172.30.0.3',
+      ),
+    );
+    for (const egressAddress of [
+      'sandbox-egress',
+      '172.30.0.3/16',
+      '172.30.0.300',
+      '172.30.0.3\n--privileged',
+      '',
+    ]) {
+      expect(() =>
+        buildDockerSessionRunArgs(cfg, { ...goodInput, egressAddress }),
+      ).toThrow(/egressAddress/);
+    }
+  });
+
+  test('a session pins the egress address with transparent egress or Docker inside, not through its proxy environment alone', () => {
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: true, runtimeTier: 'sysbox' },
+        false,
+      ),
+    ).toBe(true);
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: false, runtimeTier: 'sysbox' },
+        true,
+      ),
+    ).toBe(true);
+    // gVisor sessions get no transparent egress: they reach the proxy by
+    // name, so they follow it wherever it moves.
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: true, runtimeTier: 'gvisor' },
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: false, runtimeTier: 'runc' },
+        false,
+      ),
+    ).toBe(false);
+  });
+
+  test('an agent can opt out of inner Docker while the deployment supports it', () => {
+    const args = buildDockerSessionRunArgs(
+      { ...cfg, dockerInContainer: true },
+      { ...goodInput, docker: false },
+    );
+    expect(args).toContain('--read-only');
+    expect(args).not.toContain('--privileged');
+    expect(args.some((arg) => arg === 'TALE_DIND=1')).toBe(false);
+    expect(args.some((arg) => arg.includes('pip-org_456'))).toBe(true);
+    expect(args).toContain('tale.docker=false');
+  });
+
   test('a lightweight agent keeps agent ownership but starts no Docker daemon', () => {
     const configured = {
       ...cfg,
@@ -85,6 +196,34 @@ describe('buildDockerSessionRunArgs', () => {
     });
     expect(dind).toContain('--memory=8g');
     expect(dind).toContain('--memory-swap=8g');
+  });
+
+  test('an explicit memory override applies to every agent Docker capability', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '12g',
+          memoryWithoutDocker: '12g',
+        },
+      },
+    };
+    for (const profile of ['agent', 'agent-light'] as const) {
+      for (const docker of [true, false]) {
+        const args = buildDockerSessionRunArgs(configured, {
+          ...goodInput,
+          profile,
+          docker,
+          dockerStorageVolume: 'tale-dind-test',
+        });
+        expect(args).toContain('--memory=12g');
+        expect(args).toContain('--memory-swap=12g');
+      }
+    }
   });
 
   test('passes a validated operator inner pool only to DinD agent containers', () => {
@@ -142,6 +281,9 @@ describe('buildDockerSessionRunArgs', () => {
     // Distinct session label so the one-shot sweep never reaps a session.
     expect(args).toContain('tale.sandbox-session=1');
     expect(args).not.toContain('tale.sandbox=1');
+    // Never an implicit pull: a multi-gigabyte image cannot arrive inside
+    // the run's budget, and the warmup owns pulling it.
+    expect(args).toContain('--pull=never');
     // Daemon dispatch is the only positional; no user entry path in argv.
     expect(args[args.length - 1]).toBe('daemon');
     expect(args[args.length - 2]).toBe('tale-sandbox-runtime:test');
@@ -169,6 +311,13 @@ describe('buildDockerSessionRunArgs', () => {
     );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);
+    // runnerd names the incarnation it serves: the `tale.created` stamp.
+    expect(args).toContain('tale.created=1700000000000');
+    expect(args).toContain('TALE_RUNNERD_INCARNATION=1700000000000');
+    // runnerd's stall window, from SANDBOX_EXEC_STALL_MINUTES.
+    expect(args).toContain('TALE_EXEC_STALL_MS=2700000');
+    // runnerd refuses new execs past this share of the memory limit.
+    expect(args).toContain('TALE_EXEC_ADMISSION_MEMORY_PERCENT=90');
     // Container + workspace mount.
     expect(args).toContain('tale-sbx-ses-ses-abc-123');
     expect(args).toContain(
@@ -262,6 +411,51 @@ describe('buildDockerSessionRunArgs', () => {
       const userIdx = args.indexOf('--user');
       expect(args[userIdx + 1]).toBe('0:0');
     });
+  });
+
+  test('sessions keep their CPU quota but yield the CPU to the control plane under contention', () => {
+    // The control plane runs at Docker's default weight (1024, cgroup v2
+    // weight 100). A session at that weight competes with the database and
+    // backend as an equal; six busy ones on 4 vCPUs stalled them for hours.
+    const shares = (args: string[]) =>
+      args.filter((a) => a.startsWith('--cpu-shares='));
+    const agent = buildDockerSessionRunArgs(cfg, goodInput);
+    expect(agent).toContain('--cpus=2');
+    expect(shares(agent)).toEqual(['--cpu-shares=256']);
+    const render = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      profile: 'default',
+    });
+    expect(render).toContain('--cpus=1');
+    expect(shares(render)).toEqual(['--cpu-shares=128']);
+    // The operator's agent weight applies to every agent capability.
+    const tuned: SpawnerConfig = {
+      ...cfg,
+      session: {
+        ...cfg.session,
+        agentProfile: { ...cfg.session.agentProfile, cpuShares: 512 },
+      },
+    };
+    expect(shares(buildDockerSessionRunArgs(tuned, goodInput))).toEqual([
+      '--cpu-shares=512',
+    ]);
+    expect(
+      shares(
+        buildDockerSessionRunArgs(tuned, { ...goodInput, profile: 'default' }),
+      ),
+    ).toEqual(['--cpu-shares=128']);
+    expect(() =>
+      buildDockerSessionRunArgs(
+        {
+          ...tuned,
+          session: {
+            ...tuned.session,
+            agentProfile: { ...tuned.session.agentProfile, cpuShares: 1.5 },
+          },
+        },
+        goodInput,
+      ),
+    ).toThrow(/profile.cpuShares value rejected/);
   });
 
   // The crawler's headless browser runs in a `default` session. Under the
@@ -364,6 +558,54 @@ describe('buildDockerSessionRunArgs', () => {
       expect(args).toContain(
         `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
       );
+    });
+
+    test("shared build cache: names the organization's docker.io mirror for the inner engine", () => {
+      const dockerHubMirror = buildkitdMirrorRef(
+        goodInput.organizationId,
+        'docker.io',
+      );
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+        dockerHubMirror,
+      });
+      expect(args).toContain(`TALE_DOCKER_HUB_MIRROR=${dockerHubMirror}`);
+      expect(
+        buildDockerSessionRunArgs(dindCfg, dindInput).some((a) =>
+          a.startsWith('TALE_DOCKER_HUB_MIRROR='),
+        ),
+      ).toBe(false);
+    });
+
+    test('shared build cache: an endpoint whose docker.io mirror is down names no mirror', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+      });
+      expect(args).toContain(
+        `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
+      );
+      expect(args.some((a) => a.startsWith('TALE_DOCKER_HUB_MIRROR='))).toBe(
+        false,
+      );
+    });
+
+    test("shared build cache: refuses another organization's docker.io mirror", () => {
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+          dockerHubMirror: buildkitdMirrorRef('another-org', 'docker.io'),
+        }),
+      ).toThrow(/another organization's docker.io mirror/);
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+          dockerHubMirror: 'mirror:5000 --insecure-registry=0.0.0.0/0',
+        }),
+      ).toThrow(/dockerHubMirror value rejected/);
     });
 
     test('planned subnets are sent as validated JSON before delayed network attachment', () => {

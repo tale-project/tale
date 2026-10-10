@@ -1,0 +1,1708 @@
+{
+  "baseline": "c8f31b2b92283ea027966ef1556fadf3826302db",
+  "count": 135,
+  "counting": "Distinct implemented CI execution, caching, validation, safety, or regression improvements since the task baseline. Shared patterns across workflows are merged; suggestions, cosmetic changes and retained baseline behavior are excluded. Integrated upstream contributions are labelled separately from this team\u2019s authored work.",
+  "withdrawn": [
+    {
+      "id": "CI-114",
+      "title": "Overlap isolated CLI source test files on macOS",
+      "reason": "Withdrawn after exact source 91ac292ca stalled in the two-file Git runtime fixture on macOS: 25 failures at the unchanged 30-second limit, followed by the 15-minute job deadline. Comparison runs passed, but the worker/subprocess liveness cause remains unproven. Native source execution is restored to serial without dropping tests or relaxing budgets. This rollback is not counted as a new improvement.",
+      "commits": [
+        "c2af6aedc56d3fd41acc50a4ab5ca73ce027b0a3",
+        "f7983f21e70b2942ba63a8fc021d1ffd72a23951"
+      ]
+    }
+  ],
+  "improvements": [
+    {
+      "title": "Batch native Turbo cache archives",
+      "before": "Each task used a localhost artifact-backed remote server and per-task transfers.",
+      "after": "One GitHub cache archive per task lane restores verified task hashes.",
+      "paths": [".github/actions/setup-turbo/action.yml"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts native branch-scoped archive guard; Checks37258100927 all16unit tasks fresh MISS/exit0; Checks37253041672 four UIshards and platform Browser fresh exit0; CLI37257839844 all5targets successful.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-001"
+    },
+    {
+      "title": "Candidate cache keys follow checkout C",
+      "before": "Cache identity could be confused with workflow head H.",
+      "after": "Archive source comes from git rev-parse HEAD after candidate checkout.",
+      "paths": [".github/actions/setup-turbo/action.yml"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts candidate cache-key shell fixture sets foreign GITHUB_SHA and proves checked-out HEAD",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-002"
+    },
+    {
+      "title": "Shared cache readers retain independent archive writers",
+      "before": "Build jobs in different workflows or matrices could race one immutable key.",
+      "after": "Shared restore prefixes keep workflow/job/matrix writer identities separate.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        ".github/workflows/checks.yml"
+      ],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts build archive writer render test proves4keys with common prefixes",
+      "commits": ["48ef7d5d3242a48f9a78465594bbb1a0bfed304a"],
+      "origins": ["integrated"],
+      "id": "CI-003"
+    },
+    {
+      "title": "Older candidate actions disable legacy remote cache",
+      "before": "Workflow H may load a legacy action from candidate C.",
+      "after": "Legacy start-turbo-cache=false is preserved and no workflow remote credentials are exported.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        ".github/workflows/checks.yml"
+      ],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts native callers guard; candidate workflow contract tests",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-004"
+    },
+    {
+      "title": "Bun download archives separate host architectures",
+      "before": "OS/version/lock-only cache mixed architecture-specific package payloads.",
+      "after": "Runner architecture joins exact and fallback cache identities.",
+      "paths": [".github/actions/setup-turbo/action.yml"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts Bun cache prefix guard; CLI Windows and bothMac targets successful",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-005"
+    },
+    {
+      "title": "Bun download cache includes workspace manifests and patches",
+      "before": "Exact cache key covered only the root lockfile.",
+      "after": "Every declared workspace manifest and patch joins the key; frozen install remains authoritative.",
+      "paths": [".github/actions/setup-turbo/action.yml"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts scans root workspace patterns and asserts every manifest pattern/patch input",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-006"
+    },
+    {
+      "title": "Save verified dependency downloads before test failures",
+      "before": "Post-job dependency saves were skipped when later tests failed.",
+      "after": "Explicit saves immediately after successful frozen installs retain downloads even after subsequent test/build failures in shared setup and native/cross CLI jobs.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        ".github/workflows/cli.yml"
+      ],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts install/save ordering and success-only save predicate",
+      "commits": [
+        "a2294467948b4491aef9cbbe530d773243579b56",
+        "013cef62abe5ce05e2e277d76c082988b11228ea"
+      ],
+      "origins": ["integrated", "authored"],
+      "id": "CI-007"
+    },
+    {
+      "title": "Partition platform UI into four independent runners",
+      "before": "One UI worker job dominated Checks at645seconds.",
+      "after": "Four unchanged-suite platform shards run separately with bounded worker pools.",
+      "paths": [
+        ".github/workflows/checks.yml",
+        "tools/cli/scripts/ci-checks-optimization.test.ts"
+      ],
+      "proof": "ci-checks-optimization actualTurbo shard command/hash test; Checks37253041672 fresh4shards; ActualTurbo dry-json regression resolves all4workflow commands",
+      "commits": [
+        "9ccd5da3ccbb7e8fab94627abcdb302910b64aa6",
+        "f0d76f1401cf50cf86f89b702819440202d9f26a"
+      ],
+      "origins": ["integrated", "authored"],
+      "id": "CI-008"
+    },
+    {
+      "title": "Keep stable partitioned Unit and UI verdicts fail closed",
+      "before": "Upstream UI aggregate used !cancelled(), which could skip the stable check after cancelled shards.",
+      "after": "Dependency-free always aggregates reject failed, cancelled, skipped or empty shard/lane results, with every executable lane required by candidate receipts.",
+      "paths": [
+        ".github/workflows/checks.yml",
+        "tools/cli/scripts/release-candidate-gate.ts",
+        "tools/cli/scripts/ci-throughput.test.ts"
+      ],
+      "proof": "ci-performance and ci-throughput execute actual aggregate Bash for all5states; ci-throughput executes all25lane result pairs; candidate receipts require each new lane.; ci-throughput executes aggregate with every lane result combination and verifies candidate admission/dependency set; focused105/105",
+      "commits": [
+        "a2294467948b4491aef9cbbe530d773243579b56",
+        "ab8d18ec2670a9e3e58978a22c7ce977e4602022"
+      ],
+      "origins": ["integrated"],
+      "id": "CI-009"
+    },
+    {
+      "title": "Run nonplatform UI workspaces exactly once",
+      "before": "Platform-specific partitioning risked dropping or multiplying other UI workspaces.",
+      "after": "Shard1 runs every nonplatform UI task once; actualTurbo coverage guard compares complete task set.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks-optimization complete actualTurbo UI task coverage",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-010"
+    },
+    {
+      "title": "Bound successful Turbo console output",
+      "before": "Passing full-corpus output produced roughly140kloglines.",
+      "after": "Noncompiler tasks print only failing logs; compiler keeps full extended diagnostics.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks-optimization every invoked task log flag; hosted full checks exit0",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-011"
+    },
+    {
+      "title": "Retain task cache provenance after failures",
+      "before": "Errors-only logs lacked execution/cache evidence.",
+      "after": "All measured jobs summarize and always upload hidden JSON with unique job/shard/run/attempt names.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks-optimization summary/hidden/upload-after-command guards; hosted artifact provenance audit",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-012"
+    },
+    {
+      "title": "Invalidate consumers without serializing dependency checks",
+      "before": "Dependency sources were omitted or required executable dependency checks.",
+      "after": "Scriptless recursive transit propagates source hashes while independent checks stay parallel.",
+      "paths": ["turbo.json"],
+      "proof": "turbo-dependencies real fixture mutates direct/transitive/unrelated source and checks actual hashes",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-013"
+    },
+    {
+      "title": "Skip echo-only setup prerequisites",
+      "before": "Generic checks scheduled empty setup aliases.",
+      "after": "Real setup is declared only where needed; CLI generates directly once.",
+      "paths": ["turbo.json", "tools/cli/turbo.json"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts enumerates every actual workspace setup script and effective dependencies",
+      "commits": ["6685b06685456658c3ca922e426d174be2788e8a"],
+      "origins": ["integrated"],
+      "id": "CI-014"
+    },
+    {
+      "title": "Never replay Git-stamped CLI generation/builds",
+      "before": "Source-file hashes did not include embedded HEAD and clean state.",
+      "after": "CLI generate/setup/build remain uncached and record actual checkout identity.",
+      "paths": ["turbo.json", "tools/cli/turbo.json"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts checks all3 cachefalse definitions; platform-docs source-identity guard",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-015"
+    },
+    {
+      "title": "Hash CLI outside-runtime module closure",
+      "before": "CLI lint/types could replay after imported platform modules changed.",
+      "after": "Own transit covers outside core/lib/auth/db/job/config modules and generator trees.",
+      "paths": ["tools/cli/turbo.json"],
+      "proof": "platform-docs actual imported-module/generator-tree closure guard and turbo-dependencies fixture",
+      "commits": ["248d3274db19b4d37745c324ea4da2fbfd0c61cb"],
+      "origins": ["integrated"],
+      "id": "CI-016"
+    },
+    {
+      "title": "Hash every root compiler family",
+      "before": "Only tsconfig.base.json affected global task hashes.",
+      "after": "Upstream9ccd hashes every tsconfig.*.json family. Authored f0d76f140 widens that to tsconfig*.json (including tsconfig.json) and adds bunfig.toml, preserving all compiler/install settings.",
+      "paths": ["turbo.json"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts actualTurbo global files; turbo-dependencies compiler-family guard",
+      "commits": [
+        "9ccd5da3ccbb7e8fab94627abcdb302910b64aa6",
+        "f0d76f1401cf50cf86f89b702819440202d9f26a"
+      ],
+      "origins": ["authored", "integrated"],
+      "id": "CI-017"
+    },
+    {
+      "title": "Ignore catalog task logs while hashing real catalog data",
+      "before": "Explicit config globs hashed ignored nested .turbo outputs.",
+      "after": "Negative log glob retains hashes across log writes while source edits invalidate.",
+      "paths": ["tools/cli/turbo.json"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts disposable realTurbo catalog log/source mutations; Windows CLI hosted successful",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-018"
+    },
+    {
+      "title": "Install production Node once in shared checks",
+      "before": "Most check jobs inherited moving runner Node defaults.",
+      "after": "Shared setup selects the exact platform node-bin version and refuses ambiguous/missing/nonexact pins.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        ".github/workflows/checks.yml"
+      ],
+      "proof": "ci-cache-optimization.test.ts verifies the exact Dockerfile Node pin, malformed/duplicate resolver cases and shared setup order; actionlint passed; hosted Checks37271033992 passed at1dcc2e523.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-019"
+    },
+    {
+      "title": "Hash actual runtime identity",
+      "before": "Changing Node/Bun override or runner distribution could replay source-identical tasks.",
+      "after": "Actual Node/Bun/OS/architecture/distribution fingerprint participates in globalEnv task hashes.",
+      "paths": [".github/actions/setup-turbo/action.yml", "turbo.json"],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts actual shell runtime evidence and4actualTurbo runtime-identity hash variants",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-020"
+    },
+    {
+      "title": "Bound optional task, browser and scanner archive download stalls",
+      "before": "Native task archive restore retained the10minute per-segment default.",
+      "after": "Every changed optional task/browser/scanner cache restore uses a2minute segment deadline, reducing stalled-download waste while normal validation remains authoritative.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        ".github/workflows/e2e.yml",
+        ".github/workflows/sast.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "tools/cli/scripts/ci-cache-optimization.test.ts native archive env bound assertion; Guard checks both E2E lanes and SAST deadline while retaining exact browser key/native install.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-021"
+    },
+    {
+      "title": "Remove persisted credentials from read-only workflow checkouts",
+      "before": "Most Checks job worktrees retained the checkout GitHub token.",
+      "after": "Checks, CLI, security, commitlint and release read-only checkouts disable credential persistence; explicit publication tokens retain their scoped steps.",
+      "paths": [
+        ".github/workflows/checks.yml",
+        ".github/workflows/release.yml",
+        ".github/workflows/security.yml",
+        ".github/workflows/commitlint.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts",
+        ".github/workflows/cli.yml"
+      ],
+      "proof": "ci-checks-optimization.test.ts enumerates every source checkout credential option; ci-release-performance.test.ts checks checkout credentials and history; ci-e2e-optimization.test.ts checks read-only workflow checkouts. Focused gates and actionlint passed.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-022"
+    },
+    {
+      "title": "Avoid pointless Format task archives",
+      "before": "Format restored/saved task cache despite root formatter/conflict/link work running independently.",
+      "after": "Format disables native task archive transfers while normal full format/link commands run.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks-optimization setupflag and preserved root command",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-023"
+    },
+    {
+      "title": "Preserve successful case warnings and skip evidence",
+      "before": "Errors-only success hid warnings/skipped-case tallies.",
+      "after": "Existing Unit/UI/Browser artifacts include real task logs, including replayed warning evidence.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-task-cache actualTurbo errors-only cold/warm fixture verifies hidden warning retained in real logFile; workflow allworkspace log paths",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-024"
+    },
+    {
+      "title": "Skip Chromium provisioning for fully cached browser prerequisites",
+      "before": "A cached Browser check still restored/downloaded Chromium and ranAPT.",
+      "after": "Validated localHIT DAG admission skips only provision steps; normal test command still runs; candidates/force/unknown plans stay cold.",
+      "paths": [".github/workflows/checks.yml", "scripts/ci-task-cache.ts"],
+      "proof": "ci-task-cache real cold\u2192warm\u2192source mutation fixture, executable-prerequisite negatives and candidate/force handling; 1KB/1s configured eviction with old oversized archives overridden by zero on probe+actualverdict; ci-checks identical eviction settings + unconditional test command; focused105/105; exact workflow event + actual present/missing helper file predicates retain cold provisioning for skipped/missing/unexpected outputs; final Turbo command unconditional",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-025"
+    },
+    {
+      "title": "Save verified browser payloads before component or E2E failures",
+      "before": "Post-job browser cache save was lost after a failed suite.",
+      "after": "Explicit successful-install save precedes tests; restore segments bounded2minutes.",
+      "paths": [
+        ".github/workflows/checks.yml",
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "ci-checks Playwright restore/install/save ordering and success-only predicates; shared conceptual improvement with E2Elane (deduplicate); Guard proves restore\u2192native install\u2192save\u2192suite order, exact primary key and normal-success save condition. Same Checks behavior must be deduped.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-026"
+    },
+    {
+      "title": "Require backend proof for compiler/install/patch changes",
+      "before": "PR backend scope missed tsconfig families, bunfig and dependency patch changes.",
+      "after": "All those dependency/toolchain paths now owe the uncached real backend proof.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks matches actual path patterns for root compiler families/bunfig/patch",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-027"
+    },
+    {
+      "title": "Bound each object-store readiness request",
+      "before": "Loop count did not bound a hanging curl request.",
+      "after": "Every readiness curl carries connect2s and total5s limits.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks asserts both actual readiness commands retain explicit limits",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-028"
+    },
+    {
+      "title": "Remove unconsumed fork image builders",
+      "before": "Eight fork matrix jobs built and loaded images into runners with no consumers; fork smoke/validation rebuilt them separately.",
+      "after": "Fork publication matrix is skipped; fork smoke and validation retain complete local builds.",
+      "paths": [
+        ".github/workflows/build.yml",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "Fork admission predicate and full compose/spawner build coverage regressions; f0 Build full E2E passed.",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-029"
+    },
+    {
+      "title": "Admit Docker stack jobs only for stack changes",
+      "before": "Standalone site and Storybook changes also admitted eight image builders and stack smoke/validation.",
+      "after": "Explicit stack output skips those jobs for independent site/Storybook changes; candidates still force all services.",
+      "paths": [
+        ".github/workflows/build.yml",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "Actual matrix script tests for site-only, mixed, global and candidate changes; exact247 Build37257839752 passed.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-030"
+    },
+    {
+      "title": "Disable unused Turbo artifact server during config validation",
+      "before": "Platform builtin config validation started the repository artifact server despite calling a direct script.",
+      "after": "Direct config validation uses setup without starting unused Turbo cache machinery.",
+      "paths": [".github/workflows/build.yml"],
+      "proof": "setup start-turbo-cache:false regression and preserved builtin validation gate.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-031"
+    },
+    {
+      "title": "Preflight the complete image receipt set",
+      "before": "A later missing/malformed receipt could be discovered after earlier images were pulled/accepted.",
+      "after": "All required digest receipts validate before the first Docker call.",
+      "paths": [
+        ".github/workflows/build.yml",
+        ".github/scripts/pull-ci-images.sh",
+        "tools/cli/scripts/deployment-ci.test.ts"
+      ],
+      "proof": "Missing final/malformed receipt tests assert zero Docker activity; Bash3.2 exercised.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-032"
+    },
+    {
+      "title": "Overlap verified image downloads with bounded workers",
+      "before": "Smoke/image validation downloaded eight independent digests serially.",
+      "after": "Three workers pull and verify images; every worker finishes before success and terminal runtime aliases; failures aggregate.",
+      "paths": [
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+        ".github/scripts/pull-ci-images.sh",
+        "tools/cli/scripts/ci-image-pulls.test.ts"
+      ],
+      "proof": "Baseline pulls126/133s; actual helper fake-Docker peak<=3, pull/inspect/revision/tag faults, no terminal aliases after failures.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-033"
+    },
+    {
+      "title": "Reuse native release caches across version tags",
+      "before": "Native release builds lacked recurring architecture layer reuse.",
+      "after": "Trusted per-service registry caches isolate amd64/arm64; amd64 also imports main GHA cache; export outages remain nonfatal.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "Official Docker registry/GHA docs; architecture cache trust/fallback assertions in build-ci/ci-image-pulls/ci-build-optimization tests.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-034"
+    },
+    {
+      "title": "Schedule longest native release builds first",
+      "before": "Bounded matrix admitted short images before sandbox-runtime/platform.",
+      "after": "Twelve-service release order starts runtime/platform within the same existing six-job cap; sites-only retains three sites.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "Prepare shell tests assert twelve unique services, expensive first pair, and sites-only three services.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-035"
+    },
+    {
+      "title": "Scope four standalone probes away from unrelated Docker stack jobs",
+      "before": "Editing only one standalone probe selected broad platform/ci_tests eight-image scope.",
+      "after": "One positive Picomatch extglob excludes exactly four standalone probes from Docker stack scopes while retaining own jobs/shared helpers/candidates; Storybook remains broad for CSS scanning.",
+      "paths": [
+        ".github/workflows/build.yml",
+        "tools/cli/scripts/build-ci.test.ts",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "8750tracked-path proof outsideclone excludes exactly4;37focusedtests passed; hosted exact247 Build37257839752 passed (global lock/workflow run).",
+      "commits": ["247202bbd5d1d1b1a270dd1e3c13fdf798894f4c"],
+      "origins": ["authored"],
+      "id": "CI-036"
+    },
+    {
+      "title": "Test the deployed paths-filter matcher exactly",
+      "before": "The baseline lacked regression guards using the exact deployed paths-filter matcher; intermediate scope guards used Bun.Glob and could not model action extglob/OR semantics.",
+      "after": "Tests use exact Picomatch2.3.2 matching pinned dorny implementation and adversarial neighboring/mixed/candidate paths.",
+      "paths": [
+        "tools/cli/package.json",
+        "bun.lock",
+        "tools/cli/scripts/build-ci.test.ts",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "Pinned action source review, matcher regression and exhaustive tracked-path proof outsideclone.",
+      "commits": ["247202bbd5d1d1b1a270dd1e3c13fdf798894f4c"],
+      "origins": ["authored"],
+      "id": "CI-037"
+    },
+    {
+      "title": "Use the repository Bun version throughout container and release tooling",
+      "before": "Six Build harness setup steps and two Release tooling steps still used Bun1.3.12 while repository/gates use1.4.2.",
+      "after": "All these setup steps use exact Bun1.4.2.",
+      "paths": [".github/workflows/build.yml", ".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts checks every setup-bun instance in both workflows.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-038"
+    },
+    {
+      "title": "Condition expensive release disk cleanup on measured headroom",
+      "before": "Release container gate always removed SDK trees and pruned images (113s in Release37233660424), even for small sites-only releases.",
+      "after": "Upstream introduced shared progressive measured cleanup for native builders and the container gate; the authored refinement selects20GiB for sites-only and40GiB for full container validation. Cleanup rechecks after each removal, stops at sufficient headroom, and retains the cold-build fallback.",
+      "paths": [
+        ".github/workflows/release.yml",
+        "tools/cli/scripts/ci-disk.test.ts",
+        "tools/cli/scripts/ci-release-performance.test.ts"
+      ],
+      "proof": "Upstream ab8d18ec2 introduced progressive release cleanup; ci-disk exercises thresholds, invalid measurements, early stops, and fallback. ci-release-performance verifies shared expanded cleanup and the sites_only20/full40 target expression.",
+      "commits": [
+        "ab8d18ec2670a9e3e58978a22c7ce977e4602022",
+        "013cef62abe5ce05e2e277d76c082988b11228ea"
+      ],
+      "origins": ["authored", "integrated"],
+      "id": "CI-039"
+    },
+    {
+      "title": "Inspect native document image labels in one call",
+      "before": "Each native document gate spawned three Docker inspections for revision/version/source.",
+      "after": "One JSON label inspection validates all three expected fields before either UID starts.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts proves two total Docker calls (pull+inspect), rejects each wrong label before probes.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-040"
+    },
+    {
+      "title": "Overlap isolated native document UID checks",
+      "before": "Native document checks ran uid65534 then10001 serially.",
+      "after": "Both anonymous offline read-only1GiB-capped checks overlap; Promise.allSettled waits both successes/failures/rejections.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts dependency barrier proves overlap and allUID finish markers for each failure/rejection.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-041"
+    },
+    {
+      "title": "Overlap release stack metadata/document and smoke probes",
+      "before": "Release image validation13s and smoke45s ran serially in Release37233660424.",
+      "after": "Both reuse verified images and isolated containers on the same runner; wait both verdicts and retain complete logs.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts actual shell dependency barrier and both-child failure cases.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-042"
+    },
+    {
+      "title": "Overlap independent release standalone sites",
+      "before": "Release static gates consumed29s sequentially in Release37233660424.",
+      "after": "Run three sites or full four concurrently in distinct Compose projects/container names/ports/volumes, await every child.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts exact3/4 selections, overlap dependency barrier and failures in docs/gateway.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-043"
+    },
+    {
+      "title": "Retain per-suite release container validation artifacts",
+      "before": "Release failure diagnostics existed only in inline sequential output.",
+      "after": "Concurrent gates capture separate full logs and always upload seven-day attempt-specific artifacts, including failures.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts artifacts always(), path/retention assertions and both-child log-completeness checks.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-044"
+    },
+    {
+      "title": "Report the actual release validation verdict",
+      "before": "always() summary reported images validated even when validation failed.",
+      "after": "Summary includes actual job.status rather than an unconditional success claim.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts asserts status expression; fault-injection verifies failed gate statuses before publication barrier.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-045"
+    },
+    {
+      "title": "Verify remote release manifests with bounded concurrency",
+      "before": "Twelve independent manifest reads took24s serially in Release37233660424.",
+      "after": "Three workers inspect complete prepare-selected service set and aggregate failures after all requests finish.",
+      "paths": [".github/workflows/release.yml"],
+      "proof": "ci-release-performance.test.ts peak>1<=3, all12 finished, early/late failure cases and no success summary after failure.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-046"
+    },
+    {
+      "title": "Reuse immutable image metadata snapshots",
+      "before": "Stack harness separately inspected labels/user/ENV/health/size (~33 field calls for7images); each static site made4 calls.",
+      "after": "One image-specific validated JSON snapshot supplies all fields (8calls now cover additionalgateway); static harness uses one snapshot.",
+      "paths": [
+        "services/platform/tests/integration/lib/docker.ts",
+        "services/platform/tests/integration/container-image-test.ts",
+        "services/platform/tests/integration/static-site-test.ts"
+      ],
+      "proof": "ci-container-metadata.test.ts actual harness call counts and real exact43a gateway snapshot compatibility proof.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-047"
+    },
+    {
+      "title": "Resolve stack Compose image configuration once",
+      "before": "getImage ran docker compose config --images once for each of7services.",
+      "after": "One resolved image list is reused for every service, retaining local/GHCR spawner fallback.",
+      "paths": ["services/platform/tests/integration/container-image-test.ts"],
+      "proof": "ci-container-metadata.test.ts executes actual harness with exactly1 Compose configuration call.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-048"
+    },
+    {
+      "title": "Fail image validation on failed or malformed metadata",
+      "before": "Failed Docker inspections became empty values/0MiB and could pass size or baked-secret checks.",
+      "after": "Nonzero Docker exit, malformed config/labels/env/user/health/size fail closed with diagnostics before checks.",
+      "paths": [
+        "services/platform/tests/integration/lib/docker.ts",
+        "services/platform/tests/integration/container-image-test.ts",
+        "services/platform/tests/integration/static-site-test.ts"
+      ],
+      "proof": "ci-container-metadata.test.ts Docker failure and seven malformed metadata cases; valid current hosted gateway snapshot observed. Actual first inspect/malformed JSON exceptions now record Results failure; nonzero exit cannot print success banner.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-049"
+    },
+    {
+      "title": "Preserve complete ENV values during secret validation",
+      "before": "Whitespace splitting could treat OPENAI_API_KEY=test-key-not-real appended-secret as an allowed dummy plus unrelated token.",
+      "after": "JSON ENV entries stay whole, so appended secret text is rejected.",
+      "paths": [
+        "services/platform/tests/integration/lib/docker.ts",
+        "services/platform/tests/integration/container-image-test.ts"
+      ],
+      "proof": "ci-container-metadata.test.ts actual harness fails the dummy-prefix-plus-space secret injection.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-050"
+    },
+    {
+      "title": "Reject disabled Docker HEALTHCHECK declarations",
+      "before": "Any nonnil Healthcheck struct, including Test:[NONE] or empty Test, satisfied old checks.",
+      "after": "Only a nonempty enabled healthcheck is accepted for supervised images.",
+      "paths": [
+        "services/platform/tests/integration/lib/docker.ts",
+        "services/platform/tests/integration/container-image-test.ts",
+        "services/platform/tests/integration/static-site-test.ts"
+      ],
+      "proof": "ci-container-metadata.test.ts NONE/empty/missing metadata and actual gateway disabled-health failure.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-051"
+    },
+    {
+      "title": "Fail closed when required image references disappear",
+      "before": "Missing Compose image references produced a warning and skipped all checks for affected services.",
+      "after": "Any missing required image fails the image validation gate before claiming complete coverage.",
+      "paths": ["services/platform/tests/integration/container-image-test.ts"],
+      "proof": "ci-container-metadata.test.ts removes each required Compose reference and asserts failure/no success banner.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-052"
+    },
+    {
+      "title": "Validate the omitted sandbox LLM gateway image",
+      "before": "Image harness omitted gateway from its seven-image service list despite publication/pulling/scanning eight images.",
+      "after": "Gateway receives nonroot/OCI/ENV/filesystem/health checks and a 300 MiB Docker uncompressed-size budget alongside all other services; observed 255 MiB leaves about 17% growth headroom.",
+      "paths": [
+        "services/platform/tests/integration/container-image-test.ts",
+        "tools/cli/scripts/ci-container-metadata.test.ts"
+      ],
+      "proof": "Build37264873673 exposed hosted Docker .Size of 255 MiB against a budget calibrated from 86.45 MiB packed data. Exact 43a9, a3f2 and 546ace manifests share all seven compressed layer digests and rootfs diff IDs: no filesystem growth. Packed Docker containerd size is 90,653,959 bytes; expanded regular file data is 268,266,714 bytes (255.839 MiB). The actual harness accepts both measured representations and the 300 MiB boundary, rejects 301 MiB, and retains root/health/provenance failures.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-053"
+    },
+    {
+      "title": "Validate receipt provenance before any Docker activity",
+      "before": "Preflight read digest only; mismatched service/image/revision/tag metadata failed later or was ignored before test work.",
+      "after": "Complete receipt service/image/sourceSHA/tag provenance validates before any pull; exact digest/revision inspection remains mandatory.",
+      "paths": [
+        ".github/scripts/pull-ci-images.sh",
+        "tools/cli/scripts/ci-image-pulls.test.ts"
+      ],
+      "proof": "ci-image-pulls.test.ts service/image/revision/missing/invalidtag injections assert zero Docker events, including oldcandidate helper coverage.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-054"
+    },
+    {
+      "title": "Reject duplicate image service admission",
+      "before": "Duplicate service arguments caused repeated pulls/verification/tagging and worker imbalance.",
+      "after": "Duplicate service set fails before Docker operations on Bash3.2-compatible path.",
+      "paths": [
+        ".github/scripts/pull-ci-images.sh",
+        "tools/cli/scripts/ci-image-pulls.test.ts"
+      ],
+      "proof": "ci-image-pulls.test.ts duplicate platform/db/platform assertion with zero events.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-055"
+    },
+    {
+      "title": "Check the Docker USER account independently of its group",
+      "before": "USER root:app and0:10001 passed nonroot checks that compared the whole string with root/0.",
+      "after": "Shared account-prefix check rejects root andzeroUID forms regardless ofgroup, across static andstack images.",
+      "paths": [
+        "services/platform/tests/integration/lib/docker.ts",
+        "services/platform/tests/integration/container-image-test.ts",
+        "services/platform/tests/integration/static-site-test.ts"
+      ],
+      "proof": "ci-container-metadata.test.ts actual gateway root:app/0:10001 failure cases.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-056"
+    },
+    {
+      "title": "Validate every matching ENV key occurrence",
+      "before": "Only first matching key was checked; an allowed dummy entry could conceal a later realsecret under the samekey.",
+      "after": "Every matching ENV value is validated; allowed dummy cannot hide another value.",
+      "paths": ["services/platform/tests/integration/container-image-test.ts"],
+      "proof": "ci-container-metadata.test.ts actual harness rejects duplicate dummy-then-realsecret ENV entries.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-057"
+    },
+    {
+      "title": "Reuse compiled fixed CI path matchers",
+      "before": "Build Docker COPY/path boundary guards recompiled the same Picomatch patterns for every path; the COPY test exceeded its normal5s budget under concurrent typechecks.",
+      "after": "Compile each fixed dot:true matcher once and reuse it while retaining deployed default OR semantics and all per-path/candidate assertions.",
+      "paths": ["tools/cli/scripts/build-ci.test.ts"],
+      "proof": "Integrated build100-focused run66pass/0fail across3files at normal budgets; COPY-source boundary guard passed after matcher caching.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-058"
+    },
+    {
+      "title": "Keep all available crawler slots working across discovered frontiers",
+      "before": "A single seed caused7of8workers to exit; batches can also wait behind one slow leaf.",
+      "after": "The bounded active-promise pool refills slots as links appear.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Real HTTP frontier fixtures prove peak2 and a descendant starts while a slow sibling remains active; crawl-throughput-proof-l0yxe0sw observes13samepages/no findings,361.48ms/peak1\u219271.38ms/peak8.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-059"
+    },
+    {
+      "title": "Fetch every built-site URL once, including in-flight links",
+      "before": "Self-links and cross-links could enqueue addresses already being fetched; queue membership scans were linear.",
+      "after": "A seen Set marks URLs when scheduled, preventing duplicate requests.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Real HTTP request counters prove one request per self/cross-linked URL; baseline failed, optimized passes.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-060"
+    },
+    {
+      "title": "Enforce crawl URL caps across active requests",
+      "before": "maxUrls counted completed and queued addresses but omitted active requests.",
+      "after": "The cap includes every discovered address before scheduling.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Real two-seed concurrent fixture with maxUrls2 performs exactly2requests and reports truncated; baseline overfetched.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-061"
+    },
+    {
+      "title": "Reject invalid crawl budgets instead of empty green reports",
+      "before": "Zero/NaN/negative concurrency silently fetched nothing; invalid maxUrls could truncate without a useful check.",
+      "after": "Concurrency and maxUrls require positive safe integers.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Five invalid boundary values tested for each option, including fractional/NaN/infinity; baseline red.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-062"
+    },
+    {
+      "title": "Keep legal literal-percent anchors inspectable",
+      "before": "decodeURIComponent threw for a literal percent fragment and aborted the crawl.",
+      "after": "Undecodable fragments are checked as literal IDs.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Real HTML percent-anchor fixture returns one fetched page and no findings; baseline URIError.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-063"
+    },
+    {
+      "title": "Report interrupted response bodies as broken links",
+      "before": "Fetch headers succeeded but response.text rejection aborted all crawl reporting.",
+      "after": "Fetch and body failures produce a broken-link status0finding.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "A real streamed HTTP response closes during the body; optimized report retains target/from diagnostics.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-064"
+    },
+    {
+      "title": "Reject site-server spawn failures promptly",
+      "before": "Missing cwd emitted an unhandled child-process error and waited the startup timeout.",
+      "after": "The startup promise handles spawn errors and rejects immediately.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Real missing-directory spawn fails with ENOENT in~4ms rather than deadline timeout; baseline red.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-065"
+    },
+    {
+      "title": "Bound startup log accumulation",
+      "before": "A noisy startup kept unlimited output in memory and in timeout exceptions, also after readiness.",
+      "after": "Keep last64KiB during startup and stop accumulation after readiness.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "A real Bun child writes100,000characters; retained tail/error is<66,000characters, baseline exceeded100,000.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-066"
+    },
+    {
+      "title": "Terminate wedged startup children even when SIGTERM is ignored",
+      "before": "Deadline sent only default SIGTERM; a hung child could keep the test process alive.",
+      "after": "Startup failure/deadline sends SIGKILL.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Real Bun child installs SIGTERM handler; after deadline PID liveness probe confirms termination.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-067"
+    },
+    {
+      "title": "Refuse impossible site-server readiness ports",
+      "before": "listening on :0 or :65536 resolved an unusable origin as ready.",
+      "after": "Only ports1\u201365535resolve startup.",
+      "paths": ["packages/e2e/src/crawl.ts", "packages/e2e/src/crawl.test.ts"],
+      "proof": "Actual child fixtures for bothinvalidports reject; real ephemeral Bun server remains reachable.",
+      "commits": ["71c5a3c2daa91f66a50f31ef26a24c31139aa375"],
+      "origins": ["authored"],
+      "id": "CI-068"
+    },
+    {
+      "title": "Validate preview identity before expensive setup",
+      "before": "Invalid/missing artifact ID was checked after full dependency and browser setup.",
+      "after": "Identity validation precedes setup in platform E2E.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Ordering guard plus six executable actual-validator fixtures, including empty/zero/multiple/malformed IDs.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-069"
+    },
+    {
+      "title": "Keep scanner binaries separated by architecture",
+      "before": "SAST engine cache key/fallback separated OS only although runner selects architecture-specific assets.",
+      "after": "Exact and fallback scanner archive prefixes include runner.arch.",
+      "paths": [
+        ".github/workflows/sast.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Guard asserts architecture component; run.sh existing detect_asset supports both Linux architectures.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-070"
+    },
+    {
+      "title": "Retain a verified scanner binary after a source finding",
+      "before": "A blocking source finding prevented combined-cache post-save, repeating provisioning on rerun.",
+      "after": "Save cache if scan succeeds or the real-engine policy regressions succeed, despite source findings.",
+      "paths": [
+        ".github/workflows/sast.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual predicate tested54outcome/cancellation/cache-hit combinations; mandatory scan and regressions remain blocking.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-071"
+    },
+    {
+      "title": "Fail closed when advisory output cannot be retained",
+      "before": "Audit gate read only PIPESTATUS[0], so a successful audit plus failing tee could pass.",
+      "after": "Capture both pipeline statuses and fail on tee errors.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual workflow Bash with clean audit + tee exit74 returns1and explicit error; baseline would0.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-072"
+    },
+    {
+      "title": "Remove the final pointless registry retry sleep",
+      "before": "After the third failed lookup the gate waited another30seconds before failing.",
+      "after": "Sleep only when another retry exists.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual Bash fixtures for repeated transport errors/timeouts call three attempts and exactly two mocked30sec sleeps.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-073"
+    },
+    {
+      "title": "Preserve complete advisory retry diagnostics",
+      "before": "Report ignored stderr and gate overwrote prior attempts; summary ran before the gate.",
+      "after": "Capture report stderr, separate every gate attempt log, summarize after gate.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual retry fixtures retain every attempt log with correct outcomes; summary lists all logs. No added external registry calls.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-074"
+    },
+    {
+      "title": "Retain security evidence independently of code-scanning availability",
+      "before": "Scanner results depended on code-scanning upload availability; Bun gate logs had no artifact.",
+      "after": "Bounded14day attempt-specific artifacts keep audit/SAST/Trivy evidence even after failure.",
+      "paths": [
+        ".github/workflows/security.yml",
+        ".github/workflows/sast.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Guard proves failure-admitting cancellation-safe conditions, existing-file guards, strict upload and immutable rerun names. Count as onecross-scanner evidence behavior.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-075"
+    },
+    {
+      "title": "Run blocking Trivy gate despite reporting failure",
+      "before": "A SARIF scan or upload failure could suppress the blocking vulnerability scan via implicit success().",
+      "after": "Scan after a successful checkout with explicit !cancelled(), ahead of upload.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual admission predicate spans cancellation/prior failure/source success/failure/skipped/missing; same severity, scanners, exit1and suppressions preserved.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-076"
+    },
+    {
+      "title": "Keep informational Trivy publication failures from failing vulnerability verdicts",
+      "before": "Code-scanning publication error failed the required scan job despite clean blocking findings.",
+      "after": "Upload is explicitly informational via continue-on-error; scanner failures remain blocking.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Guard requires continued informational upload and non-continued HIGH/CRITICAL gate.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-077"
+    },
+    {
+      "title": "Reserve blocking security budget with bounded reporting and uploads",
+      "before": "Informational scan could consume entire10minute job budget before gate.",
+      "after": "Informational Trivy reporting has3minutes, the gate retains5minutes, and existing-file/noncancelled SARIF uploads follow with1minute caps.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts",
+        ".github/workflows/sast.yml"
+      ],
+      "proof": "Guard asserts all step budgets and gate-before-upload; prior hosted Security37257839827 report15sec/gate5sec supports margin.; Source predicates/timeout and no-files guards reviewed; actionlint clean. One behavior across bothscanner workflows.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-078"
+    },
+    {
+      "title": "Avoid full candidate history checkout for one-message lint",
+      "before": "Candidates downloaded allhistory although command inspects only C.",
+      "after": "Candidate checkout depth1; ordinary PR/push ranges keep full history.",
+      "paths": [
+        ".github/workflows/commitlint.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual depth predicate tested across candidate/PR/push; partial-proof final-result confirms shallow candidate gitshow message correct.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-079"
+    },
+    {
+      "title": "Avoid historical file blobs for ordinary commit-message ranges",
+      "before": "Full commitlint history fetched historical file bodies that gitlog does not need.",
+      "after": "blob:none retains complete commit graph/messages and current checkout files.",
+      "paths": [
+        ".github/workflows/commitlint.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Real file-protocol Git partial clone proof: fullobjects2,002,380bytes versus ordinaryrange2,984bytes, identical range messages; shallowcandidate2,731bytes with expected message. commitlint-partial-proof-5rb651l4/final-result.json.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-080"
+    },
+    {
+      "title": "Scope E2E PR suites to affected services",
+      "before": "Any relevant PR ran allthree services.",
+      "after": "REST-based scoped platform/web/docs scheduling; allcandidate/nightly/manual suites remain mandatory.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual scope script covers8service combinations plus mandatory full event coverage; hosted fullE2E37238408693passed.",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-081"
+    },
+    {
+      "title": "Fail closed on malformed E2E service scope",
+      "before": "No service-scope output validation existed.",
+      "after": "Missing or nonboolean service results fail before any output.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual Bash twelve malformed/missing-output cases pass; required scope included in candidate receipt.",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-082"
+    },
+    {
+      "title": "Cover E2E harness and toolchain source triggers",
+      "before": "PR pathtrigger omitted sandboxdaemon/scripts/CLI/bunfig and other imported workspace inputs.",
+      "after": "Conservative dependency/harness closure triggers required suites.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Guard enumerates harness/shared/toolchain changed-file examples and selects consuming services.",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-083"
+    },
+    {
+      "title": "Reduce complete platform E2E from16to4runners",
+      "before": "Sixteen copies of Postgres/toolchain/browser boot dominated runner demand.",
+      "after": "Four complete singleworker shards, fail-fast false.",
+      "paths": [".github/workflows/e2e.yml"],
+      "proof": "Hosted fullE2E37238408693passes allfour platformlegs plus web/docs.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-084"
+    },
+    {
+      "title": "Avoid compressing preview and binary artifact transfers",
+      "before": "Upload default deflate used CPU for built assets.",
+      "after": "Preview bundles and every CLI binary use compression-level0; complete transfer and artifact identity checks remain required.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts",
+        ".github/workflows/cli.yml"
+      ],
+      "proof": "Owned artifact contract guard; successful full hostedE2E build/shards.; CLI37257839844 allfive uploads success; cli-workflow exact artifact guards.",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-085"
+    },
+    {
+      "title": "Reuse declared Turbo platform build cache",
+      "before": "Independent bespoke distkey omitted parts of build inputs and isolated Checks builds.",
+      "after": "Normal platform Turbo build/taskhash shared with Checks.",
+      "paths": [".github/workflows/e2e.yml"],
+      "proof": "Hosted previewbuild onE2E37238408693cache replay328ms; cache correctness guard. Root may alreadycount underChecks/nativecache.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-086"
+    },
+    {
+      "title": "Cache installed Playwright version rather than lockfile",
+      "before": "Any unrelated lockbump invalidated browsers; broadfallback accumulated wrong revisions.",
+      "after": "Exact installed-version/OS/arch identity, no fallback.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Executable resolver tests plus actual installed1.58.2package proof; cache-key guard.",
+      "commits": ["027655fa3dc8c80a7602124cc7eda79edea77108"],
+      "origins": ["integrated"],
+      "id": "CI-087"
+    },
+    {
+      "title": "Provision only Chromium headless shell",
+      "before": "Jobs downloaded fullChromium inaddition to shell although suites use no full channel.",
+      "after": "--only-shell with mandatory --with-deps.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Sourceguards reject fullbrowser channel/headlessfalse; allhosted service suitespass.",
+      "commits": ["a2294467948b4491aef9cbbe530d773243579b56"],
+      "origins": ["integrated"],
+      "id": "CI-088"
+    },
+    {
+      "title": "Reject failed or malformed Playwright version lookup",
+      "before": "Resolver could echo/cache an empty or failed substitution.",
+      "after": "set-euo plus strictsemantic version regex fails beforecache.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Six actual Bash resolver mockoutcomes plus installedpackage read.",
+      "commits": ["a2294467948b4491aef9cbbe530d773243579b56"],
+      "origins": ["integrated"],
+      "id": "CI-089"
+    },
+    {
+      "title": "Derive shard denominator from expanded matrix",
+      "before": "Command had independently hardcoded shardcount that could drift from matrix.",
+      "after": "strategy.job-total drives every partition denominator.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Four-shard complete partition command guard and successful fullhosted suite.",
+      "commits": ["027655fa3dc8c80a7602124cc7eda79edea77108"],
+      "origins": ["integrated"],
+      "id": "CI-090"
+    },
+    {
+      "title": "Parallelize stateless service E2E with two workers",
+      "before": "Web/docs used default1worker.",
+      "after": "Two isolated browser workers perstateless suite.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Hosted fullE2E93web/55docs casespass.",
+      "commits": ["027655fa3dc8c80a7602124cc7eda79edea77108"],
+      "origins": ["integrated"],
+      "id": "CI-091"
+    },
+    {
+      "title": "Reuse complete static-site builds in previews",
+      "before": "Browser webServer rebuiltsite/client aftersetup.",
+      "after": "E2E_USE_BUILD serves the completed Turbo build in browser previews without a second client build.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "services/web/playwright.config.ts",
+        "services/docs/playwright.config.ts"
+      ],
+      "proof": "services/web and services/docs Playwright configs conditionally omit client rebuilds under E2E_USE_BUILD=1; hosted E2E37238408693 and37255219568 passed all browser suites. Complete static output declarations are counted separately.",
+      "commits": ["6d40d639c0acbea9d9c05fade514c05b4ea74b50"],
+      "origins": ["integrated"],
+      "id": "CI-092"
+    },
+    {
+      "title": "Keep full rerun preview artifacts immutable",
+      "before": "Fullrerun upload reused name and could collide409.",
+      "after": "Artifact name includes run_attempt.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Attempt-specific artifact contract plus hosted fullE2E success.",
+      "commits": ["48ef7d5d3242a48f9a78465594bbb1a0bfed304a"],
+      "origins": ["integrated"],
+      "id": "CI-093"
+    },
+    {
+      "title": "Download validated exact preview artifact identity",
+      "before": "Name-based downloads could select wrong rerun bundle.",
+      "after": "Build output immutable artifact-ID, strictsingleIDvalidator; failed-onlyreruns reuseoriginalID.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Six actual validator inputcases and artifact-ID download contract.",
+      "commits": ["48ef7d5d3242a48f9a78465594bbb1a0bfed304a"],
+      "origins": ["integrated"],
+      "id": "CI-094"
+    },
+    {
+      "title": "Inspect browser-tested web output without SEO rebuild",
+      "before": "fetch-releases changes trackedinput; Turbo SEO prerequisite rebuilt differentbytes and added~38seconds.",
+      "after": "Direct existing test:prerender script against completed browser-testedbuild.",
+      "paths": [".github/workflows/e2e.yml"],
+      "proof": "Real1,712file39,147,382byte identity proof/all822SEOtests; hosted37255219568webSEO14.72sec versus53sec baseline.",
+      "commits": ["dc2ded7a3301abb0b5bea1c00f410259c27af822"],
+      "origins": ["integrated"],
+      "id": "CI-095"
+    },
+    {
+      "title": "Run SEO after browser failure only for a successful sitebuild",
+      "before": "Implicit success skippedSEO diagnostics afterbrowserfailure, and no explicit completed-build admission existed.",
+      "after": "!cancelled + web + successfulsite-build explicit predicate.",
+      "paths": [
+        ".github/workflows/e2e.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Hardened actual-admission table tests buildoutcomes/browserfailure/cancellation; site-buildID and actualsteporder required.",
+      "commits": ["6d40d639c0acbea9d9c05fade514c05b4ea74b50"],
+      "origins": ["integrated"],
+      "id": "CI-096"
+    },
+    {
+      "title": "Preserve complete SEO coverage for historical candidates",
+      "before": "Older candidate browser configs can rebuildclient and overwriteSEO output.",
+      "after": "Forced uncached candidate completebuild restorationbeforeSEO; ordinarydirectlane unchanged.",
+      "paths": [".github/workflows/e2e.yml"],
+      "proof": "Existing ci-performance shellregressions exercise candidateforce/normaldirectcommands; historical sourceconfig crossreview.",
+      "commits": ["dc2ded7a3301abb0b5bea1c00f410259c27af822"],
+      "origins": ["integrated"],
+      "id": "CI-097"
+    },
+    {
+      "title": "Omit unused candidate Trivy reporting pass",
+      "before": "Candidates ranextraSARIFscan while deliberatelyunableuploadagainstmovingmain.",
+      "after": "Candidate executes same standalone blocking vulnerabilityscan only.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual event-admission table and candidate HIGH/CRITICAL/exit1/suppressions guard.",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-098"
+    },
+    {
+      "title": "Omit unused candidate SAST SARIF serialization",
+      "before": "Candidates generated unusedSARIF; initialSAST didtwofullpasses.",
+      "after": "Candidate env disablesSARIF while same mandatory blockingengine runs.",
+      "paths": [
+        ".github/workflows/sast.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual event-expression coverage for candidate/PR/push/schedule; strictblocking entry point retained.",
+      "commits": ["f0d76f1401cf50cf86f89b702819440202d9f26a"],
+      "origins": ["authored"],
+      "id": "CI-099"
+    },
+    {
+      "title": "Serialize normal SAST SARIF from the blocking scan",
+      "before": "Normal SAST scanned twice for reportandgate.",
+      "after": "Pinnedengine emitsSARIF from one ERROR/WARNING --error scan.",
+      "paths": [".github/workflows/sast.yml", "tools/opengrep/run.sh"],
+      "proof": "Realenginepolicyregressions provisioned inSAST; 43a hosted gatepassed but stream-specific tests required incoming30ddLinuxfix.",
+      "commits": ["3bd78d22cef56973fa6c5a6ff881cb5a5bbee69a"],
+      "origins": ["integrated"],
+      "id": "CI-100"
+    },
+    {
+      "title": "Run informational Scorecard on posture triggers instead of every push",
+      "before": "Every mainpush queued informational Scorecardrunner.",
+      "after": "Weekly/manual/branch-protection trigger only.",
+      "paths": [".github/workflows/scorecard.yml"],
+      "proof": "Git diff preserves weekly/manual/protectiontriggers; existing ci-optimization workflowguard.",
+      "commits": ["48ef7d5d3242a48f9a78465594bbb1a0bfed304a"],
+      "origins": ["integrated"],
+      "id": "CI-101"
+    },
+    {
+      "title": "Keep cache fixtures portable across Windows drives",
+      "before": "Full fixture workspace installs tried linking modules across separate Windows drives.",
+      "after": "Lockfile-only fixture installs retain dependency/hash proofs without workspace symlinks.",
+      "paths": [
+        "tools/cli/scripts/ci-cache-optimization.test.ts",
+        "tools/cli/scripts/turbo-dependencies.test.ts"
+      ],
+      "proof": "Exact247 CLI37257839844 allfive targets success; Windows actual fixture guard passed.",
+      "commits": ["d61e03fbf7c6d8dd9f1149bb969c199b7dd111dd"],
+      "origins": ["authored"],
+      "id": "CI-102"
+    },
+    {
+      "title": "Run source CLI suites only on native host rows",
+      "before": "Cross rows repeated the same Linux/macOS source suite.",
+      "after": "Three native rows test source; allfive rows still generate/build their target.",
+      "paths": [".github/workflows/cli.yml"],
+      "proof": "CLI37257839844 allfive targets successful; cli-workflow and cli-ci native/admission guards.",
+      "commits": ["9ccd5da3ccbb7e8fab94627abcdb302910b64aa6"],
+      "origins": ["integrated"],
+      "id": "CI-103"
+    },
+    {
+      "title": "Install only CLI dependencies on cross build rows",
+      "before": "Cross rows installed full platform workspaces despite no native source test.",
+      "after": "Cross builds use a separate frozen CLI-only install and download namespace.",
+      "paths": [".github/workflows/cli.yml"],
+      "proof": "CLI37257839844 successful cross compilation; ci-build-optimization executes cross install contract.",
+      "commits": ["027655fa3dc8c80a7602124cc7eda79edea77108"],
+      "origins": ["integrated"],
+      "id": "CI-104"
+    },
+    {
+      "title": "Remove repeated source commands from compiled smoke",
+      "before": "Windows binary smoke repeated19 source command cases already tested.",
+      "after": "Smoke discovers every command suite but selects only explicit compiled binary.",
+      "paths": [
+        "tools/cli/tests/fixtures/command-targets.ts",
+        "tools/cli/tests/provision.test.ts"
+      ],
+      "proof": "CLI37257839844 native smoke mac/linux56pass1skip and Windows40pass17skip; before19duplicate source cases cost47.8s.",
+      "commits": ["4a0e278e7f99d49e2622673374cef2e8d611c94d"],
+      "origins": ["integrated"],
+      "id": "CI-105"
+    },
+    {
+      "title": "Inspect TAR symlink targets without copying unrelated assets",
+      "before": "Source archive test recopied about569MB of unrelated repository assets.",
+      "after": "Inspect complete extracted archive plus dereferenced symlink targets, about4MB, within unchanged60s budget.",
+      "paths": ["tools/cli/scripts/action-archive.test.ts"],
+      "proof": "Actual full ZIP/TAR inventory/CRC/symlink proof19.76s; CLI37257839844 source suites passed.",
+      "commits": ["0a91c5bcc92e710d3dcb245e37df8af382f6bcf9"],
+      "origins": ["integrated"],
+      "id": "CI-106"
+    },
+    {
+      "title": "Reuse Node bytecode between isolated test workers",
+      "before": "Isolated Unit/UI processes reparsed the same dependencies.",
+      "after": "Job-local compile cache shares bytecode without caching test verdicts or removing isolation.",
+      "paths": [".github/workflows/checks.yml", "turbo.json"],
+      "proof": "ci-checks-optimization asserts actual compile-cache env/pass-through; hosted Checks37258100927 all16Unit tasks fresh MISS.",
+      "commits": ["027655fa3dc8c80a7602124cc7eda79edea77108"],
+      "origins": ["integrated"],
+      "id": "CI-107"
+    },
+    {
+      "title": "Hash only the formatter manifest for Ruff downloads",
+      "before": "Format uv cache key walked nested installed dependency manifests.",
+      "after": "Key hashes the pinned root Ruff manifest.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks-optimization Ruff key guard and successful hosted Format37258100927.; ci-checks-optimization resolves exact declared manifest and asserts its uvx ruff version command; focused105/105",
+      "commits": ["027655fa3dc8c80a7602124cc7eda79edea77108"],
+      "origins": ["integrated"],
+      "id": "CI-108"
+    },
+    {
+      "title": "Narrow component test inputs with complete import closure proof",
+      "before": "Platform component hashes included unrelated backend/manual/E2E trees.",
+      "after": "Narrow inputs keep every imported/re-exported/source-read dependency; unrelated mutations preserve hashes.",
+      "paths": [
+        "services/platform/turbo.json",
+        "services/platform/tests/guards/turbo-inputs.guard.test.ts"
+      ],
+      "proof": "Real Turbo unrelated/imported mutation fixture; fresh hosted UI shards37253041672.",
+      "commits": ["6685b06685456658c3ca922e426d174be2788e8a"],
+      "origins": ["integrated"],
+      "id": "CI-109"
+    },
+    {
+      "title": "Restore complete static site output sets",
+      "before": "Build cache could omit SSR, SEO, frontmatter or search files required by preview/prerender.",
+      "after": "Web/docs build outputs declare complete generated trees together.",
+      "paths": ["services/web/turbo.json", "services/docs/turbo.json"],
+      "proof": "Cold/warm docs proof3793artifacts restored byte-for-byte;15prerender/crawl cases passed;83.982s\u21926.242s local.",
+      "commits": ["248d3274db19b4d37745c324ea4da2fbfd0c61cb"],
+      "origins": ["integrated"],
+      "id": "CI-110"
+    },
+    {
+      "title": "Invalidate web bundles when release snapshots change",
+      "before": "Web build input narrowing excluded the tracked release snapshot.",
+      "after": "Snapshot-only edits change the production build hash.",
+      "paths": ["services/web/turbo.json"],
+      "proof": "ci-performance actual build input guard; web build/browser/SEO byte-identity proof.",
+      "commits": ["60ed416b12c648c9dd22896fac11482b30cd8b58"],
+      "origins": ["integrated"],
+      "id": "CI-111"
+    },
+    {
+      "title": "Publish shared Docker layer caches only from main",
+      "before": "PR/candidate jobs exported expensive cache layers and older candidates could replace main caches.",
+      "after": "PR/candidates read; ordinary main pushes publish shared stack and four standalone service layers. Same-PR reruns may rebuild unique layers.",
+      "paths": [
+        ".github/workflows/build.yml",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "ci-build-optimization event predicate and unchanged image publication guards; exact247 Build37257839752 success. Standalone extension: official expressions and pinned Bake input parser passed28event cases;32actual Compose/Bake --print exits0 preserve imports/context/tags/args/load/provenance. Observed prior web PR export127.5s is context, not a controlled speedup.",
+      "commits": [
+        "027655fa3dc8c80a7602124cc7eda79edea77108",
+        "14918a728b3e5fa0401fc4df6533c94e245ff6fb"
+      ],
+      "origins": ["integrated", "authored"],
+      "id": "CI-112"
+    },
+    {
+      "title": "Skip teardown of disposable hosted builders",
+      "before": "Hosted Build/Release/backend jobs deleted ephemeral builders before their runners were discarded.",
+      "after": "Builder cleanup=false avoids redundant shutdown, while test/build steps remain blocking.",
+      "paths": [
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+        ".github/workflows/checks.yml"
+      ],
+      "proof": "deployment-ci enumerates all ephemeral builder settings; Build37257839752 and backend37258100927 successful.",
+      "commits": [
+        "53164e28f2b290bc0bb1d5d47b7188c08055f5e4",
+        "027655fa3dc8c80a7602124cc7eda79edea77108",
+        "6685b06685456658c3ca922e426d174be2788e8a"
+      ],
+      "origins": ["integrated"],
+      "id": "CI-113"
+    },
+    {
+      "title": "Split the full platform Unit suite into two runners",
+      "before": "Single platform Unit task took480.563s on fresh hosted Checks37258100927.",
+      "after": "Two complete Vitest shards use unchanged isolation/worker pools with separate cache scopes.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks-optimization.test.ts verifies distinct Turbo shard hashes, complete executable task coverage and the installed Vitest server/PII project policy; focused105/105 passed. Hosted Checks37260796248 executed both platform shards freshly in151.4s/198.7s and passed; later Checks37271033992 also passed.",
+      "commits": ["ab8d18ec2670a9e3e58978a22c7ce977e4602022"],
+      "origins": ["integrated"],
+      "id": "CI-115"
+    },
+    {
+      "title": "Run all nonplatform Unit workspaces once independently",
+      "before": "Other cold workspace tests shared a runner with the full platform suite.",
+      "after": "Dedicated workspaces lane runs each other workspace exactly once with bounded concurrency.",
+      "paths": [".github/workflows/checks.yml"],
+      "proof": "ci-checks-optimization actual Turbo test task set covers all16baseline workspace tests without overlap.; ci-checks-optimization compares actual all-unit task set to both selected lanes, verifies concurrency2, scriptless coverage and absent live env/service; focused105/105",
+      "commits": ["ab8d18ec2670a9e3e58978a22c7ce977e4602022"],
+      "origins": ["integrated"],
+      "id": "CI-116"
+    },
+    {
+      "title": "Bound old task archives on disposable hosted runners",
+      "before": "Restored native task archives accumulated history without startup eviction.",
+      "after": "Pinned Turbo best-effort512MiB startup target applies only to GitHub-hosted ephemeral caches.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        "tools/cli/scripts/ci-cache-archive.test.ts"
+      ],
+      "proof": "ci-cache-archive real archive restore/eviction fixture and hosted-vs-local/selfhosted policy shell cases.; ci-cache-archive installedTurbo fixture proves complete old/oversized archive+sidecar eviction, current output restore, cold writes and unchanged failing-source verdict; hosted-env shell fixture; focused105/105",
+      "commits": ["ab8d18ec2670a9e3e58978a22c7ce977e4602022"],
+      "origins": ["integrated"],
+      "id": "CI-117"
+    },
+    {
+      "title": "Trigger CLI validation for all install and imported runtime inputs",
+      "before": "Root manifests/bunfig/patches/compiler families and several imported platform modules did not trigger CLI CI.",
+      "after": "Push/PR paths include conservative declared runtime/config/toolchain closure.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cli-publication.test.ts"
+      ],
+      "proof": "ci-cli-publication guard enumerates both event filters; platform-docs module/hash closure remains required.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-118"
+    },
+    {
+      "title": "Select only the expected five CLI release artifacts",
+      "before": "Release downloaded unrelated successful job artifacts too.",
+      "after": "Exact five-name artifact pattern narrows transfer and publication inputs.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cli-publication.test.ts"
+      ],
+      "proof": "Pinned download-artifact source uses Minimatch; actual workflow exact five-name regression.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-119"
+    },
+    {
+      "title": "Validate the complete binary set before generating checksums",
+      "before": "Checksum step copied arbitrary first files and could publish missing/empty/extra target content.",
+      "after": "Require exactlyfive named directories/files and nonempty binaries before any output is created.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cli-publication.test.ts"
+      ],
+      "proof": "Actual Bash good fixture checks exact byte SHA256SUMS; malformed missing/extra/hidden/empty/nested/wrongname cases fail before copy.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-120"
+    },
+    {
+      "title": "Refuse symlinked binary publication inputs",
+      "before": "Artifact root/directories/binaries could redirect checksum/copy operations through symlinks.",
+      "after": "Reject links at each publication boundary.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cli-publication.test.ts"
+      ],
+      "proof": "Actual root/directory/file symlink fixtures all reject before release directory creation.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-121"
+    },
+    {
+      "title": "Bind CLI publication to the prepared release source",
+      "before": "Release tag could move after preparation while publication waited.",
+      "after": "Prepare is a required successful predecessor; re-resolve release tag and require its exact full SHA before checksum preparation and upload.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cli-publication.test.ts"
+      ],
+      "proof": "Actual releasewait moved/malformed/empty SHA fixtures reject; all predecessor states covered by release-candidate-workflows.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-122"
+    },
+    {
+      "title": "Fit release readiness waits within the publication job budget",
+      "before": "Ten increasing waits with a120s cap could consume the entire10minute job before upload.",
+      "after": "Ten attempts use255s total maximum sleep and never sleep after the last failure.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cli-publication.test.ts"
+      ],
+      "proof": "Actual GH/sleep fixtures prove ready/no-sleep, missing10calls/9sleeps255s and explicit failure.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-123"
+    },
+    {
+      "title": "Preserve package versions with any shared non-PR tag",
+      "before": "Cleanup deleted an entire version when any tag matched a closed PR.",
+      "after": "Every tag must match the same PR and full40hex source; main/release/candidate/otherPR shared versions survive.",
+      "paths": [
+        ".github/workflows/cleanup-pr-images.yml",
+        "tools/cli/scripts/ci-pr-cleanup.test.ts"
+      ],
+      "proof": "Actual Bash+real jq fixture tests each mixed-tag combination and malformed short source.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-124"
+    },
+    {
+      "title": "Recheck package ownership immediately before deletion",
+      "before": "Tags could change after the initial paginated listing.",
+      "after": "Each worker rereads all tags and preserves newly shared versions before DELETE.",
+      "paths": [
+        ".github/workflows/cleanup-pr-images.yml",
+        "tools/cli/scripts/ci-pr-cleanup.test.ts"
+      ],
+      "proof": "Actual race fixture adds main tag between listing and worker GET; zero DELETE calls.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-125"
+    },
+    {
+      "title": "Fail cleanup closed on missing or unreadable ownership metadata",
+      "before": "Cleanup had no ownership recheck and could not reject malformed metadata/read failures.",
+      "after": "Malformed tags and403/5xx ownership reads reject deletion and fail the job;404 remains alreadygone.",
+      "paths": [
+        ".github/workflows/cleanup-pr-images.yml",
+        "tools/cli/scripts/ci-pr-cleanup.test.ts"
+      ],
+      "proof": "Actual malformed/read403/read503 fixtures prove red status and zero DELETE calls.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-126"
+    },
+    {
+      "title": "Validate cleanup identifiers before API mutations",
+      "before": "Unvalidated PR/version IDs flowed into deletion endpoints.",
+      "after": "Require positive PR and version integers across the full listing before any writes.",
+      "paths": [
+        ".github/workflows/cleanup-pr-images.yml",
+        "tools/cli/scripts/ci-pr-cleanup.test.ts"
+      ],
+      "proof": "Actual invalidPR/../1/-1/0fixtures reject before API/write activity.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-127"
+    },
+    {
+      "title": "Deduplicate package versions before ownership and deletion calls",
+      "before": "Duplicate paginated IDs could repeat reads/deletes.",
+      "after": "Each validated version ID is processed once.",
+      "paths": [
+        ".github/workflows/cleanup-pr-images.yml",
+        "tools/cli/scripts/ci-pr-cleanup.test.ts"
+      ],
+      "proof": "Duplicate fixture records exactlyone ownership read and DELETE.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-128"
+    },
+    {
+      "title": "Overlap PR image cleanup with bounded complete verdicts",
+      "before": "Version deletions were serial, sharing one error file.",
+      "after": "Three workers own separate diagnostics/results, all are joined and counted even after a sibling failure.",
+      "paths": [
+        ".github/workflows/cleanup-pr-images.yml",
+        "tools/cli/scripts/ci-pr-cleanup.test.ts"
+      ],
+      "proof": "Nine-version real process barrier proves peak3/all9finish despite403; fault tests retain complete outcome counts.",
+      "commits": ["013cef62abe5ce05e2e277d76c082988b11228ea"],
+      "origins": ["authored"],
+      "id": "CI-129"
+    },
+    {
+      "title": "Use one native production audit response for report and gate",
+      "before": "Nonblocking text reporting requested advisories before the blocking native gate requested them again.",
+      "after": "One JSON lookup per bounded attempt retains every severity while Bun enforces HIGH/CRITICAL; retries, finding failures, tee failures and evidence retention remain.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual Bun1.4.2 loopback registry: low/moderate exit0, high/critical exit1; complete JSON, production-only payload and exactly one POST per case. Actual503 and existing Bash outage/timeout/tee/finding fixtures retain failure policy. Full affected CLI gate executed freshly.",
+      "commits": ["14918a728b3e5fa0401fc4df6533c94e245ff6fb"],
+      "origins": ["authored"],
+      "id": "CI-130"
+    },
+    {
+      "title": "Materialize only policy and release rendering source closures",
+      "before": "Five scope jobs and seven terminal readiness jobs checked out the full source although their evaluators have no workspace dependencies. Release publication also materialized the full tree for dependency-free notes rendering.",
+      "after": "Pinned non-cone checkouts materialize three scope files or two readiness files, preserving source refs, PR API discovery and complete native-needs verdicts. Release publication selects authored notes and two renderers while retaining complete commit/tag history and on-demand historical API blobs.",
+      "paths": [
+        ".github/workflows/build.yml",
+        ".github/workflows/checks.yml",
+        ".github/workflows/cli.yml",
+        ".github/workflows/commitlint.yml",
+        ".github/workflows/e2e.yml",
+        ".github/workflows/sast.yml",
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-ready-workflows.test.ts",
+        ".github/workflows/release.yml",
+        "tools/cli/scripts/ci-release-performance.test.ts"
+      ],
+      "proof": "Real Git materialization at4653:8792blobs/569464405tracked bytes become28544scope/15931readiness bytes. Native Git guards reject sibling/nested/dependency files and execute actions. Official checksummed Node24.21.0 and Node22.22.0 import sparse TS and pass seven action cases without package.json/node_modules. No hosted PR duration or network-byte claim. Tracked sparse fixtures now execute all five scope policies plus passed/failed/incomplete readiness using native Node as well as Bun VM. A fresh anonymous GitHub blob:none clone retains all 390 remote tags and 3,522 source commits; excluded historical snapshots fetch without credentials and render the same 8,685-byte notes. Six release files materialize 23,100 bytes. Release tag-away-from-HEAD and missing-tag dispatch regressions preserve full-history rendering.",
+      "commits": [
+        "14918a728b3e5fa0401fc4df6533c94e245ff6fb",
+        "256a7d583fc14ad6a4711faec335510c6ea5b6aa",
+        "64b08128bc732f5d73d5ea09bd21ba1559c88faf"
+      ],
+      "origins": ["authored"],
+      "id": "CI-131"
+    },
+    {
+      "title": "Align shared checks and native CLI Bun download identities",
+      "before": "Shared setup omitted bunfig while CLI hashed independent non-workspace npm manifests, producing different exact native cache keys.",
+      "after": "Both hash the same root/workspace/lock/config/patch inputs; OS/arch/Bun and cross namespaces, prefix fallbacks, frozen installs and early successful saves remain.",
+      "paths": [
+        ".github/actions/setup-turbo/action.yml",
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-cache-optimization.test.ts",
+        "tools/cli/scripts/ci-build-optimization.test.ts"
+      ],
+      "proof": "Actual @actions/glob0.5.0 hashes28real inputs: every individual mutation invalidates both, independent document-node edit preserves both, five OS/arch identities match. Actual CLI install shell passes native/cross/empty-cross frozen fixtures and rejects stale locks for native/cross. Fresh pinned full CLI gate passes.",
+      "commits": ["14918a728b3e5fa0401fc4df6533c94e245ff6fb"],
+      "origins": ["authored"],
+      "id": "CI-132"
+    },
+    {
+      "id": "CI-133",
+      "title": "Reuse successful Trivy report provisioning for the independent filesystem gate",
+      "before": "After a successful report scan, the blocking filesystem gate repeated binary and database cache provisioning.",
+      "after": "Only report outcome=success enables skip-setup/cache=false; every other outcome retains full provisioning. The gate executes its own HIGH/CRITICAL vulnerability scan with unchanged admission, ignores and time budget.",
+      "paths": [
+        ".github/workflows/security.yml",
+        "tools/cli/scripts/ci-e2e-optimization.test.ts"
+      ],
+      "proof": "Actual expression matrix covers success/failure/cancelled/skipped/missing outcomes and failure with successful conclusion; scanner inputs remain exact. Unconditional/conclusion-based negative controls reject. Checksum-verified Trivy0.70.0 through the pinned action entrypoint independently rejects HIGH findings and wrong-path ignores; clean and matching-path cases pass. External policy fixture used a copied June DB; live workflow retains normal updates. Full integrated CLI gate: 2,345 pass, 29 existing skips, 0 fail, 37,614 assertions; generation/lint/types also pass.",
+      "commits": ["0d3c95a5e75d532e0d4224e57b68b51900700c1d"],
+      "origins": ["authored"]
+    },
+    {
+      "id": "CI-134",
+      "title": "Reuse runtime filesystem layers across release version changes",
+      "before": "Runtime VERSION arguments were declared before filesystem RUN instructions; the implicit RUN environment caused cache misses even when commands never read VERSION.",
+      "after": "DB, proxy, four static-site runtimes and platform runner/dev declare VERSION after filesystem work while preserving version metadata and runtime settings. Both service generator templates use the same boundary; existing late declarations in sandbox and platform squash stay guarded.",
+      "paths": [
+        "services/db/Dockerfile",
+        "services/proxy/Dockerfile",
+        "services/platform/Dockerfile",
+        "services/web/Dockerfile",
+        "services/docs/Dockerfile",
+        "services/ui-docs/Dockerfile",
+        "services/ai-gateway/Dockerfile",
+        "tools/cli/scripts/ci-integration-setup.test.ts",
+        "tools/cli/scripts/ci-build-optimization.test.ts",
+        "tools/plop/templates/service/react/Dockerfile.hbs",
+        "tools/plop/templates/service/docker/Dockerfile.hbs",
+        "tools/plop/tests/templates.test.ts"
+      ],
+      "proof": "Four real DB builds improve version-only filesystem cache reuse from 1/9 to 9/9 layers. Complete Config is equal at both versions; all four exported filesystems have 16,557 identical paths, including content hashes, uid/gid, modes, links and non-timestamp PAX/xattrs. Proxy images preserve normalized config, file hashes and RootFS layers while chmod switches from execution to a cache hit. Controlled actual runtime-stage fixtures with synthetic builder outputs preserve configuration, app/runtime hashes and permissions for web and docs; their version-only filesystem caches change from 0/8 to 8/8 and 0/7 to 7/7. Source guards reject early ARG and missing runtime version promotion; both rendered templates reject eight missing/commented ENV/LABEL counterfactuals (17 passing tests,142assertions). Independent source review preserves filesystem instructions and final runtime name/value settings. The unchanged sandbox LLM gateway already cached COPY across versions. Local full production builds and completed UI-docs/AI-gateway runtime fixtures are not claimed; fixture continuation stopped at its disk reserve. Rebased independent comparison covers 28 stages,229 filesystem instructions and36 RUN commands, including the new manifest-only production dependency stage.",
+      "commits": ["61857248e7fdf88a41efdf6dde2a69ac006b5428"],
+      "origins": ["authored"]
+    },
+    {
+      "id": "CI-135",
+      "title": "Separate platform production dependencies from application sources",
+      "before": "The production dependency stage inherited the application builder and repeated its dependency work after unrelated application source edits.",
+      "after": "Production installs inherit the minimal Bun base and receive only workspace manifests, the lockfile, Bun config and patches; runtime application files still come from the complete application builder.",
+      "paths": [
+        "services/platform/Dockerfile",
+        "services/platform/tests/guards/dockerfile-fail-closed.guard.test.ts"
+      ],
+      "proof": "Real BuildKit at Bun1.3.12:1542productionpackages;warm and actual application-source mutation builds keep productioninstallRUN CACHED. Transitive context guard catches FROMbuilder mutant;all15runtime COPY paths/ownership and exact productioninstall/cleanupRUN preserved. Exact d934 ordinaryBuild37291275081 and fullcandidate37291485437 pass8images,45image/83runtime/29smoke checks. Productioninstall13.9s overlapsVite22.3s; unchangedGHA export varies129s vs223.4s baseline, not a guaranteed exporter optimization. Native TrivySBOM retains1414npm hashes and86Debian hashes. Correctedb3 ordinaryBuild37293441007 step530s/export358.9s;candidate177s. Productionamd641543packages and all1414npm SBOMhashes identicaltod934;newtest-onlyglob absent. Changed-lock firstbuild/export can be slower thanbaseline;no overall speedupclaim.",
+      "commits": ["d934290d8e059eeeb93b3216032d743d29b35696"],
+      "origins": ["authored"]
+    },
+    {
+      "id": "CI-136",
+      "title": "Place the Windows native Bun store beside the checkout",
+      "before": "The native Windows Bun store used a C: home path while checkout used a D: path; those runs did not record physical volume or file identities.",
+      "after": "Windows native installs use a normalized absolute sibling store beside the checkout, resolved through real Bun node:path.win32.resolve. Later main skips native Windows archive restore/save and runs the complete frozen install directly; other native/cross archives and complete manifest-specific keys remain.",
+      "paths": [
+        ".github/workflows/cli.yml",
+        "tools/cli/scripts/ci-build-optimization.test.ts",
+        "tools/cli/scripts/ci-cli-publication.test.ts",
+        "tools/cli/package.json",
+        "bun.lock"
+      ],
+      "proof": "Hosted d934 all5CLI targets passed but realglob rejected the dotdot cache path. Fixed with actualBunwin32.resolve and exact pinnedcacheconsumer@actions/glob0.5.1:oldpattern rejects, normalizeddrive path validates, populatedrealstore matches.55focusedtests/994assertions and independent2cases/40assertions pass. Publisherb04 CLI37293503192 coldinstall70.18s saves252814413bytes/newversiondf0009...; protectedCb3/Hb04 CLI37293674424 restores exactkey with28.177sextraction and55.65sfrozen1909packageinstall. All5compile/uploadtargets,source/smokeon3nativehosts,strictsignatureson2macOStargets andexactC/H receiptpass. Differentarchive/runner/inputs;no controlledpercentage claim. Later74935ed9b deliberately skips nativeWindows archive transfers after cold/warm observations; these historical archive measurements prove the correction, not the current transfer policy. Normalized sibling store and complete frozen install remain. Native physical-volume and hardlink identity evidence has not yet been recorded.",
+      "commits": [
+        "d934290d8e059eeeb93b3216032d743d29b35696",
+        "b3e73c51d9f1b8157f08f16d170ea463793bb36c"
+      ],
+      "origins": ["authored"]
+    }
+  ],
+  "validation": {
+    "focused": "Integrated Checks/cache105tests1903assertions, container/release66tests1204assertions, publication/cleanup/shared171tests, E2E/security57tests478assertions; historical-helper fallback2tests158assertions. Exact Bun1.4.2 lint/types, formatter and actionlint passed. Final guard follow-up: real compiler guard6/6; real Compose helper plus actual Turbo input closure122/122 (2403assertions); both local/hosted failed-cache variants48assertions; 185other release/metadata/Build/deployment/cache cases passed in the integration batch. Five affected-workspace lint/type/generate tasks executed freshly and passed; Knip/actionlint and commit hooks passed. Final upstream readiness integration: 71/71 native CLI, workflow/readiness and candidate guards passed with 2241 assertions; CLI typecheck, targeted lint/format, actionlint and all links passed.",
+    "local_broad": "Frozen-source full gate:47/49tasks passed (38cache replays),30m49.996s. Fresh platformUnit passed82,098tests; fresh CLI passed2247tests/0fail (29existing skips). Both affected workspaces lint/types passed. The gate remained red for unchanged sandbox5s subprocess fixtures and load-sensitive UI timeouts; all12failed UI files subsequently passed241tests with1worker and unchanged assertions/budgets. Full SAST exit0:476applicable rules/4541files/0findings,91partially analyzed files under the existing policy. The red monolithic gate is not represented as green.",
+    "hosted": "Full E2E37265091303 at4a77db784 passed214browser tests with zero retries and822SEO tests (one preexisting fixme). Exact-source Checks37271033992, CLI37271033868, SAST37271033889 and Security37271160205 passed at1dcc2e523. Ordinary Build37269909176 at3184c0b2b passed all8stack builders, smoke, metadata/runtime checks and the selected platform scan, including actualTrivy0.70 SBOM Node/Python hashes and JSON-conversion negatives. Standalone jobs were not selected in that push. Regressions found during validation were corrected, not counted as new improvements. Cached verdicts, cancelled runs and older candidate sources are distinguished from fresh execution. Protected candidate91ac also passed Checks/Build/E2E/Security/SAST, but CLI macOS failed25runtime fixture setup timeouts and its15min job budget; all4other CLI targets passed. Ordinary descendant2c3fe passed Checks37273116498, CLI37273116351 and Build37273116429. The Macparallelism optimizationCI114 is withdrawn and not included in count128; serial production CLI37283199170 at4653d3e3b passed all5targets, with macOS2346pass/20skip/0fail in246.41s and smoke56pass/1skip/0fail in47.29s. The additional Git fixture regression awaits its final hosted run.",
+    "continued_pass_2026_10_05": {
+      "source": "14918a728b3e5fa0401fc4df6533c94e245ff6fb",
+      "local": "Bun1.4.2 full affected check exit0: all4CLI tasks freshly executed,0cache replays;2342pass/29existing skips/0fail,37507assertions in635.48s. Root format/conflicts/links and sandbox format check passed. Seven-workflow actionlint0; targeted full-pack Opengrep162applicable rules on4changed test files/0findings with configured exclusions retained. Normal source commit hooks passed. This full execution used main parent01032f955; implementation blobs remain identical after rebasing onto cb69c47ce plus its incoming product fixes. Final hosted validation will judge the rebased source. Rebased focused gate:97tests/2855assertions/0fail; CLI typecheck0 and links0 over452documentation pages/8799tracked files.",
+      "native": "Actual Bun advisory engine, official GitHub hash and Bake expression/input-list libraries, actual Docker plan commands, real Git non-cone materialization, actual Node24/22 sparse action execution and frozen/stale-lock fixtures passed. Peer reviews found no blocking source defects.",
+      "hosted_at_record_creation": "Not yet triggered when this record was authored; observe after ordinary direct main push; PR scope/readiness do not run on push, and E2E has no push trigger. No dispatch, rerun or cancellation requested."
+    },
+    "continued_followup_2026_10_05": {
+      "source_parent": "e3c832aa8dda9ecae878a7f3d4ca6641b04de657",
+      "local": "Fresh full affected CLI generation/lint/typecheck/test gate exit0: 2,345 pass,29 existing skips,0 fail,37,614 assertions across150files in629.97s. Combined focused guard suite76cases/1086assertions passes; native Node24 sparse action guard10cases/393assertions passes. Actionlint, formatting, full-pack SAST on3changed test files, links/conflicts/manual and normal commit hooks pass. Native policy fixture extends the concurrently integrated sparse Git fixture rather than introducing another model.",
+      "broad_limits": "Initial full gate red for two unchanged web content loader timeouts; both cases pass isolated with original budgets. Bounded full gate red after18m13.651s: platformUI593files/5800cases pass,12files/27cases fail; Unit cancelled. One-worker recheck:426pass/7fail across12files. Subsequent four-file recheck:122pass/1fail; last remaining skills file passes all6cases in isolation. These overlapping isolated retries do not make the full gate green. No assertion or test timeout relaxed; hosted exact-revision validation is observed separately.",
+      "scope": "Retains concurrent upstream audit/cache/sparse-checkout changes. Release narrowing is folded into CI131, not counted as a repeated pattern. Native filtered install was rejected without controlled timing or complete coverage. Only owned disposable experimental caches/install contents/scanner copies were removed to recover disk; source fixtures/proof/user state preserved.",
+      "hosted": "Ordinary Security37293502987 and Commitlint37293502883 pass exact push source b04bbb5e68376511b6ff04cc1675968f8a00275d. Security gate resolves skip-setup-trivy=true/cache=false, skips binary/DB restore and independently executes the vulnerability scan; Bun blocking audit passes. Checks/CLI/SAST are still running. Final immutable source validation is observed after the documentation reference correction; no blanket green or causal pipeline speedup claim.",
+      "rebased_parent": "6bd227fdc724638cda39bb296b5bda1f67f3a8bd",
+      "rebased_local": "Implementation blobs remain identical after rebasing onto 6bd227fdc and its incoming production-install/Windows-cache changes. Latest rebased integration guard suite:143pass/0fail/2169assertions across6files; affected CLI lint/typecheck and all-workflow actionlint exit0.",
+      "final_rebased_parent": "b3e73c51d9f1b8157f08f16d170ea463793bb36c",
+      "final_local": "After integrating Windows cache normalization b3e73c51d, fresh frozen install succeeds. Latest CI guard suite:128pass/0fail/2057assertions across5files; CLI lint/types and actionlint exit0. Combined batch:143pass/1 unchanged container-fixture5s timeout; that case passes isolated within its original budget (4.14s total). Prior6bd integrated suite143cases passed; these results remain distinct."
+    },
+    "runtime_version_iteration": "Pinned Bun1.4.2 broad gate passed49/49tasks (31fresh,18replays) in1h1m15.036s at4653d3e3b plus the pending iteration: backend/PII82121pass, frontend5827pass, UI2847pass, CLI2348pass/0fail. After retaining stronger upstream sparse/native Node coverage and rebasing implementation1177ee898 onto628a1c623,162affected guards/3400assertions,19platform Docker guards and17Plop tests/142assertions passed freshly; five affected lint/type/generate tasks all executed and passed. Frozen install, actionlint, Knip and normal commit hooks passed. Before integration, targeted full-registry SAST207rules/17files/0findings passed; the rebased workflow/Dockerfile scan passed99rules/15files/0findings with four partially analyzed files under the existing policy. Full DB filesystem/config comparison and proxy plus controlled web/docs runtime fixture proofs passed; these fixtures do not claim full production application builds. A later main advance rebased the same Docker/template content onto4dc434c86; the ledger implementation reference follows the final rebased commit. Final main-delta validation passed88tests/1936assertions,23platform Docker guards and refreshed CLI lint/types; Plop lint/types reused the already validated unchanged inputs.",
+    "continued_pass3_2026_10_05": {
+      "implementation_commits": [
+        "d934290d8e059eeeb93b3216032d743d29b35696",
+        "b3e73c51d9f1b8157f08f16d170ea463793bb36c"
+      ],
+      "local": "Rebased CI regression gate453pass/0fail/6188assertions across10files;Dockerfile guards19pass;affectedlint/types5/5success with3validcachehits;Knip/actionlint/format/links/hooks pass. Windows correction55pass/0fail/994assertions plus independent realconsumer2cases40assertions;frozen install/types/lint/format/actionlint/links/conflicts and205-rule affectedfull-packSAST pass. No assertion, source coverage, deadline, retry or security reduction.",
+      "local_broad_limits": "Required fullroot check stayed red under sharedhostload: process/page fixture deadlines, then serial retry ENOSPC. Full local SAST explicitly interrupted, not green. No user caches/state pruned;only task-owned scans stopped. Complete hosted source verification is recorded separately.",
+      "initial_hosted": "Exactd934 protected7workflow roundpassed. Checks1576/1576strict backendchecks232/232lanes;27fresh/44HITexecutabletasks. E2E214browser/822SEO/1existing skip/0retry. CLI5targets fullserial/signature/smoke gates. Build8images/45image/83runtime/29smoke/nativeSBOMhashguard. InitialWindowssavefailedrelativeglob despitepassingtests;notcountedaswarmreuse. OrdinaryChecks/SASTcancelled aftermainadvance;candidateproof preserved.",
+      "provenance": "Turbo2.10.11scm.rs explicitly prefersCIvendorenvSHA, so candidate summaries reportworkflowH=b04.14actualsubstantiveCheckscheckoutlogs andgit-derivedsourcecachekeysproveC=b3. TaskHASH/cacheverdicts remain separatefromsourceidentity;cachehitsmayreuseHforidenticaldeclaredinputs.",
+      "benchmarks": "Observed d934 platformbuild297s/export129s vsbaseline434s/export223.4s. Newchanged-lockb3 platformbuild530s/export358.9s;protectedcandidate177s withoutcacheexport. Exportbackendunchanged;no overall pipeline speedupclaim. Windowswarmextract28.177s/install55.65s vsbaseline128.2s/40.73s;differentcachecontents(1909vs1903packages),sourcegraphandrunnersprecludecontrolledcausalpercentageclaim.",
+      "corrected_hosted": "CompleteprotectedCb3/Hb04 roundpassedall7:Checks37293674390,Build37293674333,CLI37293674424,E2E37293674312,SAST37293674345,Security37293674361,Commitlint37293674367. AllreceiptsbindcandidateC/workflowH separately. Checks1576strictchecks/232lanes/0FAIL/no truncation;22fresh/49HITexecutabletasks. E2E214browser/822SEO/1existing skip/0retry. CLIall5compile/uploadtargets,source/smokeon3nativehosts,strictsignatureson2macOStargetsandactualwarmWindowscachepass. BothordinaryBuild37293441007andcandidatepass8images/45image/83runtime/29smoke checks. All8ordinarynativeTrivy/SARIF/CycloneDX scanspass;realhashguardinScandbpass;platform1414npmhashes/inventoryidenticaltod934,devglobabsent. SAST476rules/4559files/0activefindings with36partial/2488excluded/17oversized underexistingpolicy,9realengine regressionspass.",
+      "final_integration": "Pulledlatestmain4dc434c86 and preserved6incomingcommits: correctedpriorledgerreferences, deterministicfailed-cachefixturediagnostics,expandedREADMEtransitexclusions,Windowsnativearchivebypass,onecommitnativeGitfixtures,andstrongerprunerdependencyinputguards. HistoricalCb3/Hb04 candidateproof is not representedasfresh executionofthese laterchanges. Latest native Windows keeps the normalized sibling store and complete frozen install, while skipping archive transfers. Theseupstreamfollowupsarepreservedwithoutaddingduplicatedledgerentries. Latest4dc focusedintegration103pass/0fail/2181assertions across7affectedfiles29.17s;tinyprivatefixturearchives,actualGit/Turbo/cacheconsumer andprunerguards. No fullcurrent-sourcehostedgreenclaimedfromhistoricalreceipts. Documentation rebasealso preserves61857248e runtimeversionfilesystem-cache boundary and a1166132b existing proof/ledger. Previouscurrent4dcfullCLI37296112430 passed5targets,all3native serial/smoke suitesand2Macsignatures;Windowsdirectfrozen1909packages72.17s. HistoricalcandidateB3isnotclaimedasfullhostedvalidationoflaterruntimeversion changes. Native physical-volume and file identities have not yet been recorded."
+    }
+  }
+}

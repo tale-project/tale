@@ -21,7 +21,15 @@ import {
 
 const mocks = vi.hoisted(() => ({
   run: null as unknown,
+  runError: false,
+  runFetching: false,
+  refetchRun: vi.fn(),
   pendingAsk: null as unknown,
+  inDoubt: null as unknown,
+  resolveInDoubt: vi.fn(),
+  askError: false,
+  askFetching: false,
+  refetchAsk: vi.fn(),
   reviewer: undefined as TaskReviewerState | undefined,
   reviewerError: false,
   refetchReviewer: vi.fn(),
@@ -43,11 +51,23 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
       };
     }
     if (query === 'automations/human_asks:getPendingAskForRun') {
-      return { data: mocks.pendingAsk };
+      return {
+        data: mocks.pendingAsk,
+        isError: mocks.askError,
+        isFetching: mocks.askFetching,
+        error: mocks.askError ? new Error('503') : null,
+        refetch: mocks.refetchAsk,
+      };
+    }
+    if (query === 'automations/queries:getRunInDoubt') {
+      return { data: mocks.inDoubt, isError: false, refetch: vi.fn() };
     }
     return {
-      data:
-        query === 'automations/queries:getLiveRunForTask' ? mocks.run : null,
+      data: mocks.run,
+      isError: mocks.runError,
+      isFetching: mocks.runFetching,
+      error: mocks.runError ? new Error('503') : null,
+      refetch: mocks.refetchRun,
     };
   },
 }));
@@ -70,6 +90,11 @@ vi.mock('../hooks/mutations', () => ({
 
 vi.mock('@/app/features/automations/hooks/mutations', () => ({
   useAnswerHumanAsk: () => ({ mutateAsync: mocks.answerAsk }),
+  useRequestLegacyRunStop: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useResolveRunInDoubt: () => ({
+    mutateAsync: mocks.resolveInDoubt,
+    isPending: false,
+  }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
@@ -80,6 +105,8 @@ const actorNames: Record<string, string> = {
   reviewer: 'Review agent',
 };
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: (_organizationId: string, projectId?: string) => ({
     resolveActor: (type: string, id: string) => ({
       type,
@@ -179,7 +206,16 @@ function capturedReview(
 describe('TaskSubjectPanel', () => {
   beforeEach(() => {
     mocks.run = null;
+    mocks.runError = false;
+    mocks.runFetching = false;
+    mocks.refetchRun.mockReset();
     mocks.pendingAsk = null;
+    mocks.inDoubt = null;
+    mocks.resolveInDoubt.mockReset();
+    mocks.resolveInDoubt.mockResolvedValue(null);
+    mocks.askError = false;
+    mocks.askFetching = false;
+    mocks.refetchAsk.mockReset();
     mocks.reviewer = {
       reviewer: { kind: 'inherit' },
       projectReviewer: { kind: 'human_default' },
@@ -197,6 +233,174 @@ describe('TaskSubjectPanel', () => {
     mocks.updateStatus.mockResolvedValue(undefined);
     mocks.cancel.mockReset();
     vi.mocked(toast).mockClear();
+  });
+
+  it('retries an unavailable question without showing Working, then recovers to an empty successful read', async () => {
+    mocks.run = { runId: 'run_1', status: 'running', detail: null };
+    mocks.pendingAsk = undefined;
+    mocks.askError = true;
+    const view = renderPanel();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't check for a pending question.",
+    );
+    expect(screen.queryByText(/is working/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel run' })).toBeEnabled();
+    await view.user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mocks.refetchAsk).toHaveBeenCalledOnce();
+    mocks.askError = false;
+    mocks.askFetching = true;
+    view.rerender(panel());
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.queryByText(/is working/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    mocks.askFetching = false;
+    mocks.pendingAsk = null;
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/is working/)).toBeVisible();
+  });
+
+  it('recovers a failed question read to an answerable question', () => {
+    mocks.run = { runId: 'run_1', status: 'running', detail: null };
+    mocks.pendingAsk = undefined;
+    mocks.askError = true;
+    const view = renderPanel();
+    mocks.askError = false;
+    mocks.pendingAsk = {
+      askId: 'ask_1',
+      question: 'Which batch should I inspect?',
+    };
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('Which batch should I inspect?')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toBeEnabled();
+    expect(screen.queryByText(/is working/)).not.toBeInTheDocument();
+  });
+
+  it('keeps a cached question and answer draft during failed refresh and retry', async () => {
+    mocks.run = { runId: 'run_1', status: 'waiting', detail: null };
+    mocks.pendingAsk = {
+      askId: 'ask_1',
+      question: 'Which batch should I inspect?',
+    };
+    const view = renderPanel();
+    await view.user.type(
+      screen.getByRole('textbox', { name: 'Your answer' }),
+      'Batch A',
+    );
+    mocks.askError = true;
+    view.rerender(panel());
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByText(/paused with a question/)).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveValue(
+      'Batch A',
+    );
+    mocks.askError = false;
+    mocks.askFetching = true;
+    view.rerender(panel());
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveValue(
+      'Batch A',
+    );
+    mocks.askFetching = false;
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveValue(
+      'Batch A',
+    );
+  });
+
+  it('does not carry a failed question read into another run or task', () => {
+    mocks.run = { runId: 'run_1', status: 'running', detail: null };
+    mocks.pendingAsk = undefined;
+    mocks.askError = true;
+    const view = renderPanel();
+    mocks.askError = false;
+    mocks.run = { runId: 'run_2', status: 'running', detail: null };
+    mocks.pendingAsk = null;
+    view.rerender(panel());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText(/is working/)).toBeVisible();
+    mocks.askError = true;
+    mocks.pendingAsk = undefined;
+    view.rerender(panel());
+    mocks.run = null;
+    mocks.askError = false;
+    view.rerender(panel(ownedBy(), true, 'backlog', undefined, 'task_2'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+  });
+
+  it('retains ownership through failure and retry, then restores Start after an empty successful read', async () => {
+    mocks.run = undefined;
+    mocks.runError = true;
+    const view = renderPanel(ownedBy(), true);
+    expect(
+      screen.getByRole('region', { name: 'Document verification desk' }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'Verifies one batch of incoming documents for completeness and consistency.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the workflow state.",
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Start' }),
+    ).not.toBeInTheDocument();
+    await view.user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mocks.refetchRun).toHaveBeenCalledTimes(1);
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.updateStatus).not.toHaveBeenCalled();
+    mocks.runError = false;
+    mocks.runFetching = true;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    mocks.runError = true;
+    mocks.runFetching = false;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    mocks.runError = false;
+    mocks.run = null;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+  });
+
+  it('does not derive workflow actions from stale data after a failed read', () => {
+    mocks.runError = true;
+    renderPanel(ownedBy(), true);
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Start' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps initial loading quiet and clears failed-read memory for another task', () => {
+    mocks.run = undefined;
+    const view = renderPanel(ownedBy(), true);
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    mocks.runError = true;
+    view.rerender(panel(ownedBy(), true));
+    expect(screen.getByRole('alert')).toBeVisible();
+    mocks.runError = false;
+    view.rerender(panel(ownedBy(), true, 'backlog', undefined, 'task_2'));
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
   });
 
   it('shows the captured agent review without human verdict actions on an automation-owned task', () => {
@@ -282,13 +486,39 @@ describe('TaskSubjectPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Send back' }));
     expect(mocks.addComment).toHaveBeenCalledExactlyOnceWith({
       taskId: 'task_1',
-      body: '@document-verify-desk Check the last document.',
+      body: '[@Document verification desk](mention:automation/document-verify-desk) Check the last document.',
     });
     await user.click(screen.getByRole('button', { name: 'Approve' }));
     expect(mocks.updateStatus).toHaveBeenCalledExactlyOnceWith({
       taskId: 'task_1',
       status: 'done',
     });
+  });
+
+  it('explains a refused human approval when organization policy is unavailable', async () => {
+    mocks.reviewer = capturedReview({ kind: 'user', userId: 'alice' });
+    mocks.updateStatus.mockRejectedValueOnce(
+      new AppError({
+        code: 'TASK_REVIEW_POLICY_UNAVAILABLE',
+        message:
+          'The review policy is unavailable; restore valid configuration before deciding',
+      }),
+    );
+    const { user } = renderPanel(ownedBy(), true, 'in_review', 'alice');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledExactlyOnceWith({
+        title:
+          'Review policy could not be read. Restore valid organization policy before deciding.',
+        variant: 'destructive',
+      }),
+    );
+    expect(mocks.updateStatus).toHaveBeenCalledExactlyOnceWith({
+      taskId: 'task_1',
+      status: 'done',
+    });
+    expect(mocks.addComment).not.toHaveBeenCalled();
+    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
   });
 
   it('does not offer a human verdict or name a future reviewer before the captured review loads', () => {
@@ -517,6 +747,56 @@ describe('TaskSubjectPanel', () => {
     expect(mocks.updateStatus).not.toHaveBeenCalled();
   });
 
+  it('says a run waiting on a step that may already have run waits for a decision, and offers it here [AUTO-R19]', async () => {
+    // Mia works the task; its run was sending the verification report when
+    // the server stopped, and nobody can tell whether it arrived.
+    mocks.run = {
+      runId: 'run_1',
+      name: 'document-verify-desk',
+      status: 'waiting',
+      version: 1,
+      detail: 'in_doubt:send_report',
+    };
+    mocks.inDoubt = {
+      attemptId: 'attempt_1',
+      nodeId: 'send_report',
+      itemIndex: 0,
+      pass: 0,
+      attempt: 1,
+      nodeType: 'imap-smtp.send',
+      connector: 'Email',
+      action: 'send',
+      input: { to: 'audit@example.test' },
+      startedAt: 1_790_000_000_000,
+    };
+    const { container, user } = renderPanel(ownedBy(), true, 'in_progress');
+
+    expect(
+      screen.getByText(
+        'Document verification desk waits for a decision on a step that may already have run — choose below how it continues.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Document verification desk is working on this task.'),
+    ).toBeNull();
+    // Nothing is working on the run: nothing spins.
+    expect(container.querySelector('.animate-spin')).toBeNull();
+    expect(
+      screen.getByRole('heading', {
+        name: 'This step may already have run: send_report',
+      }),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Skip it' }));
+    expect(mocks.resolveInDoubt).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org_1',
+      runId: 'run_1',
+      attemptId: 'attempt_1',
+      attempt: 1,
+      resolution: 'skip',
+    });
+  });
+
   it('names the automation and shows the automation s own description', () => {
     renderPanel(ownedBy(), true);
 
@@ -673,6 +953,48 @@ describe('TaskSubjectPanel', () => {
     });
   });
 
+  // The board dialog keeps the panel mounted when it opens another task (a
+  // subtask, the parent, a link in a comment). Whatever the reader was
+  // saying about one task stays with that task: a Request changes draft for
+  // task A must not be waiting, pre-filled, in task B's dialog.
+  it('keeps a Request changes draft with the task it was written for', async () => {
+    const taskOf = (id: string) => ({
+      _id: id,
+      projectId: 'project_1',
+      status: 'in_review',
+      externalId: FOLDER,
+      hasFiles: true,
+    });
+    const { user, rerender } = render(
+      <TaskSubjectPanel
+        organizationId="org_1"
+        task={taskOf('task_a')}
+        ownedBy={ownedBy()}
+        canEdit
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Request changes' }));
+    await user.type(
+      await screen.findByRole('textbox', { name: 'What should change' }),
+      'Task A: replace the old figures',
+    );
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    rerender(
+      <TaskSubjectPanel
+        organizationId="org_1"
+        task={taskOf('task_b')}
+        ownedBy={ownedBy()}
+        canEdit
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Request changes' }));
+
+    expect(
+      await screen.findByRole('textbox', { name: 'What should change' }),
+    ).toHaveValue('');
+  });
+
   // Cancel run parks the task at Cancelled, which closes it: a parent whose
   // subtasks are still open is refused, and the run keeps running. The
   // reader hears that reason once, not "something went wrong".
@@ -711,4 +1033,27 @@ describe('TaskSubjectPanel', () => {
       variant: 'destructive',
     });
   });
+});
+
+it('shows a held subject without offering ordinary cancellation or replay', () => {
+  mocks.run = {
+    runId: 'run-held',
+    name: 'archive',
+    status: 'quarantined',
+    legacyQuarantine: {
+      reason: 'legacy_execution_unproven',
+      observedAt: 123,
+      claimEpoch: 4,
+      priorStatus: 'running',
+      resolution: null,
+    },
+  };
+  const { container } = renderPanel(ownedBy(), true, 'in_progress');
+  expect(screen.getByText('Outcome unknown')).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Request stop' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Start/ })).toBeNull();
+  expect(container.querySelector('.animate-spin')).toBeNull();
 });

@@ -7,6 +7,7 @@ import {
   buildPlatformNavItems,
   buildResourcesNavItems,
 } from '@/app/content/nav-items';
+import { COMPARISON_NAV_ITEM } from '@/app/content/nav-menus';
 import {
   FOOTER_COMPANY_CTAS,
   GET_STARTED_HREF,
@@ -53,7 +54,25 @@ describe('site content contracts', () => {
     const resources = buildResourcesNavItems();
     expect(resources[0]?.href).toBeDefined();
     expect(resources.slice(1).every((r) => r.path)).toBe(true);
+    expect(resources.map((row) => row.id)).toEqual([
+      'docs',
+      'useCases',
+      'changelog',
+      'hardware',
+      'about',
+    ]);
+    expect(COMPARISON_NAV_ITEM).toMatchObject({ path: '/compare' });
+    expect(resources.some((row) => row.path === '/compare')).toBe(false);
   });
+
+  it.each(['en', 'de', 'fr'] as const)(
+    'localizes the $locale docs destination for both nav surfaces',
+    (locale) => {
+      expect(buildResourcesNavItems(locale)[0]?.href).toBe(
+        `https://docs.tale.dev${locale === 'en' ? '/' : `/${locale}`}`,
+      );
+    },
+  );
 
   it('pins header CTA: Get started → docs (primary; no Request a demo)', () => {
     expect(HEADER_PRIMARY_CTA).toMatchObject({

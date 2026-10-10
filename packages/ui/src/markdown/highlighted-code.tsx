@@ -1,10 +1,10 @@
 import { Check, Copy } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
+import { useViewportVisibility } from '../hooks/use-viewport-visibility';
 import { useT } from '../i18n/client';
 import { cn } from '../lib/cn';
-import { useTheme } from '../theme';
-import { highlightCode } from './shiki';
+import { highlightCode, peekHighlightedCode } from './shiki';
 
 const LINE_NUMBER_THRESHOLD = 3;
 
@@ -50,7 +50,7 @@ function applyDiffLineBackgrounds(html: string): string {
  *
  * Falls back to a plain `<pre>` while Shiki loads so layout never shifts.
  */
-export function HighlightedCode({
+export const HighlightedCode = memo(function HighlightedCode({
   code,
   language,
   showLineNumbers,
@@ -58,8 +58,7 @@ export function HighlightedCode({
   className,
 }: HighlightedCodeProps) {
   const { t } = useT('markdownCopy');
-  const { resolvedTheme } = useTheme();
-  const [html, setHtml] = useState<string | null>(null);
+  const { ref, isVisible } = useViewportVisibility<HTMLDivElement>();
   const [copied, setCopied] = useState(false);
 
   // Strip the trailing newline most fenced blocks carry. Both the gutter
@@ -71,29 +70,60 @@ export function HighlightedCode({
     () => (code.endsWith('\n') ? code.slice(0, -1) : code),
     [code],
   );
+  // A snippet highlighted before shows highlighted from the first frame. The
+  // HTML colours through the `--code-*` variables, so a theme switch repaints
+  // it without highlighting again.
+  const [highlighted, setHighlighted] = useState<{
+    code: string;
+    language: string | undefined;
+    html: string;
+  } | null>(() => {
+    const known = peekHighlightedCode(normalisedCode, language);
+    if (known === null) return null;
+    return {
+      code: normalisedCode,
+      language,
+      html:
+        known.language === 'diff'
+          ? applyDiffLineBackgrounds(known.html)
+          : known.html,
+    };
+  });
 
   useEffect(() => {
+    if (!isVisible) return undefined;
+    if (
+      highlighted?.code === normalisedCode &&
+      highlighted.language === language
+    )
+      return undefined;
     let cancelled = false;
-    void highlightCode(normalisedCode, language, resolvedTheme).then(
-      (result) => {
-        if (cancelled) return;
-        if (!result) {
-          // Oversized input or highlighter init failure — drop the cached
-          // html so the plain `<pre>` fallback renders the new source.
-          setHtml(null);
-          return;
-        }
-        setHtml(
+    void highlightCode(normalisedCode, language).then((result) => {
+      if (cancelled) return;
+      if (!result) {
+        // Oversized input or highlighter init failure — drop the cached
+        // html so the plain `<pre>` fallback renders the new source.
+        setHighlighted(null);
+        return;
+      }
+      setHighlighted({
+        code: normalisedCode,
+        language,
+        html:
           result.language === 'diff'
             ? applyDiffLineBackgrounds(result.html)
             : result.html,
-        );
-      },
-    );
+      });
+    });
     return () => {
       cancelled = true;
     };
-  }, [normalisedCode, language, resolvedTheme]);
+  }, [normalisedCode, language, isVisible, highlighted]);
+
+  const html =
+    highlighted?.code === normalisedCode && highlighted.language === language
+      ? highlighted.html
+      : null;
 
   const handleCopy = async () => {
     try {
@@ -112,7 +142,7 @@ export function HighlightedCode({
   const numbered = showLineNumbers ?? lineCount > LINE_NUMBER_THRESHOLD;
 
   return (
-    <div className={cn('group/highlighted-code relative', className)}>
+    <div ref={ref} className={cn('group/highlighted-code relative', className)}>
       {showCopyButton ? (
         <button
           type="button"
@@ -159,4 +189,4 @@ export function HighlightedCode({
       )}
     </div>
   );
-}
+});

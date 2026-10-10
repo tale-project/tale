@@ -48,6 +48,7 @@ vi.mock('./reviews.ts', () => ({
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
   kickAgentRun: vi.fn(),
+  withdrawWaitingAgentRunInTx: vi.fn(async () => false),
 }));
 vi.mock('../projects/service.ts', () => ({
   listProjects: vi.fn(),
@@ -1666,7 +1667,9 @@ describe('the copy brings the work back whole', () => {
         .mocked(emitEvent)
         .mock.calls.map(([, event]) => event)
         .filter((event) => event.eventType === 'task.created')
-        .map((event) => event.eventData?.taskId),
+        .map((event) =>
+          'taskId' in event.eventData ? event.eventData.taskId : undefined,
+        ),
     ).toEqual(['t-2', 'c-1', 'c-2', 'c-3']);
     // The subtree read skips archived subtasks and stays in the project.
     const read = statements.find((s) =>

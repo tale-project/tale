@@ -1,9 +1,9 @@
 /**
  * The one cron validator — the five-field parse the `schedule` trigger bind
- * refuses on, shared by the backend matcher (`backend/core/automations/
- * cron.ts`) and the editor's preview (`app/features/automations/lib/
- * cron-preview.ts`), so the panel never previews a "next run" for an
- * expression the save will turn down.
+ * refuses on, shared by the schedule evaluator
+ * (`lib/automations/schedule/occurrences.ts`) and the trigger editor's Cron
+ * field, so the panel never previews a "next run" for an expression the
+ * save will turn down.
  *
  * Five fields — minute, hour, day-of-month, month, day-of-week — each a `*`,
  * a number, a `a-b` range, a step (`a-b/n`, or a wildcard with a step), or a
@@ -13,7 +13,7 @@
  * bind refused. Day-of-week is 0..7 with both 0 and 7 meaning Sunday,
  * matching what operators expect from crontab.
  *
- * Pure: no `Intl`, no clock — the wall-clock half stays in the backend.
+ * Pure: no `Intl`, no clock — the wall-clock half is the evaluator's.
  */
 
 import {
@@ -28,6 +28,11 @@ export interface CronField {
   /** Whether the field was left unrestricted (`*`) — the day-of-month /
    * day-of-week OR rule needs to know. */
   wildcard: boolean;
+  /** Whether the field's text starts with `*`, a bare one or one with a
+   * step — what makes a minute or hour field a wildcard in Vixie cron's
+   * daylight-saving rule, and so the expression a grid
+   * ({@link cronDstClass}). */
+  starred: boolean;
 }
 
 export function parseField(spec: string, min: number, max: number): CronField {
@@ -80,7 +85,7 @@ export function parseField(spec: string, min: number, max: number): CronField {
     for (let value = from; value <= to; value += step) values.add(value);
   }
   if (values.size === 0) throw new Error(`"${spec}" matches nothing`);
-  return { min, max, values, wildcard };
+  return { min, max, values, wildcard, starred: spec.trim().startsWith('*') };
 }
 
 export interface CronSchedule {
@@ -89,6 +94,15 @@ export interface CronSchedule {
   dayOfMonth: CronField;
   month: CronField;
   dayOfWeek: CronField;
+}
+
+/** A cron expression whose fields are each in range but whose days never
+ * meet (`0 0 30 2 *`): readable, and still never due. */
+export class CronImpossibleDateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CronImpossibleDateError';
+  }
 }
 
 /** Parse a five-field expression. Throws with the offending text — the caller
@@ -119,7 +133,22 @@ export function parseCron(expression: string): CronSchedule {
     dayOfWeekWildcard: schedule.dayOfWeek.wildcard,
   });
   if (impossible !== null) {
-    throw new Error(describeImpossibleCronDate(impossible));
+    throw new CronImpossibleDateError(describeImpossibleCronDate(impossible));
   }
   return schedule;
+}
+
+/**
+ * How an expression behaves when the clock changes. `named` — both minute
+ * and hour spelled out (`30 2 * * *`) — names times of day: one that does not
+ * exist that day moves forward by the gap, and one that occurs twice starts
+ * once, at its first instant. `grid` — the minute or the hour starts with `*`
+ * (every 15 minutes, `30 * * * *`) — keeps its pace in real time: it starts at
+ * every instant whose wall clock is on it, so a repeated hour runs twice and
+ * a skipped one not at all. Vixie cron and cronie draw the same line, and a
+ * schedule's repeat rule falls on the same sides (day rules named, minutely
+ * and hourly grids), so converting between the two changes nothing.
+ */
+export function cronDstClass(schedule: CronSchedule): 'grid' | 'named' {
+  return schedule.minute.starred || schedule.hour.starred ? 'grid' : 'named';
 }

@@ -4,5 +4,6 @@
 export {
   highlightCode,
   MAX_SHIKI_BYTES,
+  peekHighlightedCode,
   resolveLanguage,
 } from '@tale/ui/markdown/shiki';

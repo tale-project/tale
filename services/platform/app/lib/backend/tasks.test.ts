@@ -84,6 +84,82 @@ afterEach(() => {
 });
 
 describe('task read adapters', () => {
+  it('keeps full content on the detail read and drops it from board and Home metadata', async () => {
+    const attachment = {
+      fileId: 's3:brief',
+      fileName: 'brief.txt',
+      fileType: 'text/plain',
+      fileSize: 100,
+    };
+    const output = { ...attachment, runId: 'run-1', producedAt: 1 };
+    const externalIssue = {
+      id: 'issue-1',
+      title: 'External task',
+      description: 'Retained external description'.repeat(1_000),
+      url: 'https://example.test/issues/1',
+      state: 'open',
+      syncedAt: 1,
+    };
+    const full = wireTask({
+      description: 'Retained description'.repeat(1_000),
+      attachments: [attachment],
+      outputs: [output],
+      externalIssue,
+    });
+    const fetchSpy = vi.spyOn(window, 'fetch');
+    for (const name of [
+      'tasks/queries:listTasksByProject',
+      'tasks/queries:listTasksForAccessibleProjects',
+    ]) {
+      // A server from the previous image may still answer full rows.
+      fetchSpy.mockResolvedValue(
+        jsonResponse(200, {
+          tasks: [full],
+          truncated: false,
+          canEdit: true,
+          canCreate: true,
+        }),
+      );
+      const adapted = taskReadAdapters[name]?.(
+        { organizationId: 'org-1', projectId: 'p1' },
+        {},
+      );
+      const result = (await adapted?.queryFn()) as {
+        tasks: Record<string, unknown>[];
+      };
+      expect(fetchSpy.mock.lastCall?.[0]).toEqual(
+        expect.stringContaining('summary=true'),
+      );
+      const metadata = result.tasks[0];
+      expect(metadata?._id).toBe('t1');
+      for (const body of [
+        'description',
+        'attachments',
+        'outputs',
+        'externalIssue',
+      ])
+        expect(metadata).not.toHaveProperty(body);
+    }
+    fetchSpy.mockResolvedValue(
+      jsonResponse(200, {
+        task: full,
+        canEdit: true,
+        canCreate: true,
+        canComment: true,
+      }),
+    );
+    const detail = (await taskReadAdapters['tasks/queries:getTask']?.(
+      { organizationId: 'org-1', taskId: 't1' },
+      {},
+    )?.queryFn()) as { task: Record<string, unknown> };
+    expect(detail.task.description).toBe(full.description);
+    expect(detail.task.attachments).toEqual([attachment]);
+    expect(detail.task.outputs).toEqual([output]);
+    expect(detail.task.externalIssue).toEqual(externalIssue);
+    expect(fetchSpy.mock.lastCall?.[0]).not.toEqual(
+      expect.stringContaining('summary=true'),
+    );
+  });
   it('lists the board with filters in the URL and the key, rows projected', async () => {
     const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse(200, {
@@ -122,7 +198,7 @@ describe('task read adapters', () => {
       canEdit: boolean;
     };
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/app/tasks/by-project/p1?includeArchived=false&statuses=todo%2Cbacklog&assigneeId=u1&orgId=org-1',
+      '/api/app/tasks/by-project/p1?includeArchived=false&summary=true&statuses=todo%2Cbacklog&assigneeId=u1&orgId=org-1',
       expect.anything(),
     );
     const view = result.tasks[0];
@@ -166,7 +242,7 @@ describe('task read adapters', () => {
     ]);
     await row?.queryFn();
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/app/tasks?includeArchived=false&statuses=in_review&reviewerId=u1&orgId=org-1',
+      '/api/app/tasks?includeArchived=false&summary=true&statuses=in_review&reviewerId=u1&orgId=org-1',
       expect.anything(),
     );
   });
@@ -208,7 +284,7 @@ describe('task read adapters', () => {
     );
     await searched?.queryFn();
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/app/tasks/by-project/p1?includeArchived=false&statuses=todo&q=needle+urgent&orgId=org-1',
+      '/api/app/tasks/by-project/p1?includeArchived=false&summary=true&statuses=todo&q=needle+urgent&orgId=org-1',
       expect.anything(),
     );
 
@@ -233,7 +309,7 @@ describe('task read adapters', () => {
     expect(across?.queryKey.at(-1)).toBe('needle');
     await across?.queryFn();
     expect(fetchSpy).toHaveBeenLastCalledWith(
-      '/api/app/tasks?includeArchived=false&q=needle&orgId=org-1',
+      '/api/app/tasks?includeArchived=false&summary=true&q=needle&orgId=org-1',
       expect.anything(),
     );
   });
@@ -605,6 +681,8 @@ describe('the task run list adapter', () => {
       status: 'running',
       error: null,
       trigger: 'manual',
+      waitingForCapacityAt: null,
+      waitingReason: null,
       startedAt: 1_000,
       launchedAt: 1_100,
       settledAt: null,
@@ -657,6 +735,49 @@ describe('the task run list adapter', () => {
     expect(runs[1]).not.toHaveProperty('workflowSlug');
     for (const key of ['workflowSlug', 'wfExecutionId', 'delegatedByAgentId']) {
       expect(runs[2]).not.toHaveProperty(key);
+    }
+  });
+
+  it('keeps why a parked run waits and the worker a live one holds, and nothing for the others', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        runs: [
+          wireRun({
+            id: 'run-waiting',
+            status: 'queued',
+            launchedAt: null,
+            waitingForCapacityAt: 1_050,
+            waitingReason: 'org_limit',
+          }),
+          // A park an earlier image wrote kept no reason.
+          wireRun({
+            id: 'run-legacy-park',
+            status: 'queued',
+            launchedAt: null,
+            waitingForCapacityAt: 1_050,
+          }),
+          wireRun({ id: 'run-working', worker: 2 }),
+          wireRun({ id: 'run-done', status: 'settled', settledAt: 2_000 }),
+        ],
+      }),
+    );
+    const runs = (await taskReadAdapters['tasks/queries:listTaskAgentRuns']?.(
+      { organizationId: 'org-1', taskId: 't1' },
+      {},
+    )?.queryFn()) as Record<string, unknown>[];
+    expect(runs[0]).toMatchObject({
+      runId: 'run-waiting',
+      status: 'queued',
+      waitingForCapacity: true,
+      waitingReason: 'org_limit',
+    });
+    expect(runs[0]).not.toHaveProperty('worker');
+    expect(runs[1]).toMatchObject({ waitingForCapacity: true });
+    expect(runs[1]).not.toHaveProperty('waitingReason');
+    expect(runs[2]).toMatchObject({ runId: 'run-working', worker: 2 });
+    for (const run of [runs[2], runs[3]]) {
+      expect(run).not.toHaveProperty('waitingForCapacity');
+      expect(run).not.toHaveProperty('waitingReason');
     }
   });
 });

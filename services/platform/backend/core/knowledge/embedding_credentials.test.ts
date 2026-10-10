@@ -41,7 +41,7 @@ vi.mock('openai', async (importOriginal) => {
   return { ...actual, default: ObservedOpenAI };
 });
 
-const { classifyEmbeddingFailure, embedderForOrg } =
+const { classifyEmbeddingFailure, embedderForOrg, EmbeddingNotConfigured } =
   await import('./embedding');
 const CREDENTIAL_ID = 'credential-a' as Id<'providerCredentials'>;
 const CONFIG: KnowledgeEmbeddingConfig = {
@@ -106,6 +106,21 @@ beforeEach(() => {
   resolveCredential.mockReset();
   resolveProviders.mockClear();
   runQuery.mockReset();
+});
+
+describe('an organization without an embedding model', () => {
+  it('is refused before any credential is read or any provider is called [KNOW-R10]', async () => {
+    const refusal = await embedderForOrg(ctx, {
+      organizationId: 'org-a',
+      orgSlug: 'example',
+      config: null,
+    }).catch((error: unknown) => error);
+
+    expect(refusal).toBeInstanceOf(EmbeddingNotConfigured);
+    expect(runQuery).not.toHaveBeenCalled();
+    expect(resolveCredential).not.toHaveBeenCalled();
+    expect(constructed).toEqual([]);
+  });
 });
 
 describe('direct embedding credentials', () => {

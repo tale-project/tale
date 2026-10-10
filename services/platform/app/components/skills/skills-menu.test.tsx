@@ -52,6 +52,31 @@ describe('SkillsMenu', () => {
     );
   });
 
+  it('lists an equipped connector the picker cannot see as a checked, removable entry', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[]}
+        tools={[]}
+        value={{ skills: [], connectors: ['github'], tools: [] }}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const stale = await screen.findByRole('menuitemcheckbox', {
+      name: '"github" (unavailable)',
+    });
+    expect(stale).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(stale);
+    expect(onChange).toHaveBeenCalledWith({
+      skills: [],
+      connectors: [],
+      tools: [],
+    });
+  });
+
   it('names who created each skill under its row', async () => {
     const { user } = render(
       <SkillsMenu
@@ -145,5 +170,81 @@ describe('SkillsMenu', () => {
     expect(
       await screen.findByRole('menuitemcheckbox', { name: /GitHub/ }),
     ).toHaveTextContent(/^GitHub$/);
+  });
+
+  it('leads a module with its always-on capability, checked and not switchable', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[]}
+        tools={[
+          {
+            slug: 'knowledge_entry_find',
+            label: 'Find knowledge entries',
+            group: 'Knowledge',
+          },
+        ]}
+        lockedTools={[
+          {
+            slug: 'knowledge_search',
+            label: 'Search the knowledge base',
+            description: 'Always on — no grant needed',
+            group: 'Knowledge',
+          },
+        ]}
+        value={EMPTY}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const rows = await screen.findAllByRole('menuitemcheckbox');
+    const locked = screen.getByRole('menuitemcheckbox', {
+      name: /Search the knowledge base/,
+    });
+    expect(rows.indexOf(locked)).toBeLessThan(
+      rows.indexOf(
+        screen.getByRole('menuitemcheckbox', {
+          name: /Find knowledge entries/,
+        }),
+      ),
+    );
+    expect(locked).toHaveAttribute('aria-checked', 'true');
+    expect(locked).toHaveAttribute('aria-disabled', 'true');
+    await user.click(locked);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('narrows skills, connectors and tools from its search field', async () => {
+    const { user } = render(
+      <SkillsMenu
+        skills={[{ slug: 'pdf', label: 'PDF documents' }]}
+        connectors={[{ slug: 'github', label: 'GitHub' }]}
+        tools={[
+          { slug: 'task_find', label: 'Find tasks', group: 'Tasks' },
+          {
+            slug: 'knowledge_entry_write',
+            label: 'Add and edit knowledge entries',
+            group: 'Knowledge',
+          },
+        ]}
+        value={EMPTY}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const field = await screen.findByRole('searchbox', {
+      name: 'Search skills, connectors and tools',
+    });
+    expect(field).toHaveFocus();
+    await user.type(field, 'knowledge');
+    expect(
+      screen.getAllByRole('menuitemcheckbox').map((row) => row.textContent),
+    ).toEqual(['Add and edit knowledge entries']);
+    await user.clear(field);
+    await user.type(field, 'nothing like this');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Nothing matches your search.',
+    );
   });
 });

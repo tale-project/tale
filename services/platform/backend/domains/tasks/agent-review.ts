@@ -14,6 +14,7 @@ import { dismissReviewRequestNotifications } from '../collab/service.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { addTaskReviewFeedback, queuedOnTask } from './comments.ts';
 import { TaskError } from './errors.ts';
+import { assertReviewBatchTarget } from './review-batch-scope.ts';
 import { readTaskReviewSource } from './review-evidence.ts';
 import { taskReviewRecipientOf, type ApprovalRow } from './reviews.ts';
 import { lockTaskRunStart } from './run-start.ts';
@@ -47,12 +48,16 @@ function stale(): never {
 /** The session-token grant was checked at the HTTP door. A review also
  * requires the CURRENT project-agent grant: revoking it stops an already
  * minted token, including a retry of a previously successful decision. */
-async function liveIssuer(
+export async function liveReviewIssuer(
   tx: TransactionSql,
   auth: AgentReviewAuthority,
+  grant: 'task_review' | 'task_delegate_review' = 'task_review',
+  target?: Pick<TaskAgentReviewInput, 'taskId' | 'expected'>,
 ): Promise<string> {
-  const rows = await tx<{ id: string; tools: string[] | null }[]>`
-    SELECT r.id, a.tools
+  const rows = await tx<
+    { id: string; tools: string[] | null; reviewBatchId: string | null }[]
+  >`
+    SELECT r.id, a.tools, r.review_batch_id AS "reviewBatchId"
     FROM app.project_agent_runs r
     JOIN app.project_agents a ON a.id = r.agent_id AND a.org_id = r.org_id
       AND a.project_id = r.project_id
@@ -69,13 +74,15 @@ async function liveIssuer(
     ORDER BY r.seq DESC LIMIT 1
   `;
   const issuer = rows[0];
-  if (issuer === undefined || !issuer.tools?.includes('task_review')) {
+  if (issuer === undefined || !issuer.tools?.includes(grant)) {
     throw new TaskError(
       'TASK_REVIEW_FORBIDDEN',
       'This live project agent run no longer has the task review permission',
       403,
     );
   }
+  if (target !== undefined && issuer.reviewBatchId != null)
+    await assertReviewBatchTarget(tx, auth, issuer.id, target);
   return issuer.id;
 }
 
@@ -114,7 +121,7 @@ function replayOf(
  * staging calls it in short transactions before and after network I/O. */
 async function validatePendingAgentReview(
   tx: TransactionSql,
-  auth: AgentReviewAuthority,
+  auth: Pick<AgentReviewAuthority, 'organizationId' | 'projectId' | 'agentId'>,
   input: Pick<TaskAgentReviewInput, 'taskId' | 'expected'>,
   task: TaskRow,
   approval: ApprovalRow,
@@ -217,7 +224,21 @@ export async function readAgentTaskReviewAccess(
   auth: AgentReviewAuthority,
   input: Pick<TaskAgentReviewInput, 'taskId' | 'expected'>,
 ) {
-  const issuerRunId = await liveIssuer(tx, auth);
+  const issuerRunId = await liveReviewIssuer(tx, auth, 'task_review', input);
+  return {
+    ...(await readPendingAgentReviewTarget(tx, auth, input)),
+    issuerRunId,
+  };
+}
+
+/** Admission can inspect a reviewer's captured target before that reviewer
+ * has a run. This grants no staging or decision authority: those doors still
+ * validate their own live issuer and repeat this same source predicate. */
+export async function readPendingAgentReviewTarget(
+  tx: TransactionSql,
+  auth: Pick<AgentReviewAuthority, 'organizationId' | 'projectId' | 'agentId'>,
+  input: Pick<TaskAgentReviewInput, 'taskId' | 'expected'>,
+) {
   const task = await loadTaskOrThrow(tx, input.taskId, auth.organizationId);
   if (task.projectId !== auth.projectId) {
     throw new TaskError('TASK_NOT_FOUND', 'No task in this project', 404);
@@ -253,7 +274,7 @@ export async function readAgentTaskReviewAccess(
     task,
     approval,
   );
-  return { task, approval, source, issuerRunId };
+  return { task, approval, source };
 }
 
 /** Source-bound native review. A run reviews work from its own standing
@@ -274,7 +295,7 @@ export async function reviewAgentTask(
   }
   const input = parsed.data;
   // This precedes replay and every target write, including the lock UPDATE.
-  const issuerRunId = await liveIssuer(tx, auth);
+  const issuerRunId = await liveReviewIssuer(tx, auth, 'task_review', input);
   const initial = await loadTaskOrThrow(tx, input.taskId, auth.organizationId);
   if (initial.projectId !== auth.projectId) {
     throw new TaskError('TASK_NOT_FOUND', 'No task in this project', 404);

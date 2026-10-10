@@ -1,3 +1,6 @@
+import { REPLAY_KINDS } from '@tale/shared/automation-replay';
+import { appReplayRequestSchema } from '@tale/shared/schemas/automation-replay';
+import { triggerWriteSchema } from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -6,13 +9,18 @@ import { registerConnector } from '../../../lib/connectors/registry.ts';
 import { dispatch } from '../../../lib/engine/api/dispatch.ts';
 import { nodeTypes } from '../../../lib/engine/core/slots.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import type { NodeTypeCatalog } from '../../../lib/shared/schemas/node-type-catalog.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
-import { loadConnectorDefinitions } from '../../core/connector_credentials/connector_catalog.ts';
+import {
+  connectorIconUrl,
+  findConnector,
+  loadConnectorDefinitions,
+} from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveWorkflowAgentServing } from '../../core/lib/providers/agent_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
@@ -21,23 +29,47 @@ import {
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
-import { getProjectAuthContext } from '../projects/service.ts';
+import {
+  getProjectAuthContext,
+  assertWritable,
+  ProjectError,
+} from '../projects/service.ts';
 import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
 import { auditIfPublishRefused } from '../skills/publish.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
+import { legacyRunStopSchema } from './legacy-quarantine.ts';
+import {
+  managedAutomationKindSchema,
+  managedAutomationWriteSchema,
+  readManagedAutomation,
+  writeManagedAutomation,
+} from './managed-configuration';
 import { getOrgAutomationMetrics } from './metrics.ts';
+import {
+  readOpenInDoubt,
+  resolveInDoubtInTx,
+  type InDoubtAttempt,
+} from './node-attempts.ts';
 import {
   canReadRun,
   readableProject,
   readableProjectIds,
   runControlAccess,
 } from './project-visibility.ts';
+import { readReplayPlan, replayRunInTx } from './replay.ts';
+import {
+  readNodeDetail,
+  readNodePage,
+  readRunComparison,
+  readRunRecord,
+} from './run-record.ts';
 import {
   AutomationError,
   answerAsk,
   automationTombstone,
   beginRun,
   cancelRun,
+  requestLegacyRunStopInTx,
   deleteAutomationCascade,
   deleteTrigger,
   getAskRunId,
@@ -45,17 +77,38 @@ import {
   getRun,
   listAutomationsForApp,
   listRuns,
+  listRunsPage,
+  listTriggerRuns,
   listTriggers,
   listVersions,
   saveVersion,
   setAutomationProjects,
   setTrigger,
   toRunDetail,
+  toRunSummary,
+  triggerBodyRefusal,
   versionRow,
   deployedVersion,
   bindingProjectIds,
 } from './store.ts';
 import { uploadAutomationPg } from './upload.ts';
+
+/**
+ * The open in-doubt write as the app reads it: the ledger's attempt, plus
+ * the connector it was sending to in words — its display name from the
+ * shipped catalog, or its slug once nothing ships it — and the action.
+ */
+function describeInDoubt(attempt: InDoubtAttempt) {
+  const separator = attempt.nodeType.indexOf('.');
+  const slug =
+    separator > 0 ? attempt.nodeType.slice(0, separator) : attempt.nodeType;
+  const action = separator > 0 ? attempt.nodeType.slice(separator + 1) : '';
+  return {
+    ...attempt,
+    connector: findConnector(slug)?.displayName ?? slug,
+    action,
+  };
+}
 
 /**
  * /api/app/automations — the automation store surface: immutable versions,
@@ -84,40 +137,33 @@ const saveSchema = z.object({
 
 const deploySchema = z.object({ version: z.number().int().min(1) });
 
-// One strict shape per kind, the REST door's twin: the editor sends only
-// the kind's own fields, and a key of another kind (or an unknown one) is
-// refused instead of stored — the store guards the same rule for callers
-// that reach it without a schema (`assertTriggerValid`).
-const triggerSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('schedule'),
-      cron: z.string().max(200).optional(),
-      timezone: z.string().max(100).optional(),
-      enabled: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('webhook'),
-      enabled: z.boolean().optional(),
-      rotateToken: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('event'),
-      event: z.string().max(200).optional(),
-      enabled: z.boolean().optional(),
-    })
-    .strict(),
-]);
+// A draft checked without saving it: the document as the editor holds it, and
+// which parts of the analysis to answer beside the issues (the analysis by
+// default; the inferred types only when asked, since they are the bulky part).
+const validateSchema = z.object({
+  document: z.unknown(),
+  detail: z
+    .array(z.enum(['analysis', 'types']))
+    .max(2)
+    .optional(),
+});
 
 const projectsSchema = z.object({
   projectIds: z.array(z.string().min(1)).max(100),
 });
 
 const answerSchema = z.object({ answer: z.string().min(1).max(20_000) });
+
+/** A person's choice about a write that may already have happened, and the
+ * attempt of it the choice is about: a write run again keeps its row and
+ * takes the next number, so a choice about an earlier attempt is refused
+ * (409) instead of deciding a later one. The ledger's `attempt` is an int. */
+const inDoubtResolutionSchema = z
+  .object({
+    resolution: z.enum(['retry', 'skip', 'fail']),
+    attempt: z.number().int().min(1).max(2_147_483_647),
+  })
+  .strict();
 
 const uploadSchema = z.object({
   projectId: z.string().min(1).max(128).optional(),
@@ -154,6 +200,8 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  if (error instanceof ProjectError)
+    return c.json({ error: error.code, message: error.message }, error.status);
   if (error instanceof AutomationError) {
     // The structured detail rides beside the sentence (`data`), the shape
     // the app's fetch layer already reads — a stale save names the version
@@ -192,11 +240,113 @@ function handleError<E extends OrgEnv>(
   throw error;
 }
 
-/** The app and MCP authoring doors share the engine's validation/test gate. */
-function authoringRefusal(
-  c: Context<OrgEnv>,
+/** A time in epoch milliseconds, as a query parameter. */
+const epochMsParam = z
+  .string()
+  .regex(/^\d{1,15}$/)
+  .transform(Number);
+
+/** A unit's item or pass: -1 for the step itself. */
+const unitIndexParam = z
+  .string()
+  .regex(/^-?\d{1,9}$/)
+  .transform(Number)
+  .pipe(z.number().int().min(-1));
+
+const recordQuerySchema = z.object({
+  since: epochMsParam.optional(),
+  include: z.string().max(64).optional(),
+});
+
+const nodeQuerySchema = z.object({
+  node: z.string().min(1).max(512),
+  item: unitIndexParam.optional(),
+  pass: unitIndexParam.optional(),
+});
+
+const itemsQuerySchema = z.object({
+  node: z.string().min(1).max(512),
+  cursor: z.string().max(32).optional(),
+  limit: z
+    .string()
+    .regex(/^\d{1,3}$/)
+    .transform(Number)
+    .pipe(z.number().int().min(1).max(200))
+    .optional(),
+  status: z.enum(['all', 'failed']).optional(),
+});
+
+/** The statuses a page of runs may be narrowed to. */
+const RUN_PAGE_STATUSES = new Set([
+  'queued',
+  'running',
+  'waiting',
+  'quarantined',
+  'success',
+  'failed',
+  'cancelled',
+]);
+
+/**
+ * A page of one automation's runs, as the Runs table asks for it: its
+ * name, the project it is read in, the statuses and mode it is narrowed to,
+ * and where the previous page ended (`<startedAt>|<id>`).
+ */
+const runPageQuerySchema = z.object({
+  name: z.string().min(1).max(512),
+  projectId: z.string().min(1).max(128).optional(),
+  status: z
+    .string()
+    .max(200)
+    .optional()
+    .transform((value) =>
+      value === undefined
+        ? undefined
+        : value.split(',').filter((status) => RUN_PAGE_STATUSES.has(status)),
+    ),
+  mode: z.enum(['mock', 'live']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z
+    .string()
+    .regex(/^\d{1,16}\|[\w-]{1,64}$/)
+    .optional()
+    .transform((value) => {
+      if (value === undefined) return undefined;
+      const [at, id] = value.split('|');
+      return { at: Number(at), id: id ?? '' };
+    }),
+});
+
+/** A replay's plan, asked for in the query: the same request a replay
+ * takes, its version a keyword or a number. */
+const replayQuerySchema = z.object({
+  kind: z.enum(REPLAY_KINDS),
+  from: z.string().trim().min(1).max(200).optional(),
+  version: z
+    .string()
+    .regex(/^(same|deployed|latest|[1-9]\d{0,6})$/)
+    .transform((v) =>
+      v === 'same' || v === 'deployed' || v === 'latest' ? v : Number(v),
+    )
+    .optional(),
+  mode: z.enum(['mock', 'live']).optional(),
+});
+
+/** The parts of a refusal the editor reads as structure, not as a sentence. */
+const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
+
+/**
+ * The app and MCP authoring doors share the engine's validation/test gate.
+ *
+ * A refusal keeps its fields at the top level, where other readers of this
+ * door find them, and nests the structured part again under `data`: the
+ * app's fetch layer carries only `data` beside the code and the sentence, so
+ * a refused save or deploy reaches the editor with every issue and where it
+ * is, not as one flattened message.
+ */
+export function authoringRefusalBody(
   result: unknown,
-): Response | null {
+): { body: Record<string, unknown>; status: 400 | 404 | 409 } | null {
   if (!isRecord(result) || typeof result.error !== 'string') return null;
   const code =
     typeof result.code === 'string' ? result.code : 'AUTOMATION_INVALID';
@@ -208,7 +358,31 @@ function authoringRefusal(
           code === 'AUTOMATION_DEPLOY_REJECTED'
         ? 409
         : 400;
-  return c.json({ ...result, error: code, message: result.error }, status);
+  // A refusal's own `data` (a refused run input's schema problems, say)
+  // stays; the detail keys join it.
+  const data: Record<string, unknown> = isRecord(result.data)
+    ? { ...result.data }
+    : {};
+  for (const key of REFUSAL_DETAIL_KEYS) {
+    if (result[key] !== undefined) data[key] = result[key];
+  }
+  return {
+    body: {
+      ...result,
+      error: code,
+      message: result.error,
+      ...(Object.keys(data).length > 0 && { data }),
+    },
+    status,
+  };
+}
+
+function authoringRefusal(
+  c: Context<OrgEnv>,
+  result: unknown,
+): Response | null {
+  const refusal = authoringRefusalBody(result);
+  return refusal === null ? null : c.json(refusal.body, refusal.status);
 }
 
 /** Agent nodes whose `model` is set but `modelProvider` is not — the
@@ -352,17 +526,22 @@ export function createAutomationRoutes(deps: {
   });
 
   /** Node-type catalog (the 0.4 `catalog.listNodeTypes` — connector types
-   * only; the editor folds its own core floor over these). */
+   * only; the editor folds its own core floor over these). Each action
+   * carries its connector and its title in every language it ships in; each
+   * connector, once, its display name and its icon as a data URL, so a node
+   * reads "GitHub · List issues" in the reader's language. */
   app.get('/catalog/node-types', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
-    for (const connector of loadConnectorDefinitions()) {
+    const definitions = loadConnectorDefinitions();
+    for (const connector of definitions) {
       registerConnector(connector);
     }
-    const summaries = [];
+    const nodeTypeRows: NodeTypeCatalog['nodeTypes'] = [];
     for (const def of nodeTypes().values()) {
       if (def.kind !== 'connector') continue;
-      summaries.push({
+      const display = def.connector?.display;
+      nodeTypeRows.push({
         type: def.type,
         kind: def.kind,
         description: def.description,
@@ -370,10 +549,26 @@ export function createAutomationRoutes(deps: {
         requiredFields: [...def.requiredFields],
         outputKind: def.outputKind,
         hasEffect: def.connector?.hasEffect ?? false,
+        ...(display !== undefined && { connector: display.connector }),
+        ...(display?.title !== undefined && { title: display.title }),
+        ...(display?.i18n !== undefined && { i18n: display.i18n }),
       });
     }
-    summaries.sort((a, b) => a.type.localeCompare(b.type));
-    return c.json({ nodeTypes: summaries });
+    nodeTypeRows.sort((a, b) => a.type.localeCompare(b.type));
+    const connectors: NodeTypeCatalog['connectors'] = [];
+    for (const connector of definitions) {
+      const row: NodeTypeCatalog['connectors'][number] = {
+        name: connector.name,
+        displayName: connector.displayName,
+      };
+      if (connector.i18n !== undefined) row.i18n = connector.i18n;
+      const iconUrl = connectorIconUrl(connector.name);
+      if (iconUrl !== undefined) row.iconUrl = iconUrl;
+      connectors.push(row);
+    }
+    connectors.sort((a, b) => a.name.localeCompare(b.name));
+    const body: NodeTypeCatalog = { nodeTypes: nodeTypeRows, connectors };
+    return c.json(body);
   });
 
   /** Run KPIs for the metrics page (member-readable, like the 0.4 query). */
@@ -494,6 +689,241 @@ export function createAutomationRoutes(deps: {
     return c.json({ ok: true });
   });
 
+  // The write a run waits on a person about — a call that may already have
+  // reached its service when the run was interrupted. Membership-gated like
+  // every run read; null when nothing of the kind waits.
+  app.get('/runs/:runId/in-doubt', async (c) => {
+    const runId = c.req.param('runId');
+    if ((await visibleRun(c, runId)) === null) return c.json({ inDoubt: null });
+    const attempt = await readOpenInDoubt(deps.sql, c.get('orgId'), runId);
+    return c.json({
+      inDoubt: attempt === null ? null : describeInDoubt(attempt),
+    });
+  });
+
+  // A run step by step: its record, one unit of it whole, a page of a
+  // step's items and passes, and two runs side by side. Each is read like
+  // the run itself (AUTO-R2, AUTO-R40): a hidden or missing run is not
+  // found, and two runs compare only when both are readable.
+  const runNotFound = (): AutomationError =>
+    new AutomationError('RUN_NOT_FOUND', 'this run does not exist', 404);
+
+  app.get('/runs/:runId/record', async (c) => {
+    const query = recordQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const include = new Set((query.data.include ?? '').split(','));
+      const record = await readRunRecord(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        ...(query.data.since !== undefined && { since: query.data.since }),
+        travels: include.has('travels'),
+      });
+      if (record === null) throw runNotFound();
+      return c.json({ record });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/record/node', async (c) => {
+    const query = nodeQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const node = await readNodeDetail(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        path: query.data.node,
+        ...(query.data.item !== undefined && { item: query.data.item }),
+        ...(query.data.pass !== undefined && { pass: query.data.pass }),
+      });
+      if (node === null) {
+        throw new AutomationError(
+          'NODE_RUN_NOT_FOUND',
+          'this run has no record of that step',
+          404,
+        );
+      }
+      return c.json({ node });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/record/items', async (c) => {
+    const query = itemsQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const page = await readNodePage(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        path: query.data.node,
+        ...(query.data.cursor !== undefined && { cursor: query.data.cursor }),
+        ...(query.data.limit !== undefined && { limit: query.data.limit }),
+        ...(query.data.status !== undefined && { status: query.data.status }),
+      });
+      if (page === null) throw runNotFound();
+      return c.json({ page });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/compare/:otherRunId', async (c) => {
+    try {
+      const runId = c.req.param('runId');
+      const otherRunId = c.req.param('otherRunId');
+      if (
+        (await visibleRun(c, runId)) === null ||
+        (await visibleRun(c, otherRunId)) === null
+      ) {
+        throw runNotFound();
+      }
+      const diff = await readRunComparison(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        otherRunId,
+      });
+      if (diff === null) throw runNotFound();
+      return c.json({ diff });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Running a run again: its plan — what it reuses, runs again and sends out
+  // a second time — then the replay, born in the source's project. Both are
+  // read like the run itself; a live replay needs an author, as a live
+  // start does (AUTO-R41).
+  const mayStartLive = (c: Context<OrgEnv>): boolean =>
+    isAdminOrDeveloperRole(c.get('orgMember').role);
+
+  app.get('/runs/:runId/replay', async (c) => {
+    const query = replayQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const plan = await readReplayPlan(deps.sql, {
+        organizationId: c.get('orgId'),
+        sourceRunId: runId,
+        request: query.data,
+        canStartLive: mayStartLive(c),
+      });
+      if (plan === null) throw runNotFound();
+      return c.json({ plan });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/runs/:runId/replay', async (c) => {
+    const body = appReplayRequestSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const run = await visibleRun(c, runId);
+      if (run === null) throw runNotFound();
+      const { requestId, ...request } = body.data;
+      if ((request.mode ?? run.mode) === 'live') {
+        const denied = requireAuthor(c);
+        if (denied) return denied;
+      }
+      const visibleProjectIds = await readableProjectIds(
+        deps.sql,
+        await projectAuth(c),
+      );
+      const started = await deps.sql.begin((tx) =>
+        replayRunInTx(tx, {
+          organizationId: c.get('orgId'),
+          sourceRunId: runId,
+          request,
+          startedBy: `user:${c.get('sessionBundle').user.id}`,
+          canStartLive: mayStartLive(c),
+          visibleProjectIds,
+          ...(requestId !== undefined && { idempotencyKey: requestId }),
+        }),
+      );
+      if (started === null) throw runNotFound();
+      return c.json(started, started.duplicate === true ? 200 : 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Deciding resumes (or fails) the run, so it is a WRITE with the stop's
+  // gate: a project run needs the project's write access, an organization
+  // run member-level control. A hidden or missing run is "not found". The
+  // decision, its audit row and the run's wake commit together.
+  app.post('/runs/:runId/in-doubt/:attemptId', async (c) => {
+    const body = inDoubtResolutionSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const control = await controllableRun(c, runId);
+      if (control === 'absent') {
+        throw new AutomationError(
+          'RUN_NOT_FOUND',
+          'this run does not exist',
+          404,
+        );
+      }
+      if (control === 'forbidden') return forbiddenControl(c);
+      const actor = c.get('sessionBundle').user.id;
+      await deps.sql.begin((tx) =>
+        resolveInDoubtInTx(tx, {
+          organizationId: c.get('orgId'),
+          runId,
+          attemptId: c.req.param('attemptId'),
+          attempt: body.data.attempt,
+          resolution: body.data.resolution,
+          actor,
+        }),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+    return c.json({ ok: true });
+  });
+
+  app.post('/runs/:runId/legacy-quarantine', async (c) => {
+    const body = legacyRunStopSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const control = await controllableRun(c, runId);
+      if (control === 'absent')
+        throw new AutomationError(
+          'RUN_NOT_FOUND',
+          'this run does not exist',
+          404,
+        );
+      if (control === 'forbidden') return forbiddenControl(c);
+      return c.json(
+        await deps.sql.begin((tx) =>
+          requestLegacyRunStopInTx(tx, {
+            organizationId: c.get('orgId'),
+            runId,
+            actor: c.get('sessionBundle').user.id,
+            request: body.data,
+          }),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.post('/runs/:runId/cancel', async (c) => {
     try {
       const runId = c.req.param('runId');
@@ -521,6 +951,34 @@ export function createAutomationRoutes(deps: {
   // Both run reads answer the read model (`waitingFor`, `startedVia`), never
   // the raw row: the app names what a run waits on and what started it in
   // words, and the row's ask fact is the read's own input.
+  // One page of an automation's runs, newest first, narrowed as the Runs
+  // table asks; registered before `/runs/:runId`, which would read `page` as
+  // a run id.
+  app.get('/runs/page', async (c) => {
+    const query = runPageQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    const { name, projectId, status, mode, limit, cursor } = query.data;
+    const auth = await projectAuth(c);
+    if (
+      projectId !== undefined &&
+      (await readableProject(deps.sql, auth, projectId)) === null
+    ) {
+      return c.json({ items: [], next: null });
+    }
+    const page = await listRunsPage(deps.sql, c.get('orgId'), {
+      name,
+      ...(projectId !== undefined ? { projectId } : {}),
+      visibleProjectIds: await readableProjectIds(deps.sql, auth),
+      ...(status !== undefined && status.length > 0
+        ? { statuses: status }
+        : {}),
+      ...(mode !== undefined ? { mode } : {}),
+      ...(cursor !== undefined ? { before: cursor } : {}),
+      limit,
+    });
+    return c.json({ items: page.runs.map(toRunSummary), next: page.next });
+  });
+
   app.get('/runs/:runId', async (c) => {
     const run = await visibleRun(c, c.req.param('runId'));
     return run === null
@@ -548,6 +1006,75 @@ export function createAutomationRoutes(deps: {
     // The full rows, not summaries: the editor overlays the last run's
     // trace and checkpoints on the canvas from this listing.
     return c.json({ runs: rows.map(toRunDetail) });
+  });
+
+  // Managed configuration uses the same authoring permissions and native
+  // writer gates. Existing project identity is adopted, never inferred by name.
+  app.get('/:name{.+}/configuration', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const kind = managedAutomationKindSchema.safeParse(c.req.query('kind'));
+    const projectId = c.req.query('projectId');
+    if (!kind.success || !projectId || projectId.length > 128)
+      return c.json({ error: 'INVALID_INPUT' }, 400);
+    try {
+      const auth = await projectAuth(c);
+      const project = await readableProject(deps.sql, auth, projectId);
+      if (project === null || project.archivedAt !== null)
+        return c.json({ error: 'PROJECT_NOT_FOUND' }, 404);
+      assertWritable(project, auth);
+      return c.json(
+        await readManagedAutomation(
+          deps.sql,
+          {
+            organizationId: c.get('orgId'),
+            name: nameFrom(c, 'configuration'),
+            projectId,
+          },
+          kind.data,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:name{.+}/configuration', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = managedAutomationWriteSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    const { config, kind } = body.data.resource;
+    const name = nameFrom(c, 'configuration');
+    if (!('name' in config) || config.name !== name)
+      return c.json({ error: 'AUTOMATION_NAME_INVALID' }, 400);
+    try {
+      const auth = await projectAuth(c);
+      const project = await readableProject(deps.sql, auth, config.projectId);
+      if (project === null || project.archivedAt !== null)
+        return c.json({ error: 'PROJECT_NOT_FOUND' }, 404);
+      assertWritable(project, auth);
+      // Also refuses tombstones, unrelated project bindings and wrong trigger
+      // kinds before tests or mutation. The writer repeats CAS under its lock.
+      await readManagedAutomation(
+        deps.sql,
+        {
+          organizationId: c.get('orgId'),
+          name,
+          projectId: config.projectId,
+        },
+        managedAutomationKindSchema.parse(kind),
+      );
+      const result = await writeManagedAutomation(
+        deps.sql,
+        c.get('orgId'),
+        c.get('sessionBundle').user.id,
+        body.data,
+      );
+      return authoringRefusal(c, result) ?? c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.post('/:name{.+}/save', async (c) => {
@@ -582,6 +1109,7 @@ export function createAutomationRoutes(deps: {
                 ...scope,
                 name: nameFrom(c, 'save'),
                 document: automation,
+                origin: { via: 'app' },
                 ...(message !== undefined ? { message } : {}),
                 ...(options?.testsPassed !== undefined
                   ? { testsPassed: options.testsPassed }
@@ -613,6 +1141,41 @@ export function createAutomationRoutes(deps: {
       );
       if (storeError !== undefined) throw storeError;
       return authoringRefusal(c, result) ?? c.json(result, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Check a draft without saving it — the editor's Problems panel. A suffix
+  // route like every per-automation verb, never a fixed first segment, so it
+  // takes no name away from authors. Read-only: it writes and audits nothing,
+  // but it reads the organization's other automations and triggers to check
+  // the calls between them, so it takes the authoring roles like a save.
+  app.post('/:name{.+}/validate', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = validateSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.document === undefined) {
+      return invalidBodyIssuesResponse(c, [
+        { path: 'document', message: 'is required' },
+      ]);
+    }
+    try {
+      assembleAutomationAuthoringHost();
+      const store = pgAutomationStore(deps.sql, {
+        organizationId: c.get('orgId'),
+        actor: c.get('sessionBundle').user.id,
+      });
+      const result = await dispatch(
+        'validate_automation',
+        {
+          automation: body.data.document,
+          detail: body.data.detail ?? ['analysis'],
+        },
+        { store },
+      );
+      return authoringRefusal(c, result) ?? c.json(result);
     } catch (error) {
       return handleError(c, error);
     }
@@ -659,12 +1222,20 @@ export function createAutomationRoutes(deps: {
     }
   });
 
+  // The shared trigger contract, the REST door's twin: one strict shape
+  // per kind, so a key of another kind (or an unknown one) is refused
+  // instead of stored. A rule of the trigger answers the store's own coded
+  // refusal, which the editor words per field.
   app.post('/:name{.+}/trigger', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
-    const body = triggerSchema.safeParse(await c.req.json());
+    const raw: unknown = await c.req.json();
+    const body = triggerWriteSchema.safeParse(raw);
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      const refusal = triggerBodyRefusal(body.error, raw);
+      return refusal === null
+        ? invalidBodyResponse(c, body.error)
+        : handleError(c, refusal);
     }
     try {
       return c.json(
@@ -688,6 +1259,7 @@ export function createAutomationRoutes(deps: {
         deps.sql,
         c.get('orgId'),
         nameFrom(c, 'trigger'),
+        c.get('sessionBundle').user.id,
       ),
     });
   });
@@ -783,6 +1355,24 @@ export function createAutomationRoutes(deps: {
         c.get('orgId'),
         nameFrom(c, 'versions'),
       ),
+    });
+  });
+
+  // The runs the bound trigger started, newest first, with the webhook
+  // delivery lane of each while its ledger row lives — the trigger panel's
+  // recent deliveries. A run in a project the member cannot read is left
+  // out, as on every run read.
+  app.get('/:name{.+}/trigger/runs', async (c) => {
+    const limit = Number(c.req.query('limit') ?? Number.NaN);
+    return c.json({
+      runs: await listTriggerRuns(deps.sql, c.get('orgId'), {
+        name: nameFrom(c, 'trigger/runs'),
+        ...(Number.isFinite(limit) ? { limit } : {}),
+        visibleProjectIds: await readableProjectIds(
+          deps.sql,
+          await projectAuth(c),
+        ),
+      }),
     });
   });
 

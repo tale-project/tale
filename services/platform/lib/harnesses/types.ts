@@ -298,9 +298,9 @@ export type HarnessEvent =
        * with `inputTokens` counting all input — the uncached part, cache
        * reads and cache writes alike, the way the chat lane books a turn. A
        * CLI's own turn totals are taken as they are; a parser that sums the
-       * turn's model calls itself (OpenCode, Pi) sums the calls its drain
-       * window replays from the complete bounded journal. If history is
-       * unavailable the drain fails explicitly. The usage ledger books them, and
+       * turn's model calls itself (OpenCode, Pi) checkpoints those counters
+       * alongside the acknowledged stream position across drain windows.
+       * The usage ledger books them, and
        * `classifyHarnessEnd` reads their output tokens as model output. */
       usageTotals?: Pick<
         HarnessUsage,
@@ -314,6 +314,9 @@ export type HarnessEvent =
        * surfaces one. Absent for mid-stream failures. Lets a caller decide
        * whether to rotate credentials / retry. */
       apiErrorStatus?: number;
+      /** A semantic failure from the harness's terminal provider channel.
+       * Account feedback also requires its matching HTTP status. */
+      providerErrorKind?: 'model_capacity' | 'subscription_access_disabled';
     }
   | { type: 'error'; message: string; raw?: unknown }
   /** A queued user message was injected into the RUNNING turn by the
@@ -336,6 +339,10 @@ export type HarnessEvent =
  * mid-line splits); `feed` returns the events newly completed by that chunk,
  * `end` flushes any final buffered line. */
 export interface HarnessEventParser {
+  /** Complete resumable state, including an unfinished JSONL line. */
+  snapshot(): Record<string, unknown>;
+  /** Validate and restore a state emitted by this parser family. */
+  restore(state: unknown): void;
   feed(chunk: string): HarnessEvent[];
   end(): HarnessEvent[];
 }

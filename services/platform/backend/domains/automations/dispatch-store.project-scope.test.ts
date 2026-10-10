@@ -202,7 +202,7 @@ describe('MCP and engine actor project scope', () => {
     expect(beginRunInTx).not.toHaveBeenCalled();
   });
 
-  it('does not implicitly enter a bound project when the MCP caller omits it', async () => {
+  it('does not implicitly enter a bound project when the MCP caller omits it [AUTO-R7]', async () => {
     await store().startRun?.('billing/dunning', {}, 'live', 1);
     expect(beginRun).toHaveBeenCalledWith(
       expect.anything(),
@@ -220,7 +220,7 @@ describe('MCP and engine actor project scope', () => {
     ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
   });
 
-  it('leaves archived project history readable and refuses writes', async () => {
+  it('leaves archived project history readable and refuses writes [AUTO-R8]', async () => {
     const engine = store({ project: { archivedAt: 1 } });
     await expect(engine.getRun?.('run-1')).resolves.toMatchObject({
       runId: 'run-1',
@@ -244,6 +244,44 @@ describe('MCP and engine actor project scope', () => {
       limit: 25,
       visibleProjectIds: ['p-1'],
     });
+  });
+
+  // The MCP and engine reads answer the same read model as REST: an
+  // in-doubt park needs a person, a run that moved between servers says how
+  // often, when and why, and no read names the server.
+  it('answers an in-doubt park and the last move between servers, never the server', async () => {
+    const moved = {
+      ...run,
+      projectId: null,
+      askPending: false,
+      resumeCount: 1,
+      lastResumeReason: 'lease_expired',
+      lastResumedAt: 5,
+    };
+    vi.mocked(getRun).mockResolvedValue({
+      ...moved,
+      status: 'waiting',
+      detail: 'in_doubt:send',
+      stalled: false,
+    } as never);
+    vi.mocked(listRuns).mockResolvedValue([
+      { ...moved, status: 'running', stalled: true },
+    ] as never);
+    const engine = store();
+
+    const detail = await engine.getRun?.('run-1');
+    expect(detail).toMatchObject({
+      waitingFor: 'in_doubt',
+      resumeCount: 1,
+      lastResume: { reason: 'lease_expired', at: 5 },
+    });
+    expect(detail).not.toHaveProperty('stalled');
+    const [summary] = (await engine.listRuns?.({})) ?? [];
+    expect(summary).toMatchObject({ stalled: true, resumeCount: 1 });
+    for (const answer of [detail, summary]) {
+      expect(answer).not.toHaveProperty('lastResumeReason');
+      expect(answer).not.toHaveProperty('lastResumedAt');
+    }
   });
 
   it('honors pinned project scope on list, detail and cancellation', async () => {

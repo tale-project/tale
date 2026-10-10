@@ -40,6 +40,12 @@ Tale führt ein Abo deshalb in Aufgaben und Automatisierungen aus, wo seine Lauf
 
 Um mit einem Modell zu chatten, das du über ein Abo erreichst, füge für denselben Anbieter Zugangsdaten per API-Schlüssel oder Umgebungsvariable hinzu oder verbinde einen Anbieter wie OpenRouter, der das Modell bereitstellt.
 
+## Ein Claude-OAuth-Token einfügen
+
+Um ein Anthropic-Abonnement ohne Broker zu nutzen, wähle **Abo-Schlüssel** und füge ein Claude-OAuth-Token ein, etwa eines aus `claude setup-token`. Tale übergibt das Token in Aufgaben und Automatisierungen als `CLAUDE_CODE_OAUTH_TOKEN` an Claude Code.
+
+Tale erneuert ein eingefügtes Token nicht. Läuft es ab oder wechselst du zu einem anderen Claude-Konto, füge über die Ersetzen-Aktion der Zeile ein neues ein und starte die Aufgabe danach erneut. [Zugangsdaten rotieren oder stilllegen](#zugangsdaten-rotieren-oder-stilllegen) beschreibt diese Aktion.
+
 ## Einen Abo-Broker verbinden
 
 Abo-Broker unterstützen Anthropic-Abonnements über Claude Code und OpenAI-ChatGPT-Abonnements über Codex. Diese Zugangsdaten dienen Agenten für Aufgaben und Automatisierungen. Chats benötigen Zugangsdaten für den direkten API-Zugriff, aus den [oben genannten Gründen](#abos-in-aufgaben-nutzen-nicht-im-chat).
@@ -99,7 +105,7 @@ Wähle **Zum Standard machen** im Zeilenmenü. Pro Anbieter gibt es einen Standa
 
 Die Liste **Erlaubte Modelle** eines Eintrags begrenzt nur diese Zugangsdaten. Unter [Modelle](/de/platform/admin/governance/content-models) legst du anbieterübergreifend Standardmodelle und Zugriffsregeln für Personen, Teams und Rollen fest. Beide Einschränkungen gelten. Eine erweiterte Liste umgeht die andere nicht.
 
-**Agent-Laufzeiten** unter der Tabelle ist schreibgeschützt. Dort siehst du verfügbare Modelle und Abonnements je Laufzeit. Um diese Konfiguration zu ändern, bearbeitest du die Zugangsdaten darüber.
+**Agent-Laufzeiten** unter der Tabelle ist schreibgeschützt. Dort siehst du verfügbare Modelle und Abonnements je Laufzeit. Um diese Konfiguration zu ändern, bearbeitest du die Zugangsdaten darüber. Eine Laufzeit ist als **Zuletzt fehlerhaft** markiert, wenn in den letzten 30 Minuten mindestens die Hälfte ihrer Läufe fehlgeschlagen ist, ab drei Läufen. Kann Tale das nicht prüfen, weist ein Hinweis über der Liste darauf hin, mit **Erneut versuchen**.
 
 ## Fehlende oder nicht funktionierende Modelle prüfen
 

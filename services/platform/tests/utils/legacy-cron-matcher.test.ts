@@ -1,0 +1,140 @@
+// @vitest-environment node
+
+/**
+ * The legacy cron matcher the schedule evaluator's tests use as their
+ * oracle, held to its own contract so the oracle stays right: a five-field
+ * expression is refused at PARSE for anything that can never fire — a field
+ * out of range, a range with an end missing, and a day-of-month no month it
+ * names can reach — and the matcher names the minutes a crontab would. The
+ * feasibility rule itself lives in `lib/automations/cron-feasibility.ts`.
+ */
+
+import { describe, expect, it } from 'vitest';
+
+import {
+  cronMatches,
+  firstOccurrenceBetween,
+  parseCron,
+  wallClockIn,
+} from './legacy-cron-matcher.ts';
+
+describe('parseCron feasibility', () => {
+  it.each([
+    ['0 0 31 * *', 'the 31st of every month that has one'],
+    ['0 0 29 2 *', 'February 29 — the leap day'],
+    ['0 0 31 4,5 *', 'the 31st in April or May: May has one'],
+    ['0 0 30 2 1', 'the 30th OR Mondays in February — crontab’s either rule'],
+    ['0 0 1-31 2 *', 'a range that reaches days February has'],
+    ['0 0 * 2 *', 'every day of February'],
+    ['0 9 * * 1-5', 'weekdays'],
+  ])('accepts %s (%s)', (expression) => {
+    expect(() => parseCron(expression)).not.toThrow();
+  });
+
+  it.each([
+    ['0 0 30 2 *', 'day-of-month 30 never occurs in month 2'],
+    ['0 0 31 2 *', 'day-of-month 31 never occurs in month 2'],
+    ['0 0 31 4 *', 'day-of-month 31 never occurs in month 4'],
+    ['0 0 31 4,6,9,11 *', 'day-of-month 31 never occurs in months 4, 6, 9, 11'],
+    ['0 0 30,31 2 *', 'day-of-month 30, 31 never occurs in month 2'],
+  ])('refuses %s, naming the pair', (expression, sentence) => {
+    expect(() => parseCron(expression)).toThrowError(sentence);
+  });
+
+  it('never matches the minute the refused expressions would have named', () => {
+    // The refusal is a fact about the matcher, not a guess: February 30
+    // does not exist, so the day-of-month 30 in month 2 matches no instant.
+    const schedule = parseCron('0 0 30 3 *');
+    expect(cronMatches(schedule, Date.UTC(2026, 2, 30, 0, 0), 'UTC')).toBe(
+      true,
+    );
+    expect(cronMatches(schedule, Date.UTC(2026, 1, 28, 0, 0), 'UTC')).toBe(
+      false,
+    );
+  });
+});
+
+describe('parseCron ranges', () => {
+  it.each([
+    ['-5 * * * *', '"-5" is not a range'],
+    ['5- * * * *', '"5-" is not a range'],
+    ['* * 1-2-3 * *', '"1-2-3" is not a range'],
+  ])(
+    'refuses %s instead of reading a missing end as the floor',
+    (expression, sentence) => {
+      // `Number('')` is 0: `-5` used to parse as `0-5`.
+      expect(() => parseCron(expression)).toThrowError(sentence);
+    },
+  );
+
+  it('keeps accepting a spelled-out range and a stepped one', () => {
+    expect(parseCron('0-5 * * * *').minute.values).toEqual(
+      new Set([0, 1, 2, 3, 4, 5]),
+    );
+    expect(parseCron('0-10/5 * * * *').minute.values).toEqual(
+      new Set([0, 5, 10]),
+    );
+  });
+
+  it('still refuses a field out of range and a wrong field count', () => {
+    expect(() => parseCron('60 * * * *')).toThrowError('out of range');
+    expect(() => parseCron('* * * *')).toThrowError('5 fields');
+  });
+});
+
+describe('wallClockIn', () => {
+  it('resolves the same instant through the cached formatter', () => {
+    const at = Date.UTC(2026, 8, 12, 7, 30);
+    const first = wallClockIn(at, 'Europe/Zurich');
+    const second = wallClockIn(at, 'Europe/Zurich');
+    expect(first).toEqual(second);
+    expect(first).toEqual({
+      minute: 30,
+      hour: 9,
+      dayOfMonth: 12,
+      month: 9,
+      dayOfWeek: 6,
+    });
+  });
+
+  it('throws for a zone Intl does not know, and caches nothing for it', () => {
+    expect(() => wallClockIn(Date.now(), 'Mars/Olympus_Mons')).toThrow();
+    expect(() => wallClockIn(Date.now(), 'Mars/Olympus_Mons')).toThrow();
+  });
+});
+
+describe('firstOccurrenceBetween', () => {
+  const ZONE = 'Europe/Zurich';
+
+  it('finds the slot right after a spring-forward gap, as the scan fires it', () => {
+    // 01:59 CET on 28 March 2027; 02:00 jumps to 03:00 CEST.
+    const from = Date.UTC(2027, 2, 28, 0, 59);
+    const schedule = parseCron('0 0,3,6,9,12,15,18,21 * * *');
+    const next = firstOccurrenceBetween(
+      schedule,
+      ZONE,
+      from,
+      from + 86_400_000,
+    );
+    expect(next).toBe(Date.UTC(2027, 2, 28, 1, 0)); // 03:00 CEST
+    expect(next !== null && cronMatches(schedule, next, ZONE)).toBe(true);
+  });
+
+  it('skips days and hours no field admits, and answers null past the window', () => {
+    const schedule = parseCron('30 8 1 * *'); // 08:30 on the 1st
+    const from = Date.UTC(2026, 9, 2, 12, 0); // 2 October
+    expect(
+      firstOccurrenceBetween(schedule, 'UTC', from, from + 40 * 86_400_000),
+    ).toBe(Date.UTC(2026, 10, 1, 8, 30));
+    expect(
+      firstOccurrenceBetween(schedule, 'UTC', from, from + 20 * 86_400_000),
+    ).toBeNull();
+  });
+
+  it('never answers the minute it starts from', () => {
+    const at = Date.UTC(2026, 8, 12, 10, 0);
+    expect(
+      firstOccurrenceBetween(parseCron('* * * * *'), 'UTC', at, at + 60_000),
+    ).toBe(at + 60_000);
+  });
+});

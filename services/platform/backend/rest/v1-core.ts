@@ -18,6 +18,7 @@ import { z } from 'zod';
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { KNOWLEDGE_QUERY_MAX } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { EMBEDDING_SLUG } from '../../lib/shared/constants/usage.ts';
 import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import {
@@ -43,6 +44,8 @@ import {
   saveSkillForViewer,
   type SkillWritePrecondition,
 } from '../core/skills/file_actions.ts';
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
+import { ChatBudgetExceededError } from '../domains/chat/budget-admission.ts';
 import {
   contactBulkItemSchema,
   contactCreateSchema,
@@ -146,6 +149,8 @@ import {
   readKeysetCursor,
   readPageLimit,
   readQuery,
+  restApiKeyId,
+  restBudgetExceeded,
   type RestEnv,
   restProjectAuth,
   serveDocumentBytes,
@@ -222,6 +227,15 @@ const contactPatchBody = blankStringsAsNull(
   contactFieldsSchema.extend(expectedUpdatedAtField),
 );
 
+/** Whose key it is: a person's own (`user`, every organization they belong
+ * to), one made for a member, or a team's, a project's or the
+ * organization's own — the last four work in one organization only. */
+interface KeyOwnerFacts {
+  kind: 'user' | 'member' | 'team' | 'project' | 'organization';
+  team: { id: string; name: string | null } | null;
+  project: { id: string; name: string | null } | null;
+}
+
 /** What `/me` says about the key itself. Keys are minted, rotated and
  * revoked in the app — nothing under `/api/v1` does — so this is the one
  * place an unattended caller can see its own expiry coming. */
@@ -230,6 +244,7 @@ interface KeyFacts {
   name: string | null;
   /** Epoch ms; null for a key that never expires. */
   expiresAt: number | null;
+  owner: KeyOwnerFacts;
 }
 
 /**
@@ -243,12 +258,24 @@ interface KeyFacts {
 async function readKeyFacts(
   sql: Sql,
   apiKeyId: string,
+  owner: ApiKeyOwner | null,
 ): Promise<KeyFacts | null> {
   if (apiKeyId === '') return null;
   const rows = await sql<
-    { id: string; name: string | null; expiresAt: Date | null }[]
+    {
+      id: string;
+      name: string | null;
+      expiresAt: Date | null;
+      teamName: string | null;
+      projectName: string | null;
+    }[]
   >`
-    SELECT "id", "name", "expiresAt" FROM "apikey" WHERE "id" = ${apiKeyId}
+    SELECT k."id", k."name", k."expiresAt",
+           (SELECT t."name" FROM "team" t
+            WHERE t."id" = ${owner?.teamId ?? null}) AS "teamName",
+           (SELECT p.name FROM app.projects p
+            WHERE p.id = ${owner?.projectId ?? null}) AS "projectName"
+    FROM "apikey" k WHERE k."id" = ${apiKeyId}
     LIMIT 1
   `;
   const row = rows[0];
@@ -257,6 +284,15 @@ async function readKeyFacts(
     id: row.id,
     name: row.name,
     expiresAt: row.expiresAt instanceof Date ? row.expiresAt.getTime() : null,
+    owner: {
+      kind: owner?.kind ?? 'user',
+      team:
+        owner?.teamId != null ? { id: owner.teamId, name: row.teamName } : null,
+      project:
+        owner?.projectId != null
+          ? { id: owner.projectId, name: row.projectName }
+          : null,
+    },
   };
 }
 
@@ -275,7 +311,23 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * send) and every organization the holder belongs to — no other route
    * tells a client its own slug. */
   app.get('/me', noQuery, async (c) => {
-    const memberships = await listUserOrganizations(deps.sql, c.get('userId'));
+    const owner = c.get('apiKeyOwner');
+    // A key bound to one organization works there alone: that is the one
+    // organization it lists, with the role it acts with.
+    const memberships =
+      owner === null
+        ? await listUserOrganizations(deps.sql, c.get('userId'))
+        : (
+            await deps.sql<{ name: string }[]>`
+              SELECT "name" FROM "organization"
+              WHERE "id" = ${c.get('organizationId')} LIMIT 1
+            `
+          ).map((org) => ({
+            organizationId: c.get('organizationId'),
+            slug: c.get('orgSlug'),
+            name: org.name,
+            role: c.get('role'),
+          }));
     // The one gate on this surface a role does not decide — the
     // browser-session pool's import and delete sit behind the deployment
     // editor allowlist (`TALE_DEPLOYMENT_CONFIG_ADMINS`) — answered here
@@ -362,7 +414,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             })
           ).kind === 'open',
       },
-      key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
+      key: await readKeyFacts(deps.sql, c.get('apiKeyId'), owner),
     });
   });
 
@@ -1164,8 +1216,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           includeConversationScoped: false,
         };
       }
+      const apiKeyId = restApiKeyId(c);
       const result = await searchKnowledgeForOrg(deps.sql, {
         organizationId: c.get('organizationId'),
+        // Embedding the query is the key holder's spend, the key's, and the
+        // project's it searches in.
+        spender: {
+          userId: auth.userId,
+          agentSlug: EMBEDDING_SLUG,
+          ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+          ...(projectId !== null ? { projectIds: access.projectIds } : {}),
+        },
         query: body.query,
         corpus: projectId === null ? (body.corpus ?? 'all') : 'documents',
         access,
@@ -1176,6 +1237,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
       return c.json(result);
     } catch (error) {
+      // A usage limit with too little room for the query's embedding: the
+      // 429 every budget refusal answers, with the cap and its reset.
+      if (error instanceof ChatBudgetExceededError) {
+        return restBudgetExceeded(c, error);
+      }
       // The domain reports a missing embedding model as its 503; on this
       // door that is the documented 409 — the organization's state refuses
       // the search until an admin configures a model — never the 500 an
@@ -1427,7 +1493,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       orgSlug:
         (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
         c.get('orgSlug'),
-      // Who a write's audit row names: the key's user.
+      // Authorization subject; the common audit writer attributes key writes to the maker.
       actor: {
         id: c.get('userId'),
         email: c.get('userEmail'),

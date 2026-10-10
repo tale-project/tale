@@ -3,7 +3,7 @@ title: Handle rate limits
 description: Plan REST, MCP and webhook traffic, interpret Retry-After and retry accepted work without duplicating it.
 ---
 
-Tale limits API traffic by the key holder. All API keys belonging to the same person share that person’s budget. Account for every integration and polling worker using that identity, rather than budgeting each key independently.
+Tale limits API traffic by the key holder. All API keys belonging to the same person share that person’s budget; a key an Owner or Admin made for a member, a team, a project, or the organization has a budget of its own. Account for every integration and polling worker using that identity, rather than budgeting each key independently.
 
 The limits below describe the current backend. An operator’s proxy or a downstream provider may impose additional limits.
 
@@ -14,7 +14,8 @@ A token bucket refills continuously up to its burst capacity. A short batch can 
 | Traffic | Sustained rate | Burst | Budget owner |
 | --- | --- | --- | --- |
 | General `/api/v1` traffic, including MCP and the model endpoints | 120/minute | 200 | Key holder |
-| Run starts, model-message sends and task starts | 20/minute | 40 | Key holder |
+| Run starts, model-message sends, task starts and MCP executions | 20/minute | 40 | Key holder |
+| Settings changes over MCP (`apply_settings`) | 30/minute | 60 | Key holder |
 | Project upload handoff and file binding | 240/minute | 300 | Key holder |
 | Failed API-key authentication | 20/minute | 40 | Source IP |
 | Webhook deliveries before token validation | 120/minute | 240 | Sender address |
@@ -24,7 +25,7 @@ REST execution and upload requests also consume the general budget. For example,
 
 Execution includes project and non-project automation starts, thread-message sends and explicit task starts. Task intake also consumes the execution budget when `runWorkflowSlug` is supplied. A starting-work request is charged once its body and headers have passed the endpoint's own checks — a `400 INVALID_BODY` or `INVALID_HEADER` spends nothing — and before anything is looked up, so a `404` for a thread, task or automation you cannot see costs a token, as does a `409` the state answers. Some mutations, such as task comments and folder changes, have additional domain budgets shared with the app.
 
-MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
+MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. An MCP tool that executes an automation (`run_automation`, `test_automation`, `deploy_automation`, `run_deployed`, `start_run` and `invoke_capability`) also uses one execution once the key holder's role allows the call, and so does `answer_run_ask`, whose answer resumes a waiting run as the REST answer does. When that budget is spent, the call is answered with a tool result whose `code` is `RATE_LIMITED` and whose `data.retryAfterMs` names the wait, not with an HTTP `429`. Reads, validation and saving use no execution. A settings change (`apply_settings`) uses one unit of its own settings budget the same way and is answered with `RATE_LIMITED` once that budget is spent; reading and planning settings use none. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
 
 Calls to the [model endpoints](/develop/api-reference#model-endpoints) under `/api/v1/openai` and `/api/v1/anthropic` count against the general budget only, one request each, streamed or not; what a call may spend is capped separately by budget rules. A person, and each API key, may also have eight of these calls running at once: a ninth answers `429` with `code` `MODEL_API_CONCURRENCY_EXCEEDED` and `Retry-After: 2`.
 
@@ -54,7 +55,7 @@ Branch on `code`; `error` is a sentence describing the wait, and `requestId` ide
 3. Retry with a bounded exponential delay and jitter when refusals continue. For example, grow a delay from one second up to sixty seconds, always honoring a longer server-provided wait.
 4. Preserve the original idempotency key for operations that support one. A timeout after a run start may mean the run was already accepted.
 
-A spending cap answers `429` too, with `code` `BUDGET_EXCEEDED`: a budget rule that applies to the key holder — their own, a team’s, the organization’s, or the API key’s — has been reached. A short wait does not help. `Retry-After` names the time until the cap’s period resets, and `data` names the cap: `scope`, `period`, `limitCode`, `used`, `limit`, and `resetsAt` in epoch milliseconds. Nothing is queued; pause the work until `resetsAt`, or ask an administrator to raise the limit under [Policies & Limits](/platform/admin/governance/policies-and-limits). On the model endpoints, both 429s come in the OpenAI or Anthropic error shape with the same `code` and `Retry-After`. A spent budget names its cap in the message there instead of in `data`, and carries `x-should-retry: false` so the vendors' SDKs do not retry it on their own.
+A spending cap answers `429` too, with `code` `BUDGET_EXCEEDED`: a budget rule that applies to the key holder — their own, a team’s, the organization’s, or the API key’s, and for work in a project, the project’s — has been reached. A short wait does not help. `Retry-After` names the time until the cap’s period resets, and `data` names the cap: `scope`, `period`, `limitCode`, `used`, `limit`, and `resetsAt` in epoch milliseconds. Nothing is queued; pause the work until `resetsAt`, or ask an administrator to raise the limit under [Policies & Limits](/platform/admin/governance/policies-and-limits). On the model endpoints, both 429s come in the OpenAI or Anthropic error shape with the same `code` and `Retry-After`. A spent budget names its cap in the message there instead of in `data`, and carries `x-should-retry: false` so the vendors' SDKs do not retry it on their own.
 
 Other `4xx` responses usually need a corrected request, credential or permission. Do not treat every failure as a rate limit; use the [error model](/develop/api-reference#error-model).
 
@@ -64,4 +65,4 @@ An `ETag` response of `304` still costs a request. It saves response bytes, not 
 
 Request only the fields you need, such as `?fields=status,finishedAt` on a run. Slow down when a run is waiting for a human, and stop polling terminal runs. Follow [Start a run, then poll it](/develop/api-reference#start-a-run-then-poll-it) for states and idempotent starts.
 
-For larger imports, use supported batch operations such as `POST /api/v1/contacts/bulk`, and spread batches over time. Creating more keys for the same user does not increase the budget. If a workflow needs its own service identity, provision that identity through your normal account and permission process; do not use key rotation as a retry strategy.
+For larger imports, use supported batch operations such as `POST /api/v1/contacts/bulk`, and spread batches over time. Creating more keys for the same user does not increase the budget. A workflow that needs an identity and a budget of its own can use a key an Owner or Admin makes for a team, a project, or the organization; do not use key rotation as a retry strategy.

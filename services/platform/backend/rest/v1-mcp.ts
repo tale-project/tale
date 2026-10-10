@@ -1,108 +1,77 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { loadConnectorCatalog } from '../../lib/connectors/dispatcher.ts';
-import { dispatch } from '../../lib/engine/api/dispatch.ts';
-import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner.ts';
-import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
-import { handleMcpRequest } from '../core/automations_builder/mcp_http.ts';
-import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
-import { dispatchCapabilityAs } from '../domains/chat/capabilities.ts';
-import { createCtxShim, type ShimHandlers } from '../lib/ctx-shim.ts';
+import { mcpCallLogLine, recordMcpActivity } from '../domains/mcp/activity.ts';
+import { callerFromRest } from '../domains/mcp/caller.ts';
+import { mcpHost } from '../domains/mcp/engine-host.ts';
+import {
+  judgeMcpOrigin,
+  loggableOrigin,
+  mcpOriginEnforced,
+} from '../domains/mcp/origin.ts';
+import { handleMcpRequest } from '../domains/mcp/protocol.ts';
 import {
   RateLimitExceededError,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
-import {
-  DEFAULT_BODY_BYTES,
-  restApiKeyId,
-  restBodyLimit,
-  type RestEnv,
-} from './shared.ts';
+import { DEFAULT_BODY_BYTES, restBodyLimit, type RestEnv } from './shared.ts';
 
 /**
- * POST /api/v1/mcp — the platform MCP endpoint. The 0.4 protocol layer
- * (`handleMcpRequest`: JSON-RPC framing, initialize/ping/tools, the
- * developer gate on persisting tools, refusals-as-data) is REUSED WHOLE;
- * its `rc.ctx.runAction` targets resolve to exactly two 0.5 handlers —
- * the engine dispatch over the pg `DispatchStore` (live execution
- * enabled; the store's own run-control methods authorize the actor) and
- * the capability surface — plus the member-role read the developer gate
- * makes.
+ * POST /api/v1/mcp — the platform MCP endpoint. The door proves the caller
+ * (`callerFromRest`: the key, the organization, the member's role) and hands
+ * the request to the MCP domain's protocol layer (`handleMcpRequest`:
+ * JSON-RPC framing, initialize/ping/tools, the developer gate on persisting
+ * tools, refusals-as-data), whose tool calls reach the engine dispatch over
+ * the pg `DispatchStore` (live execution enabled; the store's own
+ * run-control methods authorize the actor) and the capability surface
+ * (`mcpHost`).
  */
 
-/** Install the engine seams one dispatch needs (cheap, idempotent — the
- * 0.4 `assembleBuilderHost`). */
-function assembleEngineHost(): void {
-  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
-  loadConnectorCatalog();
-}
-
-/** One engine method against the org store, live — the 0.4
- * `dispatchEngineMethod` twin. */
-async function dispatchEngineMethod(
+/** Charge one unit of a user-scoped lane: null when it may proceed, the
+ * wait when the budget is spent. */
+async function chargeLane(
   sql: Sql,
-  args: {
-    organizationId: string;
-    actor: string;
-    /** The key behind an `api-key:` actor — the runs it starts book to it. */
-    apiKeyId?: string;
-    method: string;
-    params?: unknown;
-  },
-): Promise<unknown> {
-  assembleEngineHost();
-  const store = pgAutomationStore(sql, {
-    organizationId: args.organizationId,
-    actor: args.actor,
-    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-  });
-  return dispatch(args.method, args.params ?? {}, { store, allowLive: true });
-}
-
-function mcpShimHandlers(sql: Sql): ShimHandlers {
-  return {
-    'members/internal_queries:getMemberRole': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the REST helper passes exactly this shape
-      const args = raw as { userId: string; organizationId: string };
-      const rows = await sql<{ role: string }[]>`
-        SELECT "role" FROM "member"
-        WHERE "organizationId" = ${args.organizationId}
-          AND "userId" = ${args.userId}
-        LIMIT 1
-      `;
-      return rows[0]?.role ?? null;
-    },
-    'chat/capabilities_action:dispatchCapabilityAs': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the MCP layer passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        userId: string;
-        method: string;
-        params?: unknown;
-      };
-      return dispatchCapabilityAs(sql, args);
-    },
-    'automations_builder/run_session:dispatchEngineMethod': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the MCP layer passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        actor: string;
-        apiKeyId?: string;
-        method: string;
-        params?: unknown;
-      };
-      return dispatchEngineMethod(sql, args);
-    },
-  };
+  lane: 'rest:api' | 'rest:execute' | 'rest:settings',
+  userId: string,
+): Promise<{ retryAfterMs: number } | null> {
+  try {
+    await checkUserRateLimit(sql, lane, userId);
+    return null;
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return { retryAfterMs: error.retryAfter };
+    }
+    throw error;
+  }
 }
 
 export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
+  const host = mcpHost(deps.sql);
 
   // The protocol layer reads the body itself, so the door's default byte
   // cap is applied here as middleware (a 413 in the door envelope).
   app.post('/mcp', restBodyLimit(DEFAULT_BODY_BYTES), async (c) => {
+    // A browser page from another site must not drive a key it holds: a
+    // request that carries an Origin the deployment does not accept is
+    // logged, and refused once the operator enforces the rule
+    // (`domains/mcp/origin.ts`). CLI and server clients send no Origin.
+    const origin = c.req.header('origin');
+    if (judgeMcpOrigin(origin) === 'mismatch') {
+      console.warn(
+        `[mcp] origin-mismatch origin=${loggableOrigin(origin ?? '')} org=${c.get('organizationId')} user=${c.get('userId')} enforced=${mcpOriginEnforced()}`,
+      );
+      if (mcpOriginEnforced()) {
+        return c.json(
+          {
+            error:
+              'Requests from this origin are not accepted on the MCP endpoint — a browser page reaches it only from an origin the operator allows',
+            code: 'ORIGIN_FORBIDDEN',
+          },
+          403,
+        );
+      }
+    }
     // A JSON-RPC batch carries up to twenty calls, so one HTTP header
     // cannot name a start: the key is a tool argument (`idempotencyKey`
     // on start_run, run_deployed and invoke_capability). The header used
@@ -127,33 +96,23 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         400,
       );
     }
-    const keyId = restApiKeyId(c);
-    const rc = {
-      ctx: createCtxShim(mcpShimHandlers(deps.sql)),
-      org: {
-        organizationId: c.get('organizationId'),
-        orgSlug: c.get('orgSlug'),
+    const caller = callerFromRest(c);
+    return handleMcpRequest(caller, c.req.raw, {
+      host,
+      // Every answered call writes one log line and adds to its day's
+      // counters — never what it carried (`domains/mcp/activity.ts`).
+      observe: async (record) => {
+        console.log(mcpCallLogLine(caller, record));
+        await recordMcpActivity(deps.sql, caller, record);
       },
-      user: { userId: c.get('userId') },
-      // The engine records the key on the runs it starts for this caller.
-      ...(keyId !== undefined ? { apiKeyId: keyId } : {}),
-    };
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused protocol layer touches exactly the rc surface built above
-    return handleMcpRequest(rc as never, c.req.raw, {
       // The door charged this HTTP request once; every further tool call a
       // batch carries draws from the same `rest:api` budget, so a batch is
       // never cheaper than the requests it stands for.
-      admit: async () => {
-        try {
-          await checkUserRateLimit(deps.sql, 'rest:api', c.get('userId'));
-          return null;
-        } catch (error) {
-          if (error instanceof RateLimitExceededError) {
-            return { retryAfterMs: error.retryAfter };
-          }
-          throw error;
-        }
-      },
+      admit: () => chargeLane(deps.sql, 'rest:api', caller.userId),
+      // A tool that executes an automation draws one execution from the
+      // budget the REST API's run starts draw from, and a settings change
+      // one change from its own, after the tool's role check.
+      charge: (lane) => chargeLane(deps.sql, lane, caller.userId),
     });
   });
 

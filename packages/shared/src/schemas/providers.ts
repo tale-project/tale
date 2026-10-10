@@ -205,6 +205,16 @@ export type ExecutionConstraints = z.infer<typeof executionConstraintsSchema>;
  */
 const subscriptionImageInputsSchema = z.enum(['forwarded', 'dropped']);
 
+/** Environment-variable name as a credential env key (`ANTHROPIC_API_KEY`). */
+const envKeyNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(
+    /^[A-Z][A-Z0-9_]*$/,
+    'must be an environment-variable name (upper-case letters, digits, underscores)',
+  );
+
 const providerAuthMethodSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('api-key') }).strict(),
   z.object({ method: z.literal('env') }).strict(),
@@ -213,6 +223,11 @@ const providerAuthMethodSchema = z.discriminatedUnion('method', [
       method: z.literal('subscription-key'),
       baseUrl: providerBaseUrlSchema.optional(),
       apiFormat: apiFormatSchema.optional(),
+      /** The harness env var the secret is delivered under, when it is not
+       * the harness's default token variable (Anthropic's OAuth token rides
+       * `CLAUDE_CODE_OAUTH_TOKEN`, not the bearer channel). The harness must
+       * list it in its `subscription.tokenVarOverrides`. */
+      targetEnvVar: envKeyNameSchema.optional(),
       imageInputs: subscriptionImageInputsSchema.optional(),
       constraints: executionConstraintsSchema,
     })
@@ -548,6 +563,17 @@ export const modelCatalogEntrySchema = z
       .optional(),
     /** Text-to-speech facts; static-catalog sources only. */
     tts: modelCatalogTtsSchema.optional(),
+    /** Transcription facts; static-catalog sources only. A transcription
+     * model bills by the minute of audio, which `pricing`'s per-token
+     * figures cannot express. */
+    transcription: z
+      .object({
+        /** What a minute of audio costs: the usage ledger's estimate, and
+         * the hold a transcription takes while it runs. */
+        centsPerAudioMinute: z.number().nonnegative().finite().optional(),
+      })
+      .strict()
+      .optional(),
     /** Embedding facts for an embedding-tagged entry; static-catalog sources
      * only (live listings publish no vector width — this is exactly the
      * fact an operator otherwise has to look up by hand). `recommended`
@@ -597,16 +623,6 @@ export const modelCatalogFileSchema = z
   .refine(
     (entries) => new Set(entries.map((e) => e.id)).size === entries.length,
     { message: 'model ids must be unique within a catalog file' },
-  );
-
-/** Environment-variable name as a credential env key (`ANTHROPIC_API_KEY`). */
-const envKeyNameSchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .regex(
-    /^[A-Z][A-Z0-9_]*$/,
-    'must be an environment-variable name (upper-case letters, digits, underscores)',
   );
 
 /**
@@ -1179,7 +1195,8 @@ const harnessSubscriptionSchema = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('env'),
       tokenVar: envKeyNameSchema,
-      /** Other token channels this CLI understands, selected by a broker. */
+      /** Other token channels this CLI understands, selected by a broker or
+       * by a provider's `subscription-key` entry (`targetEnvVar`). */
       tokenVarOverrides: z.array(envKeyNameSchema).min(1).max(16).optional(),
       /** Blanked before delivery, including inherited per-session values. */
       clearEnv: z.array(envKeyNameSchema).min(1).max(16).optional(),

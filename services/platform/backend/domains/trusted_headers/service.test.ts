@@ -13,6 +13,7 @@ import {
   setTrustedHeaderSettings,
   TRUSTED_HEADER_KEY_MARKER,
   TrustedHeadersError,
+  trustedRoleHolds,
 } from './service.ts';
 
 /**
@@ -89,7 +90,7 @@ const KEY_FOR_UPDATE = 'SELECT id, name, token_prefix AS "tokenPrefix"';
 const actor = { userId: 'admin-1', email: 'admin@door.test' };
 
 describe('createTrustedHeaderKey — the plaintext leaves once', () => {
-  it('answers a marked 64-hex key and stores only its hash and prefix', async () => {
+  it('answers a marked 64-hex key and stores only its hash and prefix [THDR-R2]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith(KEY_COUNT)) return [{ count: '0' }];
       if (text.startsWith(KEY_INSERT)) return [{ id: 'key-1' }];
@@ -116,7 +117,7 @@ describe('createTrustedHeaderKey — the plaintext leaves once', () => {
     expect(auditActions(queries)).toEqual(['trusted_header_key_created']);
   });
 
-  it('refuses the eleventh live key before any write', async () => {
+  it('refuses the eleventh live key before any write [THDR-R3]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith(KEY_COUNT)) return [{ count: '10' }];
       return [];
@@ -139,7 +140,7 @@ describe('createTrustedHeaderKey — the plaintext leaves once', () => {
 });
 
 describe('revokeTrustedHeaderKey — a stamp, never a delete', () => {
-  it('stamps the live row and audits the revocation', async () => {
+  it('stamps the live row and audits the revocation [THDR-R4]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith(KEY_FOR_UPDATE)) {
         return [
@@ -169,7 +170,7 @@ describe('revokeTrustedHeaderKey — a stamp, never a delete', () => {
     expect(auditActions(queries)).toEqual(['trusted_header_key_revoked']);
   });
 
-  it('is a no-op on a key already revoked', async () => {
+  it('is a no-op on a key already revoked [THDR-R4]', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith(KEY_FOR_UPDATE)) {
         return [
@@ -194,7 +195,7 @@ describe('revokeTrustedHeaderKey — a stamp, never a delete', () => {
     expect(auditActions(queries)).toEqual([]);
   });
 
-  it("answers not-found for a key that is not this organization's", async () => {
+  it("answers not-found for a key that is not this organization's [THDR-R5]", async () => {
     const { sql, queries } = fakeSql(() => []);
 
     await expect(
@@ -215,7 +216,7 @@ describe('revokeTrustedHeaderKey — a stamp, never a delete', () => {
 });
 
 describe('resolveTrustedHeaderKey — the door looks the organization up by hash', () => {
-  it('never matches an empty presentation, and runs no query for it', async () => {
+  it('never matches an empty presentation, and runs no query for it [THDR-R6]', async () => {
     const { sql, queries } = fakeSql(() => []);
 
     expect(await resolveTrustedHeaderKey(sql, '')).toBeNull();
@@ -223,7 +224,7 @@ describe('resolveTrustedHeaderKey — the door looks the organization up by hash
     expect(queries).toHaveLength(0);
   });
 
-  it('looks up the hash, never the plaintext, and answers null for a stranger', async () => {
+  it('looks up the hash, never the plaintext, and answers null for a stranger [THDR-R6]', async () => {
     const { sql, queries } = fakeSql(() => []);
 
     expect(await resolveTrustedHeaderKey(sql, 'thk_not_a_real_key')).toBeNull();
@@ -235,7 +236,7 @@ describe('resolveTrustedHeaderKey — the door looks the organization up by hash
     ]);
   });
 
-  it('reads the switch and the ceiling beside the key, defaulting a missing settings row to off / member', async () => {
+  it('reads the switch and the ceiling beside the key, defaulting a missing settings row to off / member [THDR-R8]', async () => {
     const { sql } = fakeSql((text) => {
       if (text.startsWith('SELECT k.id AS "keyId"')) {
         return [
@@ -258,7 +259,7 @@ describe('resolveTrustedHeaderKey — the door looks the organization up by hash
     });
   });
 
-  it('carries an enabled organization and its ceiling through', async () => {
+  it('carries an enabled organization and its ceiling through [THDR-R6]', async () => {
     const { sql } = fakeSql((text) => {
       if (text.startsWith('SELECT k.id AS "keyId"')) {
         return [
@@ -280,7 +281,7 @@ describe('resolveTrustedHeaderKey — the door looks the organization up by hash
   });
 });
 
-describe('setTrustedHeaderSettings — one audit row, named for the change that matters', () => {
+describe('setTrustedHeaderSettings — one audit row, named for the change that matters [THDR-R9]', () => {
   it('names a switch flip', async () => {
     const { sql, queries } = fakeSql(() => []);
 
@@ -324,7 +325,7 @@ describe('setTrustedHeaderSettings — one audit row, named for the change that 
 });
 
 describe('getTrustedHeadersView', () => {
-  it('reads off / member and no keys for an organization that never touched the card', async () => {
+  it('reads off / member and no keys for an organization that never touched the card [THDR-R8]', async () => {
     const { sql } = fakeSql(() => []);
 
     const view = await getTrustedHeadersView(sql, 'org-1');
@@ -336,7 +337,7 @@ describe('getTrustedHeadersView', () => {
   });
 });
 
-describe('clampAssertedRole — the ceiling and the floor', () => {
+describe('clampAssertedRole — the ceiling and the floor [THDR-R7]', () => {
   it.each([
     ['member', 'admin', 'member'],
     ['admin', 'admin', 'admin'],
@@ -366,5 +367,57 @@ describe('TrustedHeadersError', () => {
     expect(error.name).toBe('TrustedHeadersError');
     expect(error.message).toBe('why');
     expect(error.status).toBe(404);
+  });
+});
+
+describe('trustedRoleHolds — a session keeps a proxy role only while it could be asserted [THDR-R10]', () => {
+  const settings = (row: object | undefined) =>
+    fakeSql((text) =>
+      text.includes('FROM app.trusted_header_settings')
+        ? row === undefined
+          ? []
+          : [row]
+        : undefined,
+    );
+
+  it('never honours owner, and asks nothing for it', async () => {
+    const fake = settings({
+      enabled: true,
+      maxAssertedRole: 'admin',
+      hasKey: true,
+    });
+    await expect(trustedRoleHolds(fake.sql, 'org-1', 'owner')).resolves.toBe(
+      false,
+    );
+    expect(fake.queries).toHaveLength(0);
+  });
+
+  it('honours a role up to the ceiling while the switch is on and a key lives', async () => {
+    const fake = settings({
+      enabled: true,
+      maxAssertedRole: 'developer',
+      hasKey: true,
+    });
+    await expect(
+      trustedRoleHolds(fake.sql, 'org-1', 'developer'),
+    ).resolves.toBe(true);
+    await expect(trustedRoleHolds(fake.sql, 'org-1', 'editor')).resolves.toBe(
+      true,
+    );
+    await expect(trustedRoleHolds(fake.sql, 'org-1', 'admin')).resolves.toBe(
+      false,
+    );
+  });
+
+  it('honours nothing while paused, without a live key, or never set up', async () => {
+    for (const row of [
+      { enabled: false, maxAssertedRole: 'admin', hasKey: true },
+      { enabled: true, maxAssertedRole: 'admin', hasKey: false },
+      undefined,
+    ]) {
+      await expect(
+        trustedRoleHolds(settings(row).sql, 'org-1', 'member'),
+      ).resolves.toBe(false);
+    }
   });
 });

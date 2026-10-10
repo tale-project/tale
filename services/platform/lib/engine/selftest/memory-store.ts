@@ -10,7 +10,9 @@
  * `startRun` executes the deployed version inline and records the run, so
  * `get_run`/`list_runs`/`cancel_run` have something real to read and the
  * selftest proves the round trip without a database. Run ids are deterministic
- * (`run_1`, `run_2`, …) so a test can assert on them.
+ * (`run_1`, `run_2`, …) so a test can assert on them. A run it starts keeps
+ * its record, so a run reads step by step through the engine's one read
+ * model (`core/record/read.ts`), as on a real host.
  */
 
 import type {
@@ -23,8 +25,17 @@ import type {
 } from '../api/dispatch';
 import { execute } from '../core/execute';
 import { cloneData } from '../core/execute/scope';
-import type { StoreAdapter } from '../core/slots';
-import type { Automation, RunResult } from '../core/types';
+import { type CompareRun, compareRuns } from '../core/record/compare';
+import { nodeDetail, recordView, runFactsOf } from '../core/record/read';
+import { createRecorder } from '../core/record/recorder';
+import type { NodeRunRecord } from '../core/record/types';
+import {
+  type OrgFacts,
+  type OrgFactsQuery,
+  type StoreAdapter,
+  triggerRunInput,
+} from '../core/slots';
+import type { Automation, Effect, RunResult } from '../core/types';
 
 /** The trigger kinds a host accepts. `api-key` is deliberately absent: a
  * programmatic call is what the API itself is for, so the kind carried no
@@ -60,6 +71,18 @@ export interface MemoryStore extends StoreAdapter {
   ): Promise<{ runId: string; version: number } | null>;
   listRuns(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun(runId: string): Promise<RunDetail | null>;
+  getRunRecord(
+    runId: string,
+    options: { travels: boolean },
+  ): Promise<Record<string, unknown> | null>;
+  getRunNode(
+    runId: string,
+    unit: { node: string; item?: number; pass?: number },
+  ): Promise<Record<string, unknown> | null>;
+  compareRuns(
+    runId: string,
+    otherRunId: string,
+  ): Promise<Record<string, unknown> | null>;
   cancelRun(runId: string): Promise<{ cancelled: boolean; status?: string }>;
   recordRun(
     name: string,
@@ -72,23 +95,72 @@ export interface MemoryStore extends StoreAdapter {
 /** Who a run started as, when nothing more specific is known. */
 const MEMORY_ACTOR = 'memory-store';
 
+/** A refusal in the shape the platform host throws one (`AutomationError`):
+ * a stable code and a 4xx status, so the dispatch answers it as data — a
+ * bare `Error` is a fault, and dispatch throws it on (`api/refusal.ts`). */
+function refusal(code: string, message: string, status: 400 | 404): Error {
+  return Object.assign(new Error(message), { code, status });
+}
+
+/** An answer of the read model as the plain object the dispatch passes on. */
+function plain(value: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value));
+}
+
 export function memoryStore(
   storeOptions: {
     /** Model ids the store answers `false` for on `modelAvailable` — every
      * other id is available. Without it the store carries no model seam,
      * so validation never warns about a model. */
     unavailableModels?: readonly string[];
+    /** What the organization has, for the validator's org-state warnings:
+     * the store answers these facts (the bound event from its own event
+     * trigger, checked against `raisedEvents`). Without it the store carries
+     * no org-state seam, so validation never warns about the organization. */
+    orgFacts?: Omit<OrgFacts, 'boundEvent'> & {
+      raisedEvents?: readonly string[];
+    };
   } = {},
 ): MemoryStore {
   const versions = new Map<string, StoredVersion[]>();
   const deployed = new Map<string, number>();
   const triggers = new Map<string, TriggerView>();
+  /** Each trigger's fixed input, beside the view that never shows it. */
+  const fixedInputs = new Map<string, Record<string, unknown>>();
   const runs: RunDetail[] = [];
+  /** Each run's record and side effects, by run id. */
+  const records = new Map<string, NodeRunRecord[]>();
+  const effects = new Map<string, Effect[]>();
   let runSeq = 0;
 
   const record = (run: RunDetail): void => {
     runs.push(run);
   };
+
+  /** A run with the document of the version it executed and its record. */
+  const recorded = (runId: string) => {
+    const run = runs.find((entry) => entry.runId === runId);
+    if (run === undefined) return null;
+    const doc = versions.get(run.name)?.[run.version - 1]?.automation;
+    return {
+      run,
+      doc: doc ?? { name: run.name, nodes: [] },
+      records: records.get(runId) ?? [],
+    };
+  };
+  const factsOf = (
+    run: RunDetail,
+    runRecords: readonly NodeRunRecord[],
+  ): ReturnType<typeof runFactsOf> =>
+    runFactsOf(
+      {
+        status: run.status,
+        ...(run.detail !== undefined && { detail: run.detail }),
+        ...(run.finishedAt !== undefined && { finishedAt: run.finishedAt }),
+      },
+      runRecords,
+      Date.now(),
+    );
 
   return {
     save(name, automation, message) {
@@ -104,7 +176,11 @@ export function memoryStore(
     deploy(name, version) {
       const list = versions.get(name);
       if (!list || version < 1 || version > list.length) {
-        throw new Error(`cannot deploy unknown version ${name}@${version}`);
+        throw refusal(
+          'AUTOMATION_VERSION_UNKNOWN',
+          `cannot deploy unknown version ${name}@${version}`,
+          404,
+        );
       }
       deployed.set(name, version);
     },
@@ -153,23 +229,45 @@ export function memoryStore(
     async setTrigger(name, trigger) {
       const kind = typeof trigger.kind === 'string' ? trigger.kind : '';
       if (!(TRIGGER_KINDS as readonly string[]).includes(kind)) {
-        throw new Error(
+        throw refusal(
+          'AUTOMATION_TRIGGER_INVALID',
           `unknown trigger kind "${kind}" — one of ${TRIGGER_KINDS.join(', ')}`,
+          400,
         );
       }
       const cron = typeof trigger.cron === 'string' ? trigger.cron : undefined;
+      // A schedule reads as a repeat rule or as a cron expression, never
+      // both — the host's own rule (the repeat rule's shape is the host's to
+      // check; the engine keeps it as given).
+      const repeat: unknown = trigger.repeat;
+      const rule =
+        typeof repeat === 'object' && repeat !== null && !Array.isArray(repeat)
+          ? { ...repeat }
+          : undefined;
       const event =
         typeof trigger.event === 'string' ? trigger.event : undefined;
-      if (kind === 'schedule' && cron === undefined) {
-        throw new Error('a schedule trigger needs a cron expression');
+      if (
+        kind === 'schedule' &&
+        (cron === undefined) === (rule === undefined)
+      ) {
+        throw refusal(
+          'AUTOMATION_TRIGGER_INVALID',
+          'a schedule trigger needs a repeat rule or a cron expression, not both',
+          400,
+        );
       }
       if (kind === 'event' && event === undefined) {
-        throw new Error('an event trigger needs an event name');
+        throw refusal(
+          'AUTOMATION_TRIGGER_INVALID',
+          'an event trigger needs an event name',
+          400,
+        );
       }
       triggers.set(name, {
         name,
         kind,
         ...(cron !== undefined && { cron }),
+        ...(rule !== undefined && { repeat: rule }),
         ...(typeof trigger.timezone === 'string' && {
           timezone: trigger.timezone,
         }),
@@ -177,6 +275,16 @@ export function memoryStore(
         hasToken: typeof trigger.tokenHash === 'string',
         enabled: trigger.enabled !== false,
       });
+      const input: unknown = trigger.input;
+      if (
+        typeof input === 'object' &&
+        input !== null &&
+        !Array.isArray(input)
+      ) {
+        fixedInputs.set(name, { ...input });
+      } else {
+        fixedInputs.delete(name);
+      }
       // Nothing durable is revoked here: the selftest store holds no
       // webhook URL a partner posts to.
       return undefined;
@@ -191,7 +299,62 @@ export function memoryStore(
       );
     },
     async deleteTrigger(name) {
+      fixedInputs.delete(name);
       return { deleted: triggers.delete(name) };
+    },
+    ...(storeOptions.orgFacts === undefined
+      ? {}
+      : {
+          orgFacts: async (query: OrgFactsQuery): Promise<OrgFacts> => {
+            const { raisedEvents, ...facts } = storeOptions.orgFacts ?? {};
+            const trigger =
+              query.automation === undefined
+                ? undefined
+                : triggers.get(query.automation);
+            const event =
+              trigger?.enabled === true && trigger.kind === 'event'
+                ? trigger.event
+                : undefined;
+            return {
+              ...facts,
+              ...(query.event &&
+                raisedEvents !== undefined && {
+                  boundEvent:
+                    event === undefined
+                      ? null
+                      : { event, raised: raisedEvents },
+                }),
+            };
+          },
+        }),
+    /** What the enabled trigger sends, as the platform host computes it: a
+     * schedule fires now, a webhook's body is unknown (an empty object whose
+     * problems are not held against it). This store keeps no event
+     * payloads, so an event trigger tells nothing. */
+    async triggerInput(name) {
+      const one = triggers.get(name);
+      if (one?.enabled !== true) return null;
+      const fixedInput = fixedInputs.get(name) ?? null;
+      if (one.kind === 'schedule') {
+        return {
+          kind: 'schedule',
+          input: triggerRunInput(
+            { kind: 'schedule', firedAt: Date.now() },
+            fixedInput,
+          ),
+          ignorePointers: [],
+          fixedInput,
+        };
+      }
+      if (one.kind === 'webhook') {
+        return {
+          kind: 'webhook',
+          input: triggerRunInput({ kind: 'webhook', payload: {} }, fixedInput),
+          ignorePointers: ['/payload'],
+          fixedInput,
+        };
+      }
+      return null;
     },
 
     /**
@@ -212,7 +375,13 @@ export function memoryStore(
       runSeq += 1;
       const runId = `run_${runSeq}`;
       const startedAt = Date.now();
-      const result = await execute(entry.automation, { input, mode });
+      const result = await execute(entry.automation, {
+        input,
+        mode,
+        recorder: createRecorder({ now: () => Date.now() }),
+      });
+      records.set(runId, result.record ?? []);
+      effects.set(runId, result.effects);
       record({
         id: runId,
         runId,
@@ -260,9 +429,80 @@ export function memoryStore(
     async getRun(runId) {
       return runs.find((run) => run.runId === runId) ?? null;
     },
+    async getRunRecord(runId, options) {
+      const found = recorded(runId);
+      if (found === null) return null;
+      const { run, doc } = found;
+      return plain(
+        recordView({
+          run: {
+            id: run.runId,
+            status: run.status,
+            version: run.version,
+            mode: run.mode === 'live' ? 'live' : 'mock',
+            startedAt: run.startedAt,
+            ...(run.finishedAt !== undefined && { finishedAt: run.finishedAt }),
+          },
+          source: 'record',
+          doc,
+          records: found.records,
+          facts: factsOf(run, found.records),
+          events: [],
+          eventsTotal: 0,
+          cursor: run.finishedAt ?? run.startedAt,
+          travels: options.travels,
+        }),
+      );
+    },
+    async getRunNode(runId, unit) {
+      const found = recorded(runId);
+      if (found === null) return null;
+      const detail = nodeDetail({
+        doc: found.doc,
+        records: found.records,
+        facts: factsOf(found.run, found.records),
+        path: unit.node,
+        item: unit.item ?? -1,
+        pass: unit.pass ?? -1,
+      });
+      if (detail === null) {
+        throw refusal(
+          'NODE_RUN_NOT_FOUND',
+          `the run has no record of "${unit.node}"`,
+          404,
+        );
+      }
+      return plain(detail);
+    },
+    async compareRuns(runId, otherRunId) {
+      const a = recorded(runId);
+      const b = recorded(otherRunId);
+      if (a === null || b === null) return null;
+      if (a.run.name !== b.run.name) {
+        throw refusal(
+          'RUN_COMPARE_MISMATCH',
+          'only two runs of the same automation can be compared',
+          400,
+        );
+      }
+      const side = (found: NonNullable<typeof a>): CompareRun => ({
+        id: found.run.runId,
+        version: found.run.version,
+        mode: found.run.mode,
+        status: found.run.status,
+        startedAt: found.run.startedAt,
+        ...(found.run.finishedAt !== undefined && {
+          finishedAt: found.run.finishedAt,
+        }),
+        document: found.doc,
+        records: found.records,
+        effects: effects.get(found.run.runId) ?? [],
+      });
+      return plain(compareRuns(side(a), side(b)));
+    },
     async cancelRun(runId) {
       const run = runs.find((entry) => entry.runId === runId);
-      if (!run) throw new Error(`no run "${runId}"`);
+      if (!run) throw refusal('RUN_NOT_FOUND', `no run "${runId}"`, 404);
       if (
         run.status === 'success' ||
         run.status === 'failed' ||
@@ -284,6 +524,8 @@ export function memoryStore(
       runSeq += 1;
       const now = Date.now();
       const runId = `run_${runSeq}`;
+      records.set(runId, result.record ?? []);
+      effects.set(runId, result.effects);
       record({
         id: runId,
         runId,

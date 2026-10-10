@@ -13,12 +13,19 @@ import {
   type V1Secret,
 } from '@kubernetes/client-node';
 
+import {
+  operationSignal,
+  outsideOperationBudget,
+  withOperationBudget,
+} from '../../operation-budget.ts';
 import { waitForRunnerd } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import { deriveRunnerdToken } from '../../session/session-naming.ts';
+import { isAgentSessionProfile } from '../../session/session-profile.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { ID_ALPHABET_RE } from '../../wire.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type BackendWorkspace,
@@ -50,18 +57,95 @@ const ORGANIZATION_ID_ANNOTATION = 'tale.dev/organization-id';
 /** Pod annotation carrying the durable "always-on" pin (see setPinned). */
 const PINNED_ANNOTATION = 'tale.dev/pinned';
 
-/** A create that lost the deterministic-name race. The route answers 502 and
- * the platform retries; by then adoption has made the live session routable. */
-function conflictError(sessionId: string, cause: unknown): Error {
+/** A create that lost the deterministic-name race. A live Pod under the name
+ * is a session the route answers as a duplicate, so the platform adopts it.
+ * Anything else (a Pod terminating or ended, a peer's Secret whose Pod is not
+ * there yet, a Pod that cannot be read) answers 502 and the platform retries;
+ * by then adoption or the orphan reaps have settled the name. */
+function conflictError(
+  sessionId: string,
+  cause: unknown,
+  livePod: boolean,
+): Error {
+  if (livePod) {
+    return new SessionExistsError(sessionId, 'a live Pod holds its name', {
+      cause,
+    });
+  }
   return new Error(
     `session ${sessionId} already exists (concurrent create or unadopted live Pod)`,
     { cause },
   );
 }
 
+/** The scheduler's reason a Pod has no node yet, when it reported one: its
+ * PodScheduled condition, False with reason Unschedulable. */
+function unschedulableReason(pod: V1Pod | undefined): string | undefined {
+  const scheduled = pod?.status?.conditions?.find(
+    (condition) => condition.type === 'PodScheduled',
+  );
+  if (scheduled?.status !== 'False' || scheduled.reason !== 'Unschedulable') {
+    return undefined;
+  }
+  return scheduled.message?.trim() || 'no reason given';
+}
+
 /** Margin past a create's budget before a Pod-less Secret counts as an
  * orphan rather than a peer replica's create in flight. */
 const ORPHAN_SECRET_SLACK_MS = 60_000;
+
+interface CreateOwnership {
+  podUid?: string;
+  secretUid?: string;
+  podConflict?: boolean;
+}
+
+/** How often a create's start-failure watch reads the Pod. */
+const START_FAILURE_POLL_MS = 1_000;
+/** How often a create asks runnerd whether it is ready, as on Docker. */
+const RUNNERD_READY_POLL_MS = 100;
+
+/** Waiting reasons a session container does not recover from within a create:
+ * the kubelet backs off a crashing container or an image it cannot pull, and
+ * an invalid image or configuration never starts. */
+const UNSTARTABLE_REASONS: ReadonlySet<string> = new Set([
+  'CrashLoopBackOff',
+  'ErrImagePull',
+  'ImagePullBackOff',
+  'ErrImageNeverPull',
+  'InvalidImageName',
+  'CreateContainerConfigError',
+  'CreateContainerError',
+]);
+
+/** Why a session Pod's containers (the egress sidecar included) cannot
+ * start, or undefined while they still may: the waiting reason, its message
+ * and, for a crash, the last exit and the tail of its termination message. */
+export function unstartableReason(pod: V1Pod): string | undefined {
+  const statuses = [
+    ...(pod.status?.initContainerStatuses ?? []),
+    ...(pod.status?.containerStatuses ?? []),
+  ];
+  for (const status of statuses) {
+    const waiting = status.state?.waiting;
+    if (
+      waiting?.reason === undefined ||
+      !UNSTARTABLE_REASONS.has(waiting.reason)
+    )
+      continue;
+    const last = status.lastState?.terminated;
+    const details = [
+      waiting.message?.trim(),
+      last === undefined
+        ? undefined
+        : `last exit ${last.exitCode}${last.reason ? ` (${last.reason})` : ''}${
+            last.message?.trim() ? `: ${last.message.trim().slice(-500)}` : ''
+          }`,
+    ].filter((detail): detail is string => Boolean(detail));
+    return `container ${status.name} ${waiting.reason}${details.length > 0 ? `: ${details.join('; ')}` : ''}`;
+  }
+  return undefined;
+}
 
 export class KubernetesSessionBackend implements SessionBackend {
   readonly kind = 'kubernetes' as const;
@@ -81,12 +165,52 @@ export class KubernetesSessionBackend implements SessionBackend {
   }
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
+    const ownership: CreateOwnership = {};
+    return withOperationBudget(
+      this.cfg.session.createHealthTimeoutMs,
+      async (signal) => {
+        try {
+          const created = await this.createSessionWithinBudget(spec, ownership);
+          signal.throwIfAborted();
+          return created;
+        } catch (error) {
+          // A cancelled create cannot spend its expired operation budget on
+          // cleanup. Retain only acknowledged API identities across this
+          // boundary; matching timestamps never establish attempt ownership.
+          await outsideOperationBudget(() =>
+            withOperationBudget(30_000, () =>
+              this.cleanupFailedCreate(
+                spec.sessionId,
+                ownership.podUid,
+                ownership.secretUid,
+                ownership.podConflict,
+              ),
+            ),
+          ).catch((cleanupError: unknown) => {
+            console.warn(
+              '[sandbox.session] failed pod create cleanup deferred:',
+              cleanupError,
+            );
+          });
+          throw error;
+        }
+      },
+      spec.signal,
+    );
+  }
+
+  private async createSessionWithinBudget(
+    spec: SessionSpec,
+    ownership: CreateOwnership,
+  ): Promise<CreateSessionResult> {
+    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     // A pre-existing workspace PVC means this is a RESUME of a stopped session.
     // A failed create here must NOT delete that PVC (it holds the user's
-    // preserved data) — stop instead. Fresh creates clean up fully.
+    // preserved data). Failed creates always retain deterministic PVCs: a
+    // peer may have mounted even a newly created claim.
     // Only agent sessions keep a workspace volume; a crawler render's
     // workspace lives and dies with its Pod (k8s-session-pod-spec.ts).
-    const durable = spec.profile === 'agent';
+    const durable = isAgentSessionProfile(spec.profile);
     const preexisting =
       durable && (await this.workspacePvcExists(spec.sessionId));
     // On a resume (preexisting PVC) a Pod that died out-of-band can still hold
@@ -126,7 +250,7 @@ export class KubernetesSessionBackend implements SessionBackend {
       );
     try {
       try {
-        await createSecret();
+        ownership.secretUid = (await createSecret()).metadata?.uid;
       } catch (err) {
         if (httpStatusCode(err) !== 409) throw err;
         // A first attempt that timed out client-side can still have been
@@ -137,7 +261,7 @@ export class KubernetesSessionBackend implements SessionBackend {
           // node drain or PodGC) would 409 every create of this session for
           // good: remove that orphan and try once more.
           if (!(await this.removeOrphanSecret(spec.sessionId))) throw err;
-          await createSecret();
+          ownership.secretUid = (await createSecret()).metadata?.uid;
         }
       }
     } catch (err) {
@@ -149,19 +273,21 @@ export class KubernetesSessionBackend implements SessionBackend {
       // may own). Surface the conflict without any cleanup — parity with the
       // Docker backend's name-conflict rule; adoptExisting / the route's
       // registry-miss re-resolve pick the live session up on a later turn.
-      if (httpStatusCode(err) === 409) throw conflictError(spec.sessionId, err);
-      // Same cleanup envelope as the Pod/readiness failures below: the PVC was
-      // already created above, so a Secret failure must not leak it (a fresh
-      // create has no ownerReference for K8s GC to cascade from). Resume keeps
-      // the PVC (stop), fresh destroys it.
-      await this.cleanupFailedCreate(spec.sessionId, preexisting);
+      if (httpStatusCode(err) === 409) {
+        throw conflictError(
+          spec.sessionId,
+          err,
+          await this.livePodHolds(spec.sessionId),
+        );
+      }
+      // An ambiguous response does not establish ownership. Preserve every
+      // object without an acknowledged UID, and every workspace PVC.
       throw err;
     }
     // The Pod carries this creator's deadline, so a replacement spawner with
     // a shorter configured timeout never reaps a healthy peer's startup.
-    const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     try {
-      await withRetry('create-session-pod', () =>
+      const createdPod = await withRetry('create-session-pod', () =>
         this.client.core.createNamespacedPod(
           {
             namespace: this.cfg.k8s.namespace,
@@ -177,6 +303,7 @@ export class KubernetesSessionBackend implements SessionBackend {
           apiTimeout(),
         ),
       );
+      ownership.podUid = createdPod.metadata?.uid;
     } catch (err) {
       if (httpStatusCode(err) === 409) {
         // A first attempt that timed out client-side can still have been
@@ -187,11 +314,14 @@ export class KubernetesSessionBackend implements SessionBackend {
           // from a stop/destroy in flight). Leave the Pod and the PVC alone —
           // only the Secret THIS call created is ours, and leaving it behind
           // would 409 every future create of this session forever.
-          await this.deleteOwnSecret(spec.sessionId);
-          throw conflictError(spec.sessionId, err);
+          ownership.podConflict = true;
+          throw conflictError(
+            spec.sessionId,
+            err,
+            await this.livePodHolds(spec.sessionId),
+          );
         }
       } else {
-        await this.cleanupFailedCreate(spec.sessionId, preexisting);
         throw err;
       }
     }
@@ -199,17 +329,29 @@ export class KubernetesSessionBackend implements SessionBackend {
     // Poll runnerd readiness via the Pod IP (which appears once scheduled).
     // waitForEndpoint and waitForRunnerd share ONE budget: the time spent
     // waiting for the Pod IP is deducted from what runnerd readiness gets, so
-    // a slow scheduler can't double-spend createHealthTimeoutMs.
+    // a slow scheduler can't double-spend createHealthTimeoutMs. A container
+    // that cannot start (a crash loop, an image the node cannot pull, a bad
+    // configuration) ends both waits with its reason instead of letting them
+    // run out the budget; a crash-looping container still gets a Pod IP, so
+    // the watch runs beside the runnerd poll too.
+    const startFailure = this.watchStartFailure(spec.sessionId, deadline);
     try {
-      const endpoint = await this.waitForEndpoint(spec.sessionId, deadline);
+      const endpoint = await Promise.race([
+        this.waitForEndpoint(spec.sessionId, deadline, startFailure.signal),
+        startFailure.failed,
+      ]);
       const remainingMs = Math.max(0, deadline - Date.now());
-      await waitForRunnerd(
-        { baseUrl: endpoint, token: this.tokenFor(spec.sessionId) },
-        remainingMs,
-      );
-    } catch (err) {
-      await this.cleanupFailedCreate(spec.sessionId, preexisting);
-      throw err;
+      await Promise.race([
+        waitForRunnerd(
+          { baseUrl: endpoint, token: this.tokenFor(spec.sessionId) },
+          remainingMs,
+          RUNNERD_READY_POLL_MS,
+          startFailure.signal,
+        ),
+        startFailure.failed,
+      ]);
+    } finally {
+      startFailure.stop();
     }
     return { resumed: preexisting };
   }
@@ -232,6 +374,29 @@ export class KubernetesSessionBackend implements SessionBackend {
         `[sandbox.session] cannot tell whose pod holds ${sessionId}'s name:`,
         error,
       );
+      return false;
+    }
+  }
+
+  /** Does a live Pod hold the session's name — one neither being deleted nor
+   * ended (Succeeded/Failed)? A Pending Pod counts: a peer replica is still
+   * starting it. A read that fails is "no". */
+  private async livePodHolds(sessionId: string): Promise<boolean> {
+    try {
+      const pod = await this.readPod(sessionId);
+      const phase = pod.status?.phase;
+      return (
+        pod.metadata?.deletionTimestamp == null &&
+        phase !== 'Succeeded' &&
+        phase !== 'Failed'
+      );
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) {
+        console.warn(
+          `[sandbox.session] cannot tell whether a live pod holds ${sessionId}'s name:`,
+          error,
+        );
+      }
       return false;
     }
   }
@@ -332,12 +497,17 @@ export class KubernetesSessionBackend implements SessionBackend {
    * means the Pod belongs to someone else). 404 = already gone = fine; any
    * other failure is logged, not thrown — the conflict is the error the
    * caller must see. */
-  private async deleteOwnSecret(sessionId: string): Promise<void> {
+  private async deleteOwnSecret(
+    sessionId: string,
+    uid: string | undefined,
+  ): Promise<void> {
+    if (uid === undefined) return;
     try {
       await this.client.core.deleteNamespacedSecret(
         {
           name: sessionSecretNameFor(sessionId),
           namespace: this.cfg.k8s.namespace,
+          body: { preconditions: { uid } },
         },
         apiTimeout(),
       );
@@ -351,42 +521,187 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
   }
 
-  /** On a failed create: stop (keep PVC) when resuming a session whose PVC
-   * pre-existed, else destroy (delete the half-made PVC). Never reached for a
-   * 409 (see createSession) — the conflicting object is not ours. */
+  /** A failed create owns only UIDs acknowledged by the API. Workspace PVCs
+   * survive every failure for retry or explicit destroy; they may already be
+   * mounted by a concurrent creator. Unknown objects belong to recovery. */
   private async cleanupFailedCreate(
     sessionId: string,
-    preexisting: boolean,
+    podUid: string | undefined,
+    secretUid: string | undefined,
+    podConflict = false,
   ): Promise<void> {
-    if (preexisting) {
-      await this.stopSession(sessionId);
-    } else {
-      await this.destroySession(sessionId);
+    if (podUid === undefined && secretUid === undefined) return;
+    try {
+      if (podConflict) {
+        await this.deleteOwnSecret(sessionId, secretUid);
+        return;
+      }
+      let pod: V1Pod | undefined;
+      try {
+        pod = await this.readPod(sessionId);
+      } catch (error) {
+        if (httpStatusCode(error) !== 404) throw error;
+      }
+      if (pod !== undefined) {
+        // No acknowledged UID, or the name moved: never remove this Pod or
+        // the Secret it may already use, even after a failed create reply.
+        if (podUid === undefined || pod.metadata?.uid !== podUid) return;
+        try {
+          await this.deleteObservedPod(sessionId, pod);
+        } catch (error) {
+          if (httpStatusCode(error) === 409) return;
+          throw error;
+        }
+      }
+      await this.deleteOwnSecret(sessionId, secretUid);
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] failed-create cleanup skipped for ${sessionId}:`,
+        error,
+      );
     }
   }
 
-  /** Read the Pod until status.podIP is assigned, then return the runnerd URL. */
+  /** Observation-based cleanup must never transfer a deletion verdict to a
+   * replacement UID or to a Pod whose phase changed after the observation. */
+  private async deleteObservedPod(
+    sessionId: string,
+    pod: V1Pod,
+  ): Promise<void> {
+    const uid = pod.metadata?.uid;
+    const resourceVersion = pod.metadata?.resourceVersion;
+    if (!uid || !resourceVersion) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'pod identity is incomplete',
+      );
+    }
+    try {
+      await this.client.core.deleteNamespacedPod(
+        {
+          name: sessionPodNameFor(sessionId),
+          namespace: this.cfg.k8s.namespace,
+          gracePeriodSeconds: 5,
+          body: { preconditions: { uid, resourceVersion } },
+        },
+        apiTimeout(),
+      );
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) throw error;
+    }
+  }
+
+  /** Watch the session's Pod while a create waits on it: `failed` rejects
+   * with the reason once a container cannot start, and `signal` aborts then
+   * or at stop(), so the waits beside it end too. A read that fails says
+   * nothing about the containers; the next one, a second later, asks again. */
+  private watchStartFailure(
+    sessionId: string,
+    deadlineMs: number,
+  ): { failed: Promise<never>; signal: AbortSignal; stop: () => void } {
+    const ended = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const failed = new Promise<never>((_, reject) => {
+      const look = async () => {
+        if (ended.signal.aborted || Date.now() > deadlineMs) return;
+        try {
+          const reason = unstartableReason(await this.readPod(sessionId));
+          if (reason !== undefined) {
+            const error = new Error(
+              `session ${sessionId} cannot start: ${reason}`,
+            );
+            ended.abort(error);
+            reject(error);
+            return;
+          }
+        } catch (err) {
+          console.warn(
+            `[sandbox.k8s] reading session ${sessionId}'s Pod while it starts failed (asked again in ${START_FAILURE_POLL_MS} ms):`,
+            err,
+          );
+        }
+        if (!ended.signal.aborted) {
+          timer = setTimeout(() => void look(), START_FAILURE_POLL_MS);
+        }
+      };
+      timer = setTimeout(() => void look(), START_FAILURE_POLL_MS);
+    });
+    // Raced by the create; a rejection after the race settled is not lost.
+    failed.catch(() => undefined);
+    return {
+      failed,
+      signal: ended.signal,
+      stop: () => {
+        if (timer !== undefined) clearTimeout(timer);
+        if (!ended.signal.aborted) ended.abort();
+      },
+    };
+  }
+
+  /** Read the Pod until status.podIP is assigned, then return the runnerd URL.
+   * A Pod the scheduler cannot place (a selector no node matches, a taint it
+   * does not tolerate, a disk request on a node with no capacity) keeps
+   * waiting, since an autoscaler can still add a node; but the scheduler's
+   * reason is logged once and carried by the error the wait ends with, so an
+   * operator need not reach for `kubectl describe pod`. */
   private async waitForEndpoint(
     sessionId: string,
     deadlineMs: number,
+    giveUp?: AbortSignal,
   ): Promise<string> {
-    for (;;) {
-      const ip = (await this.readPod(sessionId))?.status?.podIP;
-      if (ip) return `http://${ip}:${RUNNERD_PORT}`;
-      if (Date.now() > deadlineMs) {
-        throw new Error(`session ${sessionId} pod never got an IP`);
+    let unschedulable: string | undefined;
+    let logged = false;
+    try {
+      for (;;) {
+        operationSignal()?.throwIfAborted();
+        giveUp?.throwIfAborted();
+        const pod = await this.readPod(sessionId);
+        const ip = pod?.status?.podIP;
+        if (ip) return `http://${ip}:${RUNNERD_PORT}`;
+        unschedulable = unschedulableReason(pod);
+        if (unschedulable !== undefined && !logged) {
+          logged = true;
+          console.warn(
+            `[sandbox.session] session ${sessionId} pod unschedulable: ${unschedulable}`,
+          );
+        }
+        if (Date.now() > deadlineMs) {
+          throw new Error(`session ${sessionId} pod never got an IP`);
+        }
+        await new Promise((r) => setTimeout(r, 500));
       }
-      await new Promise((r) => setTimeout(r, 500));
+    } catch (error) {
+      if (unschedulable === undefined) throw error;
+      throw new Error(
+        `session ${sessionId} pod never got an IP: pod unschedulable: ${unschedulable}`,
+        { cause: error },
+      );
     }
   }
 
-  async resolveEndpoint(sessionId: string): Promise<string> {
-    const ip = (await this.readPod(sessionId))?.status?.podIP;
+  async resolveEndpoint(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<string> {
+    const pod = await this.readPod(sessionId);
+    if (
+      expectedCreatedAtMs !== undefined &&
+      this.observedCreationStamp(sessionId, pod) !== expectedCreatedAtMs
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'pod changed before endpoint resolution',
+      );
+    }
+    const ip = pod.status?.podIP;
     if (!ip) throw new Error(`session ${sessionId} has no pod IP`);
     return `http://${ip}:${RUNNERD_PORT}`;
   }
 
-  async sessionExists(sessionId: string): Promise<boolean> {
+  async sessionExists(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean> {
     let pod;
     try {
       pod = await this.readPod(sessionId);
@@ -399,7 +714,19 @@ export class KubernetesSessionBackend implements SessionBackend {
     // Only a non-terminating Running Pod is present for session purposes.
     // A runner-container crash can restart in place within that same Pod.
     if (pod.metadata?.deletionTimestamp) return false;
-    return pod.status?.phase === 'Running';
+    if (pod.status?.phase !== 'Running') return false;
+    return (
+      expectedCreatedAtMs === undefined ||
+      this.observedCreationStamp(sessionId, pod) === expectedCreatedAtMs
+    );
+  }
+
+  private observedCreationStamp(sessionId: string, pod: V1Pod): number {
+    const raw = pod.metadata?.annotations?.['tale.dev/created-at'];
+    const stamp = Number(raw);
+    if (raw === undefined || raw.trim() === '' || !Number.isFinite(stamp))
+      throw new Error(`session ${sessionId} pod creation stamp is unreadable`);
+    return stamp;
   }
 
   /**
@@ -435,13 +762,34 @@ export class KubernetesSessionBackend implements SessionBackend {
         await this.reapStaleSession(sessionId, stamp);
       return;
     }
-    await this.removePodAndSecret(sessionId);
+    const secret = await this.readSessionSecret(sessionId);
+    const stamp = pod.metadata?.annotations?.['tale.dev/created-at'];
+    const secretStamp = secret?.metadata?.annotations?.['tale.dev/created-at'];
+    if (
+      secret === null ||
+      (secret !== undefined &&
+        (!secret.metadata?.uid ||
+          (secretStamp !== undefined && secretStamp !== stamp)))
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'terminal pod secret ownership is unknown',
+      );
+    }
+    await this.deleteObservedPod(sessionId, pod);
+    await this.deleteOwnSecret(sessionId, secret?.metadata?.uid);
     // Deletion is asynchronous (graceful termination), so poll until the Pod
     // object is gone — recreating against a still-Terminating Pod would 409.
     const deadline = Date.now() + this.cfg.session.createHealthTimeoutMs;
     for (;;) {
       try {
-        await this.readPod(sessionId);
+        const current = await this.readPod(sessionId);
+        if (current.metadata?.uid !== pod.metadata?.uid) {
+          throw new SessionIncarnationChangedError(
+            sessionId,
+            'replaced while terminating',
+          );
+        }
       } catch (err) {
         if (httpStatusCode(err) === 404) return; // gone
         throw err;
@@ -872,7 +1220,9 @@ export class KubernetesSessionBackend implements SessionBackend {
       out.push({
         sessionId,
         organizationId: org,
-        profile: ann['tale.dev/profile'] === 'agent' ? 'agent' : 'default',
+        profile: isAgentSessionProfile(ann['tale.dev/profile'])
+          ? ann['tale.dev/profile']
+          : 'default',
         ...(ann['tale.dev/docker'] === undefined
           ? {}
           : { docker: ann['tale.dev/docker'] === 'true' }),

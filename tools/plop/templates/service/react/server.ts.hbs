@@ -19,6 +19,7 @@ startReactServer({
   port: Number(process.env.PORT ?? {{port}}),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: '{{kebabCase name}}',
+  servingService: '{{kebabCase name}}',
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,
 });

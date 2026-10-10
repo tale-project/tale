@@ -86,6 +86,9 @@ interface FakeProcess {
   comm?: string;
   /** Start time in clock ticks since boot; defaults to 1000 + pid. */
   startTime?: number;
+  /** An environ file with no bytes at all — what the kernel answers for a
+   * process in the middle of an execve. `env` is then not written. */
+  midExec?: boolean;
 }
 
 /** A process table: pid → its environment and process group. */
@@ -94,7 +97,9 @@ function procTable(processes: Record<string, FakeProcess>): string {
   roots.push(root);
   for (const [pid, proc] of Object.entries(processes)) {
     mkdirSync(`${root}/${pid}`);
-    if (proc.env !== null) {
+    if (proc.midExec === true) {
+      writeFileSync(`${root}/${pid}/environ`, '');
+    } else if (proc.env !== null) {
       writeFileSync(`${root}/${pid}/environ`, `${proc.env.join('\0')}\0`);
     }
     writeStat(root, pid, proc);
@@ -186,6 +191,43 @@ describe('taggedPids', () => {
       await taggedPids('e1', { procRoot: '/nonexistent-proc-root' }),
     ).toEqual([]);
   });
+
+  test('a process in the middle of an execve, whose environment reads empty, is read again and found', async () => {
+    const procRoot = procTable({
+      '20': { env: [], midExec: true },
+      '21': tagged('e1'),
+    });
+    // The exec completes while the scan is on its re-reads.
+    const laidOut = setTimeout(() => {
+      writeFileSync(
+        `${procRoot}/20/environ`,
+        `PATH=/bin\0${EXEC_TAG_ENV}=e1\0`,
+      );
+    }, 15);
+    try {
+      const started = performance.now();
+      expect(await taggedPids('e1', { procRoot, selfPid: 0 })).toEqual([
+        20, 21,
+      ]);
+      // Found by a re-read, not by the scan's deadline.
+      expect(performance.now() - started).toBeLessThan(1_000);
+    } finally {
+      clearTimeout(laidOut);
+    }
+  });
+
+  test('a process whose environment stays empty counts as untagged after a bounded wait', async () => {
+    const procRoot = procTable({
+      '20': { env: [], midExec: true },
+      '21': tagged('e1'),
+    });
+    const started = performance.now();
+    expect(await taggedPids('e1', { procRoot, selfPid: 0 })).toEqual([21]);
+    const elapsed = performance.now() - started;
+    // Four re-reads, ten milliseconds apart — and no more.
+    expect(elapsed).toBeGreaterThanOrEqual(35);
+    expect(elapsed).toBeLessThan(1_000);
+  });
 });
 
 describe('groupMembers', () => {
@@ -203,6 +245,7 @@ describe('groupMembers', () => {
       try {
         const members = await groupMembers(39, {
           procRoot,
+          selfPid: 0,
           scanDeadlineMs: 2_000,
         });
         expect(members.sort((a, b) => a.pid - b.pid)).toEqual([
@@ -211,7 +254,9 @@ describe('groupMembers', () => {
           { pid: 42, startTime: '1042' },
         ]);
         expect(pendingProcReads()).toBe(0);
-        expect(await groupMembers(undefined, { procRoot })).toEqual([]);
+        expect(await groupMembers(undefined, { procRoot, selfPid: 0 })).toEqual(
+          [],
+        );
       } finally {
         await release(fifo);
       }
@@ -220,6 +265,96 @@ describe('groupMembers', () => {
 });
 
 describe('processesLeft', () => {
+  isolatedReadTest(
+    'processesLeft',
+    'synthetic ancestry includes a bridge whose pid matches the isolated reader',
+    async () => {
+      const bridgePid = process.pid;
+      const rootPid = bridgePid + 1_000;
+      const leafPid = bridgePid + 2_000;
+      const procRoot = procTable({
+        [rootPid]: tagged('synthetic-ancestry', rootPid),
+        [bridgePid]: { env: [], ppid: rootPid, pgrp: bridgePid },
+        [leafPid]: { env: [], ppid: bridgePid, pgrp: leafPid },
+      });
+      const targets = [
+        {
+          execId: 'synthetic-ancestry',
+          groupId: undefined,
+          rootPid,
+          rootAlive: () => true,
+        },
+      ];
+      const { sent, kill } = recorder();
+      const deps = { procRoot, selfPid: 0, kill };
+      expect(await processesLeft(targets, deps)).toEqual([true]);
+      const round = await signalExecProcesses(targets, 'SIGTERM', deps);
+      expect(round.reached).toBe(2);
+      expect(sent).toEqual([
+        [bridgePid, 'SIGTERM'],
+        [leafPid, 'SIGTERM'],
+      ]);
+      expect(pendingProcReads()).toBe(0);
+    },
+  );
+
+  test.each(['prune', 'signal'] as const)(
+    '%s matches many retained execs without comparing every process to every exec',
+    async (operation) => {
+      const count = 128;
+      const processes: Record<string, FakeProcess> = {};
+      let tagLookups = 0;
+      const targets = Array.from({ length: count }, (_, index) => {
+        const execId = `retained-${index}`;
+        const rootPid = 100 + index * 3;
+        processes[rootPid] = tagged(execId);
+        processes[rootPid + 1] = {
+          env: [],
+          ppid: rootPid,
+          pgrp: rootPid + 1,
+        };
+        processes[rootPid + 2] = {
+          env: [],
+          ppid: rootPid + 1,
+          pgrp: rootPid + 2,
+        };
+        return {
+          get execId() {
+            tagLookups += 1;
+            return execId;
+          },
+          groupId: rootPid + 1,
+          rootPid,
+          rootAlive: () => true,
+        };
+      });
+      const procRoot = procTable(processes);
+      if (operation === 'prune') {
+        expect(await processesLeft(targets, { procRoot, selfPid: 0 })).toEqual(
+          Array.from({ length: count }, () => true),
+        );
+      } else {
+        const { sent, kill } = recorder();
+        const round = await signalExecProcesses(targets, 'SIGTERM', {
+          procRoot,
+          selfPid: 0,
+          kill,
+        });
+        expect(round.reached).toBe(count * 2);
+        expect(sent).toEqual(
+          targets.flatMap(({ groupId }) => [
+            [-groupId, 'SIGTERM'],
+            [groupId + 1, 'SIGTERM'],
+          ]),
+        );
+      }
+      // Count matching work instead of timing I/O on a contended host. A
+      // lookup per exec stays linear as execs and descendants accumulate;
+      // comparing every table entry to every target reads this 49,152 times.
+      expect(tagLookups).toBeLessThanOrEqual(count * 2);
+    },
+  );
+
   test('a target has processes left while one is tagged with it or a recorded member is still in its group', async () => {
     const procRoot = procTable({
       '20': tagged('e1'),
@@ -243,7 +378,7 @@ describe('processesLeft', () => {
         },
         { execId: 'e4', groupId: 30 },
       ],
-      { procRoot },
+      { procRoot, selfPid: 0 },
     );
     expect(left).toEqual([true, true, false, false]);
     expect(
@@ -267,7 +402,7 @@ describe('processesLeft', () => {
         { execId: 'e5', groupId: 61, rootPid: 60, rootAlive: alive },
         { execId: 'e6', groupId: 71, rootPid: 70, rootAlive: alive },
       ],
-      { procRoot },
+      { procRoot, selfPid: 0 },
     );
     expect(left).toEqual([true, false]);
   });
@@ -285,7 +420,7 @@ describe('signalExecProcesses', () => {
     const { reached } = await signalExecProcesses(
       [{ execId: 'e2', groupId: 39, groupKnown: true }],
       'SIGTERM',
-      { procRoot, kill },
+      { procRoot, selfPid: 0, kill },
     );
     expect(sent).toEqual([
       [-39, 'SIGTERM'],
@@ -299,6 +434,7 @@ describe('signalExecProcesses', () => {
     const { sent, kill } = recorder();
     await signalExecProcesses([{ execId: 'e2', groupId: 39 }], 'SIGKILL', {
       procRoot,
+      selfPid: 0,
       kill,
     });
     expect(sent).toEqual([[-39, 'SIGKILL']]);
@@ -319,7 +455,7 @@ describe('signalExecProcesses', () => {
         },
       ],
       'SIGKILL',
-      { procRoot, kill },
+      { procRoot, selfPid: 0, kill },
     );
     expect(sent).toEqual([[-39, 'SIGKILL']]);
     // What the round saw in the group, for the next round's proof.
@@ -341,7 +477,7 @@ describe('signalExecProcesses', () => {
         },
       ],
       'SIGKILL',
-      { procRoot, kill },
+      { procRoot, selfPid: 0, kill },
     );
     expect(sent).toEqual([]);
     expect(members).toEqual([[]]);
@@ -356,6 +492,7 @@ describe('signalExecProcesses', () => {
     const { sent, kill } = recorder();
     await signalExecProcesses([{ execId: 'e2', groupId: 39 }], 'SIGKILL', {
       procRoot,
+      selfPid: 0,
       kill,
     });
     expect(sent).toEqual([[42, 'SIGKILL']]);
@@ -374,7 +511,7 @@ describe('signalExecProcesses', () => {
         { execId: 'c', groupId: 60, groupKnown: true },
       ],
       'SIGTERM',
-      { procRoot, kill },
+      { procRoot, selfPid: 0, kill },
     );
     // The known group goes first, before the table is read.
     expect(sent).toEqual([
@@ -398,7 +535,7 @@ describe('signalExecProcesses', () => {
         const round = signalExecProcesses(
           [{ execId: 'e5', groupId: 39, groupKnown: true }],
           'SIGTERM',
-          { procRoot, kill, scanDeadlineMs: 200 },
+          { procRoot, selfPid: 0, kill, scanDeadlineMs: 200 },
         );
         expect(sent).toEqual([[-39, 'SIGTERM']]);
         await round;
@@ -419,7 +556,7 @@ describe('signalExecProcesses', () => {
     async () => {
       const procRoot = procTable({ '42': tagged('e7', 42) });
       const fifo = stallEnviron(procRoot, '41', 41);
-      const deps = { procRoot, scanDeadlineMs: 300 };
+      const deps = { procRoot, selfPid: 0, scanDeadlineMs: 300 };
       try {
         const both = Promise.all([
           taggedPids('e7', deps),
@@ -446,7 +583,7 @@ describe('signalExecProcesses', () => {
     async () => {
       const procRoot = procTable({ '42': tagged('e6', 42) });
       const fifo = stallEnviron(procRoot, '41', 41);
-      const deps = { procRoot, scanDeadlineMs: 300 };
+      const deps = { procRoot, selfPid: 0, scanDeadlineMs: 300 };
       try {
         let started = Date.now();
         expect(await taggedPids('e6', deps)).toEqual([42]);
@@ -469,11 +606,17 @@ describe('signalExecProcesses', () => {
         expect(await taggedPids('e6', deps)).toEqual([42]);
         writeStat(procRoot, '41', { env: null, pgrp: 41, startTime: 99_999 });
         started = Date.now();
-        await taggedPids('e6', deps);
+        expect(
+          await taggedPids('e6', {
+            ...deps,
+            listDir: () => Promise.resolve(['41']),
+          }),
+        ).toEqual([]);
         expect(Date.now() - started).toBeGreaterThanOrEqual(250);
         expect(pendingProcReads()).toBe(2);
       } finally {
         await release(fifo);
+        expect(pendingProcReads()).toBe(0);
       }
     },
   );
@@ -536,6 +679,7 @@ describe('signalExecProcesses', () => {
         'SIGKILL',
         {
           procRoot,
+          selfPid: 0,
           kill: () => {
             throw Object.assign(new Error('gone'), { code: 'ESRCH' });
           },
@@ -572,7 +716,7 @@ describe('signalExecProcesses', () => {
         },
       ],
       'SIGTERM',
-      { procRoot, kill },
+      { procRoot, selfPid: 0, kill },
     );
     // The group once, the two outside it on their own; never the shim.
     expect(sent).toEqual([
@@ -602,7 +746,7 @@ describe('signalExecProcesses', () => {
             },
           ],
           'SIGKILL',
-          { procRoot, kill, scanDeadlineMs: 2_000 },
+          { procRoot, selfPid: 0, kill, scanDeadlineMs: 2_000 },
         );
         expect(Date.now() - startedAt).toBeLessThan(1_000);
         expect(pendingProcReads()).toBe(0);
@@ -612,6 +756,90 @@ describe('signalExecProcesses', () => {
       }
     },
   );
+
+  test('a normally completed shim needs no post-exec process or environment reads', async () => {
+    let listings = 0;
+    const { sent, kill } = recorder();
+    const targets = [
+      {
+        execId: 'completed',
+        groupId: 61,
+        rootPid: 60,
+        rootAlive: () => false,
+        rootComplete: () => true,
+      },
+    ];
+    const deps = {
+      kill,
+      listDir: async () => {
+        listings += 1;
+        return ['60', '61'];
+      },
+    };
+    await signalExecProcesses(targets, 'SIGKILL', deps);
+    expect(await processesLeft(targets, deps)).toEqual([false]);
+    expect(listings).toBe(0);
+    expect(pendingProcReads()).toBe(0);
+    expect(sent).toEqual([]);
+  });
+
+  test('a rotation never signals an unproven group without a process table', async () => {
+    const { sent, kill } = recorder();
+    await signalExecProcesses(
+      [{ execId: 'rotated', groupId: 61, groupOnly: true, groupKnown: false }],
+      'SIGKILL',
+      {
+        kill,
+        listDir: async () => {
+          throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+        },
+      },
+    );
+    expect(sent).toEqual([]);
+  });
+
+  test('a stalled intermediate environment does not hide its subtree in a mixed tag scan', async () => {
+    const procRoot = procTable({
+      '60': tagged('walk', 60),
+      '63': { env: [], pgrp: 63, ppid: 62 },
+      '80': tagged('fallback', 80),
+    });
+    const fifo = stallEnviron(procRoot, '62', 62, 60);
+    const { sent, kill } = recorder();
+    try {
+      await signalExecProcesses(
+        [
+          { execId: 'walk', groupId: 61, rootPid: 60, rootAlive: () => true },
+          { execId: 'fallback', groupId: 80 },
+        ],
+        'SIGKILL',
+        { procRoot, selfPid: 0, kill, scanDeadlineMs: 300 },
+      );
+      expect(sent).toContainEqual([62, 'SIGKILL']);
+      expect(sent).toContainEqual([63, 'SIGKILL']);
+    } finally {
+      await release(fifo);
+    }
+  });
+
+  test('a process that vanished during its environment read is not an ancestry bridge', async () => {
+    const procRoot = procTable({
+      '60': tagged('walk', 60),
+      '62': { env: null, pgrp: 62, ppid: 60 },
+      '63': { env: [], pgrp: 63, ppid: 62 },
+      '80': tagged('fallback', 80),
+    });
+    const { sent, kill } = recorder();
+    await signalExecProcesses(
+      [
+        { execId: 'walk', groupId: 61, rootPid: 60, rootAlive: () => true },
+        { execId: 'fallback', groupId: 80 },
+      ],
+      'SIGKILL',
+      { procRoot, selfPid: 0, kill },
+    );
+    expect(sent).toEqual([[-80, 'SIGKILL']]);
+  });
 
   test('once its shim has exited, a target is found by its tag again', async () => {
     const procRoot = procTable({
@@ -631,7 +859,7 @@ describe('signalExecProcesses', () => {
         },
       ],
       'SIGTERM',
-      { procRoot, kill },
+      { procRoot, selfPid: 0, kill },
     );
     expect(sent).toEqual([[65, 'SIGTERM']]);
   });
@@ -660,7 +888,7 @@ describe('signalExecProcesses', () => {
           { execId: 'e12', groupId: 81 },
         ],
         'SIGTERM',
-        { procRoot, kill },
+        { procRoot, selfPid: 0, kill },
       );
       expect(sent).toEqual([
         [62, 'SIGTERM'],
@@ -675,7 +903,7 @@ describe('signalExecProcesses', () => {
     await signalExecProcesses(
       [{ execId: 'e4', groupId: 1, groupKnown: true }],
       'SIGKILL',
-      { procRoot: procTable({ '1': tagged('e4', 1) }), kill },
+      { procRoot: procTable({ '1': tagged('e4', 1) }), selfPid: 0, kill },
     );
     expect(sent).toEqual([]);
   });

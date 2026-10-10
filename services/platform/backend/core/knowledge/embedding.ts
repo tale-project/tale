@@ -507,6 +507,23 @@ function applyLowestBound(lane: Lane): void {
   if (lane.queue.concurrency !== lowest) lane.queue.concurrency = lowest;
 }
 
+/** Raised when a usage limit has too little room for an embedding request:
+ * indexing waits for the limit, a search is refused. Never retried here. */
+export class EmbeddingBudgetExceeded extends Error {
+  readonly code = 'BUDGET_EXCEEDED';
+  /** When the binding limit's period resets, when the gate named it. */
+  readonly retryAtMs: number | undefined;
+  /** The meter's own account of the cap that refused — opaque here, read by
+   * the door that answers the refusal. */
+  readonly detail: unknown;
+  constructor(reason: string, retryAtMs?: number, detail?: unknown) {
+    super(reason);
+    this.name = 'EmbeddingBudgetExceeded';
+    this.retryAtMs = retryAtMs;
+    this.detail = detail;
+  }
+}
+
 /** Raised when an organization has not said which embedding model to use. */
 export class EmbeddingNotConfigured extends Error {
   constructor(orgSlug: string) {
@@ -530,6 +547,35 @@ class EmbeddingCredentialUnsupported extends Error {
 export interface EmbedderOptions {
   /** The organization whose in-flight bound this embedder shares. */
   readonly organizationId?: string;
+  /** Where every provider request is held and booked, as the spend of
+   * whoever the work is for. Absent, nothing is metered. */
+  readonly meter?: EmbeddingMeter;
+}
+
+/**
+ * Where an embedder's provider requests are held and booked — supplied by
+ * the work's owner, who knows whose spend it is: the uploader of a file,
+ * the member searching, nobody for an inbound mail. Each request (its
+ * retries included) holds its estimated input before it is sent and is
+ * booked at the tokens the provider reported — the estimate where it
+ * reported none — or released when it fails.
+ */
+export interface EmbeddingMeter {
+  /** Hold one request; a refusal's sentence, when its limit resets and the
+   * meter's account of the cap, when a limit has too little room for it. */
+  open(request: {
+    provider: string;
+    model: string;
+    tokens: number;
+  }): Promise<
+    | { lease: unknown }
+    | { refused: string; retryAtMs?: number; detail?: unknown }
+  >;
+  settle(
+    lease: unknown,
+    usage: { provider: string; model: string; tokens: number },
+  ): Promise<void>;
+  release(lease: unknown): Promise<void>;
 }
 
 export interface EmbedOptions {
@@ -551,6 +597,7 @@ export class Embedder implements QueryEmbedder {
   readonly model: EmbeddingModel;
   private readonly client: OpenAI;
   private readonly lane: string;
+  private readonly meter: EmbeddingMeter | undefined;
 
   constructor(
     model: EmbeddingModel,
@@ -563,6 +610,7 @@ export class Embedder implements QueryEmbedder {
       model.baseUrl ?? '',
       model.model,
     ]);
+    this.meter = options.meter;
     this.client = new OpenAI({
       apiKey,
       ...(model.baseUrl !== undefined && { baseURL: model.baseUrl }),
@@ -770,13 +818,74 @@ export class Embedder implements QueryEmbedder {
     pace.sent.push({ at: Date.now(), tokens });
   }
 
-  /** One provider call, retried on the failures that are worth retrying. */
+  /**
+   * One provider call, retried on the failures that are worth retrying —
+   * held before it is sent and booked once it answered, when a meter
+   * watches this embedder's spend.
+   */
   private async request(
     texts: readonly string[],
     signal: AbortSignal,
     kind: EmbedKind,
   ): Promise<number[][]> {
     const tokens = estimateEmbeddingTokens(texts);
+    const metered = {
+      provider: this.model.providerSlug,
+      model: this.model.model,
+    };
+    let lease: unknown;
+    if (this.meter !== undefined) {
+      const held = await this.meter.open({ ...metered, tokens });
+      if ('refused' in held) {
+        throw new EmbeddingBudgetExceeded(
+          held.refused,
+          held.retryAtMs,
+          held.detail,
+        );
+      }
+      lease = held.lease;
+    }
+    let booked = false;
+    try {
+      const vectors = await this.attempts(
+        texts,
+        tokens,
+        signal,
+        kind,
+        (used) => {
+          booked = true;
+          return this.meter === undefined
+            ? Promise.resolve()
+            : this.meter
+                .settle(lease, { ...metered, tokens: used })
+                .catch((error: unknown) => {
+                  logger.warn(
+                    `booking an embedding request failed: ${error instanceof Error ? error.message : String(error)}`,
+                  );
+                });
+        },
+      );
+      return vectors;
+    } finally {
+      if (this.meter !== undefined && !booked) {
+        await this.meter.release(lease).catch((error: unknown) => {
+          logger.warn(
+            `releasing an embedding request's hold failed; it lapses at its deadline: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+      }
+    }
+  }
+
+  /** The request's attempts: `book` hears the tokens of the one that
+   * answered — what the provider reported, else the estimate. */
+  private async attempts(
+    texts: readonly string[],
+    tokens: number,
+    signal: AbortSignal,
+    kind: EmbedKind,
+    book: (tokens: number) => Promise<void>,
+  ): Promise<number[][]> {
     const timeout = embeddingRequestTimeoutMs(tokens, this.model, kind);
     for (let attempt = 0; ; attempt++) {
       signal.throwIfAborted();
@@ -802,6 +911,14 @@ export class Embedder implements QueryEmbedder {
         const vectors: number[][] = [];
         for (const item of response.data) vectors.push(item.embedding);
         forgetIdlePace(this.lane, Date.now());
+        // Some OpenAI-compatible providers send no usage; the estimate
+        // stands in, as it did for the hold.
+        const reported: unknown = response.usage?.prompt_tokens;
+        await book(
+          typeof reported === 'number' && Number.isFinite(reported)
+            ? reported
+            : tokens,
+        );
         return vectors;
       } catch (err) {
         if (signal.aborted || !isRetryable(err)) throw err;
@@ -846,6 +963,8 @@ export async function embedderForOrg(
     readonly organizationId: string;
     readonly orgSlug: string;
     readonly config: KnowledgeEmbeddingConfig | null;
+    /** Whose spend the embedder's requests are (`EmbeddingMeter`). */
+    readonly meter?: EmbeddingMeter;
   },
 ): Promise<Embedder> {
   if (args.config === null) throw new EmbeddingNotConfigured(args.orgSlug);
@@ -925,7 +1044,10 @@ export async function embedderForOrg(
       }),
     },
     credential.secret,
-    { organizationId: args.organizationId },
+    {
+      organizationId: args.organizationId,
+      ...(args.meter !== undefined && { meter: args.meter }),
+    },
   );
 }
 

@@ -165,7 +165,14 @@ async function main(): Promise<number> {
 
   // 2. Start services
   header('Starting services');
-  await compose.run(['up', '-d']);
+  const upExitCode = await compose.run(['up', '-d']);
+  if (upExitCode !== 0) {
+    console.error(
+      `${RED}Compose failed to start the validation stack (exit ${upExitCode}).${NC}`,
+    );
+    await cleanup(true);
+    return 1;
+  }
   console.log('');
   console.log('Container status:');
   await compose.run(['ps']);
@@ -334,6 +341,40 @@ async function main(): Promise<number> {
 
   // Platform: Vite server with platform-ready marker.
   const platformContainer = await compose.containerName('platform');
+
+  // The deployment control channel is docker-exec localhost, never public.
+  // The plain edge refusal distinguishes it from a backend token refusal.
+  for (const path of [
+    '/api/control',
+    '/api/control/',
+    '/api/control/drain-status?probe=1',
+    '/api/%63ontrol/drain-status',
+  ]) {
+    const probe = await capture([
+      'docker',
+      'exec',
+      platformContainer,
+      // nosemgrep: tools.opengrep.rules.trailofbits.generic.curl-insecure.curl-insecure -- Isolated smoke network and self-signed proxy; no credentials or external traffic.
+      'curl',
+      '--insecure',
+      '--silent',
+      '--show-error',
+      '--max-time',
+      '10',
+      '--connect-to',
+      'localhost:443:proxy:443',
+      '--write-out',
+      '\n%{http_code}',
+      `https://localhost${path}`,
+    ]);
+    const label = `Public proxy refuses deployment control ${path}`;
+    if (probe.exitCode === 0 && probe.stdout === 'Not found\n404') {
+      r.pass(label);
+    } else {
+      r.fail(label);
+    }
+  }
+
   const viteCode = await httpStatus('http://localhost:13000/api/health', 10);
   if (viteCode === '200') {
     r.pass(`Platform /api/health: HTTP ${viteCode}`);

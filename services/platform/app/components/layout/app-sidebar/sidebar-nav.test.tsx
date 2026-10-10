@@ -10,7 +10,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { SidebarNav } from './sidebar-nav';
 
@@ -40,34 +40,22 @@ type MockLinkProps = React.ComponentProps<'a'> & {
   params?: Record<string, string>;
   preload?: string;
   search?: Record<string, unknown>;
-  state?: Record<string, unknown>;
 };
 
 vi.mock('@tanstack/react-router', () => ({
   // Router-only props (`to`, `params`, `preload`) are stripped so that only real
   // DOM attributes — crucially `aria-label` — reach the rendered anchor.
   Link: React.forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
-    {
-      to,
-      params: _params,
-      preload: _preload,
-      search,
-      state,
-      children,
-      ...rest
-    },
+    { to, params: _params, preload: _preload, search, children, ...rest },
     ref,
   ) {
-    // `search`/`state` are router props, not DOM attributes — surface them as
-    // data-* so a test can assert what the rail decided to navigate with.
-    // `data-history-state`, not `data-state`: Radix's Tooltip trigger already
-    // clones a `data-state` (open/closed) onto this element via `{...rest}`.
+    // `search` is a router prop, not a DOM attribute — surfaced as data-* so
+    // a test can assert what the rail decided to navigate with.
     return (
       <a
         ref={ref}
         href={to}
         data-search={search ? JSON.stringify(search) : undefined}
-        data-history-state={state ? JSON.stringify(state) : undefined}
         {...rest}
       >
         {children}
@@ -116,7 +104,7 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         // A shortcut item: its accessible name must stay the plain label, with
         // the shortcut chip living only in the sighted-hover tooltip.
         shortcut: '⌥ ⌘ N',
-        reentrySearch: { new: true },
+        search: { new: true },
       },
       {
         label: primaryLabels[1],
@@ -124,11 +112,6 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         params: { id: 'test-org' },
         href: '/dashboard/test-org/automations',
         icon: LayoutGrid,
-        // As `useNavigationItems` would set it when `to` resolves to a
-        // remembered deep link — marks the arrival so the landing route can
-        // self-heal (unrelated to this fixture's own `to`, kept at the
-        // section root so the existing destination tests stay valid).
-        state: { navRestore: true },
       },
       {
         label: primaryLabels[2],
@@ -231,23 +214,49 @@ describe('SidebarNav', () => {
       ).toBeInTheDocument();
     });
 
+    // The rail names the section the page belongs to, by the same rule that
+    // places the pill — not only where the URL starts with a tile's own `to`.
+    it('marks only the active section as the current page', () => {
+      mockLocation.pathname =
+        '/dashboard/test-org/automations/qa__layout-check/runs';
+
+      render(<SidebarNav organizationId="test-org" />);
+
+      const current = screen
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page');
+      expect(current).toEqual([
+        screen.getByRole('link', { name: primaryLabels[1] }),
+      ]);
+    });
+
+    it('moves the current page with the section', () => {
+      mockLocation.pathname = '/dashboard/test-org/projects';
+
+      render(<SidebarNav organizationId="test-org" />);
+
+      const current = screen
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page');
+      expect(current).toEqual([
+        screen.getByRole('link', { name: primaryLabels[2] }),
+      ]);
+    });
+
     it('passes an axe link-name audit', async () => {
       const { container } = render(<SidebarNav organizationId="test-org" />);
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
   });
 
   // -------------------------------------------------------------------------
   // A rail click is a request for the SECTION — this tile only renders what
   // `useNavigationItems` (mocked above) already decided the destination is,
-  // it never computes one of its own. That hook resolves most items to the
-  // section's own entry point, but for Home/Knowledge/Automations resolves
-  // to a remembered deep link when one exists and the tile isn't already
-  // active (its own tests own that behavior); this tile's only job is to
-  // pass `to`/`params`/`state` through untouched.
+  // its section's overview, and never computes one of its own: the same
+  // `to`, `params` and `search` from another section and from inside it.
   // -------------------------------------------------------------------------
   describe('destination', () => {
-    it('opens whatever entry point the item carries, not a deeper page inside it', () => {
+    it('opens the entry point, not a deeper page inside it', () => {
       mockLocation.pathname =
         '/dashboard/test-org/automations/qa__layout-check/runs';
 
@@ -266,22 +275,6 @@ describe('SidebarNav', () => {
       ).toHaveAttribute('href', '/dashboard/$id/projects');
     });
 
-    it('threads the item’s history state through, for a remembered deep link', () => {
-      render(<SidebarNav organizationId="test-org" />);
-
-      expect(
-        screen.getByRole('link', { name: primaryLabels[1] }),
-      ).toHaveAttribute('data-history-state', '{"navRestore":true}');
-    });
-
-    it('leaves an item with no state alone', () => {
-      render(<SidebarNav organizationId="test-org" />);
-
-      expect(
-        screen.getByRole('link', { name: primaryLabels[2] }),
-      ).not.toHaveAttribute('data-history-state');
-    });
-
     it('opens a fresh composer when re-entering chat', () => {
       render(<SidebarNav organizationId="test-org" />);
 
@@ -290,24 +283,22 @@ describe('SidebarNav', () => {
       ).toHaveAttribute('data-search', '{"new":true}');
     });
 
-    it('does not apply the re-entry search to a section left alone', () => {
-      render(<SidebarNav organizationId="test-org" />);
-
-      expect(
-        screen.getByRole('link', { name: primaryLabels[2] }),
-      ).not.toHaveAttribute('data-search');
-    });
-
-    it('resumes rather than starting fresh when entering chat from elsewhere', () => {
-      // The re-entry search belongs to the ACTIVE tile only. Leaking it to an
-      // inactive chat tile would replace "reopen my last chat" with a blank
-      // composer on every arrival from another section.
+    it('opens a fresh composer from another section too', () => {
+      // Never the last chat: the tile lands on the same page from anywhere.
       mockLocation.pathname = '/dashboard/test-org/projects';
 
       render(<SidebarNav organizationId="test-org" />);
 
       expect(
         screen.getByRole('link', { name: primaryLabels[0] }),
+      ).toHaveAttribute('data-search', '{"new":true}');
+    });
+
+    it('carries no search on a tile without one', () => {
+      render(<SidebarNav organizationId="test-org" />);
+
+      expect(
+        screen.getByRole('link', { name: primaryLabels[2] }),
       ).not.toHaveAttribute('data-search');
     });
   });

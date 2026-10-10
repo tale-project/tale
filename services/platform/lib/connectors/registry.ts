@@ -48,6 +48,11 @@ function toConnector(
     exampleInput: action.exampleInput,
     hasEffect: action.effects === 'write',
     tags: connector.tags,
+    display: {
+      connector: connector.name,
+      ...(action.title !== undefined && { title: action.title }),
+      ...(action.i18n !== undefined && { i18n: action.i18n }),
+    },
     mock: (input) =>
       codeRunner().runBody(
         action.mock,

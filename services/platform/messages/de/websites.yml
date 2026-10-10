@@ -1,0 +1,171 @@
+title: Websites
+entityLabelOne: Website
+searchPlaceholder: Websites suchen
+addButton: Website hinzufügen
+addWebsite: Website hinzufügen
+addDescription: Indexiere eine ganze Website oder eine Liste von Seiten und wähle, wie oft sie gescannt wird.
+editWebsite: Website bearbeiten
+editDescription: Website-Informationen aktualisieren.
+urlPlaceholder: example.com
+scanIntervalPlaceholder: Scan-Intervall auswählen
+domain: Domain
+scanInterval: Scan-Intervall
+addMode:
+  label: Quellentyp
+  site: Gesamte Website
+  list: URL-Liste
+urlList: URLs
+urlListPlaceholder: |-
+  https://www.example.com/reports/annual.pdf
+  https://www.example.com/about
+urlListHint: Eine URL pro Zeile. Nur genau diese Seiten werden indexiert, nicht die gesamte Website. URLs verschiedener Domains werden als separate Websites angelegt. Die Seiten werden über HTTPS geholt; eine http://-Zeile wird als https:// abgerufen.
+kindList: URL-Liste
+scanIntervals:
+  1hour: Jede Stunde
+  6hours: Alle 6 Stunden
+  12hours: Alle 12 Stunden
+  1day: Täglich
+  5days: Alle 5 Tage
+  7days: Alle 7 Tage
+  30days: Alle 30 Tage
+validation:
+  domainRequired: Domain ist erforderlich
+  validDomain: Gib eine gültige Domain ein (z. B. example.com)
+  scanIntervalRequired: Scan-Intervall ist erforderlich
+  urlListRequired: Füge mindestens eine URL hinzu
+  urlListInvalid: 'Diese Zeile ist keine gültige URL: {line}'
+toast:
+  addSuccess: Website hinzugefügt
+  addError: Website konnte nicht hinzugefügt werden
+  addErrorDuplicate: Diese Website wurde bereits hinzugefügt
+  addListSuccess: '{count} URLs zur Indexierung vorgemerkt'
+  addListPartial: 'Einige Quellen konnten nicht hinzugefügt werden: {domains}'
+  addErrorReason:
+    domainInvalid: Gib einen öffentlichen https://-Host ohne Port und Pfad ein, z. B. example.com — http://-Adressen werden nicht gecrawlt.
+    notCrawlable: Der Crawler erreicht diesen Host nicht — private, Loopback- und Cloud-Metadaten-Adressen werden abgelehnt.
+  updateSuccess: Website aktualisiert
+  updateError: Website konnte nicht aktualisiert werden
+  fetchPagesError: Seiten konnten nicht geladen werden
+  searchError: Suche fehlgeschlagen
+  deleteError: Website konnte nicht gelöscht werden
+  scanStarted: Scan gestartet
+  scanAlreadyRunning: Es läuft bereits ein Scan
+adding: Füge hinzu...
+viewDialog:
+  title: Website-Details
+  status: Status
+  nameField: Name
+  scanInterval: Scan-Intervall
+  lastScanned: Zuletzt gescannt
+  notScannedYet: Noch nicht gescannt
+  descriptionField: Beschreibung
+  created: Erstellt
+  websiteId: Website-ID
+  unknown: Unbekannt
+  scanPausedNotice: Die Scans sind pausiert, weil die Wissensdatenbank
+    mehrfach nicht erreichbar war. Prüfe die Verbindung unter Einstellungen →
+    Datenresidenz und setze die Scans danach fort.
+  embeddingLimitNotice: Ein Nutzungslimit hat den letzten Scan gestoppt, bevor
+    alle Seiten nach Bedeutung durchsuchbar waren. Diese Seiten sind
+    gespeichert, und der Scan holt sie von selbst nach, sobald das Limit
+    zurückgesetzt oder erhöht ist.
+  scanError:
+    runtime: Der Scan ist nicht gelaufen.
+    notInCorpus: Diese URL-Liste ist nicht im Crawler. Lösche sie und füge sie
+      erneut hinzu.
+    notInCorpusSite: Diese Website ist nicht im Crawler. Der nächste Scan fügt
+      sie wieder hinzu.
+    embedding: Das Embedding-Modell konnte die Seiten nicht verarbeiten.
+    generic: Der letzte Scan ist nicht durchgelaufen.
+  scanEmpty:
+    runtime: Nichts wurde indexiert. Die URL ist nicht das Problem.
+    dns: Nichts wurde indexiert. Ändere die URL, wenn der Host nicht stimmt.
+    notInCorpus: Nichts wurde indexiert. Lösche die URL-Liste und füge sie
+      erneut hinzu.
+    notInCorpusSite: Nichts wurde indexiert. Der nächste Scan fügt die Website
+      wieder hinzu.
+    generic: Nichts wurde indexiert.
+  scanDetail:
+    credential: Der Anbieter hat die Zugangsdaten des Embedding-Modells abgelehnt. Ein Admin kann sie unter Einstellungen → KI-Anbieter reparieren.
+    credit: Der Anbieter hat die Anfrage wegen Guthaben oder Tarif des Kontos abgelehnt. Ein Admin kann das Konto beim Anbieter prüfen.
+    unresolved: Die Zugangsdaten des Embedding-Modells lassen sich nicht verwenden. Ein Admin kann sie unter Einstellungen → KI-Anbieter prüfen.
+    dimension: Die Vektoren des Modells passen nicht zu dieser Wissensdatenbank. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
+    upstream: Der Anbieter ist ausgefallen oder nicht erreichbar. Wähle Jetzt scannen, sobald er wieder da ist.
+    throttled: Das Ratenlimit des Anbieters hielt über alle Wiederholungen an. Der nächste Scan macht von selbst weiter; ein Admin kann die Anfragen unter Einstellungen → Datenresidenz drosseln.
+    generic: Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
+  technicalDetails: Technische Details
+scanPausedBadge: Pausiert
+resumeScanning: Scans fortsetzen
+scanNow: Jetzt scannen
+indexed: Indexiert
+syncError:
+  title: Die Website-Status konnten nicht aktualisiert werden
+  description: Status und Anzahl indexierter Seiten sind möglicherweise veraltet. Versuch erneut, sie zu aktualisieren.
+  retry: Erneut versuchen
+searchNotice:
+  title: Der Chat kann diese Websites noch nicht durchsuchen
+  description: Die Seiten werden gecrawlt und gespeichert. Die Wissenssuche braucht aber ein funktionierendes Embedding-Modell, und diese Organisation hat noch keines.
+  configureCta: Embedding-Modell konfigurieren
+  askAdmin: Ein Admin deiner Organisation kann eines unter Einstellungen → Datenresidenz einrichten.
+pagesDialog:
+  title: Website-Seiten
+  noPages: Noch keine Seiten gecrawlt
+  loadMore: Mehr laden
+  wordCount: '{count} Wörter'
+  chunks: '{count} Chunks'
+  lastCrawled: Gecrawlt am {date}
+  searchPlaceholder: Website-Inhalt durchsuchen
+  noSearchResults: Keine Ergebnisse gefunden
+  noSearchResultsDescription: Versuch einen anderen Begriff, oder leere die Suche, um alle Seiten zu sehen.
+  noChunks: Keine Chunks für diese Seite indexiert
+  chunkIndex: Chunk {index}
+  lastError: '{count, plural, one {{count} fehlgeschlagener Versuch} other {{count} fehlgeschlagene Versuche in Folge}} — {message}'
+  failed: Fehlgeschlagen
+  skipped: Übersprungen
+  failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
+  filter:
+    label: Welche Seiten angezeigt werden
+    all: Alle
+    failed: 'Fehlgeschlagen ({count})'
+    skipped: 'Übersprungen ({count})'
+  noFailedPages: Keine Seite ist fehlgeschlagen
+  noSkippedPages: Keine Seite wurde übersprungen
+  errorKind:
+    dnsFailed: Host konnte nicht aufgelöst werden.
+    timeout: Die Seite hat nicht rechtzeitig geantwortet.
+    insecurePublicHttp: Unverschlüsselte oder private Weiterleitung abgelehnt.
+    privateIp: Private Adresse abgelehnt.
+    hostNotAllowed: Weiterleitung von der Website weg abgelehnt.
+    httpError: Die Seite hat mit einem Fehler geantwortet.
+    networkError: Die Seite war nicht erreichbar.
+    renderFailed: Der Browser konnte die Seite nicht darstellen.
+    extractionFailed: Der Seiteninhalt konnte nicht gelesen werden.
+    invalidUrl: Die URL ist ungültig.
+    unsupportedProtocol: Dieses Protokoll ist nicht unterstützt.
+    redirectMissingLocation: Die Weiterleitung hat kein Ziel.
+    redirectLimitExceeded: Zu viele Weiterleitungen.
+    responseTooLarge: Die Seite ist zu groß zum Abrufen.
+    responseTooSmall: Die Seite war leer.
+    aborted: Abruf abgebrochen.
+    tlsError: Das Zertifikat ist nicht vertrauenswürdig.
+    unsupportedContent: Diese Seite ist kein Text, den der Crawler indexieren kann.
+    robotsNoindex: Die Seite hat gebeten, nicht indexiert zu werden.
+    fallback: Seite konnte nicht geladen werden.
+filter:
+  status:
+    scanning: Wird gescannt
+    active: Aktiv
+    error: Fehler
+    deleting: Lösche…
+  interval:
+    60m: Jede Stunde
+    6h: Alle 6 Stunden
+    12h: Alle 12 Stunden
+    1d: Täglich
+    5d: Alle 5 Tage
+    7d: Alle 7 Tage
+    30d: Alle 30 Tage
+delete:
+  confirmation: '{name} löschen?'
+  warning: Das lässt sich nicht rückgängig machen.
+  title: Website löschen

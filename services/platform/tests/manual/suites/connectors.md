@@ -138,7 +138,8 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   render: **IMAP server** (required), **IMAP port** (placeholder `993`),
   **SMTP server** (required), **SMTP port** (placeholder `465`), **Connection
   security** select (`tls` / `starttls`), **Sent folder** (placeholder
-  `Sent`). Submit is gated on the two required hosts; ports/security/folder
+  `Sent`). **Add credential** is gated on the two required hosts and any
+  entered port being an integer from 1 through 65535; ports/security/folder
   may stay blank (server applies the declared defaults).
 - [ ] `CONN-F8` · **Split SMTP auth (imap-smtp)** — In CONN-F7's form: toggle
   **Use a separate SMTP provider**
@@ -153,6 +154,13 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the GitHub rows show — the param seeded the **Connector** facet
   (`settings.connectors.vendorFilterLabel`). Changing or clearing the facet
   removes `?connector=` from the URL and the facet's own selection takes over.
+  Repeat with only GitHub credentials and `?connector=slack`, and after
+  deleting the selected connector's last credential → The shared no-results
+  state appears (never the first-connector invitation); search and Filter stay
+  enabled, the selected connector stays visible in the facet, and clearing it
+  removes the param and restores GitHub rows. A matching single-connector link
+  also keeps its filter clearable. Check EN/DE/FR and keyboard access to the
+  facet and clear action.
 - [ ] `CONN-F10` · **Row actions** — Row 3-dot menu
   (`settings.credentials.actionsLabel`) → Offers **Make default** /
   **Disable** / **Replace …** / **Edit credential** / **Delete**
@@ -265,10 +273,14 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   closing with typed material — an edited name included — prompts
   `common.discardChangesConfirm` before discarding.
 - [ ] `CONN-B2` · **Non-numeric port** — imap-smtp form: type `abc` into
-  **IMAP port**, complete the rest, submit → The server refuses and the dialog
-  shows its structured message inline (`"IMAP port" must be a number.`) — the
-  client keeps number fields as strings and never silently coerces a
-  half-typed value.
+  **IMAP port** and complete the rest → **Add credential** stays disabled,
+  no create request is sent, and the field shows
+  `settings.connectors.invalidPort` inline (EN: `Enter an integer port from
+  1 to 65535.`), associated with the input's invalid state. Correct it to
+  `1993` → the error clears and Add enables; `0`, `1.5` and `65536` keep it
+  disabled. **SMTP port** behaves the same. Clearing either port leaves it
+  absent so the server applies its declared default, rather than silently
+  replacing an explicitly invalid value.
 - [ ] `CONN-B3` · **Endpoint shape refused** — Confluence: enter a non-https
   or path-carrying Instance URL and submit → The create is refused with the
   server's own message shown inline (the endpoint must be an https origin, no
@@ -315,6 +327,15 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   row leaves A's table; on another such row, **Delete** → **Delete** answers
   `settings.credentials.deleteFailed` once and the confirm closes with the
   row. No second click can fail the same way.
+- [ ] `CONN-B12` · **Back waits out a save in flight** — With CONN-F4's
+  **GitHub** row, Picker → **GitHub** → name it **GitHub** again, fill the
+  token, throttle the network (DevTools → Network → Slow 4G) and submit →
+  While the save is pending, **Cancel** and the back control
+  (`common.actions.back`) are both disabled. The server's refusal then shows
+  inline on that same form (`A credential named "GitHub" already exists for
+  this connector — pick a different name.`) with the name and token still
+  filled. Once settled, the back control returns to the picker, and a
+  re-picked **GitHub** starts over with an empty token.
 
 ## Accessibility (WCAG 2.1 AA)
 

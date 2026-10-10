@@ -9,23 +9,34 @@
 //      cache volumes carry a different label and MUST NOT be reaped. It also
 //      empties, in the background, the trash of destroyed workspaces that the
 //      previous process left (session/workspace-trash.ts).
-//   2. Periodic sweep: every 5 min, kill any tale-sbx-* container whose
-//      `tale.started=<ms>` label is older than 2× max_timeout AND whose
-//      session id isn't in the live in-flight set. Same host-dir sweep
-//      for orphan one-shot dirs, and another pass over the workspace trash
-//      for what an earlier one could not remove.
+//   2. Periodic sweep: every 5 min, another pass over the workspace trash
+//      for what an earlier one could not remove, and the orphaned DinD
+//      volumes. Hourly (the boot sweep counts as the first), also kill any
+//      tale-sbx-* one-shot container whose `tale.started=<ms>` label is older
+//      than 2× max_timeout AND whose session id isn't in the live in-flight
+//      set, with the same host-dir sweep for orphan one-shot dirs.
 //   3. SIGTERM handler (in server.ts after refactor): stop accepting new
 //      requests, wait for in-flight count to drop, then exit.
 
-import type { Dirent } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { readFileSync, type Dirent } from 'node:fs';
 import { mkdir, readdir, rm, rmdir, stat, utimes } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import type { HostBackend } from './backend/types.ts';
+import {
+  flushSandboxErrorReporting,
+  reportSandboxError,
+} from './error-reporting.ts';
 import { isSessionWorkspaceDirName } from './session/session-naming.ts';
 import { workspaceTrash } from './session/workspace-trash.ts';
-import { dockerRm, dockerRmSucceeded, runDocker } from './spawn-util.ts';
+import {
+  dockerRm,
+  dockerRmSucceeded,
+  isDockerNoSuchObject,
+  runDocker,
+} from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import { ID_ALPHABET_RE } from './wire.ts';
 
@@ -47,20 +58,118 @@ interface SpawnerLockPayload {
   pid: number;
   hostname: string;
   bootEpoch: number;
+  /** Random per process: what tells this process's lock from any other's. */
+  instanceId?: string;
+  /** The kernel's boot id, shared by every container on the machine. */
+  bootId?: string;
+  /** The process's start in clock ticks since boot (`/proc/<pid>/stat`
+   * starttime): with the boot id it names one process, whatever reuses its
+   * pid later. */
+  startTicks?: number;
 }
+
+/** Who is taking the lock. */
+export interface SpawnerLockIdentity {
+  pid: number;
+  hostname: string;
+  instanceId: string;
+  bootId?: string;
+  startTicks?: number;
+}
+
+/** How a lock's holder is looked at; tests hand in their own. */
+export interface SpawnerLockProbes {
+  /** `process.kill(pid, 0)`: false only when no such process exists. */
+  processAlive(pid: number): boolean;
+  /** A process's start time in clock ticks since boot, when /proc says. */
+  startTicks(pid: number): number | undefined;
+  /** Whether the Docker container `id` runs: `missing` when the daemon
+   * knows no such container, null when it cannot say. */
+  containerRunning(id: string): Promise<boolean | 'missing' | null>;
+}
+
+/** A Docker container's default hostname: its id, or the id's first 12. */
+const CONTAINER_ID_RE = /^[a-f0-9]{12,64}$/;
+
+function readTrimmed(path: string): string | undefined {
+  try {
+    const value = readFileSync(path, 'utf8').trim();
+    return value === '' ? undefined : value;
+  } catch {
+    // Not Linux, or no /proc: the identity simply lacks the field.
+    return undefined;
+  }
+}
+
+/** Field 22 of `/proc/<pid>/stat`, counted after the parenthesised command
+ * name (which may itself hold spaces or parentheses). */
+function procStartTicks(pid: number | 'self'): number | undefined {
+  const line = readTrimmed(`/proc/${pid}/stat`);
+  if (line === undefined) return undefined;
+  const fields = line.slice(line.lastIndexOf(')') + 2).split(' ');
+  const ticks = Number(fields[19]);
+  return Number.isSafeInteger(ticks) && ticks >= 0 ? ticks : undefined;
+}
+
+function currentLockIdentity(): SpawnerLockIdentity {
+  const bootId = readTrimmed('/proc/sys/kernel/random/boot_id');
+  const startTicks = procStartTicks('self');
+  return {
+    pid: process.pid,
+    hostname: hostname(),
+    instanceId: randomUUID(),
+    ...(bootId === undefined ? {} : { bootId }),
+    ...(startTicks === undefined ? {} : { startTicks }),
+  };
+}
+
+const defaultLockProbes: SpawnerLockProbes = {
+  processAlive(pid) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (err) {
+      // ESRCH → no such process (dead). Any other error (e.g. EPERM) means
+      // the process exists, so treat the holder as alive.
+      return !(err instanceof Error && 'code' in err && err.code === 'ESRCH');
+    }
+  },
+  startTicks: procStartTicks,
+  async containerRunning(id) {
+    const result = await runDocker(
+      ['inspect', '--format', '{{.State.Running}}', id],
+      { timeoutMs: 5_000, priority: true },
+    );
+    if (result.exitCode !== 0) {
+      return isDockerNoSuchObject(result.stderr) ? 'missing' : null;
+    }
+    const running = result.stdout.trim();
+    return running === 'true' ? true : running === 'false' ? false : null;
+  },
+};
 
 /**
  * Decide whether the process recorded in a lock payload is still running.
  *
- * Only meaningful when the lock was written by a peer on the SAME host — a
- * PID from another machine tells us nothing, so we conservatively treat a
- * cross-host (or unparseable) lock as alive and let the freshness window be
- * the arbiter. On this host, `process.kill(pid, 0)` sends no signal but
- * throws `ESRCH` when no such process exists, which is our "holder is dead"
- * signal. `EPERM` means the process exists but is owned by another user →
- * alive.
+ * The spawner runs as PID 1 of its container, so after a crash or an OOM
+ * kill the restarted container — same hostname, PID 1 again — used to probe
+ * its own PID, find it alive and refuse to start until the lock aged out,
+ * restart-looping for up to a minute. So a lock on this host is stale when:
+ * the machine booted since (another boot id), its PID is ours (an earlier
+ * process in this very slot), no process has its PID, or the process under
+ * its PID started at another time (a reused PID). A lock from another host
+ * name on the same kernel, named by a container id, was another container on
+ * this machine — a spawner container recreated after a crash gets a new id —
+ * and is stale when Docker, which sees our own container, knows that one no
+ * more or finds it stopped. Anything else — a live process, a lock from
+ * another machine, an unparseable payload, a daemon that cannot say — counts
+ * as alive, and the freshness window stays the arbiter.
  */
-function isLockHolderAlive(rawPayload: string): boolean {
+export async function isLockHolderAlive(
+  rawPayload: string,
+  self: SpawnerLockIdentity,
+  probes: SpawnerLockProbes = defaultLockProbes,
+): Promise<boolean> {
   let parsed: Partial<SpawnerLockPayload>;
   try {
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -70,24 +179,40 @@ function isLockHolderAlive(rawPayload: string): boolean {
   }
   if (
     typeof parsed.pid !== 'number' ||
-    parsed.hostname !== hostname() ||
-    parsed.pid <= 0
+    !Number.isSafeInteger(parsed.pid) ||
+    parsed.pid <= 0 ||
+    typeof parsed.hostname !== 'string'
   ) {
     return true;
   }
-  try {
-    process.kill(parsed.pid, 0);
+  if (parsed.instanceId !== undefined && parsed.instanceId === self.instanceId)
+    return false;
+  const sameKernel = self.bootId !== undefined && parsed.bootId === self.bootId;
+  if (parsed.hostname === self.hostname) {
+    if (
+      self.bootId !== undefined &&
+      typeof parsed.bootId === 'string' &&
+      parsed.bootId !== self.bootId
+    )
+      return false;
+    if (parsed.pid === self.pid) return false;
+    if (!probes.processAlive(parsed.pid)) return false;
+    if (sameKernel && typeof parsed.startTicks === 'number') {
+      const ticks = probes.startTicks(parsed.pid);
+      if (ticks !== undefined && ticks !== parsed.startTicks) return false;
+    }
     return true;
-  } catch (err) {
-    const code =
-      err instanceof Error && 'code' in err
-        ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          (err as { code?: string }).code
-        : undefined;
-    // ESRCH → no such process (dead). Any other error (e.g. EPERM) means the
-    // process exists, so treat the holder as alive.
-    return code !== 'ESRCH';
   }
+  if (
+    sameKernel &&
+    CONTAINER_ID_RE.test(parsed.hostname) &&
+    CONTAINER_ID_RE.test(self.hostname) &&
+    (await probes.containerRunning(self.hostname)) === true
+  ) {
+    const holder = await probes.containerRunning(parsed.hostname);
+    if (holder === 'missing' || holder === false) return false;
+  }
+  return true;
 }
 
 /**
@@ -102,7 +227,11 @@ function isLockHolderAlive(rawPayload: string): boolean {
  * server.ts caller deletes the lock; an ungraceful exit leaves the lock
  * stale and the next start can reclaim it after the freshness window.
  */
-export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
+export async function acquireSpawnerLock(
+  cfg: SpawnerConfig,
+  deps: { self?: SpawnerLockIdentity; probes?: SpawnerLockProbes } = {},
+): Promise<void> {
+  const self = deps.self ?? currentLockIdentity();
   await mkdir(cfg.hostSessionRoot, { recursive: true });
   const lockPath = join(cfg.hostSessionRoot, SPAWNER_LOCK_FILE);
   try {
@@ -124,7 +253,7 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
       // a recent mtime but a dead PID. Probe the recorded PID on this host —
       // if it's gone, the lock is orphaned and we reclaim it immediately
       // instead of stranding the dev server for the full freshness window.
-      if (!isLockHolderAlive(existing)) {
+      if (!(await isLockHolderAlive(existing, self, deps.probes))) {
         console.warn(
           `[sandbox.lock] reclaiming orphaned lock at ${lockPath} ` +
             `(holder dead, age=${age}ms): ${existing.trim()}`,
@@ -160,9 +289,12 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
     }
   }
   const payload: SpawnerLockPayload = {
-    pid: process.pid,
-    hostname: hostname(),
+    pid: self.pid,
+    hostname: self.hostname,
     bootEpoch: Date.now(),
+    instanceId: self.instanceId,
+    ...(self.bootId === undefined ? {} : { bootId: self.bootId }),
+    ...(self.startTicks === undefined ? {} : { startTicks: self.startTicks }),
   };
   await Bun.write(lockPath, JSON.stringify(payload));
   // Keep the lock visibly "alive" via mtime refresh while the process
@@ -383,58 +515,78 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
   }
 }
 
+/** How often the legacy one-shot sweep runs after the boot sweep. No current
+ * code creates a one-shot (`tale.sandbox=1`) container or its exec dir; the
+ * boot sweep removes what an older release left, and this re-check only
+ * catches one a peer still running that release starts later. */
+export const LEGACY_SWEEP_INTERVAL_MS = 60 * 60_000;
+
+export interface DockerSweepOptions {
+  /** Run the legacy one-shot half: the `tale.sandbox=1` container listing
+   * and the one-shot exec dirs it gates. */
+  legacy: boolean;
+  docker?: typeof runDocker;
+}
+
+export interface DockerSweepResult {
+  removed: number;
+  /** The legacy half ran and its `docker ps` answered. */
+  legacySwept: boolean;
+}
+
 /**
- * Docker-specific orphan reap: kill any `tale-sbx-*` container whose
- * `tale.started` label predates `staleThreshold` and whose session id is no
- * longer live, then sweep orphaned host session dirs. Called by
- * `DockerBackend.sweepOrphans` (boot + periodic). Returns the count removed
- * (containers + dirs); errors are logged, never thrown, so the periodic
- * scheduler keeps running.
+ * Docker-specific orphan reap, called by `DockerBackend.sweepOrphans` every
+ * periodic tick. Every tick retries the workspace trash and reaps orphaned
+ * DinD volumes. With `legacy`, it also kills any `tale-sbx-*` one-shot
+ * container whose `tale.started` label predates `staleThreshold` and whose
+ * session id is no longer live, then sweeps orphaned host one-shot dirs.
+ * Errors are logged, never thrown, so the periodic scheduler keeps running.
  */
 export async function dockerSweepOrphans(
   cfg: SpawnerConfig,
   staleThreshold: number,
   isLive: (executionId: string) => boolean,
-): Promise<number> {
+  { legacy, docker = runDocker }: DockerSweepOptions = { legacy: true },
+): Promise<DockerSweepResult> {
   let removed = 0;
-  // Match the prior startPeriodicSweep semantics: a failed/throwing `docker
-  // ps` short-circuits the whole tick (neither the container loop NOR the
-  // host-dir sweep runs), so we don't reap host session dirs while the daemon
-  // is unreachable.
+  // A failed/throwing `docker ps` skips the host-dir sweep too, so host
+  // session dirs are not reaped while the daemon is unreachable.
   let containerProbeOk = false;
-  try {
-    const result = await runDocker(
-      [
-        'ps',
-        '-a',
-        '--filter',
-        'label=tale.sandbox=1',
-        '--format',
-        '{{.Names}}\t{{.Labels}}',
-      ],
-      { timeoutMs: 15_000 },
-    );
-    if (result.exitCode === 0) {
-      containerProbeOk = true;
-      for (const line of result.stdout.split('\n')) {
-        const [name, labels] = line.split('\t');
-        if (!name) continue;
-        const m = labels?.match(/tale\.started=(\d+)/);
-        if (!m) continue;
-        const started = Number.parseInt(m[1] ?? '0', 10);
-        if (Number.isNaN(started) || started >= staleThreshold) continue;
-        // session id is the second component of the name (tale-sbx-<id>).
-        const sessionId = name.replace(/^tale-sbx-/, '');
-        if (isLive(sessionId)) continue;
-        if (!(await sweepRm(name, '[sandbox.periodic] stale'))) continue;
-        removed += 1;
-        console.log(
-          `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,
-        );
+  if (legacy) {
+    try {
+      const result = await docker(
+        [
+          'ps',
+          '-a',
+          '--filter',
+          'label=tale.sandbox=1',
+          '--format',
+          '{{.Names}}\t{{.Labels}}',
+        ],
+        { timeoutMs: 15_000 },
+      );
+      if (result.exitCode === 0) {
+        containerProbeOk = true;
+        for (const line of result.stdout.split('\n')) {
+          const [name, labels] = line.split('\t');
+          if (!name) continue;
+          const m = labels?.match(/tale\.started=(\d+)/);
+          if (!m) continue;
+          const started = Number.parseInt(m[1] ?? '0', 10);
+          if (Number.isNaN(started) || started >= staleThreshold) continue;
+          // session id is the second component of the name (tale-sbx-<id>).
+          const sessionId = name.replace(/^tale-sbx-/, '');
+          if (isLive(sessionId)) continue;
+          if (!(await sweepRm(name, '[sandbox.periodic] stale'))) continue;
+          removed += 1;
+          console.log(
+            `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,
+          );
+        }
       }
+    } catch (err) {
+      console.warn(`[sandbox.periodic] container sweep error:`, err);
     }
-  } catch (err) {
-    console.warn(`[sandbox.periodic] container sweep error:`, err);
   }
   // Retry what an earlier pass over the workspace trash could not remove. Not
   // awaited, and not gated on the daemon: the trash needs no Docker, and a
@@ -442,40 +594,93 @@ export async function dockerSweepOrphans(
   void workspaceTrash(cfg.hostSessionRoot).empty();
   // Host-dir sweep: legacy one-shot exec dirs that lived past the stale
   // threshold without an active in-flight entry are orphaned (session
-  // workspaces are never touched — see sweepHostSessionDirs). Replaces the
-  // old volume-sweep block that targeted volumes nobody creates (audit
-  // finding R2-3 C5). Gated on the container probe so a wedged daemon defers
-  // dir reaping to the next cycle (matches the prior short-circuit).
+  // workspaces are never touched — see sweepHostSessionDirs).
   if (containerProbeOk) {
     removed += await sweepHostSessionDirs(
       cfg.hostSessionRoot,
       staleThreshold,
       isLive,
     );
-    // Reap orphaned per-session inner-docker (DinD) storage volumes. A volume
-    // still attached to a live session container fails `volume rm` and is
-    // skipped; only volumes whose session is gone (crash, missed teardown) are
-    // removed. Cheap + opportunistic — runs even if DinD is currently disabled
-    // so a config flip-back doesn't leak the old volumes.
-    removed += await sweepOrphanDindVolumes();
   }
-  return removed;
+  // Reap orphaned per-session inner-docker (DinD) storage volumes: only
+  // those no container references (a crash, a missed teardown). Cheap — one
+  // `docker volume ls` when there are none, which also fails harmlessly while
+  // the daemon is unreachable — and run even if DinD is currently disabled
+  // so a config flip-back doesn't leak the old volumes.
+  removed += await sweepOrphanDindVolumes(docker);
+  return { removed, legacySwept: containerProbeOk };
 }
 
-/** Best-effort removal of dangling DinD storage volumes (label
- * tale.sandbox-dind=1). In-use volumes fail `volume rm` and are left alone. */
-async function sweepOrphanDindVolumes(): Promise<number> {
+/** A DinD volume is created a moment before the `docker run` that mounts it,
+ * with the build-cache provisioning in between; until then no container
+ * references it. One younger than this is left to the create that made it. */
+export const DIND_VOLUME_MIN_AGE_MS = 10 * 60_000;
+
+/** Best-effort removal of orphaned DinD storage volumes (label
+ * tale.sandbox-dind=1). Only volumes no container references are listed,
+ * so a running session's volume is never even attempted; a volume whose
+ * creation time the daemon does not report is left alone. */
+export async function sweepOrphanDindVolumes(
+  docker: typeof runDocker = runDocker,
+  now: () => number = Date.now,
+): Promise<number> {
   let removed = 0;
   try {
-    const ls = await runDocker(
-      ['volume', 'ls', '-q', '--filter', 'label=tale.sandbox-dind=1'],
+    const ls = await docker(
+      [
+        'volume',
+        'ls',
+        '-q',
+        '--filter',
+        'label=tale.sandbox-dind=1',
+        '--filter',
+        'dangling=true',
+      ],
       { timeoutMs: 15_000 },
     );
     if (ls.exitCode !== 0) return 0;
-    for (const name of ls.stdout.split('\n')) {
-      const vol = name.trim();
-      if (!vol) continue;
-      const rmRes = await runDocker(['volume', 'rm', vol], {
+    const names = ls.stdout
+      .split('\n')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    if (names.length === 0) return 0;
+    // One inspect for all of them. A volume removed since the listing makes
+    // the command fail but the others still print, so read stdout either way.
+    const inspected = await docker(
+      [
+        'volume',
+        'inspect',
+        '--format',
+        '{{json .Name}}\t{{json .CreatedAt}}',
+        ...names,
+      ],
+      { timeoutMs: 15_000 },
+    );
+    for (const line of inspected.stdout.split('\n')) {
+      const [rawName, rawCreated] = line.split('\t');
+      if (!rawName || !rawCreated) continue;
+      let vol: unknown;
+      let created: unknown;
+      try {
+        vol = JSON.parse(rawName);
+        created = JSON.parse(rawCreated);
+      } catch (err) {
+        console.warn(
+          `[sandbox.periodic] unreadable dind volume inspect line ${JSON.stringify(line)}:`,
+          err,
+        );
+        continue;
+      }
+      if (typeof vol !== 'string' || !names.includes(vol)) continue;
+      const createdAtMs =
+        typeof created === 'string' ? Date.parse(created) : Number.NaN;
+      if (
+        !Number.isFinite(createdAtMs) ||
+        now() - createdAtMs < DIND_VOLUME_MIN_AGE_MS
+      ) {
+        continue;
+      }
+      const rmRes = await docker(['volume', 'rm', vol], {
         timeoutMs: 10_000,
       });
       if (rmRes.exitCode === 0) {
@@ -483,8 +688,13 @@ async function sweepOrphanDindVolumes(): Promise<number> {
         console.log(
           `[sandbox] periodic sweep removed orphan dind volume ${vol}`,
         );
+      } else {
+        // A container started using it since the listing, or the daemon
+        // refused: left for the next sweep.
+        console.warn(
+          `[sandbox.periodic] dind volume rm ${vol} failed (exit ${rmRes.exitCode}): ${rmRes.stderr.trim()}`,
+        );
       }
-      // Non-zero = in use by a live session → expected, skip silently.
     }
   } catch (err) {
     console.warn('[sandbox.periodic] dind volume sweep error:', err);
@@ -539,6 +749,7 @@ export function makeSweepTick(
       });
     } catch (err) {
       console.warn(`[sandbox.periodic] sweep error:`, err);
+      reportSandboxError(err, 'host-sweep');
     } finally {
       inFlight = false;
     }
@@ -581,6 +792,7 @@ export function installSignalHandlers(
       try {
         stopAccepting();
       } catch (err) {
+        reportSandboxError(err, 'shutdown-stop-accepting');
         console.warn(`[sandbox.shutdown] stopAccepting failed:`, err);
       }
       // Every run is a session now; the session subsystem drains its own
@@ -588,8 +800,10 @@ export function installSignalHandlers(
       // in-flight registry left to quiesce here.
       await backend.shutdown();
     } catch (err) {
+      reportSandboxError(err, 'shutdown');
       console.error('[sandbox.shutdown] drain/shutdown failed:', err);
     } finally {
+      await flushSandboxErrorReporting();
       process.exit(0);
     }
   };

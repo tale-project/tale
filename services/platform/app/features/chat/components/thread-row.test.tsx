@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
-import type { ChatThreadSummary } from '../types';
+import type { ChatProjectSummary, ChatThreadSummary } from '../types';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -41,6 +41,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useNavigate: () => navigateMock,
+  useParams: () => ({ id: 'org-1' }),
 }));
 
 const renameMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
@@ -99,12 +100,15 @@ function renderRow(
   thread: ChatThreadSummary,
   variant?: 'default' | 'archived',
   holds?: { orgHeld?: boolean; heldThreadIds?: ReadonlySet<string> },
+  projects: readonly ChatProjectSummary[] = [
+    { id: 'p1', name: 'Website revamp' },
+  ],
 ) {
   return render(
     <ThreadListFrameProvider
       value={{
         organizationId: 'org-1',
-        projects: [{ id: 'p1', name: 'Website revamp' }],
+        projects,
         orgHeld: holds?.orgHeld ?? false,
         heldThreadIds: holds?.heldThreadIds ?? NO_HELD,
       }}
@@ -118,7 +122,105 @@ function renderRow(
   );
 }
 
+async function openRename() {
+  const view = renderRow(THREAD);
+  await view.user.click(screen.getByRole('button', { name: 'More actions' }));
+  await view.user.click(screen.getByRole('menuitem', { name: 'Rename' }));
+  return { ...view, input: screen.getByRole('textbox', { name: 'Rename' }) };
+}
+
 describe('ThreadRow', () => {
+  beforeEach(() => {
+    renameMock.mockReset().mockResolvedValue(true);
+  });
+
+  it('keeps a refused draft available for retry with an accessible error', async () => {
+    renameMock.mockResolvedValueOnce(false);
+    const { user, input, container } = await openRename();
+    fireEvent.change(input, { target: { value: 'Attempted title' } });
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't rename chat. Try again.",
+    );
+    expect(input).toHaveValue('Attempted title');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAccessibleDescription(
+      "Couldn't rename chat. Try again.",
+    );
+    await checkAccessibility(container);
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(renameMock).toHaveBeenCalledTimes(2);
+    expect(renameMock).toHaveBeenLastCalledWith('t1', 'Attempted title');
+  });
+
+  it('rejects 501 characters and accepts a corrected 500-character title', async () => {
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: 'a'.repeat(501) } });
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Use 500 characters or fewer.',
+    );
+    expect(input).toHaveValue('a'.repeat(501));
+    expect(renameMock).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: ` ${'a'.repeat(500)} ` } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(renameMock).toHaveBeenCalledExactlyOnceWith('t1', 'a'.repeat(500));
+  });
+
+  it('keeps an empty title open for correction and lets Escape cancel', async () => {
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: '  ' } });
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Enter a chat title.',
+    );
+    expect(renameMock).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(renameMock).not.toHaveBeenCalled();
+  });
+
+  it('waits for rename and saves once when Enter and blur overlap', async () => {
+    let resolveRename: (value: boolean) => void = () => {};
+    renameMock.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRename = resolve;
+        }),
+    );
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: 'Pending title' } });
+    await user.keyboard('{Enter}{Enter}');
+    fireEvent.blur(input);
+    expect(screen.getByRole('textbox')).toHaveValue('Pending title');
+    expect(input).toHaveAttribute('readonly');
+    expect(renameMock).toHaveBeenCalledTimes(1);
+    resolveRename(true);
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+  });
+
+  it('preserves a refused blur draft and allows explicit cancellation', async () => {
+    renameMock.mockResolvedValueOnce(false);
+    const { user, input } = await openRename();
+    fireEvent.change(input, { target: { value: 'Blur draft' } });
+    fireEvent.blur(input);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't rename chat. Try again.",
+    );
+    expect(screen.getByRole('textbox')).toHaveValue('Blur draft');
+    expect(input).not.toHaveAttribute('readonly');
+    await user.click(input);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(
+      screen.getByRole('link', { name: /Quarterly report/ }),
+    ).toBeInTheDocument();
+    expect(renameMock).toHaveBeenCalledTimes(1);
+  });
+
   it('offers the full action set from one menu', async () => {
     const { user } = renderRow(THREAD);
 
@@ -130,6 +232,27 @@ describe('ThreadRow', () => {
     expect(
       screen.getByRole('menuitem', { name: /Move to project/ }),
     ).toBeInTheDocument();
+  });
+
+  it('leaves a large project catalog untouched until the Move submenu opens', async () => {
+    let namesRead = 0;
+    const projects = Array.from({ length: 100 }, (_, index) => ({
+      id: `project-${index}`,
+      get name() {
+        namesRead += 1;
+        return `Project ${index}`;
+      },
+    }));
+    const { user } = renderRow(THREAD, undefined, undefined, projects);
+
+    expect(namesRead).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(namesRead).toBe(0);
+    await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
+    expect(
+      await screen.findByRole('menuitemradio', { name: /Project 99/ }),
+    ).toBeInTheDocument();
+    expect(namesRead).toBeGreaterThan(0);
   });
 
   it('offers the folders and the way out under Move to project', async () => {
@@ -163,6 +286,132 @@ describe('ThreadRow', () => {
     );
     // The row is back to its link presentation.
     expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('keeps the rename open while Enter confirms an IME candidate', async () => {
+    const { input } = await openRename();
+
+    // Japanese input in Chromium: the Enter that confirms the candidate
+    // arrives mid-composition. It belongs to the IME, so the field stays
+    // open with the finished text; the next ordinary Enter saves it, once.
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'にほん' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true, keyCode: 229 });
+    fireEvent.compositionEnd(input);
+
+    expect(renameMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue(
+      'にほん',
+    );
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'にほん'),
+    );
+    expect(renameMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('leaves composition keys to the IME, Escape included', async () => {
+    const { input } = await openRename();
+    fireEvent.change(input, { target: { value: '你好' } });
+
+    // The three guards on their own: the `isComposing` flag, the legacy Safari
+    // keyCode (Safari ends the composition before its keydown), and the
+    // composition-event mirror for browsers that surface neither.
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    // Escape mid-composition cancels the candidate, not the rename.
+    fireEvent.keyDown(input, { key: 'Escape' });
+    fireEvent.compositionEnd(input);
+    // Safari ends the composition first, then sends the cancelling Escape.
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 });
+
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue('你好');
+    expect(renameMock).not.toHaveBeenCalled();
+
+    // An ordinary Escape still cancels without saving.
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(renameMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a refused draft open through IME keys before a successful retry', async () => {
+    renameMock.mockResolvedValueOnce(false);
+    const { input } = await openRename();
+    fireEvent.change(input, { target: { value: 'にほん' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't rename chat. Try again.",
+    );
+
+    for (const key of ['Enter', 'Escape']) {
+      fireEvent.keyDown(input, { key, isComposing: true });
+      fireEvent.keyDown(input, { key, keyCode: 229 });
+      fireEvent.compositionStart(input);
+      fireEvent.keyDown(input, { key });
+      fireEvent.compositionEnd(input);
+    }
+
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toHaveValue(
+      'にほん',
+    );
+    expect(input).toHaveAccessibleDescription(
+      "Couldn't rename chat. Try again.",
+    );
+    expect(renameMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(renameMock).toHaveBeenCalledTimes(2);
+    expect(renameMock).toHaveBeenLastCalledWith('t1', 'にほん');
+  });
+
+  it('commits the rename on blur', async () => {
+    const { user, input } = await openRename();
+
+    await user.clear(input);
+    await user.type(input, 'Board deck');
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'Board deck'),
+    );
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('commits on blur mid-composition too: the guard never holds focus', async () => {
+    const { input } = await openRename();
+
+    // Focus leaving ends the composition; the field saves what it shows.
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'にほん' } });
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'にほん'),
+    );
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('saves once when a blur follows Enter in the same batch', async () => {
+    const { input } = await openRename();
+    fireEvent.change(input, { target: { value: 'Board deck' } });
+
+    // One React batch: the field is still mounted when the blur lands.
+    act(() => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+      fireEvent.blur(input);
+    });
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith('t1', 'Board deck'),
+    );
+    expect(renameMock).toHaveBeenCalledTimes(1);
   });
 
   it('shows the unread dot only while the reply is newer than the read mark', () => {
@@ -271,6 +520,6 @@ describe('ThreadRow', () => {
       lastReplyAt: 2000,
       lastReadAt: 1000,
     });
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

@@ -1,6 +1,6 @@
 ---
 title: Datenresidenz in der Cloud verstehen
-description: Speicherort und Datenflüsse zu Anbietern und Konnektoren vor der Cloud-Nutzung prüfen.
+description: Speicherort und Datenflüsse zu Anbietern und Connectors vor der Cloud-Nutzung prüfen.
 ---
 
 Datenresidenz betrifft den Speicherort und den Ort der Verarbeitung. Mit einer Cloud-Region legst du den Standort des gehosteten Dienstes fest. Daraus folgt nicht automatisch, wo jeder Modellanbieter oder angebundene Dienst deine Daten verarbeitet.
@@ -20,7 +20,7 @@ Eine Chatnachricht erreicht deine Tale-Instanz. Nutzt der Assistent Wissen, läd
 | Gespeicherte Chats, Dokumente und Konfiguration | Vereinbarte Hosting- und Sicherungsstandorte |
 | Wissensindexierung | Welcher Embedding-Anbieter Dokumentinhalte erhält |
 | Modellinferenz | Endpunkt, Verarbeitungsbedingungen und Aufbewahrung des gewählten Anbieters |
-| Konnektoren und Webwerkzeuge | Welche externen Systeme Anfragen und Inhalte erhalten |
+| Connectors und Webwerkzeuge | Welche externen Systeme Anfragen und Inhalte erhalten |
 | Betriebsdaten | Vereinbarter Umgang mit Logs, Sicherungen und Supportzugriff |
 
 Ein Anbieter kann regionale oder lokal betriebene Endpunkte anbieten. Prüfe den tatsächlich konfigurierten Endpunkt. Der Markenname allein belegt keinen Verarbeitungsort.
@@ -33,7 +33,7 @@ Prüfe neben dem Chatmodell auch den Embedding-Anbieter. Ein Dokument kann schon
 
 ## Eine neue Integration prüfen
 
-Bestimme vor dem Anbinden, welche Daten die geplante Aufgabe sendet und welches Konto der Konnektor nutzt. Prüfe die Verarbeitungsbedingungen, begrenze den Zugriff und teste mit unkritischen Beispieldaten. Halte die Entscheidung in deiner [Sicherheitsprüfung](/de/cloud/trust-and-compliance) fest.
+Bestimme vor dem Anbinden, welche Daten die geplante Aufgabe sendet und welches Konto der Connector nutzt. Prüfe die Verarbeitungsbedingungen, begrenze den Zugriff und teste mit unkritischen Beispieldaten. Halte die Entscheidung in deiner [Sicherheitsprüfung](/de/cloud/trust-and-compliance) fest.
 
 ## Die Region wechseln
 

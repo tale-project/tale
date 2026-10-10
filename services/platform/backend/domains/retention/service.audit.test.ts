@@ -191,7 +191,7 @@ afterEach(() => {
 });
 
 describe('runRetentionCleanup — the run audit trail', () => {
-  it('writes one row per plain-SQL category inside the transaction that deleted its rows', async () => {
+  it('writes one row per plain-SQL category inside the transaction that deleted its rows [RETAIN-R6]', async () => {
     givenPolicy({
       messageFeedbackEnabled: true,
       messageFeedbackRetentionDays: 30,
@@ -385,7 +385,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
     info.mockRestore();
   });
 
-  it('leaves guardrail events alone while their category is off or has no window', async () => {
+  it('leaves guardrail events alone while their category is off or has no window [RETAIN-R3]', async () => {
     for (const policy of [
       { chatFilterEventsEnabled: false, chatFilterEventsRetentionDays: 30 },
       { chatFilterEventsEnabled: true, chatFilterEventsRetentionDays: 0 },
@@ -402,7 +402,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
     }
   });
 
-  it('writes no destruction row for a category that destroyed nothing', async () => {
+  it('writes no destruction row for a category that destroyed nothing [RETAIN-R6]', async () => {
     givenPolicy({
       messageFeedbackEnabled: true,
       messageFeedbackRetentionDays: 30,
@@ -422,7 +422,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
     expect(closing?.categories).toEqual({});
   });
 
-  it('opens with the policy the run enforces and the holds in force', async () => {
+  it('opens with the policy the run enforces and the holds in force [RETAIN-R6]', async () => {
     givenPolicy({ usageLedgerEnabled: true, usageLedgerRetentionDays: 60 });
     vi.mocked(loadActiveHolds).mockResolvedValue({
       orgHeld: false,
@@ -432,6 +432,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
       orgRun({
         'DELETE FROM app.usage_ledger': ids(2, 'ledger-'),
         'DELETE FROM app.usage_events': ids(1, 'event-'),
+        'DELETE FROM app.project_usage': ids(1, 'project-'),
       }),
     );
 
@@ -446,8 +447,9 @@ describe('runRetentionCleanup — the run audit trail', () => {
       },
       holds: { organization: false, custodians: 2 },
     });
-    // The retired usage events age out on the ledger's clock and are counted
-    // with it, in the ledger delete's transaction.
+    // The retired usage events and the projects' own buckets age out on the
+    // ledger's clock and are counted with it, in the ledger delete's
+    // transaction.
     const ledger = appendOf('usage_ledger.retention_deleted');
     expect(ledger.tx).toBe(
       txOf(fake.statements, 'DELETE FROM app.usage_ledger'),
@@ -455,10 +457,13 @@ describe('runRetentionCleanup — the run audit trail', () => {
     expect(ledger.tx).toBe(
       txOf(fake.statements, 'DELETE FROM app.usage_events'),
     );
+    expect(ledger.tx).toBe(
+      txOf(fake.statements, 'DELETE FROM app.project_usage'),
+    );
     expect(ledger.row.metadata).toEqual({
       category: 'usageLedger',
-      deleted: 3,
-      counts: { usageLedger: 2, usageEvents: 1 },
+      deleted: 4,
+      counts: { usageLedger: 2, usageEvents: 1, projectUsage: 1 },
     });
   });
 
@@ -521,7 +526,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
     });
   });
 
-  it('fails the run when a due record’s purge failed, counting it apart from what was destroyed', async () => {
+  it('fails the run when a due record’s purge failed, counting it apart from what was destroyed [RETAIN-R7]', async () => {
     givenPolicy({ documentsEnabled: true, documentsRetentionDays: 30 });
     vi.mocked(releaseRefs).mockResolvedValueOnce({
       released: [],
@@ -567,7 +572,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
     expect(actions()).not.toContain('retention.run_completed');
   });
 
-  it('fails the run on a throw, charged to the category in flight, and moves on to the next org', async () => {
+  it('fails the run on a throw, charged to the category in flight, and moves on to the next org [RETAIN-R7]', async () => {
     givenPolicy({
       messageFeedbackEnabled: true,
       messageFeedbackRetentionDays: 30,
@@ -645,7 +650,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
     expect(failed.row.metadata?.categories).toEqual({});
   });
 
-  it('records a held org’s run as started and completed, destroying nothing', async () => {
+  it('records a held org’s run as started and completed, destroying nothing [RETAIN-R2]', async () => {
     givenPolicy({
       messageFeedbackEnabled: true,
       messageFeedbackRetentionDays: 30,
@@ -673,7 +678,7 @@ describe('runRetentionCleanup — the run audit trail', () => {
     );
   });
 
-  it('writes nothing for an org without a valid policy', async () => {
+  it('writes nothing for an org without a valid policy [RETAIN-R4]', async () => {
     vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
     const fake = fakeSql(orgRun());
 

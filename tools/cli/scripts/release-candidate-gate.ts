@@ -17,6 +17,9 @@ import { parseArgs } from 'node:util';
 
 import { z } from 'zod';
 
+import releaseContract from '../../../.github/release-candidate-contract.json';
+import { ordinaryOnlyJob } from './ci-ready';
+
 /** Answers a REST path, or null for a 404. Artifact ZIPs are validated and
  * decoded into their sole release-candidate.json by the real adapter. */
 export type GitHubApi = (path: string) => Promise<unknown>;
@@ -42,14 +45,7 @@ export type GateState =
 
 /** All source checks are required. One candidate event starts the complete
  * existing graph, including workflows normally filtered by changed paths. */
-export const REQUIRED_WORKFLOWS = [
-  '.github/workflows/checks.yml',
-  '.github/workflows/sast.yml',
-  '.github/workflows/commitlint.yml',
-  '.github/workflows/e2e.yml',
-  '.github/workflows/cli.yml',
-  '.github/workflows/security.yml',
-] as const;
+export const REQUIRED_WORKFLOWS = releaseContract.requiredWorkflows;
 
 /** build.yml names a candidate run after its SHA (`run-name`), and this job
  * is its verdict. The push run of the same commit does not count: path
@@ -58,119 +54,13 @@ const CANDIDATE_WORKFLOW = 'build.yml';
 const CANDIDATE_WORKFLOW_PATH = `.github/workflows/${CANDIDATE_WORKFLOW}`;
 const CANDIDATE_EVENTS = ['workflow_dispatch', 'repository_dispatch'];
 const CANDIDATE_GATE_JOB = 'Candidate gate';
-const SOURCE_JOB = 'Candidate source / Resolve source';
 const RECEIPT_JOB = 'Candidate gate / Record receipt';
-export const IMAGE_SERVICES = [
-  'db',
-  'platform',
-  'proxy',
-  'sandbox-llm-gateway',
-  'sandbox',
-  'sandbox-egress',
-  'sandbox-buildkitd',
-  'sandbox-runtime',
-] as const;
-/** Held to the actual workflow graphs by release-candidate-workflows.test.ts. */
+export const IMAGE_SERVICES = releaseContract.imageServices;
+/** One source contract, checked against the workflow graph by its existing guard. */
 export const CANDIDATE_JOBS: Record<
   string,
   { ids: string[]; names: string[] }
-> = {
-  build: {
-    ids: [
-      'candidate-source',
-      'changes',
-      'build',
-      'smoke-test',
-      'image-validate',
-      'web-test',
-      'docs-test',
-      'ui-docs-test',
-      'ai-gateway-test',
-      'storybook',
-    ],
-    names: [
-      SOURCE_JOB,
-      'Detect changes',
-      ...IMAGE_SERVICES.map((service) => `Build ${service}`),
-      'Smoke test',
-      'Validate images',
-      'Web container test',
-      'Docs container test',
-      'UI docs container test',
-      'AI gateway container test',
-      'Storybook',
-      CANDIDATE_GATE_JOB,
-    ],
-  },
-  checks: {
-    ids: [
-      'candidate-source',
-      'format',
-      'lint',
-      'typecheck',
-      'build',
-      'test',
-      'test-ui',
-      'performance',
-      'knip',
-      'test-browser',
-      'integration-scope',
-      'backend-integration',
-    ],
-    names: [
-      SOURCE_JOB,
-      'Format',
-      'Lint',
-      'Type check',
-      'Build',
-      'Unit',
-      'UI',
-      'Performance',
-      'Knip',
-      'Browser',
-      'Integration scope',
-      'Backend integration',
-      RECEIPT_JOB,
-    ],
-  },
-  sast: {
-    ids: ['candidate-source', 'sast'],
-    names: [SOURCE_JOB, 'Opengrep', RECEIPT_JOB],
-  },
-  commitlint: {
-    ids: ['candidate-source', 'commitlint'],
-    names: [SOURCE_JOB, 'Lint commits', RECEIPT_JOB],
-  },
-  e2e: {
-    ids: ['candidate-source', 'build', 'e2e', 'static-sites'],
-    names: [
-      SOURCE_JOB,
-      'Build platform (E2E preview bundle)',
-      ...Array.from(
-        { length: 16 },
-        (_, index) => `Playwright (platform ${index + 1}/16)`,
-      ),
-      'Playwright (web)',
-      'Playwright (docs)',
-      RECEIPT_JOB,
-    ],
-  },
-  cli: {
-    ids: ['candidate-source', 'prepare', 'build'],
-    names: [
-      SOURCE_JOB,
-      'Prepare',
-      ...['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'].map(
-        (platform) => `Build (${platform})`,
-      ),
-      RECEIPT_JOB,
-    ],
-  },
-  security: {
-    ids: ['candidate-source', 'bun-audit', 'trivy-fs'],
-    names: [SOURCE_JOB, 'Bun audit', 'Trivy filesystem scan', RECEIPT_JOB],
-  },
-};
+> = releaseContract.candidateJobs;
 const RUNS_PAGE_SIZE = 100;
 const RUNS_MAX_PAGES = 10;
 // Filtered Actions searches return at most 1,000 results. At that boundary,
@@ -179,6 +69,10 @@ const RUNS_SEARCH_CEILING = RUNS_PAGE_SIZE * RUNS_MAX_PAGES;
 // The unfiltered run list has no search ceiling. 3,000 runs were about six
 // days of this repository's runs in 2026-10.
 const WALK_MAX_PAGES = 30;
+// #4330 observed a lower run id created one second later in the same event.
+// Sixty seconds is this gate's chosen enumeration tolerance, not a GitHub
+// ordering guarantee. The running minimum and extended cutoff share it.
+const CREATED_AT_SKEW_MS = 60_000;
 /** GitHub creates one run of each of these for every push to main: their push
  * triggers carry no path filter (release-candidate-workflows.test.ts holds
  * them to the workflow files). */
@@ -527,6 +421,9 @@ async function walkRuns(
   const path = `${repo}/actions/runs?per_page=${RUNS_PAGE_SIZE}`;
   const runs: Run[] = [];
   const seen = new Map<number, Run>();
+  // Measured against the earliest creation time listed so far, so small
+  // inversions cannot add up to a larger one.
+  let earliest = Number.POSITIVE_INFINITY;
   const refuse = (detail: string) => {
     blocked.push(`incomplete workflow run evidence from ${path}: ${detail}`);
     return null;
@@ -553,14 +450,13 @@ async function walkRuns(
       if (runs.length > 0 && run.id >= runs.at(-1)!.id) {
         return refuse(`page ${page} lists run ${run.id} out of order`);
       }
-      if (
-        runs.length > 0 &&
-        Date.parse(run.created_at) > Date.parse(runs.at(-1)!.created_at)
-      ) {
+      const created = Date.parse(run.created_at);
+      if (created > earliest + CREATED_AT_SKEW_MS) {
         return refuse(
           `page ${page} lists run ${run.id} with creation time out of order`,
         );
       }
+      earliest = Math.min(earliest, created);
       seen.set(run.id, run);
       runs.push(run);
     }
@@ -631,8 +527,8 @@ function sameAttempt(a: Run, b: Run) {
 }
 
 /** Filtered Actions pages may be self-consistent subsets (#4055). Compare
- * them with the unfiltered creation-ordered walk past the fixed PR merge
- * time and every listed run, including excluded originals. We accept that
+ * them with the unfiltered creation-ordered walk a skew past the fixed PR
+ * merge time and every listed run, including excluded originals. We accept that
  * listing model, not a documented snapshot or lifetime first-arrival proof.
  * Missing/different attempts refuse; a run either read saw pending waits. */
 async function crossCheck(
@@ -660,10 +556,13 @@ async function crossCheck(
     api,
     repo,
     (runs) => {
+      // A run listed later may be up to the skew younger than the earliest
+      // listed so far, so the walk only ends a skew before the cutoff.
       const last = runs.at(-1)!;
       return (
         last.id < oldestListed &&
-        Date.parse(last.created_at) < Date.parse(merge.createdAt)
+        Date.parse(last.created_at) <
+          Date.parse(merge.createdAt) - CREATED_AT_SKEW_MS
       );
     },
     `the canonical merge of ${sha} and every run a listing returned`,
@@ -909,6 +808,7 @@ async function candidateEvidence(
     for (const job of jobs) {
       if (contract.names.includes(job.name)) continue;
       const conditional =
+        ordinaryOnlyJob(stem, job.name) ||
         (stem === 'cli' && job.name === 'Attach to release') ||
         (stem === 'build' &&
           (/^Scan(?: .*)?$/.test(job.name) ||

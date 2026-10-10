@@ -12,6 +12,8 @@ import { useT } from '@/lib/i18n/client';
 interface MicrosoftReauthButtonProps {
   error?: string;
   className?: string;
+  /** Holds the button until the host knows consent can start. */
+  disabled?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ interface MicrosoftReauthButtonProps {
 export function MicrosoftReauthButton({
   error,
   className,
+  disabled = false,
 }: MicrosoftReauthButtonProps) {
   const { t } = useT('documents');
   const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +55,7 @@ export function MicrosoftReauthButton({
   return (
     <Button
       onClick={handleReauth}
-      disabled={isLoading || !organizationId}
+      disabled={disabled || isLoading || !organizationId}
       className={className}
       variant={error ? 'destructive' : 'primary'}
     >

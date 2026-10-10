@@ -89,7 +89,7 @@ function createMockCtx(opts: { failBind?: boolean } = {}) {
 }
 
 describe('createConversationFromEmail', () => {
-  it('does not merge unrelated emails from the same IMAP sync batch', async () => {
+  it('does not merge unrelated emails from the same IMAP sync batch [CONV-R5]', async () => {
     const calendlyInvite = makeEmail(
       'invite@calendly.com',
       '2026-07-01T09:00:00.000Z',
@@ -135,7 +135,7 @@ describe('createConversationFromEmail', () => {
     expect(result.processedCount).toBe(3);
   });
 
-  it('keeps legitimately threaded emails in one conversation', async () => {
+  it('keeps legitimately threaded emails in one conversation [CONV-R5]', async () => {
     const root = makeEmail('root@thread.com', '2026-07-01T09:00:00.000Z');
     const reply = makeEmail('reply@thread.com', '2026-07-01T10:00:00.000Z', {
       headers: {
@@ -170,6 +170,117 @@ describe('createConversationFromEmail', () => {
     });
     // The sync advances the watermark to exactly this, never past it.
     expect(result.ingestedTip).toBe(Date.parse('2026-07-03T09:00:00.000Z'));
+  });
+});
+
+/**
+ * The mailbox's own address is what tells its mail from the other party's:
+ * mail it sent is outbound and its recipient is the contact, mail it received
+ * is inbound and its sender is. Without it a thread the mailbox started
+ * opened with the mailbox itself as the contact, every direction inverted.
+ */
+describe('createConversationFromEmail — whose mail it is [CONV-R7]', () => {
+  const ACCOUNT = 'desk@acme.test';
+  const CARLA = { name: 'Carla', address: 'carla@ext.test' };
+  /** The mailbox as mail headers spell it: the comparison ignores case. */
+  const DESK = { address: 'Desk@Acme.test' };
+
+  function recordingCtx() {
+    const mutations: Record<string, unknown>[] = [];
+    const ctx = {
+      runQuery: vi.fn(async () => null),
+      runMutation: vi.fn(async (_ref, args: Record<string, unknown>) => {
+        mutations.push(args);
+        if ('source' in args && args.source === 'conversation') {
+          return { contactId: 'cont_1' as Id<'contacts'>, created: true };
+        }
+        if (isCreateConversationArgs(args)) {
+          return { conversationId: 'conv_1', messageId: 'msg_1' };
+        }
+        return null;
+      }),
+    } as unknown as ActionCtx;
+    return { ctx, mutations };
+  }
+
+  it('opens mail from outside as inbound, with its sender as the contact', async () => {
+    const { ctx, mutations } = recordingCtx();
+    await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeEmail('in@ext.test', '2026-07-01T09:00:00.000Z', {
+          from: [CARLA],
+          to: [DESK],
+        }),
+      ],
+      accountEmail: ACCOUNT,
+    });
+
+    expect(
+      mutations.find((args) => args.source === 'conversation'),
+    ).toMatchObject({ email: 'carla@ext.test', name: 'Carla' });
+    expect(mutations.find(isCreateConversationArgs)).toMatchObject({
+      direction: 'inbound',
+      initialMessage: { isCustomer: true },
+    });
+  });
+
+  it("opens the mailbox's own mail as outbound, with its recipient as the contact", async () => {
+    const { ctx, mutations } = recordingCtx();
+    await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeEmail('out@acme.test', '2026-07-01T09:00:00.000Z', {
+          from: [DESK],
+          to: [CARLA],
+        }),
+      ],
+      accountEmail: ACCOUNT,
+    });
+
+    // The mailbox never becomes the contact of its own thread.
+    expect(
+      mutations.find((args) => args.source === 'conversation'),
+    ).toMatchObject({ email: 'carla@ext.test', name: 'Carla' });
+    expect(mutations.find(isCreateConversationArgs)).toMatchObject({
+      direction: 'outbound',
+      initialMessage: { isCustomer: false },
+    });
+  });
+
+  it("adds the mailbox's reply to a thread as outbound and the other party's as inbound", async () => {
+    const { ctx, mutations } = recordingCtx();
+    const replyTo = (messageId: string) => ({
+      'message-id': `<${messageId}>`,
+      'in-reply-to': '<root@ext.test>',
+      references: '<root@ext.test>',
+    });
+    await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeEmail('root@ext.test', '2026-07-01T09:00:00.000Z', {
+          from: [CARLA],
+          to: [DESK],
+        }),
+        makeEmail('answer@acme.test', '2026-07-01T10:00:00.000Z', {
+          from: [DESK],
+          to: [CARLA],
+          headers: replyTo('answer@acme.test'),
+        }),
+        makeEmail('thanks@ext.test', '2026-07-01T11:00:00.000Z', {
+          from: [CARLA],
+          to: [DESK],
+          headers: replyTo('thanks@ext.test'),
+        }),
+      ],
+      accountEmail: ACCOUNT,
+    });
+
+    expect(
+      mutations
+        .filter(isAddMessageArgs)
+        .map((args) => Reflect.get(args, 'isCustomer')),
+    ).toEqual([false, true]);
   });
 });
 
@@ -290,7 +401,7 @@ describe('createConversationFromEmail — messages without a readable Date', () 
     expect(result.ingestedTip).toBe(Number(INTERNAL_DATE));
   });
 
-  it('re-syncing an already-ingested undated message updates it without a NaN stamp', async () => {
+  it('re-syncing an already-ingested undated message updates it without a NaN stamp [CONV-R6]', async () => {
     const { ctx, mutations } = strictCtx();
     const result = await createConversationFromEmail(ctx, {
       organizationId: ORG,

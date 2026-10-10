@@ -8,7 +8,7 @@
  * Conventions:
  *   - `name` is the dash-case output filename (content-named, never numbered);
  *     `section` picks the output dir `services/docs/public/images/<section>/`.
- *   - Locators resolve labels through `t()` (tests/e2e/helpers/i18n) — never a
+ *   - Locators resolve labels through the capture locale's `t()` — never a
  *     hardcoded English literal.
  *   - `readyWhen` waits on authoritative state (a locator), never on time.
  *   - `capture.element` crops to a region; omit for the full viewport.
@@ -21,19 +21,25 @@ import {
   sandboxQuotaTotal,
 } from '@tale/shared/schemas/governance';
 
-import { composer, messageLog, sendButton } from '../e2e/helpers/chat';
+import {
+  composer as chatComposer,
+  messageLog as chatMessageLog,
+  sendButton as chatSendButton,
+} from '../e2e/helpers/chat';
 import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
-import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_CHAT_PROMPTS,
   DEMO_DATA_NOTICE,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
+  DEMO_FAILED_RUN,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_ENTRIES,
+  DEMO_LAUNCH_TASK_DETAIL,
   DEMO_ORG_NAME,
   DEMO_OWNER,
+  DEMO_PASSKEY_NAME,
   DEMO_PROJECT_AGENTS,
   DEMO_PROJECT_FILES,
   DEMO_PRODUCTS,
@@ -42,10 +48,21 @@ import {
   DEMO_SKILLS,
   DEMO_SSO_EXAMPLE,
   DEMO_TEST_RUN,
+  DEMO_TRIGGER_SKIP,
   DEMO_WEBDAV_RETIRED_LABEL,
+  DEMO_WEBHOOK,
   MOCK_PROVIDER_DISPLAY_NAME,
   MOCK_PROVIDER_SLUG,
 } from './demo-content';
+import { t } from './i18n';
+
+const composer = (page: Page): Locator => chatComposer(page, t);
+const messageLog = (page: Page): Locator => chatMessageLog(page, t);
+const sendButton = (page: Page): Locator => chatSendButton(page, t);
+// The unread-count badge contributes a suffix to the radio's accessible name.
+const inboxView = (page: Page): Locator =>
+  page.getByRole('radio', { name: labelStart(t('home.views.inbox')) });
+const labelPrefix = (key: string): string => t(key).split('{')[0].trim();
 
 export interface ShotContext {
   readonly orgId: string;
@@ -72,6 +89,9 @@ export interface Shot {
   readonly prepare?: (page: Page, ctx: ShotContext) => Promise<void>;
   /** The authoritative "state reached" gate. */
   readonly readyWhen: (page: Page, ctx: ShotContext) => Locator;
+  /** Confirm a native route-topic control after data readiness. Required for
+   * marketing captures, whose synthetic names may be the same in every language. */
+  readonly localizedReadyWhen?: (page: Page, ctx: ShotContext) => Locator;
   /**
    * Sanitization ONLY — run after `readyWhen`, before the screenshot.
    * Replace instance-local values (loopback URLs, machine hostnames) with
@@ -199,13 +219,18 @@ const RIG_SECRETS: readonly RigSwap[] = [
 const replaceRigNames = async (page: Page): Promise<void> => {
   await page.evaluate(
     ({ swaps, secrets }) => {
+      const environment = (
+        window as Window & {
+          __ENV__?: { SITE_URL?: string; SITE_ORIGINS?: string[] };
+        }
+      ).__ENV__;
       // The app prints absolute URLs from the origins the deployment
       // reports, which a capture on another host name does not share.
       const origins = new Set(
         [
           window.location.href,
-          window.__ENV__?.SITE_URL,
-          ...(window.__ENV__?.SITE_ORIGINS ?? []),
+          environment?.SITE_URL,
+          ...(environment?.SITE_ORIGINS ?? []),
         ]
           .filter(
             (url): url is string => url !== undefined && URL.canParse(url),
@@ -284,6 +309,11 @@ async function setDataNotice(page: Page, on: boolean): Promise<void> {
   await expect(toggle).toBeChecked({ checked: on });
 }
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
+/** The Add budget rule dialog on Policies & Limits. */
+const budgetRuleDialog = (page: Page): Locator =>
+  page.getByRole('dialog', {
+    name: t('governance.budgets.addRuleDialogTitle'),
+  });
 /** The seeded project without agents of its own. */
 const ONBOARDING_PROJECT = DEMO_PROJECTS[1].name;
 
@@ -390,6 +420,191 @@ async function showTriageAutomationExamples(page: Page): Promise<void> {
   await expect(page.getByRole('row')).toHaveCount(5);
 }
 
+/** The pack whose General tab the schedule picker shots open: its stored
+ * rule (every 6 hours, UTC) is no preset, so its custom row is checked. */
+const PICKER_AUTOMATION = 'gmail-triage-inbox';
+
+/** The General tab's Trigger section. */
+const triggerSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('automations.trigger.title'),
+    exact: true,
+  });
+
+/** The schedule picker's button, once it names the stored schedule — the
+ * form paints before the trigger query answers. */
+const schedulePicker = (page: Page): Locator =>
+  page.getByRole('button', {
+    name: new RegExp(
+      `^${escapeRegExp(t('automations.trigger.schedule.label'))}: \\S`,
+    ),
+  });
+
+/** The schedule picker's popover. */
+const schedulePopover = (page: Page): Locator =>
+  page.getByRole('dialog', {
+    name: t('automations.trigger.schedule.label'),
+    exact: true,
+  });
+
+/** Open the schedule picker on its presets. */
+async function openSchedulePicker(page: Page): Promise<Locator> {
+  const picker = schedulePicker(page);
+  await expect(picker).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await picker.click();
+  const popover = schedulePopover(page);
+  await expect(
+    popover.getByRole('group', { name: t('recurrence.presets'), exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  return popover;
+}
+
+/** One of the picker's custom views, from its row on the presets. The row
+ * of the stored rule's kind also names that rule. */
+async function openCustomView(
+  page: Page,
+  view: 'recurrence.customTimes' | 'recurrence.customInterval',
+): Promise<Locator> {
+  const popover = await openSchedulePicker(page);
+  await popover.getByRole('button', { name: labelStart(t(view)) }).click();
+  await expect(
+    popover.getByRole('button', { name: t('recurrence.back'), exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  return popover;
+}
+
+/** The interface language the page renders in. */
+async function pageLocale(page: Page): Promise<string> {
+  return (await page.locator('html').getAttribute('lang')) ?? 'en';
+}
+
+/** The locale's long name of a weekday (0 is Sunday), as the picker's day
+ * chips are named. 2024-01-07 was a Sunday. */
+function weekdayName(day: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'long',
+    timeZone: 'UTC',
+  }).format(Date.UTC(2024, 0, 7 + day));
+}
+
+/** Leave exactly Monday to Friday pressed among the picker's day chips:
+ * the five on first, so the group never drops to none. */
+async function pickWorkweek(popover: Locator, locale: string): Promise<void> {
+  const chip = (day: number) =>
+    popover.getByRole('button', {
+      name: weekdayName(day, locale),
+      exact: true,
+    });
+  for (const day of [1, 2, 3, 4, 5]) {
+    if ((await chip(day).getAttribute('aria-pressed')) !== 'true') {
+      await chip(day).click();
+    }
+    await expect(chip(day)).toHaveAttribute('aria-pressed', 'true');
+  }
+  for (const day of [6, 0]) {
+    if ((await chip(day).getAttribute('aria-pressed')) === 'true') {
+      await chip(day).click();
+    }
+    await expect(chip(day)).toHaveAttribute('aria-pressed', 'false');
+  }
+}
+
+/** The row of the Custom times list for its 1-based position. */
+const timeRow = (popover: Locator, index: number): Locator =>
+  popover.getByRole('group', {
+    name: t('recurrence.editor.timeName').replace('{index}', String(index)),
+    exact: true,
+  });
+
+/** Type a time of day into a time field as a reader does: the hour, the
+ * minutes, and on a 12-hour clock the period's letter. */
+async function typeTime(
+  field: Locator,
+  hour: number,
+  minute: number,
+): Promise<void> {
+  const period = field.getByRole('spinbutton', {
+    name: t('timeField.dayPeriod'),
+    exact: true,
+  });
+  const twelve = (await period.count()) > 0;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const shown = twelve ? ((hour + 11) % 12) + 1 : hour;
+  await field
+    .getByRole('spinbutton', { name: t('timeField.hours'), exact: true })
+    .click();
+  await field
+    .page()
+    .keyboard.type(
+      `${pad(shown)}${pad(minute)}${twelve ? (hour < 12 ? 'a' : 'p') : ''}`,
+    );
+  await expect(
+    field.getByRole('spinbutton', {
+      name: t('timeField.minutes'),
+      exact: true,
+    }),
+  ).toHaveValue(pad(minute));
+}
+
+/** The Editor's canvas once its layout has landed: the chart is busy while
+ * the layout engine arranges the nodes. */
+const laidOutAutomationCanvas = (page: Page): Locator =>
+  page
+    .getByRole('group', {
+      name: t('automations.canvas.ariaLabel'),
+      exact: true,
+    })
+    .and(page.locator('[aria-busy="false"]'));
+
+/** The node box (or Start, End, or a condition) with this id on the canvas. */
+const flowNode = (page: Page, id: string): Locator =>
+  page.locator(`[data-flow-node="${id}"]`);
+
+/**
+ * Wait until an automation's Editor can be photographed: the saved version
+ * on screen, its canvas laid out, and the check of the draft settled — the
+ * Problems button no longer says it is checking.
+ */
+async function settleAutomationEditor(page: Page): Promise<void> {
+  await expect(
+    page.getByRole('button', {
+      name: t('automations.detail.versionSelect'),
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(laidOutAutomationCanvas(page)).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
+  const problems = page
+    .locator('[data-slot="issue-count-button"]')
+    .filter({ visible: true })
+    .first();
+  await expect(problems).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(problems).not.toHaveAccessibleName(
+    new RegExp(escapeRegExp(t('issues.checking'))),
+    { timeout: TIMEOUT.FIRST_PAINT },
+  );
+}
+
+/** Open a node's inspector from its box on the canvas. */
+async function openAutomationNode(page: Page, id: string): Promise<void> {
+  const box = flowNode(page, id);
+  await box.waitFor({ timeout: TIMEOUT.VISIBLE });
+  await box.click();
+}
+
+/**
+ * A plural message such as `{count, plural, one {# path} other {# paths}}`
+ * as a pattern for any count. The e2e `t()` returns the raw message, and a
+ * button that counts is found by its words, whatever the number.
+ */
+function pluralPattern(message: string): RegExp {
+  const forms = [...message.matchAll(/\{([^{}]*)\}/g)].map((match) =>
+    escapeRegExp(match[1] ?? '').replaceAll('#', String.raw`\d+`),
+  );
+  return new RegExp(`^(?:${forms.join('|')})$`);
+}
+
 export const SHOTS: readonly Shot[] = [
   {
     // The flagship hero: a finished, believable chat conversation.
@@ -410,6 +625,7 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       messageLog(page).getByText('Across the three onboarding calls'),
+    localizedReadyWhen: composer,
   },
   {
     name: 'chat-composer',
@@ -478,6 +694,8 @@ export const SHOTS: readonly Shot[] = [
   {
     name: 'project-task-detail',
     section: 'platform',
+    // The populated brief and saved discussion need the full dialog height.
+    viewport: { width: 1440, height: 1000 },
     route: '/dashboard/:orgId/projects',
     prepare: async (page, ctx) => {
       await page.goto(projectRoute(ctx, '/tasks/board'));
@@ -485,8 +703,18 @@ export const SHOTS: readonly Shot[] = [
         .getByText(DEMO_PROJECTS[0].tasks[0].title, { exact: true })
         .click();
     },
+    // The conversation reads the discussion and the history in separate
+    // queries. Wait for the seeded comment in the reading column.
     readyWhen: (page) =>
-      page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
+      page
+        .getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title })
+        .getByText(DEMO_LAUNCH_TASK_DETAIL.comment, { exact: true }),
+    localizedReadyWhen: (page) =>
+      page
+        .getByRole('dialog', {
+          name: DEMO_PROJECTS[0].tasks[0].title,
+        })
+        .getByRole('button', { name: labelStart(t('tasks.fields.priority')) }),
     capture: (page) =>
       page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
   },
@@ -572,6 +800,10 @@ export const SHOTS: readonly Shot[] = [
       );
     },
     readyWhen: (page) => page.getByText(DEMO_PROJECTS[0].tasks[0].title),
+    localizedReadyWhen: (page) =>
+      page
+        .getByRole('button', { name: t('tasks.actions.create'), exact: true })
+        .first(),
     // The board renders SIX columns (Backlog … Cancelled) beside the Home
     // panel, which a project page never folds away, and they do not fit the
     // standard 1440 frame — the last one gets sliced. Widen just this shot.
@@ -635,6 +867,11 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByRole('button', { name: t('projects.agents.rowEdit') }).first(),
+    localizedReadyWhen: (page) =>
+      page.getByRole('button', {
+        name: t('projects.agents.newAgent'),
+        exact: true,
+      }),
     // Each row names the provider serving its model.
     sanitize: replaceRigNames,
   },
@@ -819,6 +1056,8 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/knowledge-entries',
     readyWhen: (page) =>
       page.getByText(DEMO_KNOWLEDGE_ENTRIES[0].topic).first(),
+    localizedReadyWhen: (page) =>
+      page.getByPlaceholder(t('knowledgeEntries.searchPlaceholder')),
   },
   {
     // Knowledge > Products — structured records an agent reads by field
@@ -894,9 +1133,11 @@ export const SHOTS: readonly Shot[] = [
       await page.waitForURL(/\/chat\/shared\//, { timeout: TIMEOUT.NAV });
     },
     // The heading prefers the thread's own title; the byline ("Shared by …
-    // on …") is the stable marker of the shared view. English is fine — the
-    // capture context pins the en locale like the other literal waits here.
-    readyWhen: (page) => page.getByText('Shared by', { exact: false }).first(),
+    // on …") is the stable marker of the shared view in each locale.
+    readyWhen: (page) =>
+      page
+        .getByText(labelPrefix('chat.share.byline'), { exact: false })
+        .first(),
   },
   {
     // A conversation handed to a project agent: the header's Create task →
@@ -1042,11 +1283,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/conversations/open',
     prepare: async (page) => {
-      await page
-        .getByRole('radio', {
-          name: new RegExp(`^${escapeRegExp(t('home.views.inbox'))}`),
-        })
-        .click();
+      await inboxView(page).click();
       await page.getByText(DEMO_INBOX[0].subject).first().click();
       await expect(
         page
@@ -1064,6 +1301,7 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByLabel(t('conversations.messagePlaceholder')).first(),
+    localizedReadyWhen: inboxView,
   },
   {
     // Show the indexed uploads through the real filters, keeping unrelated
@@ -1285,6 +1523,43 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
+    // An Owner's key for the organization itself: whom the key belongs to,
+    // and the role it acts with. Never capture the one-time secret.
+    name: 'settings-api-keys-organization',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/api/rest',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('settings.apiKeys.createKey') })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('settings.apiKeys.createKey'),
+      });
+      await dialog
+        .getByLabel(t('settings.apiKeys.form.name'))
+        .fill('Nightly export');
+      await dialog
+        .getByRole('combobox', { name: t('settings.apiKeys.form.owner') })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('settings.apiKeys.form.ownerOptions.organization'),
+        })
+        .click();
+      await dialog
+        .getByRole('combobox', { name: t('settings.apiKeys.form.role') })
+        .click();
+      await page.getByRole('option', { name: t('roles.developer') }).click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('settings.apiKeys.createKey') })
+        .getByRole('combobox', { name: t('settings.apiKeys.form.role') })
+        .filter({ hasText: t('roles.developer') }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
+  },
+  {
     // Settings > API > Models — the two base URLs, the models the member may
     // call and the tool setups. Gate on a listed model id: the list arrives
     // after the page chrome.
@@ -1326,8 +1601,11 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
-    // The Editor tab — the saved version's step graph on the canvas with the
-    // node inspector beside it and the version/run actions in the tab strip.
+    // The Editor tab — the saved version laid out between Start (the
+    // schedule in words, the run input's fields) and End: the condition in
+    // words above Triage, the Continues on error chip on Propose, the frames
+    // of the nodes that run once per item, and the node inspector beside the
+    // canvas with the version and run actions in the tab strip.
     name: 'automation-editor-canvas',
     section: 'platform',
     // A pack's automation is NAMED after its path with the separator
@@ -1337,7 +1615,7 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
     // Select the LLM step so the inspector shows a node's fields instead of
     // its "select a node" hint — the frame then teaches both halves at once.
-    // A node box is a button carrying `data-automation-node=<id>` (the same
+    // A node box is a button carrying `data-flow-node=<id>` (the same
     // attribute the inspector's Close restores focus to).
     prepare: async (page) => {
       await expect(
@@ -1346,48 +1624,363 @@ export const SHOTS: readonly Shot[] = [
           exact: true,
         }),
       ).toHaveAttribute('aria-current', 'page');
-      await expect(
-        page.getByRole('button', {
-          name: t('automations.detail.versionSelect'),
-          exact: true,
-        }),
-      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-      const triageStep = page.locator('[data-automation-node="triage"]');
-      await triageStep.waitFor({ timeout: 30_000 });
-      await triageStep.click();
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
     },
     // The inspector renders the selected node's Input field only once the
-    // node-type catalog has answered — gate on it so the panel is never
-    // captured mid-load.
+    // node-type catalog has answered, and the field is a code editor that
+    // loads on first use — gate on the loaded editor so the panel is never
+    // captured mid-load. (Start's face also reads "Input", as plain text.)
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.editor.fields.input'),
+        exact: true,
+      }),
+  },
+  {
+    // The Editor's Problems list under the canvas: a draft whose triage
+    // prompt reads a node that does not exist — the node's error chip, the
+    // reason under the Prompt field, Save waiting with its reason, and the
+    // list's row with its location and fix.
+    name: 'automation-editor-problems',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
+      const prompt = page.getByRole('textbox', {
+        name: t('automations.editor.fields.prompt'),
+        exact: true,
+      });
+      await prompt.click();
+      await prompt.press('ControlOrMeta+End');
+      // The Prompt is a code editor: `{{` closes itself with the caret
+      // inside, and the final `}}` steps over the closing braces, so the
+      // typed text ends as one template.
+      await prompt.pressSequentially(' {{ nodes.nope.output }}');
+      // The button's name opens with the panel's title ("Problems: 1 error")
+      // once the check of the draft has settled.
+      const problems = page.getByRole('button', {
+        name: new RegExp(
+          `^${escapeRegExp(t('automations.problems.title'))}: 1 `,
+        ),
+      });
+      await problems.click({ timeout: 30_000 });
+    },
     readyWhen: (page) =>
       page
-        .getByText(t('automations.editor.fields.input'), { exact: true })
+        .getByRole('region', {
+          name: t('automations.problems.title'),
+          exact: true,
+        })
+        .getByRole('listitem')
         .first(),
   },
   {
-    // An automation's General tab — its trigger (the pack's schedule: cron,
-    // timezone, enabled) above the projects it is bound to. The form paints
-    // before the trigger query answers, so gate on the cron field holding
-    // the pack's expression. The tab is short; trim the empty frame below.
-    name: 'automation-general-trigger',
+    // Possible paths open beside the canvas with Path 2 pinned: the nodes
+    // off that path dashed with the reason they don't run, End marking the
+    // outputs that stay empty on it, and the nodes whose failure ends the
+    // run listed under the paths.
+    name: 'automation-editor-paths',
     section: 'platform',
-    route: '/dashboard/:orgId/automations/gmail-triage-inbox/general',
-    readyWhen: (page) =>
-      page.getByRole('textbox', {
-        name: t('automations.trigger.cronLabel'),
-        exact: true,
-      }),
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
     prepare: async (page) => {
-      await expect(
-        page.getByRole('textbox', {
-          name: t('automations.trigger.cronLabel'),
-          exact: true,
-        }),
-      ).not.toHaveValue('', { timeout: TIMEOUT.FIRST_PAINT });
+      await settleAutomationEditor(page);
+      // The button counts the paths ("3 paths"); find it by its words.
+      await page
+        .getByRole('button', {
+          name: pluralPattern(t('automations.paths.button')),
+        })
+        .click();
+      await page.locator('[data-flow-path-row="path:2"]').click();
     },
-    viewport: { width: 1440, height: 640 },
+    readyWhen: (page) =>
+      page.locator('[data-flow-path-row="path:2"][aria-pressed="true"]'),
   },
   {
+    // A Prompt in the code editor: `{{` typed on its last line became a
+    // template with the caret inside, and after `nodes.` the completion
+    // list offers the nodes that run earlier, with their shapes.
+    name: 'automation-editor-code',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
+      const prompt = page.getByRole('textbox', {
+        name: t('automations.editor.fields.prompt'),
+        exact: true,
+      });
+      await prompt.click();
+      // The prompt ends with a line break, so its end is an empty line.
+      await prompt.press('ControlOrMeta+End');
+      await prompt.pressSequentially('{{nodes.');
+    },
+    // Inbox is the one node that runs before Triage.
+    readyWhen: (page) =>
+      page
+        .getByRole('listbox')
+        .getByRole('option')
+        .filter({ hasText: 'inbox' })
+        .first(),
+  },
+  {
+    // A node's Shape tab: what Triage receives and returns, where the
+    // returned shape comes from (its output schema), and the nodes that read
+    // it. The shapes come from the check of the draft.
+    name: 'automation-editor-node-shape',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
+      await page
+        .getByRole('tab', {
+          name: t('automations.editor.inspector.tabs.shape'),
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByText(t('automations.editor.shape.checking'), {
+          exact: true,
+        }),
+      ).toHaveCount(0, { timeout: TIMEOUT.FIRST_PAINT });
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', {
+        name: t('automations.editor.shape.returns'),
+        exact: true,
+      }),
+  },
+  {
+    // Start's inspector: the trigger in words with Change in General, the
+    // run input's fields as a tree, and the JSON Schema behind them in the
+    // code editor.
+    name: 'automation-editor-start',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, '__start');
+      await expect(
+        page.getByRole('link', {
+          name: t('automations.editor.start.editTrigger'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    },
+    // Start's schema field carries the run dialog's "Input schema" label.
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.detail.runInput.schema'),
+        exact: true,
+      }),
+  },
+  {
+    // The Source view: the whole document as highlighted YAML with line
+    // numbers and fold markers, Copy YAML and Download YAML, and the line
+    // saying how to change it.
+    name: 'automation-editor-source',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await page
+        .getByRole('radio', {
+          name: t('automations.canvas.view.source'),
+          exact: true,
+        })
+        .click();
+    },
+    // The source is a read-only code editor that loads on first use.
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.source.ariaLabel'),
+        exact: true,
+      }),
+  },
+  {
+    // The Editor on a phone: compact navigation, the canvas filling the
+    // height between Start and End, and the run and save controls in the
+    // toolbar at its foot.
+    name: 'automation-editor-canvas-mobile',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: settleAutomationEditor,
+    readyWhen: (page) => laidOutAutomationCanvas(page),
+    viewport: { width: 390, height: 844 },
+  },
+  {
+    // An automation's General tab — its trigger (the pack's repeat rule,
+    // every 6 hours, with its zone, missed-runs setting and next runs) above
+    // the projects it is bound to. The form paints before the trigger query
+    // answers, so gate on the schedule picker naming the pack's rule. The
+    // section is tall.
+    name: 'automation-general-trigger',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    readyWhen: schedulePicker,
+    viewport: { width: 1440, height: 900 },
+  },
+  {
+    // The schedule picker open on its presets: every 15 minutes to monthly,
+    // the stored rule's custom row checked with its sentence, and the next
+    // three runs under them. Nothing is saved.
+    name: 'automation-trigger-schedule-presets',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    prepare: async (page) => {
+      await openSchedulePicker(page);
+    },
+    readyWhen: (page) =>
+      schedulePopover(page).getByRole('list', {
+        name: t('recurrence.nextRuns'),
+        exact: true,
+      }),
+  },
+  {
+    // Custom times: weekdays at 9:00 and 17:30, built as a reader does —
+    // the Week unit, the five day chips, a typed time and an added one —
+    // with the next runs they give. A draft only: the popover is never
+    // saved, so the stored schedule is untouched.
+    name: 'automation-trigger-schedule-custom-times',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    prepare: async (page) => {
+      const popover = await openCustomView(page, 'recurrence.customTimes');
+      await popover
+        .getByRole('radio', {
+          name: t('recurrence.editor.units.weekly'),
+          exact: true,
+        })
+        .click();
+      await pickWorkweek(popover, await pageLocale(page));
+      await typeTime(timeRow(popover, 1), 9, 0);
+      await popover
+        .getByRole('button', {
+          name: t('recurrence.editor.addTime'),
+          exact: true,
+        })
+        .click();
+      await typeTime(timeRow(popover, 2), 17, 30);
+    },
+    readyWhen: (page) =>
+      timeRow(schedulePopover(page), 2).getByRole('spinbutton', {
+        name: t('timeField.minutes'),
+        exact: true,
+      }),
+  },
+  {
+    // Custom interval: every 15 minutes on weekdays, only between 8:00 and
+    // 18:00 (the hours the checkbox starts with), with the line naming the
+    // day's first and last run. A draft only, like the shot above.
+    name: 'automation-trigger-schedule-interval',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    prepare: async (page) => {
+      const popover = await openCustomView(page, 'recurrence.customInterval');
+      await popover.getByRole('combobox').click();
+      // "15 minutes", "15 Minuten": the step leads its option's name.
+      await page.getByRole('option', { name: /^15\s/ }).click();
+      await pickWorkweek(popover, await pageLocale(page));
+      await popover
+        .getByRole('checkbox', {
+          name: t('recurrence.editor.onlyBetween'),
+          exact: true,
+        })
+        .check();
+    },
+    readyWhen: (page) =>
+      schedulePopover(page).getByText(
+        labelStart(labelPrefix('recurrence.editor.windowHint.sameDay')),
+      ),
+  },
+  {
+    // A start the trigger could not make, and why: the pull-request review
+    // pack switched on without the repository its inputs require (seeded),
+    // so its schedule's last start was refused. The notice names the
+    // version, offers Add the missing fields and the editor, and its
+    // Technical details are open on the code and the missing fields.
+    name: 'automation-trigger-skip-reason',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TRIGGER_SKIP.automation}/general`,
+    prepare: async (page) => {
+      const section = triggerSection(page);
+      await expect(
+        section.getByText(t('automations.trigger.skip.inputRefused.title'), {
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await section
+        .getByText(t('automations.trigger.skip.technicalDetails'), {
+          exact: true,
+        })
+        .click();
+    },
+    readyWhen: (page) =>
+      triggerSection(page).getByText('AUTOMATION_INPUT_INVALID', {
+        exact: true,
+      }),
+    capture: triggerSection,
+    viewport: { width: 1440, height: 900 },
+  },
+  {
+    // A webhook installed in two projects (seeded): one URL per project with
+    // the token masked, the test request reading the URL from the sender's
+    // environment, and the recent deliveries, each recognised by its
+    // Idempotency-Key. The rig's origin becomes a customer's.
+    name: 'automation-trigger-webhook',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_WEBHOOK.automation}/general`,
+    readyWhen: (page) =>
+      triggerSection(page)
+        .getByRole('list', {
+          name: t('automations.trigger.webhook.deliveries.title'),
+          exact: true,
+        })
+        .getByRole('listitem')
+        .nth(DEMO_WEBHOOK.deliveries.length - 1),
+    sanitize: replaceRigNames,
+    capture: triggerSection,
+    viewport: { width: 1440, height: 900 },
+  },
+  {
+    // The event list of a Platform event trigger, open: the events grouped
+    // by what they concern, each with its name, id and when it is raised.
+    // The trigger type changes in the form only; nothing is saved.
+    name: 'automation-trigger-event',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${PICKER_AUTOMATION}/general`,
+    prepare: async (page) => {
+      await expect(schedulePicker(page)).toBeVisible({
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      await page
+        .getByRole('combobox', {
+          name: labelStart(t('automations.trigger.kindLabel')),
+        })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('automations.trigger.kinds.event'),
+          exact: true,
+        })
+        .click();
+      // The event field is a button that opens a searchable list.
+      await page
+        .getByRole('button', {
+          name: labelStart(t('automations.trigger.eventLabel')),
+        })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('option', {
+        name: labelStart(t('automations.trigger.events.taskCreated.label')),
+      }),
+  },
+  {
+    // The Test run dialog: the run input as JSON in the code editor, and the
+    // input schema expanded as a tree of fields with their kinds.
     name: 'automation-run-input',
     section: 'platform',
     route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/editor`,
@@ -1439,7 +2032,7 @@ export const SHOTS: readonly Shot[] = [
     // tab as a reader does: status, mode, version, starter and timing above
     // the workflow with every node's result; the effects list starts below
     // the fold (the canvas grows with the window). The canvas draws its
-    // boxes before the trace arrives — gate on the last node's result badge.
+    // boxes before the trace arrives — gate on the last node's run state.
     name: 'automation-run-detail',
     section: 'platform',
     route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/runs`,
@@ -1447,9 +2040,27 @@ export const SHOTS: readonly Shot[] = [
       await page.locator('a[href*="/runs/"]').first().click();
     },
     readyWhen: (page) =>
-      page
-        .locator('[data-automation-node="report"]')
-        .getByText(t('automations.runs.nodeStatus.ok'), { exact: true }),
+      page.locator('[data-flow-node="report"][data-flow-state="succeeded"]'),
+    localizedReadyWhen: (page) =>
+      page.getByRole('heading', {
+        name: labelStart(labelPrefix('automations.runs.heading')),
+      }),
+  },
+  {
+    // The seeded failed test run of the invoice digest: the node that failed
+    // in view, framed red with its error line, the way the run took to it
+    // brought forward while the rest steps back, and End saying where the
+    // run failed.
+    name: 'automation-run-failed',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_FAILED_RUN.automation}/runs`,
+    prepare: async (page) => {
+      await page.locator('a[href*="/runs/"]').first().click();
+    },
+    readyWhen: (page) =>
+      page.locator(
+        `[data-flow-node="${DEMO_FAILED_RUN.failsAt}"][data-flow-state="failed"]`,
+      ),
   },
   {
     // Settings > Connectors with Add credential open on its first step — the
@@ -1514,6 +2125,73 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText(DEMO_WEBDAV_RETIRED_LABEL),
     // The connection URL shows the capture rig's localhost origin.
     sanitize: replaceRigNames,
+  },
+  {
+    // Settings > Account — the sign-in methods a member manages for
+    // themselves: the password, two-factor authentication and passkeys, with
+    // one passkey registered. `prepare` registers it through the real dialog
+    // against a virtual authenticator (the WebAuthn ceremony a browser runs),
+    // confirming the password first when the stored session is older than a
+    // day. The passkey stays; a later run finds it listed and skips ahead.
+    name: 'settings-account-security',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/account',
+    // Tall enough for the whole page, Profile down to Passkeys.
+    viewport: { width: 1440, height: 1260 },
+    prepare: async (page) => {
+      const passkeys = page.getByRole('region', {
+        name: t('twoFactor.passkeys.title'),
+      });
+      const add = passkeys.getByRole('button', {
+        name: t('twoFactor.passkeys.addButton'),
+      });
+      const listed = passkeys.getByRole('cell', { name: DEMO_PASSKEY_NAME });
+      // The list reads after the section paints: wait for its answer.
+      await expect(
+        listed.or(passkeys.getByText(t('twoFactor.passkeys.empty'))),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      if (await listed.isVisible()) return;
+
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('WebAuthn.enable');
+      await cdp.send('WebAuthn.addVirtualAuthenticator', {
+        options: {
+          protocol: 'ctap2',
+          transport: 'internal',
+          hasResidentKey: true,
+          hasUserVerification: true,
+          isUserVerified: true,
+          automaticPresenceSimulation: true,
+        },
+      });
+      await add.click();
+      const dialog = page.getByRole('dialog', {
+        name: t('twoFactor.passkeys.addButton'),
+      });
+      const password = dialog.getByRole('textbox', {
+        name: t('twoFactor.confirmPassword.label'),
+        exact: true,
+      });
+      const name = dialog.getByRole('textbox', {
+        name: t('twoFactor.passkeys.nameLabel'),
+      });
+      await expect(password.or(name)).toBeVisible();
+      if (await password.isVisible()) {
+        await password.fill(DEMO_OWNER.password);
+        await dialog
+          .getByRole('button', { name: t('twoFactor.confirmPassword.submit') })
+          .click();
+      }
+      await name.fill(DEMO_PASSKEY_NAME);
+      await dialog
+        .getByRole('button', { name: t('twoFactor.passkeys.addButton') })
+        .click();
+      await expect(dialog).toBeHidden({ timeout: TIMEOUT.PERSIST });
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('region', { name: t('twoFactor.passkeys.title') })
+        .getByRole('cell', { name: DEMO_PASSKEY_NAME }),
   },
   {
     // Settings > Preferences — the custom-instructions section with its
@@ -1609,9 +2287,9 @@ export const SHOTS: readonly Shot[] = [
     // The mock gateway lists a speech-to-text model, so Automatic resolves;
     // the "no model available" warning is a broken stack, never the shot.
     readyWhen: (page) => {
-      const resolved = t('governance.transcriptionModel.currentModel');
-      const prefix = resolved.slice(0, resolved.indexOf('{')).trim();
-      return page.getByText(prefix).first();
+      return page
+        .getByText(labelPrefix('governance.transcriptionModel.currentModel'))
+        .first();
     },
     // The model in use names the provider serving it.
     sanitize: replaceRigNames,
@@ -1631,7 +2309,7 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/settings/governance/content-models',
     readyWhen: (page) =>
       imageGenerationSection(page).getByText(
-        /^Agents currently generate images with/,
+        labelPrefix('governance.imageGeneration.currentModel.pinned'),
       ),
     sanitize: replaceRigNames,
     capture: (page) => imageGenerationSection(page),
@@ -1645,7 +2323,9 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/content-models',
     readyWhen: (page) =>
-      standardAgentSection(page).getByText(/^For you, it runs on/),
+      standardAgentSection(page).getByText(
+        labelPrefix('governance.standardAgent.current'),
+      ),
     sanitize: replaceRigNames,
     capture: (page) => standardAgentSection(page),
   },
@@ -1674,6 +2354,44 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured), not mid-row: any height is
     // a cut somewhere, so cut where the page already has a seam.
     viewport: { width: 1440, height: 1530 },
+  },
+  {
+    // A budget rule that caps one project: the Project scope, its picker with
+    // the project chosen, and a monthly cost cap, with the warning threshold
+    // that warns everyone chatting in the project left empty. Captured before
+    // it is confirmed, so the demo organization's rules stay as seeded.
+    name: 'governance-budget-project-rule',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/policies-limits',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('governance.budgets.addRule') })
+        .first()
+        .click();
+      const dialog = budgetRuleDialog(page);
+      await dialog
+        .getByRole('combobox', { name: t('governance.budgets.scope') })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('governance.budgets.scopeLabels.project'),
+          exact: true,
+        })
+        .click();
+      await dialog.getByLabel(t('governance.budgets.costLimitUsd')).fill('200');
+      // The project last: its picker keeps focus without a keyboard ring.
+      await dialog
+        .getByRole('button', { name: t('governance.budgets.project') })
+        .click();
+      await page
+        .getByRole('option', { name: RELAUNCH_PROJECT, exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      budgetRuleDialog(page)
+        .getByRole('button', { name: t('governance.budgets.project') })
+        .filter({ hasText: RELAUNCH_PROJECT }),
+    capture: (page) => budgetRuleDialog(page),
   },
   {
     // Governance > Policies & Limits — who may share a skill with the whole
@@ -1992,6 +2710,10 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/logs?category=member',
     readyWhen: (page) => page.locator('output').first(),
+    localizedReadyWhen: (page) =>
+      page
+        .getByRole('heading', { name: t('settings.logs.heading'), exact: true })
+        .first(),
   },
   {
     // Governance > Legal hold — the active-holds table and the Place legal

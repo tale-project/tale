@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { ArenaVerdictBar } from './arena-verdict-bar';
 
@@ -72,6 +72,6 @@ describe('ArenaVerdictBar', () => {
     const { container } = render(
       <ArenaVerdictBar disabled={false} onVerdict={vi.fn()} onExit={vi.fn()} />,
     );
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

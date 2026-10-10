@@ -9,12 +9,22 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import { ScrollText } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
+import { useRoleLabel } from '@/app/features/settings/organization/components/role-badge';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
+import { redactSensitiveFields } from '@/lib/shared/audit-redaction';
+import { displayClientName } from '@/lib/shared/client-name';
 
 import {
   useAuditLogTableConfig,
@@ -53,6 +63,7 @@ export function AuditLogTable({
 }: AuditLogTableProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('settings');
+  const roleLabel = useRoleLabel();
   const { toast } = useToast();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
@@ -112,6 +123,12 @@ export function AuditLogTable({
     (log: AuditLog) =>
       log.actorEmail || userEmailMap?.get(log.actorId) || undefined,
     [userEmailMap],
+  );
+
+  const selectedChannel = useMemo(
+    () =>
+      selectedLog === null ? undefined : readChannel(selectedLog.metadata),
+    [selectedLog],
   );
 
   const { columns, stickyLayout, pageSize } = useAuditLogTableConfig({
@@ -177,112 +194,163 @@ export function AuditLogTable({
         title={t('logs.audit.detailTitle')}
         className="max-w-2xl"
       >
+        {/* The dialog's own body scrolls a long entry: a second scroll box
+            inside it would be one a keyboard cannot reach. */}
         {selectedLog && (
-          <div className="max-h-[60vh] overflow-y-auto">
-            <Stack gap={4} className="pr-4">
+          <Stack gap={4}>
+            <DetailRow
+              label={t('logs.audit.columns.timestamp')}
+              value={formatDate(new Date(selectedLog.timestamp), 'long')}
+            />
+            <DetailRow
+              label={t('logs.audit.columns.action')}
+              value={t('logs.audit.actionLabels.' + selectedLog.action, {
+                defaultValue: selectedLog.action.replace(/_/g, ' '),
+              })}
+            />
+            <DetailRow
+              label={t('logs.audit.columns.actor')}
+              value={resolveEmail(selectedLog) ?? selectedLog.actorId}
+            />
+            {resolveEmail(selectedLog) && (
               <DetailRow
-                label={t('logs.audit.columns.timestamp')}
-                value={formatDate(new Date(selectedLog.timestamp), 'long')}
+                label={t('logs.audit.columns.actorId')}
+                value={selectedLog.actorId}
               />
+            )}
+            <DetailRow
+              label={t('logs.audit.columns.actorType')}
+              value={t('logs.audit.actorTypeLabels.' + selectedLog.actorType)}
+            />
+            {selectedLog.actorRole && (
               <DetailRow
-                label={t('logs.audit.columns.action')}
-                value={t('logs.audit.actionLabels.' + selectedLog.action, {
-                  defaultValue: selectedLog.action.replace(/_/g, ' '),
-                })}
+                label={t('logs.audit.columns.actorRole')}
+                value={roleLabel(selectedLog.actorRole)}
               />
+            )}
+            {selectedChannel?.viaMcp && (
               <DetailRow
-                label={t('logs.audit.columns.actor')}
-                value={resolveEmail(selectedLog) ?? selectedLog.actorId}
+                label={t('logs.audit.viaLabel')}
+                value={t('logs.audit.viaLabels.mcp')}
               />
-              {resolveEmail(selectedLog) && (
+            )}
+            {selectedChannel !== undefined &&
+              selectedChannel.clientName !== null && (
                 <DetailRow
-                  label={t('logs.audit.columns.actorId')}
-                  value={selectedLog.actorId}
+                  label={t('logs.audit.clientLabel')}
+                  value={selectedChannel.clientName}
                 />
               )}
+            <DetailRow
+              label={t('logs.audit.columns.category')}
+              value={t('logs.audit.categoryLabels.' + selectedLog.category)}
+            />
+            <DetailRow
+              label={t('logs.audit.columns.resource')}
+              value={t(
+                'logs.audit.resourceTypeLabels.' + selectedLog.resourceType,
+                { defaultValue: selectedLog.resourceType.replace(/_/g, ' ') },
+              )}
+            />
+            {selectedLog.resourceId && (
               <DetailRow
-                label={t('logs.audit.columns.actorType')}
-                value={t('logs.audit.actorTypeLabels.' + selectedLog.actorType)}
+                label={t('logs.audit.columns.resourceId')}
+                value={selectedLog.resourceId}
               />
-              {selectedLog.actorRole && (
+            )}
+            {selectedLog.resourceName && (
+              <DetailRow
+                label={t('logs.audit.columns.target')}
+                value={selectedLog.resourceName}
+              />
+            )}
+            <DetailRow
+              label={t('logs.audit.columns.status')}
+              value={t('logs.audit.statusLabels.' + selectedLog.status)}
+            />
+            {selectedLog.errorMessage && (
+              <DetailRow
+                label={t('logs.audit.columns.error')}
+                value={selectedLog.errorMessage}
+                isError
+              />
+            )}
+            {selectedLog.changedFields &&
+              selectedLog.changedFields.length > 0 && (
                 <DetailRow
-                  label={t('logs.audit.columns.actorRole')}
-                  value={selectedLog.actorRole}
+                  label={t('logs.audit.columns.changedFields')}
+                  value={selectedLog.changedFields.join(', ')}
                 />
               )}
-              <DetailRow
-                label={t('logs.audit.columns.category')}
-                value={t('logs.audit.categoryLabels.' + selectedLog.category)}
+            {selectedLog.previousState && (
+              <DetailSection
+                label={t('logs.audit.columns.previousState')}
+                data={selectedLog.previousState}
+                formatDate={formatDate}
               />
-              <DetailRow
-                label={t('logs.audit.columns.resource')}
-                value={t(
-                  'logs.audit.resourceTypeLabels.' + selectedLog.resourceType,
-                  { defaultValue: selectedLog.resourceType.replace(/_/g, ' ') },
-                )}
+            )}
+            {selectedLog.newState && (
+              <DetailSection
+                label={t('logs.audit.columns.newState')}
+                data={selectedLog.newState}
+                formatDate={formatDate}
               />
-              {selectedLog.resourceId && (
-                <DetailRow
-                  label={t('logs.audit.columns.resourceId')}
-                  value={selectedLog.resourceId}
-                />
-              )}
-              {selectedLog.resourceName && (
-                <DetailRow
-                  label={t('logs.audit.columns.target')}
-                  value={selectedLog.resourceName}
-                />
-              )}
-              <DetailRow
-                label={t('logs.audit.columns.status')}
-                value={t('logs.audit.statusLabels.' + selectedLog.status)}
+            )}
+            {selectedLog.category === 'ai' && selectedChannel?.metadata ? (
+              <AiMetadataSection
+                metadata={selectedChannel.metadata}
+                t={t}
+                formatDate={formatDate}
               />
-              {selectedLog.errorMessage && (
-                <DetailRow
-                  label={t('logs.audit.columns.error')}
-                  value={selectedLog.errorMessage}
-                  isError
-                />
-              )}
-              {selectedLog.changedFields &&
-                selectedLog.changedFields.length > 0 && (
-                  <DetailRow
-                    label={t('logs.audit.columns.changedFields')}
-                    value={selectedLog.changedFields.join(', ')}
-                  />
-                )}
-              {selectedLog.previousState && (
+            ) : (
+              selectedChannel?.metadata &&
+              Object.keys(selectedChannel.metadata).length > 0 && (
                 <DetailSection
-                  label={t('logs.audit.columns.previousState')}
-                  data={selectedLog.previousState}
+                  label={t('logs.audit.columns.metadata')}
+                  data={selectedChannel.metadata}
                   formatDate={formatDate}
                 />
-              )}
-              {selectedLog.newState && (
-                <DetailSection
-                  label={t('logs.audit.columns.newState')}
-                  data={selectedLog.newState}
-                  formatDate={formatDate}
-                />
-              )}
-              {selectedLog.category === 'ai' && selectedLog.metadata ? (
-                <AiMetadataSection metadata={selectedLog.metadata} t={t} />
-              ) : (
-                selectedLog.metadata &&
-                Object.keys(selectedLog.metadata).length > 0 && (
-                  <DetailSection
-                    label={t('logs.audit.columns.metadata')}
-                    data={selectedLog.metadata}
-                    formatDate={formatDate}
-                  />
-                )
-              )}
-            </Stack>
-          </div>
+              )
+            )}
+          </Stack>
         )}
       </Dialog>
     </>
   );
+}
+
+/**
+ * What the request channel stamped on a row written during a coding agent's
+ * MCP call (`backend/lib/request-channel.ts`): `via: 'mcp'` and, when the
+ * agent's client named itself, `clientName`. The detail view names both in
+ * words, so the Metadata block leaves out what a row already shows. The
+ * client name is the client's own choice, so it is shown through
+ * `displayClientName`, as everywhere else. A `via` the channel never writes
+ * (the skills publish door's `app` / `upload` / `api`) stays in Metadata.
+ */
+function readChannel(metadata: Record<string, unknown> | undefined): {
+  viaMcp: boolean;
+  clientName: string | null;
+  metadata: Record<string, unknown> | undefined;
+} {
+  if (metadata === undefined)
+    return { viaMcp: false, clientName: null, metadata };
+  const viaMcp = metadata.via === 'mcp';
+  const clientName = displayClientName(metadata.clientName);
+  const shown = new Set([
+    ...(viaMcp ? ['via'] : []),
+    ...(clientName === null ? [] : ['clientName']),
+  ]);
+  return {
+    viaMcp,
+    clientName,
+    metadata:
+      shown.size === 0
+        ? metadata
+        : Object.fromEntries(
+            Object.entries(metadata).filter(([key]) => !shown.has(key)),
+          ),
+  };
 }
 
 function toDisplayString(val: unknown): string {
@@ -294,78 +362,109 @@ function toDisplayString(val: unknown): string {
 function AiMetadataSection({
   metadata,
   t,
+  formatDate,
 }: {
   metadata: Record<string, unknown>;
   t: (key: string) => string;
+  formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string;
 }) {
   const toolNames = Array.isArray(metadata.toolNames)
     ? metadata.toolNames.filter((n): n is string => typeof n === 'string')
     : [];
 
+  const displayedKeys = new Set(
+    [
+      'model',
+      'provider',
+      'inputTokens',
+      'outputTokens',
+      'totalTokens',
+      'agentSlug',
+    ].filter((key) => metadata[key] != null),
+  );
+  if (typeof metadata.costEstimateCents === 'number')
+    displayedKeys.add('costEstimateCents');
+  if (typeof metadata.durationMs === 'number') displayedKeys.add('durationMs');
+  if (toolNames.length > 0) displayedKeys.add('toolNames');
+  const otherMetadata = Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => !displayedKeys.has(key)),
+  );
+
   return (
-    <Stack gap={2}>
-      <Text as="span" variant="muted" className="font-medium">
-        {t('logs.audit.aiMetadata.title')}
-      </Text>
-      <div className="bg-muted/50 rounded-lg p-3">
+    <>
+      {displayedKeys.size > 0 && (
         <Stack gap={2}>
-          {metadata.model != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.model')}
-              value={toDisplayString(metadata.model)}
-            />
-          )}
-          {metadata.provider != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.provider')}
-              value={toDisplayString(metadata.provider)}
-            />
-          )}
-          {metadata.inputTokens != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.inputTokens')}
-              value={toDisplayString(metadata.inputTokens)}
-            />
-          )}
-          {metadata.outputTokens != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.outputTokens')}
-              value={toDisplayString(metadata.outputTokens)}
-            />
-          )}
-          {metadata.totalTokens != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.totalTokens')}
-              value={toDisplayString(metadata.totalTokens)}
-            />
-          )}
-          {typeof metadata.costEstimateCents === 'number' && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.cost')}
-              value={`$${(metadata.costEstimateCents / 100).toFixed(4)}`}
-            />
-          )}
-          {typeof metadata.durationMs === 'number' && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.duration')}
-              value={`${metadata.durationMs.toLocaleString()} ms`}
-            />
-          )}
-          {metadata.agentSlug != null && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.agent')}
-              value={toDisplayString(metadata.agentSlug)}
-            />
-          )}
-          {toolNames.length > 0 && (
-            <DetailRow
-              label={t('logs.audit.aiMetadata.tools')}
-              value={toolNames.join(', ')}
-            />
-          )}
+          <Text as="span" variant="muted" className="font-medium">
+            {t('logs.audit.aiMetadata.title')}
+          </Text>
+          <div className="bg-muted/50 rounded-lg p-3">
+            <Stack gap={2}>
+              {metadata.model != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.model')}
+                  value={toDisplayString(metadata.model)}
+                />
+              )}
+              {metadata.provider != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.provider')}
+                  value={toDisplayString(metadata.provider)}
+                />
+              )}
+              {metadata.inputTokens != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.inputTokens')}
+                  value={toDisplayString(metadata.inputTokens)}
+                />
+              )}
+              {metadata.outputTokens != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.outputTokens')}
+                  value={toDisplayString(metadata.outputTokens)}
+                />
+              )}
+              {metadata.totalTokens != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.totalTokens')}
+                  value={toDisplayString(metadata.totalTokens)}
+                />
+              )}
+              {typeof metadata.costEstimateCents === 'number' && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.cost')}
+                  value={`$${(metadata.costEstimateCents / 100).toFixed(4)}`}
+                />
+              )}
+              {typeof metadata.durationMs === 'number' && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.duration')}
+                  value={`${metadata.durationMs.toLocaleString()} ms`}
+                />
+              )}
+              {metadata.agentSlug != null && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.agent')}
+                  value={toDisplayString(metadata.agentSlug)}
+                />
+              )}
+              {toolNames.length > 0 && (
+                <DetailRow
+                  label={t('logs.audit.aiMetadata.tools')}
+                  value={toolNames.join(', ')}
+                />
+              )}
+            </Stack>
+          </div>
         </Stack>
-      </div>
-    </Stack>
+      )}
+      {Object.keys(otherMetadata).length > 0 && (
+        <DetailSection
+          label={t('logs.audit.columns.metadata')}
+          data={redactSensitiveFields(otherMetadata) ?? {}}
+          formatDate={formatDate}
+        />
+      )}
+    </>
   );
 }
 
@@ -386,7 +485,7 @@ function DetailRow({
       <Text
         as="span"
         variant="body"
-        className={cn('col-span-2 capitalize', isError && 'text-destructive')}
+        className={cn('col-span-2', isError && 'text-destructive')}
       >
         {value}
       </Text>
@@ -472,12 +571,20 @@ function DetailSection({
   data: Record<string, unknown>;
   formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string;
 }) {
+  const labelId = useId();
   return (
     <Stack gap={2}>
-      <Text as="span" variant="muted" className="font-medium">
+      <Text id={labelId} as="span" variant="muted" className="font-medium">
         {label}
       </Text>
-      <pre className="bg-muted/50 max-h-40 overflow-auto rounded-lg p-3 text-xs">
+      {/* A long state scrolls in its own box, so the box is a named stop
+          in the tab order: a keyboard can reach it and scroll it. */}
+      <pre
+        role="region"
+        aria-labelledby={labelId}
+        tabIndex={0}
+        className="bg-muted/50 focus-visible:ring-ring max-h-40 overflow-auto rounded-lg p-3 text-xs focus-visible:ring-2 focus-visible:outline-none"
+      >
         {formatMetadataObject(data, formatDate, 0)}
       </pre>
     </Stack>

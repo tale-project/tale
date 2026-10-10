@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { isValidAutomationName } from '@/lib/engine/core/validate/name';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { BlankAutomationDialog } from './blank-automation-dialog';
 
@@ -46,6 +47,10 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     isError: false,
   }),
   useAgentSecrets: () => ({ data: [] }),
+  useProjects: () => ({
+    projects: [{ _id: 'proj-7', name: 'Billing' }],
+    isLoading: false,
+  }),
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -60,15 +65,19 @@ vi.mock('@/app/features/projects/components/agent-secrets-field', () => ({
   AgentSecretsField: () => null,
 }));
 
-const { saveAutomation, setTrigger, navigate } = vi.hoisted(() => ({
-  saveAutomation: vi.fn().mockResolvedValue({ name: 'triage' }),
-  setTrigger: vi.fn().mockResolvedValue(undefined),
-  navigate: vi.fn(),
-}));
+const { saveAutomation, setTrigger, deployAutomation, navigate } = vi.hoisted(
+  () => ({
+    saveAutomation: vi.fn().mockResolvedValue({ name: 'triage', version: 1 }),
+    setTrigger: vi.fn().mockResolvedValue(undefined),
+    deployAutomation: vi.fn().mockResolvedValue({ name: 'triage', version: 1 }),
+    navigate: vi.fn(),
+  }),
+);
 
 vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => ({ mutateAsync: saveAutomation }),
   useSetAutomationTrigger: () => ({ mutateAsync: setTrigger }),
+  useDeployAutomation: () => ({ mutateAsync: deployAutomation }),
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -76,9 +85,16 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ id: 'org-1' }),
 }));
 
+// A new trigger reads its schedule in the author's zone; the suite pins it.
+vi.mock('@/lib/shared/zoned-time', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/shared/zoned-time')>()),
+  localTimeZone: () => 'Europe/Zurich',
+}));
+
 beforeEach(() => {
   saveAutomation.mockClear();
   setTrigger.mockClear();
+  deployAutomation.mockClear();
   navigate.mockClear();
 });
 
@@ -102,88 +118,158 @@ async function reachTriggerStep(user: ReturnType<typeof renderDialog>['user']) {
 }
 
 /**
- * The wizard judges the schedule before it writes anything — with the
- * bind's own validator — so an invalid cron never half-creates an
- * automation whose trigger then fails to set (2026-09-26 evaluation, D-02).
+ * The wizard's trigger step is the General tab's trigger form: it starts
+ * from a daily 09:00 schedule in the author's zone, and judges the draft
+ * with the bind's own checks before it writes anything — so an invalid
+ * cron never half-creates an automation whose trigger then fails to set
+ * (2026-09-26 evaluation, D-02).
  */
-describe('BlankAutomationDialog schedule validation', () => {
-  it('previews the next run of a valid cron and offers a timezone picker', async () => {
-    const { user } = renderDialog();
-    await reachTriggerStep(user);
-    expect(screen.getByText(/Every 6 hours · Next run/)).toBeVisible();
-    // The searchable picker renders its trigger as a button, like the model
-    // picker on step 1 — free text is gone.
-    expect(screen.getByRole('button', { name: /Timezone/i })).toHaveTextContent(
-      'UTC',
-    );
-    expect(screen.queryByRole('textbox', { name: /Timezone/i })).toBeNull();
-    expect(
-      screen.getByRole('button', { name: /Create automation/i }),
-    ).not.toHaveAttribute('aria-disabled', 'true');
-  });
+// The trigger step renders the whole trigger form and its next runs; under
+// a full parallel run its first render can take longer than the default.
+describe(
+  'BlankAutomationDialog schedule validation',
+  { timeout: 30_000 },
+  () => {
+    it('starts from a daily 09:00 schedule in your zone and lists its next runs', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      expect(screen.getByRole('radio', { name: /^Schedule/ })).toBeChecked();
+      expect(
+        screen.getByRole('button', { name: /^Schedule: Daily/ }),
+      ).toBeVisible();
+      // The searchable picker renders its trigger as a button, like the model
+      // picker on step 1 — free text is gone.
+      expect(
+        screen.getByRole('button', { name: /Timezone/i }),
+      ).toHaveTextContent('Europe/Zurich');
+      expect(screen.queryByRole('textbox', { name: /Timezone/i })).toBeNull();
+      // Nothing is deployed yet, so the runs would start, not will.
+      const runs = screen.getByRole('list', { name: /^Would run at/ });
+      expect(within(runs).getAllByRole('listitem')).toHaveLength(3);
+      // The wizard keeps to the essentials: Missed runs waits on the tab.
+      expect(
+        screen.queryByRole('combobox', { name: 'Missed runs' }),
+      ).toBeNull();
+      expect(
+        screen.getByRole('button', { name: /Create automation/i }),
+      ).not.toHaveAttribute('aria-disabled', 'true');
+    });
 
-  it('refuses an invalid cron inline and disables Create without writing', async () => {
-    const { user } = renderDialog();
-    await reachTriggerStep(user);
-    const cron = screen.getByLabelText('Cron');
-    await user.clear(cron);
-    await user.type(cron, '61 * * * *');
-    expect(
-      screen.getByText(/not valid: "61" is out of range \(0\.\.59\)/),
-    ).toBeVisible();
-    expect(screen.queryByText(/Next run/)).toBeNull();
-    const create = screen.getByRole('button', { name: /Create automation/i });
-    expect(create).toHaveAttribute('aria-disabled', 'true');
-    await user.click(create);
-    expect(saveAutomation).not.toHaveBeenCalled();
-    expect(setTrigger).not.toHaveBeenCalled();
+    it('refuses an invalid cron inline and disables Create without writing', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      await user.click(screen.getByRole('radio', { name: 'Cron (advanced)' }));
+      const cron = screen.getByLabelText('Cron');
+      await user.clear(cron);
+      await user.paste('61 * * * *');
+      expect(
+        screen.getAllByText(/not valid: "61" is out of range \(0\.\.59\)/)[0],
+      ).toBeVisible();
+      expect(
+        screen.getByText('Fix the schedule above to see the next runs.'),
+      ).toBeVisible();
+      const create = screen.getByRole('button', { name: /Create automation/i });
+      expect(create).toHaveAttribute('aria-disabled', 'true');
+      await user.click(create);
+      expect(saveAutomation).not.toHaveBeenCalled();
+      expect(setTrigger).not.toHaveBeenCalled();
 
-    // A four-field cron — the one the packaged parser used to accept.
-    await user.clear(cron);
-    await user.type(cron, '*/1 * * *');
-    expect(screen.getByText(/got 4/)).toBeVisible();
-    expect(create).toHaveAttribute('aria-disabled', 'true');
-  });
+      // A four-field cron — the one the packaged parser used to accept.
+      await user.clear(cron);
+      await user.paste('*/1 * * *');
+      expect(screen.getAllByText(/got 4/)[0]).toBeVisible();
+      expect(create).toHaveAttribute('aria-disabled', 'true');
+    });
 
-  it('sends the schedule it previewed', async () => {
-    const { user } = renderDialog();
-    await reachTriggerStep(user);
-    const cron = screen.getByLabelText('Cron');
-    await user.clear(cron);
-    await user.type(cron, '43 7 * * *');
-    expect(screen.getByText(/Every day at 07:43 · Next run/)).toBeVisible();
-    await user.click(
-      screen.getByRole('button', { name: /Create automation/i }),
-    );
-    expect(setTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({
-        trigger: expect.objectContaining({
-          kind: 'schedule',
-          cron: '43 7 * * *',
-          timezone: 'UTC',
-          // Off by default — the trigger is created paused (D-10).
-          enabled: false,
+    it('sends the schedule it showed', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(setTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger: {
+            kind: 'schedule',
+            repeat: { frequency: 'daily', interval: 1, times: ['09:00'] },
+            timezone: 'Europe/Zurich',
+            catchUp: 'latest',
+            // Off by default — the trigger is created paused (D-10).
+            enabled: false,
+          },
         }),
-      }),
-    );
-  });
+      );
+    });
 
-  it('arms the trigger only when Enable now is checked', async () => {
-    const { user } = renderDialog();
-    await reachTriggerStep(user);
-    const enableNow = screen.getByRole('checkbox', { name: /Enable now/i });
-    expect(enableNow).not.toBeChecked();
-    await user.click(enableNow);
-    await user.click(
-      screen.getByRole('button', { name: /Create automation/i }),
-    );
-    expect(setTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({
-        trigger: expect.objectContaining({ enabled: true }),
-      }),
-    );
-  });
-});
+    it('sends a cron typed under Cron, as it reads', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      await user.click(screen.getByRole('radio', { name: 'Cron (advanced)' }));
+      const cron = screen.getByLabelText('Cron');
+      await user.clear(cron);
+      await user.paste('43 7 * * *');
+      expect(screen.getByText(/^Reads as: Daily at 7:43/)).toBeVisible();
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(setTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger: expect.objectContaining({
+            kind: 'schedule',
+            cron: '43 7 * * *',
+            timezone: 'Europe/Zurich',
+            enabled: false,
+          }),
+        }),
+      );
+    });
+
+    it('puts v1 live unless the author keeps it a draft', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      expect(
+        screen.getByRole('checkbox', { name: /Deploy v1 now/i }),
+      ).toBeChecked();
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(deployAutomation).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        name: 'triage',
+        version: 1,
+      });
+    });
+
+    it('keeps v1 a draft when Deploy v1 now is unchecked', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      await user.click(
+        screen.getByRole('checkbox', { name: /Deploy v1 now/i }),
+      );
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(saveAutomation).toHaveBeenCalledTimes(1);
+      expect(deployAutomation).not.toHaveBeenCalled();
+    });
+
+    it('arms the trigger only when Enable now is checked', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      const enableNow = screen.getByRole('checkbox', { name: /Enable now/i });
+      expect(enableNow).not.toBeChecked();
+      await user.click(enableNow);
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(setTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger: expect.objectContaining({ enabled: true }),
+        }),
+      );
+    });
+  },
+);
 
 /**
  * The typed name is the display name — the slug only addresses the
@@ -192,6 +278,32 @@ describe('BlankAutomationDialog schedule validation', () => {
  * created at all (2026-09-26 evaluation, D-03).
  */
 describe('BlankAutomationDialog display name', () => {
+  it.each([
+    [`${'a'.repeat(63)} b`, 'a'.repeat(63)],
+    [`${'a'.repeat(62)} b`, `${'a'.repeat(62)}-b`],
+    ['a'.repeat(65), 'a'.repeat(64)],
+  ])(
+    'generates a valid slug for a boundary name: %s',
+    async (displayName, expectedSlug) => {
+      const { user } = renderDialog();
+      await user.type(screen.getByLabelText(/Name/i), displayName);
+      await user.click(screen.getByRole('button', { name: /Agent model/i }));
+      await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+      await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+      await user.click(screen.getByRole('button', { name: /Next/i }));
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+
+      expect(saveAutomation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          automation: expect.objectContaining({ name: expectedSlug }),
+        }),
+      );
+      expect(isValidAutomationName(expectedSlug)).toBe(true);
+    },
+  );
+
   it('keeps the typed name as the presentation and slugifies only the address', async () => {
     const { user } = renderDialog();
     await user.type(screen.getByLabelText(/Name/i), 'Eval-D agent 测试 🚀');
@@ -245,8 +357,7 @@ describe('BlankAutomationDialog webhook URL', () => {
     setTrigger.mockResolvedValueOnce({ token: 'wht_once_1' });
     const { user } = renderDialog();
     await reachTriggerStep(user);
-    await user.click(screen.getByRole('combobox', { name: /Trigger type/i }));
-    await user.click(screen.getByRole('option', { name: 'Webhook' }));
+    await user.click(screen.getByRole('radio', { name: /^Webhook/ }));
     expect(screen.getByText(/shown once, right after/)).toBeVisible();
     await user.click(
       screen.getByRole('button', { name: /Create automation/i }),
@@ -272,6 +383,56 @@ describe('BlankAutomationDialog webhook URL', () => {
         params: expect.objectContaining({ automationSlug: 'triage' }),
       }),
     );
+  });
+
+  // Created from a project's page, the automation is installed there, and
+  // its webhook answers on the project's door only: the organization's URL
+  // would start nothing.
+  it('shows the project’s URL when the automation is created in a project', async () => {
+    setTrigger.mockResolvedValueOnce({ token: 'wht_once_2' });
+    const { user } = render(
+      <BlankAutomationDialog
+        organizationId="org-1"
+        projectId="proj-7"
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await reachTriggerStep(user);
+    await user.click(screen.getByRole('radio', { name: /^Webhook/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: /Webhook endpoint .*\/api\/projects\/proj-7\/automations\/webhook\/wht_once_2$/,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'Keep the URL in TALE_WEBHOOK_URL in the sending system; it works like a password.',
+      ),
+    ).toBeVisible();
+  });
+
+  // Created from Billing's page, an event trigger hears Billing's events
+  // and those of no project, and says so before the automation exists.
+  it('says which events reach an event trigger created in a project [AUTO-R35]', async () => {
+    const { user } = render(
+      <BlankAutomationDialog
+        organizationId="org-1"
+        projectId="proj-7"
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await reachTriggerStep(user);
+    await user.click(screen.getByRole('radio', { name: /^Platform event/ }));
+    expect(
+      screen.getByText(
+        'Starts for matching events in Billing, and for events that belong to no project, such as contacts.',
+      ),
+    ).toBeVisible();
   });
 
   it('opens the automation straight away for a schedule', async () => {

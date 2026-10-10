@@ -27,6 +27,7 @@ import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { SkipLink } from '@tale/ui/skip-link';
 import { Text } from '@tale/ui/text';
 import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
@@ -47,7 +48,14 @@ import {
   Share2,
   Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { HomeBackButton } from '@/app/features/home/components/home-back-button';
@@ -65,6 +73,7 @@ import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
+import { budgetScopeOf } from '@/app/lib/backend/budget-refusal';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 import {
@@ -93,6 +102,7 @@ import {
   useThreadReasoningEffort,
   useThreadFeedback,
   useVoiceMode,
+  type ChatTurnAttachment,
 } from '../data/chat-backend';
 import {
   readEffortPreference,
@@ -146,7 +156,7 @@ import { ChatTranscript } from './chat-transcript';
 import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
-import { CreateTaskFromChat } from './create-task-from-chat';
+import type { CreateTaskFromChat as CreateTaskFromChatDialog } from './create-task-from-chat';
 import { DeferredSendTray } from './deferred-send-tray';
 import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
@@ -158,6 +168,27 @@ import { VoiceOutputAnnouncer } from './voice-output-announcer';
 import { WelcomeView } from './welcome-view';
 
 const NO_SELECTION: ComposerSelection = {};
+
+/**
+ * The dialog Create task opens loads the first time it opens, not with every
+ * chat: it brings the whole task form, its date pickers and drawer among it.
+ * Pointing at the header's Create task button starts the load, so a click
+ * mostly finds it there.
+ */
+const loadCreateTaskFromChat = () => import('./create-task-from-chat');
+const CreateTaskFromChat = lazyComponent<
+  ComponentProps<typeof CreateTaskFromChatDialog>
+>(() =>
+  loadCreateTaskFromChat().then((module) => ({
+    default: module.CreateTaskFromChat,
+  })),
+);
+function warmCreateTaskFromChat() {
+  loadCreateTaskFromChat().catch((error: unknown) => {
+    // Opening the dialog loads it again, and says so if it still fails.
+    console.warn('[chat] the task dialog did not load ahead', error);
+  });
+}
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
 const NO_PROVIDERS: readonly string[] = [];
@@ -353,13 +384,34 @@ function ChatSurfaceInner({
   const { data: currentUser } = useCurrentUser();
   const draftKey = chatDraftKey(currentUser?.userId, organizationId, threadId);
 
+  // The thread being viewed, once the list has answered.
+  const activeThread =
+    threadId !== undefined && threads.status === 'ready'
+      ? threads.data.find((thread) => thread.id === threadId)
+      : undefined;
+  // What the header names: the list's row, or — for a chat the list does not
+  // hold (an archived one, or a teammate's shared into a project) — the
+  // thread's own read. The owner's row actions still key off `activeThread`.
+  const headerThread =
+    activeThread ??
+    (openThread.status === 'ready' && openThread.data !== null
+      ? openThread.data
+      : undefined);
+  // The project this chat spends in: the open thread's, or the one a new
+  // chat is being started in. Its cap binds the send too.
+  const spendProjectId =
+    threadId === undefined ? projectId : headerThread?.projectId;
+
   // Client-side budget gate. The server enforces the budget authoritatively
   // (a refused turn), but without this the composer leaves Send enabled and
   // the user only learns they are over budget after the message lands as a
   // failed turn (#2345). `exceeded` is what the gate would refuse right now
-  // over every cap that binds the member; loading returns undefined → the
-  // gate stays open, never a false block.
-  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
+  // over every cap that binds the member, the chat's project's included;
+  // loading returns undefined → the gate stays open, never a false block.
+  const { data: budgetStatus } = useMyBudgetStatus(
+    organizationId,
+    spendProjectId,
+  );
   const budgetExceeded = budgetStatus?.exceeded === true;
 
   // The open thread answered null: deleted, foreign, or a revoked share.
@@ -503,25 +555,11 @@ function ChatSurfaceInner({
     ];
   }, [composerOptions, models]);
 
-  // The thread being viewed, once the list has answered.
-  const activeThread =
-    threadId !== undefined && threads.status === 'ready'
-      ? threads.data.find((thread) => thread.id === threadId)
-      : undefined;
-  // What the header names: the list's row, or — for a chat the list does not
-  // hold (an archived one, or a teammate's shared into a project) — the
-  // thread's own read. The owner's row actions still key off `activeThread`.
-  const headerThread =
-    activeThread ??
-    (openThread.status === 'ready' && openThread.data !== null
-      ? openThread.data
-      : undefined);
-
   // The header menu carries the SAME thread actions as the sidebar row (the
   // 0.3 doctrine: header and sidebar never drift) — shared handlers, plus
   // the same one-bulk-read hold gating for the destructive tail.
   const { t: tCommon } = useT('common');
-  const { t: tGovernance } = useT('governance');
+  const { t: tLegalHold } = useT('legalHold');
   const projectsQuery = useChatProjects(organizationId);
   const headerProjects =
     projectsQuery.status === 'ready' ? projectsQuery.data : [];
@@ -555,7 +593,7 @@ function ChatSurfaceInner({
           [
             {
               type: 'label' as const,
-              content: tGovernance('legalHold.badges.blockedByHold'),
+              content: tLegalHold('blockedByHold'),
             },
           ],
         ]
@@ -946,10 +984,16 @@ function ChatSurfaceInner({
         voiceCapabilities.transcriptionUnavailableReason,
       onTranscriptionUnavailable: handleTranscriptionUnavailable,
       ...(threadId !== undefined ? { threadId } : {}),
+      // A project's new chat: its uploads count toward the project before
+      // the first send creates the thread.
+      ...(threadId === undefined && projectId !== undefined
+        ? { projectId }
+        : {}),
     }),
     [
       organizationId,
       threadId,
+      projectId,
       voiceCapabilities.hasTranscription,
       voiceCapabilities.transcriptionUnavailableReason,
       handleTranscriptionUnavailable,
@@ -995,6 +1039,9 @@ function ChatSurfaceInner({
   // path below.
   const videoLinks = useChatVideoLinks({
     threadId: viewThreadId,
+    ...(viewThreadId === undefined && projectId !== undefined
+      ? { projectId }
+      : {}),
     organizationId,
     locale,
   });
@@ -1084,8 +1131,17 @@ function ChatSurfaceInner({
   // denials each get their own localized title instead of a generic "Send
   // failed" wrapping the raw server sentence — by the refusal's code when
   // the server names one.
-  const refusalToast = (reason: string | undefined, code?: string) => {
-    const { titleKey, description } = turnRefusalToastContent(reason, t, code);
+  const refusalToast = (
+    reason: string | undefined,
+    code?: string,
+    budgetScope?: string,
+  ) => {
+    const { titleKey, description } = turnRefusalToastContent(
+      reason,
+      t,
+      code,
+      budgetScope,
+    );
     toast({
       title: t(titleKey),
       ...(description !== undefined ? { description } : {}),
@@ -1163,6 +1219,7 @@ function ChatSurfaceInner({
     text: string,
     intoThreadId?: string,
     fork?: BranchFork,
+    originalAttachments: readonly ChatTurnAttachment[] = [],
   ) => {
     // A turn needs its model — a concrete pick or Auto. `sendDisabled`
     // already gates this; the guard here keeps a race from slipping through.
@@ -1226,7 +1283,7 @@ function ChatSurfaceInner({
           if (failed.persisted !== true) {
             composerRef.current?.restoreText(text);
           }
-          refusalToast(failed.reason, failed.code);
+          refusalToast(failed.reason, failed.code, failed.budgetScope);
         });
       return;
     }
@@ -1240,12 +1297,15 @@ function ChatSurfaceInner({
     // optimistic bubble below can paint them immediately.
     const consumedAttachments =
       intoThreadId === undefined ? takeStagedAttachments() : [];
-    const requestAttachments = consumedAttachments.map((attachment) => ({
-      fileId: attachment.fileId,
-      fileName: attachment.fileName,
-      fileType: attachment.fileType,
-      fileSize: attachment.fileSize,
-    }));
+    const requestAttachments =
+      intoThreadId !== undefined
+        ? originalAttachments
+        : consumedAttachments.map((attachment) => ({
+            fileId: attachment.fileId,
+            fileName: attachment.fileName,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+          }));
     // The pasted video URLs leave the outgoing text — the chip (and later
     // the transcript attachment) represents the video; the model must not
     // see both the raw link and its transcript.
@@ -1302,7 +1362,7 @@ function ChatSurfaceInner({
             error instanceof BackendApiError &&
             isBudgetRefusalCode(error.code)
           ) {
-            refusalToast(error.message, error.code);
+            refusalToast(error.message, error.code, budgetScopeOf(error.data));
           } else {
             sendFailedToast(error);
           }
@@ -1392,7 +1452,7 @@ function ChatSurfaceInner({
             if (fork !== undefined && outcome.persisted !== true) {
               abandonBranch(fork);
             }
-            refusalToast(outcome.reason, outcome.code);
+            refusalToast(outcome.reason, outcome.code, outcome.budgetScope);
           },
           (error: unknown) => {
             console.error('[chat] the turn failed', error);
@@ -1438,6 +1498,9 @@ function ChatSurfaceInner({
         );
         if (intoThreadId === undefined) {
           composerRef.current?.restoreText(text);
+          if (consumedAttachments.length > 0) {
+            setStagedAttachments(consumedAttachments);
+          }
           videoLinks.unmarkJobsSent(consumedJobIds);
         }
         // A turn that never started wrote nothing into the sibling.
@@ -1496,7 +1559,7 @@ function ChatSurfaceInner({
     if (viewThreadId === undefined) return false;
     const forked = await branchActions.branchForEdit(viewThreadId, message.id);
     if (forked.status === 'refused') {
-      refusalToast(forked.reason, forked.code);
+      refusalToast(forked.reason, forked.code, forked.budgetScope);
       return false;
     }
     if (forked.status === 'failed') {
@@ -1514,12 +1577,23 @@ function ChatSurfaceInner({
     const { parentId, forkSequence } = forked;
     const restoreTo = selections[forkKey(parentId, forkSequence)] ?? parentId;
     rememberSelection(parentId, forkSequence, forked.id);
-    handleSend(text, forked.id, {
-      parentId,
-      forkSequence,
-      branchId: forked.id,
-      restoreTo,
-    });
+    handleSend(
+      text,
+      forked.id,
+      { parentId, forkSequence, branchId: forked.id, restoreTo },
+      message.parts.flatMap((part) =>
+        part.type === 'attachment' && part.fileId !== undefined
+          ? [
+              {
+                fileId: part.fileId,
+                fileName: part.name,
+                fileType: part.mediaType,
+                fileSize: part.sizeBytes ?? 0,
+              },
+            ]
+          : [],
+      ),
+    );
     return true;
   };
 
@@ -1552,7 +1626,7 @@ function ChatSurfaceInner({
         // The door measured the budget before forking: a reached cap is
         // named as a refused send is, and nothing was created or selected.
         if (forked.status === 'refused') {
-          refusalToast(forked.reason, forked.code);
+          refusalToast(forked.reason, forked.code, forked.budgetScope);
           return;
         }
         if (forked.status === 'failed') {
@@ -1590,7 +1664,7 @@ function ChatSurfaceInner({
           rememberSelection(parentId, forkSequence, restoreTo);
         }
         if (isBudgetRefusalCode(outcome.code)) {
-          refusalToast(outcome.reason, outcome.code);
+          refusalToast(outcome.reason, outcome.code, outcome.budgetScope);
           return;
         }
         const { titleKey, description } = regenerateFailureToastContent(
@@ -1787,6 +1861,12 @@ function ChatSurfaceInner({
                     size="icon"
                     variant="ghost"
                     aria-label={t('aria.threadActions')}
+                    // This menu holds Create task where the header has no
+                    // room for its button.
+                    onPointerEnter={
+                      canCreateTask ? warmCreateTaskFromChat : undefined
+                    }
+                    onFocus={canCreateTask ? warmCreateTaskFromChat : undefined}
                   >
                     <Ellipsis className="text-muted-foreground size-5" />
                   </Button>
@@ -1870,6 +1950,8 @@ function ChatSurfaceInner({
                         size="sm"
                         icon={ListChecks}
                         onClick={() => setCreateTaskOpen(true)}
+                        onPointerEnter={warmCreateTaskFromChat}
+                        onFocus={warmCreateTaskFromChat}
                         aria-label={t('createTask.headerButton')}
                         className="text-muted-foreground hover:text-foreground"
                       >
@@ -2079,7 +2161,12 @@ function ChatSurfaceInner({
               />
             ) : (
               <div className="shrink-0 px-4 pb-4">
-                <BudgetBanner organizationId={organizationId} />
+                <BudgetBanner
+                  organizationId={organizationId}
+                  {...(spendProjectId !== undefined
+                    ? { projectId: spendProjectId }
+                    : {})}
+                />
                 {/* The tasks this conversation handed over, live. */}
                 {threadId !== undefined && pair === null && (
                   <ChatTaskTray
@@ -2254,12 +2341,6 @@ function ChatSurfaceInner({
             organizationId={organizationId}
             open={deleteOpen}
             onOpenChange={setDeleteOpen}
-            onDeleted={() =>
-              void navigate({
-                to: '/dashboard/$id/chat',
-                params: { id: organizationId },
-              })
-            }
           />
         )}
 

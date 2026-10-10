@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { useState } from 'react';
 
+import { PagePointerPin } from '../../components/overlays/page-pointer-pin';
 import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 
@@ -60,6 +61,7 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
             if (event.target === event.currentTarget) setOpen(false);
           }}
         >
+          <PagePointerPin />
           <DialogPrimitive.Title className="sr-only">
             {trimmedAlt === '' ? t('zoom') : trimmedAlt}
           </DialogPrimitive.Title>

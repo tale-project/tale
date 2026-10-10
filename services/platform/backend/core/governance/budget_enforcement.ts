@@ -3,15 +3,17 @@ import type { BudgetRule } from '@tale/shared/schemas/governance';
 import { matchingTeamRules, strictestCap } from './rule_precedence.ts';
 
 /** Whose bucket a warning is about: the caller's own usage, one of their
- * teams' shared usage, the whole organization's, or the authenticating API
- * key's. */
-export type BudgetWarningScope = 'user' | 'team' | 'org' | 'apiKey';
+ * teams' shared usage, the whole organization's, the authenticating API
+ * key's, or everything spent in the project the caller works in. */
+export type BudgetWarningScope = 'user' | 'team' | 'org' | 'apiKey' | 'project';
 
 export interface BudgetWarning {
   code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
   scope: BudgetWarningScope;
   /** The team whose shared cap this is — team scope only. */
   teamId?: string;
+  /** The project whose cap this is — project scope only. */
+  projectId?: string;
   period: string;
   used: number;
   limit: number;
@@ -63,6 +65,24 @@ export interface EffectiveLimits {
    * in force for a member whose personal cap comes from a narrower rule.
    */
   teamLimits: TeamLimits[];
+  /**
+   * The caps of each project the work belongs to that a `project` rule
+   * names — SHARED buckets like a team's, each measured against everything
+   * spent in its project. Work belongs to one project, or to every project
+   * its automation is bound to when its run names none; empty for work in
+   * no project.
+   */
+  projectLimits: ProjectLimits[];
+}
+
+/** One project's caps for the period (tightest per field when several of
+ * its rules name the same period). */
+export interface ProjectLimits {
+  projectId: string;
+  maxTokens?: number;
+  maxCostCents?: number;
+  maxRequests?: number;
+  warningThresholdPercent?: number;
 }
 
 /** One team's shared caps for the period (its own rule values, tightest per
@@ -94,6 +114,9 @@ export function teamLimitsHasCap(limits: TeamLimits): boolean {
  * applies when its `apiKeyId` matches — so a request made WITHOUT an API key
  * (in-app chat, `apiKeyId` undefined) never matches any per-key rule, and a
  * request made WITH key A never matches key B's rule.
+ *
+ * `projectIds` are the projects the work belongs to; a `project`-scoped rule
+ * applies only to work in its project.
  */
 export function collectAllApplicableRules(
   rules: BudgetRule[],
@@ -101,6 +124,7 @@ export function collectAllApplicableRules(
   userTeamIds: string[],
   userRole?: string,
   apiKeyId?: string,
+  projectIds: readonly string[] = [],
 ): BudgetRule[] {
   return rules.filter((r) => {
     switch (r.scope) {
@@ -112,6 +136,8 @@ export function collectAllApplicableRules(
         return userRole != null && r.scopeId === userRole;
       case 'apiKey':
         return apiKeyId != null && r.apiKeyId === apiKeyId;
+      case 'project':
+        return r.scopeId != null && projectIds.includes(r.scopeId);
       case 'org':
         return true;
       case 'default':
@@ -149,6 +175,7 @@ export function resolveEffectiveLimits(
   userTeamIds: string[],
   userRole?: string,
   apiKeyId?: string,
+  projectIds: readonly string[] = [],
 ): EffectiveLimits {
   const userRules = rules.filter(
     (r) => r.scope === 'user' && r.scopeId === userId,
@@ -252,6 +279,30 @@ export function resolveEffectiveLimits(
   }
   const teamLimits = [...teamLimitsById.values()];
 
+  // Each project's caps: a shared bucket of its own, like a team's — never
+  // part of the personal ladder above.
+  const projectLimits: ProjectLimits[] = [];
+  for (const projectId of new Set(projectIds)) {
+    const projectRules = rules.filter(
+      (r) => r.scope === 'project' && r.scopeId === projectId,
+    );
+    if (projectRules.length === 0) continue;
+    const limits: ProjectLimits = { projectId };
+    const projectTokens = minNonNull(projectRules.map((r) => r.maxTokens));
+    const projectCost = minNonNull(projectRules.map((r) => r.maxCostCents));
+    const projectRequests = minNonNull(projectRules.map((r) => r.maxRequests));
+    const projectThreshold = minNonNull(
+      projectRules.map((r) => r.warningThresholdPercent),
+    );
+    if (projectTokens !== undefined) limits.maxTokens = projectTokens;
+    if (projectCost !== undefined) limits.maxCostCents = projectCost;
+    if (projectRequests !== undefined) limits.maxRequests = projectRequests;
+    if (projectThreshold !== undefined) {
+      limits.warningThresholdPercent = projectThreshold;
+    }
+    projectLimits.push(limits);
+  }
+
   return {
     maxTokens,
     maxCostCents,
@@ -266,6 +317,7 @@ export function resolveEffectiveLimits(
     orgWarningThresholdPercent: orgWarningThreshold,
     apiKeyWarningThresholdPercent: apiKeyWarningThreshold,
     teamLimits,
+    projectLimits,
   };
 }
 
@@ -428,9 +480,11 @@ export function collectApiKeyWarnings(
 /** One cap that binds a subject with the usage measured against it — the
  * shape `readBudgetStanding` answers (`budget-gate.ts`). */
 export interface StandingBucket {
-  scope: 'user' | 'team' | 'org';
+  scope: 'user' | 'team' | 'org' | 'project';
   /** The team whose shared cap this is — team scope only. */
   teamId?: string;
+  /** The project whose cap this is — project scope only. */
+  projectId?: string;
   period: string;
   warningThresholdPercent?: number;
   maxTokens?: number;
@@ -444,7 +498,8 @@ export interface StandingBucket {
  * buckets the admission gate walks, so the banner can never announce a
  * standing the gate would not enforce: the personal cap against the
  * subject's own usage, each team's shared cap against that team's aggregate
- * (at the team rule's own threshold), the organization's against the
+ * (at the team rule's own threshold), a project's against everything spent
+ * in it (at the project rule's), the organization's against the
  * organization's.
  */
 export function collectStandingWarnings(
@@ -458,8 +513,11 @@ export function collectStandingWarnings(
       standing.usage,
       standing.period,
     );
-    if (standing.teamId !== undefined) {
-      for (const warning of warnings) warning.teamId = standing.teamId;
+    for (const warning of warnings) {
+      if (standing.teamId !== undefined) warning.teamId = standing.teamId;
+      if (standing.projectId !== undefined) {
+        warning.projectId = standing.projectId;
+      }
     }
     return warnings;
   });

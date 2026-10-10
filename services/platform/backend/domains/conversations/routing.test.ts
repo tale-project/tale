@@ -75,7 +75,7 @@ function actions(): unknown[] {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('applyConversationRouting', () => {
+describe('applyConversationRouting [CONV-R8]', () => {
   it('audits a team route as a team assignment, by the system', async () => {
     readGovernancePolicyForOrg.mockResolvedValue({
       rules: [{ address: 'billing@acme.test', teamId: 't-billing' }],

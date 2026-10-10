@@ -47,7 +47,9 @@ function recorder(rows: unknown[] = []): {
 }
 
 const LEG = { query: 'parental leave', limit: 30 };
-const EMBEDDING = [0.1, 0.2, 0.3];
+/** A query vector 1024 wide — the width decides which table the dense leg
+ * reads. */
+const EMBEDDING = new Array<number>(1024).fill(0.1);
 
 /** Statements that actually query the corpus — the capability probes, the
  * dense leg's scope count and its SET LOCALs are not, and would otherwise
@@ -163,8 +165,84 @@ describe('the dense leg runs exactly for a small scope', () => {
   });
 });
 
+describe('the dense leg searches the vectors of the query’s own width [KNOW-R11]', () => {
+  const ofWidth = (width: number) => new Array<number>(width).fill(0.1);
+
+  it('reads the documents’ vectors from the table of that width, count and ranking alike', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: ofWidth(1024),
+    });
+    const dense = sent.filter((entry) => entry.text.includes('.chunks'));
+    expect(dense.length).toBe(2);
+    for (const statement of dense) {
+      expect(statement.text).toContain(
+        'FROM private_knowledge.chunk_vectors_1024 v',
+      );
+      expect(statement.text).toContain('c.id = v.chunk_id');
+      // The old column held one width for the whole database.
+      expect(statement.text).not.toContain('c.embedding');
+    }
+  });
+
+  // Two organizations on one database with models of different widths: each
+  // search stays in its own table, so the vectors never meet.
+  it('keeps organizations of different widths apart in one database', async () => {
+    const acme = recorder();
+    const globex = recorder();
+    await new DocumentCorpusReader(acme.sql, 'acme').dense({
+      ...LEG,
+      embedding: ofWidth(1536),
+    });
+    await new DocumentCorpusReader(globex.sql, 'globex').dense({
+      ...LEG,
+      embedding: ofWidth(1024),
+    });
+    const tables = (sent: readonly Recorded[]) =>
+      corpusStatements(sent)[0]?.text.match(/chunk_vectors_\d+/g);
+    expect(new Set(tables(acme.sent))).toEqual(new Set(['chunk_vectors_1536']));
+    expect(new Set(tables(globex.sent))).toEqual(
+      new Set(['chunk_vectors_1024']),
+    );
+  });
+
+  it('reads a site’s vectors from the table of that width, still through the membership', async () => {
+    const { sql, sent } = recorder();
+    await new WebCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: ofWidth(768),
+    });
+    const dense = sent.filter((entry) => entry.text.includes('.chunks'));
+    expect(dense.length).toBe(2);
+    for (const statement of dense) {
+      expect(statement.text).toContain('public_web.chunk_vectors_768 v');
+      expect(statement.text).toContain('website_org_memberships');
+      expect(statement.params).toContain('acme');
+      expect(statement.text).not.toContain('c.embedding');
+    }
+  });
+
+  it('sends nothing for a width no table stores', async () => {
+    const { sql, sent } = recorder();
+    await expect(
+      new DocumentCorpusReader(sql, 'acme').dense({
+        ...LEG,
+        embedding: ofWidth(3),
+      }),
+    ).rejects.toThrow(/vector width of 3/);
+    await expect(
+      new WebCorpusReader(sql, 'acme').dense({
+        ...LEG,
+        embedding: ofWidth(3),
+      }),
+    ).rejects.toThrow(/vector width of 3/);
+    expect(sent.filter((entry) => entry.text.includes('chunk'))).toEqual([]);
+  });
+});
+
 describe('the documents corpus is scoped to one organization', () => {
-  it('filters both legs by the organization it was constructed for', async () => {
+  it('filters both legs by the organization it was constructed for [KNOW-R1]', async () => {
     const { sql, sent } = recorder();
     const reader = new DocumentCorpusReader(sql, 'acme');
     await reader.keyword(LEG);
@@ -179,7 +257,7 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('joins chunks to documents on the organization as well as the id', async () => {
+  it('joins chunks to documents on the organization as well as the id [KNOW-R1]', async () => {
     // The composite join is what stops a chunk of one organization from being
     // attributed to another organization's document.
     const { sql, sent } = recorder();
@@ -192,7 +270,7 @@ describe('the documents corpus is scoped to one organization', () => {
     );
   });
 
-  it('takes the organization from its constructor, never from the query', async () => {
+  it('takes the organization from its constructor, never from the query [KNOW-R1]', async () => {
     // A second organization asking the same question addresses its own corpus,
     // and nothing in the query could change that.
     const acme = recorder();
@@ -241,7 +319,7 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(corpusStatements(sent)[0].text).toContain("|| '/'");
   });
 
-  it("applies the caller's access scope to both legs", async () => {
+  it("applies the caller's access scope to both legs [KNOW-R3]", async () => {
     // Team/project scoping is what stops a scoped document from leaking
     // org-wide; a leg without the clause would leak on exactly that leg.
     const { sql, sent } = recorder();
@@ -276,7 +354,7 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('matches a shared document by ANY of its teams, on both legs', async () => {
+  it('matches a shared document by ANY of its teams, on both legs [KNOW-R3]', async () => {
     // A document shared to [sales, support] must be retrievable by a support
     // member even though sales is stamped first — the single-column era
     // matched only the first team and silently hid the rest. `&&` is array
@@ -323,6 +401,31 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(statement.text).toContain(
       'd.team_ids && $3::text[] OR (d.team_ids IS NULL AND d.team_id = ANY($3))',
     );
+  });
+
+  it('opens every team library to an owner or admin on both legs, and to nobody else [KNOW-R3]', async () => {
+    // The audience rule's admin leg: an owner or admin reads a team library
+    // without being in the team. A project file is not a team library.
+    const adminLeg =
+      '((d.team_ids IS NOT NULL OR d.team_id IS NOT NULL) AND d.project_id IS NULL)';
+    for (const isAdmin of [true, false]) {
+      const { sql, sent } = recorder();
+      const reader = new DocumentCorpusReader(sql, 'acme');
+      const access = {
+        teamIds: [],
+        isAdmin,
+        projectIds: [],
+        includeHub: true,
+      };
+      await reader.keyword({ ...LEG, access });
+      await reader.dense({ ...LEG, access, embedding: EMBEDDING });
+
+      const statements = corpusStatements(sent);
+      expect(statements.length).toBe(2);
+      for (const statement of statements) {
+        expect(statement.text.includes(adminLeg)).toBe(isAdmin);
+      }
+    }
   });
 
   it('drops the hub disjunct when the scope excludes it', async () => {
@@ -385,7 +488,7 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('keeps mail out of every statement for a door that did not ask', async () => {
+  it('keeps mail out of every statement for a door that did not ask [KNOW-R5]', async () => {
     // Mail is text an outsider wrote; only a door that wraps it may take any,
     // so for every other — the org-wide callers included — no message row
     // and no emailed attachment may even win a candidate slot. The dense
@@ -583,7 +686,7 @@ describe('the documents corpus is scoped to one organization', () => {
   });
 });
 
-describe('the web corpus is scoped by membership', () => {
+describe('the web corpus is scoped by membership [KNOW-R1]', () => {
   it('joins through the organization membership on both legs', async () => {
     // Web pages are fetched once per domain and shared inside one database, so
     // the membership join is the ONLY thing that scopes this corpus.

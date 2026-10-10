@@ -30,6 +30,7 @@ import {
   backendEntityPrefix,
   backendKey,
   orgApiKeyListKey,
+  projectCapabilityCatalogKey,
 } from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
@@ -334,11 +335,23 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
   'governance/queries:getMyBudgetStatus': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
+    // A project chat's standing is its own read: the project's cap joins it.
+    const projectId =
+      typeof args.projectId === 'string' && args.projectId !== ''
+        ? args.projectId
+        : undefined;
     return {
-      queryKey: backendKey(orgId, 'usage', 'my-budget-status'),
+      queryKey: backendKey(
+        orgId,
+        'usage',
+        'my-budget-status',
+        ...(projectId !== undefined ? [projectId] : []),
+      ),
       queryFn: () =>
         backendFetch<{ status: MyBudgetStatusResult }>(
-          '/governance/my/budget-status',
+          projectId === undefined
+            ? '/governance/my/budget-status'
+            : `/governance/my/budget-status?projectId=${encodeURIComponent(projectId)}`,
           { orgId },
         ).then((body) => body.status),
     };
@@ -578,10 +591,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       queryFn: () =>
         backendFetch<{ usage: QuotaUsageResult }>('/sandbox/quota-usage', {
           orgId,
-        }).then(
-          (body) => body.usage,
-          () => null,
-        ),
+        }).then((body) => body?.usage ?? null),
       refetchInterval: 15_000,
     };
   },
@@ -615,13 +625,24 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(orgId, 'sandbox_session', 'list'),
       queryFn: () =>
-        backendFetch<{ sessions: SandboxListResult }>(
-          '/sandbox/sessions/view',
-          {
-            orgId,
-          },
-        ).then((body) => body.sessions),
+        backendFetch<SandboxListResult>('/sandbox/sessions/view', {
+          orgId,
+        }),
       refetchInterval: sandboxListPollInterval,
+    };
+  },
+  'sandbox_devices/queries:joinTokenStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const tokenId = stringArg(args, 'tokenId');
+    return {
+      queryKey: backendKey(orgId, 'sandbox_device', 'join-token', tokenId),
+      queryFn: () =>
+        backendFetch<ReturnsOf<'sandbox_devices/queries:joinTokenStatus'>>(
+          `/sandbox-devices/join-tokens/${encodeURIComponent(tokenId)}`,
+          { orgId },
+        ),
+      refetchInterval: 3_000,
     };
   },
   'sandbox_devices/queries:list': (args, ctx) => {
@@ -1080,6 +1101,9 @@ function invalidateConnectorCredentials(
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, CONNECTOR_CREDENTIAL_HINT_ENTITY),
   });
+  void client.invalidateQueries({
+    queryKey: projectCapabilityCatalogKey(orgId),
+  });
 }
 
 /**
@@ -1095,7 +1119,11 @@ function credentialGone(error: unknown): boolean {
 
 /** The Sandboxes list polls every 15 s, and every 2 s while a row's
  * Destroy is under way: the row leaves soon after its job settles. */
-function sandboxListPollInterval(sessions: unknown): number {
+function sandboxListPollInterval(list: unknown): number {
+  const sessions =
+    typeof list === 'object' && list !== null && 'sessions' in list
+      ? list.sessions
+      : undefined;
   const rows: unknown[] = Array.isArray(sessions) ? sessions : [];
   return rows.some(
     (row) =>

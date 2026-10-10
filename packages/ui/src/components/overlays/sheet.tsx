@@ -19,6 +19,9 @@ import {
   type RefObject,
 } from 'react';
 
+import { respectEscapeClaims } from './claims-escape';
+import { PagePointerPin } from './page-pointer-pin';
+
 // Safe-area padding is layered into the design `p-6` via per-edge calc() so
 // the panel's content clears the iOS notch / home indicator / rounded corners
 // in standalone PWAs. `env(safe-area-inset-*)` resolves to 0 on browsers
@@ -229,6 +232,7 @@ export function Sheet({
           style={widthStyle}
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={restoreFocus}
+          onEscapeKeyDown={respectEscapeClaims()}
           // Without a description, opt out of Radix's default
           // `aria-describedby` (which would otherwise point at a
           // `Description` id that is never rendered — a dangling ARIA
@@ -236,6 +240,7 @@ export function Sheet({
           // primitive's handling in `dialog.tsx`.
           {...(description ? {} : { 'aria-describedby': undefined })}
         >
+          <PagePointerPin />
           <DialogPrimitive.Title className="sr-only">
             {title}
           </DialogPrimitive.Title>

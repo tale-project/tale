@@ -73,6 +73,12 @@ interface FileUploadConfig {
    */
   threadId?: string;
   /**
+   * The project a new chat's upload is made in, before its thread exists:
+   * what the upload costs — a recording's transcription — counts toward
+   * it. Ignored once `threadId` names the thread.
+   */
+  projectId?: string;
+  /**
    * Suppress automatic knowledge-base (RAG) indexing for files uploaded
    * through this composer. Set when the active conversation targets an
    * external agent (sandbox sessions like Claude Code): those agents read
@@ -523,6 +529,10 @@ export function useFileUpload(config: FileUploadConfig) {
               ...(config.threadId !== undefined && {
                 threadId: config.threadId,
               }),
+              ...(config.threadId === undefined &&
+                config.projectId !== undefined && {
+                  projectId: config.projectId,
+                }),
               ...(config.disableIndexing && { skipRagIndexing: true }),
             });
 
@@ -630,6 +640,7 @@ export function useFileUpload(config: FileUploadConfig) {
       saveFileMetadata,
       config.organizationId,
       config.threadId,
+      config.projectId,
       config.disableIndexing,
       mergedConfig,
       policyLimits,
@@ -735,6 +746,7 @@ export function useFileUpload(config: FileUploadConfig) {
 
   const clearAttachments = useCallback(() => {
     const clearedAttachments = attachmentsRef.current;
+    attachmentsRef.current = [];
     for (const att of clearedAttachments) {
       if (att.previewUrl) {
         URL.revokeObjectURL(att.previewUrl);

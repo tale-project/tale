@@ -11,7 +11,8 @@
  * The second half pins WHOM a call acts for: the token's own user, or the
  * starter of the live task run on the exec the token names (`connectorCaller`),
  * read from the run on every call, and only while that person is still an
- * active member.
+ * active member — and WHERE it runs: on the platform, never in the calling
+ * sandbox.
  */
 
 import type { Sql } from 'postgres';
@@ -111,6 +112,11 @@ const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
     // The attribution's fallback: a task-agent op stamps no other person.
     return Promise.resolve([]);
   }
+  if (text.includes('FROM app.api_key_owners')) {
+    // A starter who is no member is no team's, project's or organization's
+    // key either.
+    return Promise.resolve([]);
+  }
   if (text.includes('INSERT INTO app.sandbox_tool_calls')) {
     toolCalls.push(values);
     return Promise.resolve([]);
@@ -145,7 +151,7 @@ beforeEach(() => {
   toolCalls = [];
 });
 
-describe('POST /api/connectors/* — request-body cap', () => {
+describe('POST /api/connectors/* — request-body cap [CONN-R6]', () => {
   beforeEach(() => {
     getSessionTokenByHash.mockResolvedValue({
       organizationId: 'org_1',
@@ -279,7 +285,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
   });
 
   it.each(['queued', 'running'])(
-    'runs a task turn’s call for the starter of its %s run',
+    'runs a task turn’s call for the starter of its %s run [CONN-R1]',
     async (status) => {
       runs.set('exec_1', { status, startedBy: 'user_starter' });
       tokenWith(TASK_TURN);
@@ -292,14 +298,65 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
         connector: 'glitchtip',
         action: 'list_import_issues',
         caller: { kind: 'user', userId: 'user_starter' },
-        execSessionId: 'pa-agent_1',
+        // The call is counted as the run's: its starter, under its agent.
+        spender: { userId: 'user_starter', agentSlug: 'agent_1' },
       });
       expect(toolCalls).toHaveLength(1);
       expect(toolCalls[0]).toContain('user_starter');
     },
   );
 
-  it('acts for the member a REST start named (the api-key door)', async () => {
+  it('runs the action’s live body on the platform, never in the calling sandbox [CONN-R13]', async () => {
+    tokenWith(TASK_TURN);
+
+    await post('/execute', LIST_ISSUES);
+
+    // No session for the body to run in: the door runs it in process, so
+    // the credential never reaches a program in the agent's own session.
+    expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'live',
+    });
+    expect(runConnectorAction.mock.calls[0]?.[1]).not.toHaveProperty(
+      'execSessionId',
+    );
+  });
+
+  it('runs at most four of a session’s calls at once and stores no files [CONN-R14]', async () => {
+    tokenWith(TASK_TURN);
+    const pending: Array<() => void> = [];
+    runConnectorAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(() => resolve({ status: 'ok', output: [] }));
+        }),
+    );
+
+    const running = Array.from({ length: 4 }, () =>
+      post('/execute', LIST_ISSUES),
+    );
+    await vi.waitFor(() => expect(pending).toHaveLength(4));
+    const refused = await post('/execute', LIST_ISSUES);
+
+    expect(await refused.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'busy' }],
+    });
+    expect(runConnectorAction).toHaveBeenCalledTimes(4);
+    for (const call of runConnectorAction.mock.calls) {
+      expect(call[1]).toMatchObject({ storeFiles: false });
+    }
+
+    // A call that answered gives its place back.
+    pending.shift()?.();
+    await running[0];
+    const next = post('/execute', LIST_ISSUES);
+    await vi.waitFor(() => expect(pending).toHaveLength(4));
+    for (const finish of pending) finish();
+    await Promise.all([...running.slice(1), next]);
+    expect(runConnectorAction).toHaveBeenCalledTimes(5);
+  });
+
+  it('acts for the member a REST start named (the api-key door) [CONN-R1]', async () => {
     runs.set('exec_1', { status: 'running', startedBy: 'api-key:user_1' });
     tokenWith(TASK_TURN);
 
@@ -310,7 +367,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     });
   });
 
-  it('runs a user-keyed token’s call for its own user', async () => {
+  it('runs a user-keyed token’s call for its own user [CONN-R1]', async () => {
     tokenWith({ userId: 'user_1' });
 
     const res = await post('/execute', LIST_ISSUES);
@@ -319,6 +376,8 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
       caller: { kind: 'user', userId: 'user_1' },
     });
+    // Counted as its own user's: no run names anyone else.
+    expect(runConnectorAction.mock.calls[0]?.[1]).not.toHaveProperty('spender');
     // A user-keyed token has no run to read.
     expect(
       queries.some((text) => text.includes('app.project_agent_runs')),
@@ -330,7 +389,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     ['the automation sentinel', AUTOMATION_SUBJECT_ID],
     ['a door no reader knows', 'webhook:x'],
   ])(
-    'refuses a task run %s started, naming how to start one that acts for a member',
+    'refuses a task run %s started, naming how to start one that acts for a member [CONN-R3]',
     async (_label, startedBy) => {
       runs.set('exec_1', { status: 'running', startedBy });
       tokenWith(TASK_TURN);
@@ -351,7 +410,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
   );
 
   it.each(['settled', 'failed', 'cancelled'])(
-    'refuses a token whose run has %s, before reading anyone’s membership',
+    'refuses a token whose run has %s, before reading anyone’s membership [CONN-R4]',
     async (status) => {
       runs.set('exec_1', { status, startedBy: 'user_starter' });
       tokenWith(TASK_TURN);
@@ -371,7 +430,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     },
   );
 
-  it('refuses the token of an exec its run has moved off (a steer restart)', async () => {
+  it('refuses the token of an exec its run has moved off (a steer restart) [CONN-R4]', async () => {
     // The run now lives on exec_2; the token still names exec_1.
     runs = new Map([
       ['exec_2', { status: 'running', startedBy: 'user_starter' }],
@@ -400,7 +459,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
       { connectorCaller: { kind: 'task-run', execId: '' } },
     ],
   ])(
-    'refuses a token that %s, with both lanes’ remedies',
+    'refuses a token that %s, with both lanes’ remedies [CONN-R3]',
     async (_label, scope) => {
       tokenWith(scope);
 
@@ -416,7 +475,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     },
   );
 
-  it('refuses a starter who is no longer a member of the organization', async () => {
+  it('refuses a starter who is no longer a member of the organization [CONN-R5]', async () => {
     members.delete('user_starter');
     tokenWith(TASK_TURN);
 
@@ -433,7 +492,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
   });
 
   it.each(['disabled', 'Disabled'])(
-    'refuses a starter whose membership is %s',
+    'refuses a starter whose membership is %s [CONN-R5]',
     async (role) => {
       members.set('user_starter', role);
       tokenWith(TASK_TURN);
@@ -448,7 +507,7 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
     },
   );
 
-  it('checks the grant first, as before, before looking at the caller', async () => {
+  it('checks the grant first, as before, before looking at the caller [CONN-R2]', async () => {
     tokenWith(TASK_TURN);
 
     const body = await refusal(

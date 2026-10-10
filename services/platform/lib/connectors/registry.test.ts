@@ -55,6 +55,19 @@ describe('connector registry', () => {
     expect(def?.connector?.outputSignature).toContain('number');
   });
 
+  it('carries the connector and the localized title for display, nothing the engine reads', () => {
+    const display = nodeTypes().get(nodeTypeFor('github', 'list_issues'))
+      ?.connector?.display;
+    expect(display).toEqual({
+      connector: 'github',
+      title: 'List issues',
+      i18n: {
+        de: { title: 'Issues auflisten' },
+        fr: { title: 'Lister les issues' },
+      },
+    });
+  });
+
   it('marks write actions as effectful and read actions as not', () => {
     expect(
       nodeTypes().get(nodeTypeFor('github', 'create_issue'))?.connector

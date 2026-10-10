@@ -82,6 +82,8 @@ export type DeploymentColor = 'blue' | 'green';
 export interface ServiceConfig {
   version: string;
   registry: string;
+  /** Exact platform digest admitted by the automation protocol fence. */
+  platformImage?: string;
 }
 
 /**
@@ -195,6 +197,17 @@ export const THIRD_PARTY_IMAGES = {
 } as const satisfies Partial<Record<ServiceName, string>>;
 
 /**
+ * The pull-through registry mirror the spawner runs beside each
+ * organization's buildkitd: stock registry 2.8.3, pinned by digest so every
+ * host runs the same bytes. It is no compose service — the spawner pulls it at
+ * runtime from `SANDBOX_BUILDKITD_MIRROR_IMAGE`, and this is that variable's
+ * default in both compose pipelines and in the spawner's own config
+ * (`services/sandbox/src/config.ts`).
+ */
+export const BUILDKITD_MIRROR_IMAGE =
+  'registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8';
+
+/**
  * A single-architecture image needs the same selection in Compose and the
  * deploy pre-pull. ARM hosts also need amd64 emulation already configured.
  * Remove this exception once the object-store pin has a native arm64 build.
@@ -223,11 +236,17 @@ export function imageRepoForService(
 
 /** The full image reference a service runs under the given registry+version. */
 export function imageRef(
-  config: Pick<ServiceConfig, 'registry' | 'version'>,
+  config: Pick<ServiceConfig, 'registry' | 'version' | 'platformImage'>,
   service: ServiceName,
 ): string {
   if (service in THIRD_PARTY_IMAGES) {
     return THIRD_PARTY_IMAGES[service as keyof typeof THIRD_PARTY_IMAGES];
   }
+  if (
+    config.platformImage &&
+    (service === 'platform' ||
+      (BACKEND_TIER_SERVICES as readonly string[]).includes(service))
+  )
+    return config.platformImage;
   return `${config.registry}/${imageRepoForService(service as Exclude<ServiceName, keyof typeof THIRD_PARTY_IMAGES>)}:${config.version}`;
 }

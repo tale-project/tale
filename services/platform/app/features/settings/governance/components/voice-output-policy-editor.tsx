@@ -13,6 +13,7 @@ import { createConfigParser } from '../config-parser';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface VoiceOutputPolicyEditorProps {
   organizationId: string;
@@ -31,7 +32,7 @@ const parseConfig = createConfigParser(voiceOutputConfigSchema, () => ({
 // wrapped in `<Skeletonize>`. The skeleton-aware `<Switch>` masks itself to its
 // exact track size while loading.
 // =============================================================================
-export function VoiceOutputPolicyEditor({
+function VoiceOutputPolicyEditorContent({
   organizationId,
 }: VoiceOutputPolicyEditorProps) {
   const { t } = useT('governance');
@@ -95,3 +96,8 @@ export function VoiceOutputPolicyEditor({
     </Skeletonize>
   );
 }
+
+export const VoiceOutputPolicyEditor = withGovernancePolicyReadBoundary(
+  VoiceOutputPolicyEditorContent,
+  'voice_output',
+);

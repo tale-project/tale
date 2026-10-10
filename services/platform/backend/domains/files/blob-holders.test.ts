@@ -60,7 +60,7 @@ function rendered(fragment: Fragment): Rendered {
   return fragment as unknown as Rendered;
 }
 
-describe('blobRefHeld', () => {
+describe('blobRefHeld [FILE-R9]', () => {
   it('holds the bytes for a file row, a document (current or retained) or a listed holder of the org', () => {
     const sql = tag();
     const held = rendered(blobRefHeld(sql, 'org_1', sql`i.s3_ref`));
@@ -97,7 +97,7 @@ describe('blobRefHeld', () => {
   });
 });
 
-describe('listedBlobRefHeld', () => {
+describe('listedBlobRefHeld [FILE-R9]', () => {
   it('lists a task, a pending outbound mail and a user’s chat message of the org (#4111)', () => {
     const sql = tag();
     const held = rendered(listedBlobRefHeld(sql, 'org_1', sql`r.ref`));

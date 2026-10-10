@@ -65,13 +65,18 @@ vi.mock('../hooks/actions', () => ({
 
 import { RagStatusBadge } from './rag-status-badge';
 
+// What the backend sends for an indexing that completed at 10:00Z on
+// 28 September 2026: both producers stamp `Date.now()` into
+// `rag_indexed_at_ms`, and the views pass it through unchanged.
+const INDEXED_AT_MS = Date.parse('2026-09-28T10:00:00.000Z');
+
 describe('RagStatusBadge', () => {
   describe('accessibility', () => {
     it('passes axe audit with completed status', async () => {
       const { container } = render(
         <RagStatusBadge
           status="completed"
-          indexedAt={1700000000}
+          indexedAt={INDEXED_AT_MS}
           documentId="doc-1"
         />,
       );
@@ -122,6 +127,49 @@ describe('RagStatusBadge', () => {
         <RagStatusBadge status="unsupported" documentId="doc-1" />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  // #3603: the badge read the stamp as seconds and multiplied it by 1000
+  // again, so the Indexed dialog dated the indexing in the year 58711.
+  describe('indexed date', () => {
+    const openIndexedDialog = () => {
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'documents.rag.dialog.indexed.title',
+        }),
+      );
+      return screen.getByRole('dialog');
+    };
+
+    it('dates the dialog from the epoch milliseconds the backend sends', () => {
+      render(
+        <RagStatusBadge
+          status="completed"
+          indexedAt={INDEXED_AT_MS}
+          documentId="doc-1"
+        />,
+      );
+      expect(openIndexedDialog()).toHaveTextContent('2026-09-28T10:00:00.000Z');
+    });
+
+    // A missing stamp reads as unknown, and so does one the shared epoch-ms
+    // bound refuses: no `Date` holds 9e15, so it would print "Invalid Date".
+    it.each([
+      ['no stamp', undefined],
+      ['a negative stamp', -1],
+      ['a stamp past the latest Date', 9e15],
+    ])('reads %s as an unknown date', (_case, indexedAt) => {
+      render(
+        <RagStatusBadge
+          status="completed"
+          indexedAt={indexedAt}
+          documentId="doc-1"
+        />,
+      );
+      expect(openIndexedDialog()).toHaveTextContent(
+        'documents.rag.status.unknown',
+      );
     });
   });
 
@@ -302,5 +350,33 @@ describe('RagStatusBadge', () => {
       // The dialog is portaled outside the render container.
       await checkAccessibility(document.body);
     });
+  });
+});
+
+describe('RagStatusBadge for a file a usage limit parked', () => {
+  it('says it waits for the limit, in the reader’s language, and keeps the retry', () => {
+    render(
+      <RagStatusBadge
+        status="failed"
+        errorCode="usage_limit"
+        error="Usage limit reached. Your monthly cost limit is used up until 2026-11-01T00:00:00.000Z. Indexing resumes by itself once the limit allows it."
+        documentId="doc-1"
+      />,
+    );
+    expect(
+      screen.getByText('documents.rag.status.usageLimit'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('documents.rag.status.failed'),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'documents.rag.dialog.usageLimit.title',
+      }),
+    );
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
+      'documents.rag.dialog.usageLimit.description',
+    );
+    expect(screen.queryByText(/Usage limit reached/)).not.toBeInTheDocument();
   });
 });

@@ -22,7 +22,7 @@ const throwingResolver = async (): Promise<{ address: string }[]> => {
 const emptyResolver = async (): Promise<{ address: string }[]> => [];
 
 describe('assertSafeUrl', () => {
-  describe('cheap string-level checks (run before DNS)', () => {
+  describe('cheap string-level checks (run before DNS) [VID-R1]', () => {
     it('rejects malformed URLs as invalidUrl', async () => {
       // The shared isSafeVideoUrl path catches this; we just confirm the
       // error kind so future refactors don't downgrade the reason code.
@@ -98,7 +98,7 @@ describe('assertSafeUrl', () => {
     });
   });
 
-  describe('DNS-layer checks (load-bearing defense)', () => {
+  describe('DNS-layer checks (load-bearing defense) [VID-R2]', () => {
     it('rejects when every A/AAAA record is private (full set rebind)', async () => {
       await expect(
         assertSafeUrl('https://evil.example.com/x', {

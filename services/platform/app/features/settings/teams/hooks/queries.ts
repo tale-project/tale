@@ -9,6 +9,7 @@ import {
   type MyTeamRow,
   type TeamDirectoryEntry,
 } from '@/app/lib/backend/org';
+import { readStateOf } from '@/app/lib/backend/read-state';
 
 export type Team = MyTeamRow;
 
@@ -45,22 +46,30 @@ export function useTeamNames(): {
   return { nameOf, isLoading, teams };
 }
 
+/**
+ * The signed-in member's own teams, with how the read stands
+ * (`readStateOf`): a failed read is the caller's to name and retry, never a
+ * membership of no teams (#3847).
+ */
 export function useTeams() {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     ...myTeamsQuery(organizationId ?? ''),
     enabled: !!organizationId,
   });
+  const { refetch } = query;
 
   return {
-    teams: data ?? undefined,
-    isLoading,
+    teams: query.data ?? undefined,
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry: () => void refetch(),
   };
 }
 
 export function useOrgTeams() {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const { data, isLoading, isError, isFetching, refetch } = useBackendQuery(
     'members/queries:listOrgTeams',
     organizationId ? { organizationId } : 'skip',
   );
@@ -68,6 +77,9 @@ export function useOrgTeams() {
   return {
     teams: data ?? undefined,
     isLoading,
+    isError,
+    isFetching,
+    refetch,
   };
 }
 

@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 116 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 159 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -71,14 +71,18 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   never a tab.
 - [ ] `TASK-F2` · **Create a task** — In either view: header **Create task**
   (`tasks.actions.create`) → **Title** (`tasks.fields.title`) → submit → Toast
-  **Task created** (`tasks.actions.created`); the card lands in **To do**
-  (`tasks.status.todo`, the create default) and is present in **both** views
-  and after reload; the same header button is the only create affordance (no
-  per-lane +)
+  **Task created** (`tasks.actions.created`) with **Open**
+  (`tasks.actions.openCreated`); the card lands in **To do**
+  (`tasks.status.todo`, the create default) at **Medium** priority
+  (`tasks.priority.p2`) with today as **Start date** (`tasks.startDate.label`),
+  and is present in **both** views and after reload; on the board each lane
+  also creates in its own status (TASK-F74)
 - [ ] `TASK-F3` · **Board lanes** — `…/tasks/board` → Six lanes render in
   order — **Backlog / To do / In progress / In review / Done / Cancelled**
-  (`tasks.status.backlog` … `tasks.status.cancelled`); an empty lane shows
-  **No tasks** (`tasks.board.noTasks`) and still accepts drops.
+  (`tasks.status.backlog` … `tasks.status.cancelled`), each headed by its
+  status glyph, word and count; an empty lane still accepts drops and shows
+  **Add task** (`tasks.board.addTask`) to a viewer who may create, **No tasks**
+  (`tasks.board.noTasks`) to one who may not.
 - [ ] `TASK-F4` · **Board drag-and-drop** — Drag a card across lanes (e.g. To
   do → In progress → Done), including into an empty lane → The card re-homes
   and the new status survives reload **and** shows in the list view; dragging
@@ -134,11 +138,14 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (**Comment**, `tasks.actions.comment`) containing `@` → the mention listbox
   (`tasks.mentionPicker.title`) → pick a member; edit then delete a comment →
   The listbox offers only actors with project access (members + this project's
-  agents, `tasks.assignee.agents` section); the posted comment renders the
-  mention highlighted; a mentioned agent shows the preview chip **{slug} will
+  agents, `tasks.assignee.agents` section); the field shows the picked
+  member's name; the posted comment renders the mention as a chip; a mentioned agent shows the preview chip **{slug} will
   respond** (`tasks.mentionPreview.willRespond`); an edited comment is marked
   (`tasks.comment.edited`); delete confirms (`tasks.comment.deleteConfirm`);
-  the thread survives reload (`tasks.detail.comments`)
+  the conversation survives reload (`tasks.detail.conversation`). On a task assigned to
+  an agent, the composer explains that mentioning the assigned agent sends
+  feedback to its current run when it is working
+  (`tasks.actions.commentAgentHint`).
 - [ ] `TASK-F34` · **Mentions in the description** — With a second member B
   and a project agent: **Create task** (`tasks.actions.create`) with a
   **Description** (`tasks.fields.description`) that mentions the agent, then
@@ -217,16 +224,16 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   NO `[task-agent] --resume launch … failed — restarting fresh` line for the
   run (that line = the fresh fallback, expected only when the previous
   conversation is gone). Setting **Done** completes the review: the status
-  change is attributed to you in Activity (the audit trail records the action
+  change is attributed to you in the task's conversation (the audit trail records the action
   task.review_responded with your response), the task
   reaches **Done** after reload, and any project **editor** can decide — the
   gate is not locked to one reviewer; pending review notifications clear
   ([notifications.md](notifications.md) NOTIF-F7b/NOTIF-F7c)
-- [ ] `TASK-F16` · **Activity timeline & archive** — Sheet → **Activity**
-  (`tasks.detail.activity`); then **Archive** (`tasks.actions.archive`) →
-  confirm (`tasks.archive.confirmTitle`); restore via list + **Show archived**
-  → **Restore** (`tasks.actions.restore`) → The timeline records
-  status/assignee changes, comments, and dependency edits
+- [ ] `TASK-F16` · **History & archive** — Read the task's conversation; then
+  **Archive** (`tasks.actions.archive`) → confirm
+  (`tasks.archive.confirmTitle`); restore via list + **Show archived** →
+  **Restore** (`tasks.actions.restore`) → The conversation records
+  status/assignee changes and dependency edits as lines between the comments
   (`tasks.activity.*`), and labels agent runs (`tasks.timeline.runLabel`) with
   their trigger and cost; archiving toasts `tasks.archive.success` and removes
   the card from the default views; restoring (`tasks.archive.restoreSuccess`)
@@ -237,8 +244,9 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Unassign** (`tasks.assignee.unassign`); write a **Description** and clear
   it; rename the task to `todo` and then to `done`; move it from **To do** to
   **Done**. Meanwhile a second member keeps the same task open (its **Copy
-  link** link, pasted in their own session). Then read **Activity**
-  (`tasks.detail.activity`) in English, **Deutsch** and **Français** → Setting
+  link** link, pasted in their own session). Then read the history lines in
+  the task's conversation (open their **N updates** fold,
+  `tasks.timeline.updates`) in English, **Deutsch** and **Français** → Setting
   the date reads **due date changed: No due date → 10/01/2026**, and each clear
   reads as the old value and then its absence: **due date changed: 10/01/2026
   → No due date** (`tasks.activity.empty.dueDate`), **Unassigned**
@@ -496,7 +504,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   dates** (`tasks.repeat.nextDueDates`) lists the three due dates after this
   one; the card on **Board** and the row on **List** show the repeat icon,
   whose tooltip reads **Repeats: Weekly on {weekday}**
-  (`tasks.repeat.indicator`); Activity records one **Repeat changed**
+  (`tasks.repeat.indicator`); the history records one **Repeat changed**
   (`tasks.activity.repeatChanged`) from **Never** to the rule per pick; the
   rule, the due date and the icon survive a reload. The created task carries
   **Daily** with today as its due date.
@@ -513,13 +521,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   description, priority, labels, assignee, reviewer, attachments (the file
   opens) and repeat, a due date one week after the closed one and a start date
   two days before that — and no comments, no **Blocked by** link and no
-  **Deliverables** (`tasks.outputs.label`); its Activity opens with **Created**
+  **Deliverables** (`tasks.outputs.label`); its history opens with **Created**
   (`tasks.activity.created`). The closed task stays in **Done**; its card loses
   the repeat icon, which the copy now carries; its **Repeat** still reads the
   rule but opens nothing, its tooltip ending **This series continues on {key}.
   Change the repeat there.** (`tasks.repeat.reason.continued`), and under it
   **Next task: {key}** (`tasks.repeat.nextTask`) opens the copy, with **Stop
-  repeating** (`tasks.repeat.stop.action`) beside it; its Activity records
+  repeating** (`tasks.repeat.stop.action`) beside it; its history records
   **Next task created** (`tasks.activity.repeatNext`) naming that key — all
   after a reload. Dragging another repeating card into **Done** on the board
   brings back one copy and the toast the same way.
@@ -537,7 +545,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Save**. After it the popover closes, the trigger reads **Every 2 weeks**,
   followed by **· Tue, Thu** only where the column has room (the tail drops
   whole, never cut mid-word), the card's tooltip reads the whole sentence, and
-  Activity has exactly one **Repeat changed** row for the session; after a
+  the history has exactly one **Repeat changed** line for the session; after a
   reload **Custom** reopens on 2, weeks, Tuesday and Thursday. **Month** asks
   **On day** (`recurrence.editor.onDay`) with the due date's day and, from 29
   up, notes **Shorter months use their last day.**
@@ -594,7 +602,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   any subtasks, also after a reload, while the closed task's **Repeat** reads
   **Never** with neither a **Next task** link nor **Stop repeating**, its
   tooltip **This series has stopped.**
-  (`tasks.repeat.reason.stopped`), and its Activity records **Repeat
+  (`tasks.repeat.reason.stopped`), and its history records **Repeat
   changed** to **Never**; reopened, its **Repeat** stays locked with that
   reason, and closing it again brings back nothing. The second and the third
   read **{key} was already changed, so it stays — it just won't repeat.**
@@ -707,8 +715,8 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
 - [ ] `TASK-F58` · **An open task follows its run** — Keep a task open while
   its agent starts and works → the Run field moves from **Queued**
   (`tasks.agentRun.status.queued`) to **Working…**
-  (`tasks.agentRun.status.running`) to its end, and the run's row under
-  **Activity** changes with it, without a reload.
+  (`tasks.agentRun.status.running`) to its end, and the run's line in the
+  conversation changes with it, without a reload.
 - [ ] `TASK-F59` · **A Gemini CLI task continues after a tool turn** — Set a
   project agent's **Agent type** (`projects.agents.harnessLabel`) to Gemini
   CLI and **Start agent** (`tasks.agentRun.start`) on a task that asks it to
@@ -752,6 +760,167 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **ENVIRONMENT** without a runnable harness.
 
 - [ ] `TASK-F62` · **Let a manager triage without starting work** — As an editor, enable **Change task priority and agent assignment** (`projects.agents.tool.task_update_metadata`) on a project agent, using the keyboard in **Skills, connectors & tools**; save and reopen it → the named option remains checked with its **Writes data** badge and visible focus, fits at desktop and phone widths in EN/DE/FR, and an automation agent node never offers it. Let that manager change an idle task’s priority and agent assignment, then watch the task from a second browser session → both values refresh, the activity names the manager, status and run history stay unchanged, and a reload keeps the values.
+
+- [ ] `TASK-F66` · **Create from the keyboard** — **Create task** → the caret
+  is in the title (placeholder **Task title**, `tasks.fields.titlePlaceholder`)
+  → type a title, press **Enter** → the caret moves to **Description**
+  (`tasks.fields.description`) and nothing is created → type two lines with
+  **Enter** between them → **⌘+Enter** / **Ctrl+Enter** creates the task; the
+  footer reads **⌘ Enter to create** (`tasks.actions.createShortcut`) on a Mac,
+  **Ctrl + Enter to create** elsewhere, and hides it on a touch screen. **Open**
+  in the toast closes the dialog and opens the new task.
+- [ ] `TASK-F67` · **Create another** — **Create task** → switch on **Create
+  another** (`tasks.actions.createAnother`) → set Priority **High**, an
+  assignee and a label, type a title and a description, attach a file →
+  **Create task** → the dialog stays open, title, description and file are
+  cleared, Priority, assignee, label, dates and Status are kept, the caret is
+  in the title, and the toast offers **Open** → create a second task the same
+  way → both cards carry the kept fields. Close and reopen the dialog, also
+  after a reload: the switch is still on. The chat's **Create task** hand-over
+  shows no switch.
+- [ ] `TASK-F68` · **Open a task from its dialog as a page** — Open a task from
+  the board → **Open as page** (`tasks.detail.openPage`, the expand icon left
+  of **Close**) → `/dashboard/{org}/tasks/{taskId}` shows the same task, with
+  an unsent comment still in its box → browser **Back** → the board with the
+  same task's dialog open. Open a subtask inside the dialog, then **Open as
+  page** → the subtask's page. ⌘/Ctrl-click the icon → the page opens in a new
+  tab and the dialog stays. At 390 px the drawer shows the icon beside its X.
+- [ ] `TASK-F69` · **The dialog's header reads like the page** — Open a task
+  from the board → its header shows the status glyph tile, the title and one
+  line **project · key · status**; clicking the key copies it
+  (`tasks.detail.copyKey`); **Copy link** (`tasks.detail.copyLink`) copies
+  `/dashboard/{org}/tasks/{taskId}` (not the board address) and confirms with
+  **Link copied** (`tasks.detail.linkCopied`). An archived task shows its badge
+  on that line.
+- [ ] `TASK-F70` · **Who said it, at a glance** — On a task where you, a
+  teammate and an agent have commented → your comments sit on the right as
+  bubbles; the teammate's and the agent's read on the left under their avatar
+  and name, the agent's with **Agent** (`tasks.comment.agentBadge`), each with
+  a clock time under the day pill; a second comment by the same person within
+  five minutes joins the first without repeating the name. Hovering a comment
+  shows its Edit and Delete icons (yours only, or Delete for an admin); on a
+  phone they stay visible.
+- [ ] `TASK-F71` · **A long agent report reads short first** — On a task with
+  an agent comment of 3,000+ characters → it shows its first lines fading out
+  and **Read more** (`common.actions.readMore`) → pressing it opens the rest in
+  place and turns into **Show less** (`common.actions.showLess`), which folds it
+  back and keeps the button in view. Browser find-in-page still finds a word
+  from the folded part. A short comment shows no button.
+- [ ] `TASK-F72` · **Bursts of history fold** — After four or more status
+  changes, reassignments or failed runs in a row → they read as one line
+  **N updates** (`tasks.timeline.updates`) with who made them and when; pressing
+  it lists each one with its own glyph, and pressing again folds them. In
+  German each change keeps its own casing, e.g. **Status geändert: …**, never
+  lowercased.
+- [ ] `TASK-F85` · **One face per person** — Assign a task to a teammate,
+  have them comment on it, and open a customer conversation from a contact
+  with a name → the teammate's initials sit in the same tinted circle on the
+  board card, in **Assignee**, beside their comment and in Home; a task
+  assigned to you shows the filled primary circle; an agent shows its bot on
+  the soft primary tint and an unassigned slot a dashed outline, in light and
+  dark.
+- [ ] `TASK-F73` · **The board's dialog reads like the task's page** — Open a
+  task with a description, comments by you, a teammate and an agent, and some
+  history from the board, then open the same task from Home → both show the
+  brief as a card first, then one conversation (oldest first under day pills,
+  history lines between the comments) and the comment box pinned under it; a
+  long task opens on its latest message with the brief one scroll up, a short
+  one shows everything from the top; a comment sent in one appears in the
+  other without a reload. On a phone the dialog's drawer scrolls as one
+  column: brief, conversation, comment box, then the details.
+- [ ] `TASK-F84` · **What the agent cost** — On a task whose agent ran at
+  least twice at a cost → **Details** shows **Agent cost**
+  (`tasks.agentRuns.costLabel`) with the total (`tasks.agentRuns.totalCost`),
+  the sum of the costs on the runs' lines in the conversation, in the board's
+  dialog and on the task's page; reassign the task to a person → the total
+  stays; a task whose runs cost nothing shows no such row.
+- [ ] `TASK-F78` · **Mention by name, saved as whom it names** — With a
+  project agent named "My Opus Agent #3" and a second member B, type
+  `@my opus` in a task comment → the listbox (`tasks.mentionPicker.title`)
+  offers the agent with the caption **@my-opus-agent-3 · Agents**
+  (`tasks.assignee.agents`), and `@my-opus-agent-3`, B's name and B's email
+  find them too; pick both → the field shows **@My Opus Agent #3** and B's
+  name on a tint, never an id or a handle; send → the comment shows both as
+  chips with those names (hovering the agent's shows its handle), B's bell
+  shows **You were mentioned** (`inbox.mention`), and a reload reads the same.
+- [ ] `TASK-F79` · **A rename follows every mention** — After TASK-F78, rename
+  the agent "Release Reviewer" on the project's Agents tab, then reopen the
+  task → the earlier comment, and a description that mentions the agent, read
+  **@Release Reviewer**; editing that comment shows the new name in the field;
+  `@release` in the composer finds the agent with the caption
+  **@release-reviewer**, and `@my-opus-agent-3` finds nobody.
+- [ ] `TASK-F80` · **Edit around mentions** — Edit a comment that mentions two
+  people → both names show on a tint; Backspace right after one removes the
+  whole name in one keystroke and a screen reader hears **Removed the mention
+  of {name}** (`mentions.removed`); typing inside the other turns it into plain
+  words (the tint goes); ⌘/Ctrl+Z brings the removed name back on its tint;
+  save → only a person the edit newly mentions gets a bell. Repeat on an
+  iPhone and on an Android phone with Gboard: the tint sits exactly on the
+  name while typing and scrolling, a deletion that reaches into a name removes
+  all of it, and an autocorrect never rewrites a name; with VoiceOver the
+  field reads as the plain text with the names, and keyboard-only picking
+  works.
+
+- [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
+  lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with
+  Status **In progress** → in the **Backlog** lane press **Add task**
+  (`tasks.board.addTask`), type a title, **Enter** → the card appears at the
+  lane's end with Medium priority, the field stays open and focused for the
+  next title; **Esc** closes it, and leaving it empty closes it too. With the
+  board filtered to **Priority: High** and an assignee, a task added this way
+  carries both. A reader of an archived project sees neither control.
+- [ ] `TASK-F75` · **A card says what is happening** — Open the board with a
+  task whose agent is running → it shows **{agent} is working**
+  (`tasks.board.agentWorking`) under its
+  title with a pulsing glyph; one whose agent asked a question shows **Waiting
+  for your answer** instead; one at the review gate shows **Waiting on you** or
+  **Waiting on {name}**. An agent-assigned card names its agent beside the
+  avatar. The card's title reads the same sentence to a screen reader.
+- [ ] `TASK-F76` · **Fold the finished lanes** — On a board with tasks in
+  **Done** and **Cancelled**, hover **Done** → beside **+** a fold icon
+  (**Collapse Done**, `tasks.board.collapseLane`); select it, then fold
+  **Cancelled** → each turns into a narrow rail with its glyph, its count and
+  its name standing on end, and the other lanes keep their width; reload and
+  open another project's board → this board keeps its rails, the other board
+  its own lanes. Drag a card from **In review** onto the **Done** rail → the
+  rail lights up while the card is over it, the drop moves the task to
+  **Done** and the rail's count grows. Select the rail (**Expand Done**,
+  `tasks.board.expandLane`) → the lane opens with its cards. Before the cards
+  load, the placeholder already shows the rails.
+
+### One agent on several tasks
+
+These boxes need a project agent that can run, and an Owner or Admin who can
+set **Agent workers** (`sandboxes.quota.budgets.project`) under
+`/dashboard/{org}/settings/sandboxes`; leave it at 2 unless a box says
+otherwise. Mark them **ENVIRONMENT** without a runnable harness.
+
+- [ ] `TASK-F81` · **One agent works two tasks at once** — Start the same
+  agent on two tasks → both Run rows read **Working…**
+  (`tasks.agentRun.status.running`) at the same time and each task gets its
+  own report; on `/dashboard/{org}/settings/sandboxes` the agent has two
+  rows, its name over **Worker 1** and **Worker 2**
+  (`sandboxes.worker.agent`), each naming its own task under **Current
+  tasks** (`sandboxes.columns.task`).
+- [ ] `TASK-F82` · **A third start waits for a worker, then starts on its
+  own** — With both workers of `TASK-F81` busy, start the agent on a third
+  task → its Run row and its timeline row read **Waiting for a worker**
+  (`tasks.agentRun.waiting.org_limit`) with the sentence that all agent
+  workers are busy (`tasks.agentRun.waitingWhy.org_limit`), and no retry
+  caption appears. Let one of the first two finish → the third reads
+  **Working…** without a reload and without anyone pressing **Start agent**,
+  in the worker the finished run left: no **Worker 3** row appears. Start a
+  fourth task and, while it waits, press **Cancel run**
+  (`tasks.agentRun.cancel`) → it is cancelled without having worked; start
+  it again and, while it waits, assign the task to another agent → the
+  reassignment goes through and the waiting run is cancelled.
+- [ ] `TASK-F83` · **A manager starts a busy agent** — With the manager of
+  `TASK-F53`, while the second agent works one task, have the manager start
+  it on another → the answer is `started`, the second task's timeline lists
+  the delegated run (`tasks.agentRuns.trigger.delegated`) and shows no **Run
+  refused** (`tasks.activity.agentRunRefused`) row, and both tasks are
+  worked at once. Ask the manager to start itself on a further task → the
+  answer is `self_start` and nothing starts.
 
 ## Boundary & error tests
 
@@ -867,7 +1036,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   again its **Repeat** stays locked with **This series continues on {key}.**
   (`tasks.repeat.reason.continued`) and its card shows no repeat icon, and the
   hand-built rule answers 400 `TASK_REPEAT_INVALID` with `This task already
-  created its next task` — its **Repeat** keeps the rule it had and Activity
+  created its next task` — its **Repeat** keeps the rule it had and the history
   gains no **Repeat changed** row, also after a reload; **Next task** still
   names the copy `TASK-F38` brought back.
 - [ ] `TASK-B13` · **Cancelled continues the series too** — Move a repeating
@@ -888,7 +1057,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
 - [ ] `TASK-B15` · **Never stops the series** — On an open copy choose
   **Repeat** → **Never** (`recurrence.never`), then set it to **Done** → The
   repeat icon leaves the card, the trigger reads **Never** in muted text, and
-  Activity records **Repeat changed** from the rule to **Never**; closing
+  the history records **Repeat changed** from the rule to **Never**; closing
   brings back no copy and no toast; the tasks closed earlier keep their locked
   repeat and their **Next task** link, and the one right before the copy no
   longer offers **Stop repeating** (`tasks.repeat.stop.action`), its tooltip
@@ -921,7 +1090,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   task, so it doesn't repeat.** (`tasks.repeat.reason.automation`) — the first
   row inside **More fields** (`tasks.detail.moreFields`) once the task shows
   its automation, else under **Due date** — its card loses the repeat icon, and
-  Activity records **Repeat changed** from the rule to **Never**, also after a
+  the history records **Repeat changed** from the rule to **Never**, also after a
   reload; the cancel brings back no copy and no toast; in the dialog **Repeat**
   stays in place but locks, reading **Never** with the same reason, once the
   automation is picked, and the created task's card shows no repeat icon.
@@ -969,7 +1138,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   it, change the step in **Custom** and press **Cancel**
   (`common.actions.cancel`); last, on **Year** open the month list and press
   Escape → Each time the popover closes with focus back on the trigger, the
-  trigger, its icon and **Next due dates** read the saved rule, and Activity
+  trigger, its icon and **Next due dates** read the saved rule, and the history
   gains no **Repeat changed** row, also after a reload; Escape in the month
   list closes only the list, leaving the Custom view open with its draft.
 - [ ] `TASK-B22` · **A due-date series stops at 10 open tasks** — On a task
@@ -991,7 +1160,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (`tasks.repeat.becomesDue`), and the checkbox is described by **No due date:
   its next task is dated from the day this one closes.**
   (`tasks.repeat.noDueDateSaved`); clicking **Daily** closes the popover and
-  writes nothing — **Due date** stays empty and Activity gains no **Repeat
+  writes nothing — **Due date** stays empty and the history gains no **Repeat
   changed** row, also after a reload; ticking brings **This task becomes due on
   {date}.** naming today and the description **This one is already due, so the
   next task is created right away.** (`tasks.repeat.onDue.descriptionNow`),
@@ -1045,6 +1214,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   image model; the run itself still settles. Restore: delete the rule —
   env-gated: mark **ENVIRONMENT** without a runnable harness and an
   image-capable credential.
+- [ ] `TASK-B28` · **A Request changes draft stays with its task** — On an
+  automation-owned task parked **In review** whose automation offers
+  **Request changes** (`tasks.subject.requestChanges`), open it, type feedback
+  under **What should change** (`tasks.subject.requestChangesLabel`) and
+  **Cancel**; open another automation-owned task in review in the same sheet (a
+  subtask, or **Part of**) and open its **Request changes** → the box is empty:
+  feedback written for one task never waits, pre-filled, on another.
 - [ ] `TASK-B32` · **A failed board read** — DevTools → Network → block the
   request URL `*/api/app/tasks/by-project/*`, open **Board**, then **List**;
   unblock and press **Try again** (`common.actions.tryAgain`) → Once the
@@ -1124,7 +1300,75 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   `tasks.assignee.noAgentsReader`. As the owner, give that task to
   **Standard agent**; as the member, **Start agent** (`tasks.agentRun.start`)
   → the toast `tasks.agentRun.standardAgent.noModel` says to ask an Admin,
-  and no run appears under **Activity**. Restore the rule.
+  and no run appears in the task's conversation. Restore the rule.
+- [ ] `TASK-B40` · **An archived task's discussion is read-only** — Post a
+  comment on a task you can change and add a task under **Blocked by**
+  (`tasks.detail.blockedBy`), then archive it (`tasks.actions.archive`) and
+  open it again with **Show archived** (`tasks.list.showArchived`) → the
+  comment still reads, but the task offers no comment field, no **Edit** or
+  **Delete** on the comment and nothing to change under **Blocked by**. A
+  second tab that still shows the task as it was before the archive gets one
+  error toast for a comment it sends, and after reload nothing has landed.
+  **Restore** (`tasks.actions.restore`) → the comment field is back.
+- [ ] `TASK-B50` · **Every waiting reason reads its own words** — Make
+  runs wait for each reason: every agent worker busy (`TASK-F82`), the
+  deployment full (lower `SANDBOX_MAX_SESSIONS` below the running sessions),
+  and the agent's only workspace being destroyed ([settings](settings.md)
+  `SET-B30`) → the Run row and the timeline row read **Waiting for a
+  worker**, **Waiting for room** and **Waiting for a workspace**
+  (`tasks.agentRun.waiting.org_limit`, `….host`, `….destroy_pending`), each
+  with its own sentence (`tasks.agentRun.waitingWhy.*`), in EN, DE and FR.
+  **Manage agent workers** (`tasks.agentRun.manageWorkers`) shows only under
+  the first, only for an Owner or Admin, and opens
+  `/dashboard/{org}/settings/sandboxes`; an Editor reads the same sentence
+  without the link.
+- [ ] `TASK-B51` · **A task's next run goes back to its worker** — On a
+  task the agent finished in **Worker 2**, ask for changes while Worker 2 is
+  free → the run works in Worker 2 again (its row on
+  `/dashboard/{org}/settings/sandboxes` names the task) and continues the
+  agent's conversation. Ask again while Worker 2 works another task → the
+  run takes another worker, starts fresh, and still has the task's
+  description, discussion, attachments and deliverables.
+- [ ] `TASK-B52` · **A member's two runs work in the member's own workers** —
+  As the Member of `TASK-F49`, start the agent on two of their own tasks at
+  once → both work; `/dashboard/{org}/settings/sandboxes` lists the agent
+  over **Member worker 1** and **Member worker 2**
+  (`sandboxes.worker.member`); each run keeps to its task without the
+  agent's secrets as in `TASK-F50`, and neither lands in a **Worker** row of
+  the agent's own.
+
+- [ ] `TASK-B41` · **Dates the server would refuse are named before Create** —
+  **Create task** → keep today's start, pick a due date of yesterday → under the
+  dates **Start date must be on or before the due date.**
+  (`tasks.startDate.afterDue`) shows and **Create task** is unavailable → clear
+  the start date or move the due date → Create works. Start a large upload and
+  press **Create task** at once → it stays unavailable until the file is in.
+- [ ] `TASK-B42` · **A start of today rings nobody** — Create a task with the
+  default start of today, and on another task move the start to yesterday →
+  after the next hourly date sweep the Inbox shows no **starts today** bell
+  for either (`inbox.taskStartReached`); a task whose start you set to tomorrow
+  rings tomorrow.
+- [ ] `TASK-B49` · **A member's run cannot write knowledge entries** — With an
+  agent granted **Add and edit knowledge entries**, sign in as a Member and
+  **Start agent** on your own task asking it to save a fact as a knowledge
+  entry → the run's **Details** shows `knowledge_entry_write` refused as
+  `member_run`, **Knowledge entries** is unchanged, and the agent's report says
+  an editor must save the fact. The same request from an Editor's run saves it.
+- [ ] `TASK-B47` · **Mentions only where they read as mentions** — With B's
+  email name typed as a handle (B = Ada, so `@ada`), post a comment that
+  mentions B in a heading, a table cell, bold text and a list item, and also
+  holds `@ada` in inline code, `@ada` in a fenced code block, "Pay $5 to @ada
+  and $10" and `\@ada` → the heading, cell, bold, list and dollar-sentence
+  mentions render as chips with B's name; the code and the escaped one stay
+  literal text; no **Mention not recognized** toast
+  (`common.mentions.unresolvedTitle`) and no bell come from them.
+- [ ] `TASK-B48` · **A mention of someone gone never shows an id** — Mention a
+  project agent in a comment, then delete the agent; also open an older
+  comment that typed a deleted agent's id after `@` → both show a muted chip,
+  the first with the agent's name and the second reading **@Deleted agent**
+  (`tasks.timeline.deletedAgent`); hovering a chip names why it is muted, a
+  screen reader reads the reason after the name, and no id appears anywhere.
+  In light and dark themes the muted chip's text keeps AA contrast.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -1266,6 +1510,44 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (`tasks.assignee.standardAgent`) is read as an option with its description,
   and the footer `tasks.assignee.standardAgentFooter` as text.
 
+- [ ] `TASK-A16` · **The dialog's header actions by keyboard and screen
+  reader** — Open a task from the board, Tab through the dialog → after the
+  content come **Copy link**, **Open as page** (a link) and **Close**, in that
+  order, each with a visible focus ring and a 32 px target; a screen reader
+  names them in English, German (**Link kopieren**, **Als Seite öffnen**,
+  **Schließen**) and French (**Copier le lien**, **Ouvrir en pleine page**,
+  **Fermer**); Escape still closes the dialog.
+- [ ] `TASK-A17` · **The create dialog by keyboard and screen reader** —
+  **Create task** → the dialog is named **Create task**, the title field
+  **Title** and the switch **Create another** with its on/off state; Space
+  toggles the switch; the schedule message is announced when it appears
+  (`role=alert`).
+- [ ] `TASK-A18` · **Read more and folded history by keyboard** — Tab to
+  **Read more** and to an **N updates** line → each announces its state
+  (collapsed/expanded) and opens with Enter or Space; Tab reaches a comment's
+  Edit and Delete icons, each named, with a visible focus ring.
+- [ ] `TASK-A19` · **The dialog's thread by keyboard** — Open a task from the
+  board and Tab on from its title → focus moves through the brief
+  (description, attachments, subtasks), then the conversation (**Show earlier
+  comments**, a comment's icons, **Read more**, an **N updates** line), then
+  the comment box, then **Details**, each with a visible focus ring; Shift+Tab
+  walks back the same way. A screen reader's headings list names **Overview**
+  (`tasks.detail.overview`) and **Conversation** (`tasks.detail.conversation`),
+  and opening the dialog reads out no comment.
+
+- [ ] `TASK-A20` · **Lane controls by keyboard** — Tab into a lane → its **+**
+  shows on focus with a visible ring and is named **Add task to {status}**;
+  **Add task** opens its field with the caret in it, **Enter** adds and a screen
+  reader hears **Added "{title}"** (`tasks.board.quickAdded`), **Esc** closes it
+  and focus stays in the lane.
+- [ ] `TASK-A21` · **Fold a lane by keyboard** — Tab to **Done**'s fold icon
+  → it shows on focus, is named **Collapse Done** and reads as expanded;
+  **Enter** folds the lane and the focus lands on the rail, named **Expand
+  Done** and read as collapsed; **Enter** opens it again with the focus back
+  on the fold icon. Pick up a card in **In review** with **Space**, press **→**
+  and **Space** → the card drops into the folded **Done**, and a screen reader
+  hears where it landed.
+
 ## Performance
 
 - [ ] `TASK-P1` · **Board first render** → Board or list renders (cards or
@@ -1289,13 +1571,45 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the dialog, the route and the Home panel in the commits, never a card).
   Target: the task shows < 1 s after the click, and the close ends with its
   exit animation.
+- [ ] `TASK-P5` · **A 2,000-task board stays usable** — On a production
+  build, in a project with 2,000 tasks, open **Tasks** from **General**, type
+  a search that narrows the board to a few cards, clear it, then go back to
+  **General** → each shows its result within 3 s, and the tab keeps taking
+  input meanwhile. A lane of more than 40 tasks mounts only the cards in and
+  near its view (DevTools → Elements: about a dozen cards, not hundreds) while
+  its header still counts every task; scrolling it shows the later cards with
+  no blank slot; **Tab** from a card reaches the next card of the same lane
+  past the first screen; a focused card keeps its focus while you scroll its
+  lane away; **Space**, **↓**, **Space** on a card in a long lane drops it one
+  place down and the order holds after a reload. Switch to **List** and repeat
+  → the same holds for a status section of more than 40 tasks, and a long
+  section below another long one shows its rows where the scroll reaches them.
+- [ ] `TASK-P6` · **A long task opens quick** — On a production build, open a
+  task with a 20,000-character description, 400 comments and a long activity
+  history from its board, then close it with **Escape** → the task and its
+  newest comments show < 1 s after the click; **Show earlier comments**
+  (`tasks.detail.showEarlierComments`) adds the next page without freezing the
+  tab and keeps the comment you were reading in place; typing in **Add
+  subtask** or the comment field keeps up with the keys; **Blocked by**,
+  **Blocks** and **Reviewer** open their lists on the first click; a changed
+  description reads as a short excerpt in the conversation, not both whole
+  texts; find-in-page reaches the oldest shown comment. Read back six pages,
+  close the task and open it again → it opens on its newest page again < 1 s
+  after the click, and **Show earlier comments** shows the pages read before
+  at once, without a network request.
 
 ## Independent agent reviews
 
 Use a disposable local project with two different agents: A produced a completed native task run; B has **Review other agents’ task results** (`projects.agents.tool.task_review`) and an authorized live run on its own review task. Keep the implementation task, its source run and pending review intact. Do not start a new run on the implementation task to obtain reviewer authority. A synthetic local integration fixture may provide these states without a model call; record which mode the round used.
 
 - [ ] `TASK-F63` · **Hand the recorded review to an independent agent** — With a human-owned pending review open in two editor sessions, change **Reviewer** (`tasks.fields.reviewer`) to B → the task names B under **Current review** (`tasks.reviewer.pendingFor`), both open task views update, and the former human review drops from **Needs my review** (`tasks.review.needsMyReview`) and Home without a reload. Reload the task → B remains the reviewer, the assignee and status are unchanged, and no new implementation run appears. The actual source agent A is unavailable as a choice with the independence explanation (`tasks.reviewer.independentAgent`), even if the current assignee no longer names A.
-- [ ] `TASK-F64` · **Read an agent verdict and its feedback live** — Keep the implementation task open while B decides its assigned review from B's own task, once with approval and on a separate result with a request for changes → the first task becomes **Done** (`tasks.status.done`), the second **To do** (`tasks.status.todo`), and Activity shows B with **Review decided** (`tasks.activity.reviewResponded`) and **Approved** or **Changes requested** (`tasks.review.decisionApproved`, `tasks.review.decisionChangesRequested`). Feedback appears once with B's identity, the pending review clears, and the result survives reload. Include an agent mention in the request-for-changes feedback → it remains feedback; neither task starts a new run until a separate authorized start.
+- [ ] `TASK-F64` · **Read an agent verdict and its feedback live** — Keep the implementation task open while B decides its assigned review from B's own task, once with approval and on a separate result with a request for changes → the first task becomes **Done** (`tasks.status.done`), the second **To do** (`tasks.status.todo`), and the task's conversation shows B with **Review decided** (`tasks.activity.reviewResponded`) and **Approved** or **Changes requested** (`tasks.review.decisionApproved`, `tasks.review.decisionChangesRequested`). Feedback appears once with B's identity, the pending review clears, and the result survives reload. Include an agent mention in the request-for-changes feedback → it remains feedback; neither task starts a new run until a separate authorized start.
 - [ ] `TASK-B38` · **Read a review without project edit access** — As a Member who owns the task but cannot edit the project, open its task page and board dialog → **Reviewer** (`tasks.fields.reviewer`) and **Current review** (`tasks.reviewer.pendingFor`) remain readable, but the reviewer cannot be changed by pointer or keyboard. An editor opening the same task can reach the picker. Existing task-edit rights do not imply reviewer-handoff rights.
 - [ ] `TASK-B39` · **Recover from a stale review handoff** — Open the same pending result in two editor sessions; transfer its review in one, then choose another reviewer from the first session's still-open choice list → one localized stale-review refusal (`tasks.reviewer.stale`) is shown, not a raw payload, and the refreshed **Current review** (`tasks.reviewer.pendingFor`) names the saved reviewer. Reload before choosing again → the successful handoff remains, and no unrelated result or run was changed.
-- [ ] `TASK-A15` · **Read and choose reviewers at narrow widths** — In EN/DE/FR, use the keyboard on the project's **Default reviewer** (`projects.taskReview.defaultReviewer`), the task's **Reviewer** (`tasks.fields.reviewer`), and **Review other agents’ task results** (`projects.agents.tool.task_review`) in the agent equipment menu, at desktop and phone widths → labels, human/agent choices, the write caption, pending-review name, and missing-permission hint (`tasks.reviewer.agentPermissionRequired`) remain readable without clipping or horizontal page overflow; focused controls have visible focus, Escape returns focus to their trigger, and saved choices persist after reopening.
+- [ ] `TASK-A15` · **Read and choose reviewers at narrow widths** — In EN/DE/FR, use the keyboard on the project's **Default reviewer** (`projects.taskReview.defaultReviewer`), the task's **Reviewer** (`tasks.fields.reviewer`), and **Review other agents’ task results** (`projects.agents.tool.task_review`) in the agent equipment menu, at desktop and phone widths → labels, human/agent choices, the write caption, pending-review name, and missing-permission hint (`tasks.reviewer.agentPermissionRequired`) remain readable without clipping or horizontal page overflow; focused controls have visible focus, Escape returns focus to their trigger, and saved choices persist after reopening. Delay a local reviewer-save response, choose by keyboard, then exercise both success and refusal → the same task Reviewer trigger keeps visible focus while saving, announces its busy/unavailable state, and cannot open another choice or save again. After either response, it becomes usable without moving focus; reopen and Escape returns focus again. A read-only task still has no reviewer edit button.
+
+## Connected source workflows
+
+Use a disposable custom source whose worker publishes native transition forms and validates its own transitions. Keep two authorized sessions on the same `/projects/{projectId}/tasks/board?task={taskId}`. Use synthetic source records; no provider or agent turn is needed.
+
+- [ ] `TASK-F65` · **Observe a source decision in two open task views** — Submit a source-declared action under **Source workflow** (`tasks.sourceStatus.heading`) with **Send request** (`tasks.sourceStatus.submit`), once accepted and once refused by the source → both sessions show **The source is validating your request** (`tasks.sourceStatus.pending`) and prevent a second request; the accepted source status or refusal explanation then appears in both without a reload, with no new agent run or native human approval. Reload both views → the same decision, assignee and discussion remain. Include a transition whose source stages both map to **In review**, and an archived record's reopening action with its required reason.

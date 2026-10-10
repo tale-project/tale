@@ -9,7 +9,12 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  budgets: null as unknown,
+  ledger: vi.fn(async () => undefined),
+}));
 
 vi.mock('../../lib/rate-limit.ts', async (importOriginal) => {
   const actual =
@@ -25,7 +30,9 @@ vi.mock('../../auth/membership.ts', () => ({
   getUserTeamIds: vi.fn(async () => []),
 }));
 vi.mock('../../lib/org-config.ts', () => ({
-  readGovernancePolicyForOrg: vi.fn(async () => null),
+  readGovernancePolicyForOrg: vi.fn(async (_sql: unknown, _org, type) =>
+    type === 'budgets' ? mocks.budgets : null,
+  ),
   readSettingsForOrg: vi.fn(async () => null),
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({
@@ -34,6 +41,9 @@ vi.mock('../../jobs/enqueue.ts', () => ({
 vi.mock('../files/service.ts', () => ({
   deleteOrgBlobRefs: vi.fn(async () => undefined),
   putOrgBlobBytes: vi.fn(),
+}));
+vi.mock('../governance/service.ts', () => ({
+  incrementUsageLedger: mocks.ledger,
 }));
 
 import { reserveChunk } from './service.ts';
@@ -68,9 +78,16 @@ const ARGS = {
   locale: 'en',
   agentSlug: null,
   prospectiveCostCentsPerMChars: undefined,
+  providerName: 'provider',
+  modelId: 'model',
 };
 
-describe('reserveChunk — per-(message, index) serialization', () => {
+beforeEach(() => {
+  mocks.budgets = null;
+  mocks.ledger.mockClear();
+});
+
+describe('reserveChunk — per-(message, index) serialization [TTS-R3]', () => {
   it('takes the advisory lock before the FOR UPDATE read on a fresh chunk, then inserts', async () => {
     const { sql, statements } = recordingSql((text) =>
       text.includes('INSERT INTO app.tts_audio_chunks')
@@ -81,8 +98,11 @@ describe('reserveChunk — per-(message, index) serialization', () => {
     const outcome = await reserveChunk(sql, ARGS);
 
     expect(outcome).toMatchObject({ kind: 'reserved', chunkId: 'chunk-1' });
+    const budgetIndex = statements.findIndex((s) =>
+      s.text.includes('INSERT INTO app.budget_admissions'),
+    );
     const lockIndex = statements.findIndex((s) =>
-      s.text.includes('pg_advisory_xact_lock'),
+      s.text.includes("hashtextextended('tts:'"),
     );
     const readIndex = statements.findIndex(
       (s) =>
@@ -90,9 +110,21 @@ describe('reserveChunk — per-(message, index) serialization', () => {
         s.text.includes('FOR UPDATE'),
     );
     expect(lockIndex).toBeGreaterThanOrEqual(0);
+    expect(budgetIndex).toBeGreaterThanOrEqual(0);
+    expect(lockIndex).toBeGreaterThan(budgetIndex);
     expect(readIndex).toBeGreaterThan(lockIndex);
     // The lock key is the chunk identity the unique index guards.
     expect(statements[lockIndex]?.values).toEqual(['msg-1', '3']);
+    const insert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.tts_audio_chunks'),
+    );
+    expect(insert?.text).toContain(
+      'provider_name, model_id, reserved_cost_cents, project_ids',
+    );
+    expect(insert?.values).toContain('provider');
+    expect(insert?.values).toContain('model');
+    expect(insert?.values.at(-1)).toEqual([]);
+    expect(insert?.values.at(-2)).toBe(0.018);
   });
 
   it('answers in-flight, without inserting, once the winner’s pending row is visible', async () => {
@@ -123,5 +155,130 @@ describe('reserveChunk — per-(message, index) serialization', () => {
         s.text.includes('INSERT INTO app.tts_audio_chunks'),
       ),
     ).toBe(false);
+  });
+
+  it('replaces only the exact prior hold and advances a same-millisecond retry identity', async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const { sql, statements } = recordingSql((text) => {
+        if (
+          text.includes('FROM app.tts_audio_chunks') &&
+          text.includes('FOR UPDATE')
+        )
+          return [
+            {
+              id: 'chunk-1',
+              organizationId: ARGS.organizationId,
+              threadId: ARGS.threadId,
+              status: 'failed',
+              storageRef: null,
+              createdAt: now,
+              attemptCreatedAt: now,
+              reservedCostCents: null,
+              usageRecordedAt: null,
+            },
+          ];
+        if (text.includes('SELECT project_id AS "projectId"'))
+          return [{ projectId: 'project-1' }];
+        return [];
+      });
+      const outcome = await reserveChunk(sql, ARGS);
+      expect(outcome).toEqual({
+        kind: 'reserved',
+        chunkId: 'chunk-1',
+        attemptCreatedAt: now + 1,
+      });
+      const holds = statements.find((s) => s.text.includes('WITH holds AS'));
+      expect(holds?.values).toContain('chunk-1');
+      expect(holds?.values).toContain(now);
+      const update = statements.find((s) =>
+        s.text.includes('UPDATE app.tts_audio_chunks SET'),
+      );
+      expect(update?.text).toContain('reserved_cost_cents =');
+      expect(update?.text).toContain('project_ids =');
+      expect(update?.values).toContainEqual(['project-1']);
+      expect(update?.values).toContain(now + 1);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('books a stale attempt before budget evaluation, and refuses a replacement beyond the cap', async () => {
+    mocks.budgets = {
+      enabled: true,
+      rules: [],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'monthly',
+          maxCostCents: 1.5,
+        },
+      ],
+    };
+    const { sql, statements } = recordingSql((text) => {
+      if (
+        text.includes('FROM app.tts_audio_chunks') &&
+        text.includes('FOR UPDATE')
+      )
+        return [
+          {
+            id: 'chunk-1',
+            organizationId: ARGS.organizationId,
+            threadId: ARGS.threadId,
+            userId: ARGS.userId,
+            status: 'pending',
+            storageRef: null,
+            createdAt: 1,
+            attemptCreatedAt: 1,
+            reservedCostCents: 1,
+            usageRecordedAt: null,
+            projectIds: ['project-1'],
+            teamId: null,
+            modelId: 'old-model',
+            providerName: 'old-provider',
+            text: 'old',
+          },
+        ];
+      if (text.includes('SELECT project_id AS "projectId"'))
+        return [{ projectId: 'project-1' }];
+      if (text.includes('FROM app.project_usage'))
+        return [
+          {
+            totalTokens: 0,
+            costEstimate: mocks.ledger.mock.calls.length,
+            requestCount: 1,
+          },
+        ];
+      return [];
+    });
+    await expect(
+      reserveChunk(sql, {
+        ...ARGS,
+        text: 'x'.repeat(1000),
+        prospectiveCostCentsPerMChars: 1000,
+      }),
+    ).rejects.toMatchObject({ code: 'BUDGET_EXCEEDED' });
+    expect(mocks.ledger).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        costEstimateCents: 1,
+        projectIds: ['project-1'],
+        model: 'old-model',
+        provider: 'old-provider',
+      }),
+    );
+    expect(
+      statements.some(({ text }) => text.includes("SET status = 'pending'")),
+    ).toBe(false);
+    const stamped = statements.findIndex(({ text }) =>
+      text.includes('SET usage_recorded_at_ms'),
+    );
+    const read = statements.findIndex(({ text }) =>
+      text.includes('WITH holds AS'),
+    );
+    expect(read).toBeGreaterThan(stamped);
+    // The real PG lane owns the transaction rollback/retained-hold assertion.
   });
 });

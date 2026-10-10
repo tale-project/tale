@@ -21,9 +21,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import deMessages from '@/messages/de.yml';
-import enMessages from '@/messages/en.yml';
-import frMessages from '@/messages/fr.yml';
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 type Bundle = Record<string, Record<string, string>>;
 

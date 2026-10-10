@@ -192,11 +192,49 @@ function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
 export function credentialShimHandlers(
   sql: Sql,
 ): Record<string, (raw: unknown) => Promise<unknown>> {
+  // Every caller builds these handlers for one shim — one request, one turn
+  // — and asks provider by provider: the composer's listing alone looks up
+  // each shipped provider's default, some twice. One read per organization
+  // answers all of them for as long as the handlers live; a broker write
+  // in the same shim drops it, so a retry after a failed account reads
+  // the rows as they are now.
+  const defaults = new Map<string, Promise<Map<string, ResolverRow>>>();
+  const defaultsOf = (
+    organizationId: string,
+  ): Promise<Map<string, ResolverRow>> => {
+    let loaded = defaults.get(organizationId);
+    if (loaded === undefined) {
+      loaded = sql<ResolverRow[]>`
+        SELECT ${sql.unsafe(RESOLVER_COLUMNS)} FROM app.provider_credentials
+        WHERE org_id = ${organizationId} AND is_default AND status = 'active'
+      `.then((rows) => {
+        const bySlug = new Map<string, ResolverRow>();
+        for (const row of rows) {
+          if (!bySlug.has(row.providerSlug)) bySlug.set(row.providerSlug, row);
+        }
+        return bySlug;
+      });
+      // A failed read is not remembered: the next ask tries again.
+      const pending = loaded;
+      pending.catch(() => {
+        // An invalidation may already have installed a newer generation.
+        if (defaults.get(organizationId) === pending) {
+          defaults.delete(organizationId);
+        }
+      });
+      defaults.set(organizationId, loaded);
+    }
+    return loaded;
+  };
   return {
-    'provider_credentials/mutations:selectBrokerAccountInternal': (raw) =>
-      selectBrokerAccount(sql, brokerSelectionArgsSchema.parse(raw)),
-    'provider_credentials/mutations:recordBrokerFailureInternal': (raw) =>
-      recordBrokerFailure(sql, brokerFailureArgsSchema.parse(raw)),
+    'provider_credentials/mutations:selectBrokerAccountInternal': (raw) => {
+      defaults.clear();
+      return selectBrokerAccount(sql, brokerSelectionArgsSchema.parse(raw));
+    },
+    'provider_credentials/mutations:recordBrokerFailureInternal': (raw) => {
+      defaults.clear();
+      return recordBrokerFailure(sql, brokerFailureArgsSchema.parse(raw));
+    },
     'provider_credentials/queries:getCredentialInternal': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused 0.4 caller passes exactly this shape
       const { credentialId } = raw as { credentialId: string };
@@ -215,15 +253,8 @@ export function credentialShimHandlers(
         organizationId: string;
         providerSlug: string;
       };
-      return rowOrNull(
-        await sql<ResolverRow[]>`
-          SELECT ${sql.unsafe(RESOLVER_COLUMNS)} FROM app.provider_credentials
-          WHERE org_id = ${organizationId}
-            AND provider_slug = ${providerSlug}
-            AND is_default AND status = 'active'
-          LIMIT 1
-        `,
-      );
+      const row = (await defaultsOf(organizationId)).get(providerSlug);
+      return rowOrNull(row === undefined ? [] : [row]);
     },
   };
 }
@@ -342,7 +373,7 @@ function credentialHash(row: Omit<CredentialListItem, 'hash'>): string {
 }
 
 export async function listCredentials(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   scope: CredentialScope,
   providerSlug?: string,
 ): Promise<CredentialListItem[]> {

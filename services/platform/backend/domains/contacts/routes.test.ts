@@ -1,17 +1,23 @@
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CONTACT_IMPORT_ROWS_MAX } from '../../../lib/shared/schemas/common.ts';
+import { CONTACT_SOURCES } from '../../../lib/shared/contact-sources.ts';
+import {
+  CONTACT_IMPORT_ROWS_MAX,
+  CONTACT_LOCALE_MAX,
+} from '../../../lib/shared/schemas/common.ts';
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { bulkCreateContacts, updateContact } = vi.hoisted(() => ({
+const { bulkCreateContacts, listContacts, updateContact } = vi.hoisted(() => ({
   bulkCreateContacts: vi.fn(),
+  listContacts: vi.fn(),
   updateContact: vi.fn(),
 }));
 
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   bulkCreateContacts,
+  listContacts,
   updateContact,
 }));
 vi.mock('@tale/shared/db/serializable', () => ({
@@ -64,26 +70,29 @@ describe('contact file import validation', () => {
     'ui-eval-r2-data-no-at',
     '',
     'a'.repeat(65) + '@example.test',
-  ])('refuses an invalid imported email as a row error: %s', async (email) => {
-    const response = await upload([good, { ...good, email }]);
-    expect(response.status).toBe(200);
-    expect(bulkCreateContacts).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ organizationId: 'o1' }),
-      [good],
-    );
-    const body = (await response.json()) as {
-      failed: number;
-      errors: { index: number; errorCode: string }[];
-    };
-    expect(body.failed).toBe(1);
-    expect(body.errors).toEqual([
-      expect.objectContaining({ index: 1, errorCode: 'INVALID_BODY' }),
-    ]);
-  });
+  ])(
+    'refuses an invalid imported email as a row error: %s [CONTACT-R8]',
+    async (email) => {
+      const response = await upload([good, { ...good, email }]);
+      expect(response.status).toBe(200);
+      expect(bulkCreateContacts).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ organizationId: 'o1' }),
+        [good],
+      );
+      const body = (await response.json()) as {
+        failed: number;
+        errors: { index: number; errorCode: string }[];
+      };
+      expect(body.failed).toBe(1);
+      expect(body.errors).toEqual([
+        expect.objectContaining({ index: 1, errorCode: 'INVALID_BODY' }),
+      ]);
+    },
+  );
 
   it.each(['not a locale', 'en-123', 'de!'])(
-    'refuses an invalid imported locale as a row error: %s',
+    'refuses an invalid imported locale as a row error: %s [CONTACT-R5] [CONTACT-R8]',
     async (locale) => {
       const response = await upload([good, { ...good, locale }]);
       expect(response.status).toBe(200);
@@ -112,7 +121,7 @@ describe('contact file import validation', () => {
     },
   );
 
-  it('applies the same locale rule to a manually entered contact', async () => {
+  it('applies the same locale rule to a manually entered contact [CONTACT-R5]', async () => {
     const response = await app.request('/?orgId=o1', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -123,7 +132,7 @@ describe('contact file import validation', () => {
 
   // Regression: the refusal carried only `invalid body`, so the import
   // dialog could not say which row or column was wrong.
-  it('names the row and column of a refused import', async () => {
+  it('names the row and column of a refused import [CONTACT-R8]', async () => {
     const response = await upload([good, { ...good, email: 'not-an-email' }]);
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
@@ -152,7 +161,11 @@ describe('contact file import validation', () => {
 
   // The import dialog refuses a longer file before sending it, reading the
   // same constant; this pins the door's half of that agreement.
-  it('takes a file of CONTACT_IMPORT_ROWS_MAX rows and refuses one more by name', async () => {
+  it('holds an import to 1,000 rows [CONTACT-R7]', () => {
+    expect(CONTACT_IMPORT_ROWS_MAX).toBe(1_000);
+  });
+
+  it('takes a file of CONTACT_IMPORT_ROWS_MAX rows and refuses one more by name [CONTACT-R7]', async () => {
     const rows = (count: number) =>
       Array.from({ length: count }, (_, i) => ({
         ...good,
@@ -201,5 +214,51 @@ describe('contact edit', () => {
       'c-1',
       {},
     );
+  });
+});
+
+describe('contact listing filters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listContacts.mockResolvedValue({ items: [], nextCursor: null });
+  });
+
+  const list = (query: string) => app.request(`/?orgId=o1&${query}`);
+
+  // #3618: the door never read `locale`, so the Contacts Locale facet listed
+  // every contact.
+  it('hands the Locale facet to the listing beside the Source', async () => {
+    expect((await list('limit=20&locale=fr')).status).toBe(200);
+    expect(listContacts).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1' }),
+      { limit: 20, locale: 'fr', cursor: null },
+    );
+    expect((await list('source=file_upload&locale=fr')).status).toBe(200);
+    expect(listContacts).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { source: 'file_upload', locale: 'fr', cursor: null },
+    );
+  });
+
+  it.each(CONTACT_SOURCES)(
+    'accepts the supported Source %s',
+    async (source) => {
+      expect((await list(`source=${source}`)).status).toBe(200);
+      expect(listContacts).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.anything(),
+        { source, cursor: null },
+      );
+    },
+  );
+
+  it('refuses a Locale longer than any contact stores, as it does a Source', async () => {
+    expect(
+      (await list(`locale=${'x'.repeat(CONTACT_LOCALE_MAX + 1)}`)).status,
+    ).toBe(400);
+    expect((await list('source=fax')).status).toBe(400);
+    expect(listContacts).not.toHaveBeenCalled();
   });
 });

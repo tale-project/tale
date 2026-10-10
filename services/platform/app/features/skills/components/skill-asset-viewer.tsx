@@ -8,7 +8,7 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useTheme } from '@tale/ui/theme';
+import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { Check, Copy, WrapText } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -35,7 +35,6 @@ import {
 } from '@/lib/utils/text-file-types';
 
 import { useSkillAsset } from '../hooks/queries';
-import { useRetryFocus } from '../hooks/use-retry-focus';
 import { readFailureMessage, skillReadState } from '../utils/skill-read-state';
 
 interface SkillAssetViewerProps {
@@ -89,8 +88,6 @@ export function SkillAssetViewer({
   const { t } = useT('skills');
   const { locale } = useLocale();
   const { t: tCommon } = useT('common');
-  const { resolvedTheme } = useTheme();
-  const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
 
   const ext = getFileExtensionLower(assetPath);
   const isImage = IMAGE_EXTS.has(ext);
@@ -153,13 +150,15 @@ export function SkillAssetViewer({
     if (!useShiki || !content || oversize) return undefined;
     let cancelled = false;
     const lang = resolveLanguage(ext);
-    void highlightCode(content, lang, shikiTheme).then((result) => {
+    // One highlight serves both themes: it colours through the `--code-*`
+    // variables, so a theme switch keeps it.
+    void highlightCode(content, lang).then((result) => {
       if (!cancelled) setHighlightedHtml(result?.html ?? null);
     });
     return () => {
       cancelled = true;
     };
-  }, [content, ext, useShiki, oversize, shikiTheme]);
+  }, [content, ext, useShiki, oversize]);
 
   const highlightRef = useCallback(
     (el: HTMLDivElement | null) => {

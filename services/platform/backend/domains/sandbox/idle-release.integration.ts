@@ -1,10 +1,11 @@
-/** Real Postgres owner/allocation guards; the runtime release itself is injected. */
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type { Sql } from 'postgres';
 
 import type { TaskPayloads } from '../../jobs/tasks.ts';
+/** Real Postgres owner/allocation guards; the runtime release itself is injected. */
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
 import {
   releaseIdleSession,
@@ -144,17 +145,29 @@ export async function checkSandboxIdleRelease(
       VALUES (${taskId}, ${orgId}, ${projectId}, 'Idle release proof', 'in_progress', 'a0', ${userId}, 'user', ${now}, ${now})
     `;
     await insertSession(projectSessionId, 'project_agent', agentId);
-    // The new turn has no op yet and can reference a different incarnation;
-    // the owner guard must still protect this agent's standing workspace.
+    // A live run of the same agent in another of its workers holds nothing
+    // here: each worker is guarded by the runs that name it.
     await sql`
       INSERT INTO app.project_agent_runs (
         id, org_id, project_id, task_id, agent_id, session_id, exec_id, status,
         harness, model, started_by, started_at_ms, deadline_at_ms, updated_at_ms
       ) VALUES (
         ${projectRunId}, ${orgId}, ${projectId}, ${taskId}, ${agentId},
-        ${`pending-${randomUUID()}`}, ${randomUUID()}, 'queued', 'opencode',
+        ${`idle-${randomUUID()}`}, ${randomUUID()}, 'running', 'opencode',
         'itest', ${userId}, ${now}, ${now + 3_600_000}, ${now}
       )
+    `;
+    await check(
+      "the agent's run in another worker holds no compute here",
+      projectSessionId,
+      true,
+    );
+    // The new turn has no op yet and may meet a later incarnation of its
+    // workspace; naming the workspace, it still protects it.
+    await sql`
+      UPDATE app.project_agent_runs
+      SET session_id = ${projectSessionId}, status = 'queued'
+      WHERE id = ${projectRunId}
     `;
     await check(
       'queued project owner protects the pre-exec gap',
@@ -262,10 +275,13 @@ export async function checkSandboxIdleRelease(
       `released=${failedOwnerReleased}, status=${failedOwnerStatus}`,
     );
 
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       INSERT INTO app.automation_runs (id, org_id, name, version, status, mode, started_by, input, checkpoints, started_at_ms)
       VALUES (${workflowRunId}, ${orgId}, 'Idle release workflow', 1, 'queued', 'mock', ${userId}, ${sql.json({})}, ${sql.json({})}, ${now})
     `;
+    });
     await insertSession(workflowSessionId, 'workflow_run', workflowRunId);
     await insertSession(
       workflowNodeSessionId,
@@ -280,7 +296,10 @@ export async function checkSandboxIdleRelease(
       'failed',
       'cancelled',
     ]) {
-      await sql`UPDATE app.automation_runs SET status = ${status} WHERE id = ${workflowRunId}`;
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`UPDATE app.automation_runs SET status = ${status} WHERE id = ${workflowRunId}`;
+      });
       const terminal = ['success', 'failed', 'cancelled'].includes(status);
       await check(
         `${status} workflow owner ${terminal ? 'permits' : 'blocks'} release`,
@@ -295,7 +314,10 @@ export async function checkSandboxIdleRelease(
     }
 
     const firstGeneration = randomUUID();
-    await sql`UPDATE app.automation_runs SET status = 'running' WHERE id = ${workflowRunId}`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`UPDATE app.automation_runs SET status = 'running' WHERE id = ${workflowRunId}`;
+    });
     await sql`UPDATE app.sandbox_sessions SET status = 'active' WHERE session_id IN (${workflowSessionId}, ${workflowNodeSessionId})`;
     await sql.begin((tx) =>
       stopWorkflowSessionSlotsInTx(
@@ -326,6 +348,7 @@ export async function checkSandboxIdleRelease(
     let hiddenUntilCommit = false;
     await sql
       .begin(async (tx) => {
+        await markAutomationWriterInTx(tx);
         await tx`UPDATE app.automation_runs SET status = 'cancelled' WHERE id = ${workflowRunId}`;
         await stopWorkflowSessionSlotsInTx(
           tx,
@@ -357,6 +380,7 @@ export async function checkSandboxIdleRelease(
     );
 
     await sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
       await tx`UPDATE app.automation_runs SET status = 'cancelled' WHERE id = ${workflowRunId}`;
       await stopWorkflowSessionSlotsInTx(
         tx,
@@ -411,7 +435,10 @@ export async function checkSandboxIdleRelease(
     await sql`DELETE FROM pgboss.job WHERE name = 'sandbox.release_idle' AND data ->> 'organizationId' = ${orgId} AND data ->> 'sessionId' = ANY(${sessionIds})`;
     await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${sessionIds})`;
     await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${sessionIds})`;
-    await sql`DELETE FROM app.automation_runs WHERE id = ${workflowRunId}`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${workflowRunId}`;
+    });
     await sql`DELETE FROM app.project_agent_runs WHERE id = ${projectRunId}`;
     await sql`DELETE FROM app.tasks WHERE id = ${taskId}`;
     await sql`DELETE FROM app.project_agents WHERE id = ${agentId}`;

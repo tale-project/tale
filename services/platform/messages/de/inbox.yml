@@ -1,0 +1,90 @@
+taskAssigned: Aufgabe dir zugewiesen
+taskAssignedBody: Dir wurde "{title}" zugewiesen.
+taskStatusChanged: Aufgabenstatus geändert
+taskStatusChangedBody: '"{title}" wechselte von {from} zu {to}.'
+taskCommented: Neuer Kommentar
+taskCommentedBody: Neuer Kommentar zu "{title}".
+mention: Du wurdest erwähnt
+mentionBody: Du wurdest bei "{title}" erwähnt.
+taskAssignedByBody: '{actor} hat dir "{title}" zugewiesen.'
+taskUnassigned: Nicht mehr deine Aufgabe
+taskUnassignedBody: Du bist nicht mehr zuständig für "{title}".
+taskUnassignedByBody: '{actor} hat "{title}" von dir abgezogen.'
+taskStatusChangedByBody: '{actor} hat "{title}" von {from} nach {to} verschoben.'
+taskCommentedByBody: '{actor} hat "{title}" kommentiert.'
+mentionByBody: '{actor} hat dich in "{title}" erwähnt.'
+taskReviewRequested: Review angefragt
+taskReviewRequestedBody: '{agentSlug} hat "{taskTitle}" abgeschlossen —
+  stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit einem
+  Kommentar zurück.'
+taskReviewRequestedBodyNoAgent: Agenten-Arbeit an "{taskTitle}" ist bereit zur
+  Prüfung — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie
+  mit einem Kommentar zurück.
+taskReviewRequestedByBody:
+  '{actor} bittet dich um ein Review von "{taskTitle}"
+  — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit
+  einem Kommentar zurück.'
+taskReviewRequestedBodyHuman:
+  '"{taskTitle}" wartet auf dein Review — stelle die Aufgabe zum Freigeben
+  auf "Erledigt" oder schicke sie mit einem Kommentar zurück.'
+taskReviewerAssigned: Du bist Reviewer
+taskReviewerAssignedBody: Du bist jetzt Reviewer für "{taskTitle}".
+taskReviewerAssignedByBody: '{actor} hat dich als Reviewer für "{taskTitle}"
+  eingetragen.'
+documentReviewRequested: Dokument-Review angefragt
+documentReviewRequestedBody: '{requestedByName} hat dir "{documentTitle}" (v{version}) zum Review geschickt.'
+documentReviewRequestedBodyNoActor: '"{documentTitle}" (v{version}) wartet auf dein Review.'
+documentReviewApproved: Dokument freigegeben
+documentReviewApprovedBody: '"{documentTitle}" v{version} wurde freigegeben.'
+documentReviewChangesRequested: Änderungen angefordert
+documentReviewChangesRequestedBody: 'Für "{documentTitle}" wurden Änderungen angefordert: {feedback}'
+taskSlaEscalated: Überfällige Aufgabe eskaliert
+taskSlaEscalatedBody: '"{title}" ist deutlich überfällig und braucht Aufmerksamkeit.'
+taskDueSoon: Bald fällig
+taskDueSoonBody: '"{title}" ist bald fällig.'
+taskStartReached: Startdatum erreicht
+taskStartReachedBody: '"{title}" beginnt heute.'
+taskReviewReminder: Review-Erinnerung
+taskReviewReminderBody: Agenten-Arbeit an "{title}" wartet weiterhin auf dein Review.
+taskReviewEscalated: Review überfällig
+taskReviewEscalatedBody: Ein Review zu "{title}" wartet seit über einem Tag.
+humanInputEscalated: Automatisierung wartet auf Eingabe
+humanInputEscalatedBody: Eine Automatisierung wartet seit {ageHours} Stunden auf menschliche Eingabe.
+conversationInboundMessage: Neue Konversationsnachricht
+conversationInboundMessageBody: 'Von {sender}: "{subject}" — öffne deine Inbox, um zu antworten.'
+conversationAssigned: Konversation dir zugewiesen
+conversationAssignedBody: Dir wurde die Konversation "{subject}" zugewiesen —
+  öffne deine Inbox, um zu antworten.
+conversationAssignedByBody: '{actor} hat dir die Konversation "{subject}"
+  zugewiesen — öffne deine Inbox, um zu antworten.'
+agentEscalation: Agenten-Eskalation
+agentEscalationBody: '{agent} hat eskaliert: {reason}'
+agentQuestionAsked: Agent braucht deine Antwort
+agentQuestionAskedBody: '{name} hat eine Frage zu "{title}" und wartet auf dich: {question}'
+agentQuestionAskedNoTaskBody: '{name} hat eine Frage und wartet auf dich: {question}'
+cloudSyncFailed: Cloud-Synchronisierung schlägt fehl
+cloudSyncFailedBody: 'Die Synchronisierung von "{itemName}" aus {provider} schlägt seit über einer Stunde fehl ({reason}). Tale versucht es weiterhin alle 15 Minuten.'
+cloudSyncNeedsReauth: Cloud-Synchronisierung muss neu verbunden werden
+cloudSyncNeedsReauthBody: 'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.'
+usageCreditsRequested: Nutzungskontingent angefragt
+usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
+apiKeyCreatedForYou: API-Schlüssel für dich erstellt
+apiKeyCreatedForYouBody: '{name} hat den API-Schlüssel "{keyName}" für dich erstellt. Er handelt in dieser Organisation in deinem Namen; brauchst du ihn nicht, widerrufe ihn unter Einstellungen > API > REST.'
+automationTriggerPaused: Zeitplan pausiert
+automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
+agentRunFailed: Agenten-Lauf fehlgeschlagen
+agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
+agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
+agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+agentRunFailedInputBody: 'Ein Anhang von "{title}" ist nicht mehr im Speicher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
+email:
+  cta: In Tale öffnen
+  footer:
+    Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert
+    hast.
+conversationTeamAssigned: Konversation deinem Team zugewiesen
+conversationTeamAssignedBody: Die Konversation "{subject}" wurde deinem Team
+  zugewiesen — öffne deine Inbox, um zu antworten.
+conversationTeamAssignedByBody:
+  '{actor} hat die Konversation "{subject}" deinem
+  Team zugewiesen — öffne deine Inbox, um zu antworten.'

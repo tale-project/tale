@@ -1,49 +1,69 @@
 'use client';
 
 /**
- * The per-message info panel: when the message was sent, what model answered,
- * what it cost in tokens and dollars, how fast it was, and what the turn's
- * tools were asked and answered.
+ * The per-message info panel: which model answered and where it was served,
+ * how fast the reply came, what it cost in tokens and dollars, and what the
+ * turn's tools were asked and answered.
  *
  * Everything renders from the message row itself — `usage` is the blob the
  * turn pipeline stamped, read defensively because a turn records only what
  * its lane could measure. Fields a turn did not record are hidden rather
- * than zero-filled, so the panel never invents a number. The one live read
- * is the voice-output breakdown, through the chat seam (`useChatQuery`),
- * fetched only while the dialog is open.
+ * than zero-filled, so the panel never invents a number. Where the reply was
+ * served follows the same rule: the upstream, region and model version are
+ * what the provider's responses said, and a region set by a documented
+ * regional endpoint says so; a reply nobody located reads "Not reported"
+ * instead of a guess from a provider's name. The one live read is the
+ * voice-output breakdown, through the chat seam (`useChatQuery`), fetched
+ * only while the dialog is open.
  *
  * The shell is the base `Dialog`, not `ViewDialog`: the toolbar mounts this
  * on surfaces (and in tests) with no router in scope, and `ViewDialog`'s
  * error boundary reads the org id from route params.
  */
 
-import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Dialog } from '@tale/ui/dialog/dialog';
+import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
-import { LabeledValue, LabeledValueGroup } from '@tale/ui/labeled-value';
 import { Row, Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useCopyButton } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useQuery as useTanstackQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, Copy } from 'lucide-react';
-import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
+import { type ReactNode, useId } from 'react';
 
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { messageVoiceUsageQuery } from '@/app/lib/backend/chat';
+import type { EndpointRegion } from '@/lib/chat/types';
 import { useT } from '@/lib/i18n/client';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 import { formatRelativeTime } from '@/lib/utils/format/relative-time';
+import { isRecord } from '@/lib/utils/type-utils';
 
-import { useChatQueryClient } from '../data/chat-backend';
+import {
+  useChatQueryClient,
+  useComposerModelNames,
+} from '../data/chat-backend';
 import type { ChatMessageUsage, ChatMessageView, MessagePart } from '../types';
+import {
+  outputTokensPerSecond,
+  replyPhases,
+  type ReplyPhaseKind,
+} from '../utils/message-timing';
 
-/** A duration for humans: sub-second stays in ms, everything else in s. */
-function formatMs(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)} s`;
+type Translate = (key: string, values?: Record<string, unknown>) => string;
+
+/** A duration for humans, in the reader's number format: sub-second stays in
+ * ms, everything else in s. */
+function formatMs(ms: number, locale: string): string {
+  if (ms < 1000) return `${formatNumber(Math.round(ms), locale)} ms`;
+  const digits = ms < 10_000 ? 2 : 1;
+  return `${formatNumber(ms / 1000, locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })} s`;
 }
 
 /** JSON for the tool previews that never throws — a preview must not be able
@@ -58,6 +78,62 @@ function jsonPreview(value: unknown): string {
     );
     return String(value);
   }
+}
+
+/** The strings of a list in the free-form usage blob — the client never
+ * validated it, so anything that is not a non-empty string is dropped. */
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is string => typeof item === 'string' && item.length > 0,
+  );
+}
+
+const ENDPOINT_REGIONS: readonly EndpointRegion[] = ['europe', 'united-states'];
+
+/** Where the turn was served, read defensively off the usage blob. */
+function readServing(usage: ChatMessageUsage): {
+  providers: string[];
+  regions: string[];
+  models: string[];
+  endpoint?: { host: string; region: EndpointRegion };
+} {
+  const raw: unknown = usage.serving;
+  if (!isRecord(raw)) return { providers: [], regions: [], models: [] };
+  const endpoint = isRecord(raw.endpoint) ? raw.endpoint : undefined;
+  const host = typeof endpoint?.host === 'string' ? endpoint.host : undefined;
+  const region = ENDPOINT_REGIONS.find((value) => value === endpoint?.region);
+  return {
+    providers: stringList(raw.providers),
+    regions: stringList(raw.regions),
+    models: stringList(raw.models),
+    ...(host !== undefined && region !== undefined
+      ? { endpoint: { host, region } }
+      : {}),
+  };
+}
+
+/** A region as a provider stated it. The codes a provider echoes
+ * (Anthropic's `inference_geo`) read as words; a name (Azure's
+ * `Sweden Central`) reads as itself. */
+function regionLabel(region: string, t: Translate): string {
+  switch (region.toLowerCase()) {
+    case 'global':
+      return t('messageInfo.regionGlobal');
+    case 'us':
+      return t('messageInfo.regions.unitedStates');
+    case 'eu':
+    case 'europe':
+      return t('messageInfo.regions.europe');
+    default:
+      return region;
+  }
+}
+
+function endpointRegionLabel(region: EndpointRegion, t: Translate): string {
+  return region === 'europe'
+    ? t('messageInfo.regions.europe')
+    : t('messageInfo.regions.unitedStates');
 }
 
 /** One tool call of the turn, paired with its result. */
@@ -92,13 +168,7 @@ function pairToolCalls(parts: readonly MessagePart[]): ToolCallView[] {
   return calls;
 }
 
-function ToolCallCard({
-  call,
-  t,
-}: {
-  call: ToolCallView;
-  t: (key: string) => string;
-}) {
+function ToolCallCard({ call, t }: { call: ToolCallView; t: Translate }) {
   const input = jsonPreview(call.input);
   const output = call.output !== undefined ? jsonPreview(call.output) : '';
   return (
@@ -142,6 +212,135 @@ function ToolCallCard({
   );
 }
 
+/** A titled block of the panel. The dialog title is the page's `h2`, so
+ * each block is an `h3`. */
+function InfoSection({
+  title,
+  meta,
+  children,
+}: {
+  title: string;
+  /** A short caption beside the title, e.g. a total. */
+  meta?: ReactNode;
+  children: ReactNode;
+}) {
+  const headingId = useId();
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="flex min-w-0 flex-col gap-3"
+    >
+      <Row gap={2} justify="between" align="baseline" wrap>
+        <Heading id={headingId} level={3} size="sm">
+          {title}
+        </Heading>
+        {meta !== undefined && (
+          <Text as="span" variant="caption" className="tabular-nums">
+            {meta}
+          </Text>
+        )}
+      </Row>
+      {children}
+    </section>
+  );
+}
+
+/** The three headline timings, as one divided strip. A label that wraps
+ * (German and French run long) keeps its lines tight, and every value sits
+ * on the strip's floor so the numbers line up across the cells. */
+function MetricStrip({
+  items,
+}: {
+  items: readonly { label: string; value: string }[];
+}) {
+  return (
+    <dl
+      className={cn(
+        'border-border-base bg-border-base grid gap-px overflow-hidden rounded-lg border',
+        // As many columns as cells: an empty track would show the divider
+        // colour as a blank grey cell.
+        items.length >= 3
+          ? 'grid-cols-3'
+          : items.length === 2
+            ? 'grid-cols-2'
+            : 'grid-cols-1',
+      )}
+    >
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="bg-bg-base flex min-w-0 flex-col justify-between gap-1 px-3 py-2.5"
+        >
+          <dt className="text-muted-foreground text-xs leading-4 wrap-break-word hyphens-auto">
+            {item.label}
+          </dt>
+          <dd className="text-foreground text-base font-semibold tracking-tight tabular-nums">
+            {item.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const PHASE_COLOR: Record<ReplyPhaseKind, string> = {
+  preparing: 'bg-chart-neutral/40',
+  waiting: 'bg-chart-neutral/75',
+  thinking: 'bg-chart-primary/45',
+  writing: 'bg-chart-primary',
+};
+
+/** Where the reply's time went: one bar of consecutive phases and its
+ * legend. The bar is decoration — the legend carries every number. */
+function PhaseTimeline({
+  usage,
+  locale,
+  t,
+}: {
+  usage: ChatMessageUsage;
+  locale: string;
+  t: Translate;
+}) {
+  const phases = replyPhases(usage);
+  const total = phases.reduce((sum, phase) => sum + phase.durationMs, 0);
+  if (phases.length < 2 || total <= 0) return null;
+  return (
+    <Stack gap={2}>
+      <div aria-hidden className="flex h-2 w-full gap-0.5">
+        {phases.map((phase) => (
+          <div
+            key={phase.kind}
+            className={cn(
+              'h-full min-w-1 rounded-full',
+              PHASE_COLOR[phase.kind],
+            )}
+            style={{ flexGrow: phase.durationMs, flexBasis: 0 }}
+          />
+        ))}
+      </div>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        {phases.map((phase) => (
+          <li key={phase.kind} className="flex items-center gap-1.5 text-xs">
+            <span
+              aria-hidden
+              className={cn(
+                'size-2 shrink-0 rounded-full',
+                PHASE_COLOR[phase.kind],
+              )}
+            />
+            <span className="text-muted-foreground">
+              {t(`messageInfo.phases.${phase.kind}`)}
+            </span>
+            <span className="text-foreground tabular-nums">
+              {formatMs(phase.durationMs, locale)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Stack>
+  );
+}
+
 export function MessageInfoDialog({
   message,
   threadId,
@@ -163,14 +362,11 @@ export function MessageInfoDialog({
   const { formatDate, locale } = useFormatDate();
   const { serverEpochNow } = useClockOffset();
   const { copied: idCopied, onClick: handleCopyId } = useCopyButton(message.id);
-  // Drill-in router: the clickable TTFT cell swaps the dialog body for the
-  // breakdown in place (single surface, Back returns) — never a nested
-  // dialog. Reset on close so a reopen starts at the main view.
-  const [view, setView] = useState<'main' | 'ttft'>('main');
-  const handleOpenChange = (next: boolean) => {
-    if (!next) setView('main');
-    onOpenChange(next);
-  };
+  const names = useComposerModelNames(
+    organizationId,
+    message.model,
+    message.providerSlug,
+  );
   // Skip the query while the dialog is closed or the thread is unknown —
   // most open-close cycles never look at the section, and gating on `open`
   // keeps the steady-state cost at zero. Read through the chat seam, which
@@ -191,270 +387,217 @@ export function MessageInfoDialog({
 
   const usage: ChatMessageUsage = message.usage ?? {};
   const toolCalls = pairToolCalls(message.parts);
+  const serving = readServing(usage);
 
-  const tokenItems: StatGridItem[] = [];
-  const pushCount = (label: string, value: number | undefined): void => {
-    if (value === undefined || value <= 0) return;
-    tokenItems.push({
-      label,
-      value: <Text>{formatNumber(value, locale)}</Text>,
+  // ── Model and where it ran ──
+  const modelRows: StatGridItem[] = [];
+  if (message.providerSlug !== undefined) {
+    modelRows.push({
+      label: t('messageInfo.provider'),
+      value: <Text as="span">{names.provider ?? message.providerSlug}</Text>,
     });
-  };
-  pushCount(t('messageInfo.input'), usage.inputTokens);
-  pushCount(t('messageInfo.output'), usage.outputTokens);
-  pushCount(t('messageInfo.total'), usage.totalTokens);
-  pushCount(t('messageInfo.reasoning'), usage.reasoningTokens);
-  if (usage.cachedInputTokens !== undefined && usage.cachedInputTokens > 0) {
-    // For cached input tokens, show what share of the input was a cache
-    // hit — the headline cost lever for repeated prompts.
-    const percent =
-      usage.inputTokens !== undefined && usage.inputTokens > 0
-        ? Math.round((usage.cachedInputTokens / usage.inputTokens) * 100)
-        : undefined;
-    tokenItems.push({
-      label: t('messageInfo.cached'),
+  }
+  if (serving.providers.length > 0) {
+    modelRows.push({
+      label: t('messageInfo.servedBy'),
+      value: <Text as="span">{serving.providers.join(', ')}</Text>,
+    });
+  }
+  const regionNames = serving.regions.map((region) => regionLabel(region, t));
+  modelRows.push({
+    label: t('messageInfo.region'),
+    value:
+      regionNames.length > 0 || serving.endpoint !== undefined ? (
+        <Stack gap={1}>
+          <Text as="span">
+            {regionNames.length > 0
+              ? regionNames.join(', ')
+              : serving.endpoint !== undefined
+                ? endpointRegionLabel(serving.endpoint.region, t)
+                : null}
+          </Text>
+          {serving.endpoint !== undefined && (
+            <Text as="span" variant="caption">
+              {t('messageInfo.regionFromEndpoint', {
+                host: serving.endpoint.host,
+              })}
+            </Text>
+          )}
+        </Stack>
+      ) : (
+        <Stack gap={1}>
+          <Text as="span" variant="muted">
+            {t('messageInfo.regionNotReported')}
+          </Text>
+          <Text as="span" variant="caption">
+            {t('messageInfo.regionNotReportedHint')}
+          </Text>
+        </Stack>
+      ),
+  });
+  if (serving.models.length > 0) {
+    modelRows.push({
+      label: t('messageInfo.modelVersion'),
       value: (
-        <Text>
-          {formatNumber(usage.cachedInputTokens, locale)}
-          {percent !== undefined && (
-            <>
-              {' '}
-              <Text as="span" variant="muted" className="text-xs">
-                ({t('messageInfo.cachedPercent', { percent })})
-              </Text>
-            </>
+        <Text as="span" className="font-mono text-xs break-all">
+          {serving.models.join(', ')}
+        </Text>
+      ),
+    });
+  }
+
+  // ── Speed ──
+  const tokensPerSecond = outputTokensPerSecond(usage);
+  const metrics: { label: string; value: string }[] = [];
+  if (usage.timeToFirstTokenMs !== undefined) {
+    metrics.push({
+      label: t('messageInfo.timeToFirstToken'),
+      value: formatMs(usage.timeToFirstTokenMs, locale),
+    });
+  }
+  if (tokensPerSecond !== undefined) {
+    metrics.push({
+      label: t('messageInfo.throughput'),
+      value: t('messageInfo.tokensPerSecond', {
+        value: formatNumber(Math.round(tokensPerSecond), locale),
+      }),
+    });
+  }
+  if (usage.durationMs !== undefined) {
+    metrics.push({
+      label: t('messageInfo.duration'),
+      value: formatMs(usage.durationMs, locale),
+    });
+  }
+  const hasPerf = metrics.length > 0 || usage.perceivedWaitMs !== undefined;
+
+  // ── Tokens ──
+  const tokenRows: StatGridItem[] = [];
+  if (usage.inputTokens !== undefined && usage.inputTokens > 0) {
+    const cached =
+      usage.cachedInputTokens !== undefined && usage.cachedInputTokens > 0
+        ? usage.cachedInputTokens
+        : undefined;
+    tokenRows.push({
+      label: t('messageInfo.input'),
+      value: (
+        <Text as="span" className="tabular-nums">
+          {formatNumber(usage.inputTokens, locale)}
+          {cached !== undefined && (
+            <Text as="span" variant="caption">
+              {' · '}
+              {t('messageInfo.cachedTokens', {
+                count: formatNumber(cached, locale),
+                percent: Math.round((cached / usage.inputTokens) * 100),
+              })}
+            </Text>
+          )}
+        </Text>
+      ),
+    });
+  }
+  if (usage.outputTokens !== undefined && usage.outputTokens > 0) {
+    const reasoning =
+      usage.reasoningTokens !== undefined && usage.reasoningTokens > 0
+        ? usage.reasoningTokens
+        : undefined;
+    tokenRows.push({
+      label: t('messageInfo.output'),
+      value: (
+        <Text as="span" className="tabular-nums">
+          {formatNumber(usage.outputTokens, locale)}
+          {reasoning !== undefined && (
+            <Text as="span" variant="caption">
+              {' · '}
+              {t('messageInfo.reasoningTokens', {
+                count: formatNumber(reasoning, locale),
+              })}
+            </Text>
           )}
         </Text>
       ),
     });
   }
   if (usage.costEstimateCents !== undefined) {
-    tokenItems.push({
+    tokenRows.push({
       label: t('messageInfo.cost'),
       value: (
-        <Text className="font-mono">
+        <Text as="span" className="tabular-nums">
           {formatCostCents(usage.costEstimateCents, 'USD', locale)}
         </Text>
       ),
     });
   }
-
-  // The breakdown view exists once the pipeline stamped any anchor beyond
-  // the headline TTFT — then the headline cell becomes its doorway.
-  const hasTtftBreakdown =
-    usage.timeToFirstTokenMs !== undefined &&
-    (usage.setupMs !== undefined || usage.timeToFirstReasoningMs !== undefined);
-
-  // Two groups, two clocks. Your wait is click → first paint; Server
-  // times share one origin (reply start) so first-token sits inside done.
-  const yourWaitItems: StatGridItem[] = [];
-  if (usage.perceivedWaitMs !== undefined) {
-    yourWaitItems.push({
-      label: t('messageInfo.youWaited'),
-      value: <Text>{formatMs(usage.perceivedWaitMs)}</Text>,
-    });
-  }
-  const serverItems: StatGridItem[] = [];
-  if (usage.timeToFirstTokenMs !== undefined) {
-    const ttft = formatMs(usage.timeToFirstTokenMs);
-    serverItems.push({
-      label: t('messageInfo.timeToFirstToken'),
-      value: hasTtftBreakdown ? (
-        <button
-          type="button"
-          onClick={() => setView('ttft')}
-          className="cursor-pointer text-left font-medium hover:underline"
-        >
-          {ttft}
-        </button>
-      ) : (
-        <Text>{ttft}</Text>
-      ),
-    });
-  }
-  if (usage.durationMs !== undefined) {
-    serverItems.push({
-      label: t('messageInfo.duration'),
-      value: <Text>{formatMs(usage.durationMs)}</Text>,
-    });
-  }
-  // Generation-only throughput: tokens after the first SSE, not the
-  // whole duration (setup + wait-for-first-byte would understate tok/s,
-  // and TTFT === duration leaves no generation window).
-  const generationMs =
-    usage.durationMs !== undefined && usage.timeToFirstTokenMs !== undefined
-      ? usage.durationMs - usage.timeToFirstTokenMs
+  const totalTokens =
+    usage.totalTokens !== undefined && usage.totalTokens > 0
+      ? usage.totalTokens
       : undefined;
-  if (
-    usage.outputTokens !== undefined &&
-    usage.outputTokens > 0 &&
-    generationMs !== undefined &&
-    generationMs > 0
-  ) {
-    const tps = usage.outputTokens / (generationMs / 1000);
-    serverItems.push({
-      label: t('messageInfo.throughput'),
-      value: (
-        <Text>
-          {t('messageInfo.tokensPerSecond', {
-            value: formatNumber(Math.round(tps), locale),
-          })}
-        </Text>
-      ),
-    });
-  }
-  const hasPerf = yourWaitItems.length > 0 || serverItems.length > 0;
 
   const noMetadata =
-    tokenItems.length === 0 && !hasPerf && message.model === undefined;
-
-  if (view === 'ttft') {
-    const breakdownItems: StatGridItem[] = [];
-    if (usage.setupMs !== undefined) {
-      breakdownItems.push({
-        label: t('messageInfo.setupBeforeModel'),
-        value: <Text>{formatMs(usage.setupMs)}</Text>,
-      });
-    }
-    if (usage.timeToFirstReasoningMs !== undefined) {
-      breakdownItems.push({
-        label: t('messageInfo.timeToFirstReasoning'),
-        value: <Text>{formatMs(usage.timeToFirstReasoningMs)}</Text>,
-      });
-    }
-    if (usage.timeToFirstTokenMs !== undefined) {
-      breakdownItems.push({
-        label: t('messageInfo.timeToFirstToken'),
-        value: <Text>{formatMs(usage.timeToFirstTokenMs)}</Text>,
-      });
-    }
-    return (
-      <Dialog
-        open={open}
-        onOpenChange={handleOpenChange}
-        title={t('messageInfo.ttftDetailsTitle')}
-        description={t('messageInfo.ttftDetailsDescription')}
-        size="md"
-        className="md:max-w-[500px]"
-      >
-        <LabeledValueGroup gap={4} className="min-w-0 shrink-0">
-          <div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setView('main')}
-              className="-ml-2 h-7"
-            >
-              <ArrowLeft aria-hidden className="mr-1 size-3.5" />
-              {tCommon('actions.back')}
-            </Button>
-          </div>
-          <LabeledValue label={t('messageInfo.ttftBreakdown')}>
-            <StatGrid className="text-sm" items={breakdownItems} />
-            <Text
-              as="div"
-              variant="caption"
-              className="text-muted-foreground mt-1"
-            >
-              {t('messageInfo.ttftBreakdownHint')}
-            </Text>
-          </LabeledValue>
-        </LabeledValueGroup>
-      </Dialog>
-    );
-  }
+    tokenRows.length === 0 && !hasPerf && message.model === undefined;
 
   return (
     <Dialog
       open={open}
-      onOpenChange={handleOpenChange}
+      onOpenChange={onOpenChange}
       title={t('messageInfo.title')}
-      description={t('messageInfo.description')}
       size="md"
-      className="md:max-w-[500px]"
+      className="md:max-w-[520px]"
     >
       {/* shrink-0, not overflow-hidden: hidden on a flex child zeroes
-          min-height and clips the clocks the body should scroll. */}
-      <LabeledValueGroup gap={4} className="min-w-0 shrink-0">
-        <LabeledValue label={t('messageInfo.timestamp')}>
-          <Text as="div">
-            {formatDate(new Date(message.createdAt), 'long')}
-          </Text>
-          <Text as="div" variant="muted" className="text-xs">
-            {formatRelativeTime(message.createdAt, locale, serverEpochNow())}
-          </Text>
-        </LabeledValue>
-
-        <LabeledValue label={t('messageInfo.messageId')}>
-          <Row gap={1}>
-            <Text
-              as="div"
-              variant="code"
-              className="bg-muted min-w-0 flex-1 truncate rounded px-2 py-1"
-            >
-              {message.id}
-            </Text>
-            <IconButton
-              icon={idCopied ? Check : Copy}
-              aria-label={
-                idCopied ? tCommon('actions.copied') : t('messageInfo.copyId')
-              }
-              onClick={handleCopyId}
-            />
-          </Row>
-        </LabeledValue>
-
+          min-height and clips the sections the body should scroll. */}
+      <Stack gap={6} className="min-w-0 shrink-0">
         {message.model !== undefined && (
-          <LabeledValue label={t('messageInfo.model')}>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="outline">{message.model}</Badge>
-              {message.providerSlug !== undefined && (
-                <Text as="span" variant="muted" className="text-xs">
-                  {message.providerSlug}
+          <InfoSection title={t('messageInfo.model')}>
+            <div className="min-w-0">
+              <Text as="div" variant="label" className="text-base">
+                {names.model ?? message.model}
+              </Text>
+              {names.model !== undefined && (
+                <Text
+                  as="div"
+                  variant="caption"
+                  className="font-mono break-all"
+                >
+                  {message.model}
                 </Text>
               )}
             </div>
-          </LabeledValue>
-        )}
-
-        {tokenItems.length > 0 && (
-          <LabeledValue label={t('messageInfo.tokenUsage')}>
-            <StatGrid className="text-sm" items={tokenItems} />
-          </LabeledValue>
+            <StatGrid layout="rows" className="text-sm" items={modelRows} />
+          </InfoSection>
         )}
 
         {hasPerf && (
-          <LabeledValue label={t('messageInfo.performance')}>
-            {yourWaitItems.length > 0 && (
-              <div>
-                <Text as="div" variant="label" className="mb-1">
-                  {t('messageInfo.yourWait')}
-                </Text>
-                <StatGrid className="text-sm" items={yourWaitItems} />
-              </div>
-            )}
-            {serverItems.length > 0 && (
-              <div className={yourWaitItems.length > 0 ? 'mt-3' : undefined}>
-                <Text as="div" variant="label" className="mb-1">
-                  {t('messageInfo.serverTiming')}
-                </Text>
-                <StatGrid className="text-sm" items={serverItems} />
-              </div>
-            )}
-            {yourWaitItems.length > 0 && (
-              <Text
-                as="div"
-                variant="caption"
-                className="text-muted-foreground mt-1"
-              >
-                {t('messageInfo.performanceHint')}
+          <InfoSection title={t('messageInfo.performance')}>
+            {metrics.length > 0 && <MetricStrip items={metrics} />}
+            <PhaseTimeline usage={usage} locale={locale} t={t} />
+            {usage.perceivedWaitMs !== undefined && (
+              <Text as="div" variant="caption">
+                {t('messageInfo.perceivedWait', {
+                  duration: formatMs(usage.perceivedWaitMs, locale),
+                })}
               </Text>
             )}
-          </LabeledValue>
+          </InfoSection>
+        )}
+
+        {tokenRows.length > 0 && (
+          <InfoSection
+            title={t('messageInfo.tokenUsage')}
+            {...(totalTokens !== undefined
+              ? {
+                  meta: t('messageInfo.totalTokens', {
+                    count: formatNumber(totalTokens, locale),
+                  }),
+                }
+              : {})}
+          >
+            <StatGrid layout="rows" className="text-sm" items={tokenRows} />
+          </InfoSection>
         )}
 
         {voiceUsage != null && voiceUsage.breakdown.length > 0 && (
-          <LabeledValue label={t('messageInfo.voiceOutput')}>
+          <InfoSection title={t('messageInfo.voiceOutput')}>
             <Stack gap={2}>
               {voiceUsage.breakdown.map((entry, index) => (
                 <div
@@ -496,32 +639,32 @@ export function MessageInfoDialog({
                 </Text>
               )}
             </Stack>
-          </LabeledValue>
+          </InfoSection>
         )}
 
         {toolCalls.length > 0 && (
-          <LabeledValue label={t('messageInfo.toolCalls')}>
+          <InfoSection title={t('messageInfo.toolCalls')}>
             <Stack gap={2}>
               {toolCalls.map((call) => (
                 <ToolCallCard key={call.callId} call={call} t={t} />
               ))}
             </Stack>
-          </LabeledValue>
+          </InfoSection>
         )}
 
         {message.blockedReason !== undefined && (
-          <LabeledValue label={t('messageInfo.blockedReason')}>
+          <InfoSection title={t('messageInfo.blockedReason')}>
             <Text as="div" className="text-sm">
               {message.blockedReason}
             </Text>
-          </LabeledValue>
+          </InfoSection>
         )}
         {message.error !== undefined && (
-          <LabeledValue label={t('messageInfo.error')}>
+          <InfoSection title={t('messageInfo.error')}>
             <Text as="div" className="text-sm">
               {message.error}
             </Text>
-          </LabeledValue>
+          </InfoSection>
         )}
 
         {noMetadata && (
@@ -529,7 +672,49 @@ export function MessageInfoDialog({
             {t('messageInfo.noMetadata')}
           </Text>
         )}
-      </LabeledValueGroup>
+
+        {/* The record's identifiers close the panel, quietly. */}
+        <dl className="border-border flex min-w-0 flex-col gap-2 border-t pt-4 text-xs">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-baseline gap-x-4">
+            <dt className="text-muted-foreground">
+              {t('messageInfo.timestamp')}
+            </dt>
+            <dd className="text-foreground min-w-0">
+              {formatDate(new Date(message.createdAt), 'long')}
+              <span className="text-muted-foreground">
+                {' · '}
+                {formatRelativeTime(
+                  message.createdAt,
+                  locale,
+                  serverEpochNow(),
+                )}
+              </span>
+            </dd>
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-x-4">
+            <dt className="text-muted-foreground">
+              {t('messageInfo.messageId')}
+            </dt>
+            <dd className="flex min-w-0 items-center gap-1">
+              <Text
+                as="span"
+                variant="code"
+                className="text-foreground min-w-0 flex-1 truncate"
+              >
+                {message.id}
+              </Text>
+              <IconButton
+                icon={idCopied ? Check : Copy}
+                size="sm"
+                aria-label={
+                  idCopied ? tCommon('actions.copied') : t('messageInfo.copyId')
+                }
+                onClick={handleCopyId}
+              />
+            </dd>
+          </div>
+        </dl>
+      </Stack>
     </Dialog>
   );
 }

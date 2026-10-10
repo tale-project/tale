@@ -17,6 +17,7 @@ import {
 } from '@/app/features/settings/teams/hooks/queries';
 import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { scopeTeamIds } from '@/lib/knowledge/types';
 import type { DocumentItem, RagStatus } from '@/types/documents';
@@ -128,7 +129,11 @@ export function DocumentsTable({
     selectedSources.length > 0 ||
     selectedTeamIds.length > 0;
 
-  const { status: pageStatus, loadMore: loadMorePage } = paginatedResult;
+  const {
+    status: pageStatus,
+    loadMore: loadMorePage,
+    retry: retryDocuments,
+  } = paginatedResult;
   useEffect(() => {
     if (hasActiveQuery && pageStatus === 'CanLoadMore') {
       loadMorePage(200);
@@ -138,7 +143,13 @@ export function DocumentsTable({
   const { data: currentFolder } = useFolder(currentFolderId);
   const parentFolderTeamId = currentFolder?.teamId ?? undefined;
 
-  const { data: folders } = useFolders(organizationId, currentFolderId);
+  const foldersQuery = useFolders(organizationId, currentFolderId);
+  const { data: folders, refetch: refetchFolders } = foldersQuery;
+  // At the root the documents read lists only unfiled documents, so whatever
+  // is filed in folders is reached through this read alone: one that never
+  // answered (a retry may be running) is the level's failure to name and
+  // retry, never an empty library (#3880).
+  const foldersRead = readStateOf(foldersQuery);
 
   const folderRows = useMemo<DocumentItem[]>(() => {
     if (!folders) return [];
@@ -319,6 +330,31 @@ export function DocumentsTable({
   const readFailed =
     levelLoaded &&
     (paginatedResult.unavailable || paginatedResult.error !== null);
+  // The folders never answered beside documents that did (or are still on
+  // their way): the notice names them, the level is never "No documents
+  // yet", and with every document page in, never "all". Both reads failing
+  // leaves nothing to list — the table's error state, whose retry runs both.
+  const foldersFailed = foldersRead.unavailable && !paginatedResult.unavailable;
+  const documentsFailed =
+    paginatedResult.unavailable || paginatedResult.error !== null;
+  const retryLevel = useCallback(() => {
+    if (!foldersRead.unavailable) {
+      retryRead();
+      return;
+    }
+    // Onto the list first, as `retryRead` does: the control that ran the
+    // retry goes once the reads answer.
+    focusRegion();
+    void refetchFolders();
+    if (documentsFailed) retryDocuments();
+  }, [
+    foldersRead.unavailable,
+    retryRead,
+    focusRegion,
+    refetchFolders,
+    documentsFailed,
+    retryDocuments,
+  ]);
 
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
@@ -334,7 +370,7 @@ export function DocumentsTable({
   );
 
   const navigateToFolder = useCallback(
-    (folderId: string | undefined) => {
+    (folderId: string | undefined, options?: { replace?: boolean }) => {
       void navigate({
         to: '/dashboard/$id/documents',
         params: { id: organizationId },
@@ -342,6 +378,7 @@ export function DocumentsTable({
           query: query.trim() || undefined,
           folderId,
         },
+        ...(options?.replace === true && { replace: true }),
       });
     },
     [navigate, organizationId, query],
@@ -403,11 +440,6 @@ export function DocumentsTable({
     });
   }, [navigate, organizationId, query, currentFolderId]);
 
-  const handleFolderDeleted = useCallback(
-    () => navigateToFolder(undefined),
-    [navigateToFolder],
-  );
-
   const handleDocumentClick = useCallback(
     (item: DocumentItem, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -425,7 +457,6 @@ export function DocumentsTable({
     onDocumentClick: handleDocumentClick,
     onDocumentView: openPreview,
     currentFolderId,
-    onFolderDeleted: handleFolderDeleted,
     isLoadingTeams,
     nameOf,
     parentFolderTeamId,
@@ -439,8 +470,12 @@ export function DocumentsTable({
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
       error: levelLoaded ? null : paginatedResult.error,
-      loadFailed: documentsMissing,
-      retry: retryRead,
+      // Folders that never answered beside every document page: nothing
+      // more will load, yet the level is neither "all" nor empty.
+      loadFailed:
+        documentsMissing ||
+        (foldersFailed && paginatedResult.status === 'Exhausted'),
+      retry: retryLevel,
     },
     pageSize,
     search: {
@@ -490,16 +525,20 @@ export function DocumentsTable({
         tabIndex={-1}
         className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
       >
-        {readFailed && (
+        {(readFailed || foldersFailed) && (
           <CatalogLoadError
             // Each failure is announced again; Try again keeps its node.
-            failureKey={paginatedResult.errorCount}
+            failureKey={paginatedResult.errorCount + foldersRead.failureCount}
             onFocusLost={focusRegion}
             message={tDocuments(
-              paginatedResult.unavailable ? 'loadFailed' : 'refreshFailed',
+              foldersFailed
+                ? 'foldersLoadFailed'
+                : paginatedResult.unavailable
+                  ? 'loadFailed'
+                  : 'refreshFailed',
             )}
-            onRetry={retryRead}
-            isRetrying={paginatedResult.isRetrying}
+            onRetry={retryLevel}
+            isRetrying={paginatedResult.isRetrying || foldersRead.retrying}
           />
         )}
         <DataTable

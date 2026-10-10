@@ -116,7 +116,7 @@ beforeEach(() => {
   vi.stubEnv('ENCRYPTION_SECRET_HEX', 'test-key-material');
 });
 
-describe('defaultSuccessor', () => {
+describe('defaultSuccessor [CCRED-R2]', () => {
   it('hands the default to the oldest active sibling', () => {
     expect(defaultSuccessor([SUPPORT, OPS, RELEASE], SUPPORT.id)).toBe(RELEASE);
   });
@@ -139,7 +139,7 @@ describe('defaultSuccessor', () => {
   });
 });
 
-describe('the listing names what a delete of the default would do', () => {
+describe('the listing names what a delete of the default would do [CCRED-R2]', () => {
   it('names the successor on the default row alone', async () => {
     const other = row('cred-shop', 'Shop', 0, {
       connectorSlug: 'shopify',
@@ -170,7 +170,7 @@ describe('the listing names what a delete of the default would do', () => {
   });
 });
 
-describe('deleteCredential', () => {
+describe('deleteCredential [CCRED-R2]', () => {
   it('makes exactly the credential the listing named the default', async () => {
     const rows = [SUPPORT, OPS, RELEASE, PAUSED];
     const named = (

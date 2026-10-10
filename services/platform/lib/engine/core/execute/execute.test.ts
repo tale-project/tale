@@ -542,6 +542,60 @@ describe('agent nodes', () => {
     ]);
   });
 
+  it('a node its files mapping reads runs first, whatever the list order', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'agent_a',
+          type: 'agent',
+          model: 'm',
+          prompt: 'Work in the staged folder.',
+          files: { setup: '{{ nodes.prep.output.folder }}' },
+        },
+        { id: 'prep', type: 'transform', code: "return { folder: 'fld_9' };" },
+      ],
+      { output: '{{ nodes.agent_a.output.status }}' },
+    );
+    const result = await execute(doc, { input: {} });
+    expect(result.status).toBe('success');
+    expect(result.trace.map((t) => t.node)).toEqual(['prep', 'agent_a']);
+    expect(result.effects[0]?.input).toMatchObject({
+      files: { setup: 'fld_9' },
+    });
+  });
+
+  it('a skipped node its files mapping reads skips the agent too', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'agent_a',
+          type: 'agent',
+          model: 'm',
+          prompt: 'Work in the staged folder.',
+          files: { setup: '{{ nodes.prep.output.folder }}' },
+        },
+        {
+          id: 'prep',
+          type: 'transform',
+          when: '{{ input.go }}',
+          code: "return { folder: 'fld_9' };",
+        },
+      ],
+      { output: '{{ nodes.agent_a.output }}' },
+    );
+    const result = await execute(doc, { input: { go: false } });
+    expect(result.status).toBe('success');
+    expect(result.trace).toMatchObject([
+      { node: 'prep', status: 'skipped' },
+      {
+        node: 'agent_a',
+        status: 'skipped',
+        note: 'skipped: reads from skipped node(s) prep',
+      },
+    ]);
+    expect(result.effects).toEqual([]);
+  });
+
   it('mock runs are byte-identical across executions', async () => {
     const doc = automationDoc(
       [{ id: 'a', type: 'agent', model: 'm', prompt: 'stable prompt' }],
@@ -679,6 +733,58 @@ describe('live connectors', () => {
     expect(outs[0]?.key).not.toBe(outs[1]?.key);
     expect(outs[0]?.key).toMatch(/:fan:0$/);
   });
+
+  // The durable stepper presents the same keys (`connectorIdempotencyKey`):
+  // a repeat pass after the first adds the pass, and a call inside a
+  // subautomation carries the calling run and its nested path.
+  it('keys a later repeat pass and a nested call the way the stepper does', async () => {
+    const repeated = await execute(
+      automationDoc([
+        {
+          id: 'poll',
+          type: 'notes.append',
+          input: { text: 'again' },
+          repeatUntil: '{{ false }}',
+          maxRepeats: 2,
+        },
+      ]),
+      { input: {}, mode: 'live', connectorHost: () => testHost() },
+    );
+    const poll = repeated.trace.find((t) => t.node === 'poll');
+    expect((poll?.output as { key?: string } | undefined)?.key).toMatch(
+      /:poll:0:1$/,
+    );
+
+    const store = memoryStore();
+    store.save(
+      'child',
+      automationDoc(
+        [{ id: 'log', type: 'notes.append', input: { text: 'nested' } }],
+        { name: 'child', output: '{{ nodes.log.output }}' },
+      ),
+    );
+    const nested = await execute(
+      automationDoc([
+        {
+          id: 'call',
+          type: 'subautomation',
+          automation: 'child',
+          forEach: '{{ input.items }}',
+        },
+      ]),
+      {
+        input: { items: ['a', 'b'] },
+        mode: 'live',
+        store,
+        connectorHost: () => testHost(),
+      },
+    );
+    expect(nested.status).toBe('success');
+    const outs = nested.trace.find((t) => t.node === 'call')?.output as Array<{
+      key: string;
+    }>;
+    expect(outs[1]?.key).toMatch(/^[^:]+:call\[1:0\]\/log:0$/);
+  });
 });
 
 describe('guards and contracts', () => {
@@ -769,6 +875,25 @@ describe('guards and contracts', () => {
     ]);
     const result = await execute(doc, { input: {} });
     expect(result.status).toBe('error');
+    expect(result.error?.message).toContain(
+      'does not match the notes.append schema',
+    );
+  });
+
+  // REGRESSION: the refusal pasted the whole resolved input into its
+  // sentence, so a secret the record withholds came back in the failure.
+  it('never repeats a refused connector input in the failure', async () => {
+    const secret = `sk-${'s'.repeat(40)}`;
+    const doc = automationDoc([
+      {
+        id: 'bad',
+        type: 'notes.append',
+        input: { wrong: true, apiKey: secret },
+      },
+    ]);
+    const result = await execute(doc, { input: {} });
+    expect(result.status).toBe('error');
+    expect(JSON.stringify(result.error)).not.toContain(secret);
     expect(result.error?.message).toContain(
       'does not match the notes.append schema',
     );

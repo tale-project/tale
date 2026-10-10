@@ -52,6 +52,87 @@ const input = {
 };
 
 describe('buildSessionPod', () => {
+  test('startup covers the create budget and liveness recovers a pinned unresponsive daemon', () => {
+    const runner = buildSessionPod(cfg, input).spec?.containers[0];
+    expect(runner?.startupProbe).toMatchObject({
+      httpGet: { path: '/readyz', port: 8200 },
+      periodSeconds: 5,
+      failureThreshold: 36,
+    });
+    expect(runner?.livenessProbe).toMatchObject({
+      httpGet: { path: '/livez', port: 8200 },
+      periodSeconds: 10,
+      failureThreshold: 6,
+    });
+  });
+
+  test('light agents keep agent identity and durable workspace without an inner Docker daemon', () => {
+    const pod = buildSessionPod(
+      {
+        ...cfg,
+        dockerInContainer: true,
+        runtimeTier: 'runc',
+        session: {
+          ...cfg.session,
+          agentProfile: {
+            ...cfg.session.agentProfile,
+            memory: '8g',
+            memoryWithoutDocker: '4g',
+          },
+        },
+      },
+      { ...input, profile: 'agent-light', docker: true },
+    );
+    const runner = pod.spec?.containers[0];
+    expect(runner?.resources?.limits?.memory).toBe('4Gi');
+    expect(runner?.securityContext?.runAsUser).toBe(10001);
+    expect(runner?.securityContext?.privileged).toBeUndefined();
+    expect(runner?.env?.some((item) => item.name === 'TALE_DIND')).toBe(false);
+    expect(
+      pod.spec?.volumes?.find((volume) => volume.name === 'workspace')
+        ?.persistentVolumeClaim,
+    ).toBeDefined();
+    expect(
+      pod.spec?.volumes?.some((volume) => volume.name === 'docker-storage'),
+    ).toBe(false);
+  });
+  test('an agent opt-out retains the hardened runner and lighter memory request', () => {
+    const pod = buildSessionPod(
+      { ...cfg, dockerInContainer: true },
+      { ...input, docker: false },
+    );
+    const runner = pod.spec?.containers[0];
+    expect(runner?.securityContext?.readOnlyRootFilesystem).toBe(true);
+    expect(runner?.securityContext?.runAsNonRoot).toBe(true);
+    expect(runner?.resources?.requests?.memory).toBe('512Mi');
+    expect(runner?.env?.some((env) => env.name === 'TALE_DIND')).toBe(false);
+    expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
+  });
+
+  test('every runner carries the exec stall window and memory admission share', () => {
+    for (const docker of [true, false]) {
+      const pod = buildSessionPod(
+        {
+          ...cfg,
+          dockerInContainer: true,
+          session: {
+            ...cfg.session,
+            execStallMs: 600_000,
+            execAdmissionMemoryPercent: 85,
+          },
+        },
+        { ...input, docker },
+      );
+      const env = pod.spec?.containers[0]?.env ?? [];
+      expect(env.find((e) => e.name === 'TALE_EXEC_STALL_MS')?.value).toBe(
+        '600000',
+      );
+      expect(
+        env.find((e) => e.name === 'TALE_EXEC_ADMISSION_MEMORY_PERCENT')?.value,
+      ).toBe('85');
+    }
+  });
+
   test('a lightweight agent keeps its uid and omits Docker storage and privilege', () => {
     const configured = {
       ...cfg,
@@ -89,6 +170,32 @@ describe('buildSessionPod', () => {
       requests: { memory: '1Gi' },
       limits: { memory: '8Gi' },
     });
+  });
+
+  test('an explicit memory override applies to every agent Docker capability', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      session: {
+        ...cfg.session,
+        agentProfile: {
+          ...cfg.session.agentProfile,
+          memory: '12g',
+          memoryWithoutDocker: '12g',
+        },
+      },
+    };
+    for (const profile of ['agent', 'agent-light'] as const) {
+      for (const docker of [true, false]) {
+        const pod = buildSessionPod(configured, {
+          ...input,
+          profile,
+          docker,
+        });
+        expect(pod.spec?.containers[0]?.resources?.limits?.memory).toBe('12Gi');
+      }
+    }
   });
 
   test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {
@@ -208,10 +315,11 @@ describe('buildSessionPod', () => {
     expect(runner(buildSessionPod(cfg, input))?.requests).toEqual({
       cpu: '250m',
       memory: '512Mi',
+      'ephemeral-storage': '256Mi',
     });
     expect(
       runner(buildSessionPod(cfg, { ...input, profile: 'default' }))?.requests,
-    ).toEqual({ cpu: '250m', memory: '512Mi' });
+    ).toEqual({ cpu: '250m', memory: '512Mi', 'ephemeral-storage': '256Mi' });
     // An operator override applies to every Pod, clamped to each limit.
     const tuned = {
       ...cfg,
@@ -220,8 +328,8 @@ describe('buildSessionPod', () => {
     expect(
       runner(buildSessionPod(tuned, { ...input, profile: 'default' })),
     ).toEqual({
-      requests: { cpu: '1', memory: '1500Mi' },
-      limits: { cpu: '1', memory: '1500Mi' },
+      requests: { cpu: '1', memory: '1500Mi', 'ephemeral-storage': '256Mi' },
+      limits: { cpu: '1', memory: '1500Mi', 'ephemeral-storage': '10Gi' },
     });
     const small = {
       ...cfg,
@@ -233,6 +341,110 @@ describe('buildSessionPod', () => {
     expect(runner(buildSessionPod(small, input))?.requests?.memory).toBe(
       '384Mi',
     );
+  });
+
+  describe('node disk (ephemeral-storage)', () => {
+    const disk = (pod: ReturnType<typeof buildSessionPod>) => ({
+      request:
+        pod.spec?.containers[0]?.resources?.requests?.['ephemeral-storage'],
+      limit: pod.spec?.containers[0]?.resources?.limits?.['ephemeral-storage'],
+    });
+    const dindCfg: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      k8s: { ...cfg.k8s, runtimeClassName: 'sysbox-runc' },
+    };
+
+    test('every profile requests a little and is bounded by headroom plus its scratch volumes', () => {
+      // An agent's workspace is a claim, which the kubelet does not count.
+      expect(disk(buildSessionPod(cfg, input))).toEqual({
+        request: '256Mi',
+        limit: '2Gi',
+      });
+      // A render's workspace emptyDir (8Gi here) counts toward the Pod.
+      expect(
+        disk(buildSessionPod(cfg, { ...input, profile: 'default' })),
+      ).toEqual({ request: '256Mi', limit: '10Gi' });
+      // DinD: the inner Docker store (20Gi by default) counts toward the Pod.
+      expect(disk(buildSessionPod(dindCfg, input))).toEqual({
+        request: '256Mi',
+        limit: '22Gi',
+      });
+      // A render never runs DinD, so its limit ignores the Docker store.
+      expect(
+        disk(buildSessionPod(dindCfg, { ...input, profile: 'default' })).limit,
+      ).toBe('10Gi');
+    });
+
+    test('operator overrides size the Docker store, the headroom and the request', () => {
+      const tuned: SpawnerConfig = {
+        ...dindCfg,
+        k8s: {
+          ...dindCfg.k8s,
+          dockerStorageSizeLimit: '50Gi',
+          ephemeralStorageLimit: '512Mi',
+          ephemeralStorageRequest: '4Gi',
+        },
+      };
+      const pod = buildSessionPod(tuned, input);
+      expect(
+        pod.spec?.volumes?.find((v) => v.name === 'docker-storage')?.emptyDir
+          ?.sizeLimit,
+      ).toBe('50Gi');
+      expect(disk(pod)).toEqual({ request: '4Gi', limit: '51712Mi' });
+      // A request above the limit is clamped to it.
+      expect(disk(buildSessionPod(tuned, { ...input, docker: false }))).toEqual(
+        { request: '512Mi', limit: '512Mi' },
+      );
+    });
+
+    test('an unreadable size fails the Pod build, not every create at the apiserver', () => {
+      expect(() =>
+        buildSessionPod(
+          { ...cfg, k8s: { ...cfg.k8s, workspaceSizeLimit: 'lots' } },
+          { ...input, profile: 'default' },
+        ),
+      ).toThrow(/unreadable storage quantity/);
+    });
+  });
+
+  test('placement: unset leaves the scheduler free; set, every profile carries it', () => {
+    const free = buildSessionPod(cfg, input).spec;
+    expect(free?.nodeSelector).toBeUndefined();
+    expect(free?.tolerations).toBeUndefined();
+    expect(free?.priorityClassName).toBeUndefined();
+    const placed: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      k8s: {
+        ...cfg.k8s,
+        runtimeClassName: 'sysbox-runc',
+        nodeSelector: { 'tale.dev/sandbox': 'true' },
+        tolerations: [
+          { key: 'tale.dev/sandbox', operator: 'Exists', effect: 'NoSchedule' },
+        ],
+        priorityClassName: 'tale-sandbox-session',
+      },
+    };
+    // Agent (DinD here), lightweight agent and crawler render alike.
+    for (const session of [
+      input,
+      { ...input, profile: 'agent-light' as const },
+      { ...input, profile: 'default' as const },
+    ]) {
+      const spec = buildSessionPod(placed, session).spec;
+      expect(spec?.nodeSelector).toEqual({ 'tale.dev/sandbox': 'true' });
+      expect(spec?.tolerations).toEqual([
+        { key: 'tale.dev/sandbox', operator: 'Exists', effect: 'NoSchedule' },
+      ]);
+      expect(spec?.priorityClassName).toBe('tale-sandbox-session');
+    }
+    // Each Pod gets its own copy, so one Pod's object never aliases the config.
+    const spec = buildSessionPod(placed, input).spec;
+    expect(spec?.nodeSelector).not.toBe(placed.k8s.nodeSelector);
+    expect(spec?.tolerations?.[0]).not.toBe(placed.k8s.tolerations?.[0]);
   });
 
   test('a resume does not re-chown the whole workspace', () => {
@@ -282,9 +494,10 @@ describe('buildSessionPod', () => {
       expect(sc?.allowPrivilegeEscalation).toBe(true);
       expect(sc?.capabilities?.drop).toBeUndefined();
       expect(sc?.seccompProfile?.type).toBe('Unconfined');
-      // Inner docker store: ephemeral, size-bounded emptyDir at /var/lib/docker.
+      // Inner docker store: ephemeral, size-bounded emptyDir at /var/lib/docker,
+      // sized on its own rather than like the workspace.
       const ds = pod.spec?.volumes?.find((v) => v.name === 'docker-storage');
-      expect(ds?.emptyDir?.sizeLimit).toBe(cfg.k8s.workspaceSizeLimit);
+      expect(ds?.emptyDir?.sizeLimit).toBe('20Gi');
       expect(ds?.persistentVolumeClaim).toBeUndefined();
       expect(
         pod.spec?.containers[0]?.volumeMounts?.some(
@@ -408,8 +621,10 @@ describe('buildSessionPod', () => {
       expect(egress?.resources?.requests).toEqual({
         cpu: '10m',
         memory: '16Mi',
+        'ephemeral-storage': '16Mi',
       });
       expect(egress?.resources?.limits?.memory).toBe('64Mi');
+      expect(egress?.resources?.limits?.['ephemeral-storage']).toBe('128Mi');
       // NET_ADMIN lives ONLY in the sidecar (which runs only redsocks).
       expect(egress?.securityContext?.runAsUser).toBe(0);
       expect(egress?.securityContext?.capabilities?.add).toEqual([
@@ -429,6 +644,26 @@ describe('buildSessionPod', () => {
           (e) => e.name === 'TALE_TRANSPARENT_EGRESS',
         ),
       ).toBe(false);
+    });
+
+    test('a zero disk request reaches the sidecar too, for nodes that report no ephemeral-storage capacity', () => {
+      const zero: SpawnerConfig = {
+        ...runcCfg,
+        transparentEgress: true,
+        k8s: { ...runcCfg.k8s, ephemeralStorageRequest: '0' },
+      };
+      for (const profile of ['agent', 'default'] as const) {
+        const spec = buildSessionPod(zero, { ...input, profile }).spec;
+        const requests = [
+          ...(spec?.initContainers ?? []),
+          ...(spec?.containers ?? []),
+        ].map((c) => c.resources?.requests?.['ephemeral-storage']);
+        // Explicit zeros: an absent request would default to the limit.
+        expect(requests).toEqual(['0', '0']);
+        expect(
+          spec?.initContainers?.[0]?.resources?.limits?.['ephemeral-storage'],
+        ).toBe('128Mi');
+      }
     });
 
     test('on but gvisor tier: no sidecar (runsc netstack), falls back to env', () => {

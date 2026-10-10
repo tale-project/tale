@@ -1,0 +1,35 @@
+addMember:
+  title: Ajouter un membre
+  existingUserHint: Cette personne possède déjà un compte ; aucun mot de passe
+    n'est nécessaire — elle se connecte avec ses identifiants existants.
+memberAdded:
+  title: Membre ajouté
+  credentialsWarning: Enregistre ces identifiants maintenant. Ils ne seront plus affichés.
+  existingUserNotice: Cet utilisateur possédait déjà un compte, aucun nouvel
+    identifiant n'a été créé. Il peut se connecter avec son mot de passe
+    existant.
+search:
+  title: Recherche
+  placeholder: Rechercher des projets, tâches, chats, documents et contacts
+  loading: Recherche en cours...
+  noResults: Aucun résultat
+  empty: Commence à taper pour rechercher
+  emptyHint: Recherche des projets, tâches, chats, documents et contacts dans cette organisation
+  groupProjects: Projets
+  groupChat: Discussions
+  groupTasks: Tâches
+  groupDocuments: Documents
+  groupContacts: Contacts
+  scopeLabel: Portée de la recherche
+  scopeChats: Chats
+  scopeEverything: Tout
+  badgeArchived: Archivé
+  badgeProjectArchived: Projet archivé
+thisMember: ce membre
+confirmRemoveMember: Retirer {name} de cette organisation ? Cette personne perdra l'accès à celle-ci et à toutes les ressources associées.
+toSend: pour envoyer
+enterToSend: Entrée pour envoyer
+contactInfo:
+  title: Détails du contact
+  contactId: ID du contact
+selectConversation: Sélectionner la conversation

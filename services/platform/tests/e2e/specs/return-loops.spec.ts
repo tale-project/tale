@@ -138,7 +138,7 @@ test('return loop: assigning a task notifies and calls back the assignee', async
     .getByRole('combobox', { name: t('settings.form.role') })
     .click();
   await page
-    .getByRole('option', { name: t('settings.roles.member'), exact: true })
+    .getByRole('option', { name: t('roles.member'), exact: true })
     .click();
   await addDialog
     .getByLabel(t('settings.form.password'), { exact: true })

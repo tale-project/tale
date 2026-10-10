@@ -24,6 +24,8 @@
  */
 
 import { cn } from '@tale/ui/cn';
+import { ThinkingDots } from '@tale/ui/thread/thinking-dots';
+import { TimelineRow } from '@tale/ui/thread/timeline-row';
 import {
   Brain,
   FileText,
@@ -47,8 +49,6 @@ import {
 } from '../hooks/use-thinking-timer';
 import type { ChatMessageUsage, MessagePart } from '../types';
 import { stepActivityLabel } from '../utils/activity-label';
-import { ThinkingDots } from './thinking-dots';
-import { TimelineRow } from './timeline-row';
 
 /** The retrieval tools get their own glyphs; anything unknown keeps the
  * generic wrench. */

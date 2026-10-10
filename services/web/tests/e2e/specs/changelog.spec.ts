@@ -5,6 +5,7 @@ import {
   RELEASES,
   RELEASES_FETCHED_AT,
 } from '../../../app/generated/releases-manifest';
+import { gotoClientPage } from '../helpers/client-page';
 
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
@@ -30,7 +31,7 @@ test.describe('changelog timeline', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     const nav = page.getByRole('navigation', {
       name: t('changelogPage.allReleases'),
@@ -68,7 +69,7 @@ test.describe('changelog timeline', () => {
       page,
     }) => {
       await page.setViewportSize({ width, height: 844 });
-      await page.goto('/changelog');
+      await gotoClientPage(page, '/changelog');
       await expect(page.locator('article').last()).toBeAttached();
       await page.evaluate(() => document.fonts.ready);
 
@@ -96,7 +97,7 @@ test.describe('changelog timeline', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     const nav = page.getByRole('navigation', {
       name: t('changelogPage.allReleases'),
@@ -126,6 +127,85 @@ test.describe('changelog release feed', () => {
     publishedAt: '2026-08-20T10:00:00Z',
   };
 
+  for (const locale of ['en', 'de', 'fr']) {
+    for (const width of [320, 390]) {
+      test(`long release identifiers stay readable in ${locale} at ${width}px`, async ({
+        page,
+      }) => {
+        const metric =
+          'tale_backend_automation_trigger_scan_last_success_timestamp_seconds';
+        const link = `https://example.com/metrics/${metric}`;
+        const command = `curl ${link}`;
+        await page.setViewportSize({ width, height: 844 });
+        await page.route('**/api/releases', (route) =>
+          route.fulfill({
+            json: {
+              releases: [
+                {
+                  ...liveRelease,
+                  body: `## Metrics\n\n- Inspect \`${metric}\`.\n\n${link}\n\n\`\`\`bash\n${command}\n\`\`\``,
+                },
+              ],
+              fetchedAt: '2026-08-21T10:00:00.000Z',
+              source: 'live',
+            },
+          }),
+        );
+        await gotoClientPage(
+          page,
+          locale === 'en' ? '/changelog' : `/${locale}/changelog`,
+        );
+        const article = page.locator('article#v9\\.9\\.9');
+        await expect(article.locator('li code')).toHaveText(metric);
+        await page.evaluate(() => document.fonts.ready);
+
+        const prose = await article.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const textBounds = Array.from(
+            element.querySelectorAll('li code, p > a'),
+          ).flatMap((node) => {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            return Array.from(range.getClientRects()).map((rect) => ({
+              left: rect.left,
+              right: rect.right,
+            }));
+          });
+          return {
+            bodyWidth: document.body.scrollWidth,
+            left: bounds.left,
+            right: bounds.right,
+            textBounds,
+          };
+        });
+        expect(prose.bodyWidth).toBeLessThanOrEqual(width);
+        expect(prose.textBounds.length).toBeGreaterThan(0);
+        for (const rect of prose.textBounds) {
+          expect(rect.left).toBeGreaterThanOrEqual(prose.left - 1);
+          expect(rect.right).toBeLessThanOrEqual(prose.right + 1);
+        }
+
+        const block = article.locator('pre');
+        await expect(block).toHaveText(`${command}\n`);
+        const scroll = await block.evaluate((element) => {
+          const before = element.scrollLeft;
+          element.scrollLeft = element.scrollWidth;
+          return {
+            before,
+            after: element.scrollLeft,
+            overflow: getComputedStyle(element).overflowX,
+            whitespace: getComputedStyle(element).whiteSpace,
+            right: element.getBoundingClientRect().right,
+          };
+        });
+        expect(scroll.after).toBeGreaterThan(scroll.before);
+        expect(scroll.overflow).toBe('auto');
+        expect(scroll.whitespace).toBe('pre');
+        expect(scroll.right).toBeLessThanOrEqual(width);
+      });
+    }
+  }
+
   test('renders releases the build-time snapshot never saw', async ({
     page,
   }) => {
@@ -139,7 +219,7 @@ test.describe('changelog release feed', () => {
       }),
     );
 
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     await expect(page.locator('article#v9\\.9\\.9')).toBeVisible();
     await expect(
@@ -152,7 +232,7 @@ test.describe('changelog release feed', () => {
       route.fulfill({ status: 503, json: { error: 'upstream' } }),
     );
 
-    await page.goto('/changelog');
+    await gotoClientPage(page, '/changelog');
 
     const nav = page.getByRole('navigation', {
       name: t('changelogPage.allReleases'),

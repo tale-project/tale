@@ -13,6 +13,12 @@ auth:
   - method: api-key
 actions:
   - name: search
+    title: Search the web
+    i18n:
+      de:
+        title: Im Web suchen
+      fr:
+        title: Rechercher sur le web
     description: >-
       Search the open web via Tavily. Returns top results with title, URL,
       content snippet, and score. Use 'basic' depth for quick facts,
@@ -84,6 +90,12 @@ actions:
         search_depth: 'advanced',
       }
   - name: extract
+    title: Extract page text
+    i18n:
+      de:
+        title: Seitentext extrahieren
+      fr:
+        title: Extraire le texte des pages
     description: >-
       Fetch cleaned main-article text for one or more URLs. Use for deep reads
       of the most promising search results.

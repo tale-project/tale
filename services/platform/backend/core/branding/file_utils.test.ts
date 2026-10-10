@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { svgHasActiveContent } from './file_utils';
 
-describe('svgHasActiveContent', () => {
+describe('svgHasActiveContent [BRAND-R1]', () => {
   it.each([
     ['a script element', '<svg><script>alert(1)</script></svg>'],
     ['a namespaced script element', '<svg><svg:script href="x"/></svg>'],

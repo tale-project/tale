@@ -9,11 +9,11 @@ Open **Settings > Sandboxes** when agent work or crawling cannot obtain an execu
 
 | Workload | Default | What uses a slot |
 | --- | --- | --- |
-| **Project agent sessions** | 2 | An agent workspace starting or doing work. The agent reuses its workspace across tasks. |
+| **Agent workers** | 2 | A worker starting or doing work: one for each task an agent works on at the same time. Each worker is a sandbox with its own workspace, reused for the agent’s later tasks. |
 | **Workflow sessions** | 2 | A workflow run’s sandbox, shared by its sandbox work. Concurrent runs use separate slots. |
 | **Render sessions** | 2 | A temporary sandbox rendering pages during website crawling. |
 
-These are concurrency limits, not a count of tasks or a spending budget. An agent can work on several tasks in its one workspace. Limits do not reserve infrastructure for the organization; all organizations share the deployment capacity.
+These are concurrency limits, not a count of tasks or a spending budget. An agent working three tasks at once holds three agent workers; a run that finds them all busy [waits for one](#resolve-a-blocked-start) and starts on its own when one is free. Under **Agent workers**, Owners and Admins see how many agent runs are waiting for a free worker: the runs a higher limit would start now. Limits do not reserve infrastructure for the organization; all organizations share the deployment capacity.
 
 <Frame caption="The three workload limits add up automatically. Their total must fit within the deployment capacity.">
 
@@ -51,7 +51,7 @@ Measurements refresh every 15 seconds; **Refresh** requests a new observation. C
 
 ## Explain an allocated or idle workspace
 
-Owners and Admins can inspect **Workspaces**. A row identifies its agent or workflow run, runtime state, allocation state and running tasks. These states answer different questions: a container may remain running for reuse after it has released its organization slot. A project agent’s workspace stays listed while the agent is idle, as **Stopped** with **Quota released**, until you destroy it or Tale deletes it: when nobody has used it for [the number of days your organization sets](#delete-unused-workspaces-automatically), or when [its agent, project or member is removed](#explain-why-a-workspace-disappeared). Once the agent itself is deleted, the row reads **Deleted agent** until Tale has deleted the workspace. A workflow run’s workspace is reclaimed shortly after the run ends.
+Owners and Admins can inspect **Workspaces**. A row identifies its agent or workflow run, runtime state, allocation state and running tasks. An agent has one row per worker: under its name, **Worker 2** says which of its workers the row is, and **Member worker 2** marks one that runs the agent for a Member who [started its runs](/platform/projects/tasks#agent-runs-a-member-starts). **Current tasks** names each task by its key and title and opens it. These states answer different questions: a container may remain running for reuse after it has released its organization slot. A worker’s workspace stays listed while it is idle, as **Stopped** with **Quota released**, until you destroy it or Tale deletes it: when nobody has used it for [the number of days your organization sets](#delete-unused-workspaces-automatically), or when [its agent, project or member is removed](#explain-why-a-workspace-disappeared). Once the agent itself is deleted, the row reads **Deleted agent** until Tale has deleted the workspace. A workflow run’s workspace is reclaimed shortly after the run ends. If an environment on the Tale server disappears on its own, for example after a host restart or because it ran out of memory, its workspace keeps its files and reads **Stopped**, and the next run continues in it. This does not apply to an environment on a connected [device](/platform/admin/sandbox-devices).
 
 **Spend** adds the metered cost of finished turns. A turn still running is included when it ends. Temporary crawler environments appear in capacity counts even without a standing workspace row.
 
@@ -63,15 +63,17 @@ Owners and Admins can use a workspace’s row menu:
 
 | Action | Effect |
 | --- | --- |
-| **Stop task** | Cancels all currently running operations in that workspace. Check the listed tasks first; one agent may have several. |
+| **Stop task** | Cancels all currently running operations in that workspace. A worker works one task at a time, so this stops that task only; the agent’s other workers keep working. |
 | **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup and from deletion for being unused, or restores normal cleanup. A pinned allocation can continue holding capacity. If a pinned workspace’s environment disappears, for example after a host restart, Tale starts it again with its workspace files, and the workspace stays pinned. |
-| **Destroy** | Asks for confirmation, then removes the sandbox and its workspace files in the background: it unpins the workspace first and cancels running work. Until the workspace is gone, its row reads **Destroying** and you can go on using the page. If Tale still cannot remove it after several attempts, the workspace remains listed, unpinned, and reads **Destroy failed**; choose **Destroy** again to finish removing it. While the row reads **Destroying**, nothing new starts in that workspace: an agent's run waits and reads **Waiting for a sandbox slot**, and a workflow run's step that needs the workspace fails at once with the reason, without waiting or trying again, because the files its earlier steps left are being deleted. Once the row is gone, the next start creates a fresh environment; if it reads **Destroy failed** instead, the waiting work continues in the old files. |
+| **Destroy** | Asks for confirmation, then removes the sandbox and its workspace files in the background: it unpins the workspace first and cancels running work. Until the workspace is gone, its row reads **Destroying** and you can go on using the page. If Tale still cannot remove it after several attempts, the workspace remains listed, unpinned, and reads **Destroy failed**; choose **Destroy** again to finish removing it. While the row reads **Destroying**, nothing new starts in that workspace. An agent's run that would use it takes another free worker of the agent; when none is free, it waits and reads **Waiting for a workspace**. A workflow run's step that needs the workspace fails at once with the reason, without waiting or trying again, because the files its earlier steps left are being deleted. Once the row is gone, the next start creates a fresh environment; if it reads **Destroy failed** instead, the waiting work continues in the old files. |
+
+A pin change is saved durably and retried if its runtime acknowledgement fails, including after a backend worker restart or device outage. Retries apply the latest desired value to the same session incarnation; repeated unpin delivery does not extend its expiry.
 
 Use stop when the current work should end but its files should remain. Before destruction, preserve outputs you still need and read the confirmation. Idle capacity reclamation preserves workspace files; explicit destruction and automatic deletion do not.
 
 ## Delete unused workspaces automatically
 
-A project agent keeps its files between runs in workspaces: the one it reuses across tasks, and a separate one for each Member who [starts its runs](/platform/projects/tasks#agent-runs-a-member-starts). Tale deletes a workspace that nobody has used for the number of days your organization sets; **Destroy** still deletes one at once. Owners and Admins set this rule under **Workspace cleanup**, above **Workspaces**. Developers don't see that section.
+A project agent keeps its files between runs in the workspaces of its workers: one for each task it has worked on at the same time, reused by its later tasks, and separate ones for each Member who [starts its runs](/platform/projects/tasks#agent-runs-a-member-starts). Each worker’s workspace counts its days without use on its own. Tale deletes a workspace that nobody has used for the number of days your organization sets; **Destroy** still deletes one at once. Owners and Admins set this rule under **Workspace cleanup**, above **Workspaces**. Developers don't see that section.
 
 <Frame caption="With Delete unused workspaces on, a workspace nobody has used for the set number of days is deleted. Pinned workspaces are kept.">
 
@@ -91,10 +93,10 @@ In **Workspaces**, a stopped agent workspace shows the day it will be deleted un
 
 Besides deleting unused workspaces, Tale deletes a workspace when what it belongs to is removed, whatever the cleanup setting says:
 
-- Deleting a project agent deletes all its workspaces, including each Member's. Deleting a project does the same for every agent in it.
+- Deleting a project agent deletes the workspaces of all its workers, including each Member's. Deleting a project does the same for every agent in it.
 - [Removing a member](/platform/admin/members-and-roles#remove-or-recover-access) from the organization deletes their own workspaces with every agent. Setting the member to **Disabled** instead keeps them.
 - [Erasing a person's data](/platform/admin/governance/data-subject-requests) deletes their own workspaces without waiting for work running in them.
-- Deleting the organization deletes all its sandboxes and their files, revokes the gateway keys issued to them, disconnects its [devices](/platform/admin/sandbox-devices) and removes the build and package caches kept for it.
+- Deleting the organization deletes all its sandboxes and their files, revokes the gateway keys issued to them, removes its model-provider keys from the model gateway, disconnects its [devices](/platform/admin/sandbox-devices) and removes the build and package caches kept for it.
 
 This happens within about a minute, or after the task ends if one is still running in the workspace. A pinned workspace goes too, but a [legal hold](/platform/admin/governance/legal-hold) keeps every workspace it covers: a hold on the organization keeps all of them, and a hold on a person keeps that person's own workspaces. An hourly cleanup also deletes leftovers that nothing owns any more, such as a workflow run's workspace that was never reclaimed.
 
@@ -102,9 +104,9 @@ Every workspace Tale deletes on its own, for one of these reasons or for being u
 
 ## Resolve a blocked start
 
-A start that finds no room waits. When your organization's limits are in use, or the deployment is full or short of memory, the work starts on its own once room frees, and needs nothing from you. Disk space is different: stopping idle work frees none, because a stopped workspace keeps its files. Tale removes build caches that no session uses, if there are any; when that frees too little, the start waits until workspaces are deleted, for example ones you destroy because you no longer need them, or until the operator frees disk space. When the deployment itself is full, its room goes to the work that has waited longest, whichever organization it belongs to, and each waiting start is told when its turn comes:
+A start that finds no room waits, and its task says why under **Run**: **Waiting for a worker** when every agent worker of your organization is busy, **Waiting for room** when the deployment is full or short of memory or disk, **Waiting for a workspace** while an administrator destroys the workspace it would use, and **Waiting for its sandbox** while its sandbox finishes an earlier process. Owners and Admins also get a link to this page when the agent workers are all busy. When your organization's limits are in use, or the deployment is full or short of memory, the work starts on its own once room frees, and needs nothing from you. Disk space is different: stopping idle work frees none, because a stopped workspace keeps its files. Tale removes build caches that no session uses, if there are any; when that frees too little, the start waits until workspaces are deleted, for example ones you destroy because you no longer need them, or until the operator frees disk space. When the deployment itself is full, its room goes to the work that has waited longest, whichever organization it belongs to, and each waiting start is told when its turn comes:
 
-- A task run waits in the queue. It is tried again as soon as a session ends, in your organization or in another one on the same deployment. When the deployment is full, it is also tried when its turn comes. Every two minutes, Tale also tries a few of each organization's waiting runs, the longest-waiting first.
+- A task run waits in the queue. It is tried again as soon as a session ends, in your organization or in another one on the same deployment. When the deployment is full, it is also tried when its turn comes. Every two minutes, Tale also tries a few of each organization's waiting runs. A freed worker goes first to the agent with the fewest runs working, then to the run that has waited longest. A run that finds no room within 12 hours of its start fails, saying it waited too long for a free worker.
 - An automation's agent step tries again without using up its retries: when its turn comes if the deployment is full, otherwise after a pause that grows while the step keeps waiting, up to about two minutes. The run shows **Waiting for a sandbox slot** meanwhile. After two hours without room, the run fails with that reason. A workspace an administrator is destroying is no lack of room: the step fails at once instead, as described for **Destroy** above.
 - Crawling waits for its turn, then continues with its next batch.
 

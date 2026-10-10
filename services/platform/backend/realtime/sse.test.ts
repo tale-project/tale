@@ -163,9 +163,13 @@ describe('GET /events re-proves the reader while the stream is open', () => {
       return [];
     });
     const response = await app.request('/events?orgId=o1');
-    mode = 'fault';
     const reader = response.body?.getReader();
     if (reader === undefined) throw new Error('no body');
+    // The stream opens with its jittered reconnect delay — the only write
+    // before the first hint or heartbeat.
+    const opening = await reader.read();
+    expect(new TextDecoder().decode(opening.value)).toMatch(/^retry: \d+/);
+    mode = 'fault';
     // The fault lands on the first re-check; the stream must still be open
     // after it (the poll backs off a second and retries). The read stays
     // pending across the probe — a fresh read would race it for the chunk.
@@ -279,7 +283,9 @@ describe('GET /events through a database restart', () => {
       if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
       if (text.includes('FROM "session"')) return [{ id: 's1' }];
       if (text.includes('max(id)')) return [{ max: '0' }];
-      if (text.includes('AS id, org_id, entity, entity_id')) {
+      // The shared tail: its ring preload at start, then its forward reads.
+      if (text.includes('ORDER BY id DESC')) return [];
+      if (text.includes('AS id, org_id, user_id, entity, entity_id')) {
         const rows = world.rows;
         world.rows = [];
         return rows;

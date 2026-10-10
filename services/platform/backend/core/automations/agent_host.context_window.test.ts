@@ -314,6 +314,77 @@ describe('an automation agent turn', () => {
         mutations.find((m) => m.args.brokerTokenHash !== undefined)?.args
           .brokerTokenHash,
       ).toBe('stable-selected-account-hash');
+      // The subscription turn holds its request — at no cost — before the
+      // credential is vended (GOV-R16).
+      expect(
+        mutations.find(
+          (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+        )?.args,
+      ).toMatchObject({
+        kind: 'workflow-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+      });
+    },
+  );
+
+  it.each([
+    {
+      name: 'a pasted Anthropic OAuth token',
+      credential: {
+        secret: 'synthetic-pasted-token',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      },
+      expected: {
+        CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-pasted-token',
+        ANTHROPIC_AUTH_TOKEN: '',
+        ANTHROPIC_API_KEY: '',
+      },
+    },
+    {
+      name: 'a static key that names no variable',
+      credential: { secret: 'synthetic-plan-key' },
+      expected: {
+        ANTHROPIC_AUTH_TOKEN: 'synthetic-plan-key',
+        CLAUDE_CODE_OAUTH_TOKEN: '',
+      },
+    },
+  ])(
+    'delivers $name on the channel its credential names',
+    async ({ credential, expected }) => {
+      vi.mocked(resolveProviderCredential).mockResolvedValue({
+        authMethod: 'subscription-key',
+        credentialId: 'credential-2',
+        name: 'Synthetic key',
+        ...credential,
+      } as never);
+      const { ctx } = makeCtx({ status: 'running' });
+
+      await startWorkflowAgentTurnImpl(ctx, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        nodeId: 'book',
+        execId: 'exec-1',
+        sessionId: 'wf-run-1',
+        harness: 'claude-code',
+        lane: 'subscription',
+        providerSlug: 'anthropic',
+        modelId: 'claude-sonnet-4-6',
+        gatewayModel: 'claude-sonnet-4-6',
+        apiBaseUrl: 'https://api.anthropic.com',
+        deadlineAt: Date.now() + 60_000,
+        request: {
+          model: 'claude-sonnet-4-6',
+          prompt: 'Book the synthetic invoice.',
+        },
+      } as never);
+
+      expect(console.error).not.toHaveBeenCalled();
+      expect(io.starts).toHaveLength(1);
+      expect(io.starts[0]?.env).toMatchObject(expected);
+      expect(io.starts[0]?.env.ANTHROPIC_BASE_URL).toBe(
+        'https://api.anthropic.com',
+      );
     },
   );
 

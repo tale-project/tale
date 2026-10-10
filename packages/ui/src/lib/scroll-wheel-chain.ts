@@ -13,7 +13,10 @@ function isVerticallyScrollable(el: HTMLElement): boolean {
   return overflow === 'auto' || overflow === 'scroll';
 }
 
-function findScrollableAncestor(start: HTMLElement | null): HTMLElement | null {
+/** The nearest ancestor (including start) that can scroll vertically. */
+export function findScrollableAncestor(
+  start: HTMLElement | null,
+): HTMLElement | null {
   let node = start;
   while (node) {
     if (isVerticallyScrollable(node)) return node;

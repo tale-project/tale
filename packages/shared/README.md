@@ -26,12 +26,30 @@ Every subpath below is declared in `package.json` `exports`.
   projects. Platform forms/APIs and CLI validation import these same objects.
 - **`@tale/shared/schemas/configuration`** — opaque native configuration hash
   preconditions. A null hash means an absent resource.
+- **`@tale/shared/config/platform-resources`** — the native platform resource
+  model that `tale config platform`, managed deployments and the MCP settings
+  tools share: `platformResourceSchema` (one entry per declarable kind), each
+  resource's identity (`resourceId`), a declaration's cross-resource rules
+  (`platformConfigurationSchema`) and when stored state already is what was
+  asked for (`resourceConverged`). Server-only: it compares
+  `configurationHash` digests, so it sits outside the browser-safe `schemas/`.
+- **`@tale/shared/schemas/settings-kinds`** — the settings a coding agent reads
+  and changes through the MCP settings tools: one descriptor per kind
+  (`SETTINGS_KINDS`: scope, the Settings pages it covers, operations, secret
+  paths, risk, apply order, description), the declarable kinds those tools
+  leave to the automation tools, every page of Settings (`SETTINGS_AREAS`) and
+  the effects a planned change can carry (`SETTINGS_EFFECTS`).
 - **`@tale/shared/schemas/{automation-pack,automation-settings,task-contract}`**
   — automation package declarations and limits, operator settings forms and task
   bindings. Catalog reads, ZIP decoding and engine validation stay in the platform.
 - **`@tale/shared/schemas/epoch-ms`** — the one timestamp bound: `epochMsSchema`
   takes whole epoch milliseconds from 0 to `EPOCH_MS_MAX`, the latest instant a
   JavaScript `Date` holds; `isEpochMs` is the same test for readers of stored rows.
+- **`@tale/shared/schemas/schedule-rule`** — a schedule trigger's repeat rule:
+  `scheduleRuleSchema` (every N minutes or hours, optionally only on some weekdays
+  and hours, or times of day on a daily, weekly, monthly or yearly rule), the
+  refusal codes it answers (`scheduleIssueCode`), `normalizeScheduleRule` and
+  `sameScheduleRule`, the `"HH:MM"` time helpers and the wall-clock grid arithmetic.
 - **`@tale/shared/net/private-ip`** and **`@tale/shared/utils/{session-idle,model-ref,project-key}`**
   — pure validation helpers used by those contracts and their consumers.
 
@@ -76,6 +94,12 @@ process and terminal dependencies out of frontend bundles.
 
 - **`@tale/shared/utils/hashing`** — `computeContentHash(string | Uint8Array)`, the SHA-256
   hex digest the knowledge index dedups content by.
+- **`@tale/shared/utils/stable-stringify`** — `stableStringify(value)`, JSON with every
+  object's keys sorted (a value JSON cannot hold reads as `null`). Pure: the automation
+  engine and the browser compare values with it.
+- **`@tale/shared/utils/configuration-hash`** — `configurationHash(value)`, the SHA-256 of
+  that key-sorted JSON: a native configuration resource's `hash`, and the `expectedHash`
+  a write takes back. Server-only (Node's crypto); a golden corpus pins every digest.
 
 ## Development
 

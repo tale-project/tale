@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { LOCALE_STORAGE_KEY } from '@tale/ui/i18n/detect-locale';
+import { isInaccessible } from '@testing-library/dom';
 import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
@@ -575,7 +578,7 @@ describe('Composer dictation', () => {
 describe('Composer accessibility', () => {
   it('passes an axe audit', async () => {
     const { container } = renderComposer();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 
   it('passes an axe audit with the model list open (Auto row included)', async () => {
@@ -1129,4 +1132,32 @@ describe('Composer document attachments', () => {
       ),
     ).not.toBeInTheDocument();
   });
+});
+
+describe('Composer send hint', () => {
+  it.each([
+    ['en', 'Enter to send', 'to send'],
+    ['de', 'Enter zum Senden', 'zum Senden'],
+    ['fr', 'Entrée pour envoyer', 'pour envoyer'],
+  ])(
+    'exposes a complete accessible sentence in %s',
+    async (locale, sentence, fragment) => {
+      localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      await i18n.changeLanguage(locale);
+      try {
+        renderComposer();
+        const hint = screen.getByText(sentence);
+        expect(isInaccessible(hint)).toBe(false);
+        expect(hint).toHaveClass('sr-only');
+        expect(isInaccessible(screen.getByText(fragment))).toBe(true);
+        expect(hint.parentElement?.querySelector('svg')).toHaveAttribute(
+          'aria-hidden',
+          'true',
+        );
+      } finally {
+        localStorage.removeItem(LOCALE_STORAGE_KEY);
+        await i18n.changeLanguage('en');
+      }
+    },
+  );
 });

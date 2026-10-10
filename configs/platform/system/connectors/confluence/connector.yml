@@ -16,6 +16,12 @@ auth:
   - method: basic
 actions:
   - name: list_pages
+    title: List pages
+    i18n:
+      de:
+        title: Seiten auflisten
+      fr:
+        title: Lister les pages
     description: >-
       List a Confluence space's pages. Cursor pagination is handled internally
       (soft-capped; `truncated: true` beyond the cap). Archived pages are
@@ -141,6 +147,12 @@ actions:
         };
     exampleInput: { spaceKey: 'ENG' }
   - name: get_page
+    title: Get page
+    i18n:
+      de:
+        title: Seite abrufen
+      fr:
+        title: Récupérer une page
     description: >-
       Fetch a single page's rendered content by pageId, convert it to plain
       text, and store it as a text/plain file.

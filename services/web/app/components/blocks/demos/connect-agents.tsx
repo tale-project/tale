@@ -71,52 +71,57 @@ export function ConnectAgents({
           />
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="text-fg-subtle hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] gap-2 px-3 py-2 text-[10px] font-medium tracking-wide uppercase @2xl/demo:grid @2xl/demo:px-4">
+            <div className="text-fg-subtle hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_5rem] gap-2 px-3 py-2 text-[10px] font-medium tracking-wide uppercase @2xl/demo:grid @2xl/demo:px-4">
               <span>{t('demos.connect.colName')}</span>
               <span>{t('demos.connect.colModel')}</span>
               <span className="text-right">{t('demos.connect.colStatus')}</span>
             </div>
             <div className="flex flex-col gap-2">
-              {scene.rows.map((row, index) =>
-                beat >= BEAT.row1 + index ? (
-                  <motion.div
-                    key={row.name}
-                    initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, ease: easeOut }}
-                    className="border-border-base/70 bg-surface-site-raised grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 rounded-xl border px-2.5 py-2.5 shadow-sm @2xl/demo:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] @2xl/demo:px-4"
-                  >
-                    <span className="text-fg-base col-span-2 flex min-w-0 items-center gap-2 text-xs font-medium @2xl/demo:col-span-1 @2xl/demo:text-[13px]">
-                      <span
-                        className={agentMark({
-                          color: (index % 5) as 0 | 1 | 2 | 3 | 4,
-                        })}
-                      >
-                        <Bot className="size-3.5" strokeWidth={1.75} />
-                      </span>
-                      <span className="min-w-0 wrap-anywhere">{row.name}</span>
+              {scene.rows.map((row, index) => (
+                <motion.div
+                  key={row.name}
+                  data-agent-row=""
+                  initial={false}
+                  animate={{ opacity: beat >= BEAT.row1 + index ? 1 : 0 }}
+                  transition={{
+                    duration: reduceMotion ? 0 : 0.3,
+                    ease: easeOut,
+                  }}
+                  className="border-border-base/70 bg-surface-site-raised grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 rounded-xl border px-2.5 py-2.5 shadow-sm @2xl/demo:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_5rem] @2xl/demo:px-4"
+                >
+                  <span className="text-fg-base col-span-2 flex min-w-0 items-center gap-2 text-xs font-medium @2xl/demo:col-span-1 @2xl/demo:text-[13px]">
+                    <span
+                      className={agentMark({
+                        color: (index % 5) as 0 | 1 | 2 | 3 | 4,
+                      })}
+                    >
+                      <Bot className="size-3.5" strokeWidth={1.75} />
                     </span>
-                    <span className="text-fg-muted ml-9 min-w-0 text-[10px] wrap-anywhere @2xl/demo:ml-0 @2xl/demo:text-[11px]">
-                      {row.model}
-                    </span>
-                    <span className="flex justify-end">
+                    <span className="min-w-0 wrap-anywhere">{row.name}</span>
+                  </span>
+                  <span className="text-fg-muted ml-9 min-w-0 text-[10px] wrap-anywhere @2xl/demo:ml-0 @2xl/demo:text-[11px]">
+                    {row.model}
+                  </span>
+                  <span className="flex justify-end">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+                        ready
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-surface-site-inset text-fg-muted',
+                      )}
+                    >
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
-                          ready
-                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-surface-site-inset text-fg-muted',
+                          'size-1.5 shrink-0 rounded-full bg-emerald-500',
+                          !ready && 'opacity-0',
                         )}
-                      >
-                        {ready ? (
-                          <span className="size-1.5 rounded-full bg-emerald-500" />
-                        ) : null}
-                        {t('demos.connect.statusReady')}
-                      </span>
+                      />
+                      {t('demos.connect.statusReady')}
                     </span>
-                  </motion.div>
-                ) : null,
-              )}
+                  </span>
+                </motion.div>
+              ))}
             </div>
           </div>
         </div>

@@ -29,6 +29,10 @@ export const DEMO_OWNER = {
 /** Workspace name — shows in the sidebar and org switcher on every shot. */
 export const DEMO_ORG_NAME = 'Northlight Labs';
 
+/** The passkey the demo owner registers for the account shot — the name the
+ * two-factor guide's "Add a passkey" steps suggest. */
+export const DEMO_PASSKEY_NAME = 'Work laptop';
+
 /**
  * A seeded task. `status` is picked in the create dialog (task-modal's Status
  * field) — without it every task lands in `todo` and the board screenshots as
@@ -291,7 +295,7 @@ export const DEMO_CHAT_PROMPTS: readonly string[] = [
 interface DemoMember {
   readonly name: string;
   readonly email: string;
-  /** `settings.roles.*` key. */
+  /** `roles.*` key. */
   readonly role: string;
 }
 
@@ -311,6 +315,25 @@ export const DEMO_MEMBERS: readonly DemoMember[] = [
   { name: 'Marta Vogel', email: 'marta.vogel@example.com', role: 'member' },
   { name: 'Jordan Blake', email: 'jordan.blake@example.com', role: 'member' },
 ] as const;
+
+/** The first relaunch task's brief and handoff, filled after the triage demo
+ * has run so assigning its human owner cannot change the scoring fixture. */
+export const DEMO_LAUNCH_TASK_DETAIL = {
+  title: DEMO_PROJECTS[0].tasks[0].title,
+  description: [
+    'Confirm that the new website is ready for the launch-day handoff.',
+    '',
+    '- Check the redirect map against the 380 legacy URLs in the content inventory.',
+    '- Review the staging accessibility report and smoke-test the contact form.',
+    '- Confirm the content freeze, DNS cutover, and rollback owner with the team.',
+    '',
+    'Record any remaining blocker here before giving the release owner the go-ahead.',
+  ].join('\n'),
+  priority: 'p1',
+  assignee: DEMO_MEMBERS[0].name,
+  comment:
+    'The content inventory and launch-day runbook are ready in the project. Please confirm the contact-form check and rollback owner before we freeze the content.',
+} as const;
 
 /** The contractor whose data the governance demo freezes, then erases. */
 export const DEMO_DEPARTING_MEMBER = DEMO_MEMBERS[3];
@@ -514,6 +537,96 @@ export const DEMO_INBOX: readonly DemoConversation[] = [
 export const DEMO_TEST_RUN = {
   automation: 'github-triage-issues',
   input: { owner: 'tale-project', repo: 'tale' },
+} as const;
+
+/**
+ * The skip notice the triggers page shows: the shipped pull-request review
+ * pack, deployed and switched on without the repository its inputs
+ * require, so the start its schedule comes due for is refused and the
+ * trigger says why. Its own schedule is `schedule`; `primer` comes due
+ * within two minutes, so the seed need not wait half an hour for the first
+ * refusal.
+ */
+export const DEMO_TRIGGER_SKIP = {
+  automation: 'github-review-pull-requests',
+  schedule: { frequency: 'minutely', interval: 30 },
+  primer: { frequency: 'minutely', interval: 1 },
+} as const;
+
+/**
+ * The webhook the triggers page shows: an automation that records each
+ * incoming invoice, installed in two projects, with deliveries that
+ * started runs. Its one step is a transform, so a run needs no connector
+ * or model. Each delivery names itself with an `Idempotency-Key`.
+ */
+export const DEMO_WEBHOOK = {
+  automation: 'invoice-intake',
+  name: 'Record incoming invoices',
+  projects: [DEMO_PROJECTS[0].name, DEMO_PROJECTS[1].name],
+  document: {
+    version: 1,
+    name: 'invoice-intake',
+    nodes: [
+      {
+        id: 'record',
+        type: 'transform',
+        input: { invoiceId: '{{ input.payload.invoiceId }}' },
+        code: 'return { invoiceId: input.invoiceId, recorded: true };',
+      },
+    ],
+    output: '{{ nodes.record.output }}',
+  },
+  deliveries: [
+    { key: 'inv-2026-0142', body: { invoiceId: 'INV-2026-0142' } },
+    { key: 'inv-2026-0143', body: { invoiceId: 'INV-2026-0143' } },
+  ],
+} as const;
+
+/**
+ * The failed run the docs show (the run page's failure focus): a TEST run of
+ * a small demo automation, uploaded as a draft, that stops at Totals because
+ * one of the week's invoices carries no amount. Transforms only — no
+ * connector, model or secret — so it fails the same way on every stack.
+ * Its name stays clear of "triage", which the catalog shot searches for.
+ */
+export const DEMO_FAILED_RUN = {
+  automation: 'invoice-digest',
+  failsAt: 'totals',
+  workflow: `name: invoice-digest
+description: Sum the week's open invoices per customer and write the digest.
+nodes:
+  - id: invoices
+    type: transform
+    code: |
+      return {
+        invoices: [
+          { customer: 'Atelier Lumen', amount: 1200 },
+          { customer: 'Northwind', amount: 860 },
+          { customer: 'Globex', amount: null },
+        ],
+      };
+  - id: totals
+    type: transform
+    input:
+      invoices: '{{ nodes.invoices.output.invoices }}'
+    code: |
+      const totals = {};
+      for (const invoice of input.invoices) {
+        if (typeof invoice.amount !== 'number') {
+          throw new Error('The invoice for ' + invoice.customer + ' has no amount');
+        }
+        totals[invoice.customer] = (totals[invoice.customer] ?? 0) + invoice.amount;
+      }
+      return { totals };
+  - id: digest
+    type: transform
+    input:
+      totals: '{{ nodes.totals.output.totals }}'
+    code: |
+      const lines = Object.entries(input.totals).map(([customer, amount]) => customer + ': ' + amount);
+      return { text: lines.join('\\n') };
+output: '{{ nodes.digest.output }}'
+`,
 } as const;
 
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';

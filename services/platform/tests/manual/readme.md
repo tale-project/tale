@@ -29,32 +29,33 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-1083 boxes across 21 suites. Every suite declares the ID prefix its
+1210 boxes across 22 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
 | Suite | Prefix | Area | Boxes |
 |---|---|---|---|
 | [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep | 28 |
-| [approvals](suites/approvals.md) | `APV-` | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval | 20 |
-| [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 51 |
-| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings | 79 |
-| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 99 |
-| [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 40 |
-| [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 62 |
-| [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 26 |
-| [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 81 |
-| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 65 |
-| [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 19 |
-| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 66 |
+| [approvals](suites/approvals.md) | `APV-` | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval | 22 |
+| [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 59 |
+| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, the self-arranging canvas, paths, code fields, Source, upload, trigger, runs, bindings | 136 |
+| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 104 |
+| [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 41 |
+| [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 63 |
+| [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 27 |
+| [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 84 |
+| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 68 |
+| [mcp](suites/mcp.md) | `MCP-` | the MCP endpoint from a coding agent: connecting five clients with a key on either protocol era, a stale save, mock runs in Runs, the ask before a deploy, answering a run's question, prompts, resources and the Tale skill, its saves in the audit log | 12 |
+| [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 20 |
+| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 70 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 32 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
-| [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 20 |
-| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 61 |
-| [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 34 |
-| [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 117 |
+| [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 22 |
+| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 66 |
+| [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 35 |
+| [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 126 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 35 |
-| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, human and agent review | 121 |
+| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, human and agent review | 125 |
 | [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 15 |
 
 ## How a round runs
@@ -102,6 +103,7 @@ Change-scoped, by area:
 | BYO knowledge database + object storage | [data-residency](suites/data-residency.md) (`DATA-`) |
 | content models | [governance](suites/governance.md) (`GOV-`) |
 | documents | [knowledge](suites/knowledge.md) (`KNOW-`) |
+| the MCP endpoint from a coding agent | [mcp](suites/mcp.md) (`MCP-`) |
 | org metrics tabs: usage | [metrics](suites/metrics.md) (`MET-`) |
 | side-nav rail + the Home panel | [navigation](suites/navigation.md) (`NAV-`) |
 | the notification bell + panel | [notifications](suites/notifications.md) (`NOTIF-`) |
@@ -127,7 +129,7 @@ A fast "is this build even drivable" pass. Green ⇒ proceed; red ⇒ stop and f
 | `NAV-F9` | the render-only pages mount |
 | `CHAT-F1` | a chat turn reaches a terminal state |
 | `PROJ-F1` | a project opens and lists its tasks |
-| `SET-F1` | settings lands on the role default |
+| `SET-F1` | settings lands on its first row, Account |
 
 ## How a box works
 
@@ -203,7 +205,8 @@ decide whether to continue.
 
 - **New behaviour earns a box** wherever a human still has to judge it — and
   **loses one** once a spec owns it end to end (move the row into
-  [`automation.md`](reference/automation.md) instead).
+  [`automation/<suite>.md`](reference/automation/) instead — see
+  [`automation.md`](reference/automation.md#moving-a-box-here)).
 - **Append IDs; never renumber one.**
 - **Keep a box about the product**, not about the round that wrote it: the
   round belongs in [`runs/`](runs), the reason a box is worded oddly belongs in

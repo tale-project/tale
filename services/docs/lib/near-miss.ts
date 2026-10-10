@@ -37,6 +37,7 @@ import {
   DOCS_NAV,
   type DocsNavGroup,
   flattenNav,
+  firstNavSlug,
   isNavGroup,
 } from './content/nav';
 import { docPath } from './content/paths';
@@ -133,7 +134,7 @@ export function docsNearMissIndex(): NearMissIndex {
 
 /** Whether a route is a page in a locale (`de`, `platform/admin/teams`). */
 export function isDocsPage(locale: string, route: string): boolean {
-  return PAGE_KEYS.has(`${locale}:${route}`);
+  return PAGE_KEYS.has(`${locale}:${route === '' ? firstNavSlug() : route}`);
 }
 
 /**

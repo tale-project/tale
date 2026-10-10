@@ -2,7 +2,38 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow, TaskAgentRunRow } from '../utils/task-timeline';
-import { TaskTimeline } from './task-timeline';
+import {
+  TaskTimelineEntry,
+  timelineItemKey,
+  useTaskTimeline,
+} from './task-timeline';
+
+/** Every line of a task's history, each as the conversation draws it. */
+function TaskTimeline({
+  taskId,
+  organizationId,
+  projectId,
+}: {
+  taskId: string;
+  organizationId: string;
+  projectId: string;
+}) {
+  const { timeline, runs } = useTaskTimeline(taskId);
+  return (
+    <ul>
+      {timeline.map((item) => (
+        <li key={timelineItemKey(item)}>
+          <TaskTimelineEntry
+            item={item}
+            runs={runs}
+            organizationId={organizationId}
+            projectId={projectId}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // Typed as the row the timeline actually consumes, so a fixture can carry any
 // real `actorType` and the shape cannot drift from `TaskActivityRow`.
@@ -27,6 +58,8 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     resolveActor: (type: string, id: string) => ({
       type,
@@ -51,7 +84,12 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActorPreview: () => null,
     resolveAgentRunPreview: (run: { agentSlug: string }) => ({
       kind: 'agent',
-      name: run.agentSlug === 'agent-worker' ? 'Implementer' : run.agentSlug,
+      name:
+        run.agentSlug === 'agent-worker'
+          ? 'Implementer'
+          : run.agentSlug === 'agent-deleted'
+            ? 'Deleted agent'
+            : run.agentSlug,
       viewTo: '/dashboard/$id',
       viewParams: { id: 'org_1' },
     }),
@@ -98,10 +136,14 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'agentRuns.refused.agent_disabled':
           'agent is not installed or is disabled',
         'timeline.runLabel': 'Agent run',
+        'timeline.deletedAgent': 'Deleted agent',
         'timeline.startedByAgent': 'started by',
         'agentRuns.trigger.automation': 'automation',
         'agentRuns.trigger.delegated': 'delegated',
         'agentRuns.trigger.manual': 'manual',
+        'agentRun.waiting.org_limit': 'Waiting for a worker',
+        'agentRun.waitingWhy.org_limit':
+          "All of your organization's agent workers are busy.",
       };
       return (
         labels[key] ?? (values ? `${key}(${JSON.stringify(values)})` : key)
@@ -158,6 +200,42 @@ describe('TaskTimeline — assignee change activity', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/user-old/)).not.toBeInTheDocument();
     expect(screen.queryByText(/user-new/)).not.toBeInTheDocument();
+  });
+
+  it('labels an assignee whose historical agent was deleted', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_old' as string,
+        agentSlug: 'agent-deleted',
+        trigger: 'manual',
+        status: 'failed',
+        startedAt: Date.now(),
+        costCents: 0,
+      },
+    ];
+    timelineMocks.activity = [
+      {
+        _id: 'activity_deleted_agent' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'assignee.changed',
+        fromValue: 'agent-deleted',
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    expect(
+      screen.getByText(/assignee changed: Deleted agent/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('agent-deleted')).not.toBeInTheDocument();
   });
 });
 
@@ -288,11 +366,11 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
 
     expect(
       screen.getByText(
-        'repeat changed: Never → sentence.monthly({"count":1,"day":15})',
+        'Repeat changed: Never → sentence.monthly({"count":1,"day":15})',
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('repeat changed: sentence.daily({"count":2}) → Never'),
+      screen.getByText('Repeat changed: sentence.daily({"count":2}) → Never'),
     ).toBeInTheDocument();
   });
 
@@ -329,7 +407,7 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
     const sentence = 'sentence.monthly({"count":1,"day":30})';
     const onDue = `repeat.ruleOnDue(${JSON.stringify({ rule: sentence })})`;
     expect(
-      screen.getByText(`repeat changed: ${sentence} → ${onDue}`),
+      screen.getByText(`Repeat changed: ${sentence} → ${onDue}`),
     ).toBeInTheDocument();
   });
 
@@ -353,7 +431,7 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
       />,
     );
 
-    expect(screen.getByText('next task created: OPS-12')).toBeInTheDocument();
+    expect(screen.getByText('Next task created: OPS-12')).toBeInTheDocument();
   });
 });
 
@@ -410,6 +488,33 @@ describe('TaskTimeline — runs no person started', () => {
     expect(screen.getByText('delegated')).toBeInTheDocument();
     expect(screen.getByText(/started by/)).toBeInTheDocument();
     expect(screen.getByText('Fleet manager')).toBeInTheDocument();
+  });
+
+  it('says why a waiting run waits, on its own line under the run', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_4',
+        agentSlug: 'agent-worker',
+        trigger: 'manual',
+        status: 'queued',
+        waitingForCapacity: true,
+        waitingReason: 'org_limit',
+        startedAt: Date.now(),
+        costCents: 0,
+      },
+    ];
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+    expect(screen.getByText('Waiting for a worker')).toBeInTheDocument();
+    expect(
+      screen.getByText("All of your organization's agent workers are busy."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('agentRuns.status.queued')).toBeNull();
   });
 
   it('names neither for a run a person started', () => {

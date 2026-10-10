@@ -44,6 +44,7 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/mutations', async (importOriginal) => ({
@@ -51,12 +52,15 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useCreateTask: () => ({ mutateAsync: mutations.createTask }),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],
     resolveActor: () => ({ name: 'Teammate' }),
   }),
   useAssignableActors: () => ({
+    subjectEntries: [],
     assignableMembers: [],
     assignableAgents: [{ type: 'agent', id: 'agent-1', name: 'Analyst' }],
     agents: [],
@@ -160,16 +164,19 @@ describe('TaskModal — a create drafted from a chat', () => {
     expect(toast).not.toHaveBeenCalled();
   });
 
-  it('keeps the plain toast for a caller that reports nothing', async () => {
+  it('announces the task with an Open action for a caller that reports nothing', async () => {
     const { user } = openCreate();
 
     await user.click(screen.getByRole('button', { name: 'Create task' }));
 
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith({
-        title: 'Task created',
-        variant: 'success',
-      }),
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Task created',
+          variant: 'success',
+          action: expect.anything(),
+        }),
+      ),
     );
   });
 

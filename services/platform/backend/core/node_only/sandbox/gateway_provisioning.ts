@@ -39,6 +39,7 @@ import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../../lib/utils/type-utils';
+import { traceSandboxPhase } from '../../../tracing';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
@@ -54,6 +55,7 @@ import {
   provisionProviders,
   requireGatewayAdminPassword,
   resolveGatewayRouting,
+  scheduleProviderPoolShrink,
   type AllowedModelRef,
   type GatewayReuseOptions,
   type ProviderProvision,
@@ -332,7 +334,16 @@ export interface SessionGatewayKey {
  * inference, defeating the whole per-session key model. What it throws
  * tells its stage through `gatewayProvisioningFailureStage`.
  */
-export async function provisionSessionGatewayKey(
+export function provisionSessionGatewayKey(
+  ctx: ActionCtx,
+  args: SessionGatewayArgs,
+): Promise<SessionGatewayKey> {
+  return traceSandboxPhase('gateway', () =>
+    provisionSessionGatewayKeyInner(ctx, args),
+  );
+}
+
+async function provisionSessionGatewayKeyInner(
   ctx: ActionCtx,
   args: SessionGatewayArgs,
 ): Promise<SessionGatewayKey> {
@@ -460,6 +471,11 @@ export async function provisionSessionGatewayKey(
   }
 
   await applyGatewayConfig(reuse);
+  // A provision resizes only the records it names. Once the gateway answered
+  // with its posture applied, the first provision of this process schedules
+  // the resize of every other record a few minutes later, in the background:
+  // nothing here waits for it, and it never rejects.
+  scheduleProviderPoolShrink();
 
   await pushModelPricing(ctx, args);
 

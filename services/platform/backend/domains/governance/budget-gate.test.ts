@@ -9,16 +9,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const policy = vi.hoisted(() => ({
-  config: null as null | { enabled: boolean; rules: unknown[] },
+  config: null as null | {
+    enabled: boolean;
+    rules: unknown[];
+    projectRules?: unknown[];
+  },
+  /** The project caps file; null while it was never written, when a
+   * scripted `projectRules` reads as an earlier release's copy of them. */
+  projectBudgets: null as null | { rules: unknown[] },
 }));
 
 vi.mock('../../lib/org-config.ts', () => ({
-  readGovernancePolicyForOrg: vi.fn(async () => policy.config),
+  readGovernancePolicyForOrg: vi.fn(async (_sql, _org, type: string) =>
+    type === 'budgets'
+      ? policy.config
+      : type === 'project_budgets'
+        ? policy.projectBudgets
+        : null,
+  ),
 }));
 
 const {
   checkOrgBudget,
   findBudgetViolation,
+  loadBudgetSubject,
   readBudgetStanding,
   resolveTurnAllowance,
 } = await import('./budget-gate.ts');
@@ -34,12 +48,14 @@ type LedgerUsage = {
   org?: Usage;
   teams?: Record<string, Usage>;
   apiKey?: Usage;
+  /** Each project's own buckets, by project id. */
+  projects?: Record<string, Usage>;
 };
 
 /** A tagged-template `sql` answering the ledger sums by the scope each query
- * names — the caller's `user_id`, a team's members, an `api_key_id`, or the
- * whole org — with the scoped id always the 3rd binding. `queries` records
- * every statement's text. */
+ * names — the caller's `user_id`, a team's members, an `api_key_id`, a
+ * project's own buckets, or the whole org — with the scoped id always the
+ * 3rd binding. `queries` records every statement's text. */
 function recordingLedger(usage: LedgerUsage) {
   const zero: Usage = { totalTokens: 0, costEstimate: 0, requestCount: 0 };
   const queries: string[] = [];
@@ -48,6 +64,9 @@ function recordingLedger(usage: LedgerUsage) {
     const text = strings.join('?');
     queries.push(text);
     bindings.push(values);
+    if (text.includes('app.project_usage')) {
+      return [usage.projects?.[String(values[1])] ?? zero];
+    }
     if (text.includes('"teamMember"')) {
       return [usage.teams?.[String(values[2])] ?? zero];
     }
@@ -80,10 +99,11 @@ function holds(orgCents: number, userCents: number) {
 
 beforeEach(() => {
   policy.config = null;
+  policy.projectBudgets = null;
 });
 
 describe('resolveTurnAllowance', () => {
-  it('grants the deployment default when no budget policy binds', async () => {
+  it('grants the deployment default when no budget policy binds [GOV-R5]', async () => {
     const allowance = await resolveTurnAllowance(ledger({}), {
       ...SUBJECT,
       defaultCents: 500,
@@ -92,7 +112,7 @@ describe('resolveTurnAllowance', () => {
     expect(allowance).toEqual({ allowed: true, budgetCents: 500 });
   });
 
-  it('caps the allowance by what remains under the org cap after reservations', async () => {
+  it('caps the allowance by what remains under the org cap after reservations [GOV-R5]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'monthly', maxCostCents: 10_000 }],
@@ -110,7 +130,68 @@ describe('resolveTurnAllowance', () => {
     expect(allowance).toEqual({ allowed: true, budgetCents: 300 });
   });
 
-  it('refuses when the org cap is reached, with the cap’s own wording', async () => {
+  describe('a subscription turn, which costs nothing per call', () => {
+    it('is admitted past a reached cost cap while requests have room, holding no cents [GOV-R16]', async () => {
+      policy.config = {
+        enabled: true,
+        rules: [
+          {
+            scope: 'org',
+            period: 'monthly',
+            maxCostCents: 1_000,
+            maxRequests: 50,
+          },
+        ],
+      };
+      const allowance = await resolveTurnAllowance(
+        ledger({
+          org: { totalTokens: 0, costEstimate: 1_000, requestCount: 10 },
+        }),
+        {
+          ...SUBJECT,
+          defaultCents: 0,
+          reservations: holds(0, 0),
+          costFree: true,
+        },
+      );
+      expect(allowance).toEqual({ allowed: true, budgetCents: 0 });
+    });
+
+    it.each([
+      [
+        'a request cap',
+        { maxRequests: 10 },
+        { totalTokens: 0, costEstimate: 0, requestCount: 10 },
+        'REQUEST_LIMIT',
+      ],
+      [
+        'a token cap',
+        { maxTokens: 5_000 },
+        { totalTokens: 5_000, costEstimate: 0, requestCount: 3 },
+        'TOKEN_LIMIT',
+      ],
+    ] as const)(
+      'is refused once %s it adds to is reached [GOV-R16]',
+      async (_label, cap, org, code) => {
+        policy.config = {
+          enabled: true,
+          rules: [{ scope: 'org', period: 'monthly', ...cap }],
+        };
+        const allowance = await resolveTurnAllowance(ledger({ org }), {
+          ...SUBJECT,
+          defaultCents: 0,
+          reservations: holds(0, 0),
+          costFree: true,
+        });
+        expect(allowance.allowed).toBe(false);
+        if (!allowance.allowed) {
+          expect(allowance.violation).toMatchObject({ scope: 'org', code });
+        }
+      },
+    );
+  });
+
+  it('refuses when the org cap is reached, with the cap’s own wording [GOV-R4]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'daily', maxCostCents: 1_000 }],
@@ -131,7 +212,7 @@ describe('resolveTurnAllowance', () => {
     }
   });
 
-  it('names the cap that refused — whose bucket, which limit, when it resets', async () => {
+  it('names the cap that refused — whose bucket, which limit, when it resets [GOV-R4]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'daily', maxRequests: 3 }],
@@ -192,7 +273,7 @@ describe('resolveTurnAllowance', () => {
     }
   });
 
-  it('binds the personal cap against the user’s own spend and reservations', async () => {
+  it('binds the personal cap against the user’s own spend and reservations [GOV-R5]', async () => {
     policy.config = {
       enabled: true,
       rules: [
@@ -220,7 +301,7 @@ describe('resolveTurnAllowance', () => {
     expect(allowance).toEqual({ allowed: true, budgetCents: 300 });
   });
 
-  it('names whose cap a refusal is about', async () => {
+  it('names whose cap a refusal is about [GOV-R4]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'monthly', maxCostCents: 1_000 }],
@@ -474,6 +555,30 @@ describe('readBudgetStanding', () => {
     );
   });
 
+  it('counts model requests alone toward a request cap, never connector calls [GOV-R15]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', period: 'monthly', maxRequests: 20 },
+        { scope: 'org', period: 'monthly', maxRequests: 500 },
+      ],
+    };
+    const recorded = recordingLedger({});
+
+    await readBudgetStanding(recorded.sql, SUBJECT, NOW);
+
+    const ledgerReads = recorded.queries.filter((text) =>
+      text.includes('FROM app.usage_ledger'),
+    );
+    expect(ledgerReads.length).toBeGreaterThan(0);
+    for (const text of ledgerReads) {
+      // A row a connector names is a connector call, old rows included.
+      expect(text).toContain(
+        'sum(request_count) FILTER (WHERE connector_name IS NULL)',
+      );
+    }
+  });
+
   it('reads the personal and organization buckets the gate checks', async () => {
     policy.config = {
       enabled: true,
@@ -608,6 +713,72 @@ describe('readBudgetStanding', () => {
     ]);
   });
 
+  it('counts a project’s cap in the standing of a reader writing in it, at its rule’s threshold [GOV-R6]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [{ scope: 'org', period: 'monthly', maxCostCents: 10_000 }],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'monthly',
+          maxCostCents: 1_000,
+          warningThresholdPercent: 80,
+        },
+      ],
+    };
+    const usage = {
+      projects: {
+        'project-1': { totalTokens: 0, costEstimate: 850, requestCount: 4 },
+      },
+    };
+    const inProject = await readBudgetStanding(
+      ledger(usage),
+      { ...SUBJECT, projectIds: ['project-1'] },
+      NOW,
+    );
+    expect(inProject.map((bucket) => bucket.scope)).toEqual(['project', 'org']);
+    expect(inProject[0]).toEqual(
+      expect.objectContaining({
+        scope: 'project',
+        projectId: 'project-1',
+        maxCostCents: 1_000,
+        warningThresholdPercent: 80,
+        usage: { totalTokens: 0, costEstimate: 850, requestCount: 4 },
+      }),
+    );
+    // Elsewhere the project's cap binds nothing the reader does.
+    const elsewhere = await readBudgetStanding(ledger(usage), SUBJECT, NOW);
+    expect(elsewhere.map((bucket) => bucket.scope)).toEqual(['org']);
+  });
+
+  it('reads project caps from their own file, the budgets file’s copy only while that file was never written [GOV-R14]', async () => {
+    const cap = (maxCostCents: number) => ({
+      scope: 'project',
+      scopeId: 'project-1',
+      period: 'monthly',
+      maxCostCents,
+    });
+    policy.config = { enabled: true, rules: [], projectRules: [cap(1_000)] };
+    const subject = { ...SUBJECT, projectIds: ['project-1'] };
+
+    const legacy = await readBudgetStanding(ledger({}), subject, NOW);
+    expect(legacy.map((bucket) => bucket.maxCostCents)).toEqual([1_000]);
+
+    policy.projectBudgets = { rules: [cap(500)] };
+    const own = await readBudgetStanding(ledger({}), subject, NOW);
+    expect(own.map((bucket) => bucket.maxCostCents)).toEqual([500]);
+
+    // An emptied file is the whole truth: no project cap binds.
+    policy.projectBudgets = { rules: [] };
+    expect(await readBudgetStanding(ledger({}), subject, NOW)).toEqual([]);
+
+    // They follow the budgets file's switch.
+    policy.projectBudgets = { rules: [cap(500)] };
+    policy.config = { enabled: false, rules: [] };
+    expect(await readBudgetStanding(ledger({}), subject, NOW)).toEqual([]);
+  });
+
   it('lists periods from the shortest to the longest', async () => {
     policy.config = {
       enabled: true,
@@ -623,6 +794,241 @@ describe('readBudgetStanding', () => {
       'weekly',
       'monthly',
     ]);
+  });
+});
+
+/**
+ * An API key that is not a person — a team's, a project's or the
+ * organization's own — spends under its own identity: no personal, role or
+ * default cap binds it; the organization's and its own key caps do, and a
+ * team's key counts toward, and is held to, its team's shared cap.
+ */
+describe('loadBudgetSubject — an API key that is its own identity [APIKEY-R9]', () => {
+  function identitySql(binding: Record<string, unknown> | null) {
+    const queries: string[] = [];
+    const sql = async (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      queries.push(text);
+      // The key's own identity; its audience (the acting-audience read, a
+      // UNION) is not what its budget is measured by.
+      if (
+        text.includes('FROM app.api_key_owners') &&
+        !text.includes(' UNION ')
+      ) {
+        return binding === null ? [] : [binding];
+      }
+      // No member row, and no team membership: a key is nobody's colleague.
+      return [];
+    };
+    return { sql: sql as never, queries };
+  }
+  const binding = (kind: string, extra: Record<string, unknown> = {}) => ({
+    apiKeyId: 'key-1',
+    organizationId: 'org-1',
+    kind,
+    principalUserId: 'identity-1',
+    teamId: kind === 'team' ? 'team-1' : null,
+    projectId: kind === 'project' ? 'project-1' : null,
+    role: 'developer',
+    name: 'Sync',
+    createdBy: 'ada',
+    createdAt: '1',
+    revokedAt: null,
+    revokedBy: null,
+    ...extra,
+  });
+
+  it('is impersonal, keyed by its own key, and a team’s key is in its team', async () => {
+    const team = identitySql(binding('team'));
+    await expect(
+      loadBudgetSubject(team.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.toEqual({
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: ['team-1'],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+    });
+    for (const kind of ['project', 'organization']) {
+      const other = identitySql(binding(kind));
+      await expect(
+        loadBudgetSubject(other.sql, {
+          organizationId: 'org-1',
+          userId: 'identity-1',
+          apiKeyId: 'key-1',
+        }),
+      ).resolves.toMatchObject({ userTeamIds: [], impersonal: true });
+    }
+    // A key bound to another organization is no subject of this one's teams.
+    const elsewhere = identitySql(binding('team', { organizationId: 'org-2' }));
+    await expect(
+      loadBudgetSubject(elsewhere.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.toMatchObject({ userTeamIds: [], impersonal: true });
+  });
+
+  it('spends a project’s key in its own project, whatever project the lane names [GOV-R14]', async () => {
+    const project = identitySql(binding('project'));
+    for (const lane of [{}, { projectIds: ['project-2'] }]) {
+      await expect(
+        loadBudgetSubject(project.sql, {
+          organizationId: 'org-1',
+          userId: 'identity-1',
+          apiKeyId: 'key-1',
+          ...lane,
+        }),
+      ).resolves.toMatchObject({
+        impersonal: true,
+        projectIds: ['project-1'],
+      });
+    }
+    // The organization's key — and a person — spend in the project their
+    // work is in, and in none when it is in none.
+    const organization = identitySql(binding('organization'));
+    await expect(
+      loadBudgetSubject(organization.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+        projectIds: ['project-2'],
+      }),
+    ).resolves.toMatchObject({ impersonal: true, projectIds: ['project-2'] });
+    await expect(
+      loadBudgetSubject(organization.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.not.toHaveProperty('projectIds');
+    const person = identitySql(null);
+    await expect(
+      loadBudgetSubject(person.sql, {
+        organizationId: 'org-1',
+        userId: 'mia',
+        projectIds: ['project-2'],
+      }),
+    ).resolves.toMatchObject({ userId: 'mia', projectIds: ['project-2'] });
+  });
+
+  it('is still the key once it was revoked, never a person', async () => {
+    // Work the key started before its revocation keeps spending as the key.
+    const revoked = identitySql(binding('team', { revokedAt: '5' }));
+    await expect(
+      loadBudgetSubject(revoked.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.toMatchObject({
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+      userTeamIds: ['team-1'],
+    });
+    const read = revoked.queries.find(
+      (q) => q.includes('FROM app.api_key_owners') && !q.includes(' UNION '),
+    );
+    expect(read).not.toContain('revoked_at_ms IS NULL');
+  });
+
+  it('measures the key’s cap against all its identity spent, the key named or not', async () => {
+    // A run the key's REST comment started books under the identity alone.
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'apiKey',
+          apiKeyId: 'key-1',
+          period: 'daily',
+          maxCostCents: 1_000,
+        },
+      ],
+    };
+    const { sql, queries, bindings } = recordingLedger({
+      apiKey: { totalTokens: 0, costEstimate: 1_000, requestCount: 3 },
+    });
+    const violation = await findBudgetViolation(sql, {
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: [],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+    });
+    expect(violation).toMatchObject({ scope: 'apiKey', code: 'COST_LIMIT' });
+    const index = queries.findIndex((q) => q.includes('api_key_id ='));
+    expect(queries[index]).toContain('OR user_id = ANY(');
+    expect(bindings[index]?.[3]).toEqual(
+      expect.arrayContaining(['identity-1', 'user:identity-1']),
+    );
+  });
+
+  it('holds a team’s key to its team’s shared cap and the organization’s, never a personal one', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', period: 'daily', maxCostCents: 100 },
+        {
+          scope: 'role',
+          scopeId: 'developer',
+          period: 'daily',
+          maxCostCents: 50,
+        },
+        {
+          scope: 'team',
+          scopeId: 'team-1',
+          period: 'daily',
+          maxCostCents: 800,
+        },
+        { scope: 'org', period: 'daily', maxCostCents: 10_000 },
+      ],
+    };
+    const { sql, queries } = recordingLedger({
+      // Were a personal cap applied, the default's 100 would be spent.
+      user: { totalTokens: 0, costEstimate: 100, requestCount: 1 },
+      teams: {
+        'team-1': { totalTokens: 0, costEstimate: 650, requestCount: 4 },
+      },
+      org: { totalTokens: 0, costEstimate: 1_000, requestCount: 9 },
+    });
+    const allowance = await resolveTurnAllowance(sql, {
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: ['team-1'],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      defaultCents: 500,
+      reservations: holds(0, 0),
+    });
+    // 800 − 650 = 150 left under the team's cap.
+    expect(allowance).toEqual({ allowed: true, budgetCents: 150 });
+    expect(queries.some((q) => q.includes('user_id ='))).toBe(false);
+  });
+
+  it('counts the keys a team owns toward the team, by their binding', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'team',
+          scopeId: 'team-1',
+          period: 'daily',
+          maxCostCents: 800,
+        },
+      ],
+    };
+    const { sql, queries } = recordingLedger({});
+    await resolveTurnAllowance(sql, {
+      ...SUBJECT,
+      defaultCents: 500,
+      reservations: holds(0, 0),
+    });
+    const team = queries.find((q) => q.includes('"teamMember"'));
+    expect(team).toContain('FROM app.api_key_owners o');
+    expect(team).toContain("o.owner_kind = 'team'");
   });
 });
 
@@ -657,9 +1063,10 @@ describe('findBudgetViolation', () => {
 
     const violation = await findBudgetViolation(sql, SUBJECT, { now: NOW });
 
-    // A team's usage is read through membership, never the ledger's team_id.
+    // A team's usage is read through membership, never the ledger's team_id
+    // (the keys it owns are found by their binding's `o.team_id`).
     expect(queries.some((q) => q.includes('"teamMember"'))).toBe(true);
-    expect(queries.some((q) => q.includes('team_id'))).toBe(false);
+    expect(queries.some((q) => /(?<!o\.)\bteam_id\b/.test(q))).toBe(false);
     expect(violation).toEqual({
       scope: 'team',
       teamId: 'team-1',
@@ -712,6 +1119,161 @@ describe('findBudgetViolation', () => {
       used: 10,
       limit: 10,
       resetsAt: Date.UTC(2026, 8, 16),
+    });
+  });
+
+  it('caps everything spent in a project, whoever spends it, and names the project [GOV-R14]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [{ scope: 'default', period: 'monthly', maxCostCents: 5_000 }],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'monthly',
+          maxCostCents: 1_000,
+        },
+      ],
+    };
+    const usage = {
+      user: { totalTokens: 0, costEstimate: 30, requestCount: 1 },
+      projects: {
+        'project-1': { totalTokens: 0, costEstimate: 1_000, requestCount: 40 },
+      },
+    };
+    const { sql, queries, bindings } = recordingLedger(usage);
+    // Mia has spent 30 of her own 5000; the project is spent.
+    await expect(
+      findBudgetViolation(
+        sql,
+        { ...SUBJECT, projectIds: ['project-1'] },
+        { now: NOW },
+      ),
+    ).resolves.toEqual({
+      scope: 'project',
+      projectId: 'project-1',
+      code: 'COST_LIMIT',
+      period: 'monthly',
+      used: 1_000,
+      limit: 1_000,
+      reason: expect.stringContaining('Cost limit reached') as string,
+      resetsAt: Date.UTC(2026, 9, 1),
+    });
+    // The project's own buckets are what its cap reads.
+    const index = queries.findIndex((q) => q.includes('app.project_usage'));
+    expect(bindings[index]).toEqual(['org-1', 'project-1', '2026-09']);
+    // A run a schedule started in the project names nobody, and is held to
+    // the project's cap all the same.
+    await expect(
+      findBudgetViolation(
+        ledger(usage),
+        {
+          organizationId: 'org-1',
+          userId: '__automation__',
+          userTeamIds: [],
+          impersonal: true,
+          projectIds: ['project-1'],
+        },
+        { now: NOW },
+      ),
+    ).resolves.toMatchObject({ scope: 'project', projectId: 'project-1' });
+    // Work outside the project — or in another one — is not.
+    for (const subject of [
+      SUBJECT,
+      { ...SUBJECT, projectIds: ['project-2'] },
+    ]) {
+      await expect(
+        findBudgetViolation(ledger(usage), subject, { now: NOW }),
+      ).resolves.toBeNull();
+    }
+  });
+
+  it('holds work in several projects to each project’s cap, as a member is held to each team’s [GOV-R14]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'monthly',
+          maxCostCents: 1_000,
+        },
+        {
+          scope: 'project',
+          scopeId: 'project-2',
+          period: 'monthly',
+          maxRequests: 10,
+        },
+      ],
+    };
+    // The run of an automation bound to both projects, naming neither.
+    const subject = {
+      organizationId: 'org-1',
+      userId: '__automation__',
+      userTeamIds: [],
+      impersonal: true,
+      projectIds: ['project-1', 'project-2'],
+    };
+    const roomInBoth = ledger({
+      projects: {
+        'project-1': { totalTokens: 0, costEstimate: 100, requestCount: 3 },
+        'project-2': { totalTokens: 0, costEstimate: 0, requestCount: 9 },
+      },
+    });
+    await expect(
+      findBudgetViolation(roomInBoth, subject, { now: NOW }),
+    ).resolves.toBeNull();
+    // One project spent is enough to refuse, and the refusal names it.
+    const secondSpent = ledger({
+      projects: {
+        'project-1': { totalTokens: 0, costEstimate: 100, requestCount: 3 },
+        'project-2': { totalTokens: 0, costEstimate: 0, requestCount: 10 },
+      },
+    });
+    await expect(
+      findBudgetViolation(secondSpent, subject, { now: NOW }),
+    ).resolves.toMatchObject({
+      scope: 'project',
+      projectId: 'project-2',
+      code: 'REQUEST_LIMIT',
+    });
+  });
+
+  it('counts the work in flight in a project toward its cap [GOV-R14]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [],
+      projectRules: [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'daily',
+          maxCostCents: 100,
+        },
+      ],
+    };
+    const sql = ledger({
+      projects: {
+        'project-1': { totalTokens: 0, costEstimate: 70, requestCount: 2 },
+      },
+    });
+    const subject = { ...SUBJECT, projectIds: ['project-1'] };
+    await expect(
+      findBudgetViolation(sql, subject, { now: NOW }),
+    ).resolves.toBeNull();
+    // Another member's turn in the project holds the remaining 30.
+    await expect(
+      findBudgetViolation(sql, subject, {
+        now: NOW,
+        reservations: {
+          projects: { 'project-1': { costCents: 30, tokens: 0, requests: 1 } },
+        },
+      }),
+    ).resolves.toMatchObject({
+      scope: 'project',
+      code: 'COST_LIMIT',
+      used: 100,
     });
   });
 

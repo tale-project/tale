@@ -6,6 +6,10 @@ import { ErrorBoundaryBase } from '../core/error-boundary-base';
 import { ErrorDisplayCompact } from '../displays/error-display-compact';
 
 interface DialogErrorBoundaryProps {
+  /** Localized description for this dialog; defaults to the page message. */
+  description?: string;
+  /** Callback before retrying the children. */
+  onReset?: () => void;
   /** Child components to wrap */
   children: ReactNode;
   /** Organization ID for support links */
@@ -50,12 +54,15 @@ interface DialogErrorBoundaryProps {
  */
 export function DialogErrorBoundary({
   children,
+  description,
+  onReset,
   organizationId,
   onError,
 }: DialogErrorBoundaryProps) {
   return (
     <ErrorBoundaryBase
       organizationId={organizationId}
+      onReset={onReset}
       onError={(error) => {
         // Call custom error handler (e.g., close dialog)
         onError?.(error);
@@ -63,6 +70,7 @@ export function DialogErrorBoundary({
       fallback={(fallbackProps) => (
         <ErrorDisplayCompact
           error={fallbackProps.error}
+          description={description}
           organizationId={fallbackProps.organizationId}
           reset={fallbackProps.reset}
         />

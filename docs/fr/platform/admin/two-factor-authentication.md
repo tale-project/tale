@@ -15,15 +15,23 @@ Protège ton compte avec une application d’authentification ou un passkey. Cha
 
 Un passkey satisfait la règle de double facteur de Tale, même sans application d’authentification configurée. Les comptes qui utilisent uniquement le SSO ne voient pas la configuration de cette application, car elle exige un mot de passe Tale. L’exemption SSO de ton organisation détermine si tu as besoin d’un passkey Tale.
 
+<Frame caption="Paramètres > Compte affiche ton mot de passe, l’authentification à double facteur et tes passkeys. C’est ici que tu configures ton application d’authentification ou que tu enregistres un autre passkey.">
+
+![La page des paramètres du compte avec les sections Mot de passe, Authentification à double facteur et Passkeys ; la section Passkeys liste un passkey nommé « Work laptop ».](/images/platform/settings-account-security.webp)
+
+</Frame>
+
 ## Configurer une application d’authentification
 
-1. Ouvre **Paramètres > Compte**, repère **Sécurité** et choisis **Activer le double facteur**.
-2. Saisis ton mot de passe Tale actuel et choisis **Confirmer**.
+1. Ouvre **Paramètres > Compte**, repère **Authentification à double facteur** et choisis **Activer le double facteur**.
+2. Saisis ton mot de passe Tale actuel et choisis **Confirmer**. Un mot de passe erroné compte pour le verrouillage temporaire, comme un échec de connexion.
 3. Scanne le code QR avec ton application d’authentification. Si tu ne peux pas le scanner, saisis manuellement le secret de configuration affiché dans l’application.
 4. Saisis son code à six chiffres actuel dans **Code de vérification**, puis choisis **Vérifier et activer**.
 5. Télécharge ou copie les codes de secours avant de choisir **Terminé**. Tale ne les affichera plus.
 
 La page du compte confirme maintenant que le double facteur est actif. À ta prochaine connexion par mot de passe, utilise un code provenant de la même entrée dans ton application.
+
+Ton application d’authentification affiche l’entrée sous le nom de ce déploiement, pour que tu distingues les entrées de différents déploiements. Un déploiement pour un client commence par le nom de ce client, et un déploiement de test ajoute son environnement, comme **Acme Tale Platform TE** ; le déploiement de production de Tale lui-même s’appelle **Tale Platform**. Les codes de secours téléchargés reprennent les mêmes mots dans leur nom de fichier, par exemple `acme-tale-platform-te-backup-codes.txt`.
 
 <Tip>
 Conserve tes codes de secours dans un endroit accessible sans ton appareil de connexion, par exemple un gestionnaire de mots de passe disponible sur un autre appareil de confiance.
@@ -31,10 +39,11 @@ Conserve tes codes de secours dans un endroit accessible sans ton appareil de co
 
 ## Ajouter un passkey
 
-1. Dans **Paramètres > Compte > Sécurité**, choisis **Ajouter un passkey**.
-2. Dans **Nom du passkey**, indique un nom reconnaissable, par exemple `Portable professionnel`.
-3. Garde **Type d'authentificateur** sur **Indifférent (recommandé)** pour voir les possibilités du navigateur, ou choisis l’authentificateur intégré à l’appareil ou une clé de sécurité/un téléphone.
-4. Choisis **Ajouter un passkey** et termine la procédure du navigateur.
+1. Ouvre **Paramètres > Compte**, repère **Passkeys** et choisis **Ajouter un passkey**.
+2. Si ta connexion remonte à plus d’un jour, Tale te demande d’abord ton mot de passe. Saisis-le dans **Mot de passe** et choisis **Confirmer**. Un mot de passe erroné compte pour le verrouillage temporaire, comme un échec de connexion.
+3. Dans **Nom du passkey**, indique un nom reconnaissable, par exemple `Portable professionnel`.
+4. Garde **Type d'authentificateur** sur **Indifférent (recommandé)** pour voir les possibilités du navigateur, ou choisis l’authentificateur intégré à l’appareil ou une clé de sécurité/un téléphone.
+5. Choisis **Ajouter un passkey** et termine la procédure du navigateur.
 
 Le passkey apparaît dans la liste de ton compte. Sur la page de connexion, choisis **Se connecter avec un passkey**. Après une connexion par mot de passe, tu peux aussi choisir **Utiliser un passkey à la place** sur l’écran de vérification.
 
@@ -64,7 +73,7 @@ Les admins configurent la règle dans **Paramètres > Gouvernance > Sécurité**
 | **Période de grâce (jours)** | Délai de configuration à partir de la première connexion du membre sous cette règle. Zéro impose une configuration immédiate. |
 | **Exempter les utilisateurs SSO uniquement** | Les membres sans mot de passe Tale s’appuient sur l’authentification de leur fournisseur d’identité. |
 
-Pendant ce délai, les membres voient un rappel. Une fois le délai écoulé, Tale bloque l’accès à l’organisation jusqu’à la configuration. Désactiver ton application d’authentification personnelle ne te dispense pas de cette règle.
+Pendant ce délai, les membres voient un rappel. Une fois le délai écoulé, Tale bloque l’accès à l’organisation jusqu’à la configuration : la page de configuration demande leur mot de passe pour configurer une application d’authentification, ou propose **Enregistrer un passkey à la place**. Un membre connecté depuis plus d’un jour confirme son mot de passe avant la demande du navigateur ; un membre qui se connecte uniquement par SSO choisit d’abord **Se reconnecter**. Désactiver ton application d’authentification personnelle ne te dispense pas de cette règle.
 
 ## Aider un membre qui a perdu son accès
 

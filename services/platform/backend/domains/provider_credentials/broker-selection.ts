@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import {
   BROKER_RATE_LIMIT_COOLDOWN_MS,
+  BROKER_SUBSCRIPTION_DISABLED_COOLDOWN_MS,
   type BrokerSelectionResult,
 } from '../../core/provider_credentials/broker_pool.ts';
 
@@ -40,6 +41,7 @@ export const brokerFailureArgsSchema = z
     organizationId: z.string().min(1),
     brokerTokenHash: accountHashSchema,
     apiErrorStatus: z.number().int(),
+    providerErrorKind: z.literal('subscription_access_disabled').optional(),
   })
   .strict();
 
@@ -196,17 +198,30 @@ export async function selectBrokerAccount(
 }
 
 /** No vendor Retry-After survives the CLI event protocol. A short, bounded
- * cooldown avoids new jobs hammering a rate-limited account; fresh gateway
- * quota metadata can exclude it for the full vendor reset window. */
+ * cooldown avoids new jobs hammering a rate-limited account or a selected
+ * account whose subscription access the provider explicitly refused. Reuse
+ * bounded policies; neither refusal disables the provider credential.
+ * Fresh gateway quota metadata can exclude it for the full reset window. */
 export async function recordBrokerFailure(
   sql: Sql,
   args: z.infer<typeof brokerFailureArgsSchema>,
   nowMs = Date.now(),
 ): Promise<void> {
-  if (args.apiErrorStatus !== 429) return;
+  if (
+    args.apiErrorStatus !== 429 &&
+    !(
+      args.apiErrorStatus === 403 &&
+      args.providerErrorKind === 'subscription_access_disabled'
+    )
+  )
+    return;
+  const cooldownMs =
+    args.apiErrorStatus === 403
+      ? BROKER_SUBSCRIPTION_DISABLED_COOLDOWN_MS
+      : BROKER_RATE_LIMIT_COOLDOWN_MS;
   await sql`
     UPDATE app.provider_broker_accounts
-    SET cooldown_until_ms = greatest(cooldown_until_ms, ${nowMs + BROKER_RATE_LIMIT_COOLDOWN_MS}),
+    SET cooldown_until_ms = greatest(cooldown_until_ms, ${nowMs + cooldownMs}),
       updated_at_ms = greatest(updated_at_ms, ${nowMs})
     WHERE org_id = ${args.organizationId} AND account_hash = ${args.brokerTokenHash}
   `;

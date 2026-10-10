@@ -20,7 +20,7 @@ Open **Settings > Metrics > Usage** as an Admin or Owner to understand which wor
 
 Assistant names can include supporting work such as chat-title generation. A request count therefore does not always equal the number of messages members sent. Voice synthesis has its own **Top voice models** table.
 
-**Per-user usage** attributes every request to a person: the member who sent the chat message or started the agent run, including runs started through the REST API or the MCP endpoint. Runs that a schedule, a webhook, or an event started have no person behind them. Their usage appears as one row named **Automations (triggers)**, which does not count as an active user. In **Top assistants**, a project agent and an automation each appear under their name. [How usage is counted](/platform/admin/governance/usage-attribution) explains the rule for every kind of work.
+**Per-user usage** attributes every request to a person: the member who sent the chat message or started the agent run, including runs started through the REST API or the MCP endpoint. An API key that belongs to a team, a project, or the organization has a row of its own, under the key's name, and does not count as an active user. Runs that a schedule, a webhook, or an event started have no person behind them. Their usage appears as one row named **Automations (triggers)**, which does not count as an active user. In **Top assistants**, a project agent and an automation each appear under their name. [How usage is counted](/platform/admin/governance/usage-attribution) explains the rule for every kind of work.
 
 ## Read cost alongside tokens
 
@@ -39,3 +39,5 @@ Compare [feedback analytics](/platform/admin/governance/feedback-analytics) befo
 ## Understand missing history
 
 Charts reflect the usage records Tale still retains. The organization and deployment retention settings determine the available history; there is no universal 365-day guarantee. Check the selected period, filters, and usage-ledger retention if expected activity is missing.
+
+If the metrics cannot be loaded, the page says so and offers **Try again** instead of showing zeros or empty tables. The period and filters you chose stay as they are. If a refresh fails, the figures already shown stay, with a note that they may be out of date. If **Try again** keeps failing, ask the deployment operator to check that Tale's services are running.

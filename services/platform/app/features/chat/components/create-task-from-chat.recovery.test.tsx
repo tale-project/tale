@@ -66,6 +66,8 @@ vi.mock('@/app/features/tasks/hooks/mutations', async (importOriginal) => ({
   useCreateTask: () => ({ mutateAsync: state.createTask }),
 }));
 vi.mock('@/app/features/tasks/hooks/use-actor-directory', () => ({
+  useProvidedActorDirectory: () => undefined,
+  ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
     agents: [],

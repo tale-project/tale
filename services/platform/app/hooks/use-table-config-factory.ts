@@ -1,7 +1,8 @@
 'use client';
 
 import * as columnBuilders from '@tale/ui/data-table/column-builders';
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
@@ -51,6 +52,11 @@ interface ColumnBuilderContext {
   tEntity: TranslationFn;
   /** Additional translation functions keyed by namespace */
   t: Record<string, TranslationFn>;
+  /**
+   * The active UI locale. Pass it to the `lib/utils/format/number` helpers,
+   * which otherwise format in the app's default locale.
+   */
+  locale: string;
   /** Pre-built column builders */
   builders: typeof columnBuilders;
 }
@@ -62,6 +68,7 @@ type ColumnsBuilder<TData> = (ctx: ColumnBuilderContext) => ColumnDef<TData>[];
  *
  * Reduces boilerplate by providing:
  * - Automatic translation hook setup
+ * - The active locale for number and currency cells
  * - Pre-built column builders for common patterns
  * - Consistent return type structure
  *
@@ -109,6 +116,7 @@ export function createTableConfigHook<TRow>(
   return function useTableConfig(): TableConfig<TRow> {
     const { t: tTables } = useT('tables');
     const { t: tEntity } = useT(entityNamespace);
+    const { locale } = useLocale();
 
     const t0 = useT(additionalNamespaces[0] ?? 'common');
     const t1 = useT(additionalNamespaces[1] ?? 'common');
@@ -128,9 +136,10 @@ export function createTableConfigHook<TRow>(
           tTables,
           tEntity,
           t: extraTranslations,
+          locale,
           builders: columnBuilders,
         }),
-      [tTables, tEntity, extraTranslations],
+      [tTables, tEntity, extraTranslations, locale],
     );
 
     return {

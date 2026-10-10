@@ -15,6 +15,7 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { budgetPolicyActive } from '../governance/budget-gate.ts';
+import { lockBudgetAdmission } from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
 import {
@@ -32,12 +33,35 @@ import { ChatThreadError, projectChatAccess } from './threads.ts';
  *
  * Realtime rides the rows themselves: the per-thread progress lane
  * (`routes.ts` `/threads/:id/stream`) polls the generation row at this
- * store's write throttle, so no LISTEN/NOTIFY hub exists — a push could not
+ * store's shortest write gap, so no LISTEN/NOTIFY hub exists — a push could not
  * beat the throttle, and a listener would add a connection without adding
  * freshness.
  */
 
+/** Shortest gap between two progress writes of one turn. */
 const STREAM_WRITE_INTERVAL_MS = 250;
+/** Longest gap between two writes of a streaming turn (a stalled turn's
+ * cancel poll is held only to the shortest). */
+const STREAM_WRITE_MAX_INTERVAL_MS = 1000;
+/** Characters of streamed text (answer and reasoning) per millisecond of
+ * gap past the shortest one. */
+const STREAM_WRITE_CHARS_PER_MS = 8;
+
+/**
+ * The gap before the next progress write of a turn that has streamed
+ * `length` characters so far. Every write rewrites the whole text, so a
+ * fixed gap costs bytes that grow with the square of the reply; a gap that
+ * grows with the text keeps a long reply's writes linear in its length up
+ * to the cap. Replies up to 2,000 characters — most of them — keep the
+ * shortest gap, and the reader's constant-rate reveal absorbs the bigger
+ * steps of a long one.
+ */
+export function streamWriteIntervalMs(length: number): number {
+  return Math.min(
+    STREAM_WRITE_MAX_INTERVAL_MS,
+    Math.max(STREAM_WRITE_INTERVAL_MS, length / STREAM_WRITE_CHARS_PER_MS),
+  );
+}
 
 /** A detached REST turn must keep the project scope its URL accepted. */
 export interface ThreadWriteScope {
@@ -111,6 +135,12 @@ export async function appendMessageRow(
     error?: string;
     truncation?: { droppedMessages: number };
     status?: string;
+    /** The API key that sent a user message: naming the thread it opens is
+     * the key's spend too. */
+    apiKeyId?: string;
+    /** A guardrail refused the user message: the thread it opens is named
+     * from its own words, with no model call. */
+    nameWithoutModel?: boolean;
   },
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
@@ -150,10 +180,15 @@ export async function appendMessageRow(
     WHERE id = ${message.threadId}
   `;
   const meta = await sql<
-    { branchRootId: string | null; chatType: string; userId: string }[]
+    {
+      branchRootId: string | null;
+      chatType: string;
+      userId: string;
+      arenaRole: string | null;
+    }[]
   >`
     SELECT branch_root_id AS "branchRootId", chat_type AS "chatType",
-           user_id AS "userId"
+           user_id AS "userId", arena ->> 'role' AS "arenaRole"
     FROM app.thread_metadata WHERE thread_id = ${message.threadId}
     LIMIT 1
   `;
@@ -178,8 +213,15 @@ export async function appendMessageRow(
   // The thread's first user message names the conversation: fire the AI
   // title generation exactly once — for the opening user message of an
   // untitled thread (a branch copy or an explicitly titled thread keeps
-  // what it has).
-  if (message.role === 'user' && row.order === 0 && meta[0] !== undefined) {
+  // what it has). The hidden column of a model comparison takes the title
+  // its visible partner is given (`setThreadTitleIfAbsent`): naming it too
+  // would pay for a second title nobody reads.
+  if (
+    message.role === 'user' &&
+    row.order === 0 &&
+    meta[0] !== undefined &&
+    meta[0].arenaRole !== 'b'
+  ) {
     const firstMessage = (message.text ?? '').trim();
     if (firstMessage.length > 0) {
       const untitled = await sql<{ id: string }[]>`
@@ -193,6 +235,12 @@ export async function appendMessageRow(
           threadId: message.threadId,
           userId: meta[0].userId,
           firstMessage,
+          ...(message.apiKeyId !== undefined
+            ? { apiKeyId: message.apiKeyId }
+            : {}),
+          ...(message.nameWithoutModel === true
+            ? { nameWithoutModel: true }
+            : {}),
         });
       }
     }
@@ -338,6 +386,12 @@ function pgTurnStore(
 ): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
+  /** What the last progress write stored, for a poll to compare against. */
+  let lastWritten: {
+    text: string;
+    reasoning: string;
+    messageId: string | undefined;
+  } | null = null;
   return {
     async appendMessage(message) {
       const stored = {
@@ -359,23 +413,57 @@ function pgTurnStore(
 
     async streamProgress(update) {
       const nowMs = Date.now();
+      // A stall's cancel poll is held only to the shortest gap: Stop must
+      // not wait for the longer gap a long reply's text earns.
+      const length = update.text.length + (update.reasoning?.length ?? 0);
+      const gapMs =
+        update.poll === true
+          ? STREAM_WRITE_INTERVAL_MS
+          : streamWriteIntervalMs(length);
+      if (update.flush !== true && nowMs - lastStreamWriteAt < gapMs) {
+        return { cancelRequested: lastCancelRequested };
+      }
+      const reasoning = update.reasoning ?? '';
+      // A poll with nothing new to store keeps the turn alive for the
+      // watchdog and reads the Stop, and leaves the text and the progress
+      // lane's clock alone: rewriting an unchanged long reply on every
+      // poll had every watcher read it again and push it to every tab.
       if (
+        update.poll === true &&
         update.flush !== true &&
-        nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS
+        lastWritten !== null &&
+        lastWritten.text === update.text &&
+        lastWritten.reasoning === reasoning &&
+        (update.messageId ?? lastWritten.messageId) === lastWritten.messageId
       ) {
+        const polled = await sql<{ cancelRequested: boolean }[]>`
+          UPDATE app.generations SET heartbeat_at_ms = ${nowMs}
+          WHERE thread_id = ${update.threadId}
+            AND org_id = ${update.organizationId}
+          RETURNING cancel_requested AS "cancelRequested"
+        `;
+        lastCancelRequested = polled[0]?.cancelRequested ?? false;
         return { cancelRequested: lastCancelRequested };
       }
       lastStreamWriteAt = nowMs;
+      const writing = {
+        text: update.text,
+        reasoning,
+        messageId: update.messageId ?? lastWritten?.messageId,
+      };
       const rows = await sql<{ cancelRequested: boolean }[]>`
         UPDATE app.generations SET
           text = ${update.text},
-          reasoning = ${update.reasoning ?? ''},
+          reasoning = ${reasoning},
           message_id = coalesce(${update.messageId ?? null}, message_id),
           heartbeat_at_ms = ${nowMs}, updated_at_ms = ${nowMs}
         WHERE thread_id = ${update.threadId}
           AND org_id = ${update.organizationId}
         RETURNING cancel_requested AS "cancelRequested"
       `;
+      // Only a write that landed is one a poll may skip repeating: a failed
+      // one leaves the row short of this text, and the next poll repairs it.
+      lastWritten = writing;
       lastCancelRequested = rows[0]?.cancelRequested ?? false;
       return { cancelRequested: lastCancelRequested };
     },
@@ -444,6 +532,8 @@ function pgTurnStore(
               ...(admission.apiKeyId !== undefined
                 ? { apiKeyId: admission.apiKeyId }
                 : {}),
+              threadId: setup.threadId,
+              projectIds: admission.projectIds ?? [],
             },
             admissionExclude,
           );
@@ -468,6 +558,9 @@ function pgTurnStore(
             ...(setup.truncation !== undefined
               ? { truncation: setup.truncation }
               : {}),
+            ...(setup.spend?.apiKeyId !== undefined
+              ? { apiKeyId: setup.spend.apiKeyId }
+              : {}),
           });
         }
         const assistantMessage = await appendMessageRow(tx, {
@@ -491,12 +584,13 @@ function pgTurnStore(
           INSERT INTO app.generations (
             thread_id, org_id, message_id, started_at_ms, heartbeat_at_ms,
             updated_at_ms, user_id, api_key_id, reserved_cost_cents,
-            reserved_tokens
+            reserved_tokens, project_ids
           ) VALUES (
             ${setup.threadId}, ${setup.organizationId}, ${assistantMessage.id},
             ${now}, ${now}, ${now}, ${setup.spend?.userId ?? null},
             ${setup.spend?.apiKeyId ?? null}, ${setup.spend?.costCents ?? 0},
-            ${Math.ceil(setup.spend?.tokens ?? 0)}
+            ${Math.ceil(setup.spend?.tokens ?? 0)},
+            ${[...(setup.spend?.projectIds ?? [])]}
           )
           ON CONFLICT (thread_id) DO NOTHING
           RETURNING thread_id AS "threadId"
@@ -520,6 +614,23 @@ function pgTurnStore(
       return scope === undefined
         ? sql.begin(open)
         : transactSerializable(sql, open);
+    },
+
+    async holdNextRound(round) {
+      // Holds count only where a budget policy binds; the lock orders the
+      // raise with every admission that reads it.
+      if (!(await budgetPolicyActive(sql, round.organizationId))) return;
+      await sql.begin(async (tx) => {
+        await lockBudgetAdmission(tx, round.organizationId);
+        await tx`
+          UPDATE app.generations SET
+            reserved_cost_cents = reserved_cost_cents + ${round.costCents},
+            reserved_tokens = reserved_tokens + ${Math.ceil(round.tokens)},
+            updated_at_ms = ${Date.now()}
+          WHERE thread_id = ${round.threadId}
+            AND org_id = ${round.organizationId}
+        `;
+      });
     },
 
     async endGeneration(generation) {
@@ -631,6 +742,9 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
           : {}),
         model: entry.model,
         provider: entry.provider,
+        ...(entry.projectIds !== undefined
+          ? { projectIds: entry.projectIds }
+          : {}),
       });
     },
   };

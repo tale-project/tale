@@ -1,0 +1,592 @@
+imagePreview: Image preview
+previousImage: Previous image
+nextImage: Next image
+imageCounter: '{current} of {total}'
+newChat: New chat
+moreActions: More actions
+pinProject: Pin project
+unpinProject: Unpin project
+pinChat: Pin chat
+unpinChat: Unpin chat
+newResponse: New response
+archive: Archive
+unarchive: Unarchive
+archiveSuccess: Chat archived
+archiveFailed: Couldn't archive chat
+unarchiveSuccess: Chat unarchived
+unarchiveFailed: Couldn't unarchive chat
+archivedBanner: Archived
+archived:
+  title: Archived
+  empty: No archived chats
+markAsRead: Mark as read
+markAsUnread: Mark as unread
+readOnlyShared: Shared with the project — read-only
+createTask:
+  button: Create task from chat
+  projectTitle: Create a task from this chat
+  projectDescription: Choose the project the task belongs to. In a project with an agent, the agent can start on it right away and deliver the files.
+  projectLabel: Project
+  projectPlaceholder: Choose a project
+  projectEmpty: No project matches
+  noProjects: There's no project to create the task in yet. Ask an Editor or Admin to create one.
+  continue: Continue
+  fromChat: 'From the chat: {title}'
+  fromChatUntitled: From the chat
+  created: Task created in {project}
+  openTask: Open task
+  openTaskAltText: Open the task you just created on its project's board
+  readFailed: Tale couldn't read this conversation, so the task can't carry your request and files yet. Try again, or create the task on the project's board.
+  headerButton: Create task
+  withAgents: With an agent
+  withoutAgents: No agent yet
+  agentCount: '{count, plural, one {# agent} other {# agents}}'
+  noAgentEditor: You can add one in the task
+  noAgentReader: An Editor or Admin can add one
+  standardAgent: Standard agent
+taskTray:
+  label: Tasks from this chat
+  working: The agent is working
+  retrying: Trying again…
+  failed: The agent couldn't finish
+  ready: Ready for review
+  readyWithFiles: '{count, plural, one {Ready for review · # file} other {Ready for review · # files}}'
+  notStarted: Waiting to be started
+  open: Open
+  openAria: 'Open task {title}'
+  more: '{count, plural, one {and # more task} other {and # more tasks}}'
+export:
+  button: Export
+  title: Export chat
+  description: Select messages and download in your preferred format.
+  selectAll: Select all
+  deselectAll: Deselect all
+  messagesCount: '{count, plural, one {# of {total} message selected} other {# of {total} messages selected}}'
+  downloadPdf: Print to PDF
+  downloadMarkdown: Download Markdown
+  noMessages: No messages to export
+  you: You
+  assistant: Assistant
+moveToProject: Move to project…
+removeFromProject: Remove from project
+removeFromProjectFailed: Couldn't remove chat from project
+deleteChat: Delete chat
+deleteConfirmation: Delete "{title}"?
+deletePermanentMessage: Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.
+deleteFailed: Couldn't delete chat
+editMessage: Edit message
+editSend: Send
+tryAgain: Try again
+regenerateFailed: Couldn't regenerate response
+forkChat: Fork chat
+forkSuccess: Chat forked
+forkFailed: Couldn't fork chat
+forkOf: Fork of {title}
+branchNavigator:
+  previous: Previous branch
+  next: Next branch
+feedback:
+  thumbsUp: Helpful
+  thumbsDown: Not helpful
+  commentPlaceholder: What could be improved?
+  submitComment: Submit
+pinned: Pinned
+pinFailed: Couldn't update pin
+welcomeEmpty: What are we working on?
+starters:
+  email: Help me write a clear, professional email
+  summarize: Summarize a long document into key points
+  brainstorm: Brainstorm ideas to solve a problem I have
+  explain: Explain a complex topic in simple terms
+quote:
+  button: Quote
+  label: Quoted
+  remove: Remove quote
+toast:
+  budgetExceeded: Usage limit reached
+  modelAccessDenied: Model not available
+  piiBlocked: Message blocked by PII policy
+  policyViolation: Message blocked by content policy
+  sendFailed: Couldn't send message
+modelSelector:
+  label: Select model
+  auto: Auto
+  autoDescription: Let Tale pick the best model for each message — balances quality, speed, and cost.
+  noModelsAvailable: No models available
+  subscriptionsTasksOnly:
+    Subscriptions from {providers} run only in tasks and automations.
+    To chat with their models, add an API key or environment-variable
+    credential.
+  viewProvider: View provider settings
+  viewInfo: Model details
+  info:
+    provider: Provider
+    type: Type
+    contextWindow: Context
+    maxOutput: Max output
+    inputCost: Input cost
+    outputCost: Output cost
+    reasoning: Reasoning
+    promptCaching: Prompt caching
+    tools: Tools
+    vision: Vision
+    supported: Supported
+    notSupported: Not supported
+    reasoningEffort: Effort levels
+    reasoningBudget: Token budget
+    cachingExplicit: Manual breakpoints
+    cachingAuto: Automatic
+  tags:
+    chat: Chat
+    embedding: Embedding
+    imageEdit: Image editing
+    imageGeneration: Image generation
+    textToSpeech: Text-to-speech
+    transcription: Transcription
+    vision: Vision
+voice:
+  voiceModeDisable: Stop reading replies aloud
+  voiceModeEnable: Read replies aloud
+  voiceModeLabel: Voice mode
+  voiceOutputAnnounceBlocked: Voice output blocked — activate the player to listen
+  voiceOutputAnnounceError: Voice output failed
+  voiceOutputAnnounceSpeaking: Voice output speaking
+  voiceOutputAnnounceStopped: Voice output stopped
+  voiceOutputBlocked: Voice playback blocked — tap to play
+  voiceOutputError: Voice output failed
+  voiceOutputErrorAuthExpired: Session expired — sign in again to keep voice playing
+  voiceOutputErrorBudget: Voice budget reached for this period
+  voiceOutputErrorChunkLimit: Voice limit reached for this reply
+  voiceOutputErrorConfig: Voice provider unavailable — ask an admin to add a text-to-speech model
+  voiceOutputErrorDecode: Could not play voice audio — tap to retry
+  voiceOutputErrorForbidden: Voice provider blocked by host policy
+  voiceOutputErrorInvalidResponse: Voice provider returned invalid audio — tap to retry
+  voiceOutputErrorMessageCharLimit: Reply too long for voice — stopping here
+  voiceOutputErrorNetwork: Voice request failed — check your connection and retry
+  voiceOutputErrorOpenSettings: Open settings
+  voiceOutputErrorQueueOverflow: Voice is falling behind — pausing further sentences
+  voiceOutputErrorRateLimited: Voice rate limit hit — retrying
+  voiceOutputErrorTransient: Voice service unavailable — retrying
+  voiceOutputLoading: Preparing voice…
+  voiceOutputPlay: Play voice output
+  voiceOutputSpeaking: Speaking
+  voiceOutputStop: Stop voice output
+  voiceOutputStopped: Stopped
+  voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
+notFound: This chat is not available.
+placeholder: Ask a question…
+generationIncomplete: The model returned no answer. Try again, or choose another model.
+generationIncompleteFiltered: The model provider's content filter withheld this response. Try rephrasing your message.
+generationIncompleteLength: The model used up its output token limit before it wrote an answer. Try a lower reasoning effort, a shorter request, or another model.
+generationIncompleteWithTools: The response couldn't be completed after running {tools}. Try again.
+stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
+send: Send message
+stopGenerating: Stop generating
+stoppingGeneration: Stopping…
+invalidFiles: Invalid files
+fileSizeExceededMultiple: '{names} exceeded the {maxSize}MB file size limit.'
+audioDurationExceeded:
+  '{names}: audio is longer than the {maxHours}-hour limit.
+  Split it into shorter segments.'
+fileTypeNotAllowed: '{names}: file type not allowed by upload policy.'
+fileTypeUnsupported: '{names}: file type not supported.'
+fileUploaded: File uploaded
+uploadedSuccessfully: '{filename} uploaded'
+uploadFailed: Couldn't upload the file
+failedToUpload: Couldn't upload {filename}
+failedToUploadReason: "Couldn't upload {filename}: {reason}"
+tooManyFiles: Too many files
+tooManyFilesDescription: You can attach up to {max} files per message.
+  {rejected} {rejected, plural, one {file was} other {files were}} not added.
+totalSizeExceeded: Attachments too large
+totalSizeExceededDescription: Total attachment size cannot exceed {maxSize}MB.
+  Remove some files and try again.
+duplicateFile: Duplicate file
+duplicateFileDescription: '{filename} is already attached.'
+viewImage: View image
+removeAttachment: Remove attachment
+uploadingFile: Uploading…
+cancelUpload: Cancel upload
+modelCannotSeeImages: This model can't view images — it only sees their file names.
+noModelCanSeeImages: None of the available models can view images — they only see file names.
+fileTypes:
+  image: IMG
+transcription:
+  transcribing: Transcribing…
+  transcribed: Transcribed
+  couldNotTranscribe: Couldn't transcribe
+  limitReached: Usage limit reached
+  limitReachedHint: A usage limit that applies to you has been reached. Settings > Usage shows when it resets; choose Try again once it has reset or been raised.
+  viewTranscript: View transcript
+  previewSubtitle: '{seconds}s transcribed'
+  retry: Try again
+  noModel: No compatible model is available for audio-file transcription.
+  pinnedUnavailable: The selected audio transcription model is unavailable.
+  policyInvalid: The audio transcription model setting is invalid.
+  temporarilyUnavailable: Audio transcription availability could not be checked. Try again shortly.
+  askAdmin: Ask an admin to check the transcription settings.
+  configureProviders: Configure AI providers
+  configureModel: Review transcription model
+  uploadBlocked: 'Audio/video not uploaded: {names}.'
+indexing: Indexing…
+indexingFailed: Index failed
+indexingFailedDescription: '{filename} could not be indexed for search.'
+indexingUnsupported: Format not supported
+indexingUnsupportedDescription: "{filename} can't be indexed — this file
+  type has no text extractor."
+deferredSend:
+  waiting: Queued — sends when the attachments are ready
+  sending: Sending…
+  cancel: Cancel queued message
+videoLink:
+  statuses:
+    queued: Queued
+    retrying: Retrying…
+    attemptNumber: Attempt {n}
+    fetching_metadata: Reading video info…
+    fetching_captions: Fetching captions…
+    extracting_audio: Extracting audio…
+    transcribing_handoff: Transcribing…
+    indexing: Indexing…
+    completed: Ready
+    failed: Failed
+    skipped: Cancelled
+  errors:
+    generic: Couldn't analyze this video
+    privateOrAgeGated: Video is private or age-restricted
+    authRequired: Video platform requires a sign-in — this video can't be analyzed
+    unavailable: Video is no longer available
+    geoblocked: Video isn't available in this region
+    unsupported: This site isn't supported
+    transient: Temporary issue — try again
+    botDetection: Video platform blocked automated access — try again later or use another platform
+    rateLimited: Video platform is rate-limiting — wait a few minutes and retry
+    forbidden: Video platform refused access (403) — try again later
+    liveStream: Live streams aren't supported
+    premiere: Premiere/upcoming video not yet available
+    memberOnly: Members-only video
+    jsRuntimeMissing: Video processing isn't fully configured — contact your administrator
+    binaryNotInstalled: Video processing is not enabled yet — contact your administrator
+    retryCooldown: This video was just rate-limited — wait a few minutes before retrying
+    timeout: Took too long to fetch — try again
+    outputValidationFailed: Couldn't validate the downloaded video file
+    videoTooLong: Video exceeds the 4h length limit
+    whisperFailed: Transcription failed
+    invalidUrl: URL is malformed
+    unsupportedProtocol: Only https:// links are accepted
+    credentialedUrl: Links with embedded credentials aren't accepted
+    ipLiteral: Bare IP and localhost links aren't accepted
+    playlist: Playlists aren't supported — paste a single video link
+    dnsResolutionFailed: Couldn't resolve the host
+    privateIpResolved: This link points to a private/internal address
+    inFlightCap: Too many videos processing — wait for one to finish
+    budgetExceeded: Usage limit reached — contact your administrator
+    notFound: Video link not found — it may have been removed
+    notUploader: Only the person who added this video can change it
+    notRetryable: Can't retry right now — the video may already be processing again
+    threadNotFound: This chat is no longer available
+    projectUnavailable: "This project isn't available to you any more. Paste the link into another chat."
+  actions:
+    removeLink: Remove
+    retry: Try again
+  chip:
+    fallbackTitle: Video link
+    ariaLabel: 'Video attachment: {title}'
+    failedSendBlockedTooltip: A video failed — retry it or remove the chip before sending
+  toast:
+    ingestFailedTitle: Couldn't add this video
+    retryFailedTitle: Couldn't retry this video
+    removeFailedTitle: Couldn't remove this video
+    removeFailedDescription: It's still attached to your message — try removing it again
+fallback:
+  image: Image
+loadingConversation: Loading conversation…
+speakOutLoud: Speak out loud
+scrollToBottom: Scroll to bottom
+messageInfo:
+  title: Message information
+  timestamp: Timestamp
+  messageId: Message ID
+  copyId: Copy message ID
+  model: Model
+  provider: Provider
+  servedBy: Served by
+  region: Region
+  regionNotReported: Not reported
+  regionNotReportedHint: Shown when the provider reports it or a regional endpoint sets it.
+  regionFromEndpoint: Set by the regional endpoint {host}
+  regionGlobal: Global, no fixed region
+  regions:
+    europe: Europe
+    unitedStates: United States
+  modelVersion: Model version
+  tokenUsage: Token usage
+  totalTokens: '{count} total'
+  input: Input
+  output: Output
+  cachedTokens: '{count} cached ({percent}%)'
+  reasoningTokens: '{count} reasoning'
+  cost: Cost
+  performance: Performance
+  timeToFirstToken: Time to first token
+  throughput: Output speed
+  duration: Total time
+  tokensPerSecond: '{value} tok/s'
+  phases:
+    preparing: Preparing
+    waiting: Waiting for the model
+    thinking: Thinking
+    writing: Writing
+  perceivedWait: On your screen, the first words appeared {duration} after you sent.
+  toolCalls: Tool calls
+  voiceOutput: Voice output
+  voice: Voice
+  voiceCharacters: Characters
+  blockedReason: Blocked
+  error: Error
+  noMetadata: Token usage and model information are not available for this message.
+history:
+  untitled: Untitled chat
+  noProjects: No projects yet — create one in the panel above.
+  legalHold:
+    heading: On legal hold
+    body: Preserved for compliance — cannot be deleted, archived, or renamed.
+    reasonLabel: Reason
+    matterLabel: Matter
+    placedByLabel: Placed by
+    placedAtLabel: Placed
+  generating: Generating response
+  renameChat: Rename
+  renameEmpty: Enter a chat title.
+  renameTooLong: Use 500 characters or fewer.
+  loadMore: Load more
+  toast:
+    moveFailed: Couldn't move chat
+    renameFailed: Couldn't rename chat. Try again.
+searchPalette:
+  title: Search chats
+  placeholder: Search chats
+  loading: Loading chats...
+  noResults: No results
+  empty: Start typing to search
+  emptyHint: Search by title, message, or participant
+aria:
+  messageHistory: Message history
+  chatRegion: Chat
+  chatInput: Message input
+  skipToComposer: Skip to message box
+  threadActions: Conversation actions
+dictation:
+  start: Start dictation
+  stop: Stop dictation
+  level: Microphone level
+  notSupported: Speech recognition is not supported in this browser
+  transcribing: Transcribing…
+  transcriptionFailedShort: Transcription failed
+  retry: Try again
+  discard: Discard recording
+  permissionDenied: Microphone access denied. Allow it in your browser settings.
+  serviceUnavailable: Dictation is unavailable right now. The browser could not reach its speech service; check the connection and try again.
+  limitReached: Usage limit reached. Try the recording again once the limit resets or is raised.
+citations:
+  source: Source {number}
+  page: Page {page}
+  relevance: 'Relevance: {score}%'
+  viewDocument: View in document
+  visitPage: Visit page
+share:
+  button: Share
+  title: Share chat
+  snapshotHint: Only messages up to this point will be shared.
+  snapshotHintShared: Newer messages aren't included.
+  accessPickerLabel: Who can view this chat
+  keepPrivate: Keep private
+  keepPrivateDescription: Only you have access
+  organizationLink: Share with organization
+  organizationLinkDescription: Anyone in your organization with the link can view this chat
+  createLink: Create share link
+  includeNewer: Include newer messages
+  creatingLink: Creating link…
+  retry: Try again
+  statusFailed: Couldn't load the sharing status. This chat may still be shared with your organization.
+  copyLink: Copy link
+  copied: Link copied
+  preview: Preview
+  notShareable: This chat can't be shared.
+  cannotShareArena: Arena chats can't be shared.
+  shareFailed: Couldn't share chat
+  sharedIndicator: Shared
+  unshare: Stop sharing
+  unshared: Sharing stopped
+  unshareFailed: Couldn't stop sharing
+  sharedChat: Shared chat
+  byline: Shared by {name} on {date}
+  notFound: This shared chat is no longer available.
+arena:
+  label: Arena Mode
+  enable: Enable Arena Mode
+  disable: Disable Arena Mode
+  modelA: Model A
+  modelB: Model B
+  modelALabel: Model A
+  modelBLabel: Model B
+  selectModel: Select model
+  vs: vs
+  verdictLabel: Choose a verdict
+  aBetter: A is better
+  bBetter: B is better
+  tie: Tie
+  bothBad: Both bad
+  verdictRecorded: Verdict recorded
+  verdictError: Couldn't record verdict
+  busy: Both replies must finish first
+  oneSided: Both columns need a finished reply to this round before a verdict
+  exitWithoutVerdict: Exit without verdict
+  startFailed: Could not start Arena Mode
+  unsharable: A shared chat can't enter Arena Mode
+backendUnavailable:
+  title: Chat isn't connected yet
+  description: The chat service isn't answering, so no conversation can be loaded. Nothing you wrote was lost.
+providerSetup:
+  title: No AI provider connected yet
+  descriptionAdmin: Connect an AI provider to start chatting.
+  descriptionMember: Ask your workspace admin to connect an AI provider.
+  action: Open AI providers
+skills:
+  label: Skills
+  labelWithCount: Skills ({count})
+  sectionSkills: Skills
+  sectionConnectors: Connectors
+  sectionTools: Platform tools
+  emptySkills: No skills in this organization yet.
+  unavailableOption: '"{slug}" (unavailable)'
+  emptyConnectors: No connectors added yet.
+  emptyTools: No platform tools available.
+  searchLabel: Search skills, connectors and tools
+  searchPlaceholder: Search…
+  searchEmpty: Nothing matches your search.
+generation:
+  regionLabel: Response status
+  queued: Queued — waiting to start
+  streaming: Writing the reply…
+  waitingApproval: Waiting for your approval
+  waitingOn: Waiting on {detail}
+parts:
+  toolCall: Called {tool}
+  toolResult: Result from {tool}
+  toolResultFailed: Failed
+  approvalPending: Approval requested
+  approvalApproved: Approved
+  approvalRejected: Rejected
+errorGeneratingDescription: Couldn't generate a response. Try again.
+errorHintAuthError: The API key is invalid or does not have access to this
+  model. Contact your administrator.
+errorHintContentFilter: The message was flagged by the content filter. Try rephrasing your message.
+errorHintContextLength: The conversation is too long for the model's context
+  window. Try starting a new chat.
+errorHintCreditExhausted: The AI provider's credit limit was exceeded. Contact
+  your administrator to add credits.
+errorHintMissingApiKey: No API key configured for this workspace.
+errorHintModelNotFound: The selected model was not found or is unavailable.
+  Contact your administrator.
+errorHintOutputCapTooHigh:
+  This model's max output tokens leave no room for the
+  prompt (or exceed what the model supports). Try again — Tale clears a bad
+  cached cap automatically — or ask an administrator to lower Max output
+  tokens.
+errorHintProviderError: The AI provider is temporarily experiencing issues. Try again in a moment.
+errorHintRateLimited: Too many requests. Wait a moment and try again.
+errorHintModelNotEntitled: The provider's plan does not include this model.
+  Pick another model, or ask your administrator to upgrade the plan.
+errorHintTokenLimit:
+  The model's output token limit was exceeded. Try a shorter
+  request or ask your administrator to adjust the model settings.
+errorHintBudgetExceeded: A usage limit that applies to you has been reached. Settings > Usage shows when it resets, and your administrator can raise it.
+errorHintProjectBudgetExceeded: This project's usage limit has been reached. It applies only to the work in this project, and your administrator can raise it.
+errorHintToolFailure: The agent encountered an error while accessing data. Try
+  rephrasing your request or asking for a smaller set of data.
+errorHintUnsupportedParameter:
+  The model rejected one of the request parameters.
+  This usually means a provider or model configuration mismatch — check the
+  model settings, or expand the details below.
+errorHintProviderUnreachable: The AI provider could not be reached. It may be
+  offline or misconfigured. Try again, or contact your administrator.
+errorHintCreditExhaustedNamed: '{provider} is out of credits. Contact your
+  administrator to add credits or switch providers.'
+errorHintAuthErrorNamed: The API key for {provider} is invalid or expired.
+  Contact your administrator to update it.
+errorHintProviderUnreachableNamed: '{provider} could not be reached. It may be
+  offline or misconfigured. Try again, or contact your administrator.'
+errorHintModelNotFoundNamed:
+  The selected model was not found on {provider}. It
+  may have been renamed or removed.
+errorHintRateLimitedNamed: Rate limit reached on {provider}. Wait a moment and try again.
+errorHintModelNotEntitledNamed: The {provider} plan does not include this
+  model. Pick another model, or ask your administrator to upgrade the plan.
+
+errorGenerating: Couldn't generate a reply. Try again.
+errorTriedModels: 'Tried {count} models before giving up.'
+errorDetailsSummary: Technical details
+retryGeneration: Try again
+askAdminProviderKey: Ask an admin to add an AI provider.
+openProviderSettings: Open provider settings
+generationStopped: Generation stopped
+blockedNotice:
+  body: "This response was blocked by your organization's content policy."
+effort:
+  label: Reasoning effort
+  default: Default
+  low: Low
+  medium: Medium
+  high: High
+  extra: Extra
+  max: Max
+  description: Higher effort means more thorough answers — they take longer and use your limits faster.
+  maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
+  toolsLockedHint: This model can't combine chat tools with an effort pick — every message is sent at its default effort.
+picker:
+  ariaLabel: Choose model and reasoning effort
+  searchPlaceholder: Search
+  searchEmpty: No matches
+  sectionModel: Model
+thinking:
+  label: Thinking
+  done: Thought for {seconds}s
+  reading: Reading {hostname}
+  searchingKnowledgeBase: Searching the workspace for "{query}"
+  readingDocument: Reading {name}
+  readingDocumentUnnamed: Reading a document
+  readingTask: Reading task {name}
+  listing:
+    generic: Listing the workspace
+    tasks: Listing tasks
+    projects: Listing projects
+    contacts: Listing contacts
+    products: Listing products
+    documents: Listing documents
+    websites: Listing websites
+    knowledgeEntries: Listing knowledge entries
+    conversations: Listing conversations
+    mailAttachments: Listing email attachments
+  seconds: '{seconds}s'
+  summaryReasoningOnly: Showed its reasoning
+sources:
+  label: Sources
+  showAll: Show all {count} sources
+  hide: Hide sources
+
+budgetExceededDetail: '{type} limit reached for {period, select, daily {today} weekly {this week} other {this month}} ({used} / {limit}). Contact your administrator.'
+budgetExceededDefault: Usage limit reached for this period. Contact your administrator.
+budgetRemaining: '{remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+budgetRemainingTeam: 'Team {team}: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+budgetRemainingProject: 'Project {project}: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+budgetLimitReached: 'Usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
+budgetLimitReachedProject: 'Project {project}: usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
+budgetRequestCredits: Request usage credits
+budgetRequestCreditsSent: Request sent to your admins
+budgetWarningDismiss: Dismiss
+budgetWarningTypeTokens: token
+budgetWarningTypeCost: cost
+budgetWarningTypeRequests: request
+budgetViewUsage: View usage

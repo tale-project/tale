@@ -14,14 +14,16 @@ Sur téléphone, la navigation flotte au-dessus de la page dans une barre arrond
 
 Quand tu fais défiler la page vers le bas, la barre devient plus petite, descend légèrement et n’affiche plus que les icônes. Remonte dans la page pour retrouver la barre complète et ses libellés. Toutes les destinations restent accessibles dans les deux formats.
 
-Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Accueil**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Sur ordinateur, seul **Accueil** reprend où tu en étais : il rouvre le chat que tu as lu en dernier, ou un nouveau chat si tu n’en as aucun. Choisir **Accueil** alors que tu y es déjà démarre un nouveau chat, tout comme le raccourci **⌥⌘N** sur Mac ou **Alt+Ctrl+N** sous Windows et Linux.
+Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. **Accueil** ouvre un nouveau chat, **Connaissances** ouvre **Documents** et **Automatisations** ouvre la liste des automatisations. C’est aussi le cas quand tu choisis la section où tu te trouves déjà. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Connaissances**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Sur téléphone, **Accueil** ouvre la liste d’**Accueil** plutôt qu’un nouveau chat. Le raccourci **⌥⌘N** sur Mac ou **Alt+Ctrl+N** sous Windows et Linux démarre aussi un nouveau chat.
+
+Une automatisation que tu ouvres depuis l’onglet **Automatisations** d’un projet appartient à **Automatisations** : la barre de navigation met **Automatisations** en évidence, et le fil d’Ariane au-dessus de l’automatisation commence par le projet. Choisis le nom du projet pour revenir au projet, ou **Automatisations** pour revenir à ses automatisations.
 
 **Paramètres** liste ses pages dans un panneau latéral, à côté de la page, et l’en-tête indique la page ouverte ; sur téléphone, Paramètres commence par la liste de ses pages. **Connaissances** présente ses pages sous forme d’onglets sous son en-tête.
 
 | Tu souhaites… | Marche à suivre |
 | --- | --- |
 | Ouvrir une autre section | Choisis cette section dans la barre de navigation ou, sur téléphone, dans la barre d’onglets. |
-| Démarrer un nouveau chat | Sur ordinateur, choisis **Nouveau chat** dans **Accueil**, ou choisis **Accueil** alors que tu y es déjà. Sur téléphone, ouvre **Accueil**, choisis **Chats**, puis **Nouveau chat**. |
+| Démarrer un nouveau chat | Sur ordinateur, choisis **Accueil**, ou **Nouveau chat** dans **Accueil**. Sur téléphone, ouvre **Accueil**, choisis **Chats**, puis **Nouveau chat**. |
 | Ouvrir un projet | Sur ordinateur, choisis le projet sous **Projets** dans **Accueil**. Sur téléphone, choisis le projet, puis **Ouvrir le projet**. |
 | Revenir à la liste des projets | Choisis **Tous les projets** dans **Accueil**, ou clique sur **Projets** dans le fil d’Ariane au-dessus du projet. |
 | Revenir à la liste des documents | Choisis **Connaissances**. |
@@ -48,8 +50,8 @@ Une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des pr
 
 Sur téléphone, la liste diffère sur trois points :
 
-- **Nouveau chat** se trouve en haut de la vue **Chats**, et non dans l’en-tête. **Nouveau projet** n’existe pas sur cet écran, et le menu d’un projet ne propose que **Épingler le projet**.
-- Quand tu choisis un projet sous **Projets**, **Tout**, **Chats** et **Tâches** n’affichent que les chats de ce projet et tes tâches ouvertes qui s’y trouvent. Une barre au-dessus de la liste nomme le projet. **Ouvrir le projet** mène à sa page, et **Tout afficher** lève la limite. **Réception** n’est jamais restreinte, car une conversation n’appartient à aucun projet.
+- **Nouveau chat** se trouve en haut de la vue **Chats**, et non dans l’en-tête. **Nouveau projet** n’existe pas sur cet écran, et le menu d’un projet propose **Ouvrir le projet** et **Épingler le projet**.
+- Quand tu choisis un projet sous **Projets**, **Tout**, **Chats** et **Tâches** n’affichent que les chats de ce projet et tes tâches ouvertes qui s’y trouvent. La ligne du projet sélectionné est mise en évidence. Le filtre reste actif quand tu passes d’une de ces vues à une autre. Choisis à nouveau la ligne du projet pour retirer le filtre. **Réception** n’est jamais filtrée par projet.
 - **Tous les projets** est un lien avec libellé à côté du titre **Projets**, et non une icône.
 
 Chaque ligne commence par une bulle de chat, un cercle coloré selon le statut de la tâche ou les initiales du contact. Viennent ensuite le titre, le temps écoulé depuis la dernière modification et, en dessous, une ligne de contexte : pour un chat, son projet ; pour une tâche, son identifiant et son statut, par exemple `WEB-2` **En revue** ou **En attente de ta relecture** ; pour une conversation, le contact et son dernier message. Un point dans la couleur d’accentuation signale les chats et conversations non lus, ainsi que les tâches qui attendent ta relecture. Un crayon suivi de **Brouillon**, au début de la ligne de contexte, signale un chat, une tâche ou une conversation où tu as saisi un texte sans l’envoyer, sauf pour l’élément ouvert. Les brouillons restent dans le navigateur où tu les as saisis. Le menu d’un chat propose **Épingler le chat**, **Marquer comme lu** ou **Marquer comme non lu**, **Renommer**, **Déplacer vers un projet…**, **Partager**, **Arrêter le partage** pour un chat partagé, **Archiver** et **Supprimer**. Les chats archivés rejoignent **Archivés**, en bas de la liste.
@@ -100,7 +102,7 @@ Réunis fichiers, instructions, chats personnels ou partagés et tâches.
 
 <Card title="Agents" icon="bot" href="/fr/platform/agents/concepts">
 
-Configure des agents pour les tâches de projet avec un harness, un modèle et un équipement adaptés.
+Configure des agents pour les tâches de projet avec un environnement d’agent, un modèle et un équipement adaptés.
 
 </Card>
 
@@ -134,7 +136,7 @@ Comprends les capacités, la disponibilité et le choix des modèles.
 
 </Card>
 
-<Card title="Connecteurs" icon="plug" href="/fr/platform/connectors/overview">
+<Card title="Connectors" icon="plug" href="/fr/platform/connectors/overview">
 
 Connecte des services externes et vérifie les actions accessibles aux agents et automatisations.
 

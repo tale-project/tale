@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
+import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { notifyTaskMentions } from '../collab/service.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
 import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
@@ -18,7 +18,7 @@ import {
 } from './service.ts';
 
 vi.mock('../collab/mention-directory.ts', () => ({
-  resolveSurfaceMentions: vi.fn(),
+  prepareSurfaceText: vi.fn(),
 }));
 vi.mock('../collab/service.ts', () => ({
   autoSubscribe: vi.fn(),
@@ -49,6 +49,7 @@ vi.mock('./agent-runs.ts', async () => {
   return {
     cancelAgentRunInTx: vi.fn(),
     kickAgentRun: vi.fn(),
+    withdrawWaitingAgentRunInTx: vi.fn(async () => false),
     isStandardAgentRefusal: (error: unknown) =>
       error instanceof errors.TaskError &&
       (error.code === 'STANDARD_AGENT_OFF' ||
@@ -270,11 +271,15 @@ function resolvesTo(
   mentions: { type: 'user' | 'agent'; id: string }[],
   added = mentions,
 ) {
-  vi.mocked(resolveSurfaceMentions).mockResolvedValue({
-    mentions,
-    added,
-    unresolvedMentionTokens: [],
-  });
+  vi.mocked(prepareSurfaceText).mockImplementation((_sql, args) =>
+    Promise.resolve({
+      text: args.body,
+      mentions,
+      added,
+      unresolvedMentionTokens: [],
+      invalidTokens: [],
+    }),
+  );
 }
 
 function assigned(statements: { text: string; values: unknown[] }[]) {
@@ -309,7 +314,7 @@ describe('createTask — description @mentions fan out', () => {
       // An address is not a mention: the grammar wants a boundary before `@`.
       description: 'Plain brief; send questions to ada@example.com',
     });
-    expect(resolveSurfaceMentions).not.toHaveBeenCalled();
+    expect(prepareSurfaceText).not.toHaveBeenCalled();
     expect(notifyTaskMentions).not.toHaveBeenCalled();
     expect(kickAgentRun).not.toHaveBeenCalled();
   });
@@ -326,10 +331,12 @@ describe('createTask — description @mentions fan out', () => {
     });
 
     // Every mention is new on create: no previous text to diff against.
-    expect(resolveSurfaceMentions).toHaveBeenCalledWith(tx, {
+    expect(prepareSurfaceText).toHaveBeenCalledWith(tx, {
       organizationId: 'org-1',
       projectId: 'p-1',
       body: description,
+      cap: 20_000,
+      mode: 'full',
     });
     expect(notifyTaskMentions).toHaveBeenCalledWith(tx, {
       task: expect.objectContaining({ id: 't-new', projectId: 'p-1' }),
@@ -539,11 +546,13 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
       description: '@ada please review, cc @bob',
     });
 
-    expect(resolveSurfaceMentions).toHaveBeenCalledWith(tx, {
+    expect(prepareSurfaceText).toHaveBeenCalledWith(tx, {
       organizationId: 'org-1',
       projectId: 'p-1',
       body: '@ada please review, cc @bob',
       previousBody: '@ada please review',
+      cap: 20_000,
+      mode: 'full',
     });
     expect(notifyTaskMentions).toHaveBeenCalledTimes(1);
     expect(notifyTaskMentions).toHaveBeenCalledWith(
@@ -564,7 +573,7 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
       description: 'By Friday, @WRITER: draft it',
     });
 
-    expect(resolveSurfaceMentions).not.toHaveBeenCalled();
+    expect(prepareSurfaceText).not.toHaveBeenCalled();
     expect(notifyTaskMentions).not.toHaveBeenCalled();
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(
@@ -585,7 +594,7 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
       description: '@ada.lovelace and @writer: draft it by Friday',
     });
 
-    expect(resolveSurfaceMentions).toHaveBeenCalledTimes(1);
+    expect(prepareSurfaceText).toHaveBeenCalledTimes(1);
     expect(notifyTaskMentions).not.toHaveBeenCalled();
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
@@ -611,7 +620,7 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
       taskId: 't-1',
       description: null,
     });
-    expect(resolveSurfaceMentions).not.toHaveBeenCalled();
+    expect(prepareSurfaceText).not.toHaveBeenCalled();
   });
 
   it('with task automation off, still bells the humans but leaves the agent idle — as the preview says', async () => {

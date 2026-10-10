@@ -13,6 +13,7 @@ import {
   isDirectApiSlug,
   isConnectorSlug,
   isSyntheticAgentSlug,
+  isEmbeddingSlug,
   isTranscriptionSlug,
   isTtsSlug,
 } from '@/lib/shared/constants/usage';
@@ -51,6 +52,7 @@ export function TopAgentsTable({
       // Reached when a TTS row has no real assistant slug (thread without
       // an attached agent) and falls back to the `__tts__` sentinel.
       if (isTtsSlug(slug)) return t('usage.tts');
+      if (isEmbeddingSlug(slug)) return t('usage.embedding');
       // Localized display names came from the agent config catalog, which is
       // offline while the agents backend is rebuilt — real agent rows show
       // their raw slug until it returns.

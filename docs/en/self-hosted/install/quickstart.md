@@ -8,7 +8,7 @@ Run Tale locally with the published CLI, then create your workspace and send a m
 
 You need:
 
-- macOS, Linux or Windows with PowerShell, and Docker running Linux containers with Compose. Docker Desktop includes Compose on macOS and Windows. If Docker is missing, `tale dev` offers to help install it.
+- macOS, Linux or Windows with PowerShell, and Docker Engine 24.0 or later running Linux containers with Compose. Docker Desktop includes Compose on macOS and Windows. If Docker is missing, `tale dev` offers to help install it; with an older engine, it stops before downloading any image.
 - Network access to GitHub for the CLI and container registries for the images. The first start downloads several GB; leave room for the images and your data.
 - A supported model provider credential for the first reply. You can create the account and explore the application before connecting a provider.
 
@@ -42,7 +42,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 Run `tale --version` in the same terminal to confirm installation. If the command is missing, follow the installer’s `PATH` guidance and reopen any terminals that were already open. The [CLI installation guide](/self-hosted/install/cli-install) covers pinned versions and custom installation directories.
 
-Check `tale --help` before using `tale doctor`. If `doctor` is not listed, run `docker info` and `docker compose version` to check Docker and Compose. When available, `tale doctor` also checks container architecture and local ports without installing software or changing files. Follow any reported recovery steps; a passing check does not verify image downloads or model access.
+Check `tale --help` before using `tale doctor`. If `doctor` is not listed, run `docker info` and `docker compose version` to check Docker and Compose. When available, `tale doctor` also checks the Docker Engine version, container architecture and local ports without installing software or changing files. Follow any reported recovery steps; a passing check does not verify image downloads or model access.
 
 ## Initialize and start
 

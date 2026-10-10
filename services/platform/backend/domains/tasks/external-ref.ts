@@ -4,20 +4,25 @@ import {
 } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { LegacyRunQuarantine } from '../../../lib/engine/api/dispatch.ts';
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import {
   TASK_AUDIT_ACTIONS,
   TASK_RESOURCE_TYPE,
 } from '../../core/tasks/audit_actions.ts';
 import {
+  TASK_DESCRIPTION_MAX,
   taskWorkflowSubjectInput,
   truncateImportedDescription,
   truncateImportedTitle,
 } from '../../core/tasks/helpers.ts';
+import { descriptionMentionMode } from '../../core/tasks/mentions.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { describeLegacyQuarantine } from '../automations/legacy-quarantine.ts';
 import { beginRunInTx } from '../automations/store.ts';
+import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { emitEvent } from '../events/emit.ts';
 import { endRepeatForAutomationOwner } from './repeat.ts';
 import {
@@ -250,6 +255,33 @@ export interface UpsertTaskByExternalRefResult {
 }
 
 /**
+ * The description an intake stores. Text a caller writes (a script, a
+ * workflow) stores its mentions as whom they name, as the app does; an issue
+ * mirrored from GitHub or GlitchTip keeps its `@people` as written, since
+ * they are that tracker's. Either way a mention token must name someone who
+ * can be mentioned on the task, or it is stored as plain text. An intake
+ * notifies nobody it names, as before.
+ */
+async function storedIntakeDescription(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    externalSystem: string;
+    description: string;
+  },
+): Promise<string> {
+  const prepared = await prepareSurfaceText(tx, {
+    organizationId: args.organizationId,
+    projectId: args.projectId,
+    body: args.description,
+    cap: TASK_DESCRIPTION_MAX,
+    mode: descriptionMentionMode(args.externalSystem),
+  });
+  return prepared.text;
+}
+
+/**
  * On the rebuilt engine the workflow slug IS the automation's store name: a
  * DEPLOYED automation of that name owns the tasks it operates.
  */
@@ -459,11 +491,17 @@ export async function upsertTaskByExternalRef(
     // A custom source's lifecycle is a fact, not the native reviewer's
     // verdict. Keep syncing the batch and the source close/reopen fact,
     // without moving or withdrawing a captured agent-owned review.
-    const preserveReview =
+    const pendingReview =
+      existing.status === 'in_review'
+        ? await getPendingReviewForTask(tx, args.organizationId, existing.id)
+        : null;
+    const preserveHumanReview =
       existing.status === 'in_review' &&
-      (existing.externalClosedAt === null ||
-        (await getPendingReviewForTask(tx, args.organizationId, existing.id))
-          ?.reviewer?.kind === 'agent');
+      existing.externalClosedAt === null &&
+      pendingReview?.reviewer?.kind !== 'agent';
+    const preserveAgentReview =
+      existing.status === 'in_review' &&
+      pendingReview?.reviewer?.kind === 'agent';
     const mirrorParked =
       existing.status === 'in_review' && existing.externalClosedAt !== null;
     let statusFrom: TaskStatus | undefined;
@@ -471,10 +509,24 @@ export async function upsertTaskByExternalRef(
     let completedAt: number | null = existing.completedAt;
     let externalClosedAt: number | null = existing.externalClosedAt;
     let rank = existing.rank;
-    if (preserveReview) {
-      if (lifecycleState === 'open') externalClosedAt = null;
+    const sourceOwnedStatus = await tx<{ taskId: string }[]>`
+      SELECT task_id AS "taskId" FROM app.task_external_status
+      WHERE org_id = ${args.organizationId} AND task_id = ${existing.id}
+        AND external_system = ${externalSystem} AND external_id = ${externalId}
+      LIMIT 1
+    `;
+    // Opting into accepted source projection removes the older two-state
+    // intake's claim on progress. Metadata refreshes must not undo a recorded
+    // source-approved completion when `externalState` defaults to open.
+    const mirrorLifecycleState =
+      sourceOwnedStatus.length > 0 ? undefined : lifecycleState;
+    if (preserveHumanReview) {
+      if (mirrorLifecycleState === 'open') externalClosedAt = null;
+    } else if (preserveAgentReview) {
+      if (mirrorLifecycleState === 'closed') externalClosedAt ??= now;
+      else if (mirrorLifecycleState === 'open') externalClosedAt = null;
     } else if (
-      lifecycleState === 'closed' &&
+      mirrorLifecycleState === 'closed' &&
       !TERMINAL_STATUSES.has(existing.status)
     ) {
       newStatus = completingActor ? 'done' : 'in_review';
@@ -483,7 +535,7 @@ export async function upsertTaskByExternalRef(
       externalClosedAt = now;
       rank = await computeEndRank(tx, existing.projectId, newStatus);
     } else if (
-      lifecycleState === 'open' &&
+      mirrorLifecycleState === 'open' &&
       (existing.status === 'done' || mirrorParked)
     ) {
       newStatus = SYNC_OPEN_STATUS;
@@ -503,10 +555,20 @@ export async function upsertTaskByExternalRef(
       });
     }
 
+    const storedDescription = preserveDescription
+      ? existing.description
+      : description === undefined
+        ? null
+        : await storedIntakeDescription(tx, {
+            organizationId: args.organizationId,
+            projectId: existing.projectId,
+            externalSystem,
+            description,
+          });
     await tx`
       UPDATE app.tasks SET
         title = ${title},
-        description = ${preserveDescription ? existing.description : (description ?? null)},
+        description = ${storedDescription},
         label_ids = ${labelIds},
         external_url = ${args.externalUrl ?? existing.externalUrl},
         assignee_type = ${assigneePatch?.assigneeType ?? existing.assigneeType},
@@ -644,6 +706,15 @@ export async function upsertTaskByExternalRef(
       createdBy: args.actorId,
       createIfMissing: args.mintLabels ?? true,
     })) ?? [];
+  const storedDescription =
+    description === undefined
+      ? null
+      : await storedIntakeDescription(tx, {
+          organizationId: args.organizationId,
+          projectId,
+          externalSystem,
+          description,
+        });
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.tasks (
       org_id, project_id, title, description, status, priority, label_ids,
@@ -652,7 +723,7 @@ export async function upsertTaskByExternalRef(
       completed_at_ms, external_closed_at_ms, created_by,
       created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
     ) VALUES (
-      ${args.organizationId}, ${projectId}, ${title}, ${description ?? null},
+      ${args.organizationId}, ${projectId}, ${title}, ${storedDescription},
       ${status}, ${args.priority ?? null}, ${labelIds},
       ${ownerAutomation !== null ? 'app' : null}, ${ownerAutomation},
       ${rank}, ${number}, ${externalSystem}, ${externalId},
@@ -841,7 +912,7 @@ export async function startWorkflowForTaskInTx(
       SELECT id FROM app.automation_runs
       WHERE org_id = ${args.organizationId}
         AND (project_id = ${args.task.projectId} OR project_id IS NULL)
-        AND status IN ('queued', 'running', 'waiting')
+        AND status IN ('queued', 'running', 'waiting', 'quarantined')
         AND input->'task'->>'id' = ${args.task.id}
       ORDER BY started_at_ms DESC LIMIT 1
     `;
@@ -909,6 +980,7 @@ export async function startWorkflowForTaskInTx(
 /** The 0.4 run wire for the task modal: the inline automation banner reads
  * the LIVE run, the property panel's Run row the LATEST one. */
 export interface LiveAutomationRunForTask {
+  legacyQuarantine?: LegacyRunQuarantine;
   runId: string;
   name: string;
   status: string;
@@ -954,15 +1026,17 @@ async function findAutomationRunForTask(
       status: string;
       version: number;
       detail: string | null;
+      legacyQuarantine?: unknown;
+      claimEpoch?: number;
     }[]
   >`
-    SELECT id, name, status, version, detail
+    SELECT id, name, status, version, detail, legacy_quarantine AS "legacyQuarantine", claim_epoch AS "claimEpoch"
     FROM app.automation_runs
     WHERE org_id = ${args.organizationId}
       AND (project_id = ${args.projectId} OR project_id IS NULL)
       AND ${
         options.liveOnly
-          ? sql`status IN ('queued', 'running', 'waiting')`
+          ? sql`status IN ('queued', 'running', 'waiting', 'quarantined')`
           : sql`TRUE`
       }
       AND input -> 'task' ->> 'id' = ${args.taskId}
@@ -977,5 +1051,13 @@ async function findAutomationRunForTask(
     status: run.status,
     version: run.version,
     ...(run.detail !== null ? { detail: run.detail } : {}),
+    ...(run.legacyQuarantine == null
+      ? {}
+      : {
+          legacyQuarantine: describeLegacyQuarantine(
+            run.legacyQuarantine,
+            run.claimEpoch ?? Number.NaN,
+          ),
+        }),
   };
 }

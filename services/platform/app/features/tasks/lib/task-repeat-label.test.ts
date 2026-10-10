@@ -3,8 +3,8 @@ import { createElement, type ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { i18n } from '@/lib/i18n/i18n';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 
 import { useTaskRepeatLabel } from './task-repeat-label';
 

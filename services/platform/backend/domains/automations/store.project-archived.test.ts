@@ -11,6 +11,13 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The definition writes' audit rows are their own concern (`audit.ts`,
+// `audit.test.ts`); this double answers no audit-chain query.
+vi.mock('./audit.ts', () => ({
+  auditDefinitionWrite: vi.fn(async () => undefined),
+  listDeployments: vi.fn(async () => []),
+}));
+
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
@@ -47,7 +54,7 @@ function fakeStore(options: { archivedAt: number | null; bound?: boolean }) {
 beforeEach(() => vi.clearAllMocks());
 
 describe('setAutomationProjects', () => {
-  it('refuses an archived project with 403 PROJECT_ARCHIVED, writing nothing', async () => {
+  it('refuses an archived project with 403 PROJECT_ARCHIVED, writing nothing [AUTO-R8]', async () => {
     const fake = fakeStore({ archivedAt: 1 });
     await expect(
       setAutomationProjects(fake.sql, {
@@ -84,7 +91,7 @@ describe('beginRun with a projectId', () => {
     projectId: 'p-1',
   };
 
-  it('refuses an archived project with 403 PROJECT_ARCHIVED, inserting no run', async () => {
+  it('refuses an archived project with 403 PROJECT_ARCHIVED, inserting no run [AUTO-R8]', async () => {
     const fake = fakeStore({ archivedAt: 1 });
     await expect(beginRun(fake.sql, args)).rejects.toMatchObject({
       code: 'PROJECT_ARCHIVED',
@@ -102,7 +109,7 @@ describe('beginRun with a projectId', () => {
     expect(fake.writes).toContain('INSERT INTO app.automation_runs');
   });
 
-  it('refuses an app start whose sole binding is an archived project', async () => {
+  it('refuses an app start whose sole binding is an archived project [AUTO-R8]', async () => {
     const fake = fakeStore({ archivedAt: 1, bound: true });
     const { projectId: _projectId, ...unscoped } = args;
     await expect(
@@ -111,9 +118,10 @@ describe('beginRun with a projectId', () => {
     expect(fake.writes).toEqual([]);
   });
 
-  // An event dispatch starts every listening automation inside one
-  // savepoint without a per-trigger catch: a refusal here would roll back
-  // the runs of every other automation listening for the same event.
+  // A schedule's start infers its sole installation unchecked (whether a
+  // schedule should start a run in an archived project is undecided, see
+  // the spec's Not yet). An event dispatch names the project instead, so an
+  // archived one refuses it (`triggers.webhook.test.ts`).
   it('keeps a trigger start in its inferred sole binding without refusing it', async () => {
     const fake = fakeStore({ archivedAt: 1, bound: true });
     const { projectId: _projectId, ...unscoped } = args;

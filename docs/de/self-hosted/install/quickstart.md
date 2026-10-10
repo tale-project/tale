@@ -8,7 +8,7 @@ Starte Tale lokal mit der veröffentlichten CLI, richte deinen Arbeitsbereich ei
 
 Du brauchst:
 
-- macOS, Linux oder Windows mit PowerShell sowie Docker mit Linux-Containern und Compose. Docker Desktop enthält Compose unter macOS und Windows. Fehlt Docker, bietet `tale dev` Hilfe bei der Installation an.
+- macOS, Linux oder Windows mit PowerShell sowie Docker Engine 24.0 oder neuer mit Linux-Containern und Compose. Docker Desktop enthält Compose unter macOS und Windows. Fehlt Docker, bietet `tale dev` Hilfe bei der Installation an; bei einer älteren Engine bricht der Befehl ab, bevor er Images herunterlädt.
 - Netzwerkzugriff auf GitHub für die CLI und auf Container-Registries für die Images. Beim ersten Start werden mehrere GB heruntergeladen; plane Platz für Images und deine Daten ein.
 - Zugangsdaten für einen unterstützten Modellanbieter, damit du die erste Antwort testen kannst. Dein Konto kannst du schon vorher erstellen und die Anwendung erkunden.
 
@@ -42,7 +42,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 Prüfe die Installation im selben Terminal mit `tale --version`. Fehlt der Befehl, folge den `PATH`-Hinweisen des Installers und öffne bereits laufende Terminals neu. Die [CLI-Installation](/de/self-hosted/install/cli-install) beschreibt feste Versionen und eigene Installationsverzeichnisse.
 
-Prüfe mit `tale --help`, ob `doctor` verfügbar ist. Fehlt der Befehl, prüfe Docker und Compose mit `docker info` und `docker compose version`. Falls verfügbar, untersucht `tale doctor` zusätzlich die Container-Architektur und lokale Ports, ohne Software zu installieren oder Dateien zu ändern. Folge den angezeigten Hinweisen; ein erfolgreicher Check bestätigt weder Image-Downloads noch den Modellzugriff.
+Prüfe mit `tale --help`, ob `doctor` verfügbar ist. Fehlt der Befehl, prüfe Docker und Compose mit `docker info` und `docker compose version`. Falls verfügbar, untersucht `tale doctor` zusätzlich die Version der Docker Engine, die Container-Architektur und lokale Ports, ohne Software zu installieren oder Dateien zu ändern. Folge den angezeigten Hinweisen; ein erfolgreicher Check bestätigt weder Image-Downloads noch den Modellzugriff.
 
 ## Initialisieren und starten
 

@@ -91,12 +91,15 @@ describe('private product image registration and access', () => {
     new Uint8Array(),
     new Uint8Array(5 * 1024 * 1024 + 1),
     new TextEncoder().encode('<html>not an image</html>'),
-  ])('refuses invalid image bytes before object storage', async (bytes) => {
-    await expect(
-      uploadProductImage(db() as never, scope, bytes),
-    ).rejects.toMatchObject({ code: 'PRODUCT_IMAGE_INVALID' });
-    expect(putOrgBlobBytes).not.toHaveBeenCalled();
-  });
+  ])(
+    'refuses invalid image bytes before object storage [PROD-R10]',
+    async (bytes) => {
+      await expect(
+        uploadProductImage(db() as never, scope, bytes),
+      ).rejects.toMatchObject({ code: 'PRODUCT_IMAGE_INVALID' });
+      expect(putOrgBlobBytes).not.toHaveBeenCalled();
+    },
+  );
 
   // Its own code: the form can say the drawing is refused for what it
   // carries, where "unsupported" would send the user looking at the format.
@@ -104,7 +107,7 @@ describe('private product image registration and access', () => {
     '<svg><script>alert(1)</script></svg>',
     '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect/></svg>',
   ])(
-    'refuses an SVG with active content under its own code: %s',
+    'refuses an SVG with active content under its own code: %s [PROD-R10]',
     async (svg) => {
       await expect(
         uploadProductImage(db() as never, scope, new TextEncoder().encode(svg)),
@@ -113,7 +116,7 @@ describe('private product image registration and access', () => {
     },
   );
 
-  it('allows passive SVG and records the server-detected type', async () => {
+  it('allows passive SVG and records the server-detected type [PROD-R10]', async () => {
     await uploadProductImage(
       db() as never,
       scope,
@@ -127,20 +130,20 @@ describe('private product image registration and access', () => {
     );
   });
 
-  it('refuses a member without product write permission before storage', async () => {
+  it('refuses a member without product write permission before storage [PROD-R9]', async () => {
     await expect(
       uploadProductImage(db() as never, { ...scope, role: 'member' }, png),
     ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
     expect(putOrgBlobBytes).not.toHaveBeenCalled();
   });
 
-  it('permits uploader preview without any product binding', async () => {
+  it('permits uploader preview without any product binding [PROD-R11]', async () => {
     const sql = db([row]);
     expect(await readProductImage(sql as never, scope, id)).toEqual(row);
     expect(sql).toHaveBeenCalledTimes(1);
   });
 
-  it('requires a current same-org product binding for a different member', async () => {
+  it('requires a current same-org product binding for a different member [PROD-R11]', async () => {
     const other = { ...scope, userId: 'u2', role: 'member' };
     await expect(
       readProductImage(db([row], []) as never, other, id),
@@ -176,7 +179,7 @@ describe('private product image registration and access', () => {
     expect(String(query)).toContain('document_id IS NULL');
   });
 
-  it('rejects forged org, suffix, host, and query forms of an internal binding', async () => {
+  it('rejects forged org, suffix, host, and query forms of an internal binding [PROD-R11]', async () => {
     const url = productImageUrl(scope.organizationId, id);
     for (const value of [
       url + '&other=1',

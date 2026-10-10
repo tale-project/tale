@@ -47,7 +47,7 @@ const plan = (overrides: Partial<GrantPlanInput>) =>
     ...overrides,
   });
 
-describe('planOauth2Grant — Add', () => {
+describe('planOauth2Grant — Add [CONN-R8]', () => {
   it('stores the first credential under the connector name', () => {
     expect(plan({})).toEqual({ kind: 'create', name: 'Gmail' });
   });
@@ -71,7 +71,7 @@ describe('planOauth2Grant — Add', () => {
   });
 });
 
-describe('planOauth2Grant — Reconnect', () => {
+describe('planOauth2Grant — Reconnect [CONN-R8]', () => {
   const siblings = [
     row('cred-default', 'Gmail'),
     row('cred-sales', 'Gmail sales', { status: 'needs-reauth' }),
@@ -119,7 +119,7 @@ describe('planOauth2Grant — Reconnect', () => {
   });
 });
 
-describe('planOauth2Grant — Slack workspaces', () => {
+describe('planOauth2Grant — Slack workspaces [CONN-R10]', () => {
   const slack = (overrides: Partial<GrantPlanInput>) =>
     plan({ displayName: 'Slack', ...overrides });
   const routed = (credentialId: string, organizationId = 'org-1') => ({

@@ -98,6 +98,13 @@ export function TeamDeleteDialog({
               })}
             </span>
           ) : null}
+          {impact !== undefined && impact.apiKeys > 0 ? (
+            <span className="block font-medium">
+              {tSettings('teams.deleteImpact.apiKeys', {
+                count: impact.apiKeys,
+              })}
+            </span>
+          ) : null}
         </span>
       }
       deleteText={tCommon('actions.delete')}

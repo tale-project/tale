@@ -151,7 +151,7 @@ describe('POST /files/register', () => {
     expect(stampImageVisionMetadata).not.toHaveBeenCalled();
   });
 
-  it('queues indexing for a document, in the transaction that wrote the row', async () => {
+  it('queues indexing for a document, in the transaction that wrote the row [FILE-R8]', async () => {
     const res = await register({ threadId: 'thread_1' });
 
     expect(res.status).toBe(200);
@@ -163,7 +163,7 @@ describe('POST /files/register', () => {
     expect(queueTranscription).not.toHaveBeenCalled();
   });
 
-  it('leaves an image unindexed and stamps its page shape instead', async () => {
+  it('leaves an image unindexed and stamps its page shape instead [FILE-R8]', async () => {
     const res = await register({
       fileName: 'screenshot.png',
       contentType: 'image/png',
@@ -175,7 +175,7 @@ describe('POST /files/register', () => {
     expect(stampImageVisionMetadata).toHaveBeenCalledWith(db.tx, 'file_1');
   });
 
-  it('sends audio to transcription, never to the corpus', async () => {
+  it('sends audio to transcription, never to the corpus [FILE-R8]', async () => {
     const res = await register({
       fileName: 'memo.m4a',
       contentType: 'audio/mp4',
@@ -187,7 +187,7 @@ describe('POST /files/register', () => {
     expect(queueTranscription).toHaveBeenCalledTimes(1);
   });
 
-  it('honours the caller opt-out and writes it onto the row', async () => {
+  it('honours the caller opt-out and writes it onto the row [FILE-R8]', async () => {
     const res = await register({ skipRagIndexing: true });
 
     expect(res.status).toBe(200);
@@ -201,6 +201,23 @@ describe('POST /files/register', () => {
     expect(markRagQueued).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
   });
+
+  it('hands a new chat’s project to the registration, which checks it [GOV-R14]', async () => {
+    const res = await register({
+      fileName: 'memo.m4a',
+      contentType: 'audio/mp4',
+      projectId: 'project_1',
+    });
+
+    expect(res.status).toBe(200);
+    expect(registerUpload).toHaveBeenCalledWith(
+      expect.anything(),
+      db.tx,
+      { organizationId: 'org_1', userId: 'user_1' },
+      expect.objectContaining({ projectId: 'project_1' }),
+      { kind: 'app', purpose: 'file' },
+    );
+  });
 });
 
 describe('POST /files/register — a file no lane will index', () => {
@@ -209,7 +226,7 @@ describe('POST /files/register — a file no lane will index', () => {
     ['a legacy Word file', 'minutes.doc', 'application/msword'],
     ['an archive', 'bundle.zip', 'application/zip'],
   ])(
-    'lands %s on unsupported_type with the indexer’s sentence, never queued',
+    'lands %s on unsupported_type with the indexer’s sentence, never queued [FILE-R8]',
     async (_label, fileName, contentType) => {
       const res = await register({ fileName, contentType });
 

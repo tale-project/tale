@@ -81,6 +81,9 @@ const row = (version: number) => ({
   presentation: null,
   createdBy: 'user-1',
   createdAt: 1_700_000_000_000,
+  createdVia: 'mcp' as const,
+  apiKeyId: 'key-1',
+  clientName: 'claude-code',
 });
 
 /** The one project the key holder can see — every binding listing is
@@ -114,6 +117,10 @@ const runRow = {
   startedAt: 1_700_000_000_000,
   finishedAt: 1_700_000_000_500,
   askPending: false,
+  resumeCount: 0,
+  lastResumeReason: null,
+  lastResumedAt: null,
+  stalled: false,
 };
 
 /** What a listing answers for `runRow`: identity, scope, status, timing. */
@@ -159,10 +166,14 @@ function fakeSql(): { sql: Sql; queries: string[] } {
   return { sql: sql as unknown as Sql, queries };
 }
 
-function mount(options: { role?: string } = {}) {
+function mount(
+  options: { role?: string; apiKeyId?: string; requestId?: string } = {},
+) {
   const { sql, queries } = fakeSql();
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
+    if (options.requestId !== undefined) c.set('requestId', options.requestId);
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
@@ -202,7 +213,7 @@ beforeEach(() => {
   vi.mocked(bindingProjectIds).mockReset();
   vi.mocked(bindingProjectIds).mockResolvedValue([]);
   vi.mocked(deleteAutomationCascade).mockReset();
-  vi.mocked(deleteAutomationCascade).mockResolvedValue(undefined);
+  vi.mocked(deleteAutomationCascade).mockResolvedValue({ versions: 2 });
   vi.mocked(listTriggers).mockClear();
   vi.mocked(listVersions).mockReset();
   vi.mocked(listVersions).mockResolvedValue([]);
@@ -308,7 +319,7 @@ describe('POST /automations/{name}/runs', () => {
     expect(beginRun).not.toHaveBeenCalled();
   });
 
-  it('refuses a LIVE run of a saved version that is not the deployed one', async () => {
+  it('refuses a LIVE run of a saved version that is not the deployed one [AUTO-R5]', async () => {
     const res = await start(SAVED, '{"version": 2}');
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({
@@ -326,7 +337,7 @@ describe('POST /automations/{name}/runs', () => {
     );
   });
 
-  it('lets a MOCK run name any saved version — the builder’s test lane', async () => {
+  it('lets a MOCK run name any saved version — the builder’s test lane [AUTO-R5]', async () => {
     const res = await start(SAVED, '{"mode": "mock", "version": 2}');
     expect(res.status).toBe(202);
     expect(beginRun).toHaveBeenCalledWith(
@@ -335,7 +346,7 @@ describe('POST /automations/{name}/runs', () => {
     );
   });
 
-  it('refuses a live start by a role without the developer capability before charging the lane', async () => {
+  it('refuses a live start by a role without the developer capability before charging the lane [AUTO-R1]', async () => {
     const { app, queries } = mount({ role: 'member' });
     const res = await app.request(
       `http://localhost/api/v1/automations/${SAVED}/runs`,
@@ -387,7 +398,7 @@ describe('Idempotency-Key on a run start', () => {
     expect(beginRun).not.toHaveBeenCalled();
   });
 
-  it('answers the remembered run with duplicate: true', async () => {
+  it('answers the remembered run with duplicate: true [AUTO-R9]', async () => {
     vi.mocked(beginRunIdempotent).mockResolvedValue({
       runId: 'run-first',
       version: 1,
@@ -564,6 +575,58 @@ describe('GET /runs/{runId}', () => {
     expect(body).not.toHaveProperty('askPending');
     expect(body.output).toBe(2);
   });
+
+  // Contract 3.18.0: a write that may already have happened needs a person,
+  // and a run that moved between servers says how often, when and why — as
+  // one `lastResume`, never the two raw stamps.
+  it('names an in-doubt park and the last move between servers', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...runRow,
+      status: 'waiting',
+      detail: 'in_doubt:send',
+      finishedAt: null,
+      resumeCount: 2,
+      lastResumeReason: 'shutdown',
+      lastResumedAt: 1_700_000_000_200,
+    });
+    const res = await mount().app.request('http://localhost/api/v1/runs/run-1');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      waitingFor: 'in_doubt',
+      resumeCount: 2,
+      stalled: false,
+      lastResume: { reason: 'shutdown', at: 1_700_000_000_200 },
+    });
+    expect(body).not.toHaveProperty('lastResumeReason');
+    expect(body).not.toHaveProperty('lastResumedAt');
+  });
+
+  it('projects the resume keys a poller names', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...runRow,
+      status: 'running',
+      finishedAt: null,
+      resumeCount: 1,
+      lastResumeReason: 'lease_expired',
+      lastResumedAt: 1_700_000_000_300,
+      stalled: true,
+    });
+    const res = await mount().app.request(
+      'http://localhost/api/v1/runs/run-1?fields=status,stalled,resumeCount,lastResume',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'running',
+      stalled: true,
+      resumeCount: 1,
+      lastResume: { reason: 'lease_expired', at: 1_700_000_000_300 },
+    });
+    const raw = await mount().app.request(
+      'http://localhost/api/v1/runs/run-1?fields=lastResumedAt',
+    );
+    expect(raw.status).toBe(400);
+  });
 });
 
 describe('DELETE /runs/{runId}', () => {
@@ -731,14 +794,23 @@ describe('triggers of an automation nobody saved', () => {
         name: SAVED,
         kind: 'schedule',
         cron: '*/5 * * * *',
+        repeat: null,
+        startDate: null,
         timezone: 'UTC',
+        catchUp: 'latest',
         event: null,
+        input: null,
         hasToken: false,
         enabled: true,
+        nextRunAt: 1_789_193_400_000,
         lastFiredAt: null,
         lastRunId: null,
         lastSkippedAt: 1_789_193_100_000,
         lastSkipReason: 'not_deployed',
+        lastSkipDetail: {
+          reason: 'not_deployed',
+          occurrence: 1_789_193_100_000,
+        },
         consecutiveFailures: 0,
         lastFailedAt: null,
         lastFailureCode: null,
@@ -770,14 +842,20 @@ describe('triggers of an automation nobody saved', () => {
         name: SAVED,
         kind: 'schedule',
         cron: '*/5 * * * *',
+        repeat: null,
+        startDate: null,
         timezone: 'UTC',
+        catchUp: 'latest',
         event: null,
+        input: null,
         hasToken: false,
         enabled: false,
+        nextRunAt: null,
         lastFiredAt: 1_789_193_400_000,
         lastRunId: 'run-5',
         lastSkippedAt: 1_789_193_460_000,
         lastSkipReason: 'paused_after_failures',
+        lastSkipDetail: null,
         consecutiveFailures: 5,
         lastFailedAt: 1_789_193_460_000,
         lastFailureCode: 'connector_error',
@@ -921,6 +999,90 @@ describe('triggers of an automation nobody saved', () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({
       code: 'AUTOMATION_TRIGGER_INVALID',
+    });
+  });
+
+  /**
+   * The body is the shared trigger contract: a rule the trigger breaks is
+   * the store's own refusal, each problem coded under `data.issues`, the
+   * one code an API caller meets for every trigger rule — not an
+   * `INVALID_BODY` beside it.
+   */
+  it('PUT refuses a schedule with neither a repeat rule nor a cron, coded', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"kind": "schedule", "timezone": "UTC"}'),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+      data: {
+        issues: [{ path: 'repeat', code: 'schedule.cron_or_repeat' }],
+      },
+    });
+    expect(setTrigger).not.toHaveBeenCalled();
+  });
+
+  it('PUT refuses a repeat rule with a time not written HH:MM, coded per field', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json(
+        'PUT',
+        '{"kind": "schedule", "repeat": {"frequency": "daily", "interval": 1, "times": ["9:00"]}, "timezone": "Europe/Zurich"}',
+      ),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+      data: {
+        issues: [{ path: 'repeat.times.0', code: 'schedule.time_format' }],
+      },
+    });
+    expect(setTrigger).not.toHaveBeenCalled();
+  });
+
+  it('PUT binds a repeat rule in its canonical zone and answers its next start and warnings', async () => {
+    const warning = {
+      level: 'warning' as const,
+      code: 'TRIGGER_INPUT_MISMATCH',
+      message: 'the schedule trigger starts runs without owner',
+      at: { pointer: '/inputs' },
+      params: { kind: 'schedule', missing: ['owner'], problems: [] },
+    };
+    vi.mocked(setTrigger).mockResolvedValue({
+      nextRunAt: 1_791_536_400_000,
+      warnings: [warning],
+    });
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json(
+        'PUT',
+        JSON.stringify({
+          kind: 'schedule',
+          repeat: {
+            frequency: 'weekly',
+            interval: 1,
+            weekdays: [5, 1],
+            times: ['17:30', '09:00'],
+          },
+          timezone: ' europe/zurich ',
+          catchUp: 'skip',
+          input: { owner: 'tale' },
+        }),
+      ),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      name: SAVED,
+      nextRunAt: 1_791_536_400_000,
+      warnings: [warning],
+      deployed: true,
+    });
+    expect(vi.mocked(setTrigger).mock.calls[0]?.[1].trigger).toMatchObject({
+      kind: 'schedule',
+      timezone: 'Europe/Zurich',
+      catchUp: 'skip',
+      input: { owner: 'tale' },
     });
   });
 });
@@ -1077,6 +1239,8 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: null,
         createdBy: 'user-1',
         createdAt: 2,
+        createdVia: 'mcp',
+        clientName: 'claude-code',
       },
       {
         version: 1,
@@ -1085,6 +1249,8 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: 1_700_000_000_500,
         createdBy: 'user-1',
         createdAt: 1,
+        createdVia: null,
+        clientName: null,
       },
     ]);
     const res = await mount().app.request(
@@ -1144,7 +1310,7 @@ describe('run listings', () => {
   // A deleted automation keeps its runs: the by-name door answers them
   // while any exist and 404s only a name nothing ever bore — it used to
   // say the automation never existed (2026-09-19 evaluation, K8-5).
-  it('answers a deleted automation’s kept runs by name, and 404s a name nothing bore', async () => {
+  it('answers a deleted automation’s kept runs by name, and 404s a name nothing bore [AUTO-R15]', async () => {
     vi.mocked(listRunsPage).mockResolvedValue({
       runs: [runRow],
       isDone: true,
@@ -1408,9 +1574,16 @@ describe('GET /runs/{runId} with ?fields=', () => {
 
   it('answers the whole run when no fields are named', async () => {
     vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
-    // `askPending` is the read's own input to `waitingFor` and never
-    // reaches the wire; a run that is not parked carries no `waitingFor`.
-    const { askPending: _askPending, ...wire } = runRow;
+    // `askPending` is the read's own input to `waitingFor`, and the two
+    // resume stamps the read's input to `lastResume`: none reaches the wire.
+    // A run that is not parked carries no `waitingFor`, and one that never
+    // moved between servers no `lastResume`.
+    const {
+      askPending: _askPending,
+      lastResumeReason: _lastResumeReason,
+      lastResumedAt: _lastResumedAt,
+      ...wire
+    } = runRow;
     expect(await (await read('/runs/run-1')).json()).toEqual(wire);
   });
 
@@ -1445,7 +1618,7 @@ describe('GET /runs/{runId} with ?fields=', () => {
  * the product UI. The read and the catalog carry the same ids.
  */
 describe('project bindings on the wire', () => {
-  it('answers the org-URL 409 with the visible installations', async () => {
+  it('answers the org-URL 409 with the visible installations [AUTO-R7]', async () => {
     vi.mocked(beginRun).mockRejectedValue(
       new AutomationError(
         'AUTOMATION_PROJECT_SCOPE_REQUIRED',
@@ -1496,7 +1669,7 @@ describe('DELETE /automations/{name}', () => {
     expect(deleteAutomationCascade).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
       name: SAVED,
-      actor: 'user-1',
+      actor: 'api-key:user-1',
     });
   });
 
@@ -1509,7 +1682,7 @@ describe('DELETE /automations/{name}', () => {
     expect(deleteAutomationCascade).not.toHaveBeenCalled();
   });
 
-  it('passes the in-flight-run refusal through with its code', async () => {
+  it('passes the in-flight-run refusal through with its code [AUTO-R15]', async () => {
     vi.mocked(deleteAutomationCascade).mockRejectedValueOnce(
       new AutomationError(
         'AUTOMATION_HAS_ACTIVE_RUNS',
@@ -1526,4 +1699,254 @@ describe('DELETE /automations/{name}', () => {
       code: 'AUTOMATION_HAS_ACTIVE_RUNS',
     });
   });
+});
+
+/**
+ * What changes an automation over REST — its trigger, its deletion — is
+ * behind the developer capability, like the live start above: a key whose
+ * holder is an ordinary member is refused before the store is reached.
+ */
+describe('changing an automation over REST', () => {
+  it.each([
+    [
+      'PUT',
+      `/automations/${SAVED}/triggers`,
+      '{"kind": "schedule", "cron": "0 9 * * 1"}',
+    ],
+    ['DELETE', `/automations/${SAVED}/triggers`, undefined],
+    ['DELETE', `/automations/${SAVED}`, undefined],
+  ])(
+    'refuses %s %s for a role without the developer capability, changing nothing [AUTO-R1]',
+    async (method, path, body) => {
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost/api/v1${path}`,
+        json(method, body),
+      );
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
+      expect(setTrigger).not.toHaveBeenCalled();
+      expect(deleteTrigger).not.toHaveBeenCalled();
+      expect(deleteAutomationCascade).not.toHaveBeenCalled();
+    },
+  );
+});
+
+/**
+ * A definition installed only in projects the key holder cannot read is not
+ * theirs to read: every read of it answers the 404 a missing automation
+ * gets, so the answer never confirms it exists. Installed in a project they
+ * can read, or in none, it reads as before (the release that brought this
+ * named it: member reads follow project visibility on MCP and REST).
+ */
+describe('reads of an automation installed only in hidden projects [AUTO-R27]', () => {
+  it.each([
+    [`/api/v1/automations/${SAVED}`],
+    [`/api/v1/automations/${SAVED}?version=deployed`],
+    [`/api/v1/automations/${SAVED}/versions`],
+    [`/api/v1/automations/${SAVED}/triggers`],
+  ])('%s answers not found', async (path) => {
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+    const res = await mount({ role: 'member' }).app.request(
+      `http://localhost${path}`,
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
+  });
+
+  it.each([[['p-visible']], [[]]])(
+    'installed in %j it answers as before',
+    async (bindings) => {
+      vi.mocked(bindingProjectIds).mockResolvedValue(bindings);
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost/api/v1/automations/${SAVED}/versions`,
+      );
+      expect(res.status).toBe(200);
+    },
+  );
+
+  it.each([
+    [`/api/v1/automations/${SAVED}/runs`],
+    [`/api/v1/projects/p-visible/automations/${SAVED}/runs`],
+  ])(
+    "%s answers not found when no run of it is in the URL's scope — an empty page would confirm the name",
+    async (path) => {
+      // Mia is not in the HR team: hr/onboarding is installed only there.
+      vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost${path}`,
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        code: 'AUTOMATION_NOT_FOUND',
+      });
+      expect(listRunsPage).not.toHaveBeenCalled();
+    },
+  );
+
+  it('lists its runs in a scope the caller reads, where runs of it are', async () => {
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+    const res = await mount({ role: 'member' }).app.request(
+      `http://localhost/api/v1/automations/${RETIRED}/runs`,
+    );
+    expect(res.status).toBe(200);
+  });
+});
+
+/**
+ * A definition write made with an API key is the key's act, not a click in
+ * the app: the store records `api-key:<userId>` (actor type "API" on the
+ * audit row, as the same write over MCP records), and the write runs in the
+ * REST door's request channel, so its audit rows name the key and the
+ * request (`via: 'api-key'`). The example: a leaked key deletes an
+ * automation, and the admin reading the row sees which key to revoke.
+ */
+describe('definition writes made with an API key name the key [AUTO-R28]', () => {
+  const keyChannel = {
+    via: 'api-key',
+    requestId: 'req-9',
+    apiKeyId: 'key-7',
+  };
+
+  it('DELETE /automations/{name} runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(deleteAutomationCascade).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return { versions: 1 };
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([keyChannel]);
+    expect(deleteAutomationCascade).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actor: 'api-key:user-1' }),
+    );
+  });
+
+  it('PUT /automations/{name}/triggers runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(setTrigger).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return {};
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', JSON.stringify({ kind: 'webhook' })),
+    );
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([keyChannel]);
+    expect(setTrigger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actor: 'api-key:user-1' }),
+    );
+  });
+
+  it('DELETE /automations/{name}/triggers runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(deleteTrigger).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return true;
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([keyChannel]);
+    expect(deleteTrigger).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      SAVED,
+      'api-key:user-1',
+    );
+  });
+});
+
+describe('quarantined run reads', () => {
+  it('filters and projects the public hold without exposing stored custody', async () => {
+    const legacyQuarantine = {
+      reason: 'legacy_execution_unproven',
+      observedAt: 1700000000000,
+      claimEpoch: 4,
+      priorStatus: 'running',
+      resolution: null,
+    };
+    const heldRun = {
+      ...runRow,
+      status: 'quarantined',
+      claimEpoch: 4,
+      finishedAt: null,
+      legacyQuarantine: {
+        schemaVersion: 1,
+        reason: 'legacy_execution_unproven',
+        observedAtMs: legacyQuarantine.observedAt,
+        prior: {
+          status: 'running',
+          claimEpoch: 3,
+          chainSeq: 2,
+          engineProtocol: 1,
+          wakeAtMs: null,
+          leaseEpoch: 3,
+          leaseOwner: 'private-owner',
+          leaseExpiresAtMs: 1700000000050,
+        },
+        resolution: null,
+      },
+    };
+    vi.mocked(getRun).mockResolvedValue(heldRun as never);
+    vi.mocked(listRunsPage).mockResolvedValue({
+      runs: [heldRun],
+      isDone: true,
+      next: null,
+    } as never);
+    const { app } = mount();
+    const detail = await app.request(
+      '/api/v1/runs/run-1?fields=status,legacyQuarantine',
+    );
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toEqual({
+      status: 'quarantined',
+      legacyQuarantine,
+    });
+    const list = await app.request('/api/v1/runs?status=quarantined');
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({
+      runs: [{ status: 'quarantined', legacyQuarantine }],
+    });
+    expect(listRunsPage).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.objectContaining({ statuses: ['quarantined'] }),
+    );
+  });
+});
+
+it('preserves the held-run cancel refusal instead of claiming cancellation', async () => {
+  vi.mocked(getRun).mockResolvedValue({
+    ...runRow,
+    status: 'quarantined',
+  } as never);
+  vi.mocked(cancelRun).mockRejectedValue(
+    new AutomationError('RUN_QUARANTINED', 'Run is held', 409),
+  );
+  const response = await mount().app.request(
+    '/api/v1/runs/run-1/cancel',
+    json('POST'),
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ code: 'RUN_QUARANTINED' });
 });

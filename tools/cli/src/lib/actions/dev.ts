@@ -37,6 +37,10 @@ import {
   generateDevCompose,
   orgConfigMountTargets,
 } from '../compose/generators/generate-dev-compose';
+import {
+  BACKEND_WORKER_STOP_GRACE_S,
+  backendStopGraceSeconds,
+} from '../compose/services/create-backend-services';
 import { ALL_SERVICES } from '../compose/types';
 import { resolveDevOrigin } from '../config/dev-origin';
 import { daemonReachable } from '../docker/daemon-reachable';
@@ -52,7 +56,10 @@ import { getContainerHealth } from '../docker/get-container-health';
 import { isContainerRunning } from '../docker/is-container-running';
 import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
-import { assertComposeAvailable } from '../docker/setup-checks';
+import {
+  assertComposeAvailable,
+  assertDockerEngineSupported,
+} from '../docker/setup-checks';
 import { findChildProject, findProject } from '../project/find-project';
 import {
   resolveOrAssignProjectContext,
@@ -170,7 +177,13 @@ export async function stopDev(): Promise<void> {
     infoLine('Local Tale is already stopped.');
     return;
   }
-  const stopped = await exec('docker', ['stop', ...ids], { timeout: 120 });
+  // A worker may take its whole stop grace to hand its runs on: the client
+  // waits a little longer than that, so it never gives up on a stop the
+  // daemon is still carrying out.
+  loadEnv(projectDir);
+  const stopped = await exec('docker', ['stop', ...ids], {
+    timeout: backendStopGraceSeconds(BACKEND_WORKER_STOP_GRACE_S) + 30,
+  });
   if (!stopped.success) {
     throw externalDepError(
       'Could not stop every local Tale container.',
@@ -242,6 +255,7 @@ export async function runDev(options: DevOptions): Promise<void> {
   }
   await assertDockerAvailable();
   await assertComposeAvailable();
+  await assertDockerEngineSupported();
 
   const imageVersion = pkg.version.includes('-dev') ? 'latest' : pkg.version;
   const appImage = `${env.GHCR_REGISTRY}/tale-platform:${imageVersion}`;

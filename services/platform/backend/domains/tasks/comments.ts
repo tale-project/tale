@@ -17,13 +17,14 @@ import {
 import {
   addedMentions,
   type ResolvedMention,
+  taskMentionPlainText,
 } from '../../core/tasks/mentions.ts';
 import type { CommentEventComment } from '../../core/tasks/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
-import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
+import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import {
@@ -42,6 +43,7 @@ import {
 import { taskOwnedByAutomation } from './automation-access.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
 import {
+  assertTaskNotArchived,
   assertTaskReadable,
   assertTaskWorkable,
   dispatchMentionedProjectAgent,
@@ -258,31 +260,48 @@ async function appendTaskComment(
   if (project.archivedAt !== null) {
     throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
   }
+  const author: CommentAuthor = args.author ?? {
+    actorType: 'user',
+    actorId: auth.userId,
+  };
+  // An archived task's discussion is read-only to people the same way: the
+  // app door refuses a stale client exactly as the REST door does. A run
+  // still working the task is not refused, since archiving cancels nothing
+  // and its report lands beside its status park, which ignores the archive
+  // too.
+  if (author.actorType === 'user') {
+    assertTaskNotArchived(task);
+  }
   const body = args.body.trim();
   const refusal = taskCommentRefusal(body);
   if (refusal !== null) {
     throw new TaskError('TASK_COMMENT_INVALID', refusal);
   }
-  const author: CommentAuthor = args.author ?? {
-    actorType: 'user',
-    actorId: auth.userId,
-  };
 
   const threadId = await ensureTaskDiscussionThread(tx, task);
-  // Who this comment names. The directory is project-scoped, so only people
-  // who can actually open the task are mentionable, and an unclaimed token
-  // comes back to the author as a miss.
-  const resolved = await resolveSurfaceMentions(tx, {
+  // Who this comment names, and the form it is stored in: a mention the
+  // directory resolves is saved as who it names, so a rename never breaks
+  // it [COLLAB-R10]. The directory is project-scoped, so only people who can
+  // actually open the task are mentionable, an unclaimed handle comes back
+  // to the author as a miss, and a mention of someone who cannot be named
+  // here is saved as plain text [COLLAB-R12].
+  const prepared = await prepareSurfaceText(tx, {
     organizationId: auth.organizationId,
     body,
     projectId: task.projectId,
+    cap: TASK_COMMENT_MAX,
+    mode: 'full',
+    ...(args.bodyByLocale !== undefined
+      ? { bodyByLocale: args.bodyByLocale }
+      : {}),
   });
-  const mentions = resolved.mentions;
+  const text = prepared.text;
+  const mentions = prepared.mentions;
   const { messageId } = await saveMessage(tx, {
     threadId,
     organizationId: auth.organizationId,
     role: author.actorType === 'user' ? 'user' : 'assistant',
-    text: body,
+    text,
     authorId: author.actorId,
   });
   await tx`
@@ -293,7 +312,7 @@ async function appendTaskComment(
       ${messageId}, ${auth.organizationId}, ${threadId}, ${args.taskId},
       ${author.actorType}, ${author.actorId},
       ${mentions.length > 0 ? tx.json(toJson(mentions)) : null},
-      ${args.bodyByLocale !== undefined ? tx.json(args.bodyByLocale) : null},
+      ${prepared.bodyByLocale !== undefined ? tx.json(prepared.bodyByLocale) : null},
       ${Date.now()}
     )
   `;
@@ -326,7 +345,7 @@ async function appendTaskComment(
       mentions,
       authorType: author.actorType,
       authorId: author.actorId,
-      text: body,
+      text,
       source: 'comment',
     });
   }
@@ -361,7 +380,8 @@ async function appendTaskComment(
     status: 'success',
   });
   const comment: CommentEventComment = {
-    body,
+    body: text,
+    bodyText: taskMentionPlainText(text),
     projectId: task.projectId,
     taskId: args.taskId,
     mentions,
@@ -383,7 +403,7 @@ async function appendTaskComment(
   return {
     messageId,
     threadId,
-    unresolvedMentionTokens: resolved.unresolvedMentionTokens,
+    unresolvedMentionTokens: prepared.unresolvedMentionTokens,
   };
 }
 
@@ -532,6 +552,17 @@ interface CommentMeta {
   mentions: ResolvedMention[] | null;
 }
 
+/** The stored text of one comment, the text an edit replaces. */
+async function loadCommentText(
+  tx: TransactionSql,
+  messageId: string,
+): Promise<string> {
+  const rows = await tx<{ text: string | null }[]>`
+    SELECT text FROM app.messages WHERE id = ${messageId}
+  `;
+  return rows[0]?.text ?? '';
+}
+
 async function loadCommentMeta(
   tx: TransactionSql | Sql,
   messageId: string,
@@ -559,7 +590,8 @@ async function loadCommentMeta(
  * Who may edit or delete a comment: its author, with the read access posting
  * it took — a member fixes their own comment on anyone's task — or an
  * admin, whose moderation of someone else's words is a change to the task
- * and so passes its work gate. An archived project is read-only for both.
+ * and so passes its work gate. An archived project or task is read-only for
+ * both.
  */
 async function assertCommentModifiable(
   tx: TransactionSql,
@@ -574,17 +606,18 @@ async function assertCommentModifiable(
     if (project.archivedAt !== null) {
       throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
     }
-    return;
+  } else {
+    await assertTaskWorkable(tx, project, task, auth);
+    const isAdmin = auth.role === 'owner' || auth.role === 'admin';
+    if (!isAdmin) {
+      throw new TaskError(
+        'TASK_COMMENT_FORBIDDEN',
+        'Only the author or an admin may modify a comment',
+        403,
+      );
+    }
   }
-  await assertTaskWorkable(tx, project, task, auth);
-  const isAdmin = auth.role === 'owner' || auth.role === 'admin';
-  if (!isAdmin) {
-    throw new TaskError(
-      'TASK_COMMENT_FORBIDDEN',
-      'Only the author or an admin may modify a comment',
-      403,
-    );
-  }
+  assertTaskNotArchived(task);
 }
 
 /**
@@ -618,14 +651,25 @@ export async function editTaskComment(
   if (refusal !== null) {
     throw new TaskError('TASK_COMMENT_INVALID', refusal);
   }
-  const resolved = await resolveSurfaceMentions(tx, {
+  // An edit is a new write by its author: what it adds is stored as who it
+  // names, while the mentions the comment already made stay as they were
+  // written, naming whom they named [COLLAB-R11].
+  const prepared = await prepareSurfaceText(tx, {
     organizationId: auth.organizationId,
     body,
     projectId: task.projectId,
+    cap: TASK_COMMENT_MAX,
+    mode: 'full',
+    previousBody: await loadCommentText(tx, args.messageId),
+    prefer: new Set(
+      (meta.mentions ?? []).map((mention) => `${mention.type}:${mention.id}`),
+    ),
   });
-  const mentions = resolved.mentions;
+  const text = prepared.text;
+  const mentions = prepared.mentions;
+  // Who the comment was saved naming is the truth an edit is diffed against.
   const added = addedMentions(meta.mentions ?? [], mentions);
-  await updateMessageText(tx, args.messageId, body);
+  await updateMessageText(tx, args.messageId, text);
   await tx`
     UPDATE app.task_discussion_message_meta
     SET edited_at_ms = ${Date.now()},
@@ -643,7 +687,8 @@ export async function editTaskComment(
       notifySubscribers: false,
     });
     const comment: CommentEventComment = {
-      body,
+      body: text,
+      bodyText: taskMentionPlainText(text),
       projectId: task.projectId,
       taskId: meta.taskId,
       mentions: added,
@@ -821,6 +866,9 @@ async function maybeTriggerOwningAutomation(
       taskId: args.task.id,
       workflowSlug: mentioned.id,
       startedByUserId: args.auth.userId,
+      ...(args.auth.apiKeyId !== undefined
+        ? { apiKeyId: args.auth.apiKeyId }
+        : {}),
     },
     {
       singletonKey: `task.start_workflow:${args.auth.organizationId}:${args.task.id}:${mentioned.id}`,

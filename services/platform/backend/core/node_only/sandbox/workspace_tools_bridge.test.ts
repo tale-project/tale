@@ -301,6 +301,37 @@ describe('dispatchWorkspaceToolImpl', () => {
     );
   });
 
+  it('rag_search meters its query with the turn’s meter, and says a usage limit stopped it [GOV-R4]', async () => {
+    const { EmbeddingBudgetExceeded } =
+      await import('../../knowledge/embedding');
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded(
+        'Usage limit reached. The organization’s monthly cost limit is used up until 2026-11-01T00:00:00.000Z.',
+      ),
+    );
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({}).ctx, {
+      ...BASE,
+      embeddingMeter: meter,
+      tool: 'rag_search',
+      callArgs: { query: 'anything' },
+    });
+    expect(searchKnowledgeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter }),
+    );
+    expect(result.status).toBe('unavailable');
+    const [blocker] = result.blockers as { code: string; guidance: string }[];
+    expect(blocker?.code).toBe('usage_limit');
+    // The refusal's own sentence: whose limit, and when it resets.
+    expect(blocker?.guidance).toContain(
+      'The organization’s monthly cost limit is used up until 2026-11-01',
+    );
+    expect(blocker?.guidance).toContain('Do not treat it as nothing found.');
+  });
+
   it('rag_search carries the SESSION-derived access scope, never a body one', async () => {
     searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
     const scope = {
@@ -2182,6 +2213,34 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     },
   );
 
+  it('starts a busy agent and says its run waits for a free worker [TASK-R26]', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = startCtx({
+      answer: {
+        outcome: 'started',
+        runId: 'run_9',
+        taskId: 'task_1',
+        agentId: 'agent_worker',
+        waiting: { reason: 'org_limit' },
+      },
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1', agentId: 'agent_worker' },
+    });
+    expect(result.status).toBe('ok');
+    const output = result.output as Record<string, unknown>;
+    expect(output).toMatchObject({
+      started: true,
+      runId: 'run_9',
+      waitingReason: 'org_limit',
+    });
+    expect(output).not.toHaveProperty('waiting');
+    expect(String(output.guidance)).toContain('starts by itself');
+  });
+
   it.each([
     ['stale_question', { staleBecause: 'review_changed' }],
     // A resumption naming no agent and a run that is not the task's has no
@@ -2190,7 +2249,7 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     ['already_running', { runId: 'run_live' }],
     ['in_review', {}],
     ['closed', { taskStatus: 'done' }],
-    ['agent_busy', { runId: 'run_other', busyTaskId: 'task_2' }],
+    ['self_start', {}],
     ['blocked', { blockedBy: ['task_3'] }],
     ['paused', { retryAfter: 1_790_000_000_000 }],
   ])(
@@ -2379,7 +2438,8 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     expect(tools[0]?.readOnly).toBe(false);
     expect(tools[0]?.description).toContain('the task was decided');
     for (const word of [
-      'agent_busy',
+      'self_start',
+      'waitingReason',
       'blocked',
       'already_running',
       'paused',
@@ -2599,7 +2659,10 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
         ...(options.confined ? { confinedToTaskId: 'own-task' } : {}),
       },
       runMutation: vi.fn(async (ref, args) => {
-        if (fnName(ref) === 'tasks/internal_mutations:agentReviewTask') {
+        if (
+          fnName(ref) === 'tasks/internal_mutations:agentReviewTask' ||
+          fnName(ref) === 'tasks/internal_mutations:agentReviewBatch'
+        ) {
           mutations.push(args);
           return { decision: 'approve', status: 'done' };
         }
@@ -2688,6 +2751,172 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
     { ...review, decision: 'approve', feedback: ' ' },
   ])('rejects widened or incomplete reviews %j', async (body) => {
     const { result, mutations } = await call(body);
+    expect(result.status).toBe('invalid_args');
+    expect(mutations).toEqual([]);
+  });
+  const batchStart = {
+    operation: 'start_batch',
+    requestId: '00000000-0000-4000-8000-000000000001',
+    contextTaskId: '00000000-0000-4000-8000-000000000002',
+    targets: [
+      {
+        taskId: '00000000-0000-4000-8000-000000000003',
+        expected: review.expected,
+      },
+    ],
+  };
+  it.each([
+    batchStart,
+    {
+      operation: 'read_batch',
+      batchId: '00000000-0000-4000-8000-000000000004',
+    },
+  ])(
+    'forwards a strict native batch request with token authority only',
+    async (request) => {
+      const { result, mutations, actions } = await call(request);
+      expect(result.status).toBe('ok');
+      expect(actions).toEqual([]);
+      expect(mutations).toEqual([
+        {
+          organizationId: 'org_1',
+          sessionId: 'sid_1',
+          taskRunExecId: 'issuer-exec',
+          request,
+        },
+      ]);
+    },
+  );
+  it.each([
+    { ...batchStart, reviewerAgentId: 'forged' },
+    { ...batchStart, issuerRunId: 'forged' },
+    { ...batchStart, targets: [] },
+    { ...batchStart, targets: [...batchStart.targets, ...batchStart.targets] },
+    {
+      ...batchStart,
+      targets: Array.from({ length: 21 }, () => batchStart.targets[0]),
+    },
+    { ...batchStart, requestId: 'not-a-uuid' },
+    {
+      operation: 'read_batch',
+      batchId: '00000000-0000-4000-8000-000000000004',
+      complete: true,
+    },
+  ])(
+    'refuses widened, duplicate or unbounded batch requests before any mutation',
+    async (request) => {
+      const { result, mutations, actions } = await call(request);
+      expect(result.status).toBe('invalid_args');
+      expect(mutations).toEqual([]);
+      expect(actions).toEqual([]);
+    },
+  );
+  it.each([{ confined: true }, { orgScope: true }, { noExec: true }])(
+    'does not grant batch authority to unsupported native callers %j',
+    async (options) => {
+      const { result, mutations } = await call(batchStart, options);
+      expect(result.status).toBe('unavailable');
+      expect(mutations).toEqual([]);
+    },
+  );
+});
+
+describe('dispatchWorkspaceToolImpl — task_delegate_review', () => {
+  const request = {
+    taskId: '00000000-0000-4000-8000-000000000001',
+    reviewerAgentId: '00000000-0000-4000-8000-000000000002',
+    expected: {
+      approvalId: '00000000-0000-4000-8000-000000000003',
+      runId: '00000000-0000-4000-8000-000000000004',
+      evidenceRevision: 'a'.repeat(64),
+      reviewer: {
+        kind: 'agent',
+        agentId: '00000000-0000-4000-8000-000000000005',
+      },
+    },
+    reason: 'Route the captured review to a qualified available reviewer.',
+  };
+  async function call(
+    callArgs: Record<string, unknown>,
+    options: { confined?: boolean; orgScope?: boolean; noExec?: boolean } = {},
+  ) {
+    const { dispatch } = await getActions();
+    const mutations: unknown[] = [];
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'manager',
+        scope: options.orgScope
+          ? { kind: 'org' }
+          : { kind: 'project', projectId: 'project_1' },
+        ...(options.confined ? { confinedToTaskId: 'own-task' } : {}),
+      },
+      runMutation: vi.fn(async (ref, args) => {
+        if (
+          fnName(ref) === 'tasks/internal_mutations:agentDelegateTaskReview'
+        ) {
+          mutations.push(args);
+          return { approvalId: 'successor' };
+        }
+        return null;
+      }),
+    });
+    return {
+      result: await dispatch(ctx, {
+        ...BASE,
+        ...(options.noExec ? {} : { taskRunExecId: 'issuer-exec' }),
+        tool: 'task_delegate_review',
+        callArgs,
+      }),
+      mutations,
+    };
+  }
+  it('forwards only the authenticated token binding and exact captured request', async () => {
+    const { result, mutations } = await call(request);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer-exec',
+        review: request,
+      },
+    ]);
+  });
+  it.each([{ confined: true }, { orgScope: true }, { noExec: true }])(
+    'refuses unsupported authority %j',
+    async (options) => {
+      const { result, mutations } = await call(request, options);
+      expect(result.status).toBe('unavailable');
+      expect(mutations).toEqual([]);
+    },
+  );
+  it.each([
+    'start',
+    'tools',
+    'secrets',
+    'status',
+    'agentId',
+    'projectId',
+    'decision',
+    'assigneeId',
+    'reviewer',
+  ])('refuses widened %s', async (field) => {
+    const { result, mutations } = await call({ ...request, [field]: true });
+    expect(result.status).toBe('invalid_args');
+    expect(mutations).toEqual([]);
+  });
+  it.each([
+    { taskId: '00000000' },
+    { reason: ' ' },
+    {
+      expected: {
+        ...request.expected,
+        reviewer: { kind: 'user', userId: 'human' },
+      },
+    },
+  ])('refuses missing full identity or human conversion %j', async (change) => {
+    const { result, mutations } = await call({ ...request, ...change });
     expect(result.status).toBe('invalid_args');
     expect(mutations).toEqual([]);
   });

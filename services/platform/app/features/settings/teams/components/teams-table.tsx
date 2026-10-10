@@ -47,13 +47,14 @@ function TeamMemberSubscription({ teamId }: { teamId: string }) {
 export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t: tSettings } = useT('settings');
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const selectedTeam = teams?.find((team) => team.id === selectedTeamId);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [createOpen, setCreateOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const handleViewTeam = useCallback((team: Team) => {
-    setSelectedTeam(team);
+    setSelectedTeamId(team.id);
   }, []);
 
   const handleClearSelection = useCallback(() => {
@@ -126,11 +127,15 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           title: tEmpty('teams.title'),
           description: tEmpty('teams.description'),
         }}
-        onRowClick={(row) => setSelectedTeam(row.original)}
+        onRowClick={(row) => setSelectedTeamId(row.original.id)}
         clickableRows
         footer={
           <BulkDeleteBar
             rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            getItemLabel={(id) =>
+              teams?.find((item) => item.id === id)?.name ?? id
+            }
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleDeleteComplete}
@@ -148,11 +153,12 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
 
       {selectedTeam && (
         <TeamDetailDialog
+          key={selectedTeam.id}
           team={selectedTeam}
           organizationId={organizationId}
           open={!!selectedTeam}
           onOpenChange={(open) => {
-            if (!open) setSelectedTeam(null);
+            if (!open) setSelectedTeamId(null);
           }}
         />
       )}

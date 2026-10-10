@@ -4,6 +4,8 @@
 // every actual docker call goes through one shape with consistent stdout/stderr
 // handling and timeouts.
 
+import { operationSignal } from './operation-budget.ts';
+
 interface RunDockerOptions {
   timeoutMs?: number;
   // Cancellation also removes a call still waiting for a CLI slot, so it
@@ -57,6 +59,18 @@ export interface RunDockerResult {
 // module load. Cheap: a single env-var read per docker invocation.
 function dockerBin(): string {
   return process.env.DOCKER_BIN ?? 'docker';
+}
+
+/** Which daemon runDocker talks to, as a key: an observation remembered
+ * about one daemon (including an isolated test CLI) says nothing about
+ * another. */
+export function dockerTarget(): string {
+  return JSON.stringify([
+    process.env.DOCKER_BIN,
+    process.env.DOCKER_HOST,
+    process.env.DOCKER_CONTEXT,
+    process.env.DOCKER_CONFIG,
+  ]);
 }
 
 /**
@@ -275,6 +289,7 @@ export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
 ): Promise<RunDockerResult> {
+  opts = { ...opts, signal: operationSignal(opts.signal) };
   const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
   const queuedAtMs = Date.now();
   const release = await dockerCliSlot(
@@ -316,6 +331,9 @@ async function runDockerNow(
     stdout: 'pipe',
     stderr: 'pipe',
     signal: opts.signal,
+    // An operation budget is a hard bound, just like the CLI's timeout below.
+    // SIGTERM can be ignored and let a cancelled command report success later.
+    killSignal: 'SIGKILL',
   });
 
   // Drain both streams concurrently to avoid pipe-back-pressure deadlock,
@@ -415,6 +433,14 @@ export function isDockerNoSuchObject(stderr: string): boolean {
   return /no such (object|container)/i.test(stderr);
 }
 
+/** Does a `docker run` stderr say the image is not on the host? With
+ * `--pull=never` the daemon answers "No such image"; a CLI that still tried
+ * an implicit pull says "Unable to find image" or, for a registry it cannot
+ * read, "pull access denied". */
+export function isDockerMissingImage(stderr: string): boolean {
+  return /no such image|unable to find image|pull access denied/i.test(stderr);
+}
+
 /**
  * `docker rm --force <name>`. Resolves with the CLI result — it never rejects,
  * and a host-side timeout reads as exitCode 124 — so callers MUST judge
@@ -428,6 +454,23 @@ export async function dockerRm(
   // hang teardown indefinitely. SIGKILL of PID 1 normally collapses everything
   // fast, so 30s is generous slack, not a routine wait.
   return runDocker(['rm', '--force', containerName], { timeoutMs: 30_000 });
+}
+
+/**
+ * `docker stop -t <graceSeconds> <name>`: SIGTERM to the container's init,
+ * SIGKILL once the grace has passed. The CLI returns when the container has
+ * stopped, so its budget is the grace plus 15 s for the daemon to answer; a
+ * wedged one costs no more than that. Never rejects. A stop only prepares a
+ * removal: whatever it answers, the caller removes the container with
+ * {@link dockerRm}, whose result is the one that counts.
+ */
+export async function dockerStop(
+  containerName: string,
+  graceSeconds: number,
+): Promise<RunDockerResult> {
+  return runDocker(['stop', '-t', String(graceSeconds), containerName], {
+    timeoutMs: graceSeconds * 1000 + 15_000,
+  });
 }
 
 /** Did a `dockerRm` leave the object gone? A clean exit, or a "no such
@@ -448,7 +491,12 @@ export function dockerRmSucceeded(result: RunDockerResult): boolean {
  */
 export async function ensureImage(
   image: string,
-  opts: { attempts?: number; run?: typeof runDocker } = {},
+  opts: {
+    attempts?: number;
+    run?: typeof runDocker;
+    /** Hears why the last pull failed when the image stays absent. */
+    onFailure?: (detail: string) => void;
+  } = {},
 ): Promise<boolean> {
   // `run` is a test seam: the budget each call carries is part of the contract.
   const run = opts.run ?? runDocker;
@@ -469,6 +517,9 @@ export async function ensureImage(
     } else {
       console.error(
         `[sandbox] docker pull ${image} failed after ${attempts} attempts — stderr: ${result.stderr.trim()}`,
+      );
+      opts.onFailure?.(
+        result.stderr.trim() || `docker pull exited ${result.exitCode}`,
       );
     }
   }

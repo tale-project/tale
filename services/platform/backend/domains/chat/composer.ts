@@ -205,6 +205,26 @@ export interface ComposerHarnessRow {
   toolCallingWire: HarnessGatewayWire;
 }
 
+/** The harnesses the managed lane can actually run, each with the wire it
+ * speaks to the gateway — the agent pickers' runtime list, and what an
+ * automation's agent step may name. A model whose tools need the Responses
+ * API is offered only to a harness that speaks it. */
+export function listManagedHarnesses(): ComposerHarnessRow[] {
+  return loadHarnesses()
+    .filter((harness) => harness.credentialPolicy.managed)
+    .map((harness) => {
+      const iconUrl = readSystemEntryIcon('harnesses', harness.slug);
+      const row: ComposerHarnessRow = {
+        harness: harness.slug,
+        label: harness.displayName,
+        toolCallingWire: harnessToolCallingWire(harness),
+      };
+      if (iconUrl !== undefined) row.iconUrl = iconUrl;
+      return row;
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 export async function listComposerModels(
   sql: Sql,
   args: { organizationId: string; userId: string },
@@ -227,26 +247,9 @@ export async function listComposerModels(
     args.organizationId,
   );
 
-  // Only harnesses the managed lane can actually run, each with the wire it
-  // speaks to the gateway: a model whose tools need the Responses API is
-  // offered only to a harness that speaks it.
-  const harnesses = loadHarnesses()
-    .filter((harness) => harness.credentialPolicy.managed)
-    .map((harness) => {
-      const iconUrl = readSystemEntryIcon('harnesses', harness.slug);
-      const row: ComposerHarnessRow = {
-        harness: harness.slug,
-        label: harness.displayName,
-        toolCallingWire: harnessToolCallingWire(harness),
-      };
-      if (iconUrl !== undefined) row.iconUrl = iconUrl;
-      return row;
-    })
-    .sort((a, b) => a.label.localeCompare(b.label));
-
   return {
     models,
-    harnesses,
+    harnesses: listManagedHarnesses(),
     voice: {
       ttsAvailable,
       transcriptionAvailable: transcription.pick !== null,
@@ -339,6 +342,7 @@ export async function listProjectSkillSlugs(
 export async function listAutomationCapabilities(
   sql: Sql,
   args: { organizationId: string; projectId?: string },
+  options: CapabilityListingOptions = {},
 ): Promise<{ skills: SkillCapability[]; connectors: ComposerCapability[] }> {
   const orgSlug = await resolveOrgSlug(sql, args.organizationId);
   if (orgSlug === null) return { skills: [], connectors: [] };
@@ -357,7 +361,7 @@ export async function listAutomationCapabilities(
       sql,
       args.organizationId,
       listing.skills,
-      {},
+      options,
     ),
     connectors: await listConnectorCapabilities(sql, args.organizationId),
   };

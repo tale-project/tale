@@ -37,6 +37,7 @@ import {
   assertChatTurnBudget,
   budgetRetryAfterSeconds,
   ChatBudgetExceededError,
+  type ChatBudgetRefusal,
 } from './budget-admission.ts';
 import { bulkUpdateThreads } from './bulk.ts';
 import {
@@ -50,7 +51,9 @@ import {
   enqueueDeferredSend,
   listDeferredSends,
 } from './deferred-sends.ts';
+import { createGenerationWatch } from './generation-watch.ts';
 import { getOrgChatHealth } from './health.ts';
+import { listMessageViews } from './message-views.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
 
@@ -190,21 +193,6 @@ interface ThreadView {
   updatedAt: number;
 }
 
-interface MessageView {
-  id: string;
-  role: string;
-  parts: unknown;
-  sequence: number;
-  model?: string;
-  providerSlug?: string;
-  usage?: unknown;
-  blockedReason?: string;
-  error?: string;
-  /** The row's terminal state — `cancelled` is how a user stop reads. */
-  status?: string;
-  createdAt: number;
-}
-
 interface GenerationRow {
   messageId: string | null;
   text: string;
@@ -302,7 +290,7 @@ function budgetErrorResponse<E extends OrgEnv>(
 async function refuseWhenOverBudget<E extends OrgEnv>(
   c: Context<E>,
   sql: Sql,
-  sender: { organizationId: string; userId: string },
+  sender: { organizationId: string; userId: string; threadId?: string },
 ): Promise<Response | null> {
   try {
     await assertChatTurnBudget(sql, sender);
@@ -313,45 +301,6 @@ async function refuseWhenOverBudget<E extends OrgEnv>(
     throw error;
   }
   return null;
-}
-
-async function listMessageViews(
-  sql: Sql,
-  organizationId: string,
-  threadId: string,
-): Promise<MessageView[]> {
-  const rows = await sql<
-    (Omit<MessageView, 'model' | 'providerSlug' | 'usage'> & {
-      model: string | null;
-      providerSlug: string | null;
-      usage: unknown;
-    })[]
-  >`
-    SELECT id, role, parts, "order" AS sequence, model,
-           provider_slug AS "providerSlug", usage,
-           blocked_reason AS "blockedReason", error, status,
-           created_at_ms::float8 AS "createdAt"
-    FROM app.messages
-    WHERE thread_id = ${threadId} AND org_id = ${organizationId}
-    ORDER BY "order", step_order
-  `;
-  return rows.map((row) =>
-    Object.assign(
-      {
-        id: row.id,
-        role: row.role,
-        parts: row.parts ?? [],
-        sequence: row.sequence,
-        createdAt: row.createdAt,
-      },
-      row.model !== null ? { model: row.model } : {},
-      row.providerSlug !== null ? { providerSlug: row.providerSlug } : {},
-      row.usage != null ? { usage: row.usage } : {},
-      row.blockedReason != null ? { blockedReason: row.blockedReason } : {},
-      row.error != null ? { error: row.error } : {},
-      row.status != null ? { status: row.status } : {},
-    ),
-  );
 }
 
 async function readGeneration(
@@ -371,30 +320,12 @@ async function readGeneration(
   return rows[0] ?? null;
 }
 
-/**
- * The assistant row's parts AS THEY STAND mid-turn.
- *
- * The turn writes them a step at a time (`updateAssistantParts`), so this is
- * where a tool call becomes visible before the turn ends — the transcript
- * itself is only refetched at settle. Read separately from the generation
- * row because it is only worth reading once a message id exists.
- */
-async function readLiveParts(
-  sql: Sql,
-  organizationId: string,
-  messageId: string,
-): Promise<unknown[] | null> {
-  const rows = await sql<{ parts: unknown }[]>`
-    SELECT parts FROM app.messages
-    WHERE id = ${messageId} AND org_id = ${organizationId}
-    LIMIT 1
-  `;
-  const parts = rows[0]?.parts;
-  return Array.isArray(parts) ? parts : null;
-}
-
 export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
+  const generationWatch = createGenerationWatch(deps.sql, {
+    pollIntervalMs: STREAM_POLL_MS,
+    heartbeatIntervalMs: STREAM_HEARTBEAT_MS,
+  });
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
   const caller = (c: Context<OrgEnv>) => ({
@@ -768,6 +699,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const refused = await refuseWhenOverBudget(c, deps.sql, {
       organizationId,
       userId,
+      threadId: c.req.param('threadId'),
     });
     if (refused !== null) return refused;
     // The answer names the fork POINT beside the sibling: the server may hang
@@ -797,6 +729,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const refused = await refuseWhenOverBudget(c, deps.sql, {
       organizationId,
       userId,
+      threadId: c.req.param('threadId'),
     });
     if (refused !== null) return refused;
     const fork = await branchForRegenerate(
@@ -994,6 +927,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const refused = await refuseWhenOverBudget(c, deps.sql, {
       organizationId,
       userId,
+      threadId: c.req.param('threadId'),
     });
     if (refused !== null) return refused;
     try {
@@ -1214,15 +1148,21 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       await assertChatTurnBudget(deps.sql, {
         organizationId,
         userId,
+        // Both columns are threads of one conversation, in one project.
+        threadId: pair.threadIdA,
         prospectiveRequests: 2,
       });
     } catch (error) {
       if (!(error instanceof ChatBudgetExceededError)) throw error;
+      const { code, message, ...cap } = error.data;
       const refused = {
         status: 'refused' as const,
-        code: error.data.code,
-        reason: error.data.message,
+        code,
+        reason: message,
         persisted: false,
+        // The cap, as the send door names it: whose it is, which, and when
+        // it resets.
+        data: cap,
       };
       return c.json({ a: refused, b: refused });
     }
@@ -1246,6 +1186,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       reason?: string;
       persisted?: boolean;
       code?: string;
+      data?: Omit<ChatBudgetRefusal, 'code' | 'message'>;
     }> => {
       try {
         const outcome = await runChatTurn(deps.sql, {
@@ -1297,10 +1238,23 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
               code: classifyChatErrorCode(err),
               model: side.modelId,
               raw: reason,
+              ...(err instanceof ChatBudgetExceededError
+                ? { budgetScope: err.data.scope }
+                : {}),
             }),
           });
         } catch (writeErr) {
           console.error('[arena] could not record side failure', writeErr);
+        }
+        if (err instanceof ChatBudgetExceededError) {
+          const { code: _code, message: _message, ...cap } = err.data;
+          return {
+            status: 'refused',
+            reason,
+            code,
+            persisted: true,
+            data: cap,
+          };
         }
         return { status: 'refused', reason, code, persisted: true };
       }
@@ -1483,11 +1437,13 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   // The per-thread progress lane. Emits `progress` while a generation row
   // exists (whenever its updated_at_ms moves) and `settled` with the final
   // message when it disappears; stays open for the thread's next turn.
-  // Polling AT the store's 250ms write throttle: a push (LISTEN/NOTIFY)
-  // could not beat the throttle, so a listener hub would add a connection
-  // without adding freshness. Enrolled in the shutdown drain like `/events`:
-  // the loop never ends on its own, and an open chat tab used to hold
-  // `server.close()` for the whole force deadline on every deploy.
+  // Every tab of the process is served by ONE watcher
+  // (`generation-watch.ts`) polling AT the store's 250ms write throttle: a
+  // push (LISTEN/NOTIFY) could not beat the throttle, and the shared poll
+  // costs a light read per process per tick instead of a read per open tab.
+  // Enrolled in the shutdown drain like `/events`: the lane never ends on
+  // its own, and an open chat tab used to hold `server.close()` for the
+  // whole force deadline on every deploy.
   app.get('/threads/:threadId/stream', async (c) => {
     const { organizationId, userId } = caller(c);
     const thread = await ownedThread(
@@ -1501,105 +1457,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     return streamSSE(c, async (stream) => {
       registerLiveStream(stream);
-      let lastSeenUpdate = 0;
-      let lastSentParts: string | null = null;
-      let lastMessageId: string | null = null;
-      let generating = false;
-      let lastBeatAt = Date.now();
-      // Resolve the client's initial state IMMEDIATELY: an idle thread must
-      // not wait a heartbeat interval to learn nothing is running (the send
-      // affordance keys off this), and a live one paints on arrival.
       try {
-        const initial = await readGeneration(
-          deps.sql,
+        await generationWatch.attach(stream, {
           organizationId,
-          thread.id,
-        );
-        if (initial === null) {
-          await stream.writeSSE({ event: 'idle', data: '' });
-          lastBeatAt = Date.now();
-        }
-        // A live row falls through: the loop's first pass ships `progress`.
-      } catch (error) {
-        console.warn('[chat] stream initial probe failed:', error);
-      }
-      try {
-        while (!stream.aborted) {
-          try {
-            const generation = await readGeneration(
-              deps.sql,
-              organizationId,
-              thread.id,
-            );
-            if (generation !== null) {
-              generating = true;
-              lastMessageId = generation.messageId ?? lastMessageId;
-              if (generation.updatedAt > lastSeenUpdate) {
-                lastSeenUpdate = generation.updatedAt;
-                // Parts ride along only when they CHANGED. Text ticks at the
-                // store's throttle while a tool result can be large (a RAG
-                // page), so resending an unchanged array four times a second
-                // would pay for the trace over and over. The client keeps the
-                // last one it saw.
-                let parts: unknown[] | null = null;
-                if (generation.messageId != null) {
-                  const live = await readLiveParts(
-                    deps.sql,
-                    organizationId,
-                    generation.messageId,
-                  );
-                  const serialized =
-                    live === null ? null : JSON.stringify(live);
-                  if (serialized !== null && serialized !== lastSentParts) {
-                    lastSentParts = serialized;
-                    parts = live;
-                  }
-                }
-                await stream.writeSSE({
-                  event: 'progress',
-                  data: JSON.stringify({
-                    messageId: generation.messageId,
-                    text: generation.text,
-                    reasoning: generation.reasoning,
-                    cancelRequested: generation.cancelRequested,
-                    ...(parts !== null ? { parts } : {}),
-                    serverNow: Date.now(),
-                  }),
-                });
-                lastBeatAt = Date.now();
-              }
-            } else if (generating) {
-              // The row's absence is the settle signal — ship the final row.
-              generating = false;
-              lastSeenUpdate = 0;
-              lastSentParts = null;
-              const messages = await listMessageViews(
-                deps.sql,
-                organizationId,
-                thread.id,
-              );
-              const settled =
-                lastMessageId !== null
-                  ? (messages.find((row) => row.id === lastMessageId) ??
-                    messages.at(-1))
-                  : messages.at(-1);
-              await stream.writeSSE({
-                event: 'settled',
-                data: JSON.stringify({ message: settled ?? null }),
-              });
-              lastBeatAt = Date.now();
-            } else if (Date.now() - lastBeatAt >= STREAM_HEARTBEAT_MS) {
-              await stream.writeSSE({ event: 'heartbeat', data: '' });
-              lastBeatAt = Date.now();
-            }
-          } catch (error) {
-            if (stream.aborted) break;
-            console.error('[chat] stream poll failed, backing off:', error);
-            await stream.sleep(1000);
-            continue;
-          }
-          await stream.sleep(STREAM_POLL_MS);
-        }
+          threadId: thread.id,
+        });
       } finally {
         unregisterLiveStream(stream);
       }

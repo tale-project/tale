@@ -49,15 +49,39 @@ function stub(options: {
   automations?: unknown[];
   credentials?: unknown[];
   loading?: { automations?: boolean; credentials?: boolean };
+  credentialsError?: unknown;
+  automationsError?: unknown;
 }): void {
   convexQuery.mockImplementation((ref: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined, isLoading: false };
+    if (ref === 'conversations/queries:apiSources')
+      return {
+        data: [],
+        isLoading: false,
+        isError: false,
+        errorUpdateCount: 0,
+        isFetching: false,
+        refetch: vi.fn(),
+      };
     if (ref === 'automations/queries:listAutomations') {
       const isLoading = options.loading?.automations === true;
-      return { data: isLoading ? undefined : options.automations, isLoading };
+      return {
+        data: isLoading ? undefined : options.automations,
+        isLoading,
+        error: options.automationsError,
+        isError: Boolean(options.automationsError),
+        errorUpdateCount: options.automationsError ? 1 : 0,
+        isFetching: isLoading,
+        refetch: vi.fn(),
+      };
     }
     const isLoading = options.loading?.credentials === true;
-    return { data: isLoading ? undefined : options.credentials, isLoading };
+    return {
+      data: isLoading ? undefined : options.credentials,
+      isLoading,
+      error: options.credentialsError,
+      refetch: vi.fn(),
+    };
   });
 }
 
@@ -66,6 +90,17 @@ beforeEach(() => {
 });
 
 describe('useEmailConnectors', () => {
+  it('reports discovery failures and retries every dependency', async () => {
+    const error = new Error('discovery failed');
+    stub({ automationsError: error, credentials: [] });
+    const { result } = renderHook(() => useEmailConnectors('org_1'));
+    expect(result.current.error).toBe(error);
+    await result.current.retry();
+    for (const query of convexQuery.mock.results) {
+      expect(query.value.refetch).toHaveBeenCalledOnce();
+    }
+  });
+
   it('offers one sender per deployed inbox pack with an active credential', () => {
     stub({
       automations: [
@@ -169,6 +204,19 @@ describe('useEmailConnectors', () => {
     const { result } = renderHook(() => useEmailConnectors('org_1'));
 
     expect(result.current.emailConnectors).toEqual([]);
+  });
+
+  it('exposes credential read failures without treating them as an empty result', () => {
+    const error = new Error('temporary failure');
+    stub({
+      automations: [inboxPack('imap-smtp/sync-emails', 'imap-smtp')],
+      credentialsError: error,
+    });
+
+    const { result } = renderHook(() => useEmailConnectors('org_1'));
+
+    expect(result.current.emailConnectors).toEqual([]);
+    expect(result.current.error).toBe(error);
   });
 
   it('reports loading while either half is still in flight', () => {

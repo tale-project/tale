@@ -327,9 +327,13 @@ describe('task refusal sentences', () => {
       'domains/projects/',
     );
     // Every start reaches the standard agent's kick view, whose refusals are
-    // fixed sentences (`refusalError`).
+    // fixed sentences (`refusalError`). The task kinds' MCP settings handlers
+    // share the project kinds' id and read helpers (`idParts`,
+    // `managedResource`, `projectAuthOf`): a malformed id is refused with the
+    // id the caller sent, and nothing else they throw reaches a person.
     expect([...reached.keys()].sort()).toEqual([
       'domains/projects/service.ts',
+      'domains/projects/settings-resource.ts',
       'domains/projects/standard-agent.ts',
     ]);
     expect([...(reached.get('domains/projects/service.ts') ?? [])]).toEqual(

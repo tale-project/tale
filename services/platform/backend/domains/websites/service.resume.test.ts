@@ -34,6 +34,7 @@ vi.mock('../../lib/org-config.ts', () => ({
 vi.mock('./scan-queue.ts', () => ({
   listScanningRowsWithoutJob: vi.fn(),
   lastFailedScanJob: vi.fn(),
+  previousScanRequester: vi.fn(async () => null),
   scanCycleStartedAt: vi.fn(),
   scanJobEnded: vi.fn(async () => false),
 }));
@@ -55,6 +56,7 @@ import { TASK_QUEUE_OPTIONS } from '../../jobs/tasks.ts';
 import {
   lastFailedScanJob,
   listScanningRowsWithoutJob,
+  previousScanRequester,
   scanCycleStartedAt,
   type ScanningRowWithoutJob,
   scanJobEnded,
@@ -282,7 +284,7 @@ describe('resumeInterruptedScans', () => {
     );
   });
 
-  it('stops resuming one scan at the limit', async () => {
+  it('stops resuming one scan at the limit [WEB-R7]', async () => {
     vi.mocked(listScanningRowsWithoutJob).mockResolvedValue([
       interrupted({ metadata: { scanResumes: MAX_SCAN_RESUMES } }),
     ]);
@@ -324,7 +326,7 @@ describe('resumeInterruptedScans', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('does not let one site that cannot be resumed hold up the next', async () => {
+  it('does not let one site that cannot be resumed hold up the next [WEB-R7]', async () => {
     vi.mocked(listScanningRowsWithoutJob).mockResolvedValue([
       interrupted({ id: 'w-1', domain: 'down.example' }),
       interrupted({ id: 'w-2', domain: 'example.com' }),
@@ -379,8 +381,54 @@ describe('runWebsitesScan', () => {
 
     expect(scanWebsiteImpl).toHaveBeenCalledWith(expect.anything(), {
       ...payload,
+      // The link's embeddings are metered as the scan's spend.
+      embeddingMeter: expect.objectContaining({ open: expect.any(Function) }),
       signal,
     });
+  });
+
+  it('carries on a taken-over scan under the requester its last link named [WEB-R11]', async () => {
+    vi.mocked(previousScanRequester).mockResolvedValueOnce({
+      userId: 'mia',
+      apiKeyId: 'key-1',
+    });
+    const payload = {
+      domain: 'example.com',
+      orgSlug: 'acme',
+      organizationId: 'org-1',
+      takeover: CLAIM,
+      scanStartedAt: new Date(NOW - HOUR).toISOString(),
+    };
+
+    await runWebsitesScan(fakeSql().sql, payload, { jobId: 'job-7' });
+
+    expect(previousScanRequester).toHaveBeenCalledWith(expect.anything(), {
+      domain: 'example.com',
+      organizationId: 'org-1',
+      jobId: 'job-7',
+    });
+    expect(scanWebsiteImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        requestedBy: { userId: 'mia', apiKeyId: 'key-1' },
+      }),
+    );
+  });
+
+  it('asks nothing for a continuation link, which carries its own requester', async () => {
+    await runWebsitesScan(fakeSql().sql, {
+      domain: 'example.com',
+      orgSlug: 'acme',
+      organizationId: 'org-1',
+      continuation: 2,
+      scanStartedAt: new Date(NOW - HOUR).toISOString(),
+    });
+
+    expect(previousScanRequester).not.toHaveBeenCalled();
+    expect(scanWebsiteImpl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ requestedBy: expect.anything() }),
+    );
   });
 
   /**

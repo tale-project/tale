@@ -1,35 +1,35 @@
 /**
  * Filesystem traversal helpers for the scanner.
  *
- * `walkMessagesDir(dir)` yields every `<locale>.json` file present in the
- * directory (one shallow read; no recursion). `walkDocsRoot(root, locales)`
- * yields every markdown page under `root/<locale>/**` (recursive).
+ * `walkMessagesDir(dir)` yields every file of every locale catalog present in
+ * the directory: a `<locale>.yml`, or each topic file of a `<locale>/`
+ * directory. `walkDocsRoot(root, locales)` yields every markdown page under
+ * `root/<locale>/**` (recursive).
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { catalogFiles, listCatalogLocales } from '../internals/catalog';
 import type { JsonSource, MarkdownSource } from './types';
 
-/** Yield every present locale JSON in `messagesDir`. */
+/** Yield every file of every present locale catalog in `messagesDir`. */
 export function walkMessagesDir(
   messagesDir: string,
   locales: ReadonlyArray<string>,
   sharedFiles: ReadonlyArray<string>,
 ): JsonSource[] {
-  if (!fs.existsSync(messagesDir)) return [];
-  const skip = new Set(sharedFiles);
   const out: JsonSource[] = [];
-  for (const entry of fs.readdirSync(messagesDir)) {
-    if (!entry.endsWith('.yml')) continue;
-    if (skip.has(entry)) continue;
-    const locale = entry.slice(0, -'.yml'.length);
+  for (const locale of listCatalogLocales(messagesDir, sharedFiles)) {
     if (locales.length > 0 && !locales.includes(locale)) continue;
-    out.push({
-      kind: 'json',
-      path: path.join(messagesDir, entry),
-      locale,
-    });
+    for (const file of catalogFiles(messagesDir, locale)) {
+      out.push({
+        kind: 'json',
+        path: file.path,
+        locale,
+        ...(file.topic !== undefined && { keyPrefix: file.topic }),
+      });
+    }
   }
   return out;
 }

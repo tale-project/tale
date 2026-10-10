@@ -18,15 +18,28 @@ import {
   PROJECT_INSTRUCTIONS_MAX_CHARS,
   PROJECT_NAME_MAX,
 } from '@tale/shared/schemas/projects';
-import type { Context } from 'hono';
+import { Hono, type Context } from 'hono';
+import { requestId } from 'hono/request-id';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
+import { appErrorHandler } from '../../error-reporting.ts';
+import { appJsonBody, INVALID_JSON_MESSAGE } from '../../lib/app-json-body.ts';
+import { checkUserRateLimit } from '../../lib/rate-limit.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 
 const service = vi.hoisted(() => ({
   createProject: vi.fn(),
+  duplicateProject: vi.fn(),
   updateProjectIdentity: vi.fn(),
   updateProjectInstructions: vi.fn(),
+  readProjectInstructionsConfiguration: vi.fn(),
+  readAgentInstructionsConfiguration: vi.fn(),
+  updateAgentInstructionsConfiguration: vi.fn(),
+  readAgentToolsConfiguration: vi.fn(),
+  updateAgentToolsConfiguration: vi.fn(),
+  readAgentModelConfiguration: vi.fn(),
+  updateAgentModelConfiguration: vi.fn(),
   deleteProject: vi.fn(),
   getProjectAuthContext: vi.fn(),
   assertCanCreateProjects: vi.fn(),
@@ -84,9 +97,9 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 import { createProjectRoutes } from './routes.ts';
 
 async function send(
-  method: 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'DELETE',
   route: string,
-  body: unknown,
+  body?: unknown,
 ): Promise<Response> {
   return await createProjectRoutes({
     sql: {} as never,
@@ -278,4 +291,332 @@ describe('project routes — the shared schemas guard the door', () => {
     expect(res.status).toBe(400);
     expect(service.deleteProject).not.toHaveBeenCalled();
   });
+
+  it('preserves a review context custody refusal on project deletion', async () => {
+    const refusal = new LegalHoldError(
+      'LEGAL_HOLD_ACTIVE',
+      'This task is owned by a user on a custodian legal hold. Release the user-level hold before deleting.',
+      409,
+    );
+    service.deleteProject.mockRejectedValueOnce(refusal);
+    const response = await send('DELETE', '/p1', { mode: 'detach' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: refusal.code,
+      message: refusal.message,
+    });
+    expect(service.deleteProject).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1', userId: 'u1' }),
+      { projectId: 'p1', mode: 'detach' },
+    );
+  });
+});
+
+describe('duplicate — the name is optional, its JSON is not (#3599)', () => {
+  // The project routes as `app.ts` mounts them: behind the app door's one
+  // JSON reader and its error handler, which answer a body that does not
+  // parse with the door's 400 `INVALID_JSON`.
+  function door(): Hono {
+    const hono = new Hono();
+    hono.onError(appErrorHandler);
+    hono.use(requestId());
+    hono.use('/api/app/*', appJsonBody());
+    hono.route(
+      '/api/app/projects',
+      createProjectRoutes({ sql: {} as never, auth: {} as never }),
+    );
+    return hono;
+  }
+
+  async function post(route: string, body: string): Promise<Response> {
+    return await door().request(
+      `http://localhost/api/app/projects${route}?orgId=o1`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-request-id': 'req-duplicate',
+        },
+        body,
+      },
+    );
+  }
+
+  beforeEach(() => {
+    service.duplicateProject.mockResolvedValue('p2');
+  });
+
+  it.each([
+    ['a lone brace', '{'],
+    ['a truncated name', '{"name":"Cop'],
+    ['a body that is not JSON', 'name=Copy'],
+  ])(
+    'refuses %s with 400 INVALID_JSON and duplicates nothing',
+    async (_name, body) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const res = await post('/p1/duplicate', body);
+
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({
+          error: INVALID_JSON_MESSAGE,
+          code: 'INVALID_JSON',
+          requestId: 'req-duplicate',
+        });
+        // Refused after the session and membership gates, before the
+        // route's own project lookup, its rate-limit charge and the copy.
+        expect(service.getProjectAuthContext).not.toHaveBeenCalled();
+        expect(checkUserRateLimit).not.toHaveBeenCalled();
+        expect(service.duplicateProject).not.toHaveBeenCalled();
+        // A client's mistake, not a defect to report.
+        expect(errors).not.toHaveBeenCalled();
+      } finally {
+        errors.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    ['no body', ''],
+    ['only whitespace', ' \n\t'],
+    ['an empty object', '{}'],
+  ])('duplicates under the default name for %s', async (_name, body) => {
+    const res = await post('/p1/duplicate', body);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ projectId: 'p2' });
+    expect(service.duplicateProject).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      undefined,
+    );
+  });
+
+  it('duplicates under the name a valid body gives', async () => {
+    const res = await post('/p1/duplicate', '{"name":"Copy of P"}');
+
+    expect(res.status).toBe(200);
+    expect(service.duplicateProject).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      'Copy of P',
+    );
+  });
+
+  it('refuses a name over its cap as an invalid body', async () => {
+    const res = await post(
+      '/p1/duplicate',
+      JSON.stringify({ name: 'x'.repeat(201) }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'invalid body' });
+    expect(service.duplicateProject).not.toHaveBeenCalled();
+  });
+
+  it('answers the same lone brace on create as before', async () => {
+    const res = await post('', '{');
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_JSON' });
+    expect(service.createProject).not.toHaveBeenCalled();
+  });
+});
+
+describe('managed instruction routes', () => {
+  const hash = 'a'.repeat(64);
+  const project = { projectId: 'p1', instructions: 'project policy' };
+  const agent = { projectId: 'p1', agentId: 'a1', instructions: 'agent brief' };
+
+  it.each([
+    ['/p1/configuration/instructions', project],
+    ['/p1/agents/a1/configuration/instructions', agent],
+  ])(
+    'requires a preimage and rejects unowned fields: %s',
+    async (route, config) => {
+      expect((await send('POST', route, { config })).status).toBe(400);
+      expect(
+        (await send('POST', route, { config, expectedHash: null })).status,
+      ).toBe(400);
+      expect(
+        (
+          await send('POST', route, {
+            config: { ...config, secrets: ['TOKEN'] },
+            expectedHash: hash,
+          })
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await send('POST', route, {
+            config: { ...config, projectId: 'other' },
+            expectedHash: hash,
+          })
+        ).status,
+      ).toBe(400);
+      expect(service.updateProjectInstructions).not.toHaveBeenCalled();
+      expect(
+        service.updateAgentInstructionsConfiguration,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it('binds path identity and sends only the owned text through the serializable writer', async () => {
+    expect(
+      (
+        await send('POST', '/p1/configuration/instructions', {
+          config: project,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(200);
+    expect(service.updateProjectInstructions).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      project.instructions,
+      hash,
+    );
+    expect(
+      (
+        await send('POST', '/p1/agents/a1/configuration/instructions', {
+          config: agent,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(200);
+    expect(service.updateAgentInstructionsConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      agent,
+      hash,
+    );
+    expect(
+      (
+        await send('POST', '/p1/agents/other/configuration/instructions', {
+          config: agent,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(400);
+  });
+});
+
+describe('managed tool routes [PROJ-R17]', () => {
+  const path = '/p1/agents/a1/configuration/tools';
+  const config = {
+    projectId: 'p1',
+    agentId: 'a1',
+    tools: ['task_get', 'task_review'],
+  };
+  const expectedHash = 'a'.repeat(64);
+
+  it('returns the native narrow view bound to both path identities', async () => {
+    service.readAgentToolsConfiguration.mockResolvedValue({
+      config,
+      hash: expectedHash,
+    });
+    const response = await send('GET', path);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ config, hash: expectedHash });
+    expect(service.readAgentToolsConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      'a1',
+    );
+  });
+
+  it('passes canonical grants and the reviewed preimage to the native writer', async () => {
+    const response = await send('POST', path, {
+      config: { ...config, tools: ['task_review', 'task_get', 'task_review'] },
+      expectedHash,
+    });
+    expect(response.status).toBe(200);
+    expect(service.updateAgentToolsConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      config,
+      expectedHash,
+    );
+    expect(service.updateProjectAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { config },
+    { config, expectedHash: null },
+    { config, expectedHash: 'bad-hash' },
+    { config: { ...config, tools: ['unknown_tool'] }, expectedHash },
+    { config: { ...config, projectId: 'other' }, expectedHash },
+    { config: { ...config, agentId: 'other' }, expectedHash },
+    { config: { ...config, secrets: [] }, expectedHash },
+    { config: { ...config, instructions: 'replace text' }, expectedHash },
+    { config, expectedHash, model: 'replace model' },
+  ])(
+    'refuses missing preconditions, path mismatch or unowned fields: %j',
+    async (body) => {
+      expect((await send('POST', path, body)).status).toBe(400);
+      expect(service.updateAgentToolsConfiguration).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('managed model routes [PROJ-R20]', () => {
+  const path = '/p1/agents/a1/configuration/model';
+  const config = {
+    projectId: 'p1',
+    agentId: 'a1',
+    harness: 'codex',
+    model: 'next-model',
+    modelProvider: 'example',
+  };
+  const expectedHash = 'b'.repeat(64);
+  it('reads only the model tuple and sends exact identity/hash to its native writer', async () => {
+    service.readAgentModelConfiguration.mockResolvedValue({
+      config,
+      hash: expectedHash,
+    });
+    expect(await (await send('GET', path)).json()).toEqual({
+      config,
+      hash: expectedHash,
+    });
+    expect(service.readAgentModelConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      'a1',
+    );
+    expect((await send('POST', path, { config, expectedHash })).status).toBe(
+      200,
+    );
+    expect(service.updateAgentModelConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      config,
+      expectedHash,
+    );
+    expect(service.updateProjectAgent).not.toHaveBeenCalled();
+  });
+  it.each([
+    { config },
+    { config, expectedHash: null },
+    { config, expectedHash: 'bad' },
+    { config: { ...config, modelProvider: null }, expectedHash },
+    { config: { ...config, modelProvider: '' }, expectedHash },
+    { config: { ...config, projectId: 'other' }, expectedHash },
+    { config: { ...config, agentId: 'other' }, expectedHash },
+    { config: { ...config, secrets: [] }, expectedHash },
+    { config: { ...config, tools: [] }, expectedHash },
+    { config: { ...config, name: 'replacement' }, expectedHash },
+    { config, expectedHash, instructions: 'replacement' },
+  ])(
+    'refuses unowned fields, ambiguous provider and stale/missing identity: %j',
+    async (body) => {
+      expect((await send('POST', path, body)).status).toBe(400);
+      expect(service.updateAgentModelConfiguration).not.toHaveBeenCalled();
+    },
+  );
 });

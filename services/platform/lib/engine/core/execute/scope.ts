@@ -1,10 +1,14 @@
 /**
  * Runtime scope assembly and deterministic mock backends.
  *
- * Scopes are data-only snapshots: values are cloned through JSON, which is
- * exactly the shape that can cross the CodeRunner boundary — agent code can
- * never mutate engine state or receive a host reference. Secrets never enter
- * a scope; they are handed by the host to live() calls only.
+ * A scope is a read-only view of what a run holds — its input, the outputs
+ * of the nodes before a node, and `item`/`index` or a pass's `output` — not
+ * a copy: nothing in the engine writes to one, what crosses into the
+ * CodeRunner is serialized there, and what the template fast path reads it
+ * copies, so agent code can never mutate engine state or receive a host
+ * reference. Test suites switch scopes to frozen copies (`freezeScopes`), so
+ * a write anywhere throws. Secrets never enter a scope; they are handed by
+ * the host to live() calls only.
  */
 
 export interface RunScope extends Record<string, unknown> {
@@ -20,16 +24,40 @@ export function cloneData<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+let frozenCopies = false;
+
+/**
+ * Hand out every scope as a deep-frozen JSON copy instead of a view, so any
+ * write to one throws — the test suites' guard that nothing in the engine
+ * writes to a scope. A copy rather than the view itself: the engine keeps
+ * adding to the outputs a view shows as nodes finish, and that is not a
+ * write to the scope.
+ */
+export function freezeScopes(on: boolean): void {
+  frozenCopies = on;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value)) deepFreeze(Reflect.get(value, key));
+  }
+  return value;
+}
+
 export function makeScope(
   input: unknown,
   nodeOutputs: Record<string, { output: unknown }>,
   extra: Record<string, unknown> = {},
 ): RunScope {
-  return {
-    input: cloneData(input),
-    nodes: cloneData(nodeOutputs),
-    ...cloneData(extra),
-  };
+  if (frozenCopies) {
+    return deepFreeze({
+      input: cloneData(input),
+      nodes: cloneData(nodeOutputs),
+      ...cloneData(extra),
+    });
+  }
+  return { input, nodes: nodeOutputs, ...extra };
 }
 
 export function newRunId(): string {

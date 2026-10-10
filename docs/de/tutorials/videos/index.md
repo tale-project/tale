@@ -47,7 +47,7 @@ Das Board mitten im Flug, Dateien als begrenzter Kontext und eine vor der Kamera
 
 <Card title="Episode 7 — Connectors & die Außenwelt" icon="play" href="/de/tutorials/videos/connectors">
 
-Connectoren zum Lesen vor dem Öffnen, die MCP-Tür, wie die frühere Version sie zeigte, und Egress, der im Zweifel schließt. Jede Tür bewusst geöffnet. Knapp drei Minuten.
+Connectors zum Lesen vor dem Öffnen, die MCP-Tür, wie die frühere Version sie zeigte, und Egress, der im Zweifel schließt. Jede Tür bewusst geöffnet. Knapp drei Minuten.
 
 </Card>
 
@@ -65,7 +65,7 @@ Das Finale: Anbieter und Modell-Richtlinien, Leitplanken, das Audit-Protokoll, K
 
 <Card title="Bonus — Tale für Entwickler" icon="play" href="/de/tutorials/videos/tale-for-developers">
 
-Die Runde für die Bauenden: begrenzte Schlüssel, vier API-Türen, Webhooks und Harnesses, die im Zweifel schließen. Gut zwei Minuten.
+Die Runde für die Bauenden: begrenzte Schlüssel, vier API-Türen, Webhooks und Agent-Laufzeiten, die im Zweifel schließen. Gut zwei Minuten.
 
 </Card>
 

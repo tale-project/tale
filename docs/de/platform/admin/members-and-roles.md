@@ -27,6 +27,9 @@ Zum Verwalten von Mitgliedern brauchst du ein Konto mit der Rolle Inhaber oder A
 
 Die Person erscheint in der Mitgliederliste. Tale verschickt in diesem Ablauf weder eine Einladung noch eine E-Mail zum Zurücksetzen des Passworts: Dass du jemanden hinzufügst, ist die Bestätigung der Adresse. Das Konto funktioniert deshalb sofort überall — auch in Anwendungen, bei denen man sich mit dem Tale-Konto anmeldet. Ist die Adresse bereits Mitglied dieser Organisation, zeigt das Formular einen Hinweis und legt keinen zweiten Eintrag an.
 
+Ein von einem Administrator festgelegtes oder zurückgesetztes Passwort sowie ein nach der Rotationsrichtlinie abgelaufenes Passwort erfordern die Änderung bei der Anmeldung. Siehe [die Schritte zur Passwortänderung für Mitglieder](/de/platform/member/preferences#wenn-eine-passwortaenderung-erforderlich-ist).
+
+
 <Tip>
 
 Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allein gewährt weder den Projektzugriff eines Teams noch Zugang zu dessen Konversationen.
@@ -58,7 +61,7 @@ Nur Inhaber und Admins können Audit-Protokolle lesen. Aktionen anderer Rollen k
 
 Öffne das Zeilenmenü der Person, wähle **Bearbeiten** und ändere die **Rolle**. Wähle **Speichern** und prüfe anschließend die Rolle in der Liste. Um ein deaktiviertes Mitglied wieder freizuschalten, wählst du ausdrücklich die gewünschte Rolle.
 
-Im Dialog kannst du auch den Anzeigenamen ändern. Die E-Mail-Adresse ist schreibgeschützt. Für ein neues Passwort aktivierst du **Passwort aktualisieren**, gibst ein Passwort gemäß den angezeigten Anforderungen ein und speicherst. Prüfe die Identität der Person nach dem Verfahren deiner Organisation, bevor du ihr Konto zurücksetzt.
+Im Dialog kannst du auch den Anzeigenamen ändern. Die E-Mail-Adresse ist schreibgeschützt. Für ein neues Passwort aktivierst du **Passwort aktualisieren**, gibst ein Passwort gemäß den angezeigten Anforderungen ein und speicherst. Das Mitglied muss bei der nächsten Anmeldung ein neues Passwort wählen; ein Zurücksetzen meldet das Mitglied von allen Sitzungen ab. Prüfe die Identität der Person nach dem Verfahren deiner Organisation, bevor du ihr Konto zurücksetzt.
 
 Deine eigene Rolle lässt sich über dieses Menü nicht ändern. Inhaber lässt sich nicht im Rollenfeld vergeben, und der letzte Administrator darf nicht herabgestuft werden. Auch bestehende Inhaber und der Ersteller der Organisation haben geschützte Rollen. Prüfe bei einer Ablehnung das betroffene Konto, bevor du eine andere Rolle versuchst.
 
@@ -68,6 +71,6 @@ Als Inhaber kannst du im Zeilenmenü eines anderen Mitglieds **Inhaberschaft üb
 
 ## Zugriff entziehen oder wiederherstellen
 
-Wähle **Deaktiviert**, wenn der Zugriff enden, die Mitgliedschaft aber bestehen bleiben soll. **Löschen** im Zeilenmenü entfernt die Mitgliedschaft aus dieser Organisation und löscht dabei auch die getrennten Sandbox-Arbeitsbereiche der [Agentenläufe, die die Person gestartet hat](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet), samt Dateien; mit **Deaktiviert** bleiben diese Arbeitsbereiche erhalten. Prüfe vorher geteilte Arbeit und Teamverantwortungen. Eine Mitgliedschaft zu entfernen ist keine [Löschanfrage einer betroffenen Person](/de/platform/admin/governance/data-subject-requests).
+Wähle **Deaktiviert**, wenn der Zugriff enden, die Mitgliedschaft aber bestehen bleiben soll. **Löschen** im Zeilenmenü entfernt die Mitgliedschaft aus dieser Organisation und löscht dabei auch die getrennten Sandbox-Arbeitsbereiche der [Agentenläufe, die die Person gestartet hat](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet), samt Dateien; mit **Deaktiviert** bleiben diese Arbeitsbereiche erhalten. Außerdem widerruft es die [API-Schlüssel](/de/platform/admin/api-keys#create-a-key-for-someone-else), die ein Inhaber oder Admin hier für die Person erstellt hat, und die Schlüssel, die die Person hier für andere Mitglieder erstellt hat. Prüfe vorher geteilte Arbeit und Teamverantwortungen. Eine Mitgliedschaft zu entfernen ist keine [Löschanfrage einer betroffenen Person](/de/platform/admin/governance/data-subject-requests).
 
 Hat ein Mitglied seinen Authenticator oder Passkey verloren, öffne **Bearbeiten** und nutze die jeweiligen Sicherheitsfunktionen. [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) erklärt Wiederherstellung, Zurücksetzen und die Folgen für aktive Sitzungen.

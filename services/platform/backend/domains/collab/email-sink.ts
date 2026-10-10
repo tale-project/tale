@@ -101,6 +101,9 @@ export async function runNotificationEmailJob(
   `;
   const recipientEmail = users[0]?.email?.trim();
   if (!recipientEmail) return;
+  // `.invalid` (RFC 2606) can never receive mail: it is the address of an
+  // API key's own identity (`domains/api_keys/service.ts`), not a person.
+  if (/\.invalid$/i.test(recipientEmail)) return;
 
   // Tri-state preference: no row / null → default ON.
   const prefs = await sql<{ actionableEmail: boolean | null }[]>`

@@ -39,54 +39,10 @@ nav:
     tutorialsVideos: Vidéos
 docs:
   home: Accueil
-footer:
-  copyrightLine1: © {year} Tale par Ruler GmbH
-  copyrightLine2:
-    Tale est sous licence MIT — libre d'utilisation, de modification
-    et de distribution.
 pwa:
   updateAvailableTitle: Mise à jour disponible
   updateAvailableDescription: Une nouvelle version de la doc est prête.
   updateNow: Recharger
   updateLater: Plus tard
   dismiss: Ignorer
-  offlineReady: La doc est prête en mode hors ligne.
-home:
-  docsLabel: Doc
-  heroTitle: De ta première question au travail accompli.
-  heroDescription: Prends tes repères dans Tale, confie une première tâche à un agent
-    ou construis une intégration. Choisis le guide qui correspond à ton objectif.
-  heroPrimary: Utiliser Tale
-  heroSecondary: Installer ton espace de travail
-  heroNote: Des guides pour ton équipe, les créateurs d’agents et les responsables de ton espace.
-  mapTitle: Un chemin de la tâche au résultat
-  mapNote: Chaque étape ouvre un guide. Vérifie ses prérequis avant de commencer.
-  map:
-    define:
-      title: Décrire le travail
-      description: Donne à la tâche un objectif, des fichiers sources et un résultat attendu.
-    delegate:
-      title: Confier la tâche à un agent
-      description: Choisis ses consignes et ses outils, puis lance le travail.
-    review:
-      title: Examiner le résultat
-      description: Vérifie le rapport et les fichiers, puis approuve le résultat ou demande des modifications.
-  pathsEyebrow: Ton point de départ
-  pathsTitle: Que souhaites-tu faire ?
-  pathsDescription: Suis un parcours adapté à ta première tâche. Tu pourras consulter
-    les détails au fil du travail.
-  featuredDetail: Configure un agent pour une tâche précise, lance-le sur une tâche
-    de projet et examine son premier résultat. Le guide explique les accès, le
-    modèle et le moteur nécessaires.
-  readGuide: Suivre le guide
-  tutorialsEyebrow: Apprendre en pratiquant
-  tutorialsTitle: Une vraie tâche, du début à la fin.
-  tutorialsDescription: Utilise les exemples et les points de contrôle dans ton
-    espace de travail. Chaque tutoriel indique les prérequis avant de commencer.
-  allTutorials: Tous les tutoriels
-  tutorialLabel: Guide pratique
-  referenceEyebrow: Pour aller plus loin
-  referenceTitle: Les détails, au bon moment.
-  referenceDescription: Consulte le fonctionnement du produit, les contrats d’API,
-    les instructions de déploiement et les responsabilités liées à ton hébergement.
-  productLink: Retour à Tale
+  offlineReady: La page hors ligne est prête.

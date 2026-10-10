@@ -14,8 +14,8 @@ Für deine erste Instanz nutze den [Schnellstart](/de/self-hosted/install/quicks
 Du brauchst:
 
 - Einen Rechner mit macOS, Linux oder Windows mit PowerShell.
-- Für lokale Container: Docker mit Compose und einen laufenden Docker-Daemon.
-- Für einen entfernten Workspace: Zugriff auf dessen Docker-Daemon, üblicherweise über einen SSH-Docker-Kontext. Der Benutzer auf dem Zielhost muss Docker ausführen dürfen.
+- Für lokale Container: Docker Engine 24.0 oder neuer mit Compose und einen laufenden Docker-Daemon. Die Schichten der Tale-Images sind mit zstd komprimiert, und Docker lädt solche Schichten ab Engine 23.0. `tale doctor` meldet eine ältere Engine; `tale dev` und `tale deploy` brechen dann ab, bevor sie Images herunterladen.
+- Für einen entfernten Workspace: Zugriff auf dessen Docker-Daemon mit Docker Engine 24.0 oder neuer, üblicherweise über einen SSH-Docker-Kontext. Der Benutzer auf dem Zielhost muss Docker ausführen dürfen.
 
 Den mitgelieferten Objektspeicher gibt es derzeit nur als `linux/amd64`-Image. Auf ARM64-Hosts brauchen lokale Entwicklung und Workspace-Deployments deshalb eine funktionierende amd64-Emulation: Docker Desktop bringt sie mit; auf einem eigenständigen Linux-Docker-Host muss [QEMU auf dem Host registriert sein](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale wählt das amd64-Image aus, installiert aber keine Emulation. Verwaltete Bundles benötigen weiterhin native Images für ihre deklarierte Architektur. Ein verwaltetes ARM64-Deployment ist daher erst mit einem nativen Objektspeicher-Image möglich.
 
@@ -99,12 +99,12 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 ### Einrichtung
 
-`tale doctor` — prüft die Voraussetzungen für einen lokalen Start, ohne ein Projekt anzulegen, Software zu installieren oder Konfiguration zu ändern. Der Befehl prüft Docker-Daemon, Compose-Unterstützung und Linux-Container-Modus, meldet die Daemon-Architektur und untersucht lokale Ports. Bei einem entfernten Docker-Kontext entfällt die lokale Portprüfung. Prüfe Warnungen zu ARM64 oder belegten Ports; eine bestehende Instanz kann den Port bereits verwenden.
+`tale doctor` — prüft die Voraussetzungen für einen lokalen Start, ohne ein Projekt anzulegen, Software zu installieren oder Konfiguration zu ändern. Der Befehl prüft Docker-Daemon, die Version der Docker Engine, Compose-Unterstützung und Linux-Container-Modus, meldet die Daemon-Architektur und untersucht lokale Ports. Bei einem entfernten Docker-Kontext entfällt die lokale Portprüfung. Prüfe Warnungen zu ARM64 oder belegten Ports; eine bestehende Instanz kann den Port bereits verwenden.
 
 - `-p, --port <port>` — zu prüfender HTTPS-Port (Standard `443`); Sandbox-Port `8003` wird ebenfalls geprüft.
 - `--json` — gibt die Prüfergebnisse als maschinenlesbares JSON aus.
 
-Fehler bei Docker, Compose, einem nicht unterstützten Container-Modus oder die Wahl von HTTPS-Port `8003` führen zum Exit-Code `3`. Warnungen allein ergeben `0`; Image-Downloads, Speicherkapazität und Modellanbieter sind damit nicht geprüft. Prüfe einen anderen Port mit `tale doctor --port 8443` und verwende denselben Port bei `tale dev`.
+Fehler bei Docker, Compose, einer Docker Engine älter als 24.0, einem nicht unterstützten Container-Modus oder die Wahl von HTTPS-Port `8003` führen zum Exit-Code `3`. Warnungen allein ergeben `0`; Image-Downloads, Speicherkapazität und Modellanbieter sind damit nicht geprüft. Prüfe einen anderen Port mit `tale doctor --port 8443` und verwende denselben Port bei `tale dev`.
 
 `tale init [directory]` — ein Projekt anlegen: erzeugt die Beispiel-Configs, `AGENTS.md` + einen `CLAUDE.md`-Verweis sowie eine lokale Standard-`.env` (localhost, selbstsigniertes Zertifikat, generierte Secrets). Docker braucht es nicht; Produktiv-Domain und TLS werden später bei `tale deploy` gewählt. Im Terminal fragt es nach einem Projektnamen, wenn `directory` fehlt, bestätigt vor dem Überschreiben eines bestehenden Projekts und fragt einmal, ob Agents in Sandboxes `docker` ausführen dürfen (Standard: nein — die Freigabe startet einen privilegierten inneren Docker); nicht-interaktive Läufe überspringen alle Rückfragen. `directory` ist optional (Standard: das aktuelle Verzeichnis).
 
@@ -129,6 +129,7 @@ Fehler bei Docker, Compose, einem nicht unterstützten Container-Modus oder die 
 - `-q, --quiet` — Container-Logs während des Deployments unterdrücken.
 - `-y, --yes` — destruktive Bestätigungsabfragen automatisch akzeptieren (z. B. `--override-all`).
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
+- `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen, Tool-Berechtigungen für Agenten und Automatisierungen) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
 - `--dry-run` — Vorschau ohne Änderungen.
 
 ### Verwaltete Deployments {#managed-deployments}
@@ -194,6 +195,10 @@ Im Beispiel macht `runtime.containerPrefix` die Umgebung in der Containerliste e
   ]
 }
 ```
+
+#### Die Umgebung für Fehlerberichte wählen
+
+Verwaltete Laufzeiten setzen `SENTRY_ENVIRONMENT` standardmäßig auf den bestehenden Deployment-`name`. Für eine kanonische Bezeichnung wie `example-pr` deklarierst du `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }` und setzt die Variable am Ziel. Die Bezeichnung beginnt mit einem Kleinbuchstaben oder einer Ziffer und enthält 1–64 Kleinbuchstaben, Ziffern oder Bindestriche. Browser, Backend und Sandbox verwenden sie, ohne `name`, `composeProject`, `stateDirectory` oder gespeicherte Zugangsdaten zu ändern.
 
 #### Containernamen wählen
 
@@ -277,9 +282,37 @@ Die Vorbereitung prüft zuerst jede Konfiguration mit den eigenen Schemas der CL
 
 `deploy verify-bundle` prüft vollständiges Inventar und Datei-Hashes ohne Zielkontakt. `deploy --bundle --dry-run` prüft Konfigurationsartefakte und Zielbedingungen, ohne Änderungen anzuwenden. Verwaltete Deployments akzeptieren keine Workspace-Optionen wie `--services`, `--host` oder `--override-all`. Sie rollen den Stack unter Erhalt seines Zustands mit Zustands- und Herkunftsprüfungen aus. Das oben beschriebene Blue-Green-Verhalten des Workspace ist ein eigener Ablauf.
 
+#### Das aktuelle Deployment prüfen
+
+Sobald genau dieses Bundle vollständig angewendet wurde, erstellst du auf dem Deployment-Host einen aktuellen Prüfnachweis:
+
+```bash
+tale --json deploy accept --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --expected-version "$TALE_RELEASE_VERSION"
+```
+
+Für diese Prüfung sind beide vollständigen Quell-Commits erforderlich; das Bundle muss mit `--deployment-ref` vorbereitet worden sein. Setze `TALE_RELEASE_VERSION` auf die unabhängig ausgewählte veröffentlichte Version ohne das Präfix `v`. Die CLI hält die bestehende Deployment-Sperre und liest den Ready-Nachweis, aktuelle Container, fixierte Images und alle drei Migrationsregister. Sie vergleicht `/api/health` des Frontends und `/api/health/ready` der API am kanonischen HTTPS-Ursprung mit frischen Prozessidentitäten aus den zuvor erfassten lokalen Containern und liest diese Identitäten anschließend erneut. Fehlende Identitäten oder ein anderer Serverprozess führen auch bei gleicher Version zur Ablehnung. OCI-Version und Quell-Commit jedes Tale-Images müssen mit dem Bundle übereinstimmen. `sourceTag` darf `sha-<source>` sein; dieses Feld beschreibt die Image-Referenz, nicht die ausgelieferte Version.
+
+Das JSON-Ergebnis enthält Quell-Commits, Bundle- und Ready-Hashes, Image-Identitäten, den kanonischen Ursprung, beide Serverprozess-Identitäten und vollständige Migrations-IDs aus dem Quellstand samt Inventar-Hashes. Dazu gehören SQL-Migrationen der Anwendung und nummerierte TypeScript-Datenmigrationen. Fehlende, zusätzliche, doppelte oder unvollständige Migrationen, ein ausstehendes Deployment, Versionsabweichungen und geänderte Identitäten führen zur Ablehnung. Die öffentlichen Prozessidentitäten verbinden einen lokalen Container mit einer Antwort des Ursprungs; sie sind keine Zugangsdaten und kein Authentifizierungsnachweis.
+
+Docker- und HTTPS-Beobachtungen haben eigene Abbruchfristen und teilen sich ein Zeitbudget von 120 Sekunden, das an den Beobachtungsgrenzen geprüft wird. Bundle-Prüfung, private temporäre Kopie und Bereinigung unterliegen den bestehenden Größenlimits (insgesamt 2 GiB, höchstens 256 MiB pro Datei); Wartezeiten des Dateisystems sind nicht durch eine abbrechbare Frist für den gesamten Befehl begrenzt. Verwende eine externe Prozessüberwachung, wenn du eine solche Gesamtfrist brauchst. Die Prüfung ändert keine Konfiguration, startet keine Container neu, führt keine Migrationen aus und exportiert keine Zugangsdaten. Sie ändert Sperrmetadaten und erstellt und entfernt ihre private temporäre Bundle-Kopie.
+
+Ältere Bundles bleiben einsetzbar. Für diese Prüfung brauchen sie jedoch ein Migrationsinventar aus dem Quellstand und kompatible Server, die Prozessidentitäten ausgeben. Bereite ein geprüftes Bundle vor und wende es über den normalen Deployment-Ablauf vollständig an, bevor du seinen Prüfnachweis erstellst. Der Nachweis belegt den beobachteten Zustand zu seinem Zeitstempel; er garantiert keinen späteren Routing- oder Serverzustand. Wiederhole die Prüfung, wenn du aktuelle Belege brauchst.
+
+#### Gespeicherten Zustand vor einem Rollout prüfen
+
+`tale --json deploy observe --spec <file> --cli-ref <sha> --deployment-ref <sha> --machine-id-sha256 <digest>` erfasst die Identitäten der laufenden Images, Migrationsverzeichnisse, Metadaten zu Korpus und Speicherplatz sowie Nachweise zur gespeicherten nativen Konfiguration. Führe die festgelegte kompilierte CLI auf dem geprüften Linux-Host mit dessen lokalem Docker-Socket aus. Übergib private JSON-Daten über stdin als `{"environment":{"UPPERCASE_ENV_NAME":"value"}}`, mit ausschließlich den Variablen, die die geprüfte Spezifikation benötigt. Umgebungsvariablen dienen nicht als Ersatz. Die Eingabe ist auf 64 KiB, 128 Schlüssel und 8192 Byte pro Wert begrenzt.
+
+Der Befehl verwendet vorhandene Zugangsdaten sowie die exakt gespeicherten Konto- und Organisations-IDs. Er liest erhaltene Pack-Dateien ohne erneute Kompilierung, prüft aktuelle native Versionen, Dateien und die Eigentümer der enthaltenen Skills und kontrolliert anschließend Dateizustand und Containeridentitäten erneut. Er erstellt nur temporäre Hilfsdateien und Anmeldesitzungen, entfernt die Hilfsdateien danach und meldet sich ab. Er legt keine Identitäten an, bereitet keine Konfiguration vor, wendet keine an, migriert nicht, startet nichts neu, bereinigt keine Ressourcen und hält keine Cutover-Sperre. Docker- und native Lesezugriffe sind begrenzt; überwache den Prozess extern, um auch Wartezeiten auf das Dateisystem zu begrenzen.
+
+Eine vollständige Beobachtung liefert `ok:true` und `data.complete:true`. Fehlen ältere Zustands- oder Eigentumsnachweise, enthält der Bericht die verfügbaren Host- und Datenbankdaten mit `ok:false`, `data.complete:false`, einem festgelegten Ursachencode und Exit-Code `3`. Bewahre ihn für die Untersuchung auf. Ungültige Eingaben, abweichende Identitäten oder ein geänderter Zustand führen zur Ablehnung. Kein Ergebnis bestätigt den Ready-Zustand, erlaubt einen Cutover oder beweist, dass Packs ein späteres Deployment überstehen. Dafür gilt weiterhin der normale geprüfte Deployment- und Abnahmeablauf.
+
 #### Native Identität bereitstellen
 
 `deploy provision [--bundle <directory>]` ist die lokale Backend-Phase des Bundle-Deployments. Sie liest höchstens 64 KiB privates JSON von stdin, weist das lokale Konto und die ausgewählte Organisation nach und meldet die Sitzung vor der Erfolgsmeldung ab. Die Felder umfassen `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optionale Entra-Zugangsdaten und `nativeClients`. Standardmäßig bleibt das bestehende Konto erforderlich. Explizites `identity.bootstrap: "fresh"` erlaubt die Anlage des ersten lokalen Kontos und der Organisation. Ein Bundle bindet diese Wahl und die vorbereiteten Konfigurationen vor nativen Änderungen. `deploy provision` verweigert Workspace-Flags und `--dry-run`; nutze lesende Bundle- und Konfigurationsprüfungen. Die optionalen Erwartungen `--cli-ref` und `--deployment-ref` erfordern `--bundle` und greifen vor der Anmeldung.
+
+Das Bundle-Deployment ruft `deploy provision` mit internen Optionen für reine Konfigurationsänderungen und die Prüfung gespeicherter Identitäten auf; nutze dafür als Betreiber `tale deploy --bundle <directory> --configuration-only`.
 
 Für einen administrativ geprüften neuen Betreiber deklarierst du ausdrücklich `identity.emailVerification: "operator-attested"`. Damit bestätigst du als Betreiber den Besitz der E-Mail-Adresse des authentifizierten Kontos; eine Postfachzustellung ist damit nicht nachgewiesen. Das Backend verwendet ein kurzlebiges natives Prüftoken für genau dieses Konto und diese Adresse und erhält native Hooks. Es verschickt keine E-Mail, ändert keine Adresse und erstellt keine weitere Sitzung. Die Option ist nur mit `bootstrap: "fresh"` zulässig. Ohne sie bleibt die normale native E-Mail-Prüfung bestehen. Ändert sich der Prüfstatus eines zuvor freigegebenen Kontos, stoppt der Ablauf zur Prüfung.
 
@@ -384,6 +417,14 @@ Diese Ressourcenarten nutzen die gemeinsamen Plattform-Schemas und nativen Berec
 | `provider-credential` | Metadaten benannter Umgebungszugangsdaten                 | Organisation    |
 | `knowledge-embedding` | Anbieter, Modell, Dimensionen, Endpunkt und Servergrenzen | Organisation    |
 | `deployment`          | Instanz-Einstellungen einschließlich Sandbox-Runtime      | Instanz         |
+
+Mit `agent-tools` verwaltest du ausschließlich die Tool-Berechtigungen eines vorhandenen Agenten. `config` enthält die exakten Werte für `projectId` und `agentId` sowie das vollständige gewünschte Array `tools`, etwa `["task_find", "task_get", "task_review"]`. Führe jede Berechtigung auf, die erhalten bleiben soll; `[]` entfernt alle Tool-Berechtigungen. Der native Katalog lehnt unbekannte Namen ab und vereinheitlicht Reihenfolge und Duplikate vor der Hash-Berechnung.
+
+Zum Anwenden brauchst du Bearbeitungsrechte für das aktive Projekt. Der Agent darf nicht von der Plattform verwaltet werden. Mitglieder können die begrenzte Konfiguration lesen. Alle anderen Agentenfelder bleiben unverändert, einschließlich Anweisungen, Modell und der exakten Zugriffsrechte auf Secrets. Der native Hash schützt vor konkurrierenden Tool-Änderungen; eine geänderte Auswahl macht auch veraltete vollständige Agentenspeicherungen ungültig. Eine gleichwertige Auswahl ändert weder Zeitstempel noch Audit-Einträge. Fehlt der Runtime die angeforderte Fähigkeit, lehnt sie den Vorgang ab. Lies die Tools nach dem Anwenden zurück und bewahre den ausstehenden Beleg auf, um einen unterbrochenen Vorgang fortzusetzen.
+
+Mit `agent-model` legst du die Ausführungskonfiguration für künftige Starts eines vorhandenen Agenten fest. `config` benötigt die exakten Werte für `projectId` und `agentId` sowie `harness`, `model` und einen ausdrücklich gewählten `modelProvider` aus dem nativen Katalog. Die Plattform prüft diese Kombination und die verfügbaren Zugangsdaten; sie weicht nicht auf einen anderen Anbieter aus. Es gelten dieselben Bearbeitungsrechte für das Projekt und dieselbe Einschränkung für plattformverwaltete Agenten. Anweisungen, Tools, Skills, Konnektoren und Secret-Berechtigungen bleiben unverändert. Bereits eingereihte und laufende Arbeit behält die vollständige Konfiguration, die bei ihrer Zulassung gespeichert wurde. Eine identische Auswahl ändert nichts; eine geänderte Auswahl macht veraltete vollständige Agentenspeicherungen ungültig. Ein bisher nicht festgelegter Anbieter erscheint beim Zurücklesen als `null`, in einer Deklaration musst du jedoch einen auswählen. Nutze die vorhandenen Befehle zum Planen, Anwenden und Zurücklesen und bewahre bei einer Unterbrechung den Beleg auf.
+
+Mit `task-review-context` registrierst du eine unbenutzte operative Aufgabe für genau einen Prüfer. `config` enthält `projectId`, `taskId`, `reviewerAgentId` und `enabled`. Standardmäßig muss die Aufgabe bereits existieren und darf keinen Ausführungs- oder Prüfverlauf und keine Umsetzungsarbeit enthalten. Zum Erstellen ergänzt du `createIfMissing: true` neben `kind` und `config` und wählst eine feste UUID für `taskId`. Mit Bearbeitungsrechten für das Projekt kannst du die Backlog-Aufgabe dann in einer Transaktion erstellen und registrieren. Scheitert die Registrierung, bleiben weder Aufgabe noch Änderungen an Zählern oder Audit-Protokoll zurück. Der Prüfer benötigt bereits `task_review`; die Registrierung vergibt keine Tools und startet keine Arbeit. Bestehende Aufgaben müssen weiterhin die Prüfungen für unbenutzte Aufgaben bestehen; belegte Identitäten werden nie überschrieben. Behalte bei einer Unterbrechung dieselbe ID und den ausstehenden Beleg. Beim Deaktivieren bleiben Prüfer und Zweck erhalten.
 
 Aufbewahrungs- und DSAR-Richtlinien brauchen ihre eigenen nativen Workflows. Pausiere Uploads, Synchronisation und Crawls, bevor du das Embedding-Modell wechselst. Die CLI prüft die Anzahl der Dokumente und Websites der gesamten Organisation; sie sperrt den Import nicht und migriert keine bestehenden Vektoren. Hat die Organisation Dokumente oder registrierte Websites, braucht ein Modellwechsel eine separate native Indexmigration. Eine Änderung, die nur `minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`, `maxTokensPerMinute` oder `maxRequestsPerMinute` betrifft, lässt die vorhandenen Vektoren gültig; für sie entfällt diese Prüfung. Instanz-Einstellungen erfordern zusätzlich die native Freigabeliste für Deployment-Editoren. Bei Boot-Einstellungen meldet der einzelne Konfigurationsaufruf `restartRequired`; Speichern allein aktiviert diese Einstellungen noch nicht. Prüfe die Folgen im Plan vor dem Anwenden.
 
@@ -504,6 +545,15 @@ Der öffentliche Nachweis `native.configuration` enthält pro Ressource den beab
 ### Betrieb
 
 `tale status` — den aktuellen Deployment-Status anzeigen. Keine Argumente.
+
+`tale deploy smoke --url <url>` — prüft ein laufendes Deployment über seine öffentliche URL, so wie ein Browser es erreicht. Ohne `--full` sendet der Befehl keine Zugangsdaten und schreibt nichts, du kannst ihn also gegen jedes Deployment laufen lassen, auch gegen die Produktion. Er prüft `/api/health` (mit `--expected-version <version>` auch die Version), die Bereitschaft der API, die App-Shell und ihr Skript, eine anonyme Sitzungsabfrage und ob `/events` und `/api/app` Besucher ohne Sitzung abweisen. Unverschlüsseltes `http://` ist nur für `localhost` erlaubt; bei einer eigenen Zertifizierungsstelle setzt du `NODE_EXTRA_CA_CERTS` auf deren Stammzertifikat.
+
+- `--full` — meldet sich zusätzlich mit einem eigens dafür angelegten Konto an und durchläuft einen Nutzerablauf: Er öffnet den Live-Update-Stream der Organisation, erstellt eine Aufgabe, wartet auf deren Live-Update, liest sie zurück und löscht sie (ein Konto, das keine Aufgaben löschen darf, archiviert sie stattdessen). Hinterlege das Konto in `TALE_SMOKE_EMAIL` und `TALE_SMOKE_PASSWORD`; es darf keinen zweiten Faktor verlangen. Sieht das Konto kein Projekt, legt der erste Lauf eines namens „Tale deployment smoke“ an, das spätere Läufe wiederverwenden.
+- `--chat` — führt mit `--full` zusätzlich eine Chat-Runde mit dem ersten Modell aus, das dem Konto zur Verfügung steht. Die Runde verbraucht Modell-Tokens; die Unterhaltung landet danach im Papierkorb, eine noch laufende Runde wird vorher gestoppt.
+- `--organization <id-or-slug>`, `--project <id>` — wo der Ablauf läuft; standardmäßig in der ersten Organisation und dem ersten Projekt des Kontos.
+- `--timeout <seconds>` — Obergrenze für jede Anfrage und jede Wartezeit (Standard `15`); `--turn-timeout <seconds>` begrenzt die Chat-Runde (Standard `120`).
+
+Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `skip`), Dauer und Grund auf. Exit-Code `0` heißt, dass alle Prüfungen bestanden wurden, `5`, dass mindestens eine fehlgeschlagen ist, und `2`, dass eine Option ungültig ist. Der vollständige Ablauf entfernt seine Aufgabe (gelöscht oder archiviert) und meldet sich ab, auch wenn eine Prüfung fehlschlägt.
 
 `tale logs <service>` — Logs eines Dienstes streamen (`service` ist einer der laufenden Dienste; auf einem reinen Dev-Stack ohne Deployment fällt der Befehl auf den Dev-Container zurück).
 

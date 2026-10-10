@@ -3,6 +3,10 @@ import path from 'node:path';
 
 import { describe, it } from 'vitest';
 
+import {
+  PRODUCT_SCREENSHOTS,
+  PRODUCT_SCREENSHOT_LOCALES,
+} from '../../web/app/content/product-screenshots';
 import { assertNoFindings, type Finding } from './lib/findings';
 import { extractImageRefs, parseFrontmatter } from './lib/markdown';
 import { CONTENT_ROOT, REPO_ROOT } from './lib/paths';
@@ -25,7 +29,7 @@ import { webpSize } from './lib/webp-size';
  *      manifest. A hand-made image has no home here — by design; capture it
  *      through the pipeline instead.
  *   2. Every manifest entry's file exists on disk (no stale entries).
- *   3. Every on-disk image is referenced by at least one docs page — an
+ *   3. Every on-disk image is referenced by a docs page or marketing screenshot registry — an
  *      orphaned screenshot is dead weight in every clone.
  *   4. Dimensions honour the DPR-2 contract: actual width ≤ 2880 and even
  *      (2× a whole CSS pixel), and the manifest's width/height match the
@@ -76,6 +80,13 @@ function referencedImageTargets(): Set<string> {
     const { body } = parseFrontmatter(raw);
     for (const ref of extractImageRefs(body)) {
       if (ref.target.startsWith('/images/')) out.add(ref.target.slice(1));
+    }
+  }
+  for (const { source } of Object.values(PRODUCT_SCREENSHOTS)) {
+    for (const locale of PRODUCT_SCREENSHOT_LOCALES) {
+      out.add(
+        `images/platform/${locale === 'en' ? '' : `${locale}/`}${source}.webp`,
+      );
     }
   }
   return out;
@@ -134,6 +145,32 @@ function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
       continue;
     }
     const viewport = entry.viewport as { width?: unknown } | undefined;
+    // Legacy shared documentation captures are English. Native captures must
+    // record their locale and place it in the matching directory.
+    const locale = entry.locale ?? 'en';
+    const shot = entry.shot;
+    const segments = entry.file.split('/');
+    const expectedFile =
+      typeof locale === 'string' &&
+      PRODUCT_SCREENSHOT_LOCALES.includes(
+        locale as (typeof PRODUCT_SCREENSHOT_LOCALES)[number],
+      ) &&
+      typeof shot === 'string'
+        ? [
+            'images',
+            segments[1],
+            ...(locale === 'en' ? [] : [locale]),
+            `${shot}.webp`,
+          ].join('/')
+        : undefined;
+    if (entry.file !== expectedFile) {
+      findings.push({
+        file: MANIFEST_REL,
+        line: 0,
+        rule: 'manifest-locale-invalid',
+        detail: `entry ${i} locale/shot does not match "${entry.file}" — regenerate via \`${CAPTURE_COMMAND}\``,
+      });
+    }
     entries.push({
       file: entry.file,
       width: typeof entry.width === 'number' ? entry.width : undefined,
@@ -201,7 +238,7 @@ describe('screenshot manifest', () => {
           file,
           line: 0,
           rule: 'image-unreferenced',
-          detail: `no docs page references /${rel} — delete the orphan (and its manifest entry) or embed it`,
+          detail: `no docs page or marketing screenshot registry references /${rel} — embed the source or remove the unused asset and manifest entry`,
         });
       }
 

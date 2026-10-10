@@ -1,9 +1,9 @@
 ---
 title: Episode 7 — Connectors & die Außenwelt
-description: Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt.
+description: Die Türen aus dem Arbeitsbereich — Connectors, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn eines angebundenen Connectors, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt.
 ---
 
-Dein Arbeitsbereich lebt nicht allein. Diese Episode geht die Türen zur Außenwelt ab und die Disziplin in jeder einzelnen: ein Connector, den du lesen kannst, bevor du ihn öffnest, die Fähigkeit, die aufleuchtet, wenn eine Connector angebunden ist, die MCP-Tür, wie die frühere Version sie zeigte, und ein Sandbox-Netz, das standardmäßig Nein sagt.
+Dein Arbeitsbereich lebt nicht allein. Diese Episode geht die Türen zur Außenwelt ab und die Disziplin in jeder einzelnen: ein Connector, den du lesen kannst, bevor du ihn öffnest, die Fähigkeit, die aufleuchtet, wenn ein Connector angebunden ist, die MCP-Tür, wie die frühere Version sie zeigte, und ein Sandbox-Netz, das standardmäßig Nein sagt.
 
 <Video src="/videos/de/tutorials/ep7-connectors/ep7-connectors.de.mp4" poster="/videos/de/tutorials/ep7-connectors/ep7-connectors.de.webp" captions="/videos/de/tutorials/ep7-connectors/ep7-connectors.de.vtt" lang="de" title="Episode 7 — Connectors & die Außenwelt" caption="Episode 7 — Connectors & die Außenwelt (2:52, mit Untertiteln)">
 

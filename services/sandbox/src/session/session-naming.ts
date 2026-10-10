@@ -22,8 +22,9 @@ const DNS_LABEL_MAX = 63;
  * containers so the existing one-shot sweep (label `tale.sandbox=1`) never
  * touches them. sessionId is ID_ALPHABET_RE-validated upstream, up to 64
  * characters: an id whose name would outgrow a DNS label (a project agent's
- * workspace for a member's runs, `pa-<agent id>-m<hash>`) is folded into a
- * hash, the way the Kubernetes backend names its Pods.
+ * workspace for a member's runs, `pa-<agent id>-m<hash>`, or a further worker
+ * of one of its workspaces, `…-w<n>`) is folded into a hash, the way the
+ * Kubernetes backend names its Pods.
  */
 export function sessionContainerName(sessionId: string): string {
   const name = `${SESSION_CONTAINER_PREFIX}${sessionId}`;
@@ -59,6 +60,14 @@ export function isSessionWorkspaceDirName(name: string): boolean {
  * adopt, count or reap each other's sessions.
  */
 export const SESSION_INSTANCE_LABEL = 'tale.sandbox-instance';
+
+/**
+ * Label recording the egress proxy address a session pins its transparent
+ * egress to, as the spawner read it right before the session's `docker run`.
+ * The sweep compares it with the proxy's address now: a session whose proxy
+ * moved has no egress left and is recycled once it is idle.
+ */
+export const SESSION_EGRESS_LABEL = 'tale.egress-ip';
 
 /** `docker ps` filter selecting an instance's sessions. Docker cannot filter
  * on a label's ABSENCE, so the default instance (empty) filters nothing here

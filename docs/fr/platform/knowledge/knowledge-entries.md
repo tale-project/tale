@@ -39,7 +39,7 @@ de réponse, pas d’un délai de résolution. Responsable : Support Operations.
 
 <Step title="Enregistrer et vérifier l’indexation">
 
-Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source (**Manuel** pour le formulaire, **Chat** pour une information captée par l’assistant, **API** pour une information écrite par une intégration via REST), le statut d’indexation et la date de mise à jour. Ouvre-la pour lire le texte intégral. L’indexation s’effectue en arrière-plan : une entrée enregistrée n’est pas immédiatement disponible dans la recherche.
+Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source (**Manuel** pour le formulaire, **Chat** pour une information captée par l’assistant, **API** pour une information écrite par une intégration via REST, **Agent** pour une information enregistrée par un agent), le statut d’indexation et la date de mise à jour. Ouvre-la pour lire le texte intégral. L’indexation s’effectue en arrière-plan : une entrée enregistrée n’est pas immédiatement disponible dans la recherche.
 
 </Step>
 
@@ -62,6 +62,16 @@ Après une correction, ouvre les détails pour consulter l’**Historique des ve
 Lorsqu’un chat fait ressortir une information utile, vérifie-la à la source, puis ajoute ou modifie l’entrée toi-même. Chat n’enregistre pas automatiquement les faits dans les connaissances de l’organisation.
 
 </Tip>
+
+## Laisser un agent tenir les informations à jour
+
+Un agent de projet ou l’étape agent d’une automatisation peut aussi enregistrer des informations. Accorde-lui **Ajouter et modifier des entrées de connaissances** sous **Skills, connectors & outils**, dans l’[équipement de l’agent](/fr/platform/projects/project-agents). L’agent enregistre une information par sujet ; un sujet sans entrée en reçoit une nouvelle, avec **Agent** comme source.
+
+Pour modifier une entrée existante, l’agent doit indiquer la version qu’il a lue. Si une personne ou un autre agent a modifié l’entrée entre-temps, rien n’est enregistré : l’agent reçoit le texte actuel et y intègre sa modification. L’**Historique des versions** conserve chaque texte précédent, comme pour tes propres modifications.
+
+Les entrées appartiennent à toute l’organisation : une exécution lancée par un Membre ne peut donc pas en enregistrer, et aucun agent ne peut supprimer une entrée. Les agents ont leur propre limite d’entrées enregistrées par minute, si bien qu’un agent très actif ne gêne jamais les personnes qui modifient des entrées. Chaque enregistrement par un agent est consigné dans le journal d’audit.
+
+Les agents peuvent toujours rechercher dans les connaissances, sans autorisation : le menu d’équipement l’affiche comme **Rechercher dans les connaissances**, toujours actif.
 
 ## Retirer une entrée obsolète
 

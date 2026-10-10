@@ -145,12 +145,17 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Saving and deploying an automation happen through MCP and the app,
   // whose envelopes are their own (answering its human asks moved onto
   // `POST …/runs/{runId}/asks/{askId}`, and its codes into the registry).
+  // Managed adoption is app-only and refuses the existing tombstone too.
+  'AUTOMATION_DELETED',
   'AUTOMATION_DEPLOY_REJECTED',
   'AUTOMATION_NAME_INVALID',
   'AUTOMATION_NAME_RESERVED',
   'AUTOMATION_NAME_TAKEN',
-  // The editor's optimistic base version (`baseVersion` on the app save);
-  // no REST or MCP save sends one yet, so no machine door can answer it.
+  // The editor's and a coding agent's compare-and-set: `baseVersion` on a
+  // save, `expectedLatestVersion` on an MCP delete, `expectedDeployedVersion`
+  // on an MCP deploy. No REST door saves, deploys or sends an expected
+  // version, so none can answer them; MCP answers them as tool results.
+  'AUTOMATION_DEPLOYMENT_STALE',
   'AUTOMATION_VERSION_STALE',
   // A project id the organization does not have: every REST door resolves
   // the URL project first (`loadRestProject` → `PROJECT_NOT_FOUND`), the MCP
@@ -163,9 +168,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // credential admin surface is the app's (`/api/app/provider-credentials`);
   // REST has no credential door.
   'CREDENTIAL_IN_USE',
-  // The MCP dispatch store's own gates — answered as JSON-RPC results.
+  // The MCP dispatch store's own gates — answered as JSON-RPC results —
+  // and the platform tools' refusal of a tool they do not serve.
   'FORBIDDEN_DEVELOPER_SETTINGS',
   'UNAUTHENTICATED',
+  'UNKNOWN_METHOD',
   // The connector bridge and the in-sandbox doors — and Better Auth's
   // status names, which its `APIError` takes as the first argument
   // (`new APIError('CONFLICT', { code })`); the code beside it is what
@@ -265,6 +272,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_REVIEW_BUSY',
   'TASK_REVIEW_STALE',
   'TASK_REVIEW_FILE_UNAVAILABLE',
+  // Native review envelopes are admitted by task_review and inherited by
+  // native retries. REST start/review bodies carry no reviewBatchId or
+  // reviewBatch, so their ordinary task kicks never check that authority.
+  'TASK_REVIEW_FORBIDDEN',
   // Guarded repair admission is native-only; REST exposes no repair start.
   'TASK_REPAIR_STALE',
   'TASK_SCHEDULE_INVALID',
@@ -282,10 +293,14 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // `loadRestProject`, which applies the same matrix first.
   'TASK_COMMENT_INVALID',
   'TASK_DESCRIPTION_INVALID',
-  'TASK_EXTERNAL_REF_INVALID',
   'TASK_FORBIDDEN',
   'TASK_LABELS_INVALID',
   'TASK_TITLE_INVALID',
+  // The managed task-instructions lane, which stores a description exactly
+  // as sent and so refuses a mention token naming nobody mentionable, is
+  // the configuration door's (`POST /api/app/tasks/{taskId}/configuration/
+  // instructions`); every REST door stores such a token as plain text.
+  'TASK_MENTION_INVALID',
   // Projects: the door validates the name (`nonBlank`), description and
   // external key (`externalKeySchema`) at the domain's own caps before the
   // create or the PATCH reaches the cores, and the agent name and
@@ -456,6 +471,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // an unknown slug `ORG_SLUG_INVALID` and never creates or deletes one.
   'ORG_NOT_FOUND',
   'ORG_SLUG_RETIRING',
+  // The app's organization delete refuses unresolved legacy automation
+  // holds; REST mounts no organization-deletion door.
+  'ORG_LEGACY_AUTOMATION_HELD',
   // The skill bundle's zip upload lane; the REST save writes SKILL.md
   // through the file layer, whose failure is a 500, never this code.
   'WRITE_FAILED',
@@ -473,10 +491,24 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // `/api/auth/api-key/create` judges the holder's roles and grants;
   // REST authenticates existing keys and mounts no key-creation route.
   'API_KEY_CREATE_FORBIDDEN',
+  // And its update and delete: a key bound to an organization (a member's,
+  // a team's, a project's or the organization's own) is changed and ended
+  // at that organization's door, so `/api/auth/api-key/update` and
+  // `/delete` refuse it. REST mounts neither.
+  'API_KEY_ORGANIZATION_MANAGED',
+  // The app's members door refuses to make an API key's own identity a
+  // member; REST adds no member.
+  'MEMBER_ADD_FORBIDDEN',
   // The same door's team-name rule (one name per organization, judged in
   // the before-hooks of `/organization/create-team` and `/update-team`);
   // REST has no team write, and SCIM answers its own 409 `uniqueness`.
   'TEAM_NAME_TAKEN',
+  // The re-authentication door (`/api/auth/reauthenticate`), where a
+  // signed-in person confirms their password before adding a passkey: a
+  // wrong password, and an account with no password to confirm. REST
+  // authenticates a key and mounts no password confirmation.
+  'INVALID_PASSWORD',
+  'PASSWORD_NOT_SET',
 ]);
 
 describe('the REST error-code registry', () => {

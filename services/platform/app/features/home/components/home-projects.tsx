@@ -17,6 +17,8 @@ import { useAccentColor } from '@tale/ui/accent-color';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { DialogErrorBoundary } from '@tale/ui/error-boundaries/dialog-error-boundary';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { SlidingHighlight } from '@tale/ui/section-nav';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { SubPanelDisclosureBody } from '@tale/ui/sub-panel-list';
@@ -34,7 +36,13 @@ import {
   PinOff,
   SquarePen,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentProps,
+} from 'react';
 
 import { ProjectRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import {
@@ -44,12 +52,38 @@ import {
 import { useProjectPin } from '@/app/features/chat/data/chat-backend';
 import type { ChatProjectSummary } from '@/app/features/chat/types';
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
-import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
+import type { ProjectCreateDialog as ProjectCreateDialogComponent } from '@/app/features/projects/components/project-create-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
-import { moveRowFocus } from '../lib/row-navigation';
+import { usePlacementProps } from './home-rows';
+import {
+  HomeWindowedList,
+  type HomeListEntry,
+  type HomeRowPlacement,
+} from './home-stream';
+
+/**
+ * The dialog New project loads on demand, not with Home:
+ * it brings the project form and its identity picker. Pointing at the button
+ * starts the load, so a click mostly finds it there.
+ */
+const loadProjectCreateDialog = () =>
+  import('@/app/features/projects/components/project-create-dialog');
+const ProjectCreateDialog = lazyComponent<
+  ComponentProps<typeof ProjectCreateDialogComponent>
+>(() =>
+  loadProjectCreateDialog().then((module) => ({
+    default: module.ProjectCreateDialog,
+  })),
+);
+function warmProjectCreateDialog() {
+  loadProjectCreateDialog().catch((error: unknown) => {
+    // Report the warm-up failure; the dialog boundary handles render failure.
+    console.warn('[home] the project dialog did not load ahead', error);
+  });
+}
 
 /** How a row behaves on a phone: a toggle that narrows the stream. */
 export interface HomeProjectScope {
@@ -58,16 +92,18 @@ export interface HomeProjectScope {
   readonly onChange: (projectId: string | undefined) => void;
 }
 
-function HomeProjectRow({
+const HomeProjectRow = memo(function HomeProjectRow({
   organizationId,
   project,
   active,
   scope,
+  placement,
 }: {
   organizationId: string;
   project: ChatProjectSummary;
   active: boolean;
   scope?: HomeProjectScope;
+  placement?: HomeRowPlacement;
 }) {
   const { t } = useT('home');
   const { t: tChat } = useT('chat');
@@ -76,6 +112,7 @@ function HomeProjectRow({
   const { setNodeRef, isOver } = useProjectDropZone(project.id);
   const { setPinned } = useProjectPin(organizationId);
   const pinned = project.pinnedAt !== undefined;
+  const placed = usePlacementProps(placement, project.id, setNodeRef);
 
   const menuItems: DropdownMenuGroup[] = [
     [
@@ -145,10 +182,7 @@ function HomeProjectRow({
   );
 
   return (
-    <li
-      ref={setNodeRef}
-      className={cn('group relative', dropZoneClassName(isOver))}
-    >
+    <li {...placed} className={cn('group relative', dropZoneClassName(isOver))}>
       {scope === undefined ? (
         <Link
           to="/dashboard/$id/projects/$projectId"
@@ -190,7 +224,7 @@ function HomeProjectRow({
       </div>
     </li>
   );
-}
+});
 
 export function HomeProjects({
   organizationId,
@@ -215,6 +249,10 @@ export function HomeProjects({
   // Creating a project takes the Editor role or higher; the server refuses
   // anyone else, so a Member is not offered the door.
   const canCreate = useAbility().can('write', 'projects');
+  const collator = useMemo(
+    () => new Intl.Collator(undefined, { sensitivity: 'base' }),
+    [],
+  );
 
   const sorted = useMemo(
     () =>
@@ -224,11 +262,9 @@ export function HomeProjects({
         }
         if (a.pinnedAt !== undefined) return -1;
         if (b.pinnedAt !== undefined) return 1;
-        return a.name.localeCompare(b.name, undefined, {
-          sensitivity: 'base',
-        });
+        return collator.compare(a.name, b.name);
       }),
-    [projects],
+    [projects, collator],
   );
   // The row the highlight rests on: the narrowed project on a phone, the
   // open project's page beside the panel.
@@ -238,6 +274,39 @@ export function HomeProjects({
   const indicator = useSlidingIndicator<HTMLDivElement>(
     highlightedId ?? null,
     sorted.map((project) => project.id).join(','),
+  );
+  const entries = useMemo<readonly HomeListEntry<ChatProjectSummary>[]>(
+    () =>
+      sorted.map((project) => ({
+        kind: 'row',
+        key: project.id,
+        item: project,
+      })),
+    [sorted],
+  );
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const indicatorContainerRef = indicator.containerRef;
+  const setScrollerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setScrollElement(node);
+      indicatorContainerRef(node);
+    },
+    [indicatorContainerRef],
+  );
+  const renderProject = (
+    project: ChatProjectSummary,
+    placement?: HomeRowPlacement,
+  ) => (
+    <HomeProjectRow
+      key={project.id}
+      placement={placement}
+      organizationId={organizationId}
+      project={project}
+      active={project.id === highlightedId}
+      {...(scope !== undefined ? { scope } : {})}
+    />
   );
 
   return (
@@ -304,6 +373,8 @@ export function HomeProjects({
                   size="icon"
                   variant="ghost"
                   onClick={() => setCreateOpen(true)}
+                  onPointerEnter={warmProjectCreateDialog}
+                  onFocus={warmProjectCreateDialog}
                   aria-label={t('projects.newProject')}
                   className="text-muted-foreground hover:text-foreground size-6 p-1"
                 >
@@ -316,8 +387,11 @@ export function HomeProjects({
       </div>
       <SubPanelDisclosureBody open={open} className="min-h-0">
         <div
-          ref={indicator.containerRef}
-          className="scrollbar-thin relative max-h-full overflow-y-auto"
+          ref={setScrollerRef}
+          className={cn(
+            'scrollbar-thin relative max-h-full overflow-y-auto',
+            !loading && sorted.length > 0 && 'py-0.5',
+          )}
         >
           <SlidingHighlight indicator={indicator} />
           {loading ? (
@@ -329,30 +403,27 @@ export function HomeProjects({
               {t('projects.empty')}
             </p>
           ) : (
-            <ul
-              role="list"
-              onKeyDown={moveRowFocus}
-              className="flex flex-col gap-0.5 py-0.5"
-            >
-              {sorted.map((project) => (
-                <HomeProjectRow
-                  key={project.id}
-                  organizationId={organizationId}
-                  project={project}
-                  active={project.id === highlightedId}
-                  {...(scope !== undefined ? { scope } : {})}
-                />
-              ))}
-            </ul>
+            <HomeWindowedList
+              as="ul"
+              entries={entries}
+              scrollElement={scrollElement}
+              activeKey={highlightedId ?? null}
+              rowEstimate={32}
+              rowGap={2}
+              measurementsPaused={!open}
+              renderRow={renderProject}
+            />
           )}
         </div>
       </SubPanelDisclosureBody>
       {canCreate && scope === undefined && createOpen && (
-        <ProjectCreateDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          organizationId={organizationId}
-        />
+        <DialogErrorBoundary onError={() => setCreateOpen(false)}>
+          <ProjectCreateDialog
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+            organizationId={organizationId}
+          />
+        </DialogErrorBoundary>
       )}
     </section>
   );

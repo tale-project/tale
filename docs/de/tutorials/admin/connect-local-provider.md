@@ -20,7 +20,7 @@ Ollama, LM Studio und vLLM können kompatible APIs anbieten. Entscheidend sind a
 2. Wähle die vom Betreiber vorbereitete Anbieterdefinition oder **Eigener Anbieter**, um selbst eine anzulegen; ein von dir angelegter Anbieter trägt die Kennzeichnung **Eigener**.
 3. Gib den Zugangsdaten einen passenden Namen und wähle eine unterstützte Anmeldemethode.
 4. Trage den echten Servertoken oder die vom Betreiber genannte Umgebungsvariablenreferenz ein. Ignoriert der Inferenzserver die Anmeldung, stimme den nötigen Platzhalter mit seinem Betreiber ab; verwende kein fremdes Geheimnis dafür.
-5. Prüfe die **Modell-Freigabeliste** und speichere. Lege die Zugangsdaten als Standard des Anbieters fest, wenn normale Aufrufe sie verwenden sollen.
+5. Prüfe das Feld **Erlaubte Modelle** und speichere. Lege die Zugangsdaten als Standard des Anbieters fest, wenn normale Aufrufe sie verwenden sollen.
 
 <Frame caption="Anbieterzugangsdaten gehören zur Organisation; Standardauswahl und Modell-Freigabeliste beeinflussen die Modellauswahl.">
 

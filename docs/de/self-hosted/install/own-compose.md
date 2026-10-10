@@ -20,7 +20,7 @@ Im mitgelieferten Aufbau liegen `tale_app` und `tale_knowledge` in einem Postgre
 
 ## Kompatible Images festlegen
 
-Setze `VERSION` in der Compose-`.env` auf das geprüfte und getestete Tale-Release. Exportiere denselben Wert in deiner Shell für den separaten Image-Download weiter unten. Verwende für Tale-Images eine gemeinsame Version. Die beiden Dienste mit Upstream-Images haben eigene feste Versionen.
+Setze `VERSION` in der Compose-`.env` auf das geprüfte und getestete Tale-Release. Exportiere denselben Wert in deiner Shell für den separaten Image-Download weiter unten. Verwende für Tale-Images eine gemeinsame Version. Die beiden Dienste mit Upstream-Images haben eigene feste Versionen. Die Schichten der Tale-Images sind mit zstd komprimiert; der Docker-Host braucht deshalb Docker Engine 24.0 oder neuer.
 
 | Dienst | Image |
 | --- | --- |
@@ -95,6 +95,7 @@ services:
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
     restart: unless-stopped
+    stop_grace_period: 30s
     healthcheck:
       test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
       interval: 10s
@@ -119,6 +120,7 @@ services:
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
     restart: unless-stopped
+    stop_grace_period: 120s
     healthcheck: { disable: true }
     networks: [internal]
 volumes:
@@ -164,7 +166,8 @@ Setze am Proxy `BACKEND_UPSTREAM=backend-api:3005`. Für den mitgelieferten Date
 | Egress-Dienst | Nach Entfernen aller anderen Rechte der begrenzte Satz `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` und `KILL`. Ohne `KILL` kann der Root-Supervisor tinyproxy nach dem Wechsel zu `nobody` kein Signal mehr schicken; ein Stopp wartet dann die Karenzzeit ab und endet mit Exit 137, statt sauber auszulaufen. |
 | Egress-IPv6 | `sysctls` mit `net.ipv6.conf.all.disable_ipv6: '1'` und `net.ipv6.conf.default.disable_ipv6: '1'`, wie im mitgelieferten Stack. Die Egress-Firewall arbeitet fail-closed: Sie braucht eine funktionierende IPv6-Firewall oder deaktiviertes IPv6 für den Standardwert und jede Schnittstelle, und ein Container kann diese Sysctls über ein schreibgeschütztes `/proc/sys` nicht selbst setzen. Ohne sie startet der Proxy auf einem Kernel ohne das Modul `ip6_tables` nicht; siehe [Sandbox-Infrastruktur](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Postgres-Stopp | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` im Referenzaufbau. |
-| Web- und Spawner-Stopp | 45 Sekunden Stop-Wartezeit für Web, 30 für den Spawner; laufende Arbeit vor dem Stopp koordinieren. |
+| Web-, Backend- und Spawner-Stopp | Stop-Wartezeit von 45 Sekunden für Web, 30 für `backend-api`, 120 für `backend-worker` und 30 für den Spawner. Ein Worker gibt seine Automations-Läufe in dieser Zeit weiter (`SHUTDOWN_DRAIN_MS`); übrige laufende Arbeit vor dem Stopp koordinieren. |
+| Gateway-Stopp | `stop_grace_period: 90s`. Ein stoppendes Gateway nimmt keine neuen Modellaufrufe mehr an, lässt laufende Aufrufe samt gestreamter Antworten fertig werden und speichert seine Ausgabenzähler am Ende nur, wenn das innerhalb von 30 Sekunden nach dem Stopp geschieht. Die Docker-Vorgabe von 10 Sekunden bricht längere Antworten ab. |
 
 Behalte `db-backup`, wenn deine Datenbankwerkzeuge nach `/var/lib/postgresql/backup` schreiben. Ein Mount allein plant keine Sicherungen. Ältere Konfigurationsvolumes `convex-data` brauchen eine kontrollierte Übertragung nach `config-data`, keine Löschung. Bewahre die alte Kopie bis zur Prüfung auf.
 
@@ -180,7 +183,7 @@ Behalte `db-backup`, wenn deine Datenbankwerkzeuge nach `/var/lib/postgresql/bac
 | `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres und Initialisierung bereit; Benutzer anpassen. |
 | `object-store` | `mc ready local` | Bereitschaft des mitgelieferten MinIO. |
 | `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner nach Vorbereitung des Laufzeit-Images bereit. |
-| `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/` | Der Proxy beantwortet eine Nicht-Proxy-Anfrage selbst (400-Seite); das belegt, dass er ausliefert, ohne externe Webseiten zu erreichen. Den Port nicht mit einer reinen TCP-Verbindung prüfen: tinyproxy protokolliert jedes Verbinden-und-Schließen als Fehler, eine Zeile pro Intervall. |
+| `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1` | Der Proxy beantwortet eine Nicht-Proxy-Anfrage selbst (400-Seite); das belegt, dass er ausliefert, ohne externe Webseiten zu erreichen. Danach beantwortet dnsmasq einen Namen aus seiner eigenen Konfiguration; das belegt, dass der DNS-Forwarder für verschachtelte Container und Builds antwortet, ohne einen vorgelagerten Resolver zu fragen. Den Port nicht mit einer reinen TCP-Verbindung prüfen: tinyproxy protokolliert jedes Verbinden-und-Schließen als Fehler, eine Zeile pro Intervall. |
 | `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Verwendet den vorhandenen Client; das Image enthält kein `curl`. |
 
 Plane genug Zeit für Kaltstarts. Der Download der Sandbox-Laufzeit kann ein für warme Hosts passendes Zeitlimit überschreiten. Eine erfolgreiche Bereitschaftsprüfung belegt weder Dateizugriff noch Modellzugangsdaten oder einen vollständigen Nutzerablauf. Prüfe diese separat.
@@ -205,7 +208,7 @@ docker compose ps
 docker compose logs --tail=100 backend-api backend-worker
 ```
 
-Prüfe gesunde Dienste, erfolgreiche Backend-Migrationen und Worker-Fortschritt. Öffne die öffentliche URL, folge [Erster Administrator](/de/self-hosted/install/first-admin), konfiguriere Anbieter und Embedding-Modell und teste kontrolliert Chat, Upload/Download und Wissenssuche. Werden Harnesses benötigt, prüfe auch eine Sandbox-Sitzung.
+Prüfe gesunde Dienste, erfolgreiche Backend-Migrationen und Worker-Fortschritt. Öffne die öffentliche URL, folge [Erster Administrator](/de/self-hosted/install/first-admin), konfiguriere Anbieter und Embedding-Modell und teste kontrolliert Chat, Upload/Download und Wissenssuche. Werden Agent-Laufzeiten benötigt, prüfe auch eine Sandbox-Sitzung.
 
 Datenbankmigrationen laufen beim Backend-Start. Dein Bereitstellungsablauf muss dabei kompatible Versionen verfügbar halten, bei Migrationsfehlern stoppen, aktive Arbeit vor Austausch entleeren und den Wiederherstellungszustand festhalten. Blue-Green-Koordination, Wiederaufnahme ausstehender Wechsel, automatische Snapshots und Rollback-Prüfungen entstehen nicht allein durch Kopieren der Dienstaufteilung.
 

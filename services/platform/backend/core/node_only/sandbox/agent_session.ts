@@ -12,7 +12,7 @@ import {
   SpawnerBusyError,
   sessionAcquire,
   sessionCreate,
-  sessionDestroyIfIdle,
+  sessionStopIfIdle,
 } from './helpers/session_client';
 
 type SessionContext = Pick<ActionCtx, 'runQuery' | 'runMutation'>;
@@ -61,10 +61,11 @@ function ownerPolicy(
  * /agent, including the harness conversation store, survives a stop on both
  * backends. A new row returns no previous stamp, even when adopting an orphan,
  * so a caller cannot resume a conversation from an unproven incarnation.
- * A new row whose create fails first asks the spawner to destroy whatever it
- * holds under the id unless a sibling turn is executing in it, then reads
- * `failed`; the sandbox watchdog collects what that best-effort destroy could
- * not.
+ * A new row whose create fails first asks the spawner to stop whatever it
+ * holds under the id unless a sibling turn is executing in it — compute
+ * only: the workspace stays, since the id may name one preserved for the
+ * owner's next turn — then reads `failed`; the sandbox watchdog collects
+ * what that best-effort stop could not.
  */
 export async function ensureAgentSession(
   ctx: SessionContext,
@@ -82,15 +83,18 @@ export async function ensureAgentSession(
   const policy = ownerPolicy(ctx, organizationId, args.owner);
   // A project agent owns more than one workspace — its standing one and one
   // per member who starts its runs — so its row is found by session id too.
-  const existing: { status: string; createdAt: number } | null =
-    await ctx.runQuery(
-      internal.sandbox.session_queries.getActiveSessionByOwner,
-      {
-        ownerType: policy.ownerType,
-        ownerId: policy.ownerId,
-        ...(args.owner.type === 'project_agent' ? { sessionId } : {}),
-      },
-    );
+  const existing: {
+    status: string;
+    createdAt: number;
+    profile?: unknown;
+  } | null = await ctx.runQuery(
+    internal.sandbox.session_queries.getActiveSessionByOwner,
+    {
+      ownerType: policy.ownerType,
+      ownerId: policy.ownerId,
+      ...(args.owner.type === 'project_agent' ? { sessionId } : {}),
+    },
+  );
 
   if (existing !== null) {
     // Re-read and re-admit even when the query saw an active row: a previous
@@ -107,6 +111,7 @@ export async function ensureAgentSession(
         await createOrAcquireSession(
           sessionId,
           organizationId,
+          existing.profile === 'agent-light' ? 'agent-light' : 'agent',
           args.owner.type,
         );
       }
@@ -122,12 +127,16 @@ export async function ensureAgentSession(
     return { liveCreatedAt: existing.createdAt };
   }
 
+  const profile =
+    process.env.SANDBOX_AGENT_PROFILE === 'agent-light'
+      ? 'agent-light'
+      : 'agent';
   const rowId: string = await ctx.runMutation(
     internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
     {
       organizationId,
       sessionId,
-      profile: 'agent',
+      profile,
       ownerType: policy.ownerType,
       ownerId: policy.ownerId,
       createdBy: policy.createdBy,
@@ -135,22 +144,31 @@ export async function ensureAgentSession(
     },
   );
   try {
-    await createOrAcquireSession(sessionId, organizationId, args.owner.type);
+    await createOrAcquireSession(
+      sessionId,
+      organizationId,
+      profile,
+      args.owner.type,
+    );
   } catch (error) {
     // The spawner may already hold what this create made (one cut short
     // between Docker's create and start stays `created`), and a `failed` row
-    // is never reconciled, resumed or listed. Destroy while this row still
+    // is never reconciled, resumed or listed. Stop it while this row still
     // holds the owner's slot: once it reads `failed`, a fresh create of the
-    // same deterministic id may start, and a later destroy would hit that one.
-    // Only an idle session goes: a sibling turn of the same owner can resume
-    // this still-`creating` row and create or adopt the session itself, and
-    // its running exec must never die for this turn's failure. A container
-    // that never started runs no exec, so it is idle. A spawner that refused
-    // the create for want of room (429) made nothing to destroy — and a
-    // destroy of an id with no compute deletes its preserved workspace, which
-    // a stopped standing session's id still names. Its row is settled as
-    // collected, too: the watchdog's COLLECT pass would otherwise run that
-    // very destroy once the row's grace had passed.
+    // same deterministic id may start, and a later stop would hit that one.
+    // Only an idle session's compute goes: a sibling turn of the same owner
+    // can resume this still-`creating` row and create or adopt the session
+    // itself, and its running exec must never die for this turn's failure. A
+    // container that never started runs no exec, so it is idle. The workspace
+    // always stays: this row is new because the last one was settled, not
+    // because nothing is kept under the id — a container lost to a host
+    // reboot or the OOM killer leaves its workspace for the next turn, and a
+    // create that then fails (runnerd slow to start, an unreachable spawner)
+    // must not turn that loss into the loss of the files. Deleting what
+    // nothing owns is the workspace cleanup's. A spawner that refused the
+    // create for want of room (429) made nothing to stop, and its row is
+    // settled as collected: the watchdog's COLLECT pass would otherwise run
+    // that very stop once the row's grace had passed.
     if (error instanceof SpawnerBusyError) {
       await ctx.runMutation(
         internal.sandbox.session_mutations.setSessionStatus,
@@ -158,17 +176,17 @@ export async function ensureAgentSession(
       );
       throw error;
     }
-    await sessionDestroyIfIdle(sessionId)
+    await sessionStopIfIdle(sessionId)
       .then(({ busy }) => {
         if (busy)
           console.warn(
             `[sandbox.session] ${sessionId} runs a sibling turn's exec after this failed create; the watchdog collects it once idle`,
           );
       })
-      .catch((destroyError: unknown) => {
+      .catch((stopError: unknown) => {
         console.warn(
-          `[sandbox.session] destroy after failed create of ${sessionId} failed (the watchdog collects it):`,
-          destroyError,
+          `[sandbox.session] stop after failed create of ${sessionId} failed (the watchdog collects it):`,
+          stopError,
         );
       });
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
@@ -187,6 +205,7 @@ export async function ensureAgentSession(
 async function createOrAcquireSession(
   sessionId: string,
   organizationId: string,
+  profile: 'agent' | 'agent-light',
   ownerType: AgentSessionOwner['type'],
 ): Promise<void> {
   try {
@@ -195,7 +214,7 @@ async function createOrAcquireSession(
     await sessionCreate({
       sessionId,
       organizationId,
-      profile: 'agent',
+      profile,
       workload: ownerType === 'project_agent' ? 'project' : 'workflow',
       placement: 'device',
     });

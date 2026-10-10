@@ -12,8 +12,13 @@
  * in-process; HTML is rendered in batches by a sandboxed browser
  * (`renderUrlsInSandbox`) so JS-rendered sites yield their real content.
  * The in-process probe stays the authority on page lifecycle — status
- * codes, deletes, size caps, SSRF guards — and content-hash comparison is
- * the only change detection.
+ * codes, deletes, size caps, SSRF guards — and it is also where a scan
+ * finds out, with that one request, whether a page changed at all: a
+ * server that answers 304 to the validators of the last visit, or plain
+ * HTML that reads the same as it did then, is a page left as it is. Only a
+ * page that did change — or one whose plain HTML does not carry what a
+ * browser shows — is rendered (`PageCheck`). Content-hash comparison then
+ * decides what a stored page means for the index.
  *
  * A scan is a CONTINUATION CHAIN, not one long action: a Convex node action
  * is hard-killed near ten minutes without running its catch, so each link
@@ -51,6 +56,7 @@ import {
   paragraphsForHashing,
   parseRobots,
   parseSitemapLocs,
+  plainTextCoverage,
   publicPageError,
   renderLaneHaltMessage,
   ROBOTS_TXT_MAX_BYTES,
@@ -97,6 +103,7 @@ import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { extractText } from '../lib/knowledge/extraction/router';
 import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import {
+  RENDER_MAX_HTML_BYTES,
   RenderCapacityError,
   renderCapacityPollMs,
   renderUrlsInSandbox,
@@ -115,11 +122,19 @@ import {
   CRAWLER_PRODUCT_TOKEN,
   crawlerRequestHeaders,
 } from './crawler_identity';
-import { EmbeddingDimensionMismatch, pinDimensions } from './dimensions';
+import {
+  assertVectorWidthSupported,
+  chunkVectorsTable,
+  legacyColumnWidth,
+  EmbeddingDimensionMismatch,
+  UnsupportedVectorWidth,
+} from './dimensions';
 import {
   classifyEmbeddingFailure,
   Embedder,
   embedderForOrg,
+  EmbeddingBudgetExceeded,
+  type EmbeddingMeter,
   EmbeddingNotConfigured,
 } from './embedding';
 import { assertCorpusWritable } from './index_health';
@@ -231,10 +246,20 @@ const SCAN_STAGGER_MS = 5_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Whose spend a scan's embeddings are: the member who added the site or
+ * asked for the scan, with the API key they asked with. A scan the
+ * scheduler started names nobody, and books under `__automation__`. */
+export interface ScanRequester {
+  readonly userId: string;
+  readonly apiKeyId?: string;
+}
+
 interface ScanIdentity {
   readonly domain: string;
   readonly orgSlug: string;
   readonly organizationId: string;
+  /** Carried from link to link, as the scan's own. */
+  readonly requestedBy?: ScanRequester;
 }
 
 /** The engine body, hoisted so the 0.5 backend can run it on a ctx shim
@@ -252,6 +277,11 @@ export async function scanWebsiteImpl(
      * takes exactly that claim over instead of waiting out
      * {@link STUCK_SCAN_TAKEOVER}; a claim that moved since is left alone. */
     takeover?: string;
+    /** Who asked for the scan — see {@link ScanRequester}. */
+    requestedBy?: ScanRequester;
+    /** Where this link's embedding requests are held and booked, as the
+     * requester's spend. Absent, nothing is metered. */
+    embeddingMeter?: EmbeddingMeter;
     /** Aborted once the job this link runs in has ended under it — the
      * process is stopping, or the link outlived the job's expiry. */
     signal?: AbortSignal;
@@ -265,6 +295,9 @@ export async function scanWebsiteImpl(
       domain: args.domain,
       orgSlug: args.orgSlug,
       organizationId: args.organizationId,
+      ...(args.requestedBy !== undefined
+        ? { requestedBy: args.requestedBy }
+        : {}),
     };
 
     // Acquiring the pool runs real SQL on a bring-your-own database (the
@@ -370,9 +403,13 @@ export async function scanWebsiteImpl(
       const linkStartedAt = Date.now();
       const hardWall = actionStartedAt + ACTION_HARD_WALL_MS;
       const deadline = Math.min(linkStartedAt + SCAN_BUDGET_MS, hardWall);
-      const indexer = new PageIndexer(ctx, sql, identity);
-      const renderQueue: DuePage[] = [];
+      const indexer = new PageIndexer(ctx, sql, identity, args.embeddingMeter);
+      const renderQueue: { page: DuePage; probe: PageProbe }[] = [];
       let renderBatchCounter = 0;
+      // What this link's requests found, for the scan's log: how many pages
+      // it asked for, how many of them had not changed, how many it had to
+      // open a browser for.
+      const seen = { requested: 0, unchanged: 0, rendered: 0 };
       // Set once the organization's render sessions stayed spent for the
       // rest of this link's window: the link stops fetching (every HTML
       // page it probed would only queue behind the same wait) and hands the
@@ -427,7 +464,7 @@ export async function scanWebsiteImpl(
         }
         const batch = renderQueue.splice(0);
         renderBatchCounter += 1;
-        const results = await renderBatch(batch);
+        const results = await renderBatch(batch.map((entry) => entry.page));
         if (results === null) {
           // The batch's rows are unmarked and stay due; the next link
           // renders them once a session is free.
@@ -441,7 +478,7 @@ export async function scanWebsiteImpl(
         // A navigation the browser lost twice is the row's to show, without
         // a strike; the lane's own fault (`halted`) fails the scan below,
         // once what rendered is stored.
-        for (const page of batch) {
+        for (const { page, probe } of batch) {
           const outcome = results.outcomes.get(page.url) ?? {
             kind: 'not_attempted' as const,
           };
@@ -472,15 +509,25 @@ export async function scanWebsiteImpl(
             });
             continue;
           }
+          const renderedText = htmlToText(outcome.html);
           const stored = await storePageText(
             sql,
             args.domain,
             page,
             htmlTitle(outcome.html),
-            htmlToText(outcome.html),
+            renderedText,
           );
           await indexer.settle(page.url, stored);
-          await markPageCrawled(sql, args.domain, page.url);
+          // Whether the next scan can judge this page by one request is
+          // decided here, from the two texts of this visit: what the plain
+          // HTML said and what the browser showed.
+          await markPageCrawled(
+            sql,
+            args.domain,
+            page.url,
+            checkAfterRender(probe, renderedText),
+          );
+          seen.rendered += 1;
           if (kind === 'site') {
             await admitRenderedLinks(
               sql,
@@ -520,11 +567,22 @@ export async function scanWebsiteImpl(
             policy,
             scanStartedAt,
           );
-          if (outcome === 'render') renderQueue.push(page);
-          else if (outcome !== 'failed') {
-            await indexer.settle(page.url, outcome);
-            await markPageCrawled(sql, args.domain, page.url);
+          seen.requested += 1;
+          if (outcome === 'not_modified') {
+            seen.unchanged += 1;
+          } else if (typeof outcome === 'object') {
+            if (outcome.kind === 'render') {
+              renderQueue.push({ page, probe: outcome.probe });
+            } else {
+              // A document without validators is downloaded to be judged:
+              // the same text is the same document.
+              if (outcome.outcome === 'unchanged') seen.unchanged += 1;
+              await indexer.settle(page.url, outcome.outcome);
+              await markPageCrawled(sql, args.domain, page.url, outcome.check);
+            }
           }
+          // Any other outcome wrote its own row: a retired page, a failed
+          // attempt.
           await sleep(fetchDelayMs(policy));
           if (renderQueue.length >= RENDER_BATCH_SIZE) await flushRenderBatch();
         }
@@ -536,6 +594,11 @@ export async function scanWebsiteImpl(
         // of at the link's end (2026-09-14 evaluation, h5).
         await fanOutRowSync(ctx, sql, args.domain);
       }
+      if (seen.requested > 0) {
+        console.log(
+          `[crawl] ${args.domain}: ${seen.requested} page(s) requested, ${seen.unchanged} unchanged, ${seen.rendered} rendered`,
+        );
+      }
       // What was stored without vectors — by this scan before an admin saved
       // a model, or by an earlier one — is embedded from its stored text
       // once a model can, in the time the link has left; what is left keeps
@@ -543,7 +606,7 @@ export async function scanWebsiteImpl(
       const unembedded = renderDeferred
         ? 0
         : await indexer.embedVectorless(deadline);
-      await indexer.finish();
+      await indexer.finish(renderDeferred ? undefined : unembedded);
 
       const remaining =
         (await countDuePages(sql, args.domain, scanStartedAt)) + unembedded;
@@ -1100,6 +1163,178 @@ interface DuePage {
   /** An operator-listed URL: the robots rules do not govern it, and a 404
    * keeps its row. */
   readonly listed: boolean;
+  /** What the page's last settled visit left to check it by
+   * ({@link PageCheck}); absent or null when it left nothing. */
+  readonly etag_v2?: string | null;
+  readonly last_modified_v2?: string | null;
+  readonly probe_hash_v2?: string | null;
+  /** False while a chunk of the page is cut from other text than the row
+   * stores — a scan stored the new text and stopped before indexing it. */
+  readonly indexed?: boolean;
+}
+
+/**
+ * What one request can check a page by, kept from the response its stored
+ * text came from.
+ *
+ * `etag` and `lastModified` are that response's validators: sent back as
+ * `If-None-Match` / `If-Modified-Since`, they let a server that tracks its
+ * pages answer 304 without sending the page. Many servers that build their
+ * pages on request send neither — the page has no modification time to
+ * give — so `probeHash` is the hash of the text read out of the plain,
+ * unrendered HTML: the same text again is the same page, whatever tokens
+ * and nonces the markup around it carries.
+ *
+ * The three describe one response, and only a response whose text is
+ * stored AND indexed: they are written when a page settles
+ * ({@link markPageCrawled}) and cleared when its content is purged. A page
+ * whose plain HTML does not carry what a browser shows keeps none of them
+ * ({@link checkAfterRender}): a 304 on a JavaScript shell, or the same
+ * shell text, proves nothing about the content, which is why the render
+ * lane dropped conditional requests for every page when it arrived. That
+ * page is rendered on every scan; every other page is rendered only when
+ * its one request says it changed.
+ */
+interface PageCheck {
+  readonly etag: string | null;
+  readonly lastModified: string | null;
+  readonly probeHash: string | null;
+}
+
+const NO_PAGE_CHECK: PageCheck = {
+  etag: null,
+  lastModified: null,
+  probeHash: null,
+};
+
+/** What a row offers this scan to check its page by: nothing unless it
+ * holds the page's text and that text is indexed — "unchanged" would
+ * otherwise leave a page without text, or with chunks of its earlier text,
+ * exactly as it is. Only the v2 columns have complete-coverage provenance:
+ * migration 14 retires legacy checks and prevents old writers from renewing
+ * them mid-roll. */
+function storedCheck(page: DuePage): PageCheck {
+  if (page.content_hash === null || page.indexed === false) {
+    return NO_PAGE_CHECK;
+  }
+  return {
+    etag: page.etag_v2 ?? null,
+    lastModified: page.last_modified_v2 ?? null,
+    probeHash: page.probe_hash_v2 ?? null,
+  };
+}
+
+/** A validator longer than this is not kept: it travels back in a request
+ * header on every later scan. */
+const VALIDATOR_MAX_CHARS = 512;
+
+function validatorOf(value: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed === '' || trimmed.length > VALIDATOR_MAX_CHARS
+    ? null
+    : trimmed;
+}
+
+/** The validators a response carries, to check its page by next time. */
+function responseValidators(
+  headers: Headers,
+): Pick<PageCheck, 'etag' | 'lastModified'> {
+  return {
+    etag: validatorOf(headers.get('etag')),
+    lastModified: validatorOf(headers.get('last-modified')),
+  };
+}
+
+/** The conditional headers that ask "has it changed since?" — none when
+ * the row holds no validator. */
+function conditionalHeaders(check: PageCheck): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (check.etag !== null) headers['If-None-Match'] = check.etag;
+  if (check.lastModified !== null) {
+    headers['If-Modified-Since'] = check.lastModified;
+  }
+  return headers;
+}
+
+/** The plain HTML of a probed page, and the text and hash a later scan
+ * compares against. */
+interface PlainHtml {
+  readonly html: string;
+  readonly text: string;
+  readonly hash: string;
+}
+
+/** What the probe of an HTML page hands the render batch: the text of its
+ * plain HTML (null when the page is too large to read twice) and the
+ * validators of the response, for {@link checkAfterRender} to judge once
+ * the browser has shown the page. */
+interface PageProbe {
+  readonly text: string | null;
+  readonly hash: string | null;
+  readonly etag: string | null;
+  readonly lastModified: string | null;
+}
+
+/** Decode a page under the charset its `Content-Type` names — a page in
+ * another encoding read as UTF-8 comes out with every accented word
+ * broken, and would never match what the browser shows. UTF-8 without one. */
+function decodeHtml(bytes: Uint8Array, contentType: string): string {
+  const label = /charset\s*=\s*"?([^";\s]+)/i.exec(contentType)?.[1];
+  if (label !== undefined && label.toLowerCase() !== 'utf-8') {
+    try {
+      return new TextDecoder(label).decode(bytes);
+    } catch (error) {
+      console.warn(
+        `[crawl] unknown charset "${label}", reading the page as UTF-8:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+/** Read the text out of a probed page's plain HTML — null for a page over
+ * the bound a rendered page has, which is rendered without the comparison. */
+async function readPlainHtml(
+  body: Blob,
+  contentType: string,
+): Promise<PlainHtml | null> {
+  if (body.size > RENDER_MAX_HTML_BYTES) return null;
+  const html = decodeHtml(
+    new Uint8Array(await body.arrayBuffer()),
+    contentType,
+  );
+  const text = htmlToText(html);
+  return { html, text, hash: computeContentHash(text) };
+}
+
+/**
+ * What a rendered page leaves to check it by next time: its probe's
+ * validators and plain-text hash when the plain HTML carried what the
+ * browser showed ({@link plainTextCoverage}), nothing when it did
+ * not — that page is rendered again on every scan. Exported for tests only.
+ */
+export function checkAfterRender(
+  probe: PageProbe,
+  renderedText: string,
+): PageCheck {
+  // The fast path compares only the unrendered response on later scans. A
+  // coverage threshold is useful for deciding whether a page needs a render,
+  // but it is not strong enough for change detection: a script can change a
+  // small widget while leaving the plain text hash untouched. Only complete
+  // coverage makes the plain response a sound substitute for the render.
+  if (
+    probe.text === null ||
+    probe.hash === null ||
+    plainTextCoverage(probe.text, renderedText) < 1
+  ) {
+    return NO_PAGE_CHECK;
+  }
+  return {
+    etag: probe.etag,
+    lastModified: probe.lastModified,
+    probeHash: probe.hash,
+  };
 }
 
 const DUE_PAGE_PREDICATE = `
@@ -1118,7 +1353,13 @@ async function nextDuePages(
   limit: number,
 ): Promise<DuePage[]> {
   return await sql.unsafe<DuePage[]>(
-    `SELECT url, content_hash, listed
+    `SELECT url, content_hash, listed, etag_v2, last_modified_v2, probe_hash_v2,
+            NOT EXISTS (
+              SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+               WHERE c.domain = website_urls.domain
+                 AND c.url = website_urls.url
+                 AND c.content_hash IS DISTINCT FROM website_urls.content_hash
+            ) AS indexed
        FROM ${PUBLIC_WEB_SCHEMA}.website_urls
       WHERE ${DUE_PAGE_PREDICATE}
       ORDER BY last_crawled_at ASC NULLS FIRST, url ASC
@@ -1140,7 +1381,30 @@ async function countDuePages(
   return Number(rows[0]?.n ?? 0);
 }
 
-type FetchOutcome = StoreOutcome | 'failed' | 'render';
+/**
+ * What a probe made of a page:
+ *
+ *  - `not_modified` — requested and found as it was: the server answered
+ *    304, or the plain HTML reads as it did. The row is stamped; nothing is
+ *    rendered, stored or indexed.
+ *  - `unchanged` — the row was retired (gone, disallowed, an alias) and
+ *    nothing is left to do for it.
+ *  - `failed` — the attempt is on the row, with its reason.
+ *  - `stored` — a document or plain text was stored in-process; the scan
+ *    indexes it and then stamps it with what to check it by next time.
+ *  - `render` — an HTML page that changed, or that only a browser can
+ *    read: it joins the render batch with what its probe found.
+ */
+export type FetchOutcome =
+  | 'not_modified'
+  | 'unchanged'
+  | 'failed'
+  | {
+      readonly kind: 'stored';
+      readonly outcome: StoreOutcome;
+      readonly check: PageCheck;
+    }
+  | { readonly kind: 'render'; readonly probe: PageProbe };
 
 /** Whether a redirect landed on another host or path of the site — not
  * merely on the same address with another query string. */
@@ -1153,14 +1417,22 @@ function isAnotherAddress(from: string, to: string): boolean {
 }
 
 /**
- * Probe one page and dispatch on its content type: binaries and plain text
- * are extracted and stored in-process; HTML reports `render` (body
- * discarded, row left unmarked) so the caller batches it through the
- * sandboxed browser. The probe is the sole authority on page LIFECYCLE —
- * status codes, deletes, size caps, and the SSRF guard for every byte
- * download. Change detection is the stored content hash alone: a 304 on an
- * SPA shell proves nothing about rendered content, so no conditional
- * validators are sent. Exported for tests only.
+ * Probe one page — the one request a scan makes for it — and say what is
+ * left to do ({@link FetchOutcome}).
+ *
+ * The request carries the validators of the page's last settled visit, when
+ * the row holds any ({@link storedCheck}); a 304 answer is a page left as
+ * it is. Otherwise the response is dispatched on its content type:
+ * binaries and plain text are extracted and stored in-process; an HTML
+ * page whose plain text reads as it did at that visit is left as it is
+ * too, and any other HTML page reports `render`, row unmarked, so the
+ * caller batches it through the sandboxed browser.
+ *
+ * The probe is the sole authority on page LIFECYCLE — status codes,
+ * deletes, size caps, and the SSRF guard for every byte download — and a
+ * page found unchanged passes the same gates first: a redirect that makes
+ * it an alias, an `X-Robots-Tag` or a robots meta tag that withdraws it.
+ * Exported for tests only.
  */
 export async function fetchAndStorePage(
   sql: Sql,
@@ -1180,6 +1452,8 @@ export async function fetchAndStorePage(
     return 'unchanged';
   }
 
+  const check = storedCheck(page);
+  const conditional = conditionalHeaders(check);
   let response;
   try {
     assertCrawlableUrl(page.url);
@@ -1189,7 +1463,7 @@ export async function fetchAndStorePage(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
-      headers: crawlerRequestHeaders(),
+      headers: { ...crawlerRequestHeaders(), ...conditional },
     });
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
@@ -1239,7 +1513,11 @@ export async function fetchAndStorePage(
     await retirePage(sql, domain, page.url);
     return 'unchanged';
   }
-  if (response.status < 200 || response.status >= 300) {
+  // 304 answers the validators this request carried: the page is what the
+  // row stores. Without them it is an error like any other status.
+  const notModified =
+    response.status === 304 && Object.keys(conditional).length > 0;
+  if (!notModified && (response.status < 200 || response.status >= 300)) {
     await recordPageFailure(sql, domain, page.url, {
       kind: 'http_error',
       message: `The page answered HTTP ${response.status}${
@@ -1287,6 +1565,12 @@ export async function fetchAndStorePage(
     });
     return 'failed';
   }
+  if (notModified) {
+    // The server vouches for the page as the row stores it: no body came,
+    // and none is asked for. The validators the row holds stay.
+    await markPageUnchanged(sql, domain, page.url);
+    return 'not_modified';
+  }
   const contentType = response.headers.get('content-type') ?? '';
   let dispatch = classifyContentType(
     contentType,
@@ -1307,10 +1591,48 @@ export async function fetchAndStorePage(
     return 'failed';
   }
   if (dispatch.kind === 'html') {
-    // Content comes from the rendered DOM, not this probe body — the page
-    // joins the render batch and its row stays unmarked until the batch
-    // settles it.
-    return 'render';
+    const plain = await readPlainHtml(response.body, contentType);
+    const validators = responseValidators(response.headers);
+    if (
+      plain !== null &&
+      check.probeHash !== null &&
+      plain.hash === check.probeHash
+    ) {
+      // The plain HTML reads as it did when the page was last stored, and
+      // at that visit it carried what the browser showed: the page has not
+      // changed, and no browser is opened to learn that. Its links were
+      // admitted when it was last rendered, and text that reads the same
+      // links to the same pages. Its own wish can have changed without a
+      // word of its text moving, so the robots tag is still read — off
+      // this body, the only one there is.
+      const noindex = robotsMetaNoindexDirective(plain.html);
+      if (noindex !== null) {
+        await purgePageContent(sql, domain, page.url);
+        await recordPageFailure(sql, domain, page.url, {
+          kind: 'robots_noindex',
+          message: `The origin asked not to index this page (<meta name="robots" content="${noindex}">)`,
+        });
+        return 'failed';
+      }
+      await markPageUnchanged(sql, domain, page.url, {
+        ...validators,
+        probeHash: plain.hash,
+      });
+      return 'not_modified';
+    }
+    // The page changed, was never stored, or is one only a browser can
+    // read: content comes from the rendered DOM, so it joins the render
+    // batch and its row stays unmarked until the batch settles it. What
+    // this request found travels with it, to be judged against what the
+    // browser shows.
+    return {
+      kind: 'render',
+      probe: {
+        text: plain?.text ?? null,
+        hash: plain?.hash ?? null,
+        ...validators,
+      },
+    };
   }
   const bytes = new Uint8Array(await response.body.arrayBuffer());
   if (dispatch.kind === 'sniff') {
@@ -1366,18 +1688,25 @@ export async function fetchAndStorePage(
     }
     title = name;
   }
-  return await storePageText(sql, domain, page, title, text);
+  // A document's bytes are its content, so its validators always hold: a
+  // 304 next time spares the download and the extraction.
+  return {
+    kind: 'stored',
+    outcome: await storePageText(sql, domain, page, title, text),
+    check: { ...responseValidators(response.headers), probeHash: null },
+  };
 }
 
 /**
  * What storing a page means for its chunks: `changed` text (or text whose
  * chunks are missing or were cut from other text — an earlier scan died
  * between storing the page and indexing it) is re-chunked and re-embedded;
- * `vectorless` text is unchanged but was chunked without vectors (no
- * embedding model at the time), so it is embedded once a model can do it;
- * `unchanged` text is left as it is.
+ * `unchanged` text keeps its chunks. Whether those chunks have their vectors
+ * is not decided here: vectors are kept per width, so it depends on the
+ * organization scanning, and the indexer embeds what is missing for it at
+ * the end of each link (`PageIndexer.embedVectorless`).
  */
-export type StoreOutcome = 'changed' | 'vectorless' | 'unchanged';
+export type StoreOutcome = 'changed' | 'unchanged';
 
 /**
  * Store one page's extracted text, title, and paragraph hashes; report what
@@ -1427,12 +1756,9 @@ export async function storePageText(
   });
 
   if (unchanged) {
-    const [chunks] = await sql.unsafe<
-      { present: boolean; current: boolean; vectorless: boolean }[]
-    >(
+    const [chunks] = await sql.unsafe<{ present: boolean; current: boolean }[]>(
       `SELECT count(*) > 0 AS present,
-              coalesce(bool_and(content_hash = $3), false) AS current,
-              coalesce(bool_or(embedding IS NULL), false) AS vectorless
+              coalesce(bool_and(content_hash = $3), false) AS current
          FROM ${PUBLIC_WEB_SCHEMA}.chunks
         WHERE domain = $1 AND url = $2`,
       [domain, page.url, contentHash],
@@ -1443,21 +1769,59 @@ export async function storePageText(
     if (chunks === undefined || !chunks.present || !chunks.current) {
       return 'changed';
     }
-    return chunks.vectorless ? 'vectorless' : 'unchanged';
+    return 'unchanged';
   }
   return 'changed';
 }
 
-/** Stamp a page as visited by this scan, once it is stored and indexed. */
+/** Stamp a page as visited by this scan, once it is stored and indexed, and
+ * record what the next scan checks it by ({@link PageCheck}) — in the same
+ * write, so the check never describes text the index does not hold yet. */
 async function markPageCrawled(
   sql: Sql,
   domain: string,
   url: string,
+  check: PageCheck,
 ): Promise<void> {
   await sql.unsafe(
-    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls SET last_crawled_at = NOW()
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+        SET last_crawled_at = NOW(),
+            etag_v2 = $3, last_modified_v2 = $4, probe_hash_v2 = $5
       WHERE domain = $1 AND url = $2`,
-    [domain, url],
+    [domain, url, check.etag, check.lastModified, check.probeHash],
+  );
+}
+
+/**
+ * Stamp a page this scan requested and found as the row stores it. The
+ * request reached the page, so a failure an earlier scan recorded is over:
+ * its count and its reason are cleared, as a store clears them. `check`
+ * replaces what the row is checked by — the validators of a response whose
+ * text read the same; a 304 brings none and the row keeps its own.
+ */
+async function markPageUnchanged(
+  sql: Sql,
+  domain: string,
+  url: string,
+  check?: PageCheck,
+): Promise<void> {
+  const cleared = `last_crawled_at = NOW(), fail_count = 0,
+            last_error = NULL, last_error_kind = NULL, last_error_at = NULL`;
+  if (check === undefined) {
+    await sql.unsafe(
+      `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+          SET ${cleared}
+        WHERE domain = $1 AND url = $2`,
+      [domain, url],
+    );
+    return;
+  }
+  await sql.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+        SET ${cleared},
+            etag_v2 = $3, last_modified_v2 = $4, probe_hash_v2 = $5
+      WHERE domain = $1 AND url = $2`,
+    [domain, url, check.etag, check.lastModified, check.probeHash],
   );
 }
 
@@ -1484,6 +1848,7 @@ async function purgePageContentIn(
   await tx.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
         SET content = NULL, content_hash = NULL, word_count = 0,
+            etag_v2 = NULL, last_modified_v2 = NULL, probe_hash_v2 = NULL,
             status = CASE WHEN status = 'deleted' THEN status ELSE 'discovered' END
       WHERE domain = $1 AND url = $2`,
     [domain, url],
@@ -1638,14 +2003,16 @@ async function recordPageFailure(
 /**
  * A failure of the organization's embedding model — a rejected credential,
  * an exhausted balance, an outage, a model whose vectors the corpus cannot
- * hold — ends the scan as any error does, but under a reason that says so
+ * hold (a width with no table, or vectors of another width than stated) —
+ * ends the scan as any error does, but under a reason that says so
  * and names its class: the row used to carry the provider's bare words
  * ("401 User not found.") and the page could only answer that the last scan
  * did not finish. Any other error is handed back as it is.
  */
 function embeddingScanFailure(error: unknown): unknown {
   const failureClass =
-    error instanceof EmbeddingDimensionMismatch
+    error instanceof EmbeddingDimensionMismatch ||
+    error instanceof UnsupportedVectorWidth
       ? 'dimension'
       : classifyEmbeddingFailure(error);
   if (failureClass === null) return error;
@@ -1664,22 +2031,35 @@ function embeddingScanFailure(error: unknown): unknown {
  * The embedding model is resolved lazily on the first page (a scan where
  * nothing changed never touches the provider) and the boilerplate ledger is
  * re-read per page, so each page is filtered against every paragraph hash
- * stored so far. Without an embedding model the chunks are stored with NULL
+ * stored so far. Without an embedding model the chunks are stored without
  * vectors: the site's own content search reads them, knowledge search does
  * not run until a model is configured, and the first scan after that embeds
- * them even though their text has not changed (`vectorless`). Exported for
- * tests only.
+ * them even though their text has not changed ({@link embedVectorless}).
+ *
+ * Vectors are kept per width (`chunk_vectors_<width>`), and a site's chunks
+ * are shared by every organization that registered its domain. So "without
+ * vectors" is asked for the width of the organization scanning: its scan
+ * embeds the chunks that have no vector of ITS width and leaves the other
+ * widths' vectors alone. Exported for tests only.
  */
 export class PageIndexer {
   private embedder: Embedder | null = null;
   private embedderResolved = false;
   private missingModelLogged = false;
   private indexedAny = false;
+  /** The refusal that stopped this link's embedding, when a usage limit
+   * did: what is left is stored without vectors for a later scan. */
+  private limited: EmbeddingBudgetExceeded | null = null;
+  private embeddedAny = false;
+  /** The previous release's column width, once asked (`legacyColumnWidth`);
+   * read once per link. */
+  private legacyWidth: number | null | undefined;
 
   constructor(
     private readonly ctx: ActionCtx,
     private readonly sql: Sql,
     private readonly identity: ScanIdentity,
+    private readonly meter?: EmbeddingMeter,
   ) {}
 
   private async resolveEmbedder(): Promise<Embedder | null> {
@@ -1692,6 +2072,7 @@ export class PageIndexer {
         organizationId,
         orgSlug,
         config,
+        ...(this.meter !== undefined ? { meter: this.meter } : {}),
       });
     } catch (error) {
       if (!(error instanceof EmbeddingNotConfigured)) {
@@ -1705,15 +2086,12 @@ export class PageIndexer {
       }
     }
     if (this.embedder) {
-      const dbUrl = await resolveOrgUrl(orgSlug);
+      // A width with no table ends the scan here, before a page is embedded.
       try {
-        await pinDimensions({
-          sql: this.sql,
-          dbUrl,
-          schema: PUBLIC_WEB_SCHEMA,
-          dimensions: this.embedder.dimensions,
-          context: `organization "${orgSlug}" (website crawl)`,
-        });
+        assertVectorWidthSupported(
+          this.embedder.dimensions,
+          this.widthContext(),
+        );
       } catch (error) {
         throw embeddingScanFailure(error);
       }
@@ -1721,77 +2099,192 @@ export class PageIndexer {
     return this.embedder;
   }
 
-  /** The chunks' vectors, or null without an embedding model. */
-  private async embed(texts: string[]): Promise<number[][] | null> {
-    const embedder = await this.resolveEmbedder();
-    if (embedder === null) return null;
+  private widthContext(): string {
+    return `organization "${this.identity.orgSlug}" (website crawl)`;
+  }
+
+  /** Whether a vector of `dimensions` goes into the previous release's
+   * column as well: what the image serving beside this one reads during a
+   * roll, and after a rollback (see `legacyColumnWidth`). */
+  private async writesLegacyColumn(dimensions: number): Promise<boolean> {
+    if (this.legacyWidth === undefined) {
+      this.legacyWidth = await legacyColumnWidth(this.sql, PUBLIC_WEB_SCHEMA);
+    }
+    return this.legacyWidth === dimensions;
+  }
+
+  /** The table of the width the organization's embedding settings state, or
+   * null without a model — read from the settings alone, so asking does not
+   * resolve the model's credential. */
+  private async statedVectorsTable(): Promise<string | null> {
     try {
-      return await embedder.embedAll(texts);
+      const config = await readOrgEmbeddingConfig(this.identity.orgSlug);
+      return config === null
+        ? null
+        : chunkVectorsTable(
+            PUBLIC_WEB_SCHEMA,
+            config.dimensions,
+            this.widthContext(),
+          );
     } catch (error) {
       throw embeddingScanFailure(error);
     }
   }
 
+  /** The chunks' vectors, or null without an embedding model — or once a
+   * usage limit stopped this link's embedding. */
+  private async embed(texts: string[]): Promise<number[][] | null> {
+    if (this.limited !== null) return null;
+    const embedder = await this.resolveEmbedder();
+    if (embedder === null) return null;
+    try {
+      const vectors = await embedder.embedAll(texts);
+      this.embeddedAny = true;
+      return vectors;
+    } catch (error) {
+      if (error instanceof EmbeddingBudgetExceeded) {
+        // A limit that binds whoever the scan is for: the page is stored
+        // without vectors — the site's own content search still reads it —
+        // and the rest of the link embeds nothing. The website row says
+        // why, and a later scan embeds what is left once the limit allows.
+        this.limited = error;
+        console.warn(
+          `[crawl] ${this.identity.domain}: embedding stopped by a usage limit — ${error.message}`,
+        );
+        return null;
+      }
+      throw embeddingScanFailure(error);
+    }
+  }
+
   /**
-   * Embed the site's pages whose chunks still lack vectors, from their
-   * stored text, until `deadline`: pages stored while the organization had
-   * no embedding model. A scan that was running when an admin saved one
-   * used to keep them so — each was done for that scan — until its next
-   * interval, up to thirty days. The model is looked for again when this
-   * link found none: it may have been saved since. Returns how many such
-   * pages are left for a later link; none when there is no model.
+   * Embed the site's pages whose chunks have no vector of this
+   * organization's width, from their stored text, until `deadline`: pages
+   * stored while the organization had no embedding model, pages another
+   * organization's scan chunked for a model of another width, and every
+   * page of the site after the organization moved to a model of another
+   * width. A scan that was running when an admin saved a model used to keep
+   * its pages without vectors — each was done for that scan — until its
+   * next interval, up to thirty days. The model is looked for again when
+   * this link found none: it may have been saved since. A link whose pages
+   * all have their vectors resolves no model. Returns how many such pages
+   * are left for a later link; none when there is no model.
    */
   async embedVectorless(deadline: number): Promise<number> {
     const { domain } = this.identity;
-    const vectorless = (limit: number) =>
+    const stated = await this.statedVectorsTable();
+    if (stated === null) return 0;
+    const vectorless = (vectors: string, limit: number) =>
       this.sql.unsafe<{ url: string }[]>(
         `SELECT DISTINCT c.url
            FROM ${PUBLIC_WEB_SCHEMA}.chunks c
            JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
              ON u.domain = c.domain AND u.url = c.url
-          WHERE c.domain = $1 AND c.embedding IS NULL
+          WHERE c.domain = $1
+            AND NOT EXISTS (SELECT 1 FROM ${vectors} v WHERE v.chunk_id = c.id)
             AND u.status = 'active' AND u.content IS NOT NULL
           ORDER BY c.url
           LIMIT $2`,
         [domain, limit],
       );
-    if ((await vectorless(1)).length === 0) return 0;
+    if (this.limited !== null) return 0;
+    if ((await vectorless(stated, 1)).length === 0) return 0;
     if (this.embedderResolved && this.embedder === null) {
       this.embedderResolved = false;
     }
-    if ((await this.resolveEmbedder()) === null) return 0;
-    // Once each: a page this pass indexed has vectors or no chunks left.
+    const embedder = await this.resolveEmbedder();
+    if (embedder === null) return 0;
+    // The model as it resolved, should the settings have changed meanwhile.
+    const vectors = chunkVectorsTable(
+      PUBLIC_WEB_SCHEMA,
+      embedder.dimensions,
+      this.widthContext(),
+    );
+    // Once each: a page this pass embedded has its vectors.
     const done = new Set<string>();
     while (Date.now() < deadline) {
-      const batch = (await vectorless(EMBED_BATCH_PAGES + done.size)).filter(
-        (row) => !done.has(row.url),
-      );
+      const batch = (
+        await vectorless(vectors, EMBED_BATCH_PAGES + done.size)
+      ).filter((row) => !done.has(row.url));
       if (batch.length === 0) break;
       for (const { url } of batch) {
-        if (Date.now() >= deadline) break;
+        if (Date.now() >= deadline || this.limited !== null) break;
         done.add(url);
-        await this.indexPage(url);
+        await this.embedPage(url, vectors);
       }
+      // A usage limit stopped it: what is left waits for a later scan,
+      // not for the next link of this one.
+      if (this.limited !== null) return 0;
     }
     const [left] = await this.sql.unsafe<{ n: string }[]>(
       `SELECT count(DISTINCT c.url)::text AS n
          FROM ${PUBLIC_WEB_SCHEMA}.chunks c
          JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
            ON u.domain = c.domain AND u.url = c.url
-        WHERE c.domain = $1 AND c.embedding IS NULL
+        WHERE c.domain = $1
+          AND NOT EXISTS (SELECT 1 FROM ${vectors} v WHERE v.chunk_id = c.id)
           AND u.status = 'active' AND u.content IS NOT NULL`,
       [domain],
     );
     return Number(left?.n ?? '0');
   }
 
-  /** Index a page if its store outcome calls for it: changed text always,
-   * text chunked without vectors once a model can embed it. */
+  /**
+   * Give a page's stored chunks their vectors of this width, leaving the
+   * chunks — and the vectors other organizations hold for them at other
+   * widths — as they are. The text embedded is the stored chunk's own, which
+   * is what the page's indexing embedded too.
+   */
+  async embedPage(url: string, vectors: string): Promise<void> {
+    const { domain } = this.identity;
+    const chunks = await this.sql.unsafe<
+      { id: string; chunk_content: string }[]
+    >(
+      `SELECT c.id::text AS id, c.chunk_content
+         FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+        WHERE c.domain = $1 AND c.url = $2
+          AND NOT EXISTS (SELECT 1 FROM ${vectors} v WHERE v.chunk_id = c.id)
+        ORDER BY c.chunk_index`,
+      [domain, url],
+    );
+    if (chunks.length === 0) return;
+    const embedded = await this.embed(
+      chunks.map((chunk) => chunk.chunk_content),
+    );
+    if (embedded === null) return;
+    const legacy =
+      this.embedder !== null &&
+      (await this.writesLegacyColumn(this.embedder.dimensions));
+    await this.sql.begin(async (tx) => {
+      for (const [position, chunk] of chunks.entries()) {
+        const vector = JSON.stringify(embedded[position]);
+        // The previous release's column first: the migrations' trigger
+        // mirrors it into this width's table, and the insert below then
+        // finds the vector there.
+        if (legacy) {
+          await tx.unsafe(
+            `UPDATE ${PUBLIC_WEB_SCHEMA}.chunks SET embedding = $2::vector
+              WHERE id = $1::bigint`,
+            [chunk.id, vector],
+          );
+        }
+        // Through the chunk row: a page chunked again meanwhile has new
+        // chunks, and a vector for one that is gone is not written.
+        await tx.unsafe(
+          `INSERT INTO ${vectors} (chunk_id, embedding)
+           SELECT c.id, $2::vector
+             FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+            WHERE c.id = $1::bigint
+           ON CONFLICT (chunk_id) DO NOTHING`,
+          [chunk.id, vector],
+        );
+      }
+    });
+  }
+
+  /** Index a page whose text changed; unchanged text keeps its chunks. */
   async settle(url: string, outcome: StoreOutcome): Promise<void> {
     if (outcome === 'unchanged') return;
-    if (outcome === 'vectorless' && (await this.resolveEmbedder()) === null) {
-      return;
-    }
     await this.indexPage(url);
   }
 
@@ -1829,20 +2322,46 @@ export class PageIndexer {
       );
       return;
     }
-    const vectors = await this.embed(chunks.map((chunk) => chunk.embedText));
+    const embedded = await this.embed(chunks.map((chunk) => chunk.embedText));
     const contentHash = computeContentHash(row.content);
+    // With a model, each chunk is stored with its vector in the table of the
+    // model's width — in the transaction below, as a statement of its own:
+    // the BM25 index (pg_search) is not safe under an INSERT in a CTE.
+    const vectors =
+      embedded === null || this.embedder === null
+        ? null
+        : chunkVectorsTable(
+            PUBLIC_WEB_SCHEMA,
+            this.embedder.dimensions,
+            this.widthContext(),
+          );
+    // The previous release's column carries the vector too when it is
+    // declared at this width (`legacyColumnWidth`); the migrations' trigger
+    // mirrors it into the width's table, where the insert below then finds
+    // it.
+    const legacy =
+      vectors !== null &&
+      this.embedder !== null &&
+      (await this.writesLegacyColumn(this.embedder.dimensions));
 
     await this.sql.begin(async (tx) => {
+      // Chunked again from new text: the old chunks go, and with them their
+      // vectors of every width. Another organization's scan embeds the new
+      // chunks for its own width (`embedVectorless`).
       await tx.unsafe(
         `DELETE FROM ${PUBLIC_WEB_SCHEMA}.chunks WHERE domain = $1 AND url = $2`,
         [domain, url],
       );
       for (const [position, chunk] of chunks.entries()) {
-        await tx.unsafe(
+        const vector =
+          embedded === null ? null : JSON.stringify(embedded[position]);
+        const stored = await tx.unsafe<{ id: string }[]>(
           `INSERT INTO ${PUBLIC_WEB_SCHEMA}.chunks
               (domain, url, title, content_hash, chunk_index, chunk_content,
-               embedding, context_header, core_content, prefix_overlap, suffix_overlap)
-           VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10, $11)`,
+               context_header, core_content, prefix_overlap, suffix_overlap,
+               embedding)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
+           RETURNING id::text AS id`,
           [
             domain,
             url,
@@ -1850,19 +2369,31 @@ export class PageIndexer {
             contentHash,
             chunk.index,
             chunk.embedText,
-            vectors ? JSON.stringify(vectors[position]) : null,
             chunk.header,
             chunk.core,
             chunk.prefixOverlap,
             chunk.suffixOverlap,
+            legacy ? vector : null,
           ],
+        );
+        const chunkId = stored[0]?.id;
+        if (vectors === null || vector === null || chunkId === undefined) {
+          continue;
+        }
+        await tx.unsafe(
+          `INSERT INTO ${vectors} (chunk_id, embedding)
+           VALUES ($1::bigint, $2::vector)
+           ON CONFLICT (chunk_id) DO NOTHING`,
+          [chunkId, vector],
         );
       }
     });
   }
 
-  /** Post-loop bookkeeping: the homepage's title names the site itself. */
-  async finish(): Promise<void> {
+  /** Post-loop bookkeeping: the homepage's title names the site itself.
+   * `vectorlessLeft` is what the vector backfill left behind, when it ran. */
+  async finish(vectorlessLeft?: number): Promise<void> {
+    await this.noteUsageLimit(vectorlessLeft);
     if (!this.indexedAny) return;
     const { domain } = this.identity;
     const homepageRows = await this.sql.unsafe<Array<{ title: string | null }>>(
@@ -1877,6 +2408,39 @@ export class PageIndexer {
             SET title = $2, updated_at = NOW()
           WHERE domain = $1`,
         [domain, title],
+      );
+    }
+  }
+
+  /**
+   * Tell the website row whether a usage limit stopped this link's
+   * embedding — the row then says so, and the hourly pass resumes the scan
+   * once the limit allows it — or that the note no longer holds: the link
+   * embedded again, or nothing is left without vectors (another
+   * organization's scan of the shared domain embedded it, the pages went,
+   * or no model is set to embed them). A failure to record is logged; the
+   * scan stands.
+   */
+  private async noteUsageLimit(vectorlessLeft?: number): Promise<void> {
+    if (this.limited === null && !this.embeddedAny && vectorlessLeft !== 0) {
+      return;
+    }
+    try {
+      await this.ctx.runMutation(
+        internal.websites.internal_mutations.recordEmbeddingLimit,
+        {
+          organizationId: this.identity.organizationId,
+          domain: this.identity.domain,
+          ...(this.limited !== null ? { reason: this.limited.message } : {}),
+          ...(this.limited !== null && this.identity.requestedBy !== undefined
+            ? { requestedBy: this.identity.requestedBy }
+            : {}),
+        },
+      );
+    } catch (error) {
+      console.error(
+        `[crawl] ${this.identity.domain}: could not record the usage limit on the websites row:`,
+        error instanceof Error ? error.message : error,
       );
     }
   }

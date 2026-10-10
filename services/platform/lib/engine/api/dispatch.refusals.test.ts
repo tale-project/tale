@@ -5,7 +5,11 @@ import {
   dispatch,
   type DispatchStore,
 } from './dispatch';
-import { DOC_EXAMPLE } from './docs';
+import {
+  authoringReference,
+  CORE_NODE_KIND_REFERENCE,
+  DOC_EXAMPLE,
+} from './docs';
 import { runAutomationTests } from './tests';
 
 vi.mock('./tests', () => ({ runAutomationTests: vi.fn() }));
@@ -76,6 +80,12 @@ const REFUSALS: [
 ][] = [
   ['search_catalog', {}, fullStore, 'INVALID_PARAMS'],
   ['validate_automation', {}, fullStore, 'INVALID_PARAMS'],
+  [
+    'validate_automation',
+    { automation: DOC_EXAMPLE.automation, detail: 'all' },
+    fullStore,
+    'INVALID_PARAMS',
+  ],
   ['run_automation', {}, fullStore, 'INVALID_PARAMS'],
   [
     'run_automation',
@@ -158,11 +168,20 @@ const REFUSALS: [
   ['start_run', { name: SAVED }, bareStore, 'NOT_SUPPORTED'],
   ['start_run', {}, fullStore, 'INVALID_PARAMS'],
   ['start_run', { name: SAVED, version: 'v1' }, fullStore, 'INVALID_PARAMS'],
+  // A host that does not run live starts on the mocks, the latest saved
+  // version unless one is named — an unknown name is AUTOMATION_NOT_FOUND.
   [
     'start_run',
     { name: 'nope' },
     () => fullStore({ startRun: async () => null }),
-    'AUTOMATION_NOT_DEPLOYED',
+    'AUTOMATION_NOT_FOUND',
+  ],
+  ['start_run', { name: SAVED, mode: 'dry' }, fullStore, 'INVALID_PARAMS'],
+  [
+    'start_run',
+    { name: SAVED, mode: 'live' },
+    fullStore,
+    'LIVE_MODE_UNAVAILABLE',
   ],
   ['list_runs', {}, bareStore, 'NOT_SUPPORTED'],
   ['list_runs', { name: 'nope' }, fullStore, 'AUTOMATION_NOT_FOUND'],
@@ -205,7 +224,53 @@ describe('every refusal carries a code and a hint', () => {
     expect(result.hint).toMatch(/\S/);
   });
 
-  it('the deploy gate names failing tests, and records the verdict on the version', async () => {
+  it('a document refusal lists its issues: the save adds the warnings, the deploy gate the errors', async () => {
+    const save = await dispatch(
+      'save_automation',
+      { automation: { name: 'nope', nodes: 'not-a-list' } },
+      { store: fullStore() },
+    );
+    expect(Object.keys(save as object).sort()).toEqual([
+      'code',
+      'error',
+      'errors',
+      'hint',
+      'warnings',
+    ]);
+    expect(save).toMatchObject({
+      warnings: [expect.objectContaining({ code: 'VERSION_MISSING' })],
+    });
+
+    const deploy = await dispatch(
+      'deploy_automation',
+      { name: SAVED, version: 1 },
+      {
+        store: fullStore({
+          get: async () => ({
+            meta: { version: 1 },
+            automation: { name: SAVED, nodes: 'not-a-list' },
+          }),
+        }),
+      },
+    );
+    expect(Object.keys(deploy as object).sort()).toEqual([
+      'code',
+      'error',
+      'errors',
+      'hint',
+    ]);
+    expect(deploy).toMatchObject({
+      errors: [
+        expect.objectContaining({
+          code: 'NODES_MISSING',
+          at: { pointer: '/nodes' },
+          params: {},
+        }),
+      ],
+    });
+  });
+
+  it('the deploy gate names failing tests, and records the verdict on the version [AUTO-R4]', async () => {
     vi.mocked(runAutomationTests).mockResolvedValueOnce({
       passed: 0,
       failed: 1,
@@ -309,6 +374,7 @@ describe('a host refusal is lifted whole', () => {
       new Error('input does not match the inputs schema'),
       {
         code: 'AUTOMATION_INPUT_INVALID',
+        status: 400,
         hint: 'read data.issues',
         data: { issues: [{ path: 'n', message: 'is required' }] },
       },
@@ -332,19 +398,60 @@ describe('a host refusal is lifted whole', () => {
     });
   });
 
-  it('keeps a bare host error a bare sentence', async () => {
+  it('lifts a structured refusal from its payload, never its serialized message [MCP-R8]', async () => {
+    // The platform's `AppError` serializes its whole payload into `message`.
+    const structured = Object.assign(
+      new Error(
+        JSON.stringify({
+          code: 'PROJECT_ARCHIVED',
+          message: 'The project is archived.',
+          internal: 'row 42',
+        }),
+      ),
+      {
+        data: {
+          code: 'PROJECT_ARCHIVED',
+          message: 'The project is archived.',
+          internal: 'row 42',
+          data: { projectId: 'p1' },
+        },
+      },
+    );
     const result = await dispatch(
-      'cancel_run',
-      { runId: 'r' },
+      'start_run',
+      { name: SAVED, input: {} },
       {
         store: fullStore({
-          cancelRun: async () => {
-            throw new Error('Project not found.');
+          startRun: async () => {
+            throw structured;
           },
         }),
       },
     );
-    expect(result).toEqual({ error: 'Project not found.' });
+    expect(result).toEqual({
+      error: 'The project is archived.',
+      code: 'PROJECT_ARCHIVED',
+      hint: expect.stringContaining('list_projects'),
+      data: { projectId: 'p1' },
+    });
+    expect(JSON.stringify(result)).not.toContain('row 42');
+  });
+
+  it('throws a bare host error on: without a code it is a fault, not a refusal [MCP-R8]', async () => {
+    const fault = new Error('Project not found.');
+    await expect(
+      dispatch(
+        'cancel_run',
+        { runId: 'r' },
+        {
+          store: fullStore({
+            cancelRun: async () => {
+              throw fault;
+            },
+          }),
+        },
+      ),
+    ).rejects.toBe(fault);
   });
 
   it('tells a finished run from a missing one on cancel_run (2026-09-18, J8-1)', async () => {
@@ -395,7 +502,10 @@ describe('the name-scoped lists refuse an unknown automation', () => {
 
   it('list_runs and list_triggers without a name stay organization-wide', async () => {
     const store = fullStore({ get: async () => null });
-    expect(await dispatch('list_runs', {}, { store })).toEqual({ runs: [] });
+    expect(await dispatch('list_runs', {}, { store })).toEqual({
+      runs: [],
+      nextCursor: null,
+    });
     expect(await dispatch('list_triggers', {}, { store })).toEqual({
       triggers: [],
     });
@@ -417,7 +527,7 @@ describe('the name-scoped lists refuse an unknown automation', () => {
         args?.name === 'retired' ? [kept as never] : [],
     });
     expect(await dispatch('list_runs', { name: 'retired' }, { store })).toEqual(
-      { runs: [kept] },
+      { runs: [kept], nextCursor: null },
     );
     const unknown = await dispatch('list_runs', { name: 'never' }, { store });
     expect(unknown).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
@@ -426,19 +536,19 @@ describe('the name-scoped lists refuse an unknown automation', () => {
 
 /**
  * The MCP door's own words after the 2026-09-19 round-K evaluation (K8-4):
- * a live start of an undeployed version names the tool's own remedies
- * (there is no `mode` on start_run — the mock path is run_automation), and
+ * a live start of an undeployed version names the tool's own remedies (its
+ * own `mode: "mock"`, never the REST door's "use mock mode"), and
  * get_catalog narrowed to a core kind says why the list is empty.
  */
 describe('the MCP door’s hints name its own tools', () => {
-  it('start_run on an undeployed version points at run_automation, not a mode', async () => {
+  it('start_run on an undeployed version points at its own mock mode', async () => {
     const store = fullStore({
       startRun: async () => {
         throw Object.assign(
           new Error(
             'Live runs must use the deployed version. Deploy this version or use mock mode.',
           ),
-          { code: 'AUTOMATION_VERSION_NOT_DEPLOYED' },
+          { code: 'AUTOMATION_VERSION_NOT_DEPLOYED', status: 409 },
         );
       },
     });
@@ -450,15 +560,15 @@ describe('the MCP door’s hints name its own tools', () => {
     expect(result).toMatchObject({
       code: 'AUTOMATION_VERSION_NOT_DEPLOYED',
       error: expect.stringContaining(`${SAVED}@2`),
-      hint: expect.stringContaining('run_automation'),
+      hint: expect.stringContaining('mode: "mock"'),
     });
     expect(String(Reflect.get(result as object, 'error'))).not.toContain(
       'mock mode',
     );
   });
 
-  it.each(['transform', 'llm', 'agent', 'subautomation'])(
-    'get_catalog {kind: %j} answers the core-kind hint beside its empty list',
+  it.each(['transform', 'llm', 'agent', 'subautomation'] as const)(
+    'get_catalog {kind: %j} answers the core-kind hint and the kind’s own section beside its empty list',
     async (kind) => {
       const result = await dispatch(
         'get_catalog',
@@ -468,7 +578,10 @@ describe('the MCP door’s hints name its own tools', () => {
       expect(result).toEqual({
         node_types: [],
         hint: `"${kind}" is a core node kind, not a catalog capability — get_docs describes it`,
+        reference: CORE_NODE_KIND_REFERENCE[kind],
       });
+      // The section is the reference's own words, not a copy of them.
+      expect(authoringReference()).toContain(CORE_NODE_KIND_REFERENCE[kind]);
     },
   );
 });
@@ -498,9 +611,16 @@ describe('save_automation records the save’s own test verdict', () => {
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ name: DOC_EXAMPLE.automation.name }),
       'why',
-      { testsPassed: false },
+      { testsPassed: false, metadata: {} },
     );
-    expect(result).toEqual({ name: SAVED, version: 2, testsPassed: false });
+    expect(result).toEqual({
+      name: SAVED,
+      version: 2,
+      testsPassed: false,
+      warnings: [],
+      carried: [],
+      baseVersionChecked: false,
+    });
   });
 
   it('records no verdict for a document without tests', async () => {
@@ -517,9 +637,15 @@ describe('save_automation records the save’s own test verdict', () => {
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ name: DOC_EXAMPLE.automation.name }),
       '',
-      undefined,
+      { metadata: {} },
     );
-    expect(result).toEqual({ name: SAVED, version: 2 });
+    expect(result).toEqual({
+      name: SAVED,
+      version: 2,
+      warnings: [],
+      carried: [],
+      baseVersionChecked: false,
+    });
   });
 });
 
@@ -613,5 +739,215 @@ describe('the MCP door’s run, trigger and version tools after the 2026-09-14 r
       [1, true],
       [2, false],
     ]);
+  });
+});
+
+/**
+ * A FAULT inside a store call — a database that cannot be reached, a
+ * constraint the database raised — is thrown on to the host, at every catch
+ * site of the table, never answered as a refusal: its sentence names the
+ * database's address and user, its SQLSTATE is no code an agent branches
+ * on, and a refusal-shaped answer would hide the outage from the logs. The
+ * MCP endpoint answers what is thrown as INTERNAL_ERROR with the request id
+ * (`backend/domains/mcp/tools.ts`); the example is MCP-R8's own: Ada's
+ * agent cancels a run while the database is unreachable.
+ */
+describe('a store fault is thrown on, never answered as a refusal [MCP-R8]', () => {
+  const unreachable = () =>
+    Object.assign(
+      new Error(
+        'connect ECONNREFUSED 10.0.0.5:5432 password authentication failed for user "tale_app"',
+      ),
+      { code: 'ECONNREFUSED' },
+    );
+  const constraint = () =>
+    Object.assign(
+      new Error(
+        'duplicate key value violates unique constraint "automations_pkey"',
+      ),
+      { code: '23505', hint: 'Key (org_id)=(org_1) already exists.' },
+    );
+  const failing = (fault: () => Error) => async (): Promise<never> => {
+    throw fault();
+  };
+
+  /** Every catch site, as [method, the store method that fails, params,
+   * whether the host runs live]. */
+  const SITES: [
+    string,
+    keyof DispatchStore,
+    Record<string, unknown>,
+    boolean,
+  ][] = [
+    ['run_deployed', 'startRun', { name: SAVED, input: {} }, true],
+    ['run_deployed', 'authorizeRun', { name: SAVED, input: {} }, false],
+    ['save_automation', 'save', { automation: DOC_EXAMPLE.automation }, false],
+    ['deploy_automation', 'deploy', { name: SAVED, version: 1 }, false],
+    [
+      'delete_automation',
+      'deleteAutomation',
+      { name: SAVED, expectedLatestVersion: 1 },
+      false,
+    ],
+    [
+      'set_trigger',
+      'setTrigger',
+      { name: SAVED, trigger: { kind: 'schedule', cron: '0 6 * * *' } },
+      false,
+    ],
+    ['start_run', 'startRun', { name: SAVED, input: {} }, false],
+    ['cancel_run', 'cancelRun', { runId: 'r' }, false],
+    [
+      'set_automation_projects',
+      'setAutomationProjects',
+      { name: SAVED, add: ['p1'] },
+      false,
+    ],
+    [
+      'answer_run_ask',
+      'answerAsk',
+      { runId: 'r', askId: 'a', answer: 'yes' },
+      false,
+    ],
+    ['delete_trigger', 'deleteTrigger', { name: SAVED }, false],
+  ];
+
+  it.each(SITES)(
+    '%s throws on what a failing %s threw',
+    async (method, failingMethod, params, allowLive) => {
+      vi.mocked(runAutomationTests).mockResolvedValue({
+        passed: 0,
+        failed: 0,
+        results: [],
+      } as unknown as Awaited<ReturnType<typeof runAutomationTests>>);
+      for (const fault of [unreachable, constraint]) {
+        const store = fullStore({ [failingMethod]: failing(fault) });
+        await expect(
+          dispatch(method, params, { store, allowLive }),
+        ).rejects.toThrow(fault().message);
+      }
+    },
+  );
+
+  it('still answers a coded refusal of the same store call as data', async () => {
+    const result = await dispatch(
+      'cancel_run',
+      { runId: 'r' },
+      {
+        store: fullStore({
+          cancelRun: async () => {
+            throw Object.assign(new Error('Project is archived.'), {
+              code: 'PROJECT_ARCHIVED',
+              name: 'ActorAuthError',
+            });
+          },
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      error: 'Project is archived.',
+      code: 'PROJECT_ARCHIVED',
+    });
+  });
+});
+
+/**
+ * A refusal a store throws for the newer tools carries a hint too: the
+ * project gates (`ActorAuthError`, `ProjectError` — no hint of their own),
+ * a run that is gone, and a delete that a newer version made stale, whose
+ * remedy is not a save's "merge and save again".
+ */
+describe('every refusal of the newer tools says what to do [MCP-R18]', () => {
+  const thrown = (code: string, status?: number, data?: unknown) =>
+    Object.assign(new Error(`refused: ${code}`), {
+      code,
+      ...(status === undefined ? { name: 'ActorAuthError' } : { status }),
+      ...(data === undefined ? {} : { data }),
+    });
+
+  it.each([
+    ['PROJECT_NOT_FOUND', undefined, 'list_projects'],
+    ['PROJECT_ARCHIVED', undefined, 'list_projects'],
+    ['RBAC_FORBIDDEN', 403, 'list_projects'],
+  ] as const)(
+    'set_automation_projects refused with %s names list_projects',
+    async (code, status, tool) => {
+      const result = await dispatch(
+        'set_automation_projects',
+        { name: SAVED, add: ['p-9'] },
+        {
+          store: fullStore({
+            setAutomationProjects: async () => {
+              throw thrown(code, status);
+            },
+          }),
+        },
+      );
+      expect(result).toMatchObject({
+        code,
+        hint: expect.stringContaining(tool),
+      });
+    },
+  );
+
+  it('answer_run_ask on a run that is gone names where run ids come from', async () => {
+    const result = await dispatch(
+      'answer_run_ask',
+      { runId: 'r-gone', askId: 'a', answer: 'yes' },
+      {
+        store: fullStore({
+          answerAsk: async () => {
+            throw thrown('RUN_NOT_FOUND', 404);
+          },
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      code: 'RUN_NOT_FOUND',
+      hint: expect.stringContaining('list_runs'),
+    });
+  });
+
+  it("Ada's delete from v5 after Ben saved v6 asks her to read v6 and confirm, never to merge", async () => {
+    const result = await dispatch(
+      'delete_automation',
+      { name: SAVED, expectedLatestVersion: 5 },
+      {
+        store: fullStore({
+          deleteAutomation: async () => {
+            throw thrown('AUTOMATION_VERSION_STALE', 409, {
+              latestVersion: 6,
+              expectedLatestVersion: 5,
+            });
+          },
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      code: 'AUTOMATION_VERSION_STALE',
+      data: { latestVersion: 6 },
+      hint: expect.stringContaining('expectedLatestVersion: 6'),
+    });
+    expect(String(Reflect.get(result as object, 'hint'))).not.toMatch(
+      /merge|baseVersion/,
+    );
+    const gone = await dispatch(
+      'delete_automation',
+      { name: SAVED, expectedLatestVersion: 5 },
+      {
+        store: fullStore({
+          deleteAutomation: async () => {
+            throw thrown('AUTOMATION_VERSION_STALE', 409, {
+              latestVersion: null,
+              expectedLatestVersion: 5,
+            });
+          },
+        }),
+      },
+    );
+    expect(gone).toMatchObject({
+      code: 'AUTOMATION_VERSION_STALE',
+      hint: expect.stringContaining('nothing is left to delete'),
+    });
   });
 });

@@ -30,8 +30,9 @@ import {
 /**
  * Resolve a turn's secret + broker env. Best-effort throughout: a failure in
  * either source is logged and skipped, never thrown — a credential gap can
- * only downgrade a turn, not kill it. Returns `{}` when the agent is equipped
- * with neither, so callers can pass it to `extraEnv` unconditionally.
+ * only downgrade a turn, not kill it. The session owner's git author identity
+ * also resolves without a connector grant; only a missing identity leaves
+ * an otherwise unequipped turn empty.
  */
 export async function resolveTurnEquipmentEnv(
   ctx: ActionCtx,
@@ -66,27 +67,26 @@ export async function resolveTurnEquipmentEnv(
     }
   }
 
-  // Only brokerable grants inject env; skip the resolver entirely otherwise so
-  // a turn with no git grant does no credential work.
+  // Only brokerable grants inject credentials. The same resolver supplies
+  // the session owner's non-secret commit identity with an empty grant list,
+  // including a turn equipped only with a repository-scoped SSH secret.
   const brokerable = args.connectors.filter((slug) =>
     BROKERABLE_GRANTS.includes(slug),
   );
-  if (brokerable.length > 0) {
-    try {
-      const broker = await resolveSessionCredentialEnv(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        grants: brokerable,
-        kind: 'git',
-      });
-      // Broker/git-config keys win over a same-named secret.
-      Object.assign(env, broker.env);
-    } catch (err) {
-      console.warn(
-        '[turn-equipment] connector broker failed (continuing):',
-        err instanceof Error ? err.message : String(err),
-      );
-    }
+  try {
+    const broker = await resolveSessionCredentialEnv(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      grants: brokerable,
+      kind: 'git',
+    });
+    // Broker/git-config keys win over a same-named secret.
+    Object.assign(env, broker.env);
+  } catch (err) {
+    console.warn(
+      '[turn-equipment] connector broker failed (continuing):',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   return env;

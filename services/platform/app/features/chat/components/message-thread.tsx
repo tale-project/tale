@@ -20,6 +20,11 @@
  * glide — see use-response-slack). Scrolling follows the Gemini doctrine (see
  * use-chat-scroll): generation growth NEVER scrolls on its own; only user
  * actions do.
+ *
+ * Cost: only the newest rows render in full when a thread mounts. Older
+ * history rows mount DORMANT — their words in the row, findable and read by
+ * assistive technology — and render in full as they near the viewport (see
+ * use-row-wake), so a long thread opens at the cost of its last turns.
  */
 
 import { Button } from '@tale/ui/button';
@@ -27,8 +32,15 @@ import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { THREAD_COLUMN_CLASS } from '@tale/ui/thread/layout';
 import { ArrowDown, MessageSquare } from 'lucide-react';
-import { memo, useRef, type MutableRefObject } from 'react';
+import {
+  memo,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -37,7 +49,7 @@ import {
   resolveResponseSlackEnabled,
   useResponseSlack,
 } from '../hooks/use-response-slack';
-import { CHAT_MESSAGE_COLUMN_CLASS } from '../lib/layout';
+import { createRowWaker, RowWakerContext } from '../hooks/use-row-wake';
 import type {
   ChatGenerationView,
   ChatMessageItem,
@@ -55,6 +67,14 @@ const GENERATION_STATUS_KEY: Record<ChatGenerationView['status'], string> = {
   streaming: 'generation.streaming',
   'waiting-approval': 'generation.waitingApproval',
 };
+
+/**
+ * How many of the newest rows render in full when they mount — the rows
+ * above them mount dormant (see use-row-wake). Several viewports of a thread
+ * opened on its last turns, so the open never waits on a wake, yet a fixed
+ * cost however long the thread grows (#4121).
+ */
+const EAGER_ROW_COUNT = 24;
 
 /** The per-row action handlers a surface wires into the transcript. */
 export interface MessageThreadHandlers {
@@ -152,6 +172,13 @@ export const MessageThread = memo(function MessageThread({
 
   const lastUserIdx = findLastUserIndex(messages);
   const lastUserItem = lastUserIdx >= 0 ? messages[lastUserIdx] : undefined;
+  // Rows before this index mount dormant: history only — never the anchored
+  // user message or the reply under it — and never the newest rows.
+  const firstEagerIdx = Math.min(
+    lastUserIdx < 0 ? messages.length : lastUserIdx,
+    messages.length - EAGER_ROW_COUNT,
+  );
+  const [rowWaker] = useState(() => createRowWaker(() => containerRef.current));
   const regionOf = (index: number): MessageRegion =>
     lastUserIdx < 0 || index < lastUserIdx
       ? 'history'
@@ -182,6 +209,12 @@ export const MessageThread = memo(function MessageThread({
     slackRef,
     lastUserMessageRef,
     slackEnabled,
+  });
+
+  // After the scroll hooks' own layout effects: the view is placed, so the
+  // rows that just mounted dormant inside it wake before the first paint.
+  useLayoutEffect(() => {
+    rowWaker.sync();
   });
 
   // The ids present when this conversation first rendered. A message NOT in
@@ -228,6 +261,7 @@ export const MessageThread = memo(function MessageThread({
       speakAvailable={speakAvailable}
       voicePillForced={message.id === forceVoicePillMessageId}
       isFreshSinceMount={isFreshSinceMount(message.id)}
+      deferred={index < firstEagerIdx}
     />
   );
 
@@ -240,20 +274,24 @@ export const MessageThread = memo(function MessageThread({
         ref={containerRef}
         role="log"
         aria-label={t('aria.messageHistory')}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
+        // The column answers to the scroller's width (`@container`), not the
+        // window's: a chat beside an open panel is a narrow column.
+        className="@container flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
       >
         {/* The content wrapper's padding-top is the snap/slack inset — the
             surface's className carries the glass-bar clearance. */}
         <div
           ref={contentRef}
-          className={cn(CHAT_MESSAGE_COLUMN_CLASS, className)}
+          className={cn(THREAD_COLUMN_CLASS, 'py-6', className)}
         >
           {messages.length > 0 && (
-            <Stack as="ol" gap={3} ref={listRef}>
-              {messages.map((message, index) =>
-                renderItem(message, index, regionOf(index)),
-              )}
-            </Stack>
+            <RowWakerContext.Provider value={rowWaker}>
+              <Stack as="ol" gap={3} ref={listRef}>
+                {messages.map((message, index) =>
+                  renderItem(message, index, regionOf(index)),
+                )}
+              </Stack>
+            </RowWakerContext.Provider>
           )}
 
           {/* The turn's status — for assistive technology ONLY. Always in

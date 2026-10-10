@@ -7,8 +7,8 @@
   "scripts": {
     "setup": "echo 'Dependencies managed by root workspace'",
     "dev": "bun --bun scripts/build-content.ts && bun --bun vite",
-    "build": "bun --bun scripts/build-content.ts && bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts && bun run seo:compile",
-    "build:client": "bun --bun vite build",
+    "build": "bun --bun scripts/build-content.ts && bun --bun ../../packages/ui/bin/build-client.ts && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts && bun run seo:compile",
+    "build:client": "bun --bun ../../packages/ui/bin/build-client.ts",
     "build:ssr": "bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr",
     "build:content": "bun --bun scripts/build-content.ts",
     "prerender": "bun --bun scripts/prerender.ts",

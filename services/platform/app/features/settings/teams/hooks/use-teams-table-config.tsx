@@ -6,9 +6,9 @@ import {
   createSelectColumn,
 } from '@tale/ui/data-table/column-builders';
 import { HStack } from '@tale/ui/layout';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 

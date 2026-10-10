@@ -9,7 +9,7 @@ Wenn du ein Konto in der Anwendung verbinden möchtest, nutze [Connector-Zugangs
 
 ## Wie ein Connector deklariert wird
 
-Definitionen liegen unter `configs/platform/system/connectors/<slug>/connector.yml`, zusammen mit dem Symbol des Connectors. Der Verzeichnis-Slug muss `name` entsprechen. Automatisierungen rufen Aktionen mit `<connector>.<action>` auf, etwa `tavily.search`. Anbieter-Connectoren erscheinen in den Einstellungen; interne Connectoren mit Plattformauthentifizierung nicht.
+Definitionen liegen unter `configs/platform/system/connectors/<slug>/connector.yml`, zusammen mit dem Symbol des Connectors. Der Verzeichnis-Slug muss `name` entsprechen. Automatisierungen rufen Aktionen mit `<connector>.<action>` auf, etwa `tavily.search`. Anbieter-Connectors erscheinen in den Einstellungen; interne Connectors mit Plattformauthentifizierung nicht.
 
 Dieser Ausschnitt aus der mitgelieferten Tavily-Definition zeigt Identität und Authentifizierung. Er ist kein vollständiger Connector: Die Aktionsdefinitionen fehlen hier bewusst.
 
@@ -24,6 +24,8 @@ allowedHosts:
 auth:
   - method: api-key
 ```
+
+Ein Connector, dessen Name aus gewöhnlichen Wörtern besteht, etwa `task` (Tasks), deklariert zusätzlich `i18n.de.displayName` und `i18n.fr.displayName`. Ein Connector, der nach einem Produkt heißt, etwa Tavily, behält seinen Namen in jeder Sprache.
 
 ### Erlaubte Ziele festlegen
 
@@ -47,12 +49,14 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 | Feld | Vertrag für Autor und Aufrufer |
 | --- | --- |
 | `name`, `description` | Stabiler Aktionsname in snake_case und eine Erklärung zum Einsatzzweck |
+| `title`, `i18n` | Die Aktion in Worten für Menschen: ein kurzer englischer `title`, nur am Anfang großgeschrieben und ohne den Namen des Connectors („List issues“), dazu `i18n.de.title` und `i18n.fr.title` (und `de-CH`, wo die Schweizer Schreibung abweicht, etwa beim ß). Der Automatisierungs-Canvas zeigt eine Node als „GitHub · Issues auflisten“ in der Sprache der Lesenden; fehlt einer mitgelieferten Aktion einer der drei, schlagen die Tests des Katalogs fehl |
 | `input` | Objekt-JSON-Schema, vor der Ausführung validiert; Felder beschreiben und Pflichtfelder markieren |
 | `output` | Ergebnissignatur im TypeScript-Stil; Dokumentation, keine Laufzeitvalidierung der Ausgabe |
 | `effects` | `read` oder `write`; Schreibaktionen durchlaufen die Genehmigungsrichtlinie |
 | `mock` | Erforderliches deterministisches JavaScript: gleiche Eingabe, gleiche Ausgabe, kein Netzwerkzugriff |
 | `backend` | Optionale Live-Implementierung: `yaml-js` mit `live` oder `native` mit `impl`-Kennung |
 | `exampleInput` | Optionales kleines, aussagekräftiges Beispiel für Erkennung und Tests |
+| `idempotent` | Optional; nur bei einer Schreibaktion auf `true` setzen, bei der ein zweiter Aufruf mit demselben `ctx.idempotencyKey` nichts mehr ändert. Ein unterbrochener Automatisierungslauf wiederholt sie dann selbst, statt auf eine Entscheidung zu warten |
 
 Ohne Live-Backend läuft ein Connector nur mit Mocks und lehnt echte Aufrufe ab. Schreibaktionen werden nicht ausgeführt, wenn keine Genehmigungsentscheidung ermittelt werden kann. Die [Genehmigungsreferenz](/de/self-hosted/configuration/approvals) erklärt Vorrangregeln und ausstehende Entscheidungen.
 
@@ -85,14 +89,14 @@ Der Connector deklariert Autorisierungs- und Token-URLs sowie angeforderte Berec
 
 | Quelle | Vorrang und Einrichtung |
 | --- | --- |
-| Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectoren > OAuth-Apps** |
+| Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectors > OAuth-Apps** |
 | Deployment-App | Standard ohne Organisations-App: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
 
 Schreibe den Slug in Umgebungsvariablen groß und ersetze Bindestriche durch Unterstriche. Bei einer Microsoft-App für einen einzelnen Mandanten gehört die Verzeichnis-ID dazu, damit die Autorisierung diesen Mandanten statt `/common` nutzt. Organisationsgeheimnisse werden verschlüsselt und nicht erneut angezeigt.
 
 ### Die Callback-URL exakt registrieren
 
-Alle OAuth-Connectoren der Organisation verwenden diese Redirect-URI:
+Alle OAuth-Connectors der Organisation verwenden diese Redirect-URI:
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
@@ -114,7 +118,7 @@ Registriere `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` als Events Req
 | --- | --- |
 | Unterstützte Anbieteraktion | Mitgelieferter Connector mit Organisationszugang |
 | Wiederverwendbare Aktion fehlt im Katalog | Quellcodebeitrag mit Schema, deterministischem Mock, Live-Backend und Tests |
-| Projektspezifische Aufrufe deines Dienstes | Geheimnisse und Sandbox-Code eines Projektagenten, innerhalb der Netzwerkfreigaben der Sandbox |
+| Projektspezifische Aufrufe deines Dienstes | **Secrets** und Sandbox-Code eines Projektagenten, innerhalb der Netzwerkfreigaben der Sandbox |
 | Eigene Logik in einer Automatisierung | `transform`-Knoten im Rahmen der Fähigkeiten und Netzwerkregeln des Runners |
 
 Ein Geheimnis ermöglicht die Anmeldung, aber nicht die Erreichbarkeit eines privaten Dienstes. Prüfe den Netzwerkzugriff aus der tatsächlichen Sandbox oder dem Runner, bevor du deine Integration darauf aufbaust.

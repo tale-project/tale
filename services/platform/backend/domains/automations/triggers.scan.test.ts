@@ -1,20 +1,24 @@
 // @vitest-environment node
 
 /**
- * Unit lock for the schedule scan's shape (trigger-delivery class): the walk
- * is a keyset over EVERY enabled schedule (pages, not a cap); the due stamp
- * is a conditional CLAIM on the ledger's cursor (a lost claim never reaches
- * the run store); the claim, the run and the fire stamp share ONE
- * transaction, so `lastFiredAt` and `lastRunId` move only when a run was
- * inserted and an undeployed automation records a skip instead; a refused
- * start keeps its claim and records `start_refused`; an unusable expression
- * records `unusable_cron` and is left out of the next page; a schedule
- * whose organization no longer exists is never claimed, only disabled
- * (before any claim of its page) and named once; the undeployed, refused and
- * disabled schedules are summarised in one line each, not one per trigger,
- * and those lines are written even when a later page throws; and a worker
- * that finds no `organization` table yet scans nothing. The real-Postgres
- * probe (`integration-check.ts`) proves the fairness count and the
+ * Unit lock for the schedule scan (trigger-delivery class). The scan walks
+ * two partial indexes by keyset — the schedules whose next instant is not
+ * computed yet, then the ones whose instant has come, most overdue first —
+ * and decides each schedule in its own transaction from its row as locked
+ * then (`FOR UPDATE SKIP LOCKED`): a row another scan or a save holds is
+ * left for the next scan, one another scan already moved on starts nothing.
+ * At most one occurrence starts — the latest; with `catchUp: 'skip'` only
+ * when it is at most ten minutes late — and the others are counted in the
+ * skip detail. The run, the stamps, the claim cursor and the next instant
+ * share one write in the row's transaction. A refused start keeps its claim
+ * and records `start_refused` with the refusal's code, version and
+ * problems; an unusable schedule records `unusable_cron` and leaves the
+ * walk until it is edited; a schedule whose organization no longer exists
+ * is disabled, never run, and named once. The undeployed, refused, disabled
+ * and missed are summarised in one line each, even when a walk throws; the
+ * process's shutdown stops the scan between schedules; and a worker that
+ * finds no `organization` table yet scans nothing. The real-Postgres probes
+ * (`integration-check.ts`) prove the index use, the compat trigger and the
  * overlapping-scan exactly-once on the actual schema.
  */
 
@@ -34,108 +38,190 @@ interface Statement {
   values: unknown[];
 }
 
-interface FakeScan {
-  sql: Sql;
-  /** Every statement, the transaction's included, in order. */
-  statements: Statement[];
-  /** The statements of each transaction, in order. */
-  transactions: Statement[][];
-}
+const MINUTE = 60_000;
+const DAY = 24 * 60 * MINUTE;
+/** Thursday, 8 October 2026, 09:00:30 UTC. */
+const NOW = Date.UTC(2026, 9, 8, 9, 0, 30);
+const NINE = Date.UTC(2026, 9, 8, 9, 0);
 
-function triggerRow(id: string, now: number): Record<string, unknown> {
+/** A schedule row as the scan's lock reads it. */
+function scheduleRow(
+  id: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     id,
     organizationId: 'org_1',
     name: `sched/${id}`,
     kind: 'schedule',
-    cron: '* * * * *',
+    cron: null,
     timezone: 'UTC',
+    scheduleRule: {
+      repeat: { frequency: 'daily', interval: 1, times: ['09:00'] },
+      startDate: '2026-01-01',
+    },
+    catchUp: null,
+    nextDueAt: NINE,
     tokenHash: null,
     event: null,
     enabled: true,
-    lastFiredAt: now - 120_000,
-    lastDueAt: now - 120_000,
+    lastFiredAt: NINE - DAY,
+    lastDueAt: NINE - DAY,
     lastSkippedAt: null,
     lastSkipReason: null,
-    createdAt: now - 600_000,
-    updatedAt: now - 600_000,
+    createdAt: NINE - 30 * DAY,
+    updatedAt: NINE - 30 * DAY,
     orgMissing: false,
+    ...overrides,
   };
+}
+
+interface FakeScan {
+  sql: Sql;
+  /** Every statement, the transactions' included, in order. */
+  statements: Statement[];
+  /** The statements of each row's transaction, in order. */
+  transactions: Statement[][];
 }
 
 /**
  * Scripted `sql`: the `organization` table check answers `organizationTable`
- * (present unless a test says otherwise), and the count of enabled schedules
- * behind a missing table answers `waiting` (none unless a test says
- * otherwise); page queries pop from `pages`, and
- * a page scripted as an Error fails its query; the disable of orphaned
- * schedules pops from `retired`; inside `begin` the claim UPDATE pops from
- * `claims` and every other statement answers no rows; `beginRunInTx` is
- * mocked per test. The scan's own contract is what is under test — the run
- * store's is its own.
+ * (present unless a test says otherwise) and the count behind a missing one
+ * `waiting`; walk (a) pops its pages from `unset` and walk (b) from `due`
+ * (a page scripted as an Error fails its query); inside a row's transaction
+ * the lock answers the row `rows` holds for the id (`'locked'`, or none, is
+ * a row another transaction holds), the disable of an orphan pops from
+ * `retired`, and every other statement answers no rows. `beginRunInTx` is
+ * mocked per test: the scan's own contract is what is under test.
  */
 function fakeScan(script: {
   organizationTable?: boolean;
   waiting?: number;
-  pages: (Record<string, unknown>[] | Error)[];
-  claims: { id: string }[][];
+  unset?: (string[] | Error)[];
+  due?: (string[] | Error)[];
+  rows?: Record<string, Record<string, unknown> | 'locked'>;
   retired?: { organizationId: string; name: string }[][];
 }): FakeScan {
   const statements: Statement[] = [];
   const transactions: Statement[][] = [];
+  const page = (
+    pages: (string[] | Error)[] | undefined,
+  ): Promise<unknown[]> => {
+    const next = pages?.shift() ?? [];
+    if (next instanceof Error) return Promise.reject(next);
+    return Promise.resolve(
+      next.map((id) => ({
+        id,
+        nextDueAt:
+          (script.rows?.[id] as { nextDueAt?: number } | undefined)
+            ?.nextDueAt ?? 0,
+      })),
+    );
+  };
+  const text = (strings: TemplateStringsArray) =>
+    strings.join('?').replace(/\s+/g, ' ').trim();
   const root = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('?').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
-    if (text.includes('to_regclass')) {
+    const sqlText = text(strings);
+    statements.push({ text: sqlText, values });
+    if (sqlText.includes('to_regclass')) {
       return Promise.resolve([{ present: script.organizationTable ?? true }]);
     }
-    if (text.includes('count(*)')) {
+    if (sqlText.includes('count(*)')) {
       return Promise.resolve([{ count: script.waiting ?? 0 }]);
     }
-    if (text.startsWith('SELECT')) {
-      const page = script.pages.shift() ?? [];
-      return page instanceof Error
-        ? Promise.reject(page)
-        : Promise.resolve(page);
-    }
-    if (text.includes('SET enabled = false')) {
-      return Promise.resolve(script.retired?.shift() ?? []);
-    }
+    if (sqlText.includes('next_due_at_ms IS NULL')) return page(script.unset);
+    if (sqlText.includes('next_due_at_ms <= ?')) return page(script.due);
     return Promise.resolve([]);
   };
-  root.unsafe = (text: string): string => text;
-  root.begin = (
+  root.unsafe = (raw: string): string => raw;
+  root.json = (value: unknown): unknown => value;
+  root.begin = async (
     callback: (tx: unknown) => Promise<unknown>,
   ): Promise<unknown> => {
     const own: Statement[] = [];
     transactions.push(own);
     const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
-      const text = strings.join('?').replace(/\s+/g, ' ').trim();
-      const statement = { text, values };
+      const sqlText = text(strings);
+      const statement = { text: sqlText, values };
       statements.push(statement);
       own.push(statement);
-      if (text.includes('SET last_due_at_ms')) {
-        return Promise.resolve(script.claims.shift() ?? []);
+      if (sqlText.includes('FOR UPDATE OF t SKIP LOCKED')) {
+        // The columns ride as the first value; the id is the last.
+        const row = script.rows?.[String(values.at(-1))];
+        return Promise.resolve(
+          row === undefined || row === 'locked' ? [] : [row],
+        );
+      }
+      if (sqlText.includes('SET enabled = false')) {
+        return Promise.resolve(script.retired?.shift() ?? []);
       }
       return Promise.resolve([]);
     };
+    tx.unsafe = root.unsafe;
+    tx.json = root.json;
     return callback(tx);
   };
   return { sql: root as unknown as Sql, statements, transactions };
 }
 
-const pageQueriesOf = (fake: FakeScan): Statement[] =>
-  fake.statements.filter((s) =>
-    s.text.includes('FROM app.automation_triggers t WHERE'),
+const walksOf = (fake: FakeScan): Statement[] =>
+  fake.statements.filter(
+    (s) =>
+      s.text.startsWith('SELECT id') &&
+      s.text.includes('FROM app.automation_triggers'),
   );
-const claimsOf = (fake: FakeScan): Statement[] =>
-  fake.statements.filter((s) => s.text.includes('SET last_due_at_ms'));
-const fireStamps = (fake: FakeScan): Statement[] =>
-  fake.statements.filter((s) => s.text.includes('SET last_fired_at_ms'));
-const skipStamps = (fake: FakeScan): Statement[] =>
-  fake.statements.filter((s) => s.text.includes('SET last_skipped_at_ms'));
+const locksOf = (fake: FakeScan): Statement[] =>
+  fake.statements.filter((s) => s.text.includes('FOR UPDATE OF t SKIP LOCKED'));
 const retirements = (fake: FakeScan): Statement[] =>
   fake.statements.filter((s) => s.text.includes('SET enabled = false'));
+const decisionsOf = (fake: FakeScan): Statement[] =>
+  fake.statements.filter((s) =>
+    s.text.includes('next_due_at_ms = ?, last_due_at_ms = GREATEST'),
+  );
+const unusableStamps = (fake: FakeScan): Statement[] =>
+  fake.statements.filter((s) =>
+    s.text.includes("last_skip_reason = 'unusable_cron'"),
+  );
+const initializations = (fake: FakeScan): Statement[] =>
+  fake.statements.filter(
+    (s) =>
+      s.text ===
+      'UPDATE app.automation_triggers SET next_due_at_ms = ? WHERE id = ?',
+  );
+
+/** The one write of a decided schedule, read back by what it sets. */
+function decided(statement: Statement | undefined) {
+  const v = statement?.values ?? [];
+  return {
+    next: v[0],
+    handledThrough: v[1],
+    fired: v[2] === true ? { at: v[3], runId: v[5] } : null,
+    skip:
+      v[6] === true
+        ? {
+            at: v[7],
+            reason: v[9],
+            detail: JSON.parse(String(v[11])) as Record<string, unknown>,
+          }
+        : null,
+    id: v[12],
+  };
+}
+
+const EMPTY = {
+  examined: 0,
+  fired: 0,
+  pages: 0,
+  undeployed: 0,
+  refused: 0,
+  unusable: 0,
+  orphaned: 0,
+  initialized: 0,
+  missed: 0,
+  late: 0,
+  busy: 0,
+  failed: 0,
+};
 
 beforeEach(() => {
   vi.mocked(beginRunInTx).mockReset();
@@ -143,430 +229,528 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.useRealTimers();
 });
 
 describe('scanScheduledTriggers', () => {
-  it('walks every page by keyset, claims each due occurrence once, and summarises the undeployed', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
+  it('walks the uncomputed rows, then the due ones by keyset, each on its partial index', async () => {
     const fake = fakeScan({
-      pages: [
-        [triggerRow('t1', now), triggerRow('t2', now), triggerRow('t3', now)],
-        [triggerRow('t4', now), triggerRow('t5', now)],
-      ],
-      // t1 and t4: another scan claimed first. t2/t5: claimed → run. t3:
-      // claimed → no deployed version.
-      claims: [[], [{ id: 't2' }], [{ id: 't3' }], [], [{ id: 't5' }]],
+      unset: [['u1', 'u2'], ['u3']],
+      due: [['d1', 'd2'], ['d3']],
+      rows: {
+        // Not computed and not yet due: the instant is written, nothing runs.
+        u1: scheduleRow('u1', { nextDueAt: null, updatedAt: NOW - 10_000 }),
+        u2: scheduleRow('u2', { nextDueAt: null, updatedAt: NOW - 10_000 }),
+        u3: scheduleRow('u3', { nextDueAt: null, updatedAt: NOW - 10_000 }),
+        d1: scheduleRow('d1'),
+        d2: scheduleRow('d2'),
+        d3: scheduleRow('d3'),
+      },
     });
-    vi.mocked(beginRunInTx)
-      .mockResolvedValueOnce({ runId: 'r2', version: 1 })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ runId: 'r5', version: 1 });
+    vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'r', version: 1 });
 
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 3 });
+    const result = await scanScheduledTriggers(fake.sql, {
+      pageSize: 2,
+      now: NOW,
+    });
 
     expect(result).toEqual({
-      examined: 5,
-      fired: 2,
-      pages: 2,
-      undeployed: 1,
-      refused: 0,
-      unusable: 0,
-      orphaned: 0,
+      ...EMPTY,
+      examined: 6,
+      fired: 3,
+      pages: 4,
+      initialized: 3,
     });
-    // Only the WON claims reached the run store.
-    expect(beginRunInTx).toHaveBeenCalledTimes(3);
+    const walks = walksOf(fake);
+    expect(walks).toHaveLength(4);
+    const [unsetFirst, unsetSecond, dueFirst, dueSecond] = walks;
+    for (const walk of [unsetFirst, unsetSecond]) {
+      expect(walk?.text).toContain(
+        "kind = 'schedule' AND enabled AND next_due_at_ms IS NULL",
+      );
+      // An unusable schedule stays out of the walk until it is edited.
+      expect(walk?.text).toContain(
+        "last_skip_reason IS DISTINCT FROM 'unusable_cron'",
+      );
+      expect(walk?.text).toContain('updated_at_ms > last_skipped_at_ms');
+      expect(walk?.text).toContain('ORDER BY id');
+    }
+    expect(unsetFirst?.values).toEqual([null, null, 2]);
+    expect(unsetSecond?.values).toEqual(['u2', 'u2', 2]);
+    for (const walk of [dueFirst, dueSecond]) {
+      expect(walk?.text).toContain(
+        "kind = 'schedule' AND enabled AND next_due_at_ms IS NOT NULL AND next_due_at_ms <= ?",
+      );
+      expect(walk?.text).toContain('ORDER BY next_due_at_ms, id');
+    }
+    expect(dueFirst?.values[0]).toBe(NOW);
+    expect(dueFirst?.values[1]).toBe(true);
+    // The second page starts after the last (instant, id) of the first.
+    expect(dueSecond?.values).toEqual([NOW, false, NINE, 'd2', 2]);
+    // One transaction per schedule, each opened by the row lock.
+    expect(fake.transactions).toHaveLength(6);
+    for (const tx of fake.transactions) {
+      expect(tx[0]?.text).toContain('WHERE id = ? FOR UPDATE OF t SKIP LOCKED');
+      expect(tx[0]?.text).toContain(
+        'NOT EXISTS ( SELECT 1 FROM "organization" o WHERE o."id" = t.org_id ) AS "orgMissing"',
+      );
+    }
+    expect(initializations(fake).map((s) => s.values)).toEqual([
+      [NINE + DAY, 'u1'],
+      [NINE + DAY, 'u2'],
+      [NINE + DAY, 'u3'],
+    ]);
+  });
+
+  it('starts the occurrence that came due, in the row’s transaction, with one write [AUTO-R5]', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r1', version: 3 });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    expect(result).toMatchObject({ examined: 1, fired: 1, late: 0 });
     expect(beginRunInTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        name: 'sched/t2',
-        startedBy: 'trigger:t2',
+        organizationId: 'org_1',
+        name: 'sched/t1',
+        startedBy: 'trigger:t1',
         mode: 'live',
-        input: { trigger: 'schedule', firedAt: expect.any(Number) },
+        input: { trigger: 'schedule', firedAt: NINE },
       }),
     );
-
-    const pageQueries = pageQueriesOf(fake);
-    expect(pageQueries).toHaveLength(2);
-    for (const query of pageQueries) {
-      expect(query.text).toContain('ORDER BY id');
-      expect(query.text).toContain("kind = 'schedule' AND enabled = true");
-      // The cursor is the later of the claim and the fire stamp — a
-      // previous image claims on the fire stamp alone during a roll.
-      expect(query.text).toContain(
-        'GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL',
-      );
-      // An unusable schedule stays out of the page until it is edited.
-      expect(query.text).toContain(
-        "last_skip_reason IS DISTINCT FROM 'unusable_cron'",
-      );
-      expect(query.text).toContain('updated_at_ms > last_skipped_at_ms');
-      // Every row says whether its organization still exists.
-      expect(query.text).toContain(
-        'NOT EXISTS ( SELECT 1 FROM "organization" o WHERE o."id" = t.org_id ) AS "orgMissing"',
-      );
-      expect(query.values).toContain(3);
-    }
-    // Every organization exists here: nothing is disabled.
-    expect(retirements(fake)).toHaveLength(0);
-    // The second page starts after the last id of the first.
-    expect(pageQueries[0]?.values).toContain(null);
-    expect(pageQueries[1]?.values).toContain('t3');
-
-    const claims = claimsOf(fake);
-    expect(claims).toHaveLength(5);
-    for (const claim of claims) {
-      // Conditional stamp + RETURNING on the ledger's cursor: the loser of
-      // an overlapping scan matches nothing and never starts a run.
-      expect(claim.text).toContain(
-        'GREATEST(last_due_at_ms, last_fired_at_ms) < ?',
-      );
-      // A paused or edited binding invalidates a page read before it: the
-      // write, not only the page, must still see an enabled schedule.
-      expect(claim.text).toContain("kind = 'schedule' AND enabled = true");
-      expect(claim.text).toContain('updated_at_ms = ?');
-      expect(claim.values).toContain(now - 600_000);
-      expect(claim.text).toContain('RETURNING id');
-      expect(claim.text).not.toContain('last_fired_at_ms =');
-    }
-
-    // The fire stamp names the run, and lands only where a run was
-    // inserted; the undeployed claim records a skip instead.
-    const fired = fireStamps(fake);
-    expect(fired).toHaveLength(2);
-    expect(fired[0]?.text).toContain('last_run_id = ?');
-    expect(fired[0]?.values).toEqual([expect.any(Number), 'r2', 't2']);
-    expect(fired[1]?.values).toEqual([expect.any(Number), 'r5', 't5']);
-    const skipped = skipStamps(fake);
-    expect(skipped).toHaveLength(1);
-    expect(skipped[0]?.values).toEqual([
-      expect.any(Number),
-      'not_deployed',
-      't3',
-    ]);
-
-    // One summary line for the undeployed schedule, not one per trigger.
-    const summaries = warn.mock.calls.filter((call) =>
-      String(call[0]).includes('no deployed version'),
+    // The run store was handed the row's transaction, not the root handle.
+    expect(vi.mocked(beginRunInTx).mock.calls[0]?.[0]).not.toBe(fake.sql);
+    const [tx] = fake.transactions;
+    expect(tx).toHaveLength(2);
+    const write = decided(tx?.[1]);
+    expect(write).toEqual({
+      next: NINE + DAY,
+      handledThrough: NINE,
+      fired: { at: NINE, runId: 'r1' },
+      skip: null,
+      id: 't1',
+    });
+    // The write names none of the columns the 0170 trigger watches, so it
+    // keeps the instant it sets.
+    expect(tx?.[1]?.text).not.toMatch(
+      /\b(cron|timezone|schedule_rule|enabled|kind) =/,
     );
-    expect(summaries).toHaveLength(1);
-    expect(String(summaries[0]?.[0])).toContain('1 due schedule(s)');
-    expect(String(summaries[0]?.[0])).toContain('org_1/sched/t3');
+    expect(tx?.[1]?.text).toContain(
+      'last_due_at_ms = GREATEST(COALESCE(last_due_at_ms, 0), ?::bigint)',
+    );
   });
 
-  it('commits the claim, the run and the fire stamp as one transaction', async () => {
-    const now = Date.now();
+  it('leaves a row another scan or a save holds for the next scan', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: 'locked' } });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    expect(result).toEqual({ ...EMPTY, pages: 2, busy: 1 });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(fake.transactions[0]).toHaveLength(1);
+  });
+
+  it('starts nothing when the locked row says another scan already moved it on', async () => {
+    // Three scans walked the same due row; the first fired it and committed.
+    // The others lock it after that commit and read the instant it set.
     const fake = fakeScan({
-      pages: [[triggerRow('t1', now)]],
-      claims: [[{ id: 't1' }]],
+      due: [['t1']],
+      rows: {
+        t1: scheduleRow('t1', {
+          nextDueAt: NINE + DAY,
+          lastDueAt: NINE,
+          lastFiredAt: NINE,
+        }),
+      },
+    });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    expect(result).toEqual({ ...EMPTY, pages: 2, examined: 1 });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(decisionsOf(fake)).toHaveLength(0);
+    expect(initializations(fake)).toHaveLength(0);
+  });
+
+  it('honours an occurrence a previous image already claimed', async () => {
+    // Mid-roll, the previous image claimed 09:00 on its cursor and never
+    // writes the next instant: the new scan only moves the instant on.
+    const fake = fakeScan({
+      due: [['t1']],
+      rows: { t1: scheduleRow('t1', { lastDueAt: NINE }) },
+    });
+
+    await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(decided(decisionsOf(fake)[0])).toEqual({
+      next: NINE + DAY,
+      handledThrough: NINE,
+      fired: null,
+      skip: null,
+      id: 't1',
+    });
+  });
+
+  it('counts a saved or re-bound schedule from the save, never from before it', async () => {
+    // A schedule saved at 09:00:10 — its 09:00 came before the save — is
+    // not due until tomorrow, though its cursor is a day old.
+    const fake = fakeScan({
+      unset: [['t7']],
+      rows: {
+        t7: scheduleRow('t7', {
+          nextDueAt: null,
+          lastDueAt: null,
+          lastFiredAt: null,
+          updatedAt: NINE + 10_000,
+        }),
+      },
+    });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    expect(result).toMatchObject({ examined: 1, fired: 0, initialized: 1 });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(initializations(fake)[0]?.values).toEqual([NINE + DAY, 't7']);
+  });
+
+  it('decides an uncomputed row that is already due in the same pass', async () => {
+    // A row the previous image wrote at 08:59: no instant, but its 09:00 came.
+    const fake = fakeScan({
+      unset: [['t1']],
+      rows: {
+        t1: scheduleRow('t1', {
+          cron: '0 9 * * *',
+          scheduleRule: null,
+          nextDueAt: null,
+          updatedAt: NINE - MINUTE,
+        }),
+      },
     });
     vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r1', version: 1 });
 
-    await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
 
-    expect(fake.transactions).toHaveLength(1);
-    const [tx] = fake.transactions;
-    expect(tx?.map((s) => /SET (\w+)/.exec(s.text)?.[1])).toEqual([
-      'last_due_at_ms',
-      'last_fired_at_ms',
-    ]);
-    // The run store was handed the transaction, not the root handle.
-    expect(vi.mocked(beginRunInTx).mock.calls[0]?.[0]).not.toBe(fake.sql);
-    // The stamp is the claimed occurrence — the minute the cron named.
-    const claim = tx?.[0];
-    const stamp = tx?.[1];
-    expect(stamp?.values[0]).toBe(claim?.values[0]);
+    expect(result).toMatchObject({ examined: 1, fired: 1, initialized: 0 });
+    expect(decided(decisionsOf(fake)[0])).toMatchObject({
+      next: NINE + DAY,
+      fired: { at: NINE, runId: 'r1' },
+    });
   });
 
-  it('keeps the claim and records start_refused when the deployed version refuses the input', async () => {
+  it('records not_deployed with the occurrence, and summarises it in one line [AUTO-R5]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
-    const fake = fakeScan({
-      pages: [[triggerRow('t1', now)]],
-      claims: [[{ id: 't1' }]],
+    const fake = fakeScan({ due: [['t3']], rows: { t3: scheduleRow('t3') } });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce(null);
+
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    expect(result).toMatchObject({ fired: 0, undeployed: 1 });
+    expect(decided(decisionsOf(fake)[0])).toEqual({
+      next: NINE + DAY,
+      handledThrough: NINE,
+      fired: null,
+      skip: {
+        at: NOW,
+        reason: 'not_deployed',
+        detail: { reason: 'not_deployed', occurrence: NINE },
+      },
+      id: 't3',
     });
+    const lines = warn.mock.calls.map((call) => String(call[0]));
+    expect(lines).toEqual([
+      '[automations] trigger scan: 1 due schedule(s) have no deployed version to run: org_1/sched/t3',
+    ]);
+  });
+
+  it('keeps the claim and records start_refused with the code, the version and the problems [AUTO-R6]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+    const issues = Array.from({ length: 12 }, (_, i) => ({
+      path: `field${i}`,
+      message: 'is required',
+    }));
     vi.mocked(beginRunInTx).mockRejectedValueOnce(
       new AutomationError(
         'AUTOMATION_INPUT_INVALID',
-        'Run input does not match the automation inputs schema: "trigger" must be a number',
+        `Run input does not match the automation inputs schema: ${'x'.repeat(600)}`,
         400,
+        { issues, version: 4 },
       ),
     );
 
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
 
-    expect(result).toMatchObject({ fired: 0, undeployed: 0, refused: 1 });
-    expect(fireStamps(fake)).toHaveLength(0);
-    const skipped = skipStamps(fake);
-    expect(skipped).toHaveLength(1);
-    expect(skipped[0]?.values).toEqual([
-      expect.any(Number),
-      'start_refused',
-      't1',
-    ]);
-    // Inside the transaction, after the claim: the claim is kept, so the
-    // next tick does not retry the same refusal.
-    expect(
-      fake.transactions[0]?.map((s) => /SET (\w+)/.exec(s.text)?.[1]),
-    ).toEqual(['last_due_at_ms', 'last_skipped_at_ms']);
+    expect(result).toMatchObject({ fired: 0, refused: 1 });
+    const write = decided(decisionsOf(fake)[0]);
+    // The claim moves on: retrying the same refusal every minute helps
+    // nobody.
+    expect(write.handledThrough).toBe(NINE);
+    expect(write.next).toBe(NINE + DAY);
+    expect(write.fired).toBeNull();
+    expect(write.skip?.reason).toBe('start_refused');
+    const detail = write.skip?.detail as {
+      code: string;
+      version: number;
+      occurrence: number;
+      message: string;
+      issues: unknown[];
+    };
+    expect(detail.code).toBe('AUTOMATION_INPUT_INVALID');
+    expect(detail.version).toBe(4);
+    expect(detail.occurrence).toBe(NINE);
+    expect(detail.message).toHaveLength(500);
+    expect(detail.issues).toHaveLength(10);
     expect(
       warn.mock.calls.some(
         (call) =>
           String(call[0]).includes('refused by their deployed version') &&
-          String(call[0]).includes('"trigger" must be a number'),
+          String(call[0]).includes('org_1/sched/t1 (Run input does not match'),
       ),
     ).toBe(true);
   });
 
-  it('lets a failure that is not a refusal fail the transaction', async () => {
-    const now = Date.now();
-    const fake = fakeScan({
-      pages: [[triggerRow('t1', now)]],
-      claims: [[{ id: 't1' }]],
-    });
-    vi.mocked(beginRunInTx).mockRejectedValueOnce(new Error('connection lost'));
+  it('fits a refusal of long, multi-byte problems into its column, problems first', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+    const issues = Array.from({ length: 10 }, (_, i) => ({
+      path: `field${i}`,
+      message: 'é'.repeat(800),
+    }));
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError('AUTOMATION_INPUT_INVALID', 'ü'.repeat(900), 400, {
+        issues,
+        version: 2,
+      }),
+    );
 
-    await expect(
-      scanScheduledTriggers(fake.sql, { pageSize: 200 }),
-    ).rejects.toThrow('connection lost');
-    expect(skipStamps(fake)).toHaveLength(0);
-  });
+    await scanScheduledTriggers(fake.sql, { now: NOW });
 
-  it('stops after a short page and skips a schedule that is not due', async () => {
-    const now = Date.now();
-    const notDue = {
-      ...triggerRow('t9', now),
-      // Claimed this very minute: nothing newer can be due.
-      lastFiredAt: null,
-      lastDueAt: Math.floor(now / 60_000) * 60_000,
+    const raw = String(decisionsOf(fake)[0]?.values[11]);
+    // 0171 caps the column at 8 KiB of jsonb text.
+    expect(new TextEncoder().encode(raw).length).toBeLessThanOrEqual(6144);
+    const detail = JSON.parse(raw) as {
+      reason: string;
+      code: string;
+      version: number;
+      issues?: unknown[];
+      message: string;
     };
-    const fake = fakeScan({ pages: [[notDue]], claims: [] });
-
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
-
-    expect(result).toEqual({
-      examined: 1,
-      fired: 0,
-      pages: 1,
-      undeployed: 0,
-      refused: 0,
-      unusable: 0,
-      orphaned: 0,
+    expect(detail).toMatchObject({
+      reason: 'start_refused',
+      code: 'AUTOMATION_INPUT_INVALID',
+      version: 2,
     });
-    expect(beginRunInTx).not.toHaveBeenCalled();
-    // The table check, then the one page: nothing claimed, nothing stamped.
-    expect(fake.statements).toHaveLength(2);
-    expect(pageQueriesOf(fake)).toHaveLength(1);
+    expect(detail.issues?.length ?? 0).toBeLessThan(10);
+    expect(detail.message.length).toBeLessThanOrEqual(500);
   });
 
-  it('counts a re-bound schedule from its bind, never from the row’s creation', async () => {
-    // A trigger re-bound as a schedule has its ledger cleared (the kind
-    // changed), so "since" is the bind itself: an occurrence between the
-    // row's creation and the bind must not fire. Pinned 30 s past a
-    // minute boundary, with the bind 10 s past it: the boundary's
-    // occurrence precedes the bind.
-    vi.useFakeTimers();
-    const boundary = Date.UTC(2026, 8, 11, 10, 0, 0);
-    vi.setSystemTime(boundary + 30_000);
-    const rebound = {
-      ...triggerRow('t7', boundary),
-      lastFiredAt: null,
-      lastDueAt: null,
-      createdAt: boundary - 600_000,
-      updatedAt: boundary + 10_000,
+  it('keeps an emoji whole where it cuts a refusal, so the stamp stays storable', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+    // The property name starts at index 56, so the emoji's first half sits
+    // at index 498 — exactly where a 500-character sentence is cut.
+    const message = `Run input does not match the automation inputs schema: "${'a'.repeat(442)}😀" is required`;
+    expect(message.charCodeAt(498)).toBe(0xd83d);
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError('AUTOMATION_INPUT_INVALID', message, 400, {
+        issues: [{ path: `${'b'.repeat(498)}😀`, message: 'is required' }],
+        version: 3,
+      }),
+    );
+
+    await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    const detail = JSON.parse(String(decisionsOf(fake)[0]?.values[11])) as {
+      message: string;
+      issues: { path: string }[];
     };
-    const fake = fakeScan({ pages: [[rebound]], claims: [] });
-
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
-
-    expect(result).toMatchObject({ examined: 1, fired: 0, undeployed: 0 });
-    expect(beginRunInTx).not.toHaveBeenCalled();
-    expect(claimsOf(fake)).toHaveLength(0);
+    expect(detail.message.isWellFormed()).toBe(true);
+    expect(detail.message.endsWith('a…')).toBe(true);
+    expect(detail.message.length).toBeLessThanOrEqual(500);
+    expect(detail.issues[0]?.path.isWellFormed()).toBe(true);
   });
 
-  it('records unusable_cron for a schedule whose cron cannot parse, and scans on', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
+  it('replaces a lone half the refusal already carried', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError(
+        'AUTOMATION_INPUT_INVALID',
+        'broken \ud83d text',
+        400,
+      ),
+    );
+
+    await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    const detail = JSON.parse(String(decisionsOf(fake)[0]?.values[11])) as {
+      message: string;
+    };
+    expect(detail.message).toBe('broken \ufffd text');
+  });
+
+  it('isolates a schedule whose transaction fails: the others still fire', async () => {
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     const fake = fakeScan({
-      pages: [
-        [
-          { ...triggerRow('bad', now), cron: 'not a cron' },
-          triggerRow('ok', now),
-        ],
-      ],
-      claims: [[{ id: 'ok' }]],
+      due: [['t1', 't2']],
+      rows: { t1: scheduleRow('t1'), t2: scheduleRow('t2') },
     });
-    vi.mocked(beginRunInTx).mockResolvedValueOnce({
-      runId: 'r-ok',
-      version: 1,
-    });
+    vi.mocked(beginRunInTx)
+      .mockRejectedValueOnce(new Error('invalid input syntax for type json'))
+      .mockResolvedValueOnce({ runId: 'r2', version: 1 });
 
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
 
-    expect(result).toEqual({
-      examined: 2,
-      fired: 1,
-      pages: 1,
-      undeployed: 0,
-      refused: 0,
-      unusable: 1,
-      orphaned: 0,
-    });
-    const skipped = skipStamps(fake);
-    expect(skipped).toHaveLength(1);
-    expect(skipped[0]?.values).toEqual([
-      expect.any(Number),
-      'unusable_cron',
-      'bad',
-    ]);
-    // Outside any transaction — nothing to claim for it.
-    expect(fake.transactions).toHaveLength(1);
+    // The failing row wrote nothing — its transaction rolled back, so it
+    // stays due — and the next one fired.
+    expect(result).toMatchObject({ examined: 1, fired: 1, failed: 1 });
+    const writes = decisionsOf(fake);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.values.at(-1)).toBe('t2');
     expect(
-      warn.mock.calls.some((call) =>
+      error.mock.calls.some(
+        (call) =>
+          String(call[0]).includes('1 schedule(s) failed') &&
+          String(call[0]).includes('t1 (invalid input syntax for type json)'),
+      ),
+    ).toBe(true);
+  });
+
+  it('records unusable_cron with its reason for a schedule that cannot be read, and scans on', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = fakeScan({
+      unset: [['bad', 'zone']],
+      due: [['ok']],
+      rows: {
+        bad: scheduleRow('bad', {
+          cron: 'not a cron',
+          nextDueAt: null,
+        }),
+        zone: scheduleRow('zone', {
+          timezone: 'Mars/Olympus_Mons',
+          nextDueAt: null,
+        }),
+        ok: scheduleRow('ok'),
+      },
+    });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r', version: 1 });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    expect(result).toMatchObject({ examined: 3, fired: 1, unusable: 2 });
+    const stamps = unusableStamps(fake);
+    expect(stamps).toHaveLength(2);
+    expect(stamps[0]?.text).toContain('SET next_due_at_ms = NULL');
+    expect(stamps[0]?.values[0]).toBe(NOW);
+    expect(JSON.parse(String(stamps[0]?.values[1]))).toEqual({
+      reason: 'unusable_cron',
+      message: expect.stringContaining('5 fields'),
+    });
+    expect(JSON.parse(String(stamps[1]?.values[1]))).toEqual({
+      reason: 'unusable_cron',
+      message: 'unknown time zone "Mars/Olympus_Mons"',
+    });
+    expect(
+      warn.mock.calls.filter((call) =>
         String(call[0]).includes('unusable schedule'),
       ),
-    ).toBe(true);
+    ).toHaveLength(2);
   });
 
   it('writes the unusable line once — a row already stamped this hour is stamped again in silence', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
     const fake = fakeScan({
-      pages: [
-        [
-          {
-            ...triggerRow('bad', now),
-            cron: 'not a cron',
-            lastSkipReason: 'unusable_cron',
-            lastSkippedAt: now - 5 * 60_000,
-          },
-        ],
-      ],
-      claims: [],
+      unset: [['bad']],
+      rows: {
+        bad: scheduleRow('bad', {
+          cron: 'not a cron',
+          nextDueAt: null,
+          lastSkipReason: 'unusable_cron',
+          lastSkippedAt: NOW - 5 * MINUTE,
+        }),
+      },
     });
 
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
 
     expect(result.unusable).toBe(1);
-    expect(skipStamps(fake)).toHaveLength(1);
+    expect(unusableStamps(fake)).toHaveLength(1);
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('disables a schedule whose organization is gone — never claimed, never run — and names it in one line', async () => {
+  it('disables a schedule whose organization is gone — never decided, never run — and names it once', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
-    const orphan = (id: string): Record<string, unknown> => ({
-      ...triggerRow(id, now),
-      organizationId: 'org_gone',
-      orgMissing: true,
-    });
+    const orphan = (id: string, overrides: Record<string, unknown> = {}) =>
+      scheduleRow(id, {
+        organizationId: 'org_gone',
+        orgMissing: true,
+        ...overrides,
+      });
     const fake = fakeScan({
-      pages: [
-        [orphan('t1'), triggerRow('t2', now)],
-        // An orphan whose expression cannot parse is disabled all the same:
-        // nothing about it is read before its organization is.
-        [{ ...orphan('t3'), cron: 'not a cron' }],
-      ],
-      claims: [[{ id: 't2' }]],
+      due: [['t1', 't2', 't3', 't4']],
+      rows: {
+        t1: orphan('t1'),
+        t2: scheduleRow('t2'),
+        // Nothing about an orphan is read before its organization is: one
+        // whose expression cannot parse is disabled all the same.
+        t3: orphan('t3', { cron: 'not a cron' }),
+        // Another scan's write matched this one first: nothing comes back.
+        t4: orphan('t4'),
+      },
       retired: [
         [{ organizationId: 'org_gone', name: 'sched/t1' }],
         [{ organizationId: 'org_gone', name: 'sched/t3' }],
+        [],
       ],
     });
     vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r2', version: 1 });
 
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 2 });
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
 
-    expect(result).toEqual({
-      examined: 3,
-      fired: 1,
-      pages: 2,
-      undeployed: 0,
-      refused: 0,
-      unusable: 0,
-      orphaned: 2,
-    });
-    // Only the live organization's schedule was claimed and run.
+    expect(result).toMatchObject({ examined: 4, fired: 1, orphaned: 2 });
     expect(beginRunInTx).toHaveBeenCalledTimes(1);
     expect(beginRunInTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ name: 'sched/t2' }),
     );
-    const claims = claimsOf(fake);
-    expect(claims).toHaveLength(1);
-    expect(claims[0]?.values).toContain('t2');
-    expect(skipStamps(fake)).toHaveLength(0);
-
-    // One conditional disable per page, outside any claim's transaction: it
-    // re-checks the organization and the switch at the write.
     const retired = retirements(fake);
     expect(retired.map((statement) => statement.values[0])).toEqual([
       ['t1'],
       ['t3'],
+      ['t4'],
     ]);
     for (const statement of retired) {
+      // It re-checks the organization and the switch at the write.
       expect(statement.text).toContain('t.enabled = true');
       expect(statement.text).toContain(
         'NOT EXISTS ( SELECT 1 FROM "organization" o WHERE o."id" = t.org_id )',
       );
-      expect(statement.text).toContain('RETURNING');
     }
-    expect(fake.transactions.flat()).not.toContainEqual(retired[0]);
-
-    // One line for the scan, naming each binding it disabled.
-    const lines = warn.mock.calls.filter((call) =>
-      String(call[0]).includes('whose organization no longer exists'),
-    );
-    expect(lines).toHaveLength(1);
-    expect(String(lines[0]?.[0])).toContain('disabled 2 schedule(s)');
-    expect(String(lines[0]?.[0])).toContain('org_gone/sched/t1');
-    expect(String(lines[0]?.[0])).toContain('org_gone/sched/t3');
-    expect(
-      warn.mock.calls.some((call) =>
-        String(call[0]).includes('unusable schedule'),
-      ),
-    ).toBe(false);
+    expect(unusableStamps(fake)).toHaveLength(0);
+    const lines = warn.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.includes('whose organization no longer exists'));
+    expect(lines).toEqual([
+      '[automations] trigger scan: disabled 2 schedule(s) whose organization no longer exists: org_gone/sched/t1, org_gone/sched/t3',
+    ]);
   });
 
-  it('stays silent about an orphan another scan disabled first', async () => {
+  it('still names what it left undeployed, had refused or disabled when a later walk throws', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
     const fake = fakeScan({
-      pages: [[{ ...triggerRow('t1', now), orgMissing: true }]],
-      claims: [],
-      // The overlapping scan's write matched it first: nothing comes back.
-      retired: [[]],
-    });
-
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
-
-    expect(result).toMatchObject({ examined: 1, fired: 0, orphaned: 0 });
-    expect(retirements(fake)).toHaveLength(1);
-    expect(claimsOf(fake)).toHaveLength(0);
-    expect(beginRunInTx).not.toHaveBeenCalled();
-    expect(warn).not.toHaveBeenCalled();
-  });
-
-  it('still names what the pages before a failing page disabled, left undeployed or had refused', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
-    const fake = fakeScan({
-      pages: [
-        [
-          {
-            ...triggerRow('t1', now),
-            organizationId: 'org_gone',
-            orgMissing: true,
-          },
-          triggerRow('t2', now),
-          triggerRow('t3', now),
-        ],
-        // The second page's read dies: the scan fails, and a disabled
-        // schedule never enters a page again — its line is now or never.
-        new Error('connection lost'),
-      ],
-      claims: [[{ id: 't2' }], [{ id: 't3' }]],
+      unset: [['t1', 't2', 't3']],
+      // The due walk's read dies: the scan fails, and a disabled schedule
+      // never enters a walk again — its line is now or never.
+      due: [new Error('connection lost')],
+      rows: {
+        t1: scheduleRow('t1', {
+          organizationId: 'org_gone',
+          orgMissing: true,
+          nextDueAt: null,
+        }),
+        t2: scheduleRow('t2', { nextDueAt: null, updatedAt: NINE - MINUTE }),
+        t3: scheduleRow('t3', { nextDueAt: null, updatedAt: NINE - MINUTE }),
+      },
       retired: [[{ organizationId: 'org_gone', name: 'sched/t1' }]],
     });
     vi.mocked(beginRunInTx)
@@ -580,12 +764,10 @@ describe('scanScheduledTriggers', () => {
       );
 
     await expect(
-      scanScheduledTriggers(fake.sql, { pageSize: 3 }),
+      scanScheduledTriggers(fake.sql, { pageSize: 3, now: NOW }),
     ).rejects.toThrow('connection lost');
 
-    expect(retirements(fake)).toHaveLength(1);
     const lines = warn.mock.calls.map((call) => String(call[0]));
-    // The three summaries share one shape: the count, then the names.
     expect(lines).toEqual([
       '[automations] trigger scan: 1 due schedule(s) have no deployed version to run: org_1/sched/t2',
       '[automations] trigger scan: 1 due schedule(s) were refused by their deployed version: org_1/sched/t3 (Run input does not match the automation inputs schema)',
@@ -593,44 +775,43 @@ describe('scanScheduledTriggers', () => {
     ]);
   });
 
-  it('disables a page’s orphans before its first claim, so a claim that throws leaves none enabled', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const now = Date.now();
+  it('stops between schedules when the process shuts down; the rest stays due', async () => {
+    const stop = new AbortController();
     const fake = fakeScan({
-      pages: [
-        [
-          triggerRow('t1', now),
-          {
-            ...triggerRow('t2', now),
-            organizationId: 'org_gone',
-            orgMissing: true,
-          },
-        ],
-      ],
-      claims: [[{ id: 't1' }]],
-      retired: [[{ organizationId: 'org_gone', name: 'sched/t2' }]],
+      due: [['t1', 't2', 't3']],
+      rows: {
+        t1: scheduleRow('t1'),
+        t2: scheduleRow('t2'),
+        t3: scheduleRow('t3'),
+      },
     });
-    vi.mocked(beginRunInTx).mockRejectedValueOnce(new Error('connection lost'));
+    vi.mocked(beginRunInTx).mockImplementation(async () => {
+      stop.abort();
+      return { runId: 'r1', version: 1 };
+    });
 
-    await expect(
-      scanScheduledTriggers(fake.sql, { pageSize: 200 }),
-    ).rejects.toThrow('connection lost');
+    const result = await scanScheduledTriggers(fake.sql, {
+      now: NOW,
+      signal: stop.signal,
+    });
 
-    const texts = fake.statements.map((statement) => statement.text);
-    const retiredAt = texts.findIndex((text) =>
-      text.includes('SET enabled = false'),
-    );
-    const claimedAt = texts.findIndex((text) =>
-      text.includes('SET last_due_at_ms'),
-    );
-    expect(retiredAt).toBeGreaterThan(-1);
-    expect(retiredAt).toBeLessThan(claimedAt);
-    expect(retirements(fake)[0]?.values[0]).toEqual(['t2']);
-    expect(
-      warn.mock.calls.filter((call) =>
-        String(call[0]).includes('org_gone/sched/t2'),
-      ),
-    ).toHaveLength(1);
+    expect(result).toMatchObject({ examined: 1, fired: 1 });
+    expect(locksOf(fake)).toHaveLength(1);
+    expect(beginRunInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts no walk once shutdown has begun', async () => {
+    const stop = new AbortController();
+    stop.abort();
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+
+    const result = await scanScheduledTriggers(fake.sql, {
+      now: NOW,
+      signal: stop.signal,
+    });
+
+    expect(result).toEqual(EMPTY);
+    expect(walksOf(fake)).toHaveLength(0);
   });
 
   it('scans nothing, and does not fail, before the organization table exists', async () => {
@@ -640,54 +821,249 @@ describe('scanScheduledTriggers', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const fake = fakeScan({
       organizationTable: false,
-      pages: [[triggerRow('t1', Date.now())]],
-      claims: [[{ id: 't1' }]],
+      due: [['t1']],
+      rows: { t1: scheduleRow('t1') },
     });
 
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
 
-    expect(result).toEqual({
-      examined: 0,
-      fired: 0,
-      pages: 0,
-      undeployed: 0,
-      refused: 0,
-      unusable: 0,
-      orphaned: 0,
-    });
-    // The table check, then the count that finds no schedule waiting: no
-    // page read names the missing relation, and a fresh install is quiet.
+    expect(result).toEqual(EMPTY);
     expect(fake.statements.map((statement) => statement.text)).toEqual([
       'SELECT to_regclass(\'"organization"\') IS NOT NULL AS present',
       "SELECT count(*)::int AS count FROM app.automation_triggers WHERE kind = 'schedule' AND enabled = true",
     ]);
-    expect(pageQueriesOf(fake)).toHaveLength(0);
-    expect(retirements(fake)).toHaveLength(0);
     expect(beginRunInTx).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
 
   it('says so when enabled schedules wait but the connection sees no organization table', async () => {
-    // Not a fresh install: schedules exist, so Better Auth's tables do too,
-    // somewhere this worker's connection cannot see them. Nothing fires and
-    // nothing is disabled, but the scan no longer fails in silence either.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const fake = fakeScan({
-      organizationTable: false,
-      waiting: 3,
-      pages: [[triggerRow('t1', Date.now())]],
-      claims: [[{ id: 't1' }]],
-    });
+    const fake = fakeScan({ organizationTable: false, waiting: 3 });
 
-    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
 
     expect(result).toMatchObject({ examined: 0, fired: 0, pages: 0 });
-    expect(pageQueriesOf(fake)).toHaveLength(0);
-    expect(retirements(fake)).toHaveLength(0);
-    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(walksOf(fake)).toHaveLength(0);
     const lines = warn.mock.calls.map((call) => String(call[0]));
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('3 enabled schedule(s) wait');
     expect(lines[0]).toContain('no "organization" table');
+  });
+});
+
+/**
+ * Daylight-saving changes, driven through the scan's clock: a named time
+ * the clock skips starts once, moved forward by the gap; one the clock
+ * repeats starts once, at its first instant; "every N minutes" keeps its
+ * pace in real time, so a repeated quarter hour starts twice.
+ */
+describe('a schedule through daylight-saving changes [AUTO-R34]', () => {
+  const zurich = (
+    id: string,
+    repeat: Record<string, unknown>,
+    overrides: Record<string, unknown> = {},
+  ) =>
+    scheduleRow(id, {
+      timezone: 'Europe/Zurich',
+      scheduleRule: { repeat, startDate: '2026-01-01' },
+      nextDueAt: null,
+      lastDueAt: null,
+      lastFiredAt: null,
+      ...overrides,
+    });
+  const dailyAt = (time: string) => ({
+    frequency: 'daily',
+    interval: 1,
+    times: [time],
+  });
+
+  it('starts "every day at 02:30" at 03:30 on the spring-forward day', async () => {
+    // 2026-03-29: 02:00 CET jumps to 03:00 CEST; 03:30 CEST is 01:30Z.
+    const now = Date.parse('2026-03-29T01:30:30Z');
+    const fake = fakeScan({
+      unset: [['t1']],
+      rows: {
+        t1: zurich('t1', dailyAt('02:30'), {
+          updatedAt: Date.parse('2026-03-28T12:00:00Z'),
+        }),
+      },
+    });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r', version: 1 });
+
+    await scanScheduledTriggers(fake.sql, { now });
+
+    expect(decided(decisionsOf(fake)[0])).toMatchObject({
+      fired: { at: Date.parse('2026-03-29T01:30:00Z'), runId: 'r' },
+      // The next day, 02:30 CEST again.
+      next: Date.parse('2026-03-30T00:30:00Z'),
+    });
+  });
+
+  it('starts "every day at 02:30" once, at the first 02:30, on the fall-back day', async () => {
+    // 2026-10-25: 03:00 CEST falls back to 02:00 CET; 02:30 happens at
+    // 00:30Z and again at 01:30Z.
+    const first = Date.parse('2026-10-25T00:30:00Z');
+    const fake = fakeScan({
+      due: [['t1']],
+      rows: {
+        t1: zurich('t1', dailyAt('02:30'), {
+          nextDueAt: first,
+          lastDueAt: Date.parse('2026-10-24T00:30:00Z'),
+        }),
+      },
+    });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r', version: 1 });
+
+    await scanScheduledTriggers(fake.sql, { now: first + 30_000 });
+
+    // The second 02:30 is not an occurrence: next is tomorrow's.
+    expect(decided(decisionsOf(fake)[0])).toMatchObject({
+      fired: { at: first },
+      next: Date.parse('2026-10-26T01:30:00Z'),
+    });
+  });
+
+  it('starts "every 15 minutes" at the repeated 02:45 twice, 15 real minutes apart', async () => {
+    const firstPass = Date.parse('2026-10-25T00:45:00Z'); // 02:45 CEST
+    const secondPass = Date.parse('2026-10-25T01:45:00Z'); // 02:45 CET
+    const quarter = { frequency: 'minutely', interval: 15 };
+    const fake = fakeScan({
+      due: [['t1'], ['t2']],
+      rows: {
+        t1: zurich('t1', quarter, {
+          nextDueAt: firstPass,
+          lastDueAt: firstPass - 15 * MINUTE,
+        }),
+        t2: zurich('t2', quarter, {
+          nextDueAt: secondPass,
+          lastDueAt: secondPass - 15 * MINUTE,
+        }),
+      },
+    });
+    vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'r', version: 1 });
+
+    await scanScheduledTriggers(fake.sql, { now: firstPass + 30_000 });
+    await scanScheduledTriggers(fake.sql, { now: secondPass + 30_000 });
+
+    const [one, two] = decisionsOf(fake).map(decided);
+    expect(one).toMatchObject({
+      fired: { at: firstPass },
+      next: firstPass + 15 * MINUTE, // 02:00 CET
+    });
+    expect(two).toMatchObject({
+      fired: { at: secondPass },
+      next: secondPass + 15 * MINUTE, // 03:00 CET
+    });
+  });
+});
+
+/**
+ * What a schedule does with occurrences it missed while the platform was
+ * not running: `latest` (the default) starts the most recent one once,
+ * however late; `skip` starts it only when it is at most ten minutes late.
+ * The others are counted in `missed_occurrences`, never run; a fire's own
+ * outcome wins over the count, which rides in its detail.
+ */
+describe('missed occurrences [AUTO-R37]', () => {
+  // A daily 09:00 schedule, down from 08:30 on the 6th until 10:15 on the
+  // 8th: the 6th, 7th and 8th at 09:00 came due while nothing ran.
+  const sixth = NINE - 2 * DAY;
+  const back = NINE + 75 * MINUTE;
+  const missedRow = (catchUp: 'latest' | 'skip' | null) =>
+    scheduleRow('t1', {
+      catchUp,
+      nextDueAt: sixth,
+      lastDueAt: sixth - DAY,
+      lastFiredAt: sixth - DAY,
+    });
+
+  it('latest: starts the 09:00 of today at 10:15, once, and counts the two before it', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: missedRow(null) } });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r', version: 1 });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: back });
+
+    expect(result).toMatchObject({ fired: 1, late: 1, missed: 2 });
+    expect(beginRunInTx).toHaveBeenCalledTimes(1);
+    expect(decided(decisionsOf(fake)[0])).toEqual({
+      next: NINE + DAY,
+      handledThrough: NINE,
+      fired: { at: NINE, runId: 'r' },
+      skip: {
+        at: back,
+        reason: 'missed_occurrences',
+        detail: {
+          reason: 'missed_occurrences',
+          missed: {
+            count: 2,
+            capped: false,
+            firstAt: sixth,
+            lastAt: sixth + DAY,
+            policy: 'latest',
+          },
+          firedLatest: true,
+        },
+      },
+      id: 't1',
+    });
+  });
+
+  it('skip: starts nothing 75 minutes late, and counts all three', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: missedRow('skip') } });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: back });
+
+    expect(result).toMatchObject({ fired: 0, missed: 3 });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(decided(decisionsOf(fake)[0])).toMatchObject({
+      next: NINE + DAY,
+      handledThrough: NINE,
+      fired: null,
+      skip: {
+        reason: 'missed_occurrences',
+        detail: {
+          reason: 'missed_occurrences',
+          missed: { count: 3, firstAt: sixth, lastAt: NINE, policy: 'skip' },
+          firedLatest: false,
+        },
+      },
+    });
+  });
+
+  it('skip: still starts an occurrence that is at most ten minutes late', async () => {
+    const fake = fakeScan({
+      due: [['t1']],
+      rows: { t1: scheduleRow('t1', { catchUp: 'skip' }) },
+    });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r', version: 1 });
+
+    const result = await scanScheduledTriggers(fake.sql, {
+      now: NINE + 10 * MINUTE,
+    });
+
+    expect(result).toMatchObject({ fired: 1, late: 0, missed: 0 });
+  });
+
+  it('lets the fire’s own outcome win, with the missed count in its detail', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: missedRow(null) } });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce(null);
+
+    await scanScheduledTriggers(fake.sql, { now: back });
+
+    expect(decided(decisionsOf(fake)[0]).skip).toEqual({
+      at: back,
+      reason: 'not_deployed',
+      detail: {
+        reason: 'not_deployed',
+        occurrence: NINE,
+        missed: {
+          count: 2,
+          capped: false,
+          firstAt: sixth,
+          lastAt: sixth + DAY,
+          policy: 'latest',
+        },
+      },
+    });
   });
 });

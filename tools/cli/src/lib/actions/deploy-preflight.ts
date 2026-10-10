@@ -4,12 +4,13 @@ import {
   validateAdditionalSiteUrls,
 } from '../config/ensure-env';
 import { checkDaemon, checkSandboxToken } from '../docker/health-checks';
+import { probeDockerEngine } from '../docker/setup-checks';
 
 /**
  * Gate `tale deploy` on the handful of things that would otherwise fail it
  * partway through for a reason the CLI could have caught up front:
  *
- *  - the Docker daemon must be reachable,
+ *  - the Docker daemon must be reachable and run a supported engine,
  *  - a `letsencrypt` deployment needs a public host + a valid email (ACME
  *    cannot issue for localhost / a bare IP / a missing email),
  *
@@ -103,6 +104,11 @@ interface DeployPreflightOptions {
   env?: NodeJS.ProcessEnv;
   /** Dry-run reports problems but never blocks. */
   dryRun?: boolean;
+  /** The Docker probes; tests replace them. */
+  docker?: {
+    daemon?: typeof checkDaemon;
+    engine?: typeof probeDockerEngine;
+  };
 }
 
 interface DeployPreflightResult {
@@ -124,12 +130,24 @@ export async function runDeployPreflight(
   logger.step('Running deploy preflight…');
 
   // 1. Docker daemon must answer.
-  const daemon = await checkDaemon();
+  const daemon = await (options.docker?.daemon ?? checkDaemon)();
   if (daemon.status === 'fail') {
     blocking.push({
       message:
         `Docker daemon not reachable: ${daemon.detail}. ${daemon.fix ?? ''}`.trim(),
     });
+  } else {
+    // 1b. ...and run an engine that can pull Tale's zstd-compressed images.
+    //     One whose version cannot be judged is only reported.
+    const engine = await (options.docker?.engine ?? probeDockerEngine)();
+    if (engine.status === 'fail') {
+      blocking.push({
+        message: `${engine.detail} ${engine.fix ?? ''}`.trim(),
+      });
+    } else if (engine.status === 'warn') {
+      logger.warn(engine.detail);
+      if (engine.fix) logger.info(`  fix: ${engine.fix}`);
+    }
   }
 
   // 2. TLS prerequisites for a real certificate.

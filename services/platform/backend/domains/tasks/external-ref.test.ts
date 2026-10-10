@@ -523,7 +523,9 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
         });
         const update = updates.at(-1);
         expect(column(update, 'status')).toBe('in_review');
-        expect(column(update, 'external_closed_at_ms')).toBeNull();
+        if (kind === 'agent' && externalState !== 'open')
+          expect(column(update, 'external_closed_at_ms')).toBeGreaterThan(0);
+        else expect(column(update, 'external_closed_at_ms')).toBeNull();
         expect(column(update, 'completed_at_ms')).toBeNull();
         expect(column(update, 'status_changed_at_ms')).toBe(1);
         expect(column(update, 'rank')).toBe('a0');
@@ -599,7 +601,12 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
       });
       expect(column(updates[0], 'status')).toBe('in_review');
       expect(column(updates[0], 'completed_at_ms')).toBeNull();
-      expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
+      if (externalState === 'open')
+        expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
+      else
+        expect(column(updates[0], 'external_closed_at_ms')).toBeGreaterThan(
+          123,
+        );
       expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
       expect(requestTaskReview).not.toHaveBeenCalled();
     },

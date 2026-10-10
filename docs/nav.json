@@ -5,7 +5,6 @@
     {
       "label": "start",
       "pages": [
-        "index",
         "get-started/quickstart",
         "get-started/members",
         "get-started/editors",
@@ -277,6 +276,7 @@
         "develop/contributing-docker",
         "develop/api-reference",
         "develop/mcp-endpoint",
+        "develop/mcp-settings",
         "develop/use-tale-from-your-editor",
         "develop/webhooks",
         "develop/webdav-api",

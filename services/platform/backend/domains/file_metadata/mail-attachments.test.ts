@@ -50,7 +50,7 @@ function fakeSql(
   return tag as unknown as Sql;
 }
 
-describe('listMailAttachments', () => {
+describe('listMailAttachments [FMETA-R5]', () => {
   it('reads each conversation only while it is live and not marked spam', async () => {
     const log: { text: string; values: unknown[] }[] = [];
     await listMailAttachments(fakeSql(log, []), {

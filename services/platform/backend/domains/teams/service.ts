@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { TEAM_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { retireApiKeysInTx } from '../api_keys/retire.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
 
 /**
@@ -213,6 +214,13 @@ export async function retireTeamScopes(
   `;
   result.syncConfigsUnscoped = onedrive.length + google.length;
 
+  // The team's own API keys end with it: what they saw was the team's.
+  await retireApiKeysInTx(tx, {
+    organizationId,
+    reason: 'team_deleted',
+    teamId,
+  });
+
   const hints: { entity: string; changed: number }[] = [
     { entity: 'project', changed: projects.length },
     { entity: 'folder', changed: folders.length },
@@ -284,6 +292,8 @@ export interface TeamDeletionImpact {
   documents: { scoped: number; becomeOrgWide: number };
   conversations: { queued: number };
   syncConfigs: { scoped: number };
+  /** The team's own API keys, which stop working with it. */
+  apiKeys: number;
 }
 
 export async function teamDeletionImpact(
@@ -304,6 +314,7 @@ export async function teamDeletionImpact(
       documentsSole: number;
       conversations: number;
       syncConfigs: number;
+      apiKeys: number;
     }[]
   >`
     SELECT t."name",
@@ -338,7 +349,11 @@ export async function teamDeletionImpact(
          WHERE s.org_id = ${organizationId} AND s.team_id = t."id")
        + (SELECT count(*) FROM app.google_drive_sync_configs s
          WHERE s.org_id = ${organizationId} AND s.team_id = t."id"))::int
-        AS "syncConfigs"
+        AS "syncConfigs",
+      (SELECT count(*) FROM app.api_key_owners o
+        WHERE o.org_id = ${organizationId} AND o.owner_kind = 'team'
+          AND o.team_id = t."id" AND o.revoked_at_ms IS NULL)::int
+        AS "apiKeys"
     FROM "team" t
     WHERE t."id" = ${teamId} AND t."organizationId" = ${organizationId}
     LIMIT 1
@@ -354,6 +369,7 @@ export async function teamDeletionImpact(
     documents: { scoped: row.documents, becomeOrgWide: row.documentsSole },
     conversations: { queued: row.conversations },
     syncConfigs: { scoped: row.syncConfigs },
+    apiKeys: row.apiKeys,
   };
 }
 

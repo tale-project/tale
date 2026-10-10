@@ -59,6 +59,9 @@ interface CachedProbe {
 
 let cached: CachedProbe | null = null;
 let inFlight: Promise<StoreStatus[]> | null = null;
+// A deadline bounds the answer, not the underlying SQL work. Retain a pending
+// query until it settles so repeated browser checks cannot fill a stalled pool.
+const pendingAppProbes = new WeakMap<Sql, Promise<unknown>>();
 
 /** What each store was last seen doing, so only CHANGES reach the log. */
 const lastSeen = new Map<StoreName, boolean>();
@@ -101,9 +104,16 @@ async function withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
   }
 }
 
-async function probeAppDatabase(sql: Sql): Promise<StoreStatus> {
+export async function probeAppDatabase(sql: Sql): Promise<StoreStatus> {
   try {
-    await withTimeout(Promise.resolve(sql`SELECT 1`), 'the app database');
+    let query = pendingAppProbes.get(sql);
+    if (!query) {
+      query = Promise.resolve(sql`SELECT 1`).finally(() => {
+        pendingAppProbes.delete(sql);
+      });
+      pendingAppProbes.set(sql, query);
+    }
+    await withTimeout(query, 'the app database');
     return { name: 'app_db', up: true };
   } catch (error: unknown) {
     return { name: 'app_db', up: false, detail: describe(error) };

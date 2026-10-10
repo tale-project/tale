@@ -1,4 +1,9 @@
-import type { BudgetRule } from '@tale/shared/schemas/governance';
+import {
+  allBudgetRules,
+  type BudgetConfig,
+  type BudgetRule,
+  effectiveBudgetConfig,
+} from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { usageLedgerSubjectForms } from '../../../lib/shared/constants/usage.ts';
@@ -18,6 +23,7 @@ import {
   buildPeriodKeyFromTimestamp,
 } from '../../core/governance/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { readKeyIdentity } from '../api_keys/owners.ts';
 
 /**
  * The org budget gate over the policy FILE + `app.usage_ledger`, with the
@@ -50,7 +56,14 @@ const NO_USAGE: UsageTotals = {
 export type UsageScope =
   | { kind: 'user'; userId: string }
   | { kind: 'team'; teamId: string }
-  | { kind: 'apiKey'; apiKeyId: string }
+  | {
+      kind: 'apiKey';
+      apiKeyId: string;
+      /** The key's own identity, when it is not a person: everything it
+       * spends is the key's, whether or not the booking named the key. */
+      identity?: string;
+    }
+  | { kind: 'project'; projectId: string }
   | { kind: 'org' };
 
 /**
@@ -66,6 +79,13 @@ export type UsageScope =
  * starter — so a cap sees the member's whole spend, whichever door it came
  * through (`governance/README.md`).
  */
+/**
+ * What a bucket used this period. Its requests are model requests: a
+ * connector call is counted on `connector_call_count` and never as a
+ * request, so a ledger row a connector names is skipped — rows booked before
+ * connector calls stopped carrying a request included. A project's buckets
+ * (`app.project_usage`) never take a connector call at all.
+ */
 async function periodUsage(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -78,17 +98,21 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND user_id = ANY(${usageLedgerSubjectForms(scope.userId)})
       `;
       break;
     case 'team':
+      // The team's current members, and every key the team owns — a
+      // revoked one's spend this period still counts: it was the team's.
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND regexp_replace(user_id, '^(user|api-key):', '') IN (
@@ -96,6 +120,11 @@ async function periodUsage(
             JOIN "team" t ON t."id" = tm."teamId"
             WHERE tm."teamId" = ${scope.teamId}
               AND t."organizationId" = ${organizationId}
+            UNION ALL
+            SELECT o.principal_user_id FROM app.api_key_owners o
+            WHERE o.team_id = ${scope.teamId}
+              AND o.org_id = ${organizationId}
+              AND o.owner_kind = 'team'
           )
       `;
       break;
@@ -103,17 +132,36 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND api_key_id = ${scope.apiKeyId}
+          AND (api_key_id = ${scope.apiKeyId}
+               OR user_id = ANY(${
+                 scope.identity === undefined
+                   ? []
+                   : usageLedgerSubjectForms(scope.identity)
+               }))
+      `;
+      break;
+    case 'project':
+      // Everything booked as the project's — its own buckets, written beside
+      // the ledger (`incrementUsageLedger`).
+      rows = await sql<UsageTotals[]>`
+        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
+               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM app.project_usage
+        WHERE org_id = ${organizationId} AND project_id = ${scope.projectId}
+          AND period_key = ${periodKey}
       `;
       break;
     case 'org':
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
       `;
@@ -140,10 +188,22 @@ export interface OrgBudgetSubject {
    * measured against `apiKey`-scoped caps. */
   apiKeyId?: string;
   /** A subject that is nobody: a managed turn of a run a trigger started
-   * (booked under `__automation__`), or an op without a run to attribute.
-   * No personal, team or role cap binds it — there is no person to bind —
-   * only the organization's and, when a key was involved, the key's. */
+   * (booked under `__automation__`), an op without a run to attribute, or
+   * an API key that is not a person (`loadBudgetSubject`). No personal or
+   * role cap binds it — there is no person to bind — only the
+   * organization's, the key's when a key was involved, and the shared cap
+   * of the team in `userTeamIds` (a team's own key). */
   impersonal?: boolean;
+  /** For an API key that is not a person, its identity (`userId`): all
+   * its spend is the key's — a run its REST comment started books under
+   * the identity without naming the key — so the key's caps count it. */
+  apiKeyIdentity?: string;
+  /** The projects the work belongs to — a chat's thread's, an agent run's,
+   * an automation run's (every project its automation is bound to, when the
+   * run names none), a project's own API key's. Each one's `project` caps
+   * bind the work, whoever asked for it, as each of a member's teams' caps
+   * bind them. */
+  projectIds?: readonly string[];
 }
 
 /**
@@ -151,22 +211,90 @@ export interface OrgBudgetSubject {
  * their role — so every lane that asks is measured in the same buckets: a
  * team joined or a role changed binds the next request, whichever lane it
  * takes.
+ *
+ * An API key that is not a person — a team's, a project's or the
+ * organization's own (`domains/api_keys/owners.ts`) — is no member: no
+ * personal, role or default cap binds it. Its own key caps and the
+ * organization's do, and a team's key is measured against its team's shared
+ * caps, its spend counting toward the team.
  */
 export async function loadBudgetSubject(
   sql: Sql | TransactionSql,
-  args: { organizationId: string; userId: string; apiKeyId?: string },
+  args: {
+    organizationId: string;
+    userId: string;
+    apiKeyId?: string;
+    /** The projects the work belongs to, when the lane knows them. */
+    projectIds?: readonly string[];
+  },
 ): Promise<OrgBudgetSubject> {
   const [member, userTeamIds] = await Promise.all([
     findOrganizationMember(sql, args.organizationId, args.userId),
     getUserTeamIds(sql, args.organizationId, args.userId),
   ]);
+  // A person has a member row; only a subject without one can be a key —
+  // read live or revoked: work the key started before it was revoked still
+  // spends as the key, never as a person.
+  const principal =
+    member === null ? await readKeyIdentity(sql, args.userId) : null;
+  if (principal !== null) {
+    return {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      userTeamIds:
+        principal.kind === 'team' &&
+        principal.teamId !== null &&
+        principal.organizationId === args.organizationId
+          ? [principal.teamId]
+          : [],
+      impersonal: true,
+      apiKeyId: args.apiKeyId ?? principal.apiKeyId,
+      apiKeyIdentity: args.userId,
+      // A project's own key spends in its project, whatever it calls.
+      ...(principal.kind === 'project' && principal.projectId !== null
+        ? { projectIds: [principal.projectId] }
+        : inProjects(args.projectIds)),
+    };
+  }
   return {
     organizationId: args.organizationId,
     userId: args.userId,
     userTeamIds,
     ...(member !== null ? { userRole: member.role } : {}),
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+    ...inProjects(args.projectIds),
   };
+}
+
+/** The `projectIds` of a subject in these projects; nothing for none. */
+function inProjects(projectIds: readonly string[] | undefined): {
+  projectIds?: readonly string[];
+} {
+  return projectIds !== undefined && projectIds.length > 0
+    ? { projectIds: [...new Set(projectIds)] }
+    : {};
+}
+
+/**
+ * The organization's budget policy, the one read every cap goes through:
+ * the budgets file's switch and rules, with the project caps of their own
+ * file (`effectiveBudgetConfig`). Null when there is no budgets file — its
+ * switch is the policy's, so project caps alone bind nothing.
+ */
+async function readBudgetPolicy(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<BudgetConfig | null> {
+  const budgets = await readGovernancePolicyForOrg(
+    sql,
+    organizationId,
+    'budgets',
+  );
+  if (budgets === null) return null;
+  return effectiveBudgetConfig(
+    budgets,
+    await readGovernancePolicyForOrg(sql, organizationId, 'project_budgets'),
+  );
 }
 
 /** Whether the organization's budget policy is on with at least one rule —
@@ -176,12 +304,8 @@ export async function budgetPolicyActive(
   sql: Sql | TransactionSql,
   organizationId: string,
 ): Promise<boolean> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    organizationId,
-    'budgets',
-  );
-  return config !== null && config.enabled && config.rules.length > 0;
+  const config = await readBudgetPolicy(sql, organizationId);
+  return config !== null && config.enabled && allBudgetRules(config).length > 0;
 }
 
 /** Spend that work still in flight has claimed but not booked yet. */
@@ -199,16 +323,19 @@ export interface BudgetReservations {
   org?: ReservedSpend;
   apiKey?: ReservedSpend;
   teams?: Readonly<Record<string, ReservedSpend>>;
+  /** What the work in flight in each of the subject's projects holds. */
+  projects?: Readonly<Record<string, ReservedSpend>>;
 }
 
-export type BudgetScope = 'user' | 'team' | 'org' | 'apiKey';
+export type BudgetScope = 'user' | 'team' | 'org' | 'apiKey' | 'project';
 
 /** The buckets one evaluation walks, in the order the ladder binds: the
- * caller's personal triple, each of their teams' shared caps, the org's,
- * then the authenticating key's. */
+ * caller's personal triple, each of their teams' shared caps, each of the
+ * work's projects', the org's, then the authenticating key's. */
 interface BudgetBucket {
   scope: BudgetScope;
   teamId?: string;
+  projectId?: string;
   rule: BudgetRule;
   usage: UsageTotals;
 }
@@ -237,7 +364,8 @@ async function bucketsFor(
   const org = subject.organizationId;
   const buckets: BudgetBucket[] = [];
   // The personal triple binds a person; an impersonal subject has none
-  // (its team list is empty too, so no team bucket follows).
+  // (and no team either, but for a team's own API key, whose spend is its
+  // team's).
   if (subject.impersonal !== true) {
     buckets.push({
       scope: 'user',
@@ -272,6 +400,35 @@ async function bucketsFor(
           teamId: teamLimit.teamId,
         }),
         reservations.teams?.[teamLimit.teamId],
+      ),
+    });
+  }
+  // Each project's cap against everything spent in that project.
+  for (const projectLimit of limits.projectLimits) {
+    if (
+      projectLimit.maxTokens == null &&
+      projectLimit.maxCostCents == null &&
+      projectLimit.maxRequests == null
+    ) {
+      continue;
+    }
+    buckets.push({
+      scope: 'project',
+      projectId: projectLimit.projectId,
+      rule: {
+        scope: 'project',
+        scopeId: projectLimit.projectId,
+        period,
+        maxTokens: projectLimit.maxTokens,
+        maxCostCents: projectLimit.maxCostCents,
+        maxRequests: projectLimit.maxRequests,
+      },
+      usage: withReserved(
+        await periodUsage(sql, org, periodKey, {
+          kind: 'project',
+          projectId: projectLimit.projectId,
+        }),
+        reservations.projects?.[projectLimit.projectId],
       ),
     });
   }
@@ -315,6 +472,9 @@ async function bucketsFor(
         await periodUsage(sql, org, periodKey, {
           kind: 'apiKey',
           apiKeyId: subject.apiKeyId,
+          ...(subject.apiKeyIdentity !== undefined
+            ? { identity: subject.apiKeyIdentity }
+            : {}),
         }),
         reservations.apiKey,
       ),
@@ -330,18 +490,16 @@ async function applicableLimitsByPeriod(
   sql: Sql | TransactionSql,
   subject: OrgBudgetSubject,
 ): Promise<{ period: BudgetRule['period']; limits: Limits }[]> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    subject.organizationId,
-    'budgets',
-  );
-  if (!config || !config.enabled || config.rules.length === 0) return [];
+  const config = await readBudgetPolicy(sql, subject.organizationId);
+  const rules = config?.enabled === true ? allBudgetRules(config) : [];
+  if (rules.length === 0) return [];
   const applicableRules = collectAllApplicableRules(
-    config.rules,
+    rules,
     subject.userId,
     subject.userTeamIds,
     subject.userRole,
     subject.apiKeyId,
+    subject.projectIds,
   );
   return PERIODS.flatMap((period) => {
     const periodRules = applicableRules.filter((r) => r.period === period);
@@ -355,6 +513,7 @@ async function applicableLimitsByPeriod(
           subject.userTeamIds,
           subject.userRole,
           subject.apiKeyId,
+          subject.projectIds,
         ),
       },
     ];
@@ -367,6 +526,8 @@ export interface BudgetViolation {
   scope: BudgetScope;
   /** The team whose shared cap binds — team scope only. */
   teamId?: string;
+  /** The project whose cap binds — project scope only. */
+  projectId?: string;
   code: 'TOKEN_LIMIT' | 'COST_LIMIT' | 'REQUEST_LIMIT';
   period: BudgetRule['period'];
   used: number;
@@ -420,6 +581,9 @@ export async function findBudgetViolation(
       return {
         scope: bucket.scope,
         ...(bucket.teamId !== undefined ? { teamId: bucket.teamId } : {}),
+        ...(bucket.projectId !== undefined
+          ? { projectId: bucket.projectId }
+          : {}),
         code: breach.code,
         period,
         used: breach.used,
@@ -463,17 +627,20 @@ export async function checkOrgBudget(
  * measures it against. */
 export interface BudgetStanding {
   /** Whose usage counts: the subject's own, one of their teams' combined
-   * usage, or the whole organization's. */
-  scope: 'user' | 'team' | 'org';
+   * usage, everything spent in a project the subject works in, or the whole
+   * organization's. */
+  scope: 'user' | 'team' | 'org' | 'project';
   /** The team whose shared cap this is — team scope only. */
   teamId?: string;
+  /** The project whose cap this is — project scope only. */
+  projectId?: string;
   period: BudgetRule['period'];
   periodKey: string;
   /** When the period rolls over and this usage starts again from zero. */
   resetsAt: number;
   /** The share of a cap the budget banner starts warning at, when a rule
-   * for this bucket sets one (a team's shared cap warns at its own rule's
-   * threshold). */
+   * for this bucket sets one (a team's or a project's cap warns at its own
+   * rule's threshold). */
   warningThresholdPercent?: number;
   maxTokens?: number;
   maxCostCents?: number;
@@ -487,7 +654,8 @@ export interface BudgetStanding {
  * prospective spend, so a reader sees exactly the numbers that would refuse
  * their next request. Only buckets that carry a cap are returned; `[]` when
  * no budget policy binds. A session reader carries no API key, so key caps
- * never appear here.
+ * never appear here; a project's cap appears for a subject that names the
+ * project — a reader writing in one of its chats.
  */
 export async function readBudgetStanding(
   sql: Sql | TransactionSql,
@@ -500,7 +668,9 @@ export async function readBudgetStanding(
     subject,
   )) {
     const buckets = await bucketsFor(sql, subject, period, limits, {}, now);
-    for (const { scope, teamId, rule, usage } of buckets) {
+    for (const { scope, teamId, projectId, rule, usage } of buckets) {
+      // A reader's standing is their own: an API key's caps bind the work,
+      // not the person reading.
       if (scope === 'apiKey') continue;
       if (
         rule.maxTokens == null &&
@@ -514,11 +684,16 @@ export async function readBudgetStanding(
           ? limits.warningThresholdPercent
           : scope === 'org'
             ? limits.orgWarningThresholdPercent
-            : limits.teamLimits.find((team) => team.teamId === teamId)
-                ?.warningThresholdPercent;
+            : scope === 'project'
+              ? limits.projectLimits.find(
+                  (project) => project.projectId === projectId,
+                )?.warningThresholdPercent
+              : limits.teamLimits.find((team) => team.teamId === teamId)
+                  ?.warningThresholdPercent;
       standings.push({
         scope,
         ...(teamId !== undefined ? { teamId } : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
         period,
         periodKey: buildPeriodKeyFromTimestamp(period, now),
         resetsAt: buildPeriodEndFromTimestamp(period, now),
@@ -567,12 +742,14 @@ const BUCKET_OWNER: Record<BudgetScope, string> = {
   team: "Your team's",
   org: 'The organization’s',
   apiKey: "This API key's",
+  project: "This project's",
 };
 const BUCKET_OWNER_INLINE: Record<BudgetScope, string> = {
   user: 'your own',
   team: "your team's",
   org: 'the organization’s',
   apiKey: "this API key's",
+  project: "this project's",
 };
 
 /** The bucket with the least room left under one kind of cap. */
@@ -596,6 +773,7 @@ function violationOf(
   return {
     scope: bucket.scope,
     ...(bucket.teamId !== undefined ? { teamId: bucket.teamId } : {}),
+    ...(bucket.projectId !== undefined ? { projectId: bucket.projectId } : {}),
     code,
     period,
     used:
@@ -606,6 +784,12 @@ function violationOf(
     reason,
     resetsAt: buildPeriodEndFromTimestamp(period, now),
   };
+}
+
+/** A rule as a turn that costs nothing reads it: its cost cap set aside. */
+function withoutCostCap(rule: BudgetRule): BudgetRule {
+  const { maxCostCents: _cost, ...uncapped } = rule;
+  return uncapped;
 }
 
 /**
@@ -632,6 +816,11 @@ export async function resolveTurnAllowance(
      * managed turns alike (`readInFlightReservations`). */
     reservations: BudgetReservations;
     whole?: { prospectiveTokens: number };
+    /** A flat-rate turn — a subscription the organization pays its vendor
+     * for apart from Tale — adds requests and tokens but no cost: it is
+     * admitted while every request and token cap has room, whatever the
+     * cost caps read, and holds no cents. */
+    costFree?: boolean;
   },
 ): Promise<TurnAllowance> {
   const { reservations } = args;
@@ -657,9 +846,11 @@ export async function resolveTurnAllowance(
       // cost and tokens are measured whole below, and its request is the
       // one a request cap still has room for.
       const violation =
-        args.whole !== undefined
-          ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
-          : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
+        args.costFree === true
+          ? checkRuleAgainstUsage(withoutCostCap(bucket.rule), bucket.usage)
+          : args.whole !== undefined
+            ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
+            : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
       if (violation?.code !== undefined) {
         // The rule's own wording, and whose cap it is: a key's cap and the
         // organization's read alike otherwise.
@@ -673,6 +864,9 @@ export async function resolveTurnAllowance(
           violation: {
             scope: bucket.scope,
             ...(bucket.teamId !== undefined ? { teamId: bucket.teamId } : {}),
+            ...(bucket.projectId !== undefined
+              ? { projectId: bucket.projectId }
+              : {}),
             code: violation.code,
             period,
             used: violation.used ?? 0,
@@ -697,6 +891,8 @@ export async function resolveTurnAllowance(
       }
     }
   }
+  // Every request and token cap has room, and cost caps cannot bind it.
+  if (args.costFree === true) return { allowed: true, budgetCents: 0 };
   const room = {
     ...(tightestCost !== undefined
       ? { cents: Math.max(0, tightestCost.room) }

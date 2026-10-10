@@ -96,8 +96,10 @@ export function TeamEditDialog({
   const { handleSubmit, register, reset, formState, setError } = form;
 
   useEffect(() => {
-    reset({ name: team.name });
-  }, [team, reset]);
+    if (!open || !formState.isDirty) {
+      reset({ name: team.name });
+    }
+  }, [team.name, open, formState.isDirty, reset]);
 
   const handleToggleMember = useCallback((userId: string) => {
     setSelectedMemberIds((prev) => {
@@ -265,6 +267,8 @@ export function TeamEditDialog({
         className="w-full"
         required
         disabled={synced}
+        readOnly={isSubmitting}
+        variant="default"
         errorMessage={formState.errors.name?.message}
       />
       {synced ? null : (
@@ -273,6 +277,7 @@ export function TeamEditDialog({
           selectedMemberIds={selectedMemberIds}
           onToggleMember={handleToggleMember}
           enforceMinimumOne
+          disabled={isSubmitting}
         />
       )}
     </FormDialog>

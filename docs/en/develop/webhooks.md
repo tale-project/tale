@@ -42,7 +42,7 @@ The accepted response has the shape `{"runId":"..."}` with HTTP `202`. Save that
 }
 ```
 
-Read the order as `input.payload.orderId`. If the automation declares an `inputs` schema, it must describe this wrapper. A body that is not JSON becomes text in `payload`. The body limit is 256 KiB (262,144 bytes), measured as bytes arrive; larger requests receive `413`.
+Read the order as `input.payload.orderId`. If the automation declares an `inputs` schema, it must describe this wrapper. A trigger with a fixed input adds its fields beside `trigger` and `payload` in every delivery's input; the app's [trigger settings](/platform/automations/triggers#fixed-input) set it, and the API takes it as `input`. A body that is not JSON becomes text in `payload`. The body limit is 256 KiB (262,144 bytes), measured as bytes arrive; larger requests receive `413`.
 
 ### Follow the result
 
@@ -52,6 +52,8 @@ Read the order as `input.payload.orderId`. If the automation declares an `inputs
 | Organization | `GET /api/v1/runs/{runId}` |
 
 Poll with an API key whose holder can read that scope, or open the run in Tale. The webhook token starts deliveries; it is not a credential for reading REST results. Wait for a terminal run status before reporting that the work succeeded.
+
+In the app, **Recent deliveries** under the trigger on the automation's **General** tab lists the last ten runs the webhook started, newest first, with their status. While Tale still remembers a delivery, each row names the header it took the delivery ID from, or says it has none. Refused requests start no run and are not listed there; their response is the record.
 
 ### Interpret delivery responses
 

@@ -7,7 +7,12 @@ import { render, screen } from '@/tests/utils/render';
 import { MobileBottomNav } from './mobile-bottom-nav';
 
 // The two reads the Home tab's chip depends on, mirroring the desktop rail.
-const inbox = { hasInbox: true };
+const inbox = {
+  get showInbox() {
+    return this.hasInbox;
+  },
+  hasInbox: true,
+};
 const unread: { data: number | undefined } = { data: undefined };
 const unreadCalls: (string | undefined)[] = [];
 
@@ -31,8 +36,10 @@ vi.mock('@/lib/i18n/client', () => ({
 
 const navigate = vi.fn();
 let automationSlug: string | undefined;
+// Where the phone is — set before rendering to move the page.
+const currentLocation = { pathname: '/dashboard/org-1/chat' };
 vi.mock('@tanstack/react-router', () => ({
-  useLocation: () => ({ pathname: '/dashboard/org-1/chat' }),
+  useLocation: () => currentLocation,
   useNavigate: () => navigate,
   useMatches: ({
     select,
@@ -73,6 +80,7 @@ vi.mock('@/app/hooks/use-display-mode', () => ({
 beforeEach(() => {
   viewer.role = 'owner';
   automationSlug = undefined;
+  currentLocation.pathname = '/dashboard/org-1/chat';
   inbox.hasInbox = true;
   unread.data = undefined;
   unreadCalls.length = 0;
@@ -125,6 +133,47 @@ describe('the mobile tab bar', () => {
     const { user } = render(<MobileBottomNav organizationId="org-1" />);
     await user.click(screen.getByRole('button', { name: /^automations/ }));
     expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/automations',
+      params: { id: 'org-1' },
+    });
+  });
+
+  // A tab always lands on its section's first page, also from inside that
+  // section: never the tab or the automation that was open there. Strict
+  // equality, so a stray history state fails the case too.
+  it('opens Knowledge on Documents from any of its tabs', async () => {
+    currentLocation.pathname = '/dashboard/org-1/websites';
+    const { user } = render(<MobileBottomNav organizationId="org-1" />);
+    expect(screen.getByRole('button', { name: /^knowledge/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await user.click(screen.getByRole('button', { name: /^knowledge/ }));
+    expect(navigate.mock.lastCall?.[0]).toStrictEqual({
+      to: '/dashboard/$id/documents',
+      params: { id: 'org-1' },
+    });
+  });
+
+  it('lights Automations on an automation opened inside a project', () => {
+    currentLocation.pathname =
+      '/dashboard/org-1/projects/p-1/automations/intake/editor';
+    automationSlug = 'intake';
+    render(<MobileBottomNav organizationId="org-1" />);
+    expect(
+      screen.getByRole('button', { name: /^automations/ }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /^home/ })).not.toHaveAttribute(
+      'aria-current',
+    );
+  });
+
+  it('opens the automations list from inside an automation', async () => {
+    currentLocation.pathname = '/dashboard/org-1/automations/intake/runs';
+    automationSlug = 'intake';
+    const { user } = render(<MobileBottomNav organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /^automations/ }));
+    expect(navigate.mock.lastCall?.[0]).toStrictEqual({
       to: '/dashboard/$id/automations',
       params: { id: 'org-1' },
     });

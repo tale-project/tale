@@ -1,0 +1,99 @@
+title: Produits
+entityLabelOne: produit
+searchPlaceholder: Rechercher des produits
+addButton: Ajouter un produit
+importMenu:
+  fromDevice: Depuis ton appareil
+  manualEntry: Saisie manuelle
+noValidData: Aucune donnée produit valide trouvée
+noneImported: Aucun produit n'a été importé
+edit:
+  title: Modifier le produit
+  description: Mettre à jour les informations du produit.
+  namePlaceholder: Saisir le nom du produit
+  descriptionPlaceholder: Saisir la description du produit
+  categoryPlaceholder: Électronique, Vêtements, etc.
+  pricePlaceholder: 0,00
+  stockPlaceholder: '0'
+  imageUrlPlaceholder: https://example.com/image.jpg
+  uploadImage: Téléverser une image
+  removeImage: Supprimer l'image
+  pasteUrl: Ou coller une URL
+  imageTooLarge: L'image est trop volumineuse (max. 5 Mo).
+  imageUploadFailed: Échec du téléversement de l'image. Réessaie.
+  imageActiveContent: 'Ce fichier SVG contient des scripts ou des gestionnaires d''événements et ne peut pas être utilisé. Téléverse une image simple ou un SVG sans ces éléments.'
+  imageUnsupported: 'Ce fichier n''est pas une image prise en charge. Utilise PNG, JPEG, WebP, GIF ou SVG.'
+  currencyPlaceholder: EUR
+  validation:
+    currency: Saisis un code devise ISO 4217 à trois lettres (par exemple EUR ou USD)
+    imageUrl: Saisis une URL d'image qui commence par https:// ou http://
+    priceNumber: Saisis un nombre pour le prix
+    priceNonNegative: Le prix doit être supérieur ou égal à 0
+    priceTooLarge: Le prix est trop élevé
+    stockNumber: Saisis un nombre pour le stock
+    stockNonNegative: Le stock doit être supérieur ou égal à 0
+    stockTooLarge: Le stock est trop élevé
+    stockInteger: Le stock doit être un nombre entier
+  labels:
+    name: Nom du produit
+    description: Description
+    imageUrl: URL de l'image
+    image: Image
+    price: Prix
+    currency: Devise
+    stock: Stock
+    category: Catégorie
+    status: Statut
+  toast:
+    success: Produit mis à jour avec succès
+    error: Échec de la mise à jour du produit
+    duplicateName: Un produit portant ce nom existe déjà
+create:
+  title: Ajouter un produit
+  labels:
+    status: Statut
+  toast:
+    success: Produit créé avec succès
+    error: Échec de la création du produit
+    duplicateName: Un produit portant ce nom existe déjà
+createWizard:
+  steps:
+    basics: Bases
+    pricing: Prix et stock
+    review: Vérification
+  basicsHint: Commence par le nom, la description et l'image.
+  pricingHint: Ajoute le prix, le stock et la catégorie.
+  reviewHint: Vérifie les détails, puis crée le produit.
+import:
+  uploadProducts: Téléverser des produits
+  uploadFile: Téléverse un fichier
+  success: Importation réussie
+  successDescription:
+    Importation réussie de {success} produits{failed, select, 0
+    {} other {, {failed} échoué(s)}}
+  error: Échec de l'importation des produits
+  clickToUpload: Clique pour téléverser
+  supportedFormats: .xlsx, .xls ou .csv
+  expectedColumns: 'Colonnes attendues : name, description, imageUrl, stock,
+    price, currency, category, status'
+  draftStatusNote: Les produits importés sont créés avec le statut « brouillon » par défaut.
+  errorCodes:
+    unknown: Une erreur inattendue s'est produite
+actions:
+  deleteFailed: Échec de la suppression du produit
+delete:
+  title: Supprimer le produit
+  confirmation: Supprimer « {name} » ?
+  thisProduct: ce produit
+  warning: Toutes les relations et données associées seront définitivement supprimées.
+view:
+  title: Détails du produit
+  labels:
+    price: Prix
+    stock: Stock
+    category: Catégorie
+    lastUpdated: Dernière mise à jour
+    tags: Tags
+    fullDescription: Description complète
+    source: Source
+    productId: ID du produit

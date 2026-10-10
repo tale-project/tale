@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 
-import { backendFetch } from './api-client';
+import { BackendApiError, backendFetch } from './api-client';
 import { documentReadAdapters } from './documents';
 
 vi.mock('./api-client', async (importOriginal) => ({
@@ -69,5 +69,42 @@ describe('folders/queries:getFolderBreadcrumb', () => {
       '/folders/fold-2026/breadcrumb',
       { orgId: 'org-1' },
     );
+  });
+
+  // A deleted folder's page asks for its trail and the pg backend refuses
+  // with 404 (403 out of reach). The documents page leaves an empty trail
+  // for the root; a refusal surfaced as an error left the reader in an
+  // empty folder that no longer exists.
+  it.each([
+    [404, 'FOLDER_NOT_FOUND'],
+    [403, 'FORBIDDEN'],
+  ])(
+    'answers no trail for a folder the backend refuses with %i',
+    async (status, code) => {
+      vi.mocked(backendFetch).mockRejectedValueOnce(
+        new BackendApiError(status, 'refused', code),
+      );
+      const adapter =
+        documentReadAdapters['folders/queries:getFolderBreadcrumb'];
+      const query = adapter?.(
+        { organizationId: 'org-1', folderId: 'fold-gone' },
+        { organizationId: 'org-1' },
+      );
+      if (!query) throw new Error('no breadcrumb read');
+      await expect(query.queryFn()).resolves.toEqual([]);
+    },
+  );
+
+  it('keeps any other failure an error', async () => {
+    vi.mocked(backendFetch).mockRejectedValueOnce(
+      new BackendApiError(500, 'boom'),
+    );
+    const adapter = documentReadAdapters['folders/queries:getFolderBreadcrumb'];
+    const query = adapter?.(
+      { organizationId: 'org-1', folderId: 'fold-2026' },
+      { organizationId: 'org-1' },
+    );
+    if (!query) throw new Error('no breadcrumb read');
+    await expect(query.queryFn()).rejects.toBeInstanceOf(BackendApiError);
   });
 });

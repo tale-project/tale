@@ -1,0 +1,98 @@
+title: Products
+entityLabelOne: product
+searchPlaceholder: Search products
+addButton: Add product
+importMenu:
+  fromDevice: From your device
+  manualEntry: Manual entry
+noValidData: No valid product data found
+noneImported: No products were imported
+edit:
+  title: Edit product
+  description: Update product information.
+  namePlaceholder: Enter product name
+  descriptionPlaceholder: Enter product description
+  categoryPlaceholder: Electronics, Clothing, etc.
+  pricePlaceholder: '0.00'
+  stockPlaceholder: '0'
+  imageUrlPlaceholder: https://example.com/image.jpg
+  uploadImage: Upload image
+  removeImage: Remove image
+  pasteUrl: Or paste a URL
+  imageTooLarge: Image is too large (max 5 MB).
+  imageUploadFailed: Image upload failed. Try again.
+  imageActiveContent: 'This SVG contains scripts or event handlers and can''t be used. Upload a plain image or an SVG without them.'
+  imageUnsupported: 'This file isn''t a supported image. Use PNG, JPEG, WebP, GIF or SVG.'
+  currencyPlaceholder: USD
+  validation:
+    currency: Enter a three-letter ISO 4217 currency code (for example USD or EUR)
+    imageUrl: Enter an image URL that starts with https:// or http://
+    priceNumber: Enter a number for the price
+    priceNonNegative: Price must be 0 or more
+    priceTooLarge: Price is too large
+    stockNumber: Enter a number for the stock
+    stockNonNegative: Stock must be 0 or more
+    stockTooLarge: Stock is too large
+    stockInteger: Stock must be a whole number
+  labels:
+    name: Product name
+    description: Description
+    imageUrl: Image URL
+    image: Image
+    price: Price
+    currency: Currency
+    stock: Stock
+    category: Category
+    status: Status
+  toast:
+    success: Product updated
+    error: Couldn't update product
+    duplicateName: A product with this name already exists
+create:
+  title: Add product
+  labels:
+    status: Status
+  toast:
+    success: Product created
+    error: Couldn't create product
+    duplicateName: A product with this name already exists
+createWizard:
+  steps:
+    basics: Basics
+    pricing: Pricing & inventory
+    review: Review
+  basicsHint: Start with a name, description, and image.
+  pricingHint: Add pricing, stock, and category details.
+  reviewHint: Review the details, then create the product.
+import:
+  uploadProducts: Upload products
+  uploadFile: Upload a file
+  success: Import successful
+  successDescription: Imported {success} products{failed, select, 0 {} other {, {failed} failed}}
+  error: Couldn't import products
+  clickToUpload: Upload
+  supportedFormats: .xlsx, .xls or .csv
+  expectedColumns:
+    'Expected columns: name, description, imageUrl, stock, price,
+    currency, category, status'
+  draftStatusNote: Imported products are created with 'draft' status by default.
+  errorCodes:
+    unknown: Couldn't finish that import. Try again.
+actions:
+  deleteFailed: Couldn't delete product
+delete:
+  title: Delete product
+  confirmation: Delete {name}?
+  thisProduct: this product
+  warning: All related relationships and data will be permanently removed.
+view:
+  title: Product details
+  labels:
+    price: Price
+    stock: Stock
+    category: Category
+    lastUpdated: Last updated
+    tags: Tags
+    fullDescription: Full description
+    source: Source
+    productId: Product ID

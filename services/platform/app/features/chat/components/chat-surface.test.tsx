@@ -14,6 +14,13 @@ const navigateMock = vi.hoisted(() => vi.fn());
 const canManageProvidersMock = vi.hoisted(() => ({ value: false }));
 const uploadRecovery = vi.hoisted(() => ({
   notify: undefined as ((reason?: string) => void) | undefined,
+  attachments: [] as {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }[],
+  clearAttachments: vi.fn(() => []),
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -102,16 +109,19 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
     onTranscriptionUnavailable?: (reason?: string) => void;
   }) => {
     uploadRecovery.notify = config.onTranscriptionUnavailable;
+    const [attachments, setAttachments] = React.useState(
+      uploadRecovery.attachments,
+    );
     return {
-      attachments: [],
-      setAttachments: vi.fn(),
+      attachments,
+      setAttachments,
       uploadingFiles: [],
       isUploading: false,
       uploadFiles: vi.fn(),
       cancelUpload: vi.fn(),
       removeAttachment: vi.fn(),
       retryAttachmentTranscription: vi.fn(),
-      clearAttachments: vi.fn(() => []),
+      clearAttachments: uploadRecovery.clearAttachments,
     };
   },
 }));
@@ -154,6 +164,14 @@ const videoLinksState = {
 vi.mock('../hooks/use-chat-video-links', () => ({
   useChatVideoLinks: () => videoLinksState,
 }));
+// The task dialog loads on first open (a lazy chunk); a marker stands in for
+// it so the cases below see what the surface hands it.
+vi.mock('./create-task-from-chat', () => ({
+  CreateTaskFromChat: ({ threadId }: { threadId: string }) => (
+    <div data-testid="create-task-from-chat">{threadId}</div>
+  ),
+}));
+
 // The parked-sends tray subscribes to Convex on its own; inert here.
 vi.mock('./deferred-send-tray', () => ({
   DeferredSendTray: () => null,
@@ -236,7 +254,9 @@ vi.mock('./arena/arena-split-view', () => ({
   ),
 }));
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
+import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 
+import { useBranchActions } from '../data/branch-actions';
 import {
   useArenaPair,
   useChatGeneration,
@@ -254,10 +274,33 @@ import {
 } from '../utils/pending-messages';
 import { ChatSurface } from './chat-surface';
 
+vi.mock('../data/branch-actions', () => ({
+  useBranchActions: vi.fn(),
+}));
+
+const editBranchActions = {
+  available: true,
+  branchForEdit: vi.fn(),
+  branchForRegenerate: vi.fn(),
+  regenerate: vi.fn(),
+  fork: vi.fn(),
+  select: vi.fn(),
+  discard: vi.fn(),
+};
+
+beforeEach(() => {
+  vi.mocked(useBranchActions).mockReturnValue(editBranchActions);
+  for (const action of Object.values(editBranchActions)) {
+    if (typeof action === 'function') action.mockReset();
+  }
+});
+
 afterEach(() => {
   navigateMock.mockReset();
   canManageProvidersMock.value = false;
   uploadRecovery.notify = undefined;
+  uploadRecovery.attachments = [];
+  uploadRecovery.clearAttachments.mockClear();
   transcriptionState.statusMap = new Map();
   transcriptionState.isTranscribing = false;
   transcriptionState.isQueryLoading = false;
@@ -371,7 +414,9 @@ describe('ChatSurface while the chat backend is unavailable', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    // An async audit is not a DOM polling assertion: waitFor's 1s clock can
+    // abort it while axe is still running. Await the audit within the test budget.
+    await checkAccessibility(container);
   });
 });
 
@@ -436,7 +481,7 @@ describe('ChatSurface when the model listing answers and is empty', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -562,6 +607,141 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       stop: vi.fn(() => Promise.resolve()),
     });
   });
+
+  it.each([true, false])(
+    'retains original attachments on a text-only edit (attached: %s)',
+    async (attached) => {
+      vi.mocked(useThreadView).mockClear();
+      uploadRecovery.attachments = [
+        {
+          fileId: 's3:draft',
+          fileName: 'draft.pdf',
+          fileType: 'application/pdf',
+          fileSize: 512,
+        },
+      ];
+      const attachments = attached
+        ? [
+            {
+              type: 'attachment' as const,
+              fileId: 's3:audit',
+              name: 'audit.pdf',
+              mediaType: 'application/pdf',
+              sizeBytes: 128,
+            },
+            {
+              type: 'attachment' as const,
+              fileId: 's3:chart',
+              name: 'chart.png',
+              mediaType: 'image/png',
+              sizeBytes: 256,
+            },
+          ]
+        : [];
+      const rows = toSettledItems([
+        {
+          id: 'm-user',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Read this audit' }, ...attachments],
+          sequence: 0,
+          createdAt: 1,
+        },
+        {
+          id: 'm-answer',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'Audit read' }],
+          sequence: 1,
+          createdAt: 2,
+        },
+      ]);
+      vi.mocked(useThreadView).mockReturnValue({
+        status: 'ready',
+        items: rows,
+        generation: null,
+        streamingMessageId: undefined,
+        pendingConsumed: false,
+      });
+      editBranchActions.branchForEdit.mockResolvedValue({
+        status: 'created',
+        id: 't-edit',
+        parentId: 't1',
+        forkSequence: 0,
+      });
+      start.mockResolvedValue({
+        threadId: 't-edit',
+        outcome: Promise.resolve({ status: 'complete' }),
+      });
+
+      const { user } = render(
+        <ChatSurface organizationId="org-1" threadId="t1" />,
+      );
+      uploadRecovery.clearAttachments.mockClear();
+      editBranchActions.branchForRegenerate.mockResolvedValue({
+        status: 'created',
+        id: 't-regen',
+        parentId: 't1',
+        forkSequence: 0,
+      });
+      editBranchActions.regenerate.mockResolvedValue({ refused: false });
+      await user.click(await screen.findByTestId('message-more-button'));
+      await user.click(screen.getByRole('menuitem', { name: 'Try again' }));
+      await waitFor(() =>
+        expect(editBranchActions.regenerate).toHaveBeenCalledWith(
+          't-regen',
+          expect.objectContaining({ modelId: MODEL.id }),
+        ),
+      );
+      expect(editBranchActions.branchForRegenerate).toHaveBeenCalledWith(
+        't1',
+        'm-answer',
+      );
+      expect(start).not.toHaveBeenCalled();
+      await user.click(await screen.findByTestId('message-edit-button'));
+      const editor = screen.getByRole('textbox', { name: 'Edit message' });
+      await user.clear(editor);
+      await user.type(editor, 'Read this audit (edited){Enter}');
+
+      const expectedAttachments = attachments.map((part) => ({
+        fileId: part.fileId,
+        fileName: part.name,
+        fileType: part.mediaType,
+        fileSize: part.sizeBytes,
+      }));
+      await waitFor(() =>
+        expect(start).toHaveBeenCalledWith(
+          expect.objectContaining({
+            threadId: 't-edit',
+            text: 'Read this audit (edited)',
+            ...(attached ? { attachments: expectedAttachments } : {}),
+          }),
+        ),
+      );
+      expect(editBranchActions.branchForEdit).toHaveBeenCalledWith(
+        't1',
+        'm-user',
+      );
+      const request = start.mock.calls[0]?.[0];
+      expect(request.attachments ?? []).toEqual(expectedAttachments);
+      const pending = vi
+        .mocked(useThreadView)
+        .mock.calls.map((call) => call[2])
+        .find((send) => send?.threadId === 't-edit');
+      expect(pending?.attachments ?? []).toEqual(expectedAttachments);
+      expect(rows[0]?.parts).toEqual([
+        { type: 'text', text: 'Read this audit' },
+        ...attachments,
+      ]);
+      expect(uploadRecovery.clearAttachments).not.toHaveBeenCalled();
+      expect(uploadRecovery.attachments).toEqual([
+        {
+          fileId: 's3:draft',
+          fileName: 'draft.pdf',
+          fileType: 'application/pdf',
+          fileSize: 512,
+        },
+      ]);
+    },
+  );
 
   /** Answer `(pointer: fine)` the way a desktop does, restoring the harness
    * mock afterwards — every other query keeps answering "no". */
@@ -1414,6 +1594,78 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(input).toHaveValue('what did they decide?');
   });
 
+  it.each(['new chat start', 'existing thread outcome'])(
+    'restores text and staged attachment after a failed %s for retry',
+    async (failurePath) => {
+      const attachment = {
+        fileId: 's3:retry-file',
+        fileName: 'retry-file.txt',
+        fileType: 'text/plain',
+        fileSize: 42,
+      };
+      uploadRecovery.attachments = [attachment];
+      vi.mocked(useThreadView).mockReturnValue({
+        status: 'ready',
+        items: [],
+        generation: null,
+        streamingMessageId: undefined,
+        pendingConsumed: false,
+      });
+      let failRequest!: (error: Error) => void;
+      const failedRequest = new Promise<never>((_resolve, reject) => {
+        failRequest = reject;
+      });
+      failedRequest.catch(() => undefined);
+      const existingThread = failurePath === 'existing thread outcome';
+      start.mockImplementationOnce(() =>
+        existingThread
+          ? Promise.resolve({
+              threadId: 't-1',
+              boundVideoJobIds: [],
+              outcome: failedRequest,
+            })
+          : failedRequest,
+      );
+      start.mockResolvedValueOnce({
+        threadId: 't-1',
+        boundVideoJobIds: [],
+        outcome: new Promise(() => undefined),
+      });
+      const { user } = render(
+        <ChatSurface
+          organizationId="org-1"
+          {...(existingThread ? { threadId: 't-1' } : {})}
+        />,
+      );
+      const input = screen.getByRole('textbox', { name: 'Message input' });
+      await user.type(input, 'read this file for me');
+      expect(screen.getByText(attachment.fileName)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      expect(input).toHaveValue('');
+      expect(start).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          attachments: [attachment],
+          ...(existingThread ? { threadId: 't-1' } : {}),
+        }),
+      );
+      expect(screen.queryByText(attachment.fileName)).not.toBeInTheDocument();
+      await act(async () => {
+        failRequest(new TypeError('Failed to fetch'));
+      });
+      await waitFor(() => expect(input).toHaveValue('read this file for me'));
+      expect(screen.getByText(attachment.fileName)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      expect(start).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          text: 'read this file for me',
+          attachments: [attachment],
+        }),
+      );
+    },
+  );
+
   // The first message of a new chat creates its thread first; a door that
   // refused the thread (an archived project) used to toast a bare title.
   it('names why the door refused the new chat the send needed', async () => {
@@ -1493,7 +1745,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -1558,7 +1810,7 @@ describe('ChatSurface Home panel toggle', () => {
   it('passes an axe audit while folded', async () => {
     window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
     const { container } = renderInHome();
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -1593,6 +1845,44 @@ describe('ChatSurface header for a chat outside the list', () => {
     expect(
       screen.getAllByRole('button', { name: 'Conversation actions' }).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe('ChatSurface reads the budget standing of the chat’s project [GOV-R6]', () => {
+  beforeEach(() => {
+    vi.mocked(useMyBudgetStatus).mockClear();
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+  });
+
+  it('with the project a new chat is started in', () => {
+    render(<ChatSurface organizationId="org-1" projectId="project-1" />);
+
+    expect(vi.mocked(useMyBudgetStatus)).toHaveBeenLastCalledWith(
+      'org-1',
+      'project-1',
+    );
+  });
+
+  it('with the project of the open chat', () => {
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: {
+        id: 't-project',
+        title: 'Launch plan',
+        kind: 'direct',
+        archived: false,
+        projectId: 'project-2',
+        createdAt: 1,
+        updatedAt: 2,
+        generating: false,
+      },
+    });
+    render(<ChatSurface organizationId="org-1" threadId="t-project" />);
+
+    expect(vi.mocked(useMyBudgetStatus)).toHaveBeenLastCalledWith(
+      'org-1',
+      'project-2',
+    );
   });
 });
 
@@ -1982,11 +2272,32 @@ describe('ChatSurface on a conversation shared with the project', () => {
     ).toBeNull();
   });
 
+  it('opens the task dialog from the header verb, loading it on first open', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    expect(screen.queryByTestId('create-task-from-chat')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    expect(
+      await screen.findByTestId('create-task-from-chat'),
+    ).toHaveTextContent('thread-shared');
+  });
+
+  it('starts loading the task dialog when the header verb is pointed at', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    const verb = screen.getByRole('button', { name: 'Create task' });
+    fireEvent.pointerEnter(verb);
+    fireEvent.click(verb);
+    expect(
+      await screen.findByTestId('create-task-from-chat'),
+    ).toHaveTextContent('thread-shared');
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(
       <ChatSurface organizationId="org-1" threadId="thread-shared" />,
     );
     await screen.findByTestId('message-copy-button');
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });

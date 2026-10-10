@@ -1,14 +1,17 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { parse as parseYaml } from 'yaml';
 
 /**
- * Resolve UI labels from a service's `messages/en.yml` so locators never
+ * Resolve UI labels from a service's English catalog so locators never
  * hardcode English literals (AGENTS.md i18n rule). Every frontend service
  * pins `locale: 'en-US'` in its Playwright config, so the app renders the `en`
  * catalog and these lookups match the rendered text. Each service builds its
- * own resolver pointed at its own catalog, e.g.
- * `createI18n(new URL('../../../messages/en.yml', import.meta.url))`.
+ * own resolver pointed at its own catalog: a file
+ * (`createI18n(new URL('../../../messages/en.yml', import.meta.url))`) or a
+ * directory of topic files, each one namespace (`messages/en/`).
  *
  * A service that renders `@tale/ui` (or `@tale/marketing-ui`) components also
  * renders strings from the PACKAGE catalogs — `initServiceI18n` merges them
@@ -35,14 +38,28 @@ export interface CreateI18nOptions {
   packages?: ReadonlyArray<URL | string>;
 }
 
-function readCatalog(location: URL | string): Record<string, unknown> {
+function readYaml(location: URL | string): Record<string, unknown> {
   const parsed: unknown = parseYaml(readFileSync(location, 'utf8'));
+  if (parsed === null || parsed === undefined) return {};
   if (!isRecord(parsed)) {
     throw new Error(
       `messages catalog did not parse to an object: ${location.toString()}`,
     );
   }
   return parsed;
+}
+
+/** A catalog file, or a directory of topic files (`<topic>.yml` each). */
+function readCatalog(location: URL | string): Record<string, unknown> {
+  const dir = typeof location === 'string' ? location : fileURLToPath(location);
+  if (!statSync(dir).isDirectory()) return readYaml(location);
+  const catalog: Record<string, unknown> = {};
+  for (const entry of readdirSync(dir)
+    .filter((f) => f.endsWith('.yml'))
+    .sort()) {
+    catalog[entry.slice(0, -'.yml'.length)] = readYaml(join(dir, entry));
+  }
+  return catalog;
 }
 
 /** Deep-merge `overlay` into `base`; the overlay wins per leaf key. */

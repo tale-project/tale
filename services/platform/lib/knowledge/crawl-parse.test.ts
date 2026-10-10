@@ -27,6 +27,8 @@ import {
   paragraphsForHashing,
   parseRobots,
   parseSitemapLocs,
+  plainTextCarriesRendered,
+  plainTextCoverage,
   robotsHeaderForbidsIndexing,
   siteHosts,
   stripBoilerplate,
@@ -47,7 +49,7 @@ const policy = (
 ): RobotsPolicy => ({ allow, disallow, crawlDelayMs: 0 });
 
 describe('parseRobots', () => {
-  it('binds the * group when no group names the crawler, and collects sitemaps', () => {
+  it('binds the * group when no group names the crawler, and collects sitemaps [KNOW-R14]', () => {
     const rules = parseRobots(
       [
         'User-agent: GPTBot',
@@ -76,7 +78,7 @@ describe('parseRobots', () => {
    * crawler was crawled under the `*` rules instead (2026-09-18 evaluation,
    * J6-4). The token matches case-insensitively (RFC 9309 §2.2.1).
    */
-  it('binds the group that names the crawler instead of the * group, case-insensitively', () => {
+  it('binds the group that names the crawler instead of the * group, case-insensitively [KNOW-R14]', () => {
     const rules = parseRobots(
       [
         'User-agent: *',
@@ -173,7 +175,7 @@ describe('isDisallowed', () => {
 
   /** RFC 9309 §2.2.2: the most specific rule wins, an `Allow` of equal
    * length wins the tie — `Allow` used to be ignored altogether. */
-  it('lets the longest matching rule decide, Allow winning a tie', () => {
+  it('lets the longest matching rule decide, Allow winning a tie [KNOW-R14]', () => {
     const rules = policy(
       ['/', '/docs/private/'],
       ['/docs/', '/docs/private/x'],
@@ -483,6 +485,55 @@ describe('boilerplate', () => {
   });
 });
 
+/**
+ * One plain request can tell a scan whether a page changed only when the
+ * plain HTML carries what a browser shows. The crawler used to render every
+ * page to find that out — the browser, and every image, script and
+ * stylesheet the render loads, for pages that had not changed in months.
+ * The share is measured on the two texts of one visit.
+ */
+describe('plainTextCoverage', () => {
+  const article =
+    'Tale indexes the public pages of the websites an organization added and answers questions from them.';
+
+  it('is whole for a page whose plain HTML already reads as the browser shows it', () => {
+    expect(plainTextCoverage(article, article)).toBe(1);
+    // Layout only moves the line breaks.
+    expect(plainTextCoverage(article, article.replaceAll(' ', '\n'))).toBe(1);
+    expect(plainTextCarriesRendered(article, article)).toBe(true);
+  });
+
+  it('counts what the scripts of a page add, and calls the page server-rendered while that stays a small part', () => {
+    const rendered = `${article} We use cookies.`;
+    // 16 of the 19 rendered words are in the plain HTML.
+    expect(plainTextCoverage(article, rendered)).toBeCloseTo(16 / 19, 5);
+    expect(plainTextCarriesRendered(article, rendered)).toBe(false);
+    const longer = `${article} ${article} ${article} We use cookies.`;
+    expect(
+      plainTextCarriesRendered(`${article} ${article} ${article}`, longer),
+    ).toBe(true);
+  });
+
+  it('is next to nothing for a page built by its JavaScript', () => {
+    const shell = 'Loading… You need to enable JavaScript to run this app.';
+    const rendered = `${article} ${article} ${article}`;
+    expect(plainTextCoverage(shell, rendered)).toBeLessThan(0.1);
+    expect(plainTextCarriesRendered(shell, rendered)).toBe(false);
+  });
+
+  // A word the plain HTML holds once does not vouch for it shown five times.
+  it('counts a word as often as it occurs', () => {
+    expect(plainTextCoverage('alpha beta', 'alpha alpha alpha alpha')).toBe(
+      0.25,
+    );
+  });
+
+  it('is whole for a page that shows no text', () => {
+    expect(plainTextCoverage('anything', '')).toBe(1);
+    expect(plainTextCarriesRendered('', '  \n ')).toBe(true);
+  });
+});
+
 describe('metaDescription', () => {
   it('prefers name=description and falls back to og:description', () => {
     expect(
@@ -579,7 +630,7 @@ describe('discoverableLinks', () => {
     <a href="/private/report">Report</a>
   `;
 
-  it('drops a link a plain or wildcard rule covers and keeps the rest, de-duplicated', () => {
+  it('drops a link a plain or wildcard rule covers and keeps the rest, de-duplicated [KNOW-R14]', () => {
     expect(
       discoverableLinks(
         html,

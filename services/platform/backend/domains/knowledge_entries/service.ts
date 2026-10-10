@@ -12,7 +12,10 @@ import {
   s3PresignPutUrl,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { limitRate } from '../../lib/rate-limit.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
+import { emitDocumentChangeHints } from '../documents/hints.ts';
 import { releaseCorpusRefs } from '../knowledge/release.ts';
 import { markRagQueued, syncRagRefHolderScopes } from '../knowledge/service.ts';
 
@@ -51,8 +54,14 @@ import { markRagQueued, syncRagRefHolderScopes } from '../knowledge/service.ts';
  */
 
 /** The lanes a fact arrives through — the column's CHECK (`0027`, widened
- * by `0111`): the assistant's capture, the form, the REST door. */
-export const KNOWLEDGE_ENTRY_SOURCES = ['chat', 'manual', 'api'] as const;
+ * by `0111` and `0164`): the assistant's capture, the form, the REST door,
+ * and an agent granted `knowledge_entry_write`. */
+export const KNOWLEDGE_ENTRY_SOURCES = [
+  'chat',
+  'manual',
+  'api',
+  'agent',
+] as const;
 export type KnowledgeEntrySource = (typeof KNOWLEDGE_ENTRY_SOURCES)[number];
 
 export class KnowledgeEntryError extends Error {
@@ -110,10 +119,30 @@ function validate(
   }
 }
 
+/** A topic's current entry. The text and when it was written travel back
+ * in a refused agent write, so the agent can merge without a second read. */
 interface ActiveEntry {
   id: string;
   topic: string;
   documentId: string | null;
+  content: string;
+  /** When this version was written (epoch ms). */
+  createdAt: number;
+  /** Whether the backing document is still active (or the row has none). */
+  documentActive: boolean;
+}
+
+async function lockEntryTopic(
+  tx: TransactionSql,
+  organizationId: string,
+  topicKey: string,
+): Promise<void> {
+  const key = JSON.stringify([
+    'knowledge-entry-topic',
+    organizationId,
+    topicKey,
+  ]);
+  await tx`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
 }
 
 async function findActiveByTopicKey(
@@ -122,10 +151,17 @@ async function findActiveByTopicKey(
   topicKey: string,
 ): Promise<ActiveEntry | null> {
   const rows = await tx<ActiveEntry[]>`
-    SELECT id, topic, document_id AS "documentId"
-    FROM app.knowledge_entries
-    WHERE org_id = ${organizationId} AND topic_key = ${topicKey}
-      AND status = 'active' AND deleted_at_ms IS NULL
+    SELECT id, topic, document_id AS "documentId", content,
+           created_at_ms::float8 AS "createdAt",
+           NOT EXISTS (
+             SELECT 1 FROM app.documents d
+             WHERE d.id = ke.document_id
+               AND d.lifecycle_status IS NOT NULL
+               AND d.lifecycle_status <> 'active'
+           ) AS "documentActive"
+    FROM app.knowledge_entries ke
+    WHERE ke.org_id = ${organizationId} AND ke.topic_key = ${topicKey}
+      AND ke.status = 'active' AND ke.deleted_at_ms IS NULL
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -176,6 +212,7 @@ async function loadUpdateTarget(
       AND (d.id IS NULL OR d.lifecycle_status IS NULL
            OR d.lifecycle_status = 'active')
     LIMIT 1
+    FOR UPDATE OF ke
   `;
   const current = currents[0];
   if (!current) {
@@ -229,11 +266,15 @@ async function loadUpdateTarget(
  * Only a row that already has its document can stand in for a write (the
  * write would otherwise be what materializes it).
  */
-function repeatsActiveRow(
-  current: UpdateTarget,
+function repeatsActiveRow<
+  T extends { documentId: string | null; topic: string; content: string },
+>(
+  current: T,
   topic: string,
   content: string,
-): current is UpdateTarget & { documentId: string } {
+): current is T & {
+  documentId: string;
+} {
   return (
     current.documentId !== null &&
     current.topic === topic &&
@@ -425,8 +466,9 @@ export async function createKnowledgeEntry(
     topic: string;
     content: string;
     /** Where the fact came from — the assistant's capture (`chat`), the
-     * form (`manual`, the default) or the REST door (`api`). */
-    source?: KnowledgeEntrySource;
+     * form (`manual`, the default) or the REST door (`api`). An agent's
+     * write has its own door, {@link upsertKnowledgeEntryByTopic}. */
+    source?: Exclude<KnowledgeEntrySource, 'agent'>;
     sourceThreadId?: string;
     sourceMessageId?: string;
   },
@@ -447,6 +489,7 @@ export async function createKnowledgeEntry(
   }
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
+    await lockEntryTopic(tx, args.organizationId, topicKey);
     const existing = await findActiveByTopicKey(
       tx,
       args.organizationId,
@@ -495,7 +538,7 @@ export async function updateKnowledgeEntry(
     content: string;
     /** The lane the new version comes through — `manual` (the form, the
      * default) or `api` (the REST door). */
-    source?: Exclude<KnowledgeEntrySource, 'chat'>;
+    source?: Exclude<KnowledgeEntrySource, 'chat' | 'agent'>;
   },
 ): Promise<KnowledgeEntryWritten> {
   assertCanWriteEntries(args.role);
@@ -514,6 +557,7 @@ export async function updateKnowledgeEntry(
   }
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
+    await lockEntryTopic(tx, args.organizationId, topicKey);
     const current = await loadUpdateTarget(
       tx,
       args.organizationId,
@@ -572,6 +616,255 @@ export async function updateKnowledgeEntry(
       existingDocumentId: current.documentId,
     });
     return { id: entryId, documentId };
+  });
+}
+
+/** The current version a refused agent write hands back. */
+export interface AgentEntryCurrent {
+  versionId: string;
+  topic: string;
+  content: string;
+  /** When this version was written (epoch ms). */
+  updatedAt: number;
+}
+
+/** Why an agent's write wrote nothing:
+ * - `version_required`: the topic has an entry with other text, and the
+ *   write named no version — a blind overwrite of a curated fact;
+ * - `version_conflict`: the version the write named is no longer current;
+ * - `entry_gone`: the write named a version, but the topic has no entry any
+ *   more (someone deleted it since). */
+export type AgentEntryRefusal =
+  | 'version_required'
+  | 'version_conflict'
+  | 'entry_gone';
+
+/** What an agent's write by topic answers. A refusal is an answer, not a
+ * throw: it carries the current text the agent merges onto. */
+export type AgentKnowledgeEntryWrite =
+  | {
+      outcome: 'created' | 'updated' | 'unchanged';
+      /** The entry's current version — the id a next write names. */
+      versionId: string;
+      documentId: string;
+      topic: string;
+      /** The version this write replaced (`updated` only). */
+      previousVersionId?: string;
+    }
+  | {
+      outcome: 'refused';
+      reason: AgentEntryRefusal;
+      current: AgentEntryCurrent | null;
+    }
+  | { outcome: 'rate_limited'; retryAfterMs: number };
+
+type AgentWriteVerdict =
+  | { kind: 'create' }
+  | { kind: 'update'; current: ActiveEntry }
+  | { kind: 'unchanged'; current: ActiveEntry & { documentId: string } }
+  | { kind: 'refused'; reason: AgentEntryRefusal; current: ActiveEntry | null };
+
+/**
+ * What an agent's write does to the topic's current entry. The topic is the
+ * entry's key, so its spelling is not part of the comparison: the stored
+ * spelling stays, and only the content decides whether anything changed.
+ * Changing a fact that exists needs the version the agent read — the
+ * guard a person's edit keeps against a replaced version — so a fact the
+ * agent never read is not overwritten.
+ */
+function judgeAgentWrite(
+  current: ActiveEntry | null,
+  content: string,
+  expectedVersionId: string | undefined,
+): AgentWriteVerdict {
+  if (current === null) {
+    return expectedVersionId === undefined
+      ? { kind: 'create' }
+      : { kind: 'refused', reason: 'entry_gone', current: null };
+  }
+  if (!current.documentActive) {
+    // The document behind the entry is gone: the entry is gone from every
+    // reader's point of view, so the write answers as not found, as a
+    // person's edit does.
+    throw new KnowledgeEntryError(
+      'KNOWLEDGE_ENTRY_NOT_FOUND',
+      'Entry not found',
+      404,
+    );
+  }
+  // The topic is the key, not part of what changed: the write keeps the
+  // stored spelling, so it repeats the row when its content does.
+  if (repeatsActiveRow(current, current.topic, content)) {
+    return { kind: 'unchanged', current };
+  }
+  if (expectedVersionId === undefined) {
+    return { kind: 'refused', reason: 'version_required', current };
+  }
+  if (expectedVersionId !== current.id) {
+    return { kind: 'refused', reason: 'version_conflict', current };
+  }
+  return { kind: 'update', current };
+}
+
+/** The answer a verdict that writes nothing gives. */
+function agentWriteAnswer(
+  verdict: Extract<AgentWriteVerdict, { kind: 'unchanged' | 'refused' }>,
+): AgentKnowledgeEntryWrite {
+  if (verdict.kind === 'unchanged') {
+    return {
+      outcome: 'unchanged',
+      versionId: verdict.current.id,
+      documentId: verdict.current.documentId,
+      topic: verdict.current.topic,
+    };
+  }
+  return {
+    outcome: 'refused',
+    reason: verdict.reason,
+    current:
+      verdict.current === null
+        ? null
+        : {
+            versionId: verdict.current.id,
+            topic: verdict.current.topic,
+            content: verdict.current.content,
+            updatedAt: verdict.current.createdAt,
+          },
+  };
+}
+
+/**
+ * An agent's write of one fact, keyed by its topic — the lower half of the
+ * `knowledge_entry_write` workspace tool. Absent topic: a new entry. Same
+ * content: nothing is written. Other content: a new version, but only onto
+ * the version the agent names in `expectedVersionId`; anything else is
+ * refused with the current text, so the agent merges instead of
+ * overwriting.
+ *
+ * Authority is already resolved by the dispatch — a project agent's run or
+ * an automation's agent step granted the tool — so there is no role matrix
+ * here (the `documents/agent-write.ts` posture). The row carries
+ * `source: 'agent'` and the acting agent as `created_by`, and every write
+ * leaves an audit row, since no person stands behind it.
+ *
+ * Agent writes draw on their own per-organization budget
+ * (`knowledge:agent-write`), never the one people's edits share, so an agent
+ * that loops cannot lock editors out. Only a call that would write is
+ * charged: a repeat and a refusal store nothing.
+ *
+ * The lookup that decides and the write run in ONE transaction under the
+ * topic's advisory lock — the same lock every entry write takes — so two
+ * agents, or an agent and a person, writing one topic at once cannot both
+ * win. The read before the upload only saves the upload when nothing would
+ * be written; the transaction is where the rule holds.
+ */
+export async function upsertKnowledgeEntryByTopic(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    /** The acting agent: a project agent's id, or `automation:<name>`. */
+    actorId: string;
+    topic: string;
+    content: string;
+    /** The version the agent read — required to change an existing fact. */
+    expectedVersionId?: string;
+  },
+): Promise<AgentKnowledgeEntryWrite> {
+  const { topic, topicKey, content } = validate(args.topic, args.content);
+  const before = judgeAgentWrite(
+    await findActiveByTopicKey(sql, args.organizationId, topicKey),
+    content,
+    args.expectedVersionId,
+  );
+  if (before.kind === 'unchanged' || before.kind === 'refused') {
+    return agentWriteAnswer(before);
+  }
+  const charge = await limitRate(sql, 'knowledge:agent-write', {
+    key: `org:${args.organizationId}`,
+  });
+  if (!charge.ok) {
+    return { outcome: 'rate_limited', retryAfterMs: charge.retryAfter };
+  }
+  const blob = await storeEntryBlob(sql, args.organizationId, content);
+  return sql.begin(async (tx): Promise<AgentKnowledgeEntryWrite> => {
+    await lockEntryTopic(tx, args.organizationId, topicKey);
+    const verdict = judgeAgentWrite(
+      await findActiveByTopicKey(tx, args.organizationId, topicKey),
+      content,
+      args.expectedVersionId,
+    );
+    if (verdict.kind === 'unchanged' || verdict.kind === 'refused') {
+      // Another writer got there first. The blob stored a moment ago
+      // references nothing: release it through the seam a rotation uses.
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId: args.organizationId,
+        refs: [blob.storageRef],
+      });
+      return agentWriteAnswer(verdict);
+    }
+    const current = verdict.kind === 'update' ? verdict.current : null;
+    // An existing entry keeps its own spelling of the topic.
+    const writtenTopic = current?.topic ?? topic;
+    const now = Date.now();
+    const rows = await tx<{ id: string }[]>`
+      INSERT INTO app.knowledge_entries (
+        org_id, topic, topic_key, content, status, document_id, source,
+        created_by, created_at_ms
+      ) VALUES (
+        ${args.organizationId}, ${writtenTopic}, ${topicKey}, ${content},
+        'active', ${current?.documentId ?? null}, 'agent', ${args.actorId},
+        ${now}
+      ) RETURNING id
+    `;
+    const versionId = rows[0]?.id;
+    if (!versionId) throw new Error('knowledge entry insert failed');
+    if (current !== null) {
+      await tx`
+        UPDATE app.knowledge_entries SET
+          status = 'superseded', superseded_by = ${versionId},
+          superseded_at_ms = ${now}
+        WHERE id = ${current.id}
+      `;
+    }
+    const documentId = await attachEntryDocument(tx, {
+      organizationId: args.organizationId,
+      entryId: versionId,
+      topic: writtenTopic,
+      blob,
+      createdBy: args.actorId,
+      existingDocumentId: current?.documentId ?? null,
+    });
+    const outcome = current === null ? 'created' : 'updated';
+    await createAuditLog(tx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      actorType: 'api',
+      action: `knowledge_entry.${outcome}`,
+      category: 'data',
+      resourceType: 'knowledge_entry',
+      resourceId: versionId,
+      resourceName: writtenTopic,
+      metadata: {
+        viaAgent: true,
+        documentId,
+        ...(current !== null ? { previousVersionId: current.id } : {}),
+      },
+      status: 'success',
+    });
+    // The Knowledge entries table lists from the document's indexing state:
+    // an open table refreshes now, not when the indexer first reports.
+    await emitDocumentChangeHints(tx, {
+      orgId: args.organizationId,
+      entityId: documentId,
+      projectId: null,
+    });
+    return {
+      outcome,
+      versionId,
+      documentId,
+      topic: writtenTopic,
+      ...(current !== null ? { previousVersionId: current.id } : {}),
+    };
   });
 }
 
@@ -783,6 +1076,10 @@ export async function listKnowledgeEntries(
      *  whole string. Opt-in, because only the chat leg passes a question
      *  here — the entries page passes what the reader typed. */
     matchWords?: boolean;
+    /** Also match `topic` against the CONTENT: the whole string, or — with
+     *  `matchWords` — every meaningful word of it. Opt-in, for the agents'
+     *  `knowledge_entry_find`, which looks for a fact by what it says. */
+    matchContent?: boolean;
   } = {},
 ): Promise<{ rows: KnowledgeEntryRow[]; nextCursor: number | null }> {
   const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
@@ -791,6 +1088,7 @@ export async function listKnowledgeEntries(
     options.matchWords === true && topicLower !== null
       ? wordStartPatterns(topicLower)
       : [];
+  const matchContent = options.matchContent === true;
   const page = await sql<StoredKnowledgeEntryRow[]>`
     SELECT ke.id, ke.topic, ke.content, ke.source, ke.document_id AS "documentId",
            ke.created_by AS "createdBy", ke.created_at_ms::float8 AS "createdAt",
@@ -810,7 +1108,11 @@ export async function listKnowledgeEntries(
       AND ke.deleted_at_ms IS NULL
       AND (${topicLower}::text IS NULL
            OR lower(ke.topic) LIKE '%' || ${topicLower} || '%'
-           OR (${words.length > 0} AND ke.topic ~* ANY(${words})))
+           OR (${words.length > 0} AND ke.topic ~* ANY(${words}))
+           OR (${matchContent}
+               AND (lower(ke.content) LIKE '%' || ${topicLower} || '%'
+                    OR (${words.length > 0}
+                        AND ke.content ~* ALL(${words})))))
       AND (${options.cursor ?? null}::bigint IS NULL
            OR ke.seq < ${options.cursor ?? null})
     ORDER BY ke.seq DESC
@@ -903,8 +1205,24 @@ export async function getKnowledgeEntryVersions(
   `;
 }
 
-/** The agent-facing listing (the chat shim's leg): active entries only,
- * optional case-insensitive topic filter, seq-keyed pages. */
+/** One entry as the agent-facing listing answers it. */
+export interface AgentEntryListing {
+  /** The current version's id — what `knowledge_entry_write` names as
+   * `expectedVersionId` to change this fact. */
+  id: string;
+  topic: string;
+  content: string;
+  source: string;
+  /** When the fact was first recorded: its oldest version still kept. */
+  createdAt: number;
+  /** When the current version was written. */
+  updatedAt: number;
+}
+
+/** The agent-facing listing (the chat shim's leg and the agents'
+ * `knowledge_entry_find`): active entries only, optional case-insensitive
+ * topic filter — also over the content with `matchContent` — seq-keyed
+ * pages. */
 export async function listEntriesForAgent(
   sql: Sql,
   args: {
@@ -913,14 +1231,10 @@ export async function listEntriesForAgent(
     numItems: number;
     cursor: string | null;
     matchWords?: boolean;
+    matchContent?: boolean;
   },
 ): Promise<{
-  page: Array<{
-    topic: string;
-    content: string;
-    source: string;
-    createdAt: number;
-  }>;
+  page: AgentEntryListing[];
   isDone: boolean;
   continueCursor: string;
 }> {
@@ -944,14 +1258,40 @@ export async function listEntriesForAgent(
       limit: args.numItems,
       ...(args.topic !== undefined ? { topic: args.topic } : {}),
       ...(args.matchWords === true ? { matchWords: true } : {}),
+      ...(args.matchContent === true ? { matchContent: true } : {}),
     },
+  );
+  // Each listed row is the CURRENT version; when the fact was first recorded
+  // is its chain's oldest kept version. The chain is the document (see
+  // deleteKnowledgeEntry); a legacy row without one is its own origin.
+  const documentIds = rows.flatMap((row) =>
+    row.documentId !== null ? [row.documentId] : [],
+  );
+  const origins =
+    documentIds.length === 0
+      ? []
+      : await sql<{ documentId: string; createdAt: number }[]>`
+          SELECT document_id AS "documentId",
+                 min(created_at_ms)::float8 AS "createdAt"
+          FROM app.knowledge_entries
+          WHERE org_id = ${args.organizationId}
+            AND document_id = ANY(${documentIds})
+            AND deleted_at_ms IS NULL
+          GROUP BY document_id
+        `;
+  const originOf = new Map(
+    origins.map((origin) => [origin.documentId, origin.createdAt]),
   );
   return {
     page: rows.map((row) => ({
+      id: row.id,
       topic: row.topic,
       content: row.content,
       source: row.source,
-      createdAt: row.createdAt,
+      createdAt:
+        (row.documentId !== null ? originOf.get(row.documentId) : undefined) ??
+        row.createdAt,
+      updatedAt: row.createdAt,
     })),
     isDone: nextCursor === null,
     continueCursor: nextCursor === null ? '' : String(nextCursor),

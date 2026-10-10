@@ -27,6 +27,9 @@ const coverage: Record<string, Coverage> = {
       'platform.schema-hot',
       'platform.telemetry-disabled',
       'platform.telemetry-enabled',
+      'platform.agent-progress',
+      'platform.projection-fragmented',
+      'platform.projection-bursts',
     ],
     remaining:
       'Full API/worker/DB/object-store/knowledge/agent runs need an isolated seeded stack; UI needs authenticated Playwright traces and real datasets.',
@@ -102,6 +105,11 @@ const coverage: Record<string, Coverage> = {
     workloads: ['tools.manual-parse'],
     remaining:
       'Parser workload only; whole-repository lint wall time is separate.',
+  },
+  '@tale/load': {
+    workloads: [],
+    remaining:
+      'It is the load harness itself: it measures a running deployment (smoke, load, stress, spike, soak profiles) rather than being measured here; see tools/load/README.md.',
   },
   '@tale/lint-links': {
     workloads: ['tools.link-scan'],

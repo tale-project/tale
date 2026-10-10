@@ -6,12 +6,18 @@ import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
-import { GitBranch } from 'lucide-react';
+import { Bot, Eye, GitBranch, MessageCircleQuestion } from 'lucide-react';
+import { memo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
-import { useActorDirectory } from '../hooks/use-actor-directory';
+import {
+  ActorDirectoryProvider,
+  type ActorDirectory,
+  useActorDirectory,
+  useProvidedActorDirectory,
+} from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
@@ -20,14 +26,12 @@ import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { useTaskBoardContext } from './task-board-context';
 import {
-  AgentNeedsAnswerIndicator,
-  AgentWorkingIndicator,
   BlockedIndicator,
   CommentCountIndicator,
   DueDateIndicator,
-  NeedsReviewIndicator,
   RepeatIndicator,
   SubtaskProgress,
+  useTaskCardStateLabels,
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 import { TaskTitleButton } from './task-title-button';
@@ -44,14 +48,7 @@ export type TaskRow = TaskDoc & {
   projectKey?: string;
 };
 
-export function TaskCard({
-  task,
-  subtasks,
-  onOpen,
-  dragging,
-  projectKey,
-  canWorkTask = readOnlyBoard,
-}: {
+interface TaskCardProps {
   task: TaskRow;
   /** This task's subtasks, when known — drives the progress ring. */
   subtasks?: TaskRow[];
@@ -62,8 +59,55 @@ export function TaskCard({
   /** Whether the viewer may work the task (`useTaskAccess`) — gates drag
    * and the inline pickers. Absent, the card is read-only. */
   canWorkTask?: (task: TaskRow) => boolean;
-}) {
+}
+
+type CardDirectory = Pick<ActorDirectory, 'resolveActor' | 'currentUserId'>;
+
+/**
+ * Memoized: a lane re-renders on every drag move and every board read, and a
+ * card whose own props held still has nothing new to draw. A card names its
+ * reviewer from the directory the board provides; one outside a provider
+ * reads its own.
+ */
+export const TaskCard = memo(function TaskCard(props: TaskCardProps) {
+  const provided = useProvidedActorDirectory(
+    props.task.organizationId,
+    props.task.projectId,
+  );
+  return provided ? (
+    <TaskCardView {...props} directory={provided} />
+  ) : (
+    <TaskCardOwnDirectory {...props} />
+  );
+});
+
+function TaskCardOwnDirectory(props: TaskCardProps) {
+  const directory = useActorDirectory(
+    props.task.organizationId,
+    props.task.projectId,
+  );
+  return (
+    <ActorDirectoryProvider
+      organizationId={props.task.organizationId}
+      projectId={props.task.projectId}
+      directory={directory}
+    >
+      <TaskCardView {...props} directory={directory} />
+    </ActorDirectoryProvider>
+  );
+}
+
+function TaskCardView({
+  task,
+  subtasks,
+  onOpen,
+  dragging,
+  projectKey,
+  canWorkTask = readOnlyBoard,
+  directory,
+}: TaskCardProps & { directory: CardDirectory }) {
   const { t } = useT('tasks');
+  const stateLabels = useTaskCardStateLabels();
   const resolvedProjectKey = task.projectKey ?? projectKey;
   const identifier = formatTaskIdentifier(resolvedProjectKey, task.number);
   const assignTask = useAssignTask();
@@ -81,10 +125,7 @@ export function TaskCard({
   const blocked = isBlocked(task._id);
   const { done, total } = subtaskProgress(subtasks);
   // Name the reviewer the review-gate chip waits on ("You" for the viewer).
-  const { resolveActor, currentUserId } = useActorDirectory(
-    task.organizationId,
-    task.projectId,
-  );
+  const { resolveActor, currentUserId } = directory;
   const reviewer = reviewRecipient(task._id);
   const reviewerIsMe =
     reviewer?.kind === 'user' && reviewer.userId === currentUserId;
@@ -95,6 +136,52 @@ export function TaskCard({
           reviewer.kind === 'user' ? reviewer.userId : reviewer.agentId,
         ).name
       : undefined;
+
+  // The one thing on the card that is someone's move or in motion, said in
+  // words: an agent waiting for an answer, a review waiting on someone, an
+  // agent at work — in that order, the most urgent only.
+  const asking = isAgentAsking(task._id);
+  const reviewing = needsReview(task._id);
+  const working = isAgentWorking(task._id) && !asking;
+  const agentName =
+    task.assigneeType === 'agent' && task.assigneeId
+      ? resolveActor('agent', task.assigneeId).name
+      : undefined;
+  const liveLine = asking
+    ? {
+        icon: MessageCircleQuestion,
+        text: t('agentRuns.needsAnswer'),
+        className: 'text-amber-700 dark:text-amber-400',
+        pulse: false,
+      }
+    : reviewing
+      ? {
+          icon: Eye,
+          text: stateLabels.review(reviewerName, reviewerIsMe),
+          className: 'text-blue-700 dark:text-blue-400',
+          pulse: false,
+        }
+      : working
+        ? {
+            icon: Bot,
+            text:
+              agentName !== undefined
+                ? t('board.agentWorking', { name: agentName })
+                : t('agentRuns.working'),
+            className: 'text-primary',
+            pulse: true,
+          }
+        : null;
+
+  const stateDescription = [
+    blocked && stateLabels.blocked,
+    liveLine?.text,
+    task.commentCount != null &&
+      task.commentCount > 0 &&
+      stateLabels.comments(task.commentCount),
+  ]
+    .filter(Boolean)
+    .join('. ');
 
   // The subtask glyph names its parent ("Part of TAL-2") — fall back to the
   // parent's title, then a generic label, when the id/parent isn't resolvable.
@@ -169,6 +256,7 @@ export function TaskCard({
           title={task.title}
           sortable={sortable}
           draggable={editable}
+          description={stateDescription}
           onOpen={() => onOpen?.(task)}
           className="text-foreground line-clamp-2 w-full text-left text-sm leading-snug font-medium"
         />
@@ -187,10 +275,35 @@ export function TaskCard({
           </Row>
         )}
 
+        {liveLine !== null && (
+          // Read with the title through its description; shown once here.
+          <p
+            aria-hidden="true"
+            className={cn(
+              'mt-2 flex min-w-0 items-center gap-1.5 text-xs font-medium',
+              liveLine.className,
+            )}
+          >
+            <liveLine.icon
+              className={cn(
+                'size-3.5 shrink-0',
+                liveLine.pulse && 'animate-pulse motion-reduce:animate-none',
+              )}
+              aria-hidden="true"
+            />
+            <span className="min-w-0 truncate">{liveLine.text}</span>
+          </p>
+        )}
+
         {/* Above the title's stretched hit layer: the pickers keep their own
             clicks, and the indicators' tooltips still get their hover. */}
-        <Row gap={2} justify="between" className="relative z-10 mt-3">
-          <div className="flex items-center gap-1.5">
+        <Row
+          gap={2}
+          justify="between"
+          align="center"
+          className="relative z-10 mt-3"
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <PriorityPicker
               priority={task.priority ?? null}
               disabled={!editable}
@@ -200,7 +313,11 @@ export function TaskCard({
             />
             {task.parentTaskId && (
               <Tooltip content={parentLabel}>
-                <span className="inline-flex" aria-label={parentLabel}>
+                <span
+                  className="inline-flex"
+                  role="img"
+                  aria-label={parentLabel}
+                >
                   <GitBranch
                     className="text-muted-foreground size-3.5"
                     aria-hidden="true"
@@ -213,17 +330,6 @@ export function TaskCard({
               organizationId={task.organizationId}
               task={task}
               runActive={isAgentWorking(task._id)}
-            />
-            {/* A run parked on a question is the viewer's move — the ask chip
-                replaces the working pulse rather than pulsing next to it. */}
-            <AgentWorkingIndicator
-              working={isAgentWorking(task._id) && !isAgentAsking(task._id)}
-            />
-            <AgentNeedsAnswerIndicator asking={isAgentAsking(task._id)} />
-            <NeedsReviewIndicator
-              needsReview={needsReview(task._id)}
-              reviewerName={reviewerName}
-              reviewerIsMe={reviewerIsMe}
             />
             <RepeatIndicator
               repeat={task.repeat}
@@ -245,6 +351,17 @@ export function TaskCard({
               assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
             }
             onUnassign={() => assignTask.mutate({ taskId: task._id })}
+            // Which agent carries the card is the board's key fact: its name
+            // rides beside the avatar.
+            {...(agentName !== undefined
+              ? {
+                  afterTrigger: (
+                    <span className="text-muted-foreground max-w-[6.5rem] truncate text-xs">
+                      {agentName}
+                    </span>
+                  ),
+                }
+              : {})}
           />
         </Row>
       </div>

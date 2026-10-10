@@ -26,7 +26,8 @@ L’onglet actif et la catégorie figurent dans l’URL : tu peux enregistrer la
 | --- | --- |
 | Horodatage | Quand Tale a enregistré l’action. |
 | Action | L’opération tentée ou terminée. Certaines actions récentes apparaissent sous leur nom technique. |
-| Utilisateur | La personne ou l’acteur système responsable. |
+| Utilisateur | La personne ou l’acteur système responsable. Pour une écriture faite avec une clé API, Utilisateur désigne la personne qui a créé la clé et le type d’acteur est API. Si la clé agit pour un membre, les Métadonnées conservent son identifiant dans `keyAttribution.subjectUserId`. Les exports JSON gardent aussi l’identifiant de la clé (`apiKeyId`) ; le CSV ne contient ni la clé ni les métadonnées du membre. |
+| Source et client | Uniquement pour une action qu’un agent de code a effectuée par l’[endpoint MCP](/fr/develop/mcp-endpoint). **Source** affiche Agent de code, et **Client** nomme l’application de l’agent quand elle se nomme à chaque appel, comme le font les applications en révision MCP 2026-07-28 ; une application en révision antérieure ne se nomme qu’à la connexion, et ses événements n’affichent donc pas de **Client**. **Utilisateur** désigne la personne qui a créé la clé ; le membre pour lequel elle agit figure dans les Métadonnées. |
 | Ressource et cible | Le type d’élément et l’enregistrement concerné. |
 | Catégorie | Le groupe utilisé par le filtre. |
 | Statut | Réussite, échec ou refus. |

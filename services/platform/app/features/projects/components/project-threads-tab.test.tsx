@@ -25,12 +25,22 @@ type ThreadFixture = {
 let mineFixture: ThreadFixture[] = [];
 let sharedFixture: ThreadFixture[] = [];
 let loadingFixture = false;
+let unavailableFixture = false;
+let staleFixture = false;
+let retryingFixture = false;
+let failureCountFixture = 0;
+const retryFixture = vi.fn();
 
 vi.mock('../hooks/queries', () => ({
   useProjectChatThreads: () => ({
     mine: mineFixture,
     shared: sharedFixture,
     isLoading: loadingFixture,
+    unavailable: unavailableFixture,
+    stale: staleFixture,
+    retrying: retryingFixture,
+    failureCount: failureCountFixture,
+    retry: retryFixture,
   }),
 }));
 
@@ -77,6 +87,10 @@ describe('ProjectThreadsTab', () => {
     mineFixture = [];
     sharedFixture = [];
     loadingFixture = false;
+    unavailableFixture = false;
+    staleFixture = false;
+    retryingFixture = false;
+    failureCountFixture = 0;
   });
 
   it('keeps both chat sections masked until the first read answers', () => {
@@ -95,6 +109,25 @@ describe('ProjectThreadsTab', () => {
     expect(screen.getByText('No shared chats yet.')).toBeInTheDocument();
   });
 
+  it('names a failed read and retries instead of showing empty sections', async () => {
+    unavailableFixture = true;
+    failureCountFixture = 1;
+    const { user } = renderTab();
+
+    expect(
+      screen.getByText("Couldn't load this project's chats."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Try again' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("You haven't started any chats in this project yet."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('No shared chats yet.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retryFixture).toHaveBeenCalledOnce();
+  });
   it('lists the owner chats with a share toggle and the empty shared state', async () => {
     mineFixture = [
       {

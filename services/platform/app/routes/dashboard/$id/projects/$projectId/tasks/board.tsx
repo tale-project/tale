@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { TasksPageSkeleton } from '@/app/features/tasks/components/tasks-skeleton';
+import { useCollapsedLanes } from '@/app/features/tasks/hooks/use-collapsed-lanes';
 import {
   dismissTaskSheet,
   isAllProjectsSearch,
@@ -29,6 +30,8 @@ function TasksChunkFallback() {
   const { projectId } = Route.useParams();
   const { project } = useProject(projectId);
   const allProjects = isAllProjectsSearch(Route.useSearch());
+  // The board's folded lanes, read from the same place the board reads them.
+  const lanes = useCollapsedLanes(allProjects ? 'all' : projectId);
   return (
     <TasksPageSkeleton
       view="board"
@@ -38,6 +41,7 @@ function TasksChunkFallback() {
         !allProjects && project != null && project.archivedAt === undefined
       }
       allProjects={allProjects}
+      collapsedLanes={lanes.collapsed}
     />
   );
 }

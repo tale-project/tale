@@ -12,9 +12,11 @@
  * through the same function.
  */
 
+import type { TriggerView } from '@tale/shared/schemas/automation-trigger';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
+import type { TriggerView as EngineTriggerView } from '../../../lib/engine/api/dispatch.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 
 interface Statement {
@@ -29,6 +31,10 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   kind: 'schedule',
   cron: '0 6 * * *',
   timezone: 'UTC',
+  scheduleRule: null,
+  catchUp: null,
+  nextDueAt: null,
+  input: null,
   event: null,
   hasToken: false,
   enabled: true,
@@ -36,6 +42,7 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   lastRunId: 'run_4',
   lastSkippedAt: null,
   lastSkipReason: null,
+  lastSkipDetail: null,
   consecutiveFailures: 0,
   lastFailedAt: null,
   lastFailureCode: null,
@@ -105,6 +112,7 @@ describe('the MCP trigger view carries the failure streak', () => {
         kind: 'schedule',
         cron: '0 6 * * *',
         timezone: 'UTC',
+        catchUp: 'latest',
         hasToken: false,
         enabled: false,
         lastFiredAt: 4_000,
@@ -127,5 +135,117 @@ describe('the MCP trigger view carries the failure streak', () => {
     expect(view).not.toHaveProperty('lastFailureCode');
     expect(view).not.toHaveProperty('lastFailedRunId');
     expect(view).not.toHaveProperty('lastSkipReason');
+  });
+});
+
+describe('the MCP trigger view carries a schedule rule, its next start and why it skipped', () => {
+  it('answers the rule, its start day, the zone, the next start and the skip detail', async () => {
+    const { engine } = store([
+      row({
+        cron: null,
+        timezone: 'Europe/Zurich',
+        scheduleRule: {
+          repeat: { frequency: 'daily', interval: 1, times: ['09:00'] },
+          startDate: '2026-10-08',
+        },
+        catchUp: 'skip',
+        nextDueAt: 1_791_536_400_000,
+        input: { owner: 'tale' },
+        lastSkippedAt: 9_000,
+        lastSkipReason: 'missed_occurrences',
+        lastSkipDetail: {
+          reason: 'missed_occurrences',
+          missed: {
+            count: 2,
+            capped: false,
+            firstAt: 1_000,
+            lastAt: 2_000,
+            policy: 'skip',
+          },
+          firedLatest: false,
+        },
+      }),
+    ]);
+    const [view] = (await engine.listTriggers?.('ops/nightly')) ?? [];
+    expect(view).toMatchObject({
+      repeat: { frequency: 'daily', interval: 1, times: ['09:00'] },
+      startDate: '2026-10-08',
+      timezone: 'Europe/Zurich',
+      catchUp: 'skip',
+      input: { owner: 'tale' },
+      nextRunAt: 1_791_536_400_000,
+      lastSkipReason: 'missed_occurrences',
+      lastSkipDetail: { reason: 'missed_occurrences', firedLatest: false },
+    });
+    expect(view).not.toHaveProperty('cron');
+  });
+
+  it('reads no detail that explains another reason than the row’s', async () => {
+    // A previous image stamps a reason without a detail; the old detail
+    // explains the skip before it, and is not read.
+    const { engine } = store([
+      row({
+        lastSkippedAt: 9_000,
+        lastSkipReason: 'not_deployed',
+        lastSkipDetail: { reason: 'unusable_cron', message: 'bad' },
+      }),
+    ]);
+    const [view] = (await engine.listTriggers?.('ops/nightly')) ?? [];
+    expect(view?.lastSkipReason).toBe('not_deployed');
+    expect(view).not.toHaveProperty('lastSkipDetail');
+  });
+});
+
+describe('the validator reads what the enabled trigger sends', () => {
+  it('samples the enabled trigger, its fixed input under the trigger fields', async () => {
+    const { engine, statements } = store([
+      row({ input: { owner: 'tale', repo: 'tale' } }),
+    ]);
+    const sample = await engine.triggerInput?.('ops/nightly');
+    expect(sample).toMatchObject({
+      kind: 'schedule',
+      input: {
+        owner: 'tale',
+        repo: 'tale',
+        trigger: 'schedule',
+        firedAt: expect.any(Number),
+      },
+      ignorePointers: [],
+      fixedInput: { owner: 'tale', repo: 'tale' },
+    });
+    const select = statements.find((s) =>
+      s.text.includes('FROM app.automation_triggers'),
+    );
+    expect(select?.values).toContain('org_1');
+    expect(select?.values).toContain('ops/nightly');
+  });
+
+  it('sets a webhook’s unknown body aside, and says nothing of a trigger that is off', async () => {
+    const webhook = store([row({ kind: 'webhook', cron: null })]);
+    expect(await webhook.engine.triggerInput?.('ops/nightly')).toMatchObject({
+      kind: 'webhook',
+      ignorePointers: ['/payload'],
+    });
+    const off = store([row({ enabled: false })]);
+    expect(await off.engine.triggerInput?.('ops/nightly')).toBeNull();
+    const none = store([]);
+    expect(await none.engine.triggerInput?.('ops/nightly')).toBeNull();
+  });
+});
+
+/**
+ * The engine keeps its own open `TriggerView` (it imports nothing of the
+ * host's), and the store fills it from the shared read shape with each
+ * null left out. The two must name the same fields, each able to carry the
+ * shared value — or a field the REST read answers would never reach
+ * `list_triggers`.
+ */
+describe('the engine trigger view and the shared read shape', () => {
+  it('name the same fields, and the engine takes every shared value', () => {
+    type Present<T> = { [K in keyof T]-?: Exclude<T[K], null> };
+    expectTypeOf<keyof EngineTriggerView>().toEqualTypeOf<keyof TriggerView>();
+    expectTypeOf<Present<TriggerView>>().toExtend<
+      Required<EngineTriggerView>
+    >();
   });
 });

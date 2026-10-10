@@ -3,7 +3,7 @@ title: Built-in automations
 description: Choose a shipped mail, GitHub or GlitchTip workflow, check its inputs and connections, and understand what it reads or writes before deployment.
 ---
 
-Tale includes ten automation packages: three mailbox syncs, three inbox digests, two GitHub review workflows, and GitHub and GlitchTip issue imports. Each starts as version 1 and **Not deployed**. The issue importers run manually; the other packages include schedules. Inspect their inputs, model, connections, and writes before an Owner, Admin, or Developer deploys a version.
+Tale includes ten automation packages: three mailbox syncs, three inbox digests, two GitHub review workflows, and GitHub and GlitchTip issue imports. Each starts as version 1 and **Not deployed**. The issue importers run manually; the other packages include schedules, which start switched off: after you deploy a version, the editor offers **Turn on the trigger**. Inspect their inputs, model, connections, and writes before an Owner, Admin, or Developer deploys a version.
 
 <Frame caption="The Automations catalog shows package names, version counts, and deployment status.">
 
@@ -87,7 +87,7 @@ Both workflows require `owner` and `repo`. In **Test run**, supply **Run input (
 
 <Note>
 
-The shipped GitHub schedules do not supply `owner` and `repo`; deploying alone does not make those scheduled runs valid. A schedule sends only `trigger` and `firedAt`, so the required repository input is missing and the start is refused. Run manually with the required input, or adapt the workflow’s schema and repository configuration before enabling scheduled execution. A refused scheduled start appears as `start_refused` on the [trigger](/platform/automations/triggers).
+The shipped GitHub schedules need `owner` and `repo`, but a schedule sends only `trigger` and `firedAt`. After you deploy a version, the editor therefore offers **Review the trigger** instead of turning the schedule on. On the **General** tab, open **Add fixed input**, choose **Add the 2 missing fields**, replace the placeholders with your repository’s owner and name, turn on **Enabled** and save. Every scheduled run then receives those values. A start the workflow still refuses appears on the [trigger](/platform/automations/triggers#diagnose-a-missing-start) as **Skipped: the run’s input was refused**.
 
 </Note>
 

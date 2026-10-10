@@ -1,0 +1,28 @@
+title: Set up your workspace
+subtitle: A few quick steps to get your workspace up and running.
+backToApp: Back to app
+stepsAriaLabel: Onboarding steps
+progress: 'Step {current} of {total}: {label}'
+steps:
+  account: Account
+  workspace: Workspace
+  finish: Finish
+account:
+  heading: Create your owner account
+  why: This is the first account on this Tale install, so it gets full admin
+    rights. You'll add teammates later.
+workspace:
+  createError:
+    We couldn't create your workspace. Check your connection and click
+    Next to try again.
+  creationForbidden: You cannot create an organization on this deployment. Contact the operator to request a workspace.
+  nameTakenError: That name is already taken. Pick a different one.
+finish:
+  heading: Ready to go
+  subtitle: "Here's what you can do next:"
+  providerItem: Connect an AI provider to power agents and chat.
+  providerConnected: AI provider connected.
+  inviteItem: Invite teammates to collaborate.
+  providerCta: Connect a provider
+  inviteCta: Invite teammates
+  goToDashboard: Go to Home

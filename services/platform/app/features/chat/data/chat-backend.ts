@@ -319,27 +319,37 @@ export function useChatProjects(
   });
   return useMemo(() => {
     if (projects.status !== 'ready') return projects;
-    return {
-      status: 'ready',
-      data: projects.data.map((project) => ({
-        id: project._id,
-        name: project.name,
-        ...(project.key !== undefined ? { key: project.key } : {}),
-        ...(project.icon !== undefined ? { icon: project.icon } : {}),
-        ...(project.color !== undefined ? { color: project.color } : {}),
-        ...(project.pinnedAt !== undefined
-          ? { pinnedAt: project.pinnedAt }
-          : {}),
-        ...(project.projectAgentCount !== undefined
-          ? { agentCount: project.projectAgentCount }
-          : {}),
-        // The chat's own projects read carries it when the backend does.
-        ...(typeof project.canEdit === 'boolean'
-          ? { canEdit: project.canEdit }
-          : {}),
-      })),
-    };
+    return { status: 'ready', data: projects.data.map(toChatProjectSummary) };
   }, [projects]);
+}
+
+type ProjectRow = ReturnsOf<'projects/queries:listProjects'>[number];
+
+/** One summary per project row: a refetch keeps every unchanged row's object
+ * (react-query shares the structure of an equal answer), so the summary —
+ * and every list row memoized on it — survives a refetch too. */
+const summaryByProject = new WeakMap<ProjectRow, ChatProjectSummary>();
+
+function toChatProjectSummary(project: ProjectRow): ChatProjectSummary {
+  const known = summaryByProject.get(project);
+  if (known !== undefined) return known;
+  const summary: ChatProjectSummary = {
+    id: project._id,
+    name: project.name,
+    ...(project.key !== undefined ? { key: project.key } : {}),
+    ...(project.icon !== undefined ? { icon: project.icon } : {}),
+    ...(project.color !== undefined ? { color: project.color } : {}),
+    ...(project.pinnedAt !== undefined ? { pinnedAt: project.pinnedAt } : {}),
+    ...(project.projectAgentCount !== undefined
+      ? { agentCount: project.projectAgentCount }
+      : {}),
+    // The chat's own projects read carries it when the backend does.
+    ...(typeof project.canEdit === 'boolean'
+      ? { canEdit: project.canEdit }
+      : {}),
+  };
+  summaryByProject.set(project, summary);
+  return summary;
 }
 
 /**
@@ -757,6 +767,41 @@ export function useComposerModels(
 }
 
 /**
+ * The names the composer's catalog gives a model and its provider
+ * (`Claude Sonnet 4.6`, `OpenRouter`), for the message-info panel. Read from
+ * the catalog this device already holds — the page's last answer, else the
+ * stored one — and never fetched: opening the panel must not cost a request.
+ * A name the catalog does not hold (a model since removed, a catalog never
+ * loaded here) is left out, and the panel shows the id.
+ */
+export function useComposerModelNames(
+  organizationId: string | undefined,
+  modelId: string | undefined,
+  providerSlug: string | undefined,
+): { readonly model?: string; readonly provider?: string } {
+  return useMemo(() => {
+    if (organizationId === undefined || organizationId === '') return {};
+    const catalog = recallComposerCatalog(organizationId);
+    if (catalog === undefined) return {};
+    const sameProvider = catalog.models.filter(
+      (option) => option.providerSlug === providerSlug,
+    );
+    const model =
+      sameProvider.find((option) => option.id === modelId) ??
+      catalog.models.find((option) => option.id === modelId);
+    const provider = sameProvider.find(
+      (option) => option.providerLabel !== undefined,
+    )?.providerLabel;
+    return {
+      ...(model !== undefined && model.label !== model.id
+        ? { model: model.label }
+        : {}),
+      ...(provider !== undefined ? { provider } : {}),
+    };
+  }, [organizationId, modelId, providerSlug]);
+}
+
+/**
  * The user's sticky model pick for this org — a live read plus the save that
  * makes a pick sticky. The read is `undefined` data while the user has never
  * picked; `save` fires and forgets (a lost write costs one re-pick, never a
@@ -852,6 +897,8 @@ export interface ChatTurnHandle {
     /** The refusal's stable code when the server names one
      * (`BUDGET_EXCEEDED`) — see `ChatTurnOutcome.code`. */
     code?: string;
+    /** See `ChatTurnOutcome.budgetScope`. */
+    budgetScope?: string;
   }>;
 }
 

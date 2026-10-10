@@ -2,6 +2,7 @@ import { viewportAtRest } from '@tale/ui/testing/flow';
 import type { UserEvent } from '@testing-library/user-event';
 import { useReactFlow, type Node } from '@xyflow/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { cdp } from 'vitest/browser';
 
 import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
@@ -9,8 +10,9 @@ import { FlowCanvas } from './flow-canvas';
 
 import '../../globals.css';
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  await cdp().send('Emulation.setEmulatedMedia', { features: [] });
 });
 
 // A column of boxes, like an automation: 200×80 each, 160px apart.
@@ -137,5 +139,64 @@ describe('FlowCanvas fit (real layout)', () => {
     frame.style.height = '420px';
     frame.style.width = '600px';
     await waitFor(() => expect(nodesFitThePane()).toBe(true));
+  });
+});
+
+// A column far taller than the pane: 30 boxes, 160px apart.
+const TALL: Node[] = Array.from({ length: 30 }, (_, i) => ({
+  id: `t${i}`,
+  position: { x: 0, y: i * 160 },
+  width: 200,
+  height: 80,
+  data: { label: `Node ${i}` },
+}));
+
+describe('FlowCanvas auto fit', () => {
+  it('shows a graph too tall to read whole from its top, at a readable zoom', async () => {
+    render(
+      <div style={{ width: 900, height: 700 }}>
+        <FlowCanvas nodes={TALL} edges={[]} fitPolicy="auto" />
+      </div>,
+    );
+    await waitFor(() => expect(transform()).not.toBe(DEFAULT_VIEW));
+    const rest = await viewportAtRest();
+    const zoom = Number(/scale\(([\d.]+)\)/.exec(rest)?.[1]);
+    expect(zoom).toBeGreaterThanOrEqual(0.5);
+    const pane = document.querySelector('.react-flow')!.getBoundingClientRect();
+    const first = document
+      .querySelector('[data-id="t0"]')!
+      .getBoundingClientRect();
+    // The first box is at the top, centred across the pane.
+    expect(first.top - pane.top).toBeGreaterThanOrEqual(0);
+    expect(first.top - pane.top).toBeLessThan(80);
+    expect(
+      Math.abs(first.left + first.width / 2 - (pane.left + pane.width / 2)),
+    ).toBeLessThan(2);
+  });
+
+  it('fits a graph that reads whole, like the all policy', async () => {
+    render(
+      <div data-testid="frame" style={{ width: 900, height: 700 }}>
+        <FlowCanvas nodes={NODES} edges={[]} fitPolicy="auto" />
+      </div>,
+    );
+    await fitted();
+    expect(nodesFitThePane()).toBe(true);
+  });
+});
+
+describe('FlowCanvas under reduced motion', () => {
+  it('zooms at once, without an ease', async () => {
+    await cdp().send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    });
+    const { user } = renderCanvas();
+    await fitted();
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
+    // One frame later the zoom has landed: nothing eases toward it.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const landed = transform();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(transform()).toBe(landed);
   });
 });

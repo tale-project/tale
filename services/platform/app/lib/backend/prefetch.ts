@@ -2,12 +2,15 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import {
   activeOrganizationId,
+  PAGINATED_ADAPTERS,
   projectAdaptedRead,
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
+  type AdaptedPage,
+  type AdaptedPaginatedOptions,
 } from './adapters';
-import type { ArgsOf, QueryName, ReturnsOf } from './contract';
+import type { ArgsOf, PaginatedName, QueryName, ReturnsOf } from './contract';
 import { MissingBackendRowError } from './missing-row';
 
 /**
@@ -84,4 +87,54 @@ export async function ensureAdaptedQueryData<Name extends QueryName>(
   }
   // A loader that NEEDS the value cannot degrade quietly.
   throw new MissingBackendRowError(name);
+}
+
+/**
+ * The infinite-query options of an adapted paginated read. The listing hook
+ * (`useCachedPaginatedQuery`) and {@link prefetchAdaptedPaginatedQuery} build
+ * the same ones, so a prefetched first page is the page the listing reads.
+ */
+export function adaptedInfiniteQueryOptions(
+  opts: AdaptedPaginatedOptions,
+  numItems: number,
+) {
+  return {
+    queryKey: opts.queryKey,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }: { pageParam: unknown }) =>
+      runAdapted(() =>
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- react-query types pageParam as unknown; this lane only ever stores string|null cursors
+        opts.fetchPage(pageParam as string | null, numItems),
+      ),
+    getNextPageParam: (last: AdaptedPage) =>
+      last.isDone ? undefined : last.continueCursor,
+    retry: retryAdaptedRead,
+  };
+}
+
+/**
+ * The first page of a paginated listing, into the cache under the key its
+ * `useCachedPaginatedQuery` reads — for a surface that knows a listing is
+ * coming before the component that reads it has mounted.
+ */
+export function prefetchAdaptedPaginatedQuery<Name extends PaginatedName>(
+  queryClient: QueryClient,
+  name: Name,
+  args: Omit<ArgsOf<Name>, 'paginationOpts'>,
+  numItems: number,
+): void {
+  const adapter = PAGINATED_ADAPTERS[name];
+  if (adapter === undefined) {
+    console.warn(`[prefetch] no 0.5 row for ${name} — skipping prefetch`);
+    return;
+  }
+  const orgId = activeOrganizationId();
+  const opts = adapter(
+    args,
+    orgId !== undefined ? { organizationId: orgId } : {},
+  );
+  if (opts === null) return;
+  void queryClient.prefetchInfiniteQuery(
+    adaptedInfiniteQueryOptions(opts, numItems),
+  );
 }

@@ -18,6 +18,11 @@ import {
   resolveTurnSampling,
   type ReasoningEffort,
 } from '../../../lib/chat/effort';
+import {
+  mergeServedBy,
+  regionalEndpoint,
+  sameServedBy,
+} from '../../../lib/chat/serving';
 import { CHAT_TOOL_DOCS, type ToolCallRequest } from '../../../lib/chat/tools';
 import { runTurn, userTurnParts } from '../../../lib/chat/turn';
 import type {
@@ -32,6 +37,7 @@ import {
   messageText,
   type ChatMessage,
   type MessagePart,
+  type ServedBy,
   type TurnFinishReason,
   type TurnUsage,
 } from '../../../lib/chat/types';
@@ -41,6 +47,7 @@ import {
   type WireImage,
 } from '../../../lib/chat/wire-parts';
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
+import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   CHAT_MAX_FILE_COUNT,
@@ -53,6 +60,7 @@ import { providerAttributionHeaders } from '../../../lib/shared/providers/attrib
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import { buildChatRequest } from '../automations_builder/chat_wire';
+import type { EmbeddingMeter } from '../knowledge/embedding';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
@@ -78,6 +86,8 @@ import {
 import { resolveProjectContext } from './project_context';
 import {
   readEvent,
+  readServedBy,
+  readServedByHeaders,
   readStreamFailure,
   type StreamDecodeState,
   type StreamDialect,
@@ -250,6 +260,9 @@ export async function* streamSse(
   let buffer = '';
   let lastUsage: TurnUsage | undefined;
   let lastFinishReason: TurnFinishReason | undefined;
+  /** Where the answer is served, as the body has said so far — reported
+   * when it changes, not on every chunk that repeats it. */
+  let served: ServedBy | undefined;
   const stalled = stall === undefined ? undefined : rejectOnAbort(stall.signal);
 
   while (true) {
@@ -323,14 +336,23 @@ export async function* streamSse(
       );
       if (usage) lastUsage = usage;
       if (finishReason !== undefined) lastFinishReason = finishReason;
+      const said = mergeServedBy(served, readServedBy(dialect, event));
+      const serving = sameServedBy(said, served) ? undefined : said;
+      served = said;
       // A usage frame is yielded the moment it arrives, not only on the
       // settle chunk below: a stream cut by a cancel never reaches the
       // settle, and the counts it had already reported must survive.
-      if (text.length > 0 || reasoning !== undefined || usage !== undefined) {
+      if (
+        text.length > 0 ||
+        reasoning !== undefined ||
+        usage !== undefined ||
+        serving !== undefined
+      ) {
         yield {
           text,
           ...(reasoning !== undefined ? { reasoning } : {}),
           ...(usage !== undefined ? { usage } : {}),
+          ...(serving !== undefined ? { serving } : {}),
         };
       }
     }
@@ -571,8 +593,17 @@ export function createDirectModelCall(
         { cause: error },
       );
     }
+    // A documented regional endpoint says where the request is processed
+    // before any response does.
+    const endpoint = regionalEndpoint(base.url);
     try {
-      yield* streamProviderAnswer(response, dialect, stall, request.onAccepted);
+      yield* streamProviderAnswer(
+        response,
+        dialect,
+        stall,
+        request.onAccepted,
+        endpoint !== undefined ? { endpoint } : undefined,
+      );
     } finally {
       stall.dispose();
     }
@@ -594,6 +625,9 @@ export async function* streamProviderAnswer(
   dialect: StreamDialect,
   stall: StallGuard,
   onAccepted?: () => void,
+  /** What the host knows about where the request went — the regional
+   * endpoint it was sent to. */
+  requestServedBy?: ServedBy,
 ): AsyncGenerator<ModelStreamChunk> {
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -609,6 +643,15 @@ export async function* streamProviderAnswer(
   // Headers count as the first sign of life; the body's bytes take over.
   stall.touch();
   onAccepted?.();
+  // Where the request went and what the headers say about where it is
+  // served ride ahead of the body, so a round that fails mid-stream still
+  // knows them. Only now, after the provider accepted the request: a chunk
+  // tells the pipeline the round consumed its prompt.
+  const serving = mergeServedBy(
+    requestServedBy,
+    readServedByHeaders(response.headers),
+  );
+  if (serving !== undefined) yield { text: '', serving };
   yield* streamSse(response, dialect, stall);
 }
 
@@ -668,6 +711,14 @@ export interface ExecuteTurnOverrides {
    * plus any pipeline dep a test wants to swap. Required: this host has no
    * store of its own. */
   readonly deps: Partial<TurnDeps> & Pick<TurnDeps, 'store' | 'usage'>;
+  /** The host's embedding meter, for whoever a search's query embedding is
+   * the spend of — this host holds and books no call of its own. */
+  readonly meterEmbeddings?: (subject: {
+    userId: string;
+    agentSlug: string;
+    apiKeyId?: string;
+    projectIds?: readonly string[];
+  }) => EmbeddingMeter;
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -737,8 +788,8 @@ async function autoPromptFacts(
  * another member's document, whose ref every reader holds — and exfiltrate
  * it through the model's eyes.
  */
-async function validateTurnAttachments(
-  ctx: ActionCtx,
+export async function validateTurnAttachments(
+  ctx: Pick<ActionCtx, 'runQuery'>,
   organizationId: string,
   userId: string,
   attachments: readonly TurnAttachment[],
@@ -778,6 +829,27 @@ async function validateTurnAttachments(
   return null;
 }
 
+/** Recheck stored references under the current reader before any model use. */
+export async function readableTurnAttachments(
+  ctx: Pick<ActionCtx, 'runQuery'>,
+  organizationId: string,
+  userId: string,
+  attachments: readonly TurnAttachment[],
+): Promise<TurnAttachment[]> {
+  if (attachments.length === 0) return [];
+  const readable = new Set<string>(
+    await ctx.runQuery(
+      internal.file_metadata.internal_queries.filterStorageIdsReadable,
+      {
+        organizationId,
+        userId,
+        storageIds: attachments.map((attachment) => attachment.fileId),
+      },
+    ),
+  );
+  return attachments.filter((attachment) => readable.has(attachment.fileId));
+}
+
 /**
  * Load the model-only transcript appendix for audio/video attachments.
  * Empty when none of the files are audio/video. Images are left alone for
@@ -786,7 +858,9 @@ async function validateTurnAttachments(
  * onto prior history turns the same way).
  */
 async function loadAudioTranscriptAppendix(
-  ctx: ActionCtx,
+  ctx: Pick<ActionCtx, 'runQuery' | 'runMutation'>,
+  organizationId: string,
+  userId: string,
   attachments: readonly TurnAttachment[],
 ): Promise<string> {
   const media = attachments.filter((attachment) =>
@@ -798,7 +872,7 @@ async function loadAudioTranscriptAppendix(
     media.map(async (attachment) => {
       const meta = await ctx.runQuery(
         internal.file_metadata.internal_queries.getByStorageId,
-        { storageId: attachment.fileId },
+        { organizationId, userId, storageId: attachment.fileId },
       );
       return {
         fileName: attachment.fileName,
@@ -820,7 +894,9 @@ async function loadAudioTranscriptAppendix(
  * turn (and re-hydrated onto prior history turns the same way).
  */
 async function loadDocumentAppendix(
-  ctx: ActionCtx,
+  ctx: Pick<ActionCtx, 'runQuery' | 'runMutation'>,
+  organizationId: string,
+  userId: string,
   attachments: readonly TurnAttachment[],
 ): Promise<string> {
   const documents = attachments.filter((attachment) =>
@@ -832,8 +908,9 @@ async function loadDocumentAppendix(
     documents.map(async (attachment) => {
       const meta = await ctx.runQuery(
         internal.file_metadata.internal_queries.getByStorageId,
-        { storageId: attachment.fileId },
+        { organizationId, userId, storageId: attachment.fileId },
       );
+      if (meta === null) return null;
       // No status at all means nothing ever started indexing this file —
       // rows an instance carries from before registration queued it. Telling
       // the model the content is unreadable would make that permanent, since
@@ -854,7 +931,7 @@ async function loadDocumentAppendix(
       };
     }),
   );
-  return buildDocumentAppendix(entries);
+  return buildDocumentAppendix(entries.filter((entry) => entry !== null));
 }
 
 /** Typed text on a stored user row — strips a legacy baked-in appendix so
@@ -869,15 +946,32 @@ function typedTextFromParts(parts: readonly MessagePart[]): string {
 }
 
 /** Rebuild a stored user message for the model wire: typed text + fresh
- * appendix from `fileMetadata` + the same attachment parts. */
-async function modelFacingUserMessage(
-  ctx: ActionCtx,
+ * appendix from readable `fileMetadata` + currently readable attachment parts. */
+export async function modelFacingUserMessage(
+  ctx: Pick<ActionCtx, 'runQuery' | 'runMutation'>,
+  organizationId: string,
+  userId: string,
   parts: readonly MessagePart[],
 ): Promise<ChatMessage> {
-  const attachments = attachmentsFromParts(parts);
+  const attachments = await readableTurnAttachments(
+    ctx,
+    organizationId,
+    userId,
+    attachmentsFromParts(parts),
+  );
   const typed = typedTextFromParts(parts);
-  const appendix = await loadAudioTranscriptAppendix(ctx, attachments);
-  const documentAppendix = await loadDocumentAppendix(ctx, attachments);
+  const appendix = await loadAudioTranscriptAppendix(
+    ctx,
+    organizationId,
+    userId,
+    attachments,
+  );
+  const documentAppendix = await loadDocumentAppendix(
+    ctx,
+    organizationId,
+    userId,
+    attachments,
+  );
   return {
     role: 'user',
     parts: userTurnParts(typed + appendix + documentAppendix, attachments),
@@ -886,8 +980,8 @@ async function modelFacingUserMessage(
 
 /** Rebuild the turn-attachment list from a stored user message's parts — how
  * a regenerate re-runs an image-carrying message without dropping its
- * images. A blob deleted since the original send degrades at the wire (text
- * surface), never here. */
+ * images. The reader check drops deleted or newly unreadable refs before
+ * the model wire is built. */
 function attachmentsFromParts(parts: readonly MessagePart[]): TurnAttachment[] {
   const attachments: TurnAttachment[] = [];
   for (const part of parts) {
@@ -938,12 +1032,18 @@ export function chatToolContextForTurn(args: {
   userId: string;
   threadIds: readonly string[];
   projectId: string | null;
+  apiKeyId?: string;
+  embeddingMeter?: EmbeddingMeter;
 }): ChatToolContext {
   return {
     organizationId: args.organizationId,
     userId: args.userId,
     threadIds: args.threadIds,
     projectId: args.projectId,
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+    ...(args.embeddingMeter !== undefined
+      ? { embeddingMeter: args.embeddingMeter }
+      : {}),
   };
 }
 
@@ -1212,10 +1312,14 @@ export async function executeTurn(
     args.resend === true && trailing !== undefined
       ? typedTextFromParts(trailingParts)
       : args.userText;
-  const attachments =
+  const attachments = await readableTurnAttachments(
+    ctx,
+    args.organizationId,
+    args.userId,
     args.resend === true
       ? attachmentsFromParts(trailingParts)
-      : (args.attachments ?? []);
+      : (args.attachments ?? []),
+  );
   // The resend lane re-carries stored attachments — a row from a pre-thread
   // send (or a legacy row) may still be unbound; give it the same retroactive
   // root binding the direct lane gets. Idempotent: bound rows no-op, and
@@ -1233,9 +1337,16 @@ export async function executeTurn(
   }
   const audioTranscriptAppendix = await loadAudioTranscriptAppendix(
     ctx,
+    args.organizationId,
+    args.userId,
     attachments,
   );
-  const documentAppendix = await loadDocumentAppendix(ctx, attachments);
+  const documentAppendix = await loadDocumentAppendix(
+    ctx,
+    args.organizationId,
+    args.userId,
+    attachments,
+  );
   const historyRows = args.resend === true ? stored.slice(0, -1) : stored;
   // Prior user turns may still carry a legacy baked-in appendix, or only
   // attachment parts + typed text. Either way the model wire is rebuilt
@@ -1246,7 +1357,12 @@ export async function executeTurn(
       if (message.role !== 'user') {
         return { role: message.role, parts: message.parts };
       }
-      return modelFacingUserMessage(ctx, message.parts);
+      return modelFacingUserMessage(
+        ctx,
+        args.organizationId,
+        args.userId,
+        message.parts,
+      );
     }),
   );
 
@@ -1268,6 +1384,23 @@ export async function executeTurn(
         userId: args.userId,
         threadIds: lineage.threadIds,
         projectId: threadProjectId,
+        // A tool call is the turn's: its member, the key that sent the
+        // message, the thread's project — its search's embedding too.
+        ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+        ...(overrides.meterEmbeddings !== undefined
+          ? {
+              embeddingMeter: overrides.meterEmbeddings({
+                userId: args.userId,
+                agentSlug: EMBEDDING_SLUG,
+                ...(args.apiKeyId !== undefined
+                  ? { apiKeyId: args.apiKeyId }
+                  : {}),
+                ...(threadProjectId !== null
+                  ? { projectIds: [threadProjectId] }
+                  : {}),
+              }),
+            }
+          : {}),
       }),
     ),
     ...overrides.deps,
@@ -1278,6 +1411,7 @@ export async function executeTurn(
     userId: args.userId,
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
     threadId: args.threadId,
+    ...(threadProjectId !== null ? { projectId: threadProjectId } : {}),
     userText,
     ...(audioTranscriptAppendix.length > 0 ? { audioTranscriptAppendix } : {}),
     ...(documentAppendix.length > 0 ? { documentAppendix } : {}),

@@ -1,7 +1,7 @@
 # AI Gateway Dockerfile — the Vite panel, served by the Bun server that also runs the gateway
 ARG VERSION=dev
 
-FROM oven/bun:1.3.12 AS bun-bin
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
 
 # ============================================================================
 # Stage 1: workspace deps
@@ -58,22 +58,16 @@ WORKDIR /app/services/ai-gateway
 # stage carries no `node_modules`, so every import `server.ts` makes —
 # `@tale/ui/server`, the service's own modules, its dependencies — has to
 # be inlined here (the pattern `services/web` and `services/docs` use).
-RUN bun --bun vite build \
+RUN bun --bun ../../packages/ui/bin/build-client.ts \
     && bun build server.ts --target=bun --outfile=server.js --external bun
 WORKDIR /app
 
 # ============================================================================
 # Stage 3: runtime
 # ============================================================================
-FROM oven/bun:1.3.12-slim AS runner
-
-ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-ai-gateway" \
-      org.opencontainers.image.description="Multi-provider AI subscription credential gateway"
+FROM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS runner
 
 ENV NODE_ENV=production \
-    TALE_VERSION=${VERSION} \
     PORT=3004 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1
@@ -95,6 +89,14 @@ RUN chmod +x ./docker-entrypoint.sh
 # the unprivileged user rather than root — the server could not write it
 # otherwise. `AI_GATEWAY_DATA_DIR` still decides where the document goes.
 RUN mkdir -p /data && chown app:app /data
+
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-ai-gateway" \
+      org.opencontainers.image.description="Multi-provider AI subscription credential gateway"
+ENV TALE_VERSION=${VERSION}
+
 VOLUME ["/data"]
 
 USER app

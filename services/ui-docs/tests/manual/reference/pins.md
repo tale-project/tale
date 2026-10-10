@@ -23,13 +23,6 @@ and name the test that now holds it. Never key a row by round — the journal in
 | `SMOKE-3` | The first build rendered a live example's `<div>`s inside a `<p>`: a one-line `<Demo …></Demo>` is inline HTML to CommonMark, so the paragraph wrapper stayed and React logged a hydration warning on every docs page. `expandDemoTags` now puts the closing tag on its own line so the tag is an HTML block (`app/components/demo/expand-demo-tags.test.ts`). |
 | `SMOKE-4` | The self-closing `<Demo name="…" />` authoring form is not a self-closing element to an HTML5 parser: `<demo>` stayed open and swallowed the rest of the article, so the Button page ended after its first example while the outline still listed nine more headings. The expansion step and the e2e assertion on the Button page's section count hold it. |
 
-## Front page
-
-| Box | What it pins |
-|---|---|
-| `HOME-3` | The sample window is now labelled “Components in a sample workspace” and remains an inert illustration. The first composition put the showcase heading **below** the product window while its copy said "the window below" — the sections are now heading first, window second. |
-| `HOME-5` | `DemoShell` marks its payload `role="img"` + `inert`; a round that files "the settings form on the home page cannot be focused" has found the contract, not a bug. |
-
 ## Documentation pages
 
 | Box | What it pins |

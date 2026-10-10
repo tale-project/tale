@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { SECTION_DIVIDER_CLASS, SettingsPage } from './settings-page';
 
@@ -59,7 +59,7 @@ describe('SettingsPage', () => {
           </section>
         </SettingsPage>,
       );
-      await waitFor(() => checkAccessibility(container));
+      await checkAccessibility(container);
     });
   });
 });

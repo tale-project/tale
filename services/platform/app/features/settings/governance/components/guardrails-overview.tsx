@@ -5,6 +5,7 @@ import {
   moderationProviderConfigSchema,
   piiConfigSchema,
 } from '@tale/shared/schemas/governance';
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
@@ -28,7 +29,7 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import { Copy, Fingerprint, ListFilter, Shield } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -286,7 +287,26 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
     data: events,
     isLoading,
     isError,
+    isFetching,
+    refetch,
   } = useBackendQuery('chat_filter_events/queries:listRecent', queryArgs);
+
+  // A cold refetch becomes pending and clears isError. Remember the last
+  // settled failure for this query so its recovery control stays mounted.
+  const [failedQueryArgs, setFailedQueryArgs] = useState<
+    typeof queryArgs | null
+  >(null);
+  useEffect(() => {
+    if (isError) {
+      setFailedQueryArgs(queryArgs);
+    } else if (
+      failedQueryArgs !== null &&
+      (failedQueryArgs !== queryArgs || !isFetching)
+    ) {
+      setFailedQueryArgs(null);
+    }
+  }, [failedQueryArgs, isError, isFetching, queryArgs]);
+  const showFailure = isError || (isFetching && failedQueryArgs === queryArgs);
 
   return (
     <Stack as="section" data-settings-section="">
@@ -377,7 +397,27 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         />
       </Row>
 
-      {!isLoading && (!events || events.length === 0) ? (
+      {showFailure ? (
+        <Alert
+          variant="destructive"
+          title={t('guardrailsOverview.recentEvents.error.title')}
+          description={t('guardrailsOverview.recentEvents.error.description')}
+        >
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="mt-3"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+          >
+            {t('guardrailsOverview.recentEvents.error.retry')}
+          </Button>
+        </Alert>
+      ) : null}
+
+      {showFailure && !events?.length ? null : !isLoading &&
+        events?.length === 0 ? (
         // Same bordered shell as the table below so empty/loaded don't jump
         // chrome. EmptyState itself is borderless by design.
         <div className="border-border overflow-hidden rounded-lg border">

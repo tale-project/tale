@@ -45,6 +45,9 @@ it('hands the gate the node input resolved against the run scope', async () => {
         gateCalls.push(args);
         return { decision: 'allow' };
       }
+      // A live write goes through the effect ledger first.
+      if (name.endsWith(':beginNodeAttempt')) return { kind: 'go', attempt: 1 };
+      if (name.endsWith(':finishNodeAttempt')) return { recorded: true };
       if (name.endsWith(':finishRun')) return { status: args.status };
       return { status: 'running' };
     },
@@ -119,4 +122,40 @@ it('fails the node before asking for approval when no credential can resolve', a
       'remove: no usable credential for webdav: No default credential is configured for "webdav" — add one in Settings → Connectors, or name a credential explicitly. — connect the connector, or mark one of its credentials as the default',
   });
   expect(finished?.detail).not.toContain('{"code"');
+});
+
+// The decision wakes the parked run in its own transaction, and a park that
+// lands after the decision wakes the run itself, so the park's poll is only a
+// backstop — ten minutes out, not the thirty seconds that once carried every
+// approval's resume.
+it('parks behind the approval card with a ten-minute backstop poll', async () => {
+  const parks: Record<string, unknown>[] = [];
+  const ctx = {
+    runQuery: async (ref: unknown) =>
+      functionRefName(ref).endsWith(':probeCredentialUsableInternal')
+        ? { usable: true }
+        : loaded,
+    runMutation: async (ref: unknown, args: Record<string, unknown>) => {
+      const name = functionRefName(ref);
+      if (name.endsWith(':claimRun')) return { claimed: true, epoch: 1 };
+      if (name.endsWith(':evaluateApprovalGate')) {
+        return { decision: 'needs-approval', approvalId: 'appr-1' };
+      }
+      if (name.endsWith(':suspendRun')) {
+        parks.push(args);
+        return { suspended: true };
+      }
+      return { status: 'running' };
+    },
+    runAction: async () => {
+      throw new Error('the connector must not be called before the approval');
+    },
+  };
+
+  await stepRunImpl(ctx as never, { organizationId: 'org-1', runId: 'run-1' });
+  expect(parks).toHaveLength(1);
+  expect(parks[0]).toMatchObject({
+    detail: 'approval:appr-1',
+    resumeInMs: 600_000,
+  });
 });

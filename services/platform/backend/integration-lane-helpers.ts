@@ -8,6 +8,14 @@ import { z } from 'zod';
 /** The password every throwaway `itest-` user signs up with. */
 export const ITEST_PASSWORD = 'itest-password-1';
 
+/**
+ * The vector width every lane's embedding fixture states, and the width the
+ * suite's fake embeddings endpoint answers. A knowledge database keeps a
+ * table per supported width, so the fixture has to state one of them; this
+ * is the narrowest.
+ */
+export const ITEST_VECTOR_WIDTH = 256;
+
 /** How a lane records one check: the harness's `record`. */
 export type RecordCheck = (name: string, ok: boolean, detail: string) => void;
 

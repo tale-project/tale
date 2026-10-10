@@ -1,20 +1,37 @@
 import type { Sql } from 'postgres';
 
+import type { ApiKeyOwnerKind } from '../api_keys/owners.ts';
+
+/** Whose key it is: a person's own (`user`), one made for a member, or a
+ * team's, a project's or the organization's own key. */
+export type OrgApiKeyOwnerKind = 'user' | ApiKeyOwnerKind;
+
+/** What a listed key belongs to beyond a person: its team or project. */
+export interface OrgApiKeyScope {
+  ownerKind: OrgApiKeyOwnerKind;
+  teamId: string | null;
+  teamName: string | null;
+  projectId: string | null;
+  projectName: string | null;
+}
+
 /**
- * The API keys the budget editor can cap: every key held by a member of this
- * organization that can still spend (neither disabled nor expired), masked.
- * A key belongs to a person and works in each organization they are a member
- * of, so an admin sees the keys of this organization's members only — never
- * a non-member's — and a cap applies to the key's spend in this organization.
- * The secret never leaves the auth store; the key's visible `start` is what
- * the person saw when they created it.
+ * The API keys the budget editor can cap: every key that can still spend in
+ * this organization (neither disabled nor expired), masked — the personal
+ * keys of its members, which work in each organization they belong to, and
+ * the keys bound to it alone: the ones made for a member, and the teams',
+ * the projects' and the organization's own. A non-member's personal key and
+ * a key bound to another organization are never listed, and a cap applies
+ * to the key's spend in this organization. The secret never leaves the auth
+ * store; the key's visible `start` is what was shown when it was made.
  */
-export interface OrgApiKey {
+export interface OrgApiKey extends OrgApiKeyScope {
   id: string;
   name: string | null;
-  /** The key's first characters, as the owner saw them at creation. */
+  /** The key's first characters, as shown when it was made. */
   start: string | null;
-  userId: string;
+  /** The person the key acts as; null for a key that is not a person. */
+  userId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
   createdAt: number;
@@ -33,22 +50,41 @@ export async function listOrgApiKeys(
       id: string;
       name: string | null;
       start: string | null;
-      userId: string;
+      userId: string | null;
       ownerName: string | null;
       ownerEmail: string | null;
       createdAt: Date;
       expiresAt: Date | null;
+      ownerKind: OrgApiKeyOwnerKind;
+      teamId: string | null;
+      teamName: string | null;
+      projectId: string | null;
+      projectName: string | null;
     }[]
   >`
-    SELECT k."id", k."name", k."start", k."referenceId" AS "userId",
+    SELECT k."id", k."name", k."start",
+           CASE WHEN o.api_key_id IS NULL OR o.owner_kind = 'member'
+                THEN k."referenceId" END AS "userId",
            u."name" AS "ownerName", u."email" AS "ownerEmail",
-           k."createdAt", k."expiresAt"
+           k."createdAt", k."expiresAt",
+           coalesce(o.owner_kind, 'user') AS "ownerKind",
+           o.team_id AS "teamId", t."name" AS "teamName",
+           o.project_id AS "projectId", p.name AS "projectName"
     FROM "apikey" k
-    JOIN "member" m
-      ON m."userId" = k."referenceId" AND m."organizationId" = ${organizationId}
-    JOIN "user" u ON u."id" = k."referenceId"
+    LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
+    LEFT JOIN "member" m
+      ON o.api_key_id IS NULL
+     AND m."userId" = k."referenceId"
+     AND m."organizationId" = ${organizationId}
+    LEFT JOIN "user" u
+      ON (o.api_key_id IS NULL OR o.owner_kind = 'member')
+     AND u."id" = k."referenceId"
+    LEFT JOIN "team" t ON t."id" = o.team_id
+    LEFT JOIN app.projects p ON p.id = o.project_id
     WHERE k."enabled" IS NOT FALSE
       AND (k."expiresAt" IS NULL OR k."expiresAt" > now())
+      AND ((o.api_key_id IS NULL AND m."id" IS NOT NULL)
+           OR (o.org_id = ${organizationId} AND o.revoked_at_ms IS NULL))
     ORDER BY u."name" NULLS LAST, k."createdAt"
     LIMIT ${ORG_API_KEY_LIMIT}
   `;
@@ -68,6 +104,11 @@ export async function listOrgApiKeys(
     ownerEmail: row.ownerEmail,
     createdAt: row.createdAt.getTime(),
     expiresAt: row.expiresAt === null ? null : row.expiresAt.getTime(),
+    ownerKind: row.ownerKind,
+    teamId: row.teamId,
+    teamName: row.teamName,
+    projectId: row.projectId,
+    projectName: row.projectName,
   }));
 }
 
@@ -101,7 +142,7 @@ export type RuleApiKeyStatus =
  * so the rule table read a revoked, expired or disabled key as a string of
  * random characters, with no name and no owner.
  */
-export interface RuleApiKey {
+export interface RuleApiKey extends OrgApiKeyScope {
   id: string;
   name: string | null;
   start: string | null;
@@ -138,8 +179,55 @@ export async function describeRuleApiKeys(
   const ids = [...new Set(keyIds)];
   if (ids.length === 0) return [];
 
-  // The auth store answers for current members' keys only — the rows the
-  // live listing reads too. A key held by anyone else is not looked up there.
+  // A key bound to this organization is described by its own binding: who
+  // it was made for, its team or project, and whether it was revoked. The
+  // organization knows all of that first-hand.
+  const boundRows = await sql<
+    {
+      id: string;
+      ownerKind: Exclude<OrgApiKeyOwnerKind, 'user'>;
+      principalUserId: string;
+      teamId: string | null;
+      teamName: string | null;
+      projectId: string | null;
+      projectName: string | null;
+      name: string;
+      revokedAt: string | null;
+      keyRowId: string | null;
+      start: string | null;
+      enabled: boolean | null;
+      expired: boolean | null;
+      expiresAt: Date | null;
+      memberName: string | null;
+      memberEmail: string | null;
+    }[]
+  >`
+    SELECT o.api_key_id AS "id", o.owner_kind AS "ownerKind",
+           o.principal_user_id AS "principalUserId",
+           o.team_id AS "teamId", t."name" AS "teamName",
+           o.project_id AS "projectId", p.name AS "projectName",
+           o.name, o.revoked_at_ms AS "revokedAt",
+           k."id" AS "keyRowId", k."start", k."enabled",
+           (k."expiresAt" IS NOT NULL AND k."expiresAt" <= now()) AS "expired",
+           k."expiresAt",
+           mu."name" AS "memberName", mu."email" AS "memberEmail"
+    FROM app.api_key_owners o
+    LEFT JOIN "apikey" k ON k."id" = o.api_key_id
+    LEFT JOIN "team" t ON t."id" = o.team_id
+    LEFT JOIN app.projects p ON p.id = o.project_id
+    LEFT JOIN "member" mm
+      ON o.owner_kind = 'member'
+     AND mm."userId" = o.principal_user_id
+     AND mm."organizationId" = o.org_id
+    LEFT JOIN "user" mu ON mm."id" IS NOT NULL AND mu."id" = mm."userId"
+    WHERE o.org_id = ${organizationId} AND o.api_key_id = ANY(${ids})
+  `;
+  const boundById = new Map(boundRows.map((row) => [row.id, row]));
+
+  // The auth store answers for current members' own keys only — the rows
+  // the live listing reads too. A key held by anyone else, or bound to any
+  // organization (this one's are described above; another's says nothing
+  // here), is not looked up there.
   const held = await sql<
     {
       id: string;
@@ -158,6 +246,9 @@ export async function describeRuleApiKeys(
     JOIN "member" m
       ON m."userId" = k."referenceId" AND m."organizationId" = ${organizationId}
     WHERE k."id" = ANY(${ids})
+      AND NOT EXISTS (
+        SELECT 1 FROM app.api_key_owners o WHERE o.api_key_id = k."id"
+      )
   `;
   // The trail's latest creation and latest revoke of each key. A key made
   // before its holder joined has no creation here, but a revoke while they
@@ -214,7 +305,35 @@ export async function describeRuleApiKeys(
         `;
   const memberById = new Map(members.map((row) => [row.id, row]));
 
-  return ids.map((id) => {
+  return ids.map((id): RuleApiKey => {
+    const bound = boundById.get(id);
+    if (bound !== undefined) {
+      const status: RuleApiKeyStatus =
+        bound.revokedAt !== null
+          ? 'revoked'
+          : bound.keyRowId === null
+            ? 'unavailable'
+            : bound.enabled === false
+              ? 'disabled'
+              : bound.expired === true
+                ? 'expired'
+                : 'active';
+      return {
+        id,
+        name: bound.name,
+        start: bound.start,
+        userId: bound.ownerKind === 'member' ? bound.principalUserId : null,
+        ownerName: bound.memberName,
+        ownerEmail: bound.memberEmail,
+        status,
+        expiresAt: bound.expiresAt === null ? null : bound.expiresAt.getTime(),
+        ownerKind: bound.ownerKind,
+        teamId: bound.teamId,
+        teamName: bound.teamName,
+        projectId: bound.projectId,
+        projectName: bound.projectName,
+      };
+    }
     // The key row speaks for a member's key; for any other, the audit trail.
     const current = heldById.get(id);
     const audit = createdById.get(id);
@@ -255,18 +374,34 @@ export async function describeRuleApiKeys(
       status,
       expiresAt:
         current?.expiresAt != null ? current.expiresAt.getTime() : null,
+      // A person's own key: no team, project or organization owns it.
+      ownerKind: 'user',
+      teamId: null,
+      teamName: null,
+      projectId: null,
+      projectName: null,
     };
   });
 }
 
 /**
- * Whether `userId` holds an API key of any state. Whatever the create rule
- * says today — a developer moved to a lower role, a revoked competence — the
- * holder keeps seeing their own keys, and revoking them.
+ * Whether `userId` holds an API key of any state that works in this
+ * organization: one of their own, or one made for them here. Whatever the
+ * create rule says today — a developer moved to a lower role, a revoked
+ * competence — the holder keeps seeing those keys, and revoking them.
  */
-export async function holdsApiKeys(sql: Sql, userId: string): Promise<boolean> {
+export async function holdsApiKeys(
+  sql: Sql,
+  userId: string,
+  organizationId: string,
+): Promise<boolean> {
   const rows = await sql<{ id: string }[]>`
-    SELECT "id" FROM "apikey" WHERE "referenceId" = ${userId} LIMIT 1
+    SELECT k."id" FROM "apikey" k
+    LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
+    WHERE k."referenceId" = ${userId}
+      AND (o.api_key_id IS NULL
+           OR (o.org_id = ${organizationId} AND o.revoked_at_ms IS NULL))
+    LIMIT 1
   `;
   return rows.length > 0;
 }

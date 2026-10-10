@@ -1,0 +1,63 @@
+title: Kontakte
+entityLabelOne: Kontakt
+searchPlaceholder: Kontakte suchen
+filter:
+  source:
+    manual: Manuell
+    upload: Upload
+    api: API
+    conversation: Konversation
+    webhook: Webhook
+    custom: Benutzerdefiniert
+importForm:
+  manualEntry: Manuelle Eingabe
+  upload: Upload
+  formatHint:
+    'Format: E-Mail, Name (optional), Sprache (optional). Ein Kontakt
+    pro Zeile.'
+  localeHint:
+    Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE,
+    zh-Hans).
+  expectedColumns: 'Erwartete Spalten: email, name, locale'
+addButton: Kontakt hinzufügen
+editContact: Kontakt bearbeiten
+editDescription: Kontaktinformationen aktualisieren.
+deleteContact: Kontakt löschen
+importMenu:
+  fromDevice: Von deinem Gerät
+  manualEntry: Manuelle Eingabe
+create:
+  title: Kontakt hinzufügen
+  description: Gib E-Mail-Adresse, Name, Telefonnummer und Sprache des Kontakts ein.
+  success: Kontakt erstellt
+  error: Kontakt konnte nicht erstellt werden
+  duplicateEmail: Ein Kontakt mit dieser E-Mail existiert bereits
+thisContact: diesen Kontakt
+updateSuccess: Kontakt aktualisiert
+updateError: Kontakt konnte nicht aktualisiert werden
+name: Name
+namePlaceholder: Kontaktname eingeben
+email: E-Mail
+emailPlaceholder: E-Mail-Adresse eingeben
+locale: Sprache
+localePlaceholder: z. B. en-US
+phone: Telefon
+phonePlaceholder: '+49 30 123456'
+import:
+  provideData: Keine Daten angegeben
+  noValidData: Keine gültigen Kontaktdaten gefunden
+  success: Import
+  successDescription:
+    '{success} Kontakte importiert{failed, select, 0 {} other {,
+    {failed} fehlgeschlagen}}'
+  noneImported: Es wurden keine Kontakte importiert
+  error: Importfehler
+  uploadContacts: Kontakte hochladen
+  import: Importieren
+  errorCodes:
+    duplicate_email: Ein Kontakt mit dieser E-Mail existiert bereits
+    duplicate_external_id: Ein Kontakt mit dieser externen ID existiert bereits
+    unknown: Etwas ist schiefgelaufen
+deleteConfirmation: '{name} löschen?'
+deleteError: Kontakt konnte nicht gelöscht werden
+deleteWarning: Das lässt sich nicht rückgängig machen.

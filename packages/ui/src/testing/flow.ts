@@ -1,3 +1,28 @@
+export {
+  branchFlowGraph,
+  branchRun,
+  branchRunOverlay,
+  cyclicFlowGraph,
+  flowGraphFromDoc,
+  inputGateFlowGraph,
+  reviewPullRequestsFlowGraph,
+  syntheticDoc,
+  syntheticFlowGraph,
+  triageFailedRun,
+  triageFlowGraph,
+  triageInboxFlowGraph,
+  type SyntheticDocNode,
+} from '../components/flow/testing/flow-fixtures';
+export {
+  assertLabelsClear,
+  assertNoEdgeCrossesBox,
+  assertRoutesAxisAligned,
+  edgeBoxCrossings,
+  flowObstacles,
+  flowRowIndex,
+  flowRowOrderFlips,
+} from '../components/flow/testing/flow-geometry';
+
 /** The longest delay `setTimeout` holds: 2^31 − 1 ms, about 24.8 days. */
 const MAX_TIMER_DELAY = 2 ** 31 - 1;
 

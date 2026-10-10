@@ -1,10 +1,12 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { THREAD_COLUMN_CLASS } from '@tale/ui/thread/layout';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useQuery } from '@tanstack/react-query';
 
@@ -61,8 +63,10 @@ export function SharedChatView({
   const sharerName = resolveActor('user', shared.sharedBy).name;
 
   return (
-    <Stack gap={0} className="h-full min-h-0">
-      <Stack gap={1} className="mx-auto w-full max-w-3xl px-4 pt-6">
+    // The title answers to the same container as the transcript under it,
+    // so the two keep one inset at every width.
+    <Stack gap={0} className="@container h-full min-h-0">
+      <Stack gap={1} className={cn(THREAD_COLUMN_CLASS, 'pt-6')}>
         <Text as="h3" className="text-lg font-semibold">
           {shared.title ?? t('share.sharedChat')}
         </Text>

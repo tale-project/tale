@@ -12,11 +12,19 @@
  *  - the automations run log, bounding a run's diagnostic trace
  *    (tens of kilobytes — a human debugging a failure needs the real stack).
  *
+ * A third caller, the automations run recorder, keeps markers out of the value
+ * altogether: {@link boundJsonOutOfBand} cuts the same way but lists each cut
+ * beside the value, so a stored value never holds text it did not have.
+ *
  * **Only ever apply this to data that is purely descriptive.** Truncating a
  * value that something later READS BACK changes behaviour instead of just
  * shortening a log — in the automations engine a node's checkpoint `output`
  * feeds the executor's scope on resume, so it must never be bounded.
  */
+
+import { pointerOf } from '@tale/ui/data/json-pointer';
+
+import { cutText } from './storable-text';
 
 export interface BoundJsonLimits {
   /** Characters kept per string before the count marker. */
@@ -60,4 +68,84 @@ export function boundJson(
     return out;
   }
   return value;
+}
+
+/** One cut {@link boundJsonOutOfBand} made, and what it dropped there. */
+export interface BoundJsonCut {
+  /** RFC 6901 pointer to the cut value, `''` for the whole value. */
+  readonly pointer: string;
+  /** `string`: characters dropped from its end; `items`: list entries
+   * dropped from its end; `depth`: a value past the depth limit, replaced by
+   * `null`, with `dropped` its size as UTF-8 JSON. */
+  readonly kind: 'string' | 'items' | 'depth';
+  readonly dropped: number;
+}
+
+const encoder = new TextEncoder();
+
+/**
+ * Bound `value` to `limits` as {@link boundJson} does, without writing a
+ * marker into it: a long string is cut (never inside a character that takes
+ * two UTF-16 units), a long list keeps its first entries, and a value past
+ * the depth limit becomes `null`. Each cut is listed in `cuts`, up to
+ * `maxCuts`; `total` counts them all. `undefined` stays `undefined`; the
+ * value must already be plain JSON (see `jsonNormalize`).
+ */
+export function boundJsonOutOfBand(
+  value: unknown,
+  limits: BoundJsonLimits,
+  maxCuts = 100,
+): { value: unknown; cuts: BoundJsonCut[]; total: number } {
+  const cuts: BoundJsonCut[] = [];
+  let total = 0;
+  const path: Array<string | number> = [];
+  const cut = (kind: BoundJsonCut['kind'], dropped: number): void => {
+    total++;
+    if (cuts.length < maxCuts) {
+      cuts.push({ pointer: pointerOf(path), kind, dropped });
+    }
+  };
+  const walk = (entry: unknown, depth: number): unknown => {
+    if (depth > limits.maxDepth) {
+      // Nothing is lost where there was nothing.
+      if (entry === undefined || entry === null) return entry;
+      cut('depth', encoder.encode(JSON.stringify(entry) ?? '').length);
+      return null;
+    }
+    if (typeof entry === 'string') {
+      if (entry.length <= limits.maxString) return entry;
+      const kept = cutText(entry, limits.maxString);
+      cut('string', entry.length - kept.length);
+      return kept;
+    }
+    if (Array.isArray(entry)) {
+      const items: unknown[] = [];
+      for (const [index, item] of entry.slice(0, limits.maxItems).entries()) {
+        path.push(index);
+        items.push(walk(item, depth + 1));
+        path.pop();
+      }
+      if (entry.length > limits.maxItems) {
+        cut('items', entry.length - limits.maxItems);
+      }
+      return items;
+    }
+    if (entry !== null && typeof entry === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [key, member] of Object.entries(entry)) {
+        path.push(key);
+        // A member named `__proto__` stays a member, not a prototype.
+        Object.defineProperty(out, key, {
+          value: walk(member, depth + 1),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
+        path.pop();
+      }
+      return out;
+    }
+    return entry;
+  };
+  return { value: walk(value, 0), cuts, total };
 }

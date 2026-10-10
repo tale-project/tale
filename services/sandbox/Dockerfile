@@ -17,7 +17,6 @@
 #   docker build -f services/sandbox/Dockerfile .
 
 ARG VERSION=dev
-ARG BUN_VERSION=1.3.12
 ARG DOCKER_CLI_VERSION=27
 
 # docker CLI stage — aliased so the runner stage can `COPY --from=docker-cli`
@@ -28,7 +27,7 @@ FROM docker:${DOCKER_CLI_VERSION}-cli AS docker-cli
 # =============================================================================
 # Stage 1: BUILDER — install full deps (incl. devDeps) for typecheck/tests
 # =============================================================================
-FROM oven/bun:${BUN_VERSION}-debian AS builder
+FROM oven/bun:1.4.2-debian@sha256:4f6e31d1a54d6a3dd312daef655fc998101b5043d52e12592ac293ef04b9bc73 AS builder
 
 WORKDIR /app
 
@@ -39,12 +38,14 @@ RUN bun install --frozen-lockfile
 
 COPY services/sandbox/tsconfig.json ./
 COPY services/sandbox/src/ ./src/
+# The exact shared credential scrubber used by the platform backend too.
+COPY packages/shared/src/monitoring/privacy.ts /packages/shared/src/monitoring/privacy.ts
 
 # =============================================================================
 # Stage 2: RUNNER — production deps only + docker CLI for spawning siblings
 # =============================================================================
 # trivy:ignore:AVD-DS-0002 -- runs as root by design; needs /var/run/docker.sock
-FROM oven/bun:${BUN_VERSION}-debian AS runner
+FROM oven/bun:1.4.2-debian@sha256:4f6e31d1a54d6a3dd312daef655fc998101b5043d52e12592ac293ef04b9bc73 AS runner
 
 WORKDIR /app
 
@@ -75,6 +76,7 @@ RUN bun install --frozen-lockfile --production \
 
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /packages/shared/src/monitoring/privacy.ts /packages/shared/src/monitoring/privacy.ts
 
 # Two-file entrypoint pair. `docker-entrypoint.sh` owns container-level
 # bootstrap (host-side directory perms, env init); `entrypoint.sh` owns
@@ -94,16 +96,23 @@ LABEL org.opencontainers.image.version="${VERSION}" \
 # Bun caps fetch at 256 requests in flight by default, and every live exec
 # and attach stream holds one to its runnerd for its whole life: past 256 the
 # health probes, creates and cancels behind them queue until they time out.
+# DOCKER_HOST names the socket every deployment mounts, the one the CLI's
+# default context resolves to anyway, so the host probes need no
+# `docker context inspect` fork to learn it. An operator's own DOCKER_HOST
+# still wins.
 ENV TALE_VERSION=${VERSION} \
     SANDBOX_PORT=8003 \
     DO_NOT_TRACK=1 \
-    BUN_CONFIG_MAX_HTTP_REQUESTS=1024
+    BUN_CONFIG_MAX_HTTP_REQUESTS=1024 \
+    DOCKER_HOST=unix:///var/run/docker.sock
 
 EXPOSE 8003
 
 # Healthcheck mirrors compose.yml's external probe so direct `docker run`
-# (without compose) gets the same liveness signal.
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=15s \
+# (without compose) gets the same liveness signal: a runc exec every 30 s. No
+# --start-interval: the Dockerfile frontend Docker Engine 24 bundles, the
+# oldest engine Tale supports, does not know the flag.
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=30s \
   CMD curl -fsS http://127.0.0.1:8003/health || exit 1
 
 # Root by design — see header comment. The docker socket is the boundary.

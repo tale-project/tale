@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 118 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 129 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -89,8 +89,9 @@ run.
 ## Functional tests
 
 - [ ] `SET-F1` · **Rail structure & index redirect** — Desktop: open
-  `/dashboard/{org}/settings` as owner → The URL is replaced by a
-  permission-appropriate leaf; the Settings panel runs the full height beside
+  `/dashboard/{org}/settings` as owner, then as a developer and a member →
+  The URL is replaced by `…/settings/account`, the panel's first row, for
+  every role; the Settings panel runs the full height beside
   the page under its own header, **Settings** (`navigation.userSettings`), and
   shows the three section headers **Personal** / **Organization** /
   **Advanced** (`settings.menu.railSections.*`); every row carries an icon;
@@ -196,7 +197,7 @@ run.
   The members table renders under the description
   (`settings.organization.membersDescription`) with the current owner row;
   search (`settings.organization.searchMember`) narrows it; roles render from
-  `settings.roles.*` (Owner/Admin/Developer/Editor/Member)
+  `roles.*` (Owner/Admin/Developer/Editor/Member)
 - [ ] `SET-F15` · **Add member (new account)** — Same page → **Add member**
   (`settings.organization.addMember`) → fill **Name** / **Email** /
   **Password** (`settings.form.name` / `settings.form.email` /
@@ -373,7 +374,21 @@ run.
   with their own toasts (they do not pass through the Save cluster); the
   uploaded logo appears in the preview and survives reload; the reset confirm
   (`settings.branding.resetConfirmTitle`) warns removed images can't be
-  restored — cancel.
+  restored — cancel. Then remove the logo, light favicon and dark favicon
+  individually with their named remove controls, using the keyboard for one
+  removal → Each deletion persists immediately and survives reopening the
+  page; Save/Discard stay disabled unless an accent edit is pending. Focus
+  returns to the corresponding upload control after success. With a deletion
+  delayed, its upload/remove controls prevent competing writes. With a
+  deletion refused, one error toast appears and the image remains available
+  for retry; Discard of a pending accent edit never restores a deleted image.
+  With an accent Save response delayed, remove each image in turn; repeat with
+  a committed DELETE response delayed and Save pressed before it returns →
+  Writes settle in order and reopening never restores the deleted reference;
+  the accent draft is preserved and remains retryable after a refusal. Repeat
+  with a replacement upload and a logo-derived favicon while Save is pending;
+  Save never overwrites those persisted image references. Reset also waits for
+  earlier image/colour writes and leaves the confirmed cleared state saved.
 - [ ] `SET-F30` · **Sandboxes page** — `/dashboard/{org}/settings/sandboxes` →
   A fresh org shows **No workspaces yet** (`sandboxes.empty.title`); with a
   live sandbox session (env-gated) the table renders columns
@@ -404,20 +419,83 @@ run.
   the row's **Revoke key** (`settings.apiKeys.revokeKey`) → Toast
   `settings.apiKeys.keyCreated`; the secret is revealed exactly once (gone
   after Done); the row is in the table after reload (columns
-  `settings.apiKeys.columns.name` / `…key` / `…created` / `…lastUsed`);
+  `settings.apiKeys.columns.name` / `…owner` / `…expires` / `…created` /
+  `…lastUsed`, the masked key under the name);
   revoking confirms (`settings.apiKeys.revokeKeyTitle`), toasts
   `settings.apiKeys.keyRevoked`, and the row is gone after reload. The create
   dialog's hint (`settings.apiKeys.form.scopeHint`) says the key belongs to
   the person, not the organization; as a member of two organizations, `GET
   /api/v1/me` with the key and no `X-Organization-Slug` header answers `400
   ORG_SLUG_REQUIRED`, and with the header it lists the role in each.
+- [ ] `SET-F76` · **An API key's expiry date** —
+  `/dashboard/{org}/settings/api/rest` → **Create API key**
+  (`settings.apiKeys.createKey`); read the line under **Expiration**
+  (`settings.apiKeys.form.expiresIn`); choose **Custom date**
+  (`settings.apiKeys.form.expiresOptions.custom`), open **Expiration date**
+  (`settings.apiKeys.form.expiryDate`) and pick a day two weeks out → **Create
+  key**; repeat with **Never** (`settings.apiKeys.form.expiresOptions.never`) →
+  The line names the day a 30-day key expires
+  (`settings.apiKeys.form.expiresOn`) and, for **Never**, that the key works
+  until it is revoked (`settings.apiKeys.form.neverExpiresHint`); the calendar
+  disables today and every day more than one year out; after reload the
+  custom key's **Expires** (`settings.apiKeys.columns.expires`) shows the
+  picked day and the other key's reads **Never**
+  (`settings.apiKeys.neverExpires`); `GET /api/v1/me` with the custom key
+  reports the picked day as the key's `expiresAt`.
+- [ ] `SET-F77` · **A key for another member** — as an Admin,
+  `/dashboard/{org}/settings/api/rest` → **Create API key** → **Belongs to**
+  (`settings.apiKeys.form.owner`) = **Another member**
+  (`settings.apiKeys.form.ownerOptions.member`); open **Member**
+  (`settings.apiKeys.form.member`) and pick a Member → **Create key** → The
+  picker lists no Admin, no Owner and not you; the success view reads **New
+  API key** (`settings.apiKeys.newApiKey`) and tells you to hand the key to
+  the member (`settings.apiKeys.keyCreatedForMember`); the table's **Belongs
+  to** (`settings.apiKeys.columns.owner`) names the member, with **Made by**
+  you beneath (`settings.apiKeys.owner.madeBy`). Signed in as the member, the
+  bell shows **API key created for you** (`inbox.apiKeyCreatedForYou`), whose
+  link opens this page; the row reads **You** (`settings.apiKeys.owner.you`)
+  and **Revoke key** ends it. `GET /api/v1/me` with the key, sent without
+  `X-Organization-Slug` by a member of two organizations, answers 200 with
+  one organization and `key.owner.kind` `member`; with the other
+  organization's slug it answers 403 `ORG_FORBIDDEN` listing this one.
+- [ ] `SET-F78` · **A team's, a project's and the organization's key** — as an
+  Admin, create three keys with **Belongs to** = **A team**, **A project**
+  and **The organization** (`settings.apiKeys.form.ownerOptions.*`), each
+  with a role under **Acts as** (`settings.apiKeys.form.role`) → **Acts as**
+  offers Member, Editor and Developer for the team and the project, and Admin
+  too for the organization; the hint under **Belongs to** changes with the
+  choice (`settings.apiKeys.form.ownerHints.*`); each row's **Belongs to**
+  reads **Team ‹name›** / **Project ‹name›** / **Organization**
+  (`settings.apiKeys.owner.*`) with **Acts as ‹role›** beneath. `GET
+  /api/v1/me` answers an empty `user.email`, one organization with the chosen
+  role and `key.owner` naming the team or project; with the project's key,
+  `GET /api/v1/projects` lists that project alone and `GET /api/v1/contacts`
+  answers 403 `API_KEY_SCOPE_FORBIDDEN`, and a message sent with it in one of
+  the project's threads asking for the organization's contacts gets none;
+  the team's key lists the team's projects and the organization-wide ones,
+  not another team's.
+- [ ] `SET-F79` · **A key ends with what it belongs to** — with SET-F77's and
+  SET-F78's keys live: open the team's **Delete** confirmation → it counts the
+  team's API keys (`settings.teams.deleteImpact.apiKeys`); delete the team,
+  delete the project, and remove the member from the organization → each of
+  their keys answers 401 on its next call and leaves the table; the audit log
+  (**Settings → Governance → Logs**) shows one **API key revoked** row per
+  key, by the system, with the reason (`team_deleted`, `project_deleted`,
+  `member_removed`). The organization's key keeps working. Make a second key
+  for a Member as a second Admin, then change that Admin's role to Member →
+  the key answers 403 `ORG_FORBIDDEN` ("whoever made it is no longer an Owner
+  or Admin above the member"); remove that Admin instead → the key is revoked
+  with the reason `maker_removed`.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →
-  The page (`settings.mcpEndpoint.title`) renders three tool groups —
+  The page (`settings.mcpEndpoint.title`) renders four tool groups —
   **Authoring** (`settings.mcpEndpoint.tools.authoring.title`), **Run &
   trigger management** (`settings.mcpEndpoint.tools.management.title`),
-  **Skills & knowledge** (`settings.mcpEndpoint.tools.capability.title`) — and
+  **Discovery** (`settings.mcpEndpoint.tools.discovery.title`), **Capabilities
+  & knowledge** (`settings.mcpEndpoint.tools.capability.title`) — each tool
+  name whole and none running into another, also at 375 px; a screen reader
+  names each list by its group; and
   the **Try it** example (`settings.mcpEndpoint.exampleTitle`); auth help
   points at REST API keys (`settings.mcpEndpoint.authLink`); the
   **Organization slug** row (`settings.mcpEndpoint.orgSlug.title`) shows this
@@ -456,7 +534,7 @@ run.
 - [ ] `SET-F35` · **Enterprise SSO configure** —
   `/dashboard/{org}/settings/enterprise-sso` → pick a **Protocol**
   (`settings.enterpriseSso.protocolLabel`; options
-  `settings.enterpriseSso.protocol.*`) → fill issuer/client fields
+  `auth.sso.protocol.*`) → fill issuer/client fields
   (`settings.enterpriseSso.issuerLabel` / `…clientIdLabel` /
   `…clientSecretLabel`) → **Test connection** (`settings.enterpriseSso.test`)
   → header **Save**; in **SCIM provisioning**
@@ -572,7 +650,7 @@ run.
   `/dashboard/{org}/settings/account` (its `#role` anchor) as an editor, then
   as an owner → The **Your role** section (`settings.account.role.title`, its
   description `settings.account.role.description`) sits above **Your teams**
-  and shows the role as a translated badge (`settings.roles.editor`, never the
+  and shows the role as a translated badge (`roles.editor`, never the
   raw `editor`); only the owner sees **Manage members**
   (`settings.account.role.manageLink`) to `/dashboard/{org}/settings/members`;
   hovering the name in the profile menu reads the name and the same translated
@@ -849,6 +927,42 @@ run.
   `settings.providers.credential.tasksOnly` under its name. In `en`, `de`,
   `de-CH` (which spells *ausser*) and `fr`, both texts wrap without clipping
   at desktop and narrow widths.
+- [ ] `SET-F75` · **Paste a Claude OAuth token, then replace it** —
+  `/dashboard/{org}/settings/providers` → **Add credential** → Anthropic →
+  **Authentication method** **Subscription key**
+  (`settings.providers.authMethod.subscriptionKey`) → paste a Claude OAuth
+  token and save → the row appears with **Subscription key** and the tasks-only
+  note. Open the row menu, choose the replacement action
+  (`settings.providers.replace.subscriptionKeyTitle`), paste a second token and
+  save → the dialog closes with the saved toast and neither token is shown
+  again. Run a task on a Claude Code project agent whose model this credential
+  serves → the run starts and its session carries the newest token in
+  `CLAUDE_CODE_OAUTH_TOKEN` with `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY`
+  empty. Chat lists no model that only this credential serves
+  ([CHAT-F59](chat.md)).
+- [ ] `SET-F80` · **Workers and their tasks in Workspaces** — With an agent
+  working two tasks ([tasks](tasks.md) `TASK-F81`), open
+  `/dashboard/{org}/settings/sandboxes` as owner → the agent has one row per
+  worker, its name over **Worker 1** and **Worker 2**
+  (`sandboxes.worker.agent`); **Current tasks** (`sandboxes.columns.task`)
+  names each task by its key and title (`WEB-12 Release notes`), cut short
+  with the whole name on hover, and selecting it opens
+  `/dashboard/{org}/tasks/{taskId}`; no task id prefix shows.
+- [ ] `SET-F81` · **The Agent workers limit** — **Organization limits**
+  (`sandboxes.limits.title`) → the first field reads **Agent workers**
+  (`sandboxes.quota.budgets.project`) with the hint that each task an agent
+  works on at the same time runs in a sandbox of its own
+  (`sandboxes.quota.budgetHints.project`). With a run waiting for a worker
+  ([tasks](tasks.md) `TASK-F82`), a line under the field reads **1 agent run
+  is waiting for a free worker.** (`sandboxes.limits.waitingForWorkers`); a
+  Developer sees no such line. Raise the limit to 3 and **Save** → the
+  waiting run starts on its own within about two minutes, as a third worker,
+  and the line goes away.
+- [ ] `SET-F82` · **Stop task stops one worker's task** — With an agent on
+  two tasks, choose **Stop task** (`sandboxes.actions.stop`) on its
+  **Worker 1** row → that task's run is cancelled, while the task on
+  **Worker 2** keeps **Working…** (`tasks.agentRun.status.running`) and its
+  row stays busy.
 
 ## Boundary & error tests
 
@@ -870,7 +984,13 @@ run.
   `/dashboard/{org}/settings/providers/openrouter` → Redirects to the
   providers index with `?provider=openrouter` — the vendor filter
   (`settings.providers.vendorFilterLabel`) arrives pre-applied to that vendor;
-  clearing the filter clears the URL param.
+  clearing the filter clears the URL param. Repeat with only one other provider
+  holding credentials, and after deleting the selected provider's last
+  credential → The shared no-results state appears (never the first-provider
+  invitation); search and Filter stay enabled, the selected provider stays
+  visible in the facet, and clearing it restores the remaining rows. A link
+  matching the only provider also keeps its filter clearable. Check EN/DE/FR
+  and keyboard access to the facet and clear action.
 - [ ] `SET-B4` · **Role gating — member** — Sign in as a **member** role
   account → The rail shows only the Personal section plus **Skills**; direct
   URLs are refused with the full access-denied message —
@@ -890,6 +1010,16 @@ run.
   `settings.account.profile.nameRequired`,
   `settings.organization.nameRequired`, `settings.teams.teamNameRequired`;
   after a reload the original values are unchanged and no team row was added.
+- [ ] `SET-B34` · **Keys of others, seen from a member** — sign in as the
+  Member SET-F77 made a key for (no Owner, Admin or Developer role, no
+  competence used with a key) and open `/dashboard/{org}/settings/api/rest`
+  → The page lists that key alone — never a team's, a project's, the
+  organization's or another member's key — and offers no **Create API key**
+  (`settings.apiKeys.createKey`). As a Developer member, **Create API key**
+  shows no **Belongs to** (`settings.apiKeys.form.owner`), only the
+  personal-key hint (`settings.apiKeys.form.scopeHint`). `DELETE
+  /api/app/api-keys/{id}` of a team's key from either session answers 404
+  `API_KEY_NOT_FOUND`, and the key keeps working.
 - [ ] `SET-B7` · **API key edge cases** — Create with a blank **Key name**;
   after SET-F32's revoke, call a REST endpoint with the revoked key (e.g.
   `curl -H "Authorization: Bearer <key>"` against the API) → The blank name is
@@ -933,6 +1063,29 @@ run.
   The name truncates with an ellipsis and never pushes the **Synced** badge
   (`settings.teams.syncedBadge`) or the member count out of place; hovering the
   name shows it in full; the name column is wider than the member-count column.
+- [ ] `SET-B32` · **Your teams when the read fails** — As a member of a team,
+  block `*/api/app/teams/mine*` in DevTools (Network → request blocking) and
+  reload `/dashboard/{org}/settings/account#teams` → once the read's retries
+  give up (a few seconds; a blocked request reads as a lost connection, so the
+  offline notice may cover the page meanwhile) **Your teams**
+  (`settings.account.teams.title`) shows `settings.account.teams.loadFailed`
+  with **Try again** (`common.actions.tryAgain`), never
+  `settings.account.teams.none`. Unblock, Tab to **Try again** and press
+  Enter → the team badges appear without a reload, and the focus is on the
+  section, not lost to the page.
+- [ ] `SET-B33` · **Agent runtimes when the health read fails** — With a
+  credential that gives a runtime its models (`SET-F21`), block
+  `*/api/app/sandbox/harness-health*` in DevTools (Network → request
+  blocking) and reload `/dashboard/{org}/settings/providers` → once the
+  read's retries give up (a few seconds; a blocked request reads as a lost
+  connection, so the offline notice may cover the page meanwhile) the
+  **Agent runtimes** rows (`settings.providers.harnesses.title`) stay, and
+  above them `settings.providers.harnesses.healthLoadFailed` shows with
+  **Try again** (`common.actions.tryAgain`), never the rows alone as if no
+  runtime were failing. Unblock, Tab to **Try again** and press Enter → the
+  notice leaves without a reload, a runtime that is failing shows
+  `settings.providers.harnesses.degraded` again, and the focus is on the
+  runtime list, not lost to the page.
 - [ ] `SET-B18` · **A used or expired connect command** — Run SET-F56's
   command again on another machine (or any copied command after an hour) →
   `tale sandbox connect` fails saying the command expired or was already used,
@@ -1062,11 +1215,40 @@ run.
   B. Stop the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
   project agent's **Stopped** workspace → while its row reads
   **Destroying**, start a task with that agent, and mention the agent in a
-  chat → each run reads **Waiting for a sandbox slot**
-  (`tasks.agentRun.waitingForSlot`, `chat.taskTray.waitingForSlot`) and
-  nothing runs in the workspace; start the service again (`docker start
-  tale-sandbox`) → the row leaves, then the runs start on their own in a
-  fresh workspace, whose file list holds nothing the old one did.
+  chat → each run reads **Waiting for a workspace**
+  (`tasks.agentRun.waiting.destroy_pending`), in the task and in the chat's
+  task tray, and nothing runs in the workspace; start the service again
+  (`docker start tale-sandbox`) → the row leaves, then the runs start on
+  their own in fresh workspaces, whose file lists hold nothing the old one
+  did.
+
+- [ ] `SET-B31` · **Concurrent device commands stay separate** — Two admins
+  open **Add device** (`sandboxes.devices.add`) in the same organization;
+  leave A's command unused and connect a machine with B's command → A still
+  reads **Waiting for the device to connect…**
+  (`sandboxes.devices.addDialog.waiting`), while only B reads **{name} is
+  connected.** (`sandboxes.devices.addDialog.connected`). Existing online
+  devices and newly enrolled offline devices do not finish either flow.
+  Run A's command and wait for its own device to connect → A names only its
+  own device. Repeat with two commands from the same admin. If command
+  generation fails, **Try again** (`sandboxes.devices.addDialog.retry`)
+  remains available inside the dialog.
+- [ ] `SET-B35` · **Destroy one worker while another is free** — Mode B.
+  With an agent whose **Worker 1** and **Worker 2** are both **Stopped**,
+  stop the sandbox service (`docker stop tale-sandbox`) and **Destroy**
+  Worker 1 → while its row reads **Destroying**, start the agent on a task →
+  its Run row never reads **Waiting for a workspace**
+  (`tasks.agentRun.waiting.destroy_pending`): the run is headed for Worker 2,
+  which can only start once the service is back. Start the service again →
+  the run works in Worker 2 (its task under **Current tasks** on the Worker 2
+  row), no fresh workspace opens, and the Worker 1 row leaves. With a
+  one-worker agent, `SET-B30` still holds.
+- [ ] `SET-B36` · **A worker gives its quota back when its own run ends** —
+  With an agent on two tasks, let the task on **Worker 1** finish while
+  **Worker 2** still works → within a minute the Worker 1 row reads **Quota
+  released** (`sandboxes.status.quotaReleased`) and the **Allocated** count
+  of **Agent workers** drops by one, while Worker 2 still reads **Quota
+  allocated** (`sandboxes.status.quotaInUse`).
 
 ## Accessibility (WCAG 2.1 AA)
 

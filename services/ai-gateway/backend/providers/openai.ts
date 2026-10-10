@@ -345,7 +345,7 @@ export function createOpenAiProvider(
       if (!response.ok) {
         throw new ProviderError(
           'openai',
-          'usage_failed',
+          response.status === 401 ? 'access_token_rejected' : 'usage_failed',
           `The OpenAI usage endpoint answered ${response.status}.`,
         );
       }

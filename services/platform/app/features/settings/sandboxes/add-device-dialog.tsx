@@ -11,6 +11,7 @@ import { Check, CircleCheck, Copy, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import type {
   SandboxDeviceJoinToken,
@@ -62,6 +63,7 @@ export function AddDeviceDialog({
           closed dialog stops polling. */}
       {open && (
         <AddDeviceBody
+          key={organizationId}
           organizationId={organizationId}
           devices={devices}
           serverVersion={serverVersion}
@@ -91,9 +93,10 @@ function AddDeviceBody({
   const [grant, setGrant] = useState<SandboxDeviceJoinToken | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  // The devices present when the dialog opened: any other one that appears
-  // is the machine this command connected.
-  const knownIds = useRef(new Set(devices.map((d) => d.id)));
+  const joinStatus = useBackendQuery(
+    'sandbox_devices/queries:joinTokenStatus',
+    grant === null ? 'skip' : { organizationId, tokenId: grant.id },
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -148,7 +151,7 @@ function AddDeviceBody({
   // Joined is not arrived: the row exists from the join on, but the device is
   // online only once its containers started (the first start pulls images).
   const arrived = devices.find(
-    (d) => !knownIds.current.has(d.id) && d.status !== 'offline',
+    (d) => d.id === joinStatus.data?.deviceId && d.status !== 'offline',
   );
   const oneLiner = installAndConnectCommand(serverUrl, token, serverVersion);
 

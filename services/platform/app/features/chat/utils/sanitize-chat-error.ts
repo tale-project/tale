@@ -1,4 +1,5 @@
 import {
+  budgetExceededI18nKey,
   CHAT_ERROR_I18N_KEY,
   CHAT_ERROR_I18N_KEY_NAMED,
   type ChatErrorCode,
@@ -115,10 +116,15 @@ export function sanitizeChatError(
   // Use the richer "named" message only when there's a name to fill in.
   const namedKey = CHAT_ERROR_I18N_KEY_NAMED[code];
   const useNamed = !!namedKey && (!!provider || !!model);
+  // A reached budget cap reads by whose cap it is.
+  const baseKey =
+    code === 'budget_exceeded'
+      ? budgetExceededI18nKey(decoded.budgetScope)
+      : CHAT_ERROR_I18N_KEY[code];
 
   return {
     code,
-    i18nKey: useNamed && namedKey ? namedKey : CHAT_ERROR_I18N_KEY[code],
+    i18nKey: useNamed && namedKey ? namedKey : baseKey,
     params: useNamed ? { provider, model } : undefined,
     triedCount: triedCount != null && triedCount > 1 ? triedCount : undefined,
     rawSummary: summaryLine(decoded.raw),

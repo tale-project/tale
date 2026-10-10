@@ -30,6 +30,12 @@ export interface MessageEditorProps {
    * incomplete fields — not for the editor's own empty-body gate.
    */
   sendDisabledReason?: ReactNode;
+  /**
+   * A send of this draft is still in flight, started before the editor
+   * remounted (e.g. Compose closed and reopened mid-send): hold the body,
+   * files and Send as the editor's own send does, until it settles.
+   */
+  sending?: boolean;
   /** Resolve only after sending succeeds; reject to retain the draft/files
    * and let the editor report the failure. */
   onSave?: (

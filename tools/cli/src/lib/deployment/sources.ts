@@ -14,8 +14,46 @@ export interface SourceRequest {
   revision: string;
 }
 type SourceMap = Record<string, string>;
+type SourceKind = 'runtime' | 'configuration';
+type SourceStage = 'init' | 'remote' | 'fetch' | 'checkout' | 'rev-parse';
 const sourceKey = ({ repository, revision }: SourceRequest) =>
   `${repository}@${revision}`;
+
+// Output is diagnostic input only: emit authored hints, never Git's text,
+// repository URLs, temporary paths or a possibly credential-bearing cause.
+function stderrHint(stderr: string) {
+  const text = stderr.toLowerCase();
+  if (text.includes('no space left on device')) return 'no-space';
+  if (text.includes('could not resolve host')) return 'name-resolution';
+  return 'unknown';
+}
+
+function thrownHint(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === 'Command exceeded its time limit.') return 'timeout';
+    if (error.message === 'Command output exceeded its byte limit.')
+      return 'output-limit';
+  }
+  return 'unknown';
+}
+
+function acquisitionError(
+  kind: SourceKind,
+  stage: SourceStage,
+  hint: ReturnType<typeof stderrHint> | ReturnType<typeof thrownHint>,
+  exitCode?: number,
+) {
+  const exit =
+    exitCode !== undefined &&
+    Number.isSafeInteger(exitCode) &&
+    exitCode > 0 &&
+    exitCode <= 255
+      ? exitCode
+      : 'unknown';
+  return externalDepError(
+    `Git could not acquire the pinned ${kind} deployment source during ${stage} (exit ${exit}; failure hint: ${hint}).`,
+  );
+}
 
 /** The metadata endpoint is authenticated by HTTPS. Do not learn an SSH key
  * from the SSH connection it is meant to authenticate (ssh-keyscan alone). */
@@ -117,7 +155,13 @@ export async function withDeploymentSources<T>(
       GIT_NO_REPLACE_OBJECTS: '1',
       GIT_TERMINAL_PROMPT: '0',
     };
-    const execute = async (directory: string, args: string[], ssh?: string) => {
+    const execute = async (
+      directory: string,
+      kind: SourceKind,
+      stage: SourceStage,
+      args: string[],
+      ssh?: string,
+    ) => {
       let result;
       try {
         result = await run(
@@ -139,17 +183,19 @@ export async function withDeploymentSources<T>(
               ...(ssh ? { GIT_SSH_COMMAND: ssh } : {}),
             },
             timeout: 300,
+            maxOutputBytes: 1_048_576,
             silent: true,
           },
         );
-      } catch {
-        throw externalDepError(
-          'Git could not acquire the pinned deployment source.',
-        );
+      } catch (error) {
+        throw acquisitionError(kind, stage, thrownHint(error));
       }
       if (!result.success)
-        throw externalDepError(
-          'Git could not acquire the pinned deployment source. Check the repository, full commit SHA and read-only checkout key.',
+        throw acquisitionError(
+          kind,
+          stage,
+          stderrHint(result.stderr),
+          result.exitCode,
         );
       return result.stdout.trim();
     };
@@ -157,6 +203,8 @@ export async function withDeploymentSources<T>(
     let index = 0;
     for (const request of requests) {
       const revision = gitSha.parse(request.revision);
+      const kind =
+        request.repository === TALE_REPOSITORY ? 'runtime' : 'configuration';
       const key = sourceKey(request);
       if (sources[key]) continue;
       const match =
@@ -177,7 +225,7 @@ export async function withDeploymentSources<T>(
         : join(root, `repository-${index++}`);
       if (!supplied) {
         await mkdir(directory, { mode: 0o700 });
-        await execute(directory, ['init', '--template=']);
+        await execute(directory, kind, 'init', ['init', '--template=']);
         let remote = request.repository;
         let sourceSsh: string | undefined;
         // The runtime is always public. A client key is used only for a
@@ -223,17 +271,31 @@ export async function withDeploymentSources<T>(
           remote = `git@github.com:${match[1]}/${match[2]}.git`;
           sourceSsh = ssh;
         }
-        await execute(directory, ['remote', 'add', 'origin', remote]);
+        await execute(directory, kind, 'remote', [
+          'remote',
+          'add',
+          'origin',
+          remote,
+        ]);
         // Tags are required to resolve an older release image back to this
         // exact commit; none of them is accepted as the requested source pin.
         await execute(
           directory,
+          kind,
+          'fetch',
           ['fetch', '--depth=1', '--tags', 'origin', revision],
           sourceSsh,
         );
-        await execute(directory, ['checkout', '--detach', revision]);
+        await execute(directory, kind, 'checkout', [
+          'checkout',
+          '--detach',
+          revision,
+        ]);
       }
-      if ((await execute(directory, ['rev-parse', 'HEAD'])) !== revision)
+      if (
+        (await execute(directory, kind, 'rev-parse', ['rev-parse', 'HEAD'])) !==
+        revision
+      )
         throw preconditionError(
           'Deployment checkout differs from the requested full commit SHA.',
         );

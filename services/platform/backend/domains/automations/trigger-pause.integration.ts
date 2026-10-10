@@ -93,11 +93,13 @@ export async function checkTriggerPauseAfterFailures(
     return Number(rows[0]?.count ?? '0');
   };
   /** Make the next scan find the schedule due: its cursor is the later of
-   * the claim and the fire stamp (0096), so both move back. */
+   * the claim and the fire stamp (0096), so both move back, and so does the
+   * instant it is next due (0170) — a save or a fire set it ahead. */
   const backdate = (): Promise<unknown> => sql`
     UPDATE app.automation_triggers
     SET last_fired_at_ms = ${Date.now() - 120_000},
-        last_due_at_ms = ${Date.now() - 120_000}
+        last_due_at_ms = ${Date.now() - 120_000},
+        next_due_at_ms = ${Date.now() - 60_000}
     WHERE org_id = ${orgId} AND name = ${name}
   `;
   /** Fire one occurrence and wait for the worker to land its run. */
@@ -357,10 +359,11 @@ export async function checkTriggerPauseAfterFailures(
       `run → ${success.status} (want success), streak=${reset.consecutiveFailures} (want 0), enabled=${reset.enabled}, last failure kept=${reset.lastFailureCode}`,
     );
 
-    // A scan can already have read its page when a landing run pauses one
-    // of its schedules. Commit that pause immediately before the real
-    // claim transaction starts: the stale page must neither create a run
-    // nor clear the pause reason with a fire stamp.
+    // A scan can already have read its walk when a landing run pauses one
+    // of its schedules. Commit that pause immediately before the row's own
+    // transaction starts: the decision reads the row as locked then, so the
+    // stale walk must neither create a run nor clear the pause reason with
+    // a fire stamp.
     await backdate();
     const beforeRacingPause = await triggerRuns();
     let pausedBeforeClaim = false;
@@ -389,7 +392,7 @@ export async function checkTriggerPauseAfterFailures(
     const raced = await trigger();
     const racedRuns = (await triggerRuns()) - beforeRacingPause;
     record(
-      'a schedule paused after the scan reads its page is not claimed or fired',
+      'a schedule paused after the scan reads its walk is not claimed or fired',
       pausedBeforeClaim &&
         racedRuns === 0 &&
         !raced.enabled &&
@@ -423,7 +426,7 @@ export async function checkTriggerPauseAfterFailures(
     );
   } finally {
     // Leave nothing armed for the lanes after this one.
-    await deleteTrigger(sql, orgId, name);
+    await deleteTrigger(sql, orgId, name, 'itest');
     await waitFor(async () => {
       const live = await sql<{ count: string }[]>`
         SELECT count(*)::text AS count FROM app.automation_runs

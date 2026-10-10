@@ -21,7 +21,7 @@ Le menu **Créer une automatisation** propose deux parcours :
 
 | Choix | À utiliser si… | Suite du parcours |
 | --- | --- | --- |
-| **Vierge (trigger + agent)** | tu souhaites configurer le workflow toi-même. | Définis le nom, le modèle, les instructions et les équipements, puis choisis quand l’agent s’exécute. La création ouvre l’éditeur pour la suite des modifications. |
+| **Vierge (trigger + agent)** | tu souhaites configurer le workflow toi-même. | Définis le nom, le modèle, les instructions et les équipements, puis choisis quand l’agent s’exécute. **Mettre v1 en service maintenant** (coché par défaut) met la première version en service tout de suite ; sinon elle reste un brouillon que tu mets en service depuis l’éditeur. L’agent reçoit ce qu’envoie le déclencheur comme son entrée. La création ouvre l’éditeur pour la suite des modifications. |
 | **Téléverser un paquet** | tu disposes d’un fichier de workflow ou d’un pack réutilisable. | Tale valide les fichiers et enregistre une version brouillon. |
 
 Les automatisations fournies sont installées à la création de l’organisation. Elles demandent encore leur configuration et une version en service avant un usage automatique. [L’éditeur de workflows](/fr/platform/automations/editor) explique comment tester les données, examiner les résultats et mettre la version choisie en service.
@@ -114,7 +114,7 @@ settings:
               label: Strict checklist
 ```
 
-Si le projet n’est pas encore configuré, les formulaires obligatoires précèdent les champs de la tâche. **Enregistrer et continuer** les écrit puis reprend la création. **Paramètres** les rouvre ensuite sous forme d’onglets. Un point signale les modifications non enregistrées ; **Enregistrer** écrit tous les formulaires modifiés. Fermer avec des changements en attente demande confirmation.
+Si le projet n’est pas encore configuré, les formulaires obligatoires précèdent les champs de la tâche. **Enregistrer et continuer** les écrit puis reprend la création. **Paramètres** les rouvre ensuite sous forme d’onglets. Un point signale les modifications non enregistrées ; **Enregistrer** écrit tous les formulaires modifiés. Fermer avec des changements en attente demande confirmation. La `description` d’un formulaire s’affiche au-dessus de ses champs ; au-delà de trois lignes, tu en vois le début et **Lire la suite** ouvre le reste.
 
 L’enregistrement remplace le fichier YAML plat du formulaire, par exemple `Setup/validation-policy.yaml`. Les valeurs existantes préremplissent le formulaire, y compris celles d’un fichier téléversé manuellement. Les types admis sont `text`, `number`, `boolean` et `select` ; les valeurs sont stockées comme chaînes. Un champ texte peut imposer un `pattern`. Des blocs `i18n` par entrée traduisent titres, libellés, aide et options. Place les listes et structures imbriquées dans des fichiers séparés que le workflow lira en complément.
 

@@ -14,6 +14,46 @@ afterEach(() => {
   delete window.__ENV__;
 });
 
+describe('device enrollment status adapter', () => {
+  it('polls only the requested grant with an organization-scoped key and no secret in the URL', async () => {
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json({ deviceId: 'device-own' }));
+    const adapter = settingsReadAdapters[
+      'sandbox_devices/queries:joinTokenStatus'
+    ]?.(
+      { organizationId: 'org-a', tokenId: 'grant/one' },
+      { organizationId: 'org-b' },
+    );
+    expect(adapter?.queryKey).toEqual(
+      backendKey('org-a', 'sandbox_device', 'join-token', 'grant/one'),
+    );
+    expect(adapter?.refetchInterval).toBe(3_000);
+    await expect(adapter?.queryFn()).resolves.toEqual({
+      deviceId: 'device-own',
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      '/api/app/sandbox-devices/join-tokens/grant%2Fone?orgId=org-a',
+    );
+    expect(
+      settingsReadAdapters['sandbox_devices/queries:joinTokenStatus']?.(
+        { tokenId: 'grant-1' },
+        {},
+      ),
+    ).toBeNull();
+  });
+
+  it('does not turn a failed status read into enrollment success', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response('{}', { status: 404 }),
+    );
+    const adapter = settingsReadAdapters[
+      'sandbox_devices/queries:joinTokenStatus'
+    ]?.({ organizationId: 'org-a', tokenId: 'grant-1' }, {});
+    await expect(adapter?.queryFn()).rejects.toThrow('404');
+  });
+});
+
 describe('sandbox capacity adapter', () => {
   it('requests an organization-scoped infrastructure snapshot and preserves unknown state', async () => {
     const response = { status: 'unavailable', reason: 'unreachable' };
@@ -152,11 +192,44 @@ describe('sandbox workspace list', () => {
       throw new Error('the list decides its poll from its answer');
     }
     expect(
-      interval([{ destroyState: 'pending' }, { destroyState: null }]),
+      interval({
+        sessions: [{ destroyState: 'pending' }, { destroyState: null }],
+      }),
     ).toBe(2_000);
-    expect(interval([{ destroyState: 'failed' }, {}])).toBe(15_000);
+    expect(interval({ sessions: [{ destroyState: 'failed' }, {}] })).toBe(
+      15_000,
+    );
     expect(interval(null)).toBe(15_000);
     expect(interval(undefined)).toBe(15_000);
+  });
+
+  it('answers the workspaces and the count of agent runs waiting for room together', async () => {
+    const answer = {
+      sessions: [
+        { sessionId: 'pa-agent-1-w2', worker: { number: 2, scope: 'agent' } },
+      ],
+      waitingRuns: {
+        total: 3,
+        byReason: {
+          org_limit: 2,
+          host: 1,
+          destroy_pending: 0,
+          exec_limit: 0,
+          unknown: 0,
+        },
+      },
+    };
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json(answer));
+    const adapter = settingsReadAdapters[
+      'sandbox/session_queries_public:listSandboxesForOrg'
+    ]?.({ organizationId: 'org-a' }, {});
+    await expect(adapter?.queryFn()).resolves.toEqual(answer);
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      '/api/app/sandbox/sessions/view?orgId=org-a',
+    );
+    fetch.mockRestore();
   });
 
   it('queues a Destroy and refreshes this organization’s sandbox reads', async () => {

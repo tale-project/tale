@@ -12,6 +12,9 @@ vi.mock('@tale/ui/use-toast', () => ({
 // Mock Shiki — returns the `{ html, language }` shape the shared
 // `@tale/ui/markdown/shiki` exports so callers extracting `.html` work.
 vi.mock('@/lib/utils/shiki', () => ({
+  peekHighlightedCode: vi.fn(
+    (): ReturnType<typeof peekHighlightedCode> => null,
+  ),
   highlightCode: vi.fn((code: string, language: string) =>
     Promise.resolve({
       html: `<pre class="shiki"><code><span class="line">${code}</span></code></pre>`,
@@ -21,8 +24,9 @@ vi.mock('@/lib/utils/shiki', () => ({
 }));
 
 // Mock theme provider
+const theme = vi.hoisted(() => ({ value: 'dark' }));
 vi.mock('@tale/ui/theme', () => ({
-  useTheme: () => ({ resolvedTheme: 'dark' }),
+  useTheme: () => ({ resolvedTheme: theme.value }),
 }));
 
 // Mock i18n
@@ -38,18 +42,35 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
-import { highlightCode } from '@/lib/utils/shiki';
+import { highlightCode, peekHighlightedCode } from '@/lib/utils/shiki';
 
 const DEBOUNCE_MS = 150;
 
 describe('HighlightedCode', () => {
   beforeEach(() => {
+    theme.value = 'dark';
+    vi.stubGlobal('IntersectionObserver', undefined);
     vi.useFakeTimers();
     vi.mocked(highlightCode).mockClear();
+    vi.mocked(peekHighlightedCode).mockReturnValue(null);
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it('renders cached syntax immediately without waiting for the debounce', async () => {
+    vi.mocked(peekHighlightedCode).mockReturnValue({
+      html: '<pre><code><span class="line">warm</span></code></pre>',
+      language: 'js',
+    });
+    const { container } = render(<HighlightedCode lang="js" code="warm" />);
+    expect(container.querySelector('.line')).toHaveTextContent('warm');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    });
+    expect(highlightCode).not.toHaveBeenCalled();
   });
 
   it('renders plain text immediately (before Shiki completes)', () => {
@@ -61,6 +82,90 @@ describe('HighlightedCode', () => {
     expect(code?.textContent).toBe('const x = 1;');
     // Shiki not called yet (debounce hasn't fired)
     expect(highlightCode).not.toHaveBeenCalled();
+  });
+
+  it('keeps offscreen code readable without highlighting until it approaches the viewport', async () => {
+    let notify: IntersectionObserverCallback;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      vi.fn(function (callback: IntersectionObserverCallback) {
+        notify = callback;
+        return { observe: vi.fn(), disconnect: vi.fn() };
+      }),
+    );
+    const { container } = render(
+      <HighlightedCode lang="js" code="const offscreen = true;" />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS * 10);
+    });
+    const code = container.querySelector('code')!;
+    expect(code.textContent).toBe('const offscreen = true;');
+    expect(highlightCode).not.toHaveBeenCalled();
+
+    act(() =>
+      notify(
+        [
+          {
+            target: code,
+            isIntersecting: true,
+            boundingClientRect: code.getBoundingClientRect(),
+            intersectionRect: code.getBoundingClientRect(),
+            intersectionRatio: 1,
+            rootBounds: null,
+            time: 0,
+          },
+        ],
+        {} as IntersectionObserver,
+      ),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    });
+    expect(highlightCode).toHaveBeenCalledOnce();
+    expect(code.textContent).toBe('const offscreen = true;');
+    for (const isIntersecting of [false, true]) {
+      act(() =>
+        notify(
+          [
+            {
+              target: code,
+              isIntersecting,
+              boundingClientRect: code.getBoundingClientRect(),
+              intersectionRect: code.getBoundingClientRect(),
+              intersectionRatio: isIntersecting ? 1 : 0,
+              rootBounds: null,
+              time: 0,
+            },
+          ],
+          {} as IntersectionObserver,
+        ),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+      });
+    }
+    expect(highlightCode).toHaveBeenCalledOnce();
+  });
+
+  it('drops stale decoration when language and theme change without changing the source', async () => {
+    const { container, rerender } = render(
+      <HighlightedCode lang="js" code="value" />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    });
+    expect(container.querySelector('.line')).not.toBeNull();
+    theme.value = 'light';
+    rerender(<HighlightedCode lang="py" code="value" />);
+    expect(container).toHaveTextContent('value');
+    expect(container.querySelector('.line')).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    });
+    expect(highlightCode).toHaveBeenLastCalledWith('value', 'py', 'min-light');
+    expect(highlightCode).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.line')).not.toBeNull();
   });
 
   it('highlights after debounce completes', async () => {

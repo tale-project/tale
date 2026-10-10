@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import { MessageEditForm } from './message-edit-form';
 
@@ -13,6 +13,60 @@ import { MessageEditForm } from './message-edit-form';
  * verdict is pending, Send is disabled so a second Enter cannot fork twice.
  */
 describe('MessageEditForm', () => {
+  it.each(['mirror', 'native', 'Safari'])(
+    'leaves Enter and Escape to the IME (%s)',
+    (signal) => {
+      const onSubmit = vi.fn(async () => true);
+      const onCancel = vi.fn();
+      render(
+        <MessageEditForm
+          initialText="hello"
+          onSubmit={onSubmit}
+          onCancel={onCancel}
+        />,
+      );
+      const field = screen.getByRole('textbox', { name: 'Edit message' });
+      fireEvent.compositionStart(field);
+      fireEvent.change(field, { target: { value: 'にほん' } });
+      if (signal !== 'mirror') fireEvent.compositionEnd(field);
+      const flags = {
+        isComposing: signal === 'native',
+        keyCode: signal === 'Safari' ? 229 : 13,
+      };
+      expect(fireEvent.keyDown(field, { key: 'Enter', ...flags })).toBe(true);
+      fireEvent.keyDown(field, { key: 'Escape', ...flags });
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(onCancel).not.toHaveBeenCalled();
+      expect(field).toHaveValue('にほん');
+      fireEvent.compositionEnd(field);
+      fireEvent.change(field, { target: { value: '日本' } });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      expect(onSubmit).toHaveBeenCalledExactlyOnceWith('日本');
+    },
+  );
+
+  it('keeps Shift+Enter, blur and ordinary Escape unchanged', () => {
+    const onSubmit = vi.fn(async () => true);
+    const onCancel = vi.fn();
+    render(
+      <MessageEditForm
+        initialText="hello"
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+      />,
+    );
+    const field = screen.getByRole('textbox', { name: 'Edit message' });
+    fireEvent.change(field, { target: { value: 'hello again' } });
+    expect(fireEvent.keyDown(field, { key: 'Enter', shiftKey: true })).toBe(
+      true,
+    );
+    fireEvent.blur(field);
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   function pendingSubmit() {
     let verdict: (accepted: boolean) => void = () => {};
     const onSubmit = vi.fn(

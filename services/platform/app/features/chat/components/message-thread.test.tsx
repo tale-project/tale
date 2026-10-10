@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ClockOffsetProvider,
+  useReportServerNow,
+} from '@/app/hooks/use-clock-offset';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { toSettledItems } from '../lib/thread-view-core';
 
@@ -13,6 +17,22 @@ vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrl: () => ({ data: null }),
   useFileUrls: () => ({ data: [] }),
 }));
+
+// Counts the toolbar's renders — the per-row chrome whose needless
+// re-renders froze a long thread on open and on every send (#4121). The
+// wrapper renders the real toolbar.
+const toolbarRenders = vi.hoisted(() => ({ count: 0 }));
+vi.mock('./message-toolbar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./message-toolbar')>();
+  const { createElement } = await import('react');
+  return {
+    ...actual,
+    MessageToolbar: (props: Parameters<typeof actual.MessageToolbar>[0]) => {
+      toolbarRenders.count += 1;
+      return createElement(actual.MessageToolbar, props);
+    },
+  };
+});
 import type { ChatMessageView } from '../types';
 import { MessageThread } from './message-thread';
 
@@ -55,6 +75,37 @@ const CONVERSATION: ChatMessageView[] = [
     ],
   },
 ];
+
+/** `count` question-and-answer turns: settled user and assistant rows. */
+function turns(count: number): ChatMessageView[] {
+  const rows: ChatMessageView[] = [];
+  for (let index = 1; index <= count; index += 1) {
+    rows.push(
+      {
+        id: `u${index}`,
+        role: 'user',
+        sequence: index * 2 - 1,
+        createdAt: index * 2 - 1,
+        parts: [
+          { type: 'text', text: `Question ${index}: how do tides work?` },
+        ],
+      },
+      {
+        id: `a${index}`,
+        role: 'assistant',
+        sequence: index * 2,
+        createdAt: index * 2,
+        parts: [
+          {
+            type: 'text',
+            text: `Answer ${index}. The **moon** pulls the sea.`,
+          },
+        ],
+      },
+    );
+  }
+  return rows;
+}
 
 describe('MessageThread', () => {
   it('renders every part of a message in authored order', () => {
@@ -541,7 +592,7 @@ describe('MessageThread accessibility', () => {
         generation={{ status: 'streaming' }}
       />,
     );
-    await waitFor(() => checkAccessibility(container));
+    await checkAccessibility(container);
   });
 });
 
@@ -578,5 +629,228 @@ describe('MessageThread row identity across a send', () => {
     expect(rowsAfter).toHaveLength(3);
     expect(rowsAfter[0]).toBe(previousUser);
     expect(rowsAfter[1]).toBe(previousReply);
+  });
+});
+
+describe('MessageThread render cost', () => {
+  it('renders each settled reply once when the thread opens', () => {
+    toolbarRenders.count = 0;
+    render(
+      <MessageThread
+        messages={toSettledItems(turns(5))}
+        threadId="t-cost"
+        threadRootId="t-cost"
+      />,
+    );
+
+    // One toolbar per reply, rendered once: a settled reply paints whole in
+    // its first frame, so nothing is left to render a second time.
+    expect(screen.getAllByRole('button', { name: 'Copy' })).toHaveLength(5);
+    expect(toolbarRenders.count).toBe(5);
+  });
+
+  it('re-renders no settled reply when a turn first reports the server clock', () => {
+    // The first live text of a page session carries the first server clock
+    // sample: it re-rendered every reply of the transcript, toolbar and all,
+    // in the task that paints the reply's first words.
+    const messages = toSettledItems(turns(5));
+    function Reporter({ serverNow }: { serverNow?: number }) {
+      useReportServerNow(serverNow);
+      return null;
+    }
+    const tree = (serverNow?: number) => (
+      <ClockOffsetProvider>
+        <MessageThread
+          messages={messages}
+          threadId="t-clock"
+          threadRootId="t-clock"
+        />
+        <Reporter serverNow={serverNow} />
+      </ClockOffsetProvider>
+    );
+    const { rerender } = render(tree());
+    toolbarRenders.count = 0;
+
+    rerender(tree(Date.now() + 8_000));
+
+    expect(toolbarRenders.count).toBe(0);
+  });
+});
+
+/** An IntersectionObserver the test drives: it records what it watches and
+ * reports a row inside the wake margin on demand. */
+class ControlledObserver {
+  static instances: ControlledObserver[] = [];
+  readonly targets = new Set<Element>();
+  readonly thresholds = [0];
+  constructor(
+    private readonly callback: IntersectionObserverCallback,
+    private readonly options: IntersectionObserverInit = {},
+  ) {
+    ControlledObserver.instances.push(this);
+  }
+  get root() {
+    return this.options.root ?? null;
+  }
+  get rootMargin() {
+    return this.options.rootMargin ?? '';
+  }
+  observe(target: Element) {
+    this.targets.add(target);
+  }
+  unobserve(target: Element) {
+    this.targets.delete(target);
+  }
+  disconnect() {
+    this.targets.clear();
+  }
+  takeRecords() {
+    return [];
+  }
+  /** Report `target` within the observer's margin of the log. */
+  enter(target: Element) {
+    const entry = { target, isIntersecting: true };
+    this.callback(
+      [entry as unknown as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
+}
+
+const isDormant = (row: HTMLElement) => row.hasAttribute('data-dormant');
+
+describe('MessageThread long threads', () => {
+  beforeEach(() => {
+    ControlledObserver.instances = [];
+    vi.stubGlobal('IntersectionObserver', ControlledObserver);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const openThread = (count: number, threadId = 't-long') =>
+    render(
+      <MessageThread
+        messages={toSettledItems(turns(count))}
+        threadId={threadId}
+        threadRootId={threadId}
+      />,
+    );
+  const rows = () =>
+    within(screen.getByRole('log')).getAllByTestId('chat-message');
+
+  it('renders the newest rows in full and the older ones dormant, words kept', () => {
+    openThread(40);
+
+    const all = rows();
+    expect(all).toHaveLength(80);
+    const firstAwake = all.findIndex((row) => !isDormant(row));
+    // A dormant head, then the newest rows in full — nothing in between.
+    expect(firstAwake).toBeGreaterThan(0);
+    expect(all.slice(0, firstAwake).every(isDormant)).toBe(true);
+    expect(all.slice(firstAwake).some(isDormant)).toBe(false);
+    // A dormant row keeps the message's words, in the log, for find-in-page
+    // and assistive technology — without the chrome, and without
+    // announcing itself when it later renders in full.
+    expect(all[0]).toHaveTextContent('Question 1: how do tides work?');
+    expect(all[1]).toHaveTextContent('Answer 1. The **moon** pulls the sea.');
+    expect(within(all[1]!).queryByRole('button')).toBeNull();
+    expect(all[1]).toHaveAttribute('aria-live', 'off');
+    expect(all[79]).not.toHaveAttribute('aria-live');
+    // Only the rows in full carry a toolbar.
+    expect(screen.getAllByRole('button', { name: 'Copy' })).toHaveLength(
+      (80 - firstAwake) / 2,
+    );
+  });
+
+  it('renders the same rows in full however long the thread grows', () => {
+    const { unmount } = openThread(40, 't-long-a');
+    const awakeIn40 = rows().filter((row) => !isDormant(row)).length;
+    unmount();
+
+    openThread(150, 't-long-b');
+
+    expect(rows()).toHaveLength(300);
+    expect(rows().filter((row) => !isDormant(row))).toHaveLength(awakeIn40);
+  });
+
+  it('wakes a dormant row the log observer reports near the view, in place', async () => {
+    openThread(40);
+    const log = screen.getByRole('log');
+    const observer = ControlledObserver.instances.at(-1)!;
+    // Bound to the log, a margin of several log heights ahead, watching
+    // exactly the dormant rows.
+    expect(observer.root).toBe(log);
+    expect(observer.rootMargin).toBe('300% 0px');
+    const dormant = rows().filter(isDormant);
+    expect([...observer.targets]).toEqual(dormant);
+
+    const reply = rows()[1]!;
+    act(() => observer.enter(reply));
+
+    await waitFor(() => expect(isDormant(reply)).toBe(false));
+    expect(within(reply).getByRole('button', { name: 'Copy' })).toBeVisible();
+    // The same row element, now in full; no longer watched.
+    expect(rows()[1]).toBe(reply);
+    expect(observer.targets.has(reply)).toBe(false);
+  });
+
+  it('keeps a row in full once the thread grows past it', () => {
+    const items = toSettledItems(turns(40));
+    const { rerender } = render(
+      <MessageThread
+        messages={items}
+        threadId="t-grow"
+        threadRootId="t-grow"
+      />,
+    );
+    const firstAwake = rows().find((row) => !isDormant(row))!;
+    const rendersBefore = toolbarRenders.count;
+
+    // The thread view hands back the same items for the rows that did not
+    // change; only the new turn is new.
+    rerender(
+      <MessageThread
+        messages={[...items, ...toSettledItems(turns(41).slice(80))]}
+        threadId="t-grow"
+        threadRootId="t-grow"
+      />,
+    );
+
+    // A send pushes it out of the newest rows: it stays in full and does
+    // not render again. Two toolbars render: the new reply's, and the
+    // previous reply's, which is no longer the last.
+    expect(isDormant(firstAwake)).toBe(false);
+    expect(firstAwake.isConnected).toBe(true);
+    expect(toolbarRenders.count - rendersBefore).toBe(2);
+  });
+
+  it('wakes the rows a shorter branch brings back among the newest', () => {
+    const { rerender } = render(
+      <MessageThread
+        messages={toSettledItems(turns(40))}
+        threadId="t-branch"
+        threadRootId="t-branch"
+      />,
+    );
+    const awakeCount = rows().filter((row) => !isDormant(row)).length;
+
+    rerender(
+      <MessageThread
+        messages={toSettledItems(turns(20))}
+        threadId="t-branch"
+        threadRootId="t-branch"
+      />,
+    );
+
+    expect(rows().slice(-awakeCount).some(isDormant)).toBe(false);
+  });
+
+  it('passes an axe audit with dormant rows', async () => {
+    const { container } = openThread(30);
+    expect(rows().some(isDormant)).toBe(true);
+    // The rows are in place once the thread renders: one audit, not a
+    // retry loop that a slow machine's single audit outlasts.
+    await checkAccessibility(container);
   });
 });

@@ -11,6 +11,11 @@
  * operators through the notification bell. Either state links to the
  * member's usage page, where every cap that binds them reads in full.
  *
+ * In a project's chat the project's cap joins the read: it binds every send
+ * there, whoever writes, so its warning and its limit name the project. The
+ * usage page lists the member's own caps only, so a banner about the
+ * project alone offers no link to it.
+ *
  * It is an `Alert` in the composer's own column. The strip once lived under
  * the page header, which is why it used to span the pane with a bare bottom
  * border; here the tint, the coloured glyph and the live region come from
@@ -37,19 +42,27 @@ function formatAmount(code: string, value: number): string {
     : value.toLocaleString();
 }
 
-export function BudgetBanner({ organizationId }: { organizationId: string }) {
+export function BudgetBanner({
+  organizationId,
+  projectId,
+}: {
+  organizationId: string;
+  /** The project of the chat being written in, when it is in one. */
+  projectId?: string;
+}) {
   const { t } = useT('chat');
   // The reader's whole standing — every cap that binds them (their own,
-  // each team's shared cap, the organization's), as the gate measures it.
-  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
+  // each team's shared cap, the organization's, and the project's in a
+  // project chat), as the gate measures it.
+  const { data: budgetStatus } = useMyBudgetStatus(organizationId, projectId);
   // Derive a stable key so dismissed state resets only when the status meaningfully changes,
   // not on every Convex subscription tick (which creates new object references).
   const budgetStatusKey = useMemo(
     () =>
       budgetStatus
-        ? `${budgetStatus.exceeded}-${budgetStatus.code}-${budgetStatus.period}-${budgetStatus.warnings?.map((w) => `${w.scope ?? 'user'}:${w.code}:${w.percent}`).join(',')}`
+        ? `${projectId ?? ''}-${budgetStatus.exceeded}-${budgetStatus.code}-${budgetStatus.period}-${budgetStatus.warnings?.map((w) => `${w.scope ?? 'user'}:${w.code}:${w.percent}`).join(',')}`
         : null,
-    [budgetStatus],
+    [budgetStatus, projectId],
   );
   const [dismissed, setDismissed] = useState(false);
   const [prevKey, setPrevKey] = useState(budgetStatusKey);
@@ -98,10 +111,21 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
         })
       : t('budgetExceededDefault');
 
+  const projectOnly = exceeded
+    ? budgetStatus.scope === 'project'
+    : (budgetStatus.warnings ?? []).every(
+        (warning) => warning.scope === 'project',
+      );
+
   const message = exceeded
-    ? t('budgetLimitReached', {
-        period: budgetStatus.period ?? 'monthly',
-      })
+    ? budgetStatus.scope === 'project'
+      ? t('budgetLimitReachedProject', {
+          period: budgetStatus.period ?? 'monthly',
+          project: budgetStatus.projectName ?? '',
+        })
+      : t('budgetLimitReached', {
+          period: budgetStatus.period ?? 'monthly',
+        })
     : budgetStatus.warnings
         ?.map((w) => {
           const values = {
@@ -110,13 +134,20 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
             type: typeLabel(w.code),
             period: w.period,
           };
-          // An org- or team-bucket warning is about a shared spend, not the
-          // reader's own — say whose, or "left" reads as theirs.
+          // An org-, team- or project-bucket warning is about a shared
+          // spend, not the reader's own — say whose, or "left" reads as
+          // theirs.
           if (w.scope === 'org') return t('budgetRemainingOrg', values);
           if (w.scope === 'team') {
             return t('budgetRemainingTeam', {
               ...values,
               team: w.teamName ?? '',
+            });
+          }
+          if (w.scope === 'project') {
+            return t('budgetRemainingProject', {
+              ...values,
+              project: w.projectName ?? '',
             });
           }
           return t('budgetRemaining', values);
@@ -135,13 +166,15 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
         >
           {message}
         </span>
-        <Link
-          to="/dashboard/$id/settings/usage"
-          params={{ id: organizationId }}
-          className="text-foreground shrink-0 text-sm underline underline-offset-2"
-        >
-          {t('budgetViewUsage')}
-        </Link>
+        {!projectOnly && (
+          <Link
+            to="/dashboard/$id/settings/usage"
+            params={{ id: organizationId }}
+            className="text-foreground shrink-0 text-sm underline underline-offset-2"
+          >
+            {t('budgetViewUsage')}
+          </Link>
+        )}
         {exceeded ? (
           <button
             type="button"

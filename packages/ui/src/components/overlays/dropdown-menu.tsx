@@ -2,16 +2,21 @@
 
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { Check } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 import {
   type ComponentType,
   Fragment,
+  type KeyboardEvent,
   type ReactNode,
+  type RefObject,
   useCallback,
+  useId,
   useRef,
+  useState,
 } from 'react';
 
 import { cn } from '../../lib/cn';
+import { respectEscapeClaims } from './claims-escape';
 import { TooltipContent } from './tooltip';
 
 export interface DropdownMenuActionItem {
@@ -38,6 +43,8 @@ export interface DropdownMenuActionItem {
    * the far right of the row regardless of label length or any `trailing`.
    */
   selected?: boolean;
+  /** Extra words the menu's search matches, beside a string label. */
+  keywords?: string;
 }
 
 type PointerDownOutsideEvent = Parameters<
@@ -56,7 +63,7 @@ export interface DropdownMenuSubItem {
   type: 'sub';
   label: string;
   icon?: ComponentType<{ className?: string }>;
-  items: DropdownMenuGroup[];
+  items: DropdownMenuItemsSource;
   className?: string;
   /** Optional trailing text shown before the chevron (e.g. current selection). */
   trailing?: ReactNode;
@@ -95,7 +102,16 @@ export interface DropdownMenuCheckboxItem {
   checked: boolean;
   onCheckedChange: (next: boolean) => void;
   disabled?: boolean;
+  /**
+   * A choice that is always on and cannot be switched off — shown checked
+   * at full strength (not greyed like `disabled`) and announced as checked
+   * and unavailable, so the menu can list what an agent always has beside
+   * what it can be given.
+   */
+  locked?: boolean;
   className?: string;
+  /** Extra words the menu's search matches, beside a string label. */
+  keywords?: string;
 }
 
 export type DropdownMenuItem =
@@ -108,9 +124,33 @@ export type DropdownMenuItem =
 
 export type DropdownMenuGroup = DropdownMenuItem[];
 
+export type DropdownMenuItemsSource =
+  | DropdownMenuGroup[]
+  | (() => DropdownMenuGroup[]);
+
+/**
+ * A search field at the top of the open menu that narrows its rows as the
+ * person types. It matches a row's string label, string description and
+ * `keywords`; a group's label stays while any row under it matches. The
+ * strings come from the caller, so the field speaks the host's language.
+ */
+export interface DropdownMenuSearch {
+  /** The field's accessible name. */
+  label: string;
+  placeholder?: string;
+  /** What the menu says when no row matches. */
+  emptyText: ReactNode;
+}
+
 interface DropdownMenuProps {
   trigger: ReactNode;
-  items: DropdownMenuGroup[];
+  /**
+   * The menu's groups, or a function that builds them. Either way they are
+   * rendered only while the menu shows; a function is also only CALLED then,
+   * so a closed menu in every row of a long list builds nothing — pass one
+   * when the groups are costly to assemble (a submenu listing every project).
+   */
+  items: DropdownMenuItemsSource;
   align?: 'start' | 'center' | 'end';
   /** Side the menu opens on. @default 'bottom' (Radix default) */
   side?: 'top' | 'right' | 'bottom' | 'left';
@@ -138,6 +178,15 @@ interface DropdownMenuProps {
   /** Disables the trigger at the Radix level so the menu can't open — a
    *  disabled child <button> alone doesn't stop keyboard/pointer activation. */
   disabled?: boolean;
+  /**
+   * Registers the menu as a modal layer. Use this when the trigger lives in
+   * a modal Dialog so that the dialog's scroll lock does not swallow wheel
+   * events over the portaled menu content.
+   * @default false
+   */
+  modal?: boolean;
+  /** Adds a search field above the rows (see `DropdownMenuSearch`). */
+  search?: DropdownMenuSearch;
 }
 
 function RadioIndicator() {
@@ -168,15 +217,16 @@ function renderItem(item: DropdownMenuItem, key: number) {
       return (
         <DropdownMenuPrimitive.CheckboxItem
           key={key}
-          checked={item.checked}
+          checked={item.locked === true ? true : item.checked}
           onCheckedChange={item.onCheckedChange}
-          disabled={item.disabled}
+          disabled={item.disabled === true || item.locked === true}
           // Prevent default suppresses the close-on-select behaviour so
           // toggling stays inside the menu — matches the OS conventions
           // for grouped settings dropdowns.
           onSelect={(e) => e.preventDefault()}
           className={cn(
             'focus:bg-accent focus:text-accent-foreground relative flex min-h-11 cursor-default items-center gap-2 rounded-md px-2 py-2 text-base outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+            item.locked === true && 'data-disabled:opacity-100',
             item.className,
           )}
         >
@@ -197,13 +247,19 @@ function renderItem(item: DropdownMenuItem, key: number) {
               aria-hidden
               className={cn(
                 'inline-block h-4 w-7 rounded-full transition-colors',
-                item.checked ? 'bg-primary' : 'bg-muted',
+                item.locked === true
+                  ? 'bg-primary/60'
+                  : item.checked
+                    ? 'bg-primary'
+                    : 'bg-muted',
               )}
             >
               <span
                 className={cn(
                   'block h-3 w-3 translate-y-0.5 rounded-full bg-white shadow transition-transform',
-                  item.checked ? 'translate-x-3.5' : 'translate-x-0.5',
+                  item.checked || item.locked === true
+                    ? 'translate-x-3.5'
+                    : 'translate-x-0.5',
                 )}
               />
             </span>
@@ -261,7 +317,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
                 item.contentClassName,
               )}
             >
-              {renderGroups(item.items)}
+              <MenuGroups items={item.items} />
             </DropdownMenuPrimitive.SubContent>
           </DropdownMenuPrimitive.Portal>
         </DropdownMenuPrimitive.Sub>
@@ -361,6 +417,138 @@ function renderItem(item: DropdownMenuItem, key: number) {
   }
 }
 
+/** The words a row offers the menu's search: its string label and
+ * description, plus `keywords`. A row with no words never matches. */
+function searchableText(item: DropdownMenuItem): string {
+  switch (item.type) {
+    case 'item':
+      return [
+        typeof item.label === 'string' ? item.label : '',
+        item.keywords ?? '',
+      ].join(' ');
+    case 'checkbox':
+      return [
+        typeof item.label === 'string' ? item.label : '',
+        typeof item.description === 'string' ? item.description : '',
+        item.keywords ?? '',
+      ].join(' ');
+    case 'sub':
+      return item.label;
+    default:
+      return '';
+  }
+}
+
+/** The groups narrowed to the rows matching every word of `query`; a
+ * group's labels stay while a row under them matches, an emptied group
+ * goes. An empty query keeps everything. */
+export function filterMenuGroups(
+  groups: DropdownMenuGroup[],
+  query: string,
+): DropdownMenuGroup[] {
+  const words = query.trim().toLocaleLowerCase().split(/\s+/u).filter(Boolean);
+  if (words.length === 0) return groups;
+  const matches = (item: DropdownMenuItem) => {
+    const text = searchableText(item).toLocaleLowerCase();
+    return words.every((word) => text.includes(word));
+  };
+  const narrowed: DropdownMenuGroup[] = [];
+  for (const group of groups) {
+    // Labels head the rows after them until the next label: keep a label
+    // only when one of its rows survives.
+    const kept: DropdownMenuItem[] = [];
+    let pendingLabels: DropdownMenuItem[] = [];
+    for (const item of group) {
+      if (item.type === 'label') {
+        pendingLabels.push(item);
+        continue;
+      }
+      if (!matches(item)) continue;
+      kept.push(...pendingLabels, item);
+      pendingLabels = [];
+    }
+    if (kept.length > 0) narrowed.push(kept);
+  }
+  return narrowed;
+}
+
+/** The open menu's rows. A component of its own, so its render — and a
+ * lazy `items` function — runs only while the Content it sits in is
+ * mounted: Radix mounts it while the menu shows, exit animation included. */
+function MenuGroups({
+  items,
+  query = '',
+  emptyText,
+}: {
+  items: DropdownMenuItemsSource;
+  query?: string;
+  emptyText?: ReactNode;
+}) {
+  const groups = filterMenuGroups(
+    typeof items === 'function' ? items() : items,
+    query,
+  );
+  if (groups.length === 0 && emptyText !== undefined) {
+    return (
+      <p role="status" className="text-muted-foreground px-2 py-3 text-sm">
+        {emptyText}
+      </p>
+    );
+  }
+  return renderGroups(groups);
+}
+
+/** The search field over an open menu's rows. Its keys stay its own: the
+ * menu's typeahead would otherwise jump to a row on every letter typed. Arrow
+ * Down moves into the rows; Escape still closes the menu. */
+function MenuSearchField({
+  search,
+  value,
+  onChange,
+  inputRef,
+}: {
+  search: DropdownMenuSearch;
+  value: string;
+  onChange: (next: string) => void;
+  inputRef: RefObject<HTMLInputElement | null>;
+}) {
+  const id = useId();
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') return;
+    event.stopPropagation();
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const content = event.currentTarget.closest('[role="menu"]');
+      const first = content?.querySelector<HTMLElement>(
+        '[role^="menuitem"]:not([data-disabled])',
+      );
+      first?.focus();
+    }
+  };
+  return (
+    <div className="bg-card sticky -top-1 z-10 -mx-1 -mt-1 mb-1 border-b px-1 pt-1 pb-1">
+      <label htmlFor={id} className="sr-only">
+        {search.label}
+      </label>
+      <div className="flex items-center gap-2 px-2">
+        <Search aria-hidden className="text-muted-foreground size-4 shrink-0" />
+        <input
+          ref={inputRef}
+          id={id}
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
+          value={value}
+          placeholder={search.placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={onKeyDown}
+          className="placeholder:text-muted-foreground h-9 w-full min-w-0 bg-transparent text-sm outline-none"
+        />
+      </div>
+    </div>
+  );
+}
+
 function renderGroups(groups: DropdownMenuGroup[]) {
   return groups.map((group, groupIndex) => (
     <Fragment key={groupIndex}>
@@ -385,8 +573,12 @@ export function DropdownMenu({
   tooltip,
   tooltipSide = 'top',
   disabled,
+  modal = false,
+  search,
 }: DropdownMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState('');
 
   // A menu that is animating out is still a dismissable layer, and its own
   // trigger counts as "outside" of it. Left alone, a pointer-down on the
@@ -420,12 +612,16 @@ export function DropdownMenu({
   return (
     <DropdownMenuPrimitive.Root
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        // Every opening starts from the whole list.
+        if (!next) setQuery('');
+        onOpenChange?.(next);
+      }}
       // A menu can hand off to a modal while its exit animation is mounted.
       // Keeping both layers modal leaves Radix's outside-pointer lock behind
       // when the second overlay closes. The dialog owns modality; menus keep
       // their roving focus, Escape and outside-dismiss behavior without it.
-      modal={false}
+      modal={modal}
     >
       {tooltip ? (
         // Radix's documented composition for "tooltip on a menu trigger":
@@ -454,12 +650,40 @@ export function DropdownMenu({
           collisionPadding={collisionPadding ?? 16}
           onClick={(e) => e.stopPropagation()}
           onPointerDownOutside={keepTriggerPointerDown}
+          onEscapeKeyDown={respectEscapeClaims()}
+          {...(search !== undefined
+            ? {
+                // A searchable menu opens with the caret in its field.
+                onOpenAutoFocus: (event: Event) => {
+                  event.preventDefault();
+                  searchRef.current?.focus();
+                },
+              }
+            : {})}
+          style={{
+            maxHeight:
+              'min(80vh, var(--radix-dropdown-menu-content-available-height, 80vh))',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+          }}
           className={cn(
-            'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-x-hidden overflow-y-auto rounded-lg border p-1 shadow-md duration-[var(--duration-short)] motion-reduce:animate-none',
+            'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-[min(80vh,var(--radix-dropdown-menu-content-available-height,80vh))] max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border p-1 shadow-md duration-[var(--duration-short)] motion-reduce:animate-none',
             contentClassName,
           )}
         >
-          {renderGroups(items)}
+          {search !== undefined && (
+            <MenuSearchField
+              search={search}
+              value={query}
+              onChange={setQuery}
+              inputRef={searchRef}
+            />
+          )}
+          <MenuGroups
+            items={items}
+            query={search !== undefined ? query : ''}
+            {...(search !== undefined ? { emptyText: search.emptyText } : {})}
+          />
         </DropdownMenuPrimitive.Content>
       </DropdownMenuPrimitive.Portal>
     </DropdownMenuPrimitive.Root>

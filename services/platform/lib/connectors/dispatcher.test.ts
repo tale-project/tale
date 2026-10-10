@@ -517,6 +517,79 @@ describe('live yaml-js under the sandbox-exec runner (portable convention)', () 
 });
 
 describe('live yaml-js backend', () => {
+  it("stops a live body's host calls at its time limit [CONN-R14]", async () => {
+    // A body that pages through a vendor without bound, like a recursive
+    // listing over a large account. In this process nothing can stop the body
+    // itself, so the host must refuse every request once the limit passed.
+    const PAGER = connectorSchema.parse({
+      name: 'pager',
+      displayName: 'Pager',
+      description: 'Pages through a vendor without bound.',
+      endpointMode: 'fixed',
+      allowedHosts: ['api.demo.test'],
+      auth: [{ method: 'bearer' }],
+      actions: [
+        {
+          name: 'list_all',
+          description: 'Read every page.',
+          effects: 'read',
+          input: { type: 'object', properties: {} },
+          output: '{ pages: number }',
+          mock: 'return { pages: 0 };',
+          backend: {
+            kind: 'yaml-js',
+            live: [
+              'let pages = 0;',
+              'while (true) {',
+              "  await ctx.http.get('https://api.demo.test/page?n=' + pages);",
+              '  pages += 1;',
+              '}',
+            ].join('\n'),
+          },
+        },
+      ],
+    });
+    installConnectorCatalog([...shipped, DEMO, PAGER]);
+    const issued: Array<{ atMs: number; aborted: boolean }> = [];
+    fetchStub.mockImplementation(async (_url: string, init: RequestInit) => {
+      issued.push({ atMs: Date.now(), aborted: init.signal?.aborted === true });
+      if (init.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return new Response('{}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    await expect(
+      executeConnectorAction({
+        connector: 'pager',
+        action: 'list_all',
+        input: {},
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          codeRunner: inProcessLiveRunner(),
+          timeoutMs: 150,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'LIVE_BODY_FAILED' });
+    expect(issued.length).toBeGreaterThan(0);
+    // The host refuses from 100 ms past the limit; give it that and a margin.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const settled = issued.length;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // The body stopped calling, and whatever it tried after the host's
+    // grace was refused before reaching the vendor.
+    expect(issued.length).toBe(settled);
+    const lastLive = issued.findLastIndex((call) => !call.aborted);
+    expect(issued.slice(lastLive + 1).every((call) => call.aborted)).toBe(true);
+    expect(issued.filter((call) => call.aborted).length).toBeLessThanOrEqual(1);
+  });
+
   it('refuses live on the data-only node-vm runner, before any host work', async () => {
     // The bundled in-process runner cannot carry `ctx.secrets.get` or the
     // HTTP host across its JSON boundary — the dispatcher must say so up
@@ -683,6 +756,118 @@ describe('live yaml-js backend', () => {
         ctx: { organizationId: ORG, mode: 'live', credentials: resolver() },
       }),
     ).rejects.toMatchObject({ code: 'NO_LIVE_BACKEND' });
+  });
+});
+
+describe('usage of live calls', () => {
+  function usageSink(fail = false) {
+    const records: unknown[] = [];
+    return {
+      records,
+      record: vi.fn(async (entry: unknown) => {
+        if (fail) throw new Error('ledger down');
+        records.push(entry);
+      }),
+    };
+  }
+
+  it('counts a live call whose body ran, once, with its caller [GOV-R15]', async () => {
+    const usage = usageSink();
+    await executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      credentialRef: 'primary',
+      caller: { kind: 'workflow', runId: 'run_1', nodeId: 'n1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver(),
+        usage,
+      },
+    });
+    expect(usage.records).toEqual([
+      {
+        organizationId: ORG,
+        connector: 'demo',
+        action: 'echo',
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'n1' },
+        outcome: 'ok',
+      },
+    ]);
+  });
+
+  it('counts a live body that failed: the vendor was reached all the same', async () => {
+    const usage = usageSink();
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'explode',
+        input: {},
+        caller: { kind: 'system', reason: 'test' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          audit: auditSink(),
+          usage,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'LIVE_BODY_FAILED' });
+    expect(usage.records).toEqual([
+      expect.objectContaining({ action: 'explode', outcome: 'error' }),
+    ]);
+  });
+
+  it('counts nothing that never ran: a mock, or a live call refused before its body', async () => {
+    const usage = usageSink();
+    await executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: { organizationId: ORG, usage },
+    });
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'mock_only',
+        input: {},
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          usage,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'NO_LIVE_BACKEND' });
+    expect(usage.record).not.toHaveBeenCalled();
+  });
+
+  it('never fails a call it could not count', async () => {
+    const usage = usageSink(true);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      credentialRef: 'primary',
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver(),
+        usage,
+      },
+    });
+    expect(result.status).toBe('ok');
+    expect(usage.record).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('usage record failed'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
   });
 });
 
@@ -1036,6 +1221,102 @@ describe('caller modes', () => {
       outcome: 'error',
       error: expect.stringContaining('vendor said no'),
     });
+  });
+});
+
+describe('a caller that stops', () => {
+  it('cuts a live body still running and records the call as interrupted', async () => {
+    const audit = auditSink();
+    const stop = new AbortController();
+    // A body that never answers by itself.
+    const impl = vi.fn(() => new Promise<never>(() => {}));
+    const dispose = registerNativeImpl('demo.native_send', impl);
+    try {
+      const pending = executeConnectorAction({
+        connector: 'demo',
+        action: 'native_send',
+        input: { to: 'someone@example.com' },
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'send' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          audit,
+          signal: stop.signal,
+        },
+      });
+      await vi.waitFor(() => expect(impl).toHaveBeenCalledTimes(1));
+      stop.abort();
+
+      await expect(pending).rejects.toMatchObject({
+        code: 'INTERRUPTED',
+        message: 'the call was interrupted because its server is shutting down',
+      });
+      expect(audit.records[0]).toMatchObject({
+        outcome: 'error',
+        error: expect.stringContaining('interrupted'),
+      });
+    } finally {
+      dispose();
+    }
+  });
+
+  it('starts no live body once the caller has stopped', async () => {
+    const impl = vi.fn(async () => ({ messageId: 'native-1' }));
+    const dispose = registerNativeImpl('demo.native_send', impl);
+    const stop = new AbortController();
+    stop.abort();
+    try {
+      await expect(
+        executeConnectorAction({
+          connector: 'demo',
+          action: 'native_send',
+          input: { to: 'someone@example.com' },
+          caller: { kind: 'workflow', runId: 'run_1', nodeId: 'send' },
+          ctx: {
+            organizationId: ORG,
+            mode: 'live',
+            credentials: resolver(),
+            signal: stop.signal,
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'INTERRUPTED' });
+      expect(impl).not.toHaveBeenCalled();
+    } finally {
+      dispose();
+    }
+  });
+
+  it("tears down the body's request the moment the caller stops", async () => {
+    const stop = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    fetchStub.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          requestSignal = init.signal ?? undefined;
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    const pending = executeConnectorAction({
+      connector: 'demo',
+      action: 'echo',
+      input: { message: 'hello' },
+      caller: { kind: 'workflow', runId: 'run_1', nodeId: 'echo' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver(),
+        signal: stop.signal,
+      },
+    });
+    await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledTimes(1));
+    stop.abort();
+
+    await expect(pending).rejects.toMatchObject({ code: 'INTERRUPTED' });
+    expect(requestSignal?.aborted).toBe(true);
   });
 });
 

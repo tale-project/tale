@@ -58,7 +58,7 @@ export interface ResolvedTaskSubjectContract {
 }
 
 /** One listed automation, as the contract surfaces need it. */
-interface ContractAutomationEntry {
+export interface ContractAutomationEntry {
   name: string;
   deployedVersion?: number;
   taskContract?: unknown;
@@ -77,11 +77,42 @@ export function useTaskContractAutomations(
   organizationId: string,
   projectId: string | undefined,
 ): ContractAutomationEntry[] {
+  const { orgQuery, projectQuery } = useContractAutomationListings(
+    organizationId,
+    projectId,
+  );
+  return useMemo(
+    () => [...(projectQuery.data ?? []), ...(orgQuery.data ?? [])],
+    [orgQuery.data, projectQuery.data],
+  );
+}
+
+/** Whether the automations {@link useTaskContractAutomations} lists are
+ * still on their way: until they arrive, an automation it does not list may
+ * yet be there. */
+export function useTaskContractAutomationsPending(
+  organizationId: string,
+  projectId: string | undefined,
+): boolean {
+  const { orgQuery, projectQuery, orgSkipped, projectSkipped } =
+    useContractAutomationListings(organizationId, projectId);
+  return (
+    (!orgSkipped && orgQuery.data === undefined) ||
+    (!projectSkipped && projectQuery.data === undefined)
+  );
+}
+
+function useContractAutomationListings(
+  organizationId: string,
+  projectId: string | undefined,
+) {
   // '' means "not known yet" (empty board, modal still loading) — skip rather
   // than fire a member-gated query for no organization.
+  const orgSkipped = organizationId === '';
+  const projectSkipped = organizationId === '' || projectId === undefined;
   const orgQuery = useBackendQuery(
     'automations/queries:listAutomations',
-    organizationId === ''
+    orgSkipped
       ? 'skip'
       : {
           organizationId,
@@ -92,21 +123,44 @@ export function useTaskContractAutomations(
   );
   const projectQuery = useBackendQuery(
     'automations/queries:listAutomations',
-    organizationId === '' || projectId === undefined
+    projectSkipped || projectId === undefined
       ? 'skip'
       : { organizationId, projectId },
   );
-  return useMemo(
-    () => [...(projectQuery.data ?? []), ...(orgQuery.data ?? [])],
-    [orgQuery.data, projectQuery.data],
-  );
+  return { orgQuery, projectQuery, orgSkipped, projectSkipped };
 }
+
+/** Each listing's entries per locale, so a board's cards and pickers, which
+ * all resolve against the same listing, parse its contracts once rather than
+ * once per card per render. Listings are react-query answers: replaced on
+ * change, never edited in place. */
+const entriesByListing = new WeakMap<
+  readonly ContractAutomationEntry[],
+  Map<string, readonly ResolvedTaskSubjectContract[]>
+>();
 
 /** Deployed automations narrowed to the ones carrying a VALID task contract
  *  (tolerant: an unparsable contract reads as none). */
 export function taskSubjectEntries(
-  automations: ContractAutomationEntry[],
+  automations: readonly ContractAutomationEntry[],
   /** The reader's locale — decides which declared name the surfaces show. */
+  locale: string,
+): readonly ResolvedTaskSubjectContract[] {
+  let byLocale = entriesByListing.get(automations);
+  if (byLocale === undefined) {
+    byLocale = new Map();
+    entriesByListing.set(automations, byLocale);
+  }
+  let entries = byLocale.get(locale);
+  if (entries === undefined) {
+    entries = parseTaskSubjectEntries(automations, locale);
+    byLocale.set(locale, entries);
+  }
+  return entries;
+}
+
+function parseTaskSubjectEntries(
+  automations: readonly ContractAutomationEntry[],
   locale: string,
 ): ResolvedTaskSubjectContract[] {
   return automations.flatMap((automation) => {
@@ -170,7 +224,7 @@ export type TaskOwnership =
  */
 export function resolveTaskOwnership(
   task: TaskOwnershipFields,
-  automations: ContractAutomationEntry[],
+  automations: readonly ContractAutomationEntry[],
   locale: string,
 ): TaskOwnership {
   const entries = taskSubjectEntries(automations, locale);
@@ -208,7 +262,7 @@ export function resolveTaskOwnership(
  * contract, or null for agent- and human-owned tasks. */
 export function resolveTaskSubjectContract(
   task: TaskOwnershipFields,
-  automations: ContractAutomationEntry[],
+  automations: readonly ContractAutomationEntry[],
   locale: string,
 ): ResolvedTaskSubjectContract | null {
   const ownership = resolveTaskOwnership(task, automations, locale);

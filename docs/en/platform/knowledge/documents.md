@@ -42,6 +42,7 @@ Unsupported formats are not made searchable by repeatedly reindexing. For a ques
 | **Indexing** | Text is being prepared for search. Wait before testing the source. |
 | **Indexed** | Indexing completed. Test a specific question and open its citation. |
 | **Needs reindex** | The index is stale. Use **Retry indexing** beside the status. |
+| **Waiting for a usage limit** | A usage limit that applies to whoever the document is indexed for has been reached. Indexing resumes by itself within the hour after the limit resets or is raised; nothing to fix in the file. |
 | **Failed** | Inspect the error, resolve its cause, then retry. |
 | **Not supported** | These file contents cannot be indexed: the format may be unsupported, the text empty or unreadable, or the PDF damaged. Open the badge for the cause. |
 | **Not indexed** | No completed index is available. Check the file and start indexing where offered. |
@@ -62,6 +63,7 @@ Click **Failed** or **Not supported** to read the explanation. The next action d
 | Embedding model missing or provider account refused | An administrator must configure the model under **Settings > Data residency**, or repair the provider key, model access, plan, or balance. Then retry. |
 | Embedding credential missing or unusable | The credential the embedding model uses was deleted or disabled, its provider has no default credential left (**Settings > Data residency** shows **Credential missing**), or its secret cannot be read: it was stored under an earlier encryption key, or it names an environment variable the server does not set. An administrator adds or repairs the credential under **Settings > AI providers**, or chooses another one for the embedding model. Either save puts the affected documents back in the queue. After a fix on the server itself, such as setting the environment variable, use **Retry indexing**. |
 | Temporary provider or indexing-service failure | Background jobs retry transient failures. If the error persists, give an administrator the document name and error; after repair, use **Retry indexing**. |
+| A usage limit was reached | Indexing turns text into vectors through the embedding model, which counts against the limits of whoever the document is indexed for: the person who uploaded it, the owner of a synced drive, or the organization for an emailed attachment. The document shows **Waiting for a usage limit** and resumes by itself within the hour after the limit resets or an administrator raises it under **Settings > Governance > Policies & Limits**. |
 | Search index rebuilding or repair failed | Rebuilding can recover automatically. A failed repair needs the operator to repair or restore the knowledge database before retrying. |
 
 **Not supported** has no retry action: another attempt with the same bytes cannot fix the cause. Failed files can also require a source or configuration change before a retry helps. Applications can distinguish these cases using `indexing.errorCode`; the [API reference](/develop/api-reference) lists the stable codes.
@@ -94,7 +96,7 @@ Folders organize the library; to rename one, use **Rename** in its row menu. A s
 
 ## Import from Microsoft 365 or Google Drive
 
-Choose **From Microsoft 365** or **From Google Drive** under **Upload documents**. On first use, connect your account and authorize the import. If Tale reports that import is not configured, an administrator must set up the service under [Connectors](/platform/admin/connectors) before you can continue.
+Choose **From Microsoft 365** or **From Google Drive** under **Upload documents**. On first use, connect your account and authorize the import. If Tale reports that import is not configured, an administrator must set up the service under [Connectors](/platform/admin/connectors) before you can continue. If Tale cannot check whether import is set up, the dialog says so and offers **Try again** instead of the connect button. You can connect once the check works.
 
 Select files or folders, then choose the import mode:
 

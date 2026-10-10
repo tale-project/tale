@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import { useLocalesLoaded } from '@tale/ui/i18n/load-locale';
 import { Stack } from '@tale/ui/layout';
 import { LocaleTabs } from '@tale/ui/locale-tabs';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -24,6 +25,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
+import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface DataNoticePolicyEditorProps {
   organizationId: string;
@@ -77,15 +79,17 @@ function buildConfig(
 // `LocaleTabs` — save through the settings header's Save/Discard cluster
 // (registered via the editor group); the toggle saves instantly.
 // =============================================================================
-export function DataNoticePolicyEditor({
+function DataNoticePolicyEditorContent({
   organizationId,
 }: DataNoticePolicyEditorProps) {
   const { t } = useT('governance');
   const { t: tGlobal } = useT('global');
   const [editingLocale, setEditingLocale] = useState<NoticeLocale>('en');
-  // The platform default in each language, for the placeholders: the bundles
-  // for every shipped language are loaded, so a fixed-language `t` resolves.
+  // The platform default in each language, for the placeholders: a
+  // fixed-language `t` reads its language's messages, which load on first
+  // use, so the placeholders wait for them.
   const { i18n } = useTranslation();
+  const noticeLocalesLoaded = useLocalesLoaded(NOTICE_LOCALES);
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -254,7 +258,11 @@ export function DataNoticePolicyEditor({
                         // The tab strip names the language; the text spans
                         // the section rather than the 20rem control column.
                         wideControl
-                        placeholder={placeholderFor(field)}
+                        placeholder={
+                          noticeLocalesLoaded
+                            ? placeholderFor(field)
+                            : undefined
+                        }
                         errorMessage={errors[field]?.message}
                         counterMax={DATA_NOTICE_MAX_CHARS}
                         {...register(field)}
@@ -270,3 +278,8 @@ export function DataNoticePolicyEditor({
     </Skeletonize>
   );
 }
+
+export const DataNoticePolicyEditor = withGovernancePolicyReadBoundary(
+  DataNoticePolicyEditorContent,
+  'data_classification_notice',
+);

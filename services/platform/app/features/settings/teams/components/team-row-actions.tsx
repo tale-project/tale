@@ -66,20 +66,26 @@ export function TeamRowActions({
     <>
       <EntityRowActions actions={actions} disabled={isDeleted} />
 
-      <TeamEditDialog
-        open={dialogs.isOpen.edit}
-        onOpenChange={dialogs.setOpen.edit}
-        team={team}
-        organizationId={organizationId}
-      />
+      {/* Each dialog mounts from its first open: every row of the list
+          carries both. */}
+      {dialogs.mounted.edit && (
+        <TeamEditDialog
+          open={dialogs.isOpen.edit}
+          onOpenChange={dialogs.setOpen.edit}
+          team={team}
+          organizationId={organizationId}
+        />
+      )}
 
-      <TeamDeleteDialog
-        open={dialogs.isOpen.delete}
-        onOpenChange={dialogs.setOpen.delete}
-        team={team}
-        organizationId={organizationId}
-        onSuccess={handleDeleteSuccess}
-      />
+      {dialogs.mounted.delete && (
+        <TeamDeleteDialog
+          open={dialogs.isOpen.delete}
+          onOpenChange={dialogs.setOpen.delete}
+          team={team}
+          organizationId={organizationId}
+          onSuccess={handleDeleteSuccess}
+        />
+      )}
     </>
   );
 }

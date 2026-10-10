@@ -1,0 +1,309 @@
+# Authoritative scope for PRs and existing Build service discovery.
+integration:
+  - 'services/platform/backend/**'
+  - 'services/platform/tests/fixtures/automation-legacy-v1/**'
+  - 'services/platform/lib/**'
+  - 'services/platform/messages/**'
+  - 'services/platform/sla-targets.ts'
+  - 'services/platform/package.json'
+  - 'services/platform/Dockerfile'
+  - 'services/db/**'
+  - 'services/sandbox-runtime/daemon/src/file-ops.ts'
+  - 'services/sandbox-runtime/daemon/src/protocol.ts'
+  - 'services/sandbox-runtime/daemon/src/staged-manifest.ts'
+  - 'packages/shared/**'
+  - 'packages/ui/package.json'
+  - 'packages/ui/src/data/**'
+  - 'packages/ui/src/i18n/**'
+  - 'packages/ui/src/markdown/plugins/micromark-cjk-attention.ts'
+  - 'packages/ui/src/markdown/remark-plugin-lists.ts'
+  - 'packages/ui/src/markdown/streaming/normalize-html-blocks.ts'
+  - 'packages/ui/src/mentions/**'
+  - 'packages/ui/src/server/serving-identity.ts'
+  - 'configs/platform/**'
+  - 'tools/cli/src/lib/compose/types.ts'
+  - 'tools/cli/scripts/check-deployment-acceptance.ts'
+  - 'tools/cli/src/lib/deployment/acceptance-migrations.ts'
+  - 'tools/cli/src/lib/deployment/migration-model.ts'
+  - 'tools/cli/src/lib/deployment/automation-floor.ts'
+  - 'tools/cli/src/lib/deployment/automation-cutover-sql.ts'
+  - 'tools/cli/src/lib/deployment/automation-model.ts'
+  - 'tools/cli/src/lib/deployment/source-migrations.ts'
+  - 'tools/cli/src/lib/deployment/runtime-command.ts'
+  - 'tools/cli/src/lib/deployment/runtime-model.ts'
+  - 'tools/cli/src/lib/config/releases/**'
+  - 'tools/cli/src/lib/docker/**'
+  - 'tools/cli/src/utils/**'
+  - 'package.json'
+  - 'bun.lock'
+  - 'bunfig.toml'
+  - 'tsconfig.base.json'
+  - 'tsconfig.convex.json'
+  - 'tsconfig.dom.json'
+  - 'tsconfig.node.json'
+  - 'tsconfig.strict.json'
+  - 'tsconfig.vite.json'
+  - 'services/platform/tsconfig.json'
+  - 'patches/**'
+  - '.github/workflows/checks.yml'
+  - '.github/actions/setup-turbo/**'
+security:
+  - bun.lock
+  - package.json
+  - services/*/package.json
+  - services/sandbox-runtime/document-node/**
+  - services/sandbox-runtime/document-python-requirements.txt
+  - services/*/Dockerfile
+  - services/*/Dockerfile.dockerignore
+  - .trivyignore.yaml
+  - .github/workflows/security.yml
+cli:
+  - '.gitattributes'
+  - '.github/release-candidate-contract.json'
+  - 'tools/cli/**'
+  - 'services/platform/backend/core/**'
+  - 'services/platform/backend/auth/membership.ts'
+  - 'services/platform/backend/auth/oidc.ts'
+  - 'services/platform/backend/db/sql.ts'
+  - 'services/platform/backend/db/ssl.ts'
+  - 'services/platform/backend/domains/api_keys/owners.ts'
+  - 'services/platform/backend/domains/api_keys/retire.ts'
+  - 'services/platform/backend/domains/audit_logs/**'
+  - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
+  - 'services/platform/backend/domains/two_factor/service.ts'
+  - 'services/platform/backend/jobs/enqueue.ts'
+  - 'services/platform/backend/jobs/tasks.ts'
+  - 'services/platform/backend/lib/org-config.ts'
+  - 'services/platform/backend/lib/request-channel.ts'
+  - 'services/platform/backend/realtime/outbox.ts'
+  - 'services/platform/lib/**'
+  - 'configs/platform/**'
+  - 'packages/shared/**'
+  - 'bun.lock'
+  - 'package.json'
+  - 'bunfig.toml'
+  - 'patches/**'
+  - 'tsconfig*.json'
+  - 'scripts/install-cli.*'
+  - '.github/workflows/cli.yml'
+  - '.github/actions/setup-cli/**'
+e2e:
+  - "services/platform/**"
+  - "services/web/**"
+  - "services/docs/**"
+  - "packages/**"
+  - "configs/platform/**"
+  - "services/sandbox-runtime/daemon/**"
+  - "tools/cli/**"
+  - "scripts/**"
+  - "compose*.yml"
+  - "docs/**"
+  - "patches/**"
+  - ".github/workflows/e2e.yml"
+  - ".github/actions/setup-turbo/**"
+  - "package.json"
+  - "bun.lock"
+  - "bunfig.toml"
+  - "turbo.json"
+  - "tsconfig*.json"
+
+build:
+  - ".github/release-candidate-contract.json"
+  - "tools/cli/scripts/release-candidate*"
+  - "services/**"
+  - "packages/**"
+  - "configs/platform/**"
+  - "patches/**"
+  - "tools/**/package.json"
+  - "docs/**"
+  - ".github/workflows/build.yml"
+  - ".github/scripts/pull-ci-images.sh"
+  - "tools/cli/scripts/check-sbom-hashes.ts"
+  - ".github/actions/setup-turbo/**"
+  - "compose*.yml"
+  - "services/platform/tests/integration/container-*"
+  - "services/platform/tests/integration/static-site-test.ts"
+  - "services/platform/tests/integration/lib/**"
+  - ".env.test"
+  - "bunfig.toml"
+  - "tsconfig*.json"
+  - "turbo.json"
+  - ".dockerignore"
+  - "package.json"
+  - "bun.lock"
+
+guard:
+  - .github/release-candidate-contract.json
+  - tools/cli/scripts/release-candidate*
+  - .github/ci-scope.yml
+  - .github/actions/ci-scope/**
+  - .github/actions/ci-ready/**
+  - tools/cli/scripts/ci-ready.ts
+  - tools/cli/scripts/ci-ready.test.ts
+  - tools/cli/scripts/ci-ready-workflows.test.ts
+all:
+  - "**"
+added:
+  - added: "**"
+deleted:
+  - deleted: "**"
+
+build_image_inputs:
+  - "package.json"
+  - "bun.lock"
+  - "bunfig.toml"
+  - "patches/**"
+  - "packages/**/package.json"
+  - "packages/shared/**"
+  - "services/**/package.json"
+  - "configs/platform/custom/skills/*/package.json"
+  - "tools/**/package.json"
+  - "tsconfig*.json"
+  - ".dockerignore"
+  - ".github/workflows/build.yml"
+  - "tools/cli/scripts/check-sbom-hashes.ts"
+  - ".github/actions/setup-turbo/**"
+  - "turbo.json"
+
+build_platform:
+  # These four standalone probes are excluded from Docker contexts
+  # and run in their own jobs. One positive extglob retains every
+  # other platform path under paths-filter's default OR semantics.
+  - &platform_sources "services/platform/!(tests/integration/container-web-test.ts|tests/integration/container-docs-test.ts|tests/integration/container-ui-docs-test.ts|tests/integration/container-ai-gateway-test.ts)"
+  - "services/db/migrations/knowledge-db/**"
+  - "packages/ui/**"
+  - "packages/shared/**"
+  - "configs/platform/**"
+
+build_db:
+  - "services/db/**"
+
+build_proxy:
+  - "services/proxy/**"
+
+build_sandbox-llm-gateway:
+  - "services/sandbox-llm-gateway/**"
+
+build_web:
+  - "services/web/**"
+  - "services/platform/tests/integration/container-web-test.ts"
+  - "compose.web*.yml"
+  - ".env.test"
+  - "services/platform/tests/integration/static-site-test.ts"
+  - "services/platform/tests/integration/lib/**"
+  - "packages/ui/**"
+  - "packages/marketing-ui/**"
+
+build_docs:
+  - "services/docs/**"
+  - "compose.docs*.yml"
+  - ".env.test"
+  - "services/platform/tests/integration/container-docs-test.ts"
+  - "services/platform/tests/integration/static-site-test.ts"
+  - "services/platform/tests/integration/lib/**"
+  - "docs/**"
+  - "packages/ui/**"
+  - "packages/marketing-ui/**"
+
+build_ui-docs:
+  - "services/ui-docs/**"
+  - "services/platform/tests/integration/container-ui-docs-test.ts"
+  - "compose.ui-docs*.yml"
+  - ".env.test"
+  - "services/platform/tests/integration/static-site-test.ts"
+  - "services/platform/tests/integration/lib/**"
+  - "packages/ui/**"
+  - "packages/marketing-ui/**"
+
+build_ai-gateway:
+  - "services/ai-gateway/**"
+  - "services/platform/tests/integration/container-ai-gateway-test.ts"
+  - "compose.ai-gateway*.yml"
+  - ".env.test"
+  - "services/platform/tests/integration/static-site-test.ts"
+  - "services/platform/tests/integration/lib/**"
+  - "packages/ui/**"
+
+build_storybook:
+  - "services/platform/**"
+  - "services/web/**"
+  - "packages/ui/**"
+  - "packages/marketing-ui/**"
+
+build_sandbox:
+  - "services/sandbox/**"
+
+build_sandbox-egress:
+  - "services/sandbox-egress/**"
+
+build_sandbox-buildkitd:
+  - "services/sandbox-buildkitd/**"
+
+build_sandbox-runtime:
+  - "services/sandbox-runtime/**"
+  - "services/platform/lib/harnesses/**"
+  - "configs/platform/system/harnesses/gemini/harness.yml"
+  - "configs/platform/custom/skills/visual-aspect-analyzer/**"
+
+build_ci_tests:
+  - ".github/release-candidate-contract.json"
+  - "tools/cli/scripts/release-candidate*"
+  - "services/platform/tests/integration/static-site-test.ts"
+  - "services/platform/tests/integration/lib/**"
+  - "compose.test.yml"
+  - "compose.yml"
+  - "compose.dev.yml"
+  - ".env.test"
+  - ".github/workflows/build.yml"
+  - ".github/scripts/pull-ci-images.sh"
+  - "services/db/**"
+  - *platform_sources
+  - "services/proxy/**"
+  - "services/sandbox-llm-gateway/**"
+  - "services/sandbox/**"
+  - "services/sandbox-egress/**"
+  - "services/sandbox-buildkitd/**"
+  - "services/sandbox-runtime/**"
+  - "configs/platform/**"
+
+e2e_platform:
+  - "services/platform/**"
+  - "configs/platform/**"
+  - "services/sandbox-runtime/daemon/**"
+  - "tools/cli/**"
+  - "scripts/**"
+  - "compose*.yml"
+  - "packages/**"
+  - "patches/**"
+  - "package.json"
+  - "bun.lock"
+  - "bunfig.toml"
+  - "turbo.json"
+  - "tsconfig*.json"
+  - ".github/workflows/e2e.yml"
+  - ".github/actions/setup-turbo/**"
+
+e2e_web:
+  - "services/web/**"
+  - "packages/**"
+  - "patches/**"
+  - "package.json"
+  - "bun.lock"
+  - "bunfig.toml"
+  - "turbo.json"
+  - "tsconfig*.json"
+  - ".github/workflows/e2e.yml"
+  - ".github/actions/setup-turbo/**"
+
+e2e_docs:
+  - "services/docs/**"
+  - "docs/**"
+  - "packages/**"
+  - "patches/**"
+  - "package.json"
+  - "bun.lock"
+  - "bunfig.toml"
+  - "turbo.json"
+  - "tsconfig*.json"
+  - ".github/workflows/e2e.yml"
+  - ".github/actions/setup-turbo/**"

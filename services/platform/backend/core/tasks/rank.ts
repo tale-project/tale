@@ -29,6 +29,43 @@ export function initialRank(): string {
 }
 
 /**
+ * A key after `before`, for an append to the end of a column — the hot path
+ * (every created task, every status change, every drop at the bottom).
+ *
+ * Counts up within the key's length: base 36, carrying to the left, the
+ * last digit running 1–z so no key ends in 0 (see the post-condition of
+ * {@link rankBetween}). Only a key made entirely of `z` has nothing of its
+ * length above it; it is extended by a block as long as itself, at most 8
+ * digits. So n
+ * appends need O(log n) digits — under a million appends stay within 16 —
+ * where a midpoint walk towards the alphabet's end grows a digit every few
+ * appends and a busy column's keys reach kilobytes (bigger rows, bigger
+ * index entries, bigger board reads, and eventually more than a B-tree
+ * entry may hold). Same-length keys order numerically, a longer key with a
+ * smaller digit still sorts below, so counted keys interleave with every
+ * key already stored.
+ */
+function rankAfter(before: string): string {
+  const digits = Array.from(before, charIndex);
+  const last = digits.length - 1;
+  for (let i = last; i >= 0; i -= 1) {
+    const digit = digits[i] ?? 0;
+    if (digit < BASE - 1) {
+      digits[i] = digit + 1;
+      // Every digit right of the increment was z and wraps to its floor.
+      for (let j = i + 1; j <= last; j += 1) digits[j] = j === last ? 1 : 0;
+      return digits.map((d) => ALPHABET[d]).join('');
+    }
+  }
+  // As long as the key, up to 8 digits: doubling is what keeps counted keys
+  // logarithmic, and past 8 a block already holds over a trillion appends —
+  // a long legacy key of z's must not double.
+  const size = Math.min(before.length, 8);
+  const block = size < 2 ? MID_CHAR : `${MID_CHAR}${'0'.repeat(size - 2)}1`;
+  return `${before}${block}`;
+}
+
+/**
  * Compute a key strictly between `before` and `after` (lexicographically).
  *
  * - `rankBetween(undefined, undefined)` → {@link initialRank}.
@@ -47,6 +84,13 @@ export function rankBetween(before?: string, after?: string): string {
   }
 
   let result = '';
+  if (after == null && before != null) {
+    result = rankAfter(before);
+    if (result <= before) {
+      throw new Error(`rankBetween: no key after ${before}`);
+    }
+    return result;
+  }
   let i = 0;
   // Walk digit positions, choosing a digit strictly between the bounds. When a
   // gap exists at the current position we pick its midpoint and stop; otherwise

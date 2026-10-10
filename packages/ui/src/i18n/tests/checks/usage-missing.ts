@@ -18,13 +18,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { readCatalog } from '../internals/catalog';
 import {
   ARRAY_NAMES_RE,
   flatten,
   I18N_T_RE,
   i18nTKey,
   loadAllowlist,
-  readJson,
   T_DESTRUCTURE_RE,
   USE_TRANSLATION_ARRAY_RE,
   walk,
@@ -75,9 +75,9 @@ export function findMissingKeyRefs(config: MissingKeyRefsConfig): Finding[] {
   const allKeys = new Set<string>();
   for (const dir of [messagesDir, ...packageCatalogs]) {
     for (const file of baseFiles) {
-      const full = path.join(dir, file);
-      if (!fs.existsSync(full)) continue;
-      for (const k of flatten(readJson(full))) allKeys.add(k);
+      const catalog = readCatalog(dir, file);
+      if (catalog === undefined) continue;
+      for (const k of flatten(catalog)) allKeys.add(k);
     }
   }
   if (allKeys.size === 0) return [];

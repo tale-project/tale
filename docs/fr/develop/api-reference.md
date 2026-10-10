@@ -41,7 +41,9 @@ Les contacts et produits sont triés par `updatedAt`, puis `id`, dans l’ordre 
 
 ## Authentification
 
-Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué une compétence qui s’utilise avec une clé (`tale:models.api`, `tale:notifications.export` ou `tale:rest.act-as`) ; toute autre personne est refusée avec `403 API_KEY_CREATE_FORBIDDEN` ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
+Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué une compétence qui s’utilise avec une clé (`tale:models.api`, `tale:notifications.export` ou `tale:rest.act-as`) ; toute autre personne est refusée avec `403 API_KEY_CREATE_FORBIDDEN` ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée, sauf si un propriétaire ou un admin l’a créée pour quelqu’un d’autre (voir plus bas). Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
+
+Les propriétaires et admins peuvent aussi créer une clé pour un autre membre, une équipe, un projet ou l’organisation. Une telle clé ne fonctionne que dans cette organisation, n’a pas besoin de `X-Organization-Slug` et répond `403 ORG_FORBIDDEN` à un en-tête qui nomme une autre organisation. La clé d’un membre agit au nom de ce membre. La clé d’une équipe, d’un projet ou de l’organisation agit comme une identité propre, avec le rôle choisi à sa création : la clé d’une équipe atteint ce qu’atteint cette équipe, et la clé d’un projet son seul projet — les routes sous `/api/v1/projects/{projectId}`, `GET /api/v1/projects`, `GET /api/v1/me` et les endpoints de modèles —, toute autre route répondant `403 API_KEY_SCOPE_FORBIDDEN` (contrat 3.21.0).
 
 | En-tête | Règle |
 | --- | --- |
@@ -60,7 +62,7 @@ Une personne appartenant à une seule organisation peut omettre l'en-tête d'org
 
 Chacun de ces trois refus liste dans `data.organizations` les organisations que tu peux sélectionner, sous forme de paires `slug` et `name`. Les appartenances désactivées en sont exclues ; s'il n'en reste aucune, la liste est vide. Relance la requête avec l'un des slugs listés.
 
-`GET /api/v1/me` renvoie aussi les appartenances sous `organizations`. `key.expiresAt` est un horodatage Unix en millisecondes, ou `null` pour une clé sans expiration. Renouvelle les identifiants des traitements autonomes avant que l'expiration provoque `401`. `key.name` identifie la clé utilisée.
+`GET /api/v1/me` renvoie aussi les appartenances sous `organizations` ; pour une clé qui ne fonctionne que dans une organisation, c’est cette seule organisation, avec le rôle avec lequel la clé agit. `key.expiresAt` est un horodatage Unix en millisecondes, ou `null` pour une clé sans expiration. Renouvelle les identifiants des traitements autonomes avant que l'expiration provoque `401`. `key.name` identifie la clé utilisée, et `key.owner.kind` indique à qui elle appartient : `user` pour la clé personnelle d’une personne, `member`, `team`, `project` ou `organization`, avec l’équipe ou le projet sous `key.owner.team` et `key.owner.project`. La clé d’une équipe, d’un projet ou de l’organisation n’a pas d’adresse : son `user.email` est vide.
 
 Avant de proposer une opération, vérifie le rôle et l’accès à la ressource. Un lecteur de projet peut discuter, commenter et créer des tâches, puis modifier et démarrer celles qu’il a créées ou qui lui sont attribuées ; les modifications des autres ressources et des tâches des autres demandent un accès en écriture.
 
@@ -243,7 +245,7 @@ Chaque **201** qui crée une ressource adressable porte `Location` — le chemin
 | Automatisations du projet | `/api/v1/projects/{id}/automations/...`<br>Lister, installer ou désinstaller les automatisations ; démarrer et lister leurs exécutions dans ce projet. |
 | Exécutions | `/api/v1/runs/...` ou `/api/v1/projects/{id}/runs/...`<br>Lister les exécutions ; lire leur statut, sortie, trace et effets ; annuler avec `POST .../{runId}/cancel` ou supprimer une exécution terminée avec `DELETE .../{runId}` ; lire la question d’une exécution en attente avec `GET .../ask` et y répondre avec `POST .../asks/{askId}`. |
 | Fils de conversation | `/api/v1/projects/{id}/threads/...` ou `/api/v1/threads/...`<br>Gérer les chats du détenteur de la clé, dans un projet ou sans projet : lister, créer, lire, archiver, restaurer et supprimer ; envoyer un message, suivre ou annuler son tour. |
-| Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs ; `harnesses` liste les harness de code sur lesquels un agent de projet peut tourner. |
+| Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs ; `harnesses` liste les environnements d’agent sur lesquels un agent de projet peut tourner. |
 | Équipes | `GET /api/v1/teams`<br>Chaque équipe de l’organisation — `id`, `name` et `member`, qui dit si le détenteur de la clé en fait partie — en une liste complète : ce sont les identifiants qu’attend une audience d’équipes (`teamIds` sur un projet ou un document du Hub, `teams` sur un skill). Les équipes se créent et se composent dans l’application (Paramètres > Équipes) ou par un fournisseur d’identité ; rien sur cette surface n’en écrit une. |
 | Agents | `/api/v1/projects/{id}/agents/...`<br>Lister, lire, créer, modifier ou supprimer les agents du projet ; protéger une modification avec `expectedUpdatedAt`. Un `PUT` qui reprend exactement la configuration enregistrée n’écrit rien et laisse `updatedAt` intact. |
 | Skills | `/api/v1/skills/...`<br>Lister, lire, créer, modifier ou supprimer les bundles de l’organisation ; lire leurs fichiers — une lecture validée (`ETag` et `Last-Modified` sur les octets ; `If-None-Match` / `If-Modified-Since` répondent **304**) ; protéger une écriture avec `If-Match`. Un skill n’a pas d’historique de versions sur cette surface : la lecture répond le bundle courant, rien d’autre. |
@@ -401,7 +403,7 @@ Un instantané de contenu plus récent destiné au contact supprimé donne `409 
 
 Pour envoyer du texte dans le corpus de recherche depuis REST, utilise plutôt `POST /api/v1/knowledge-entries`. Cette opération crée une entrée active par sujet et son document associé à un fichier (`sourceProvider: knowledge`, contenu limité à 8 000 caractères). La réponse **201** contient `{ "id", "documentId" }`. Interroge ensuite `GET /api/v1/documents/{documentId}` pour suivre `indexing` ; aucune lecture intermédiaire de l’entrée n’est nécessaire.
 
-Un `PATCH` d’entrée crée une nouvelle version, renvoie ses IDs et relance l’indexation sous le même `documentId`. Si `topic` et `content` sont identiques après suppression des espaces en début et fin de chaîne, aucune version n’est créée et l’ID actif est conservé. Un `PATCH` sur une ligne remplacée donne **409**, `KNOWLEDGE_ENTRY_SUPERSEDED`, avec la ligne active du sujet dans `data.activeId` (et sa remplaçante directe dans `data.supersededBy`) : modifie cette ligne-là, sans remonter la chaîne. Une entrée créée ou remplacée par cette porte porte `source: "api"` (le formulaire de l’application écrit `manual`, la capture de l’assistant `chat`), ce qui permet au tableau des entrées de connaissances de distinguer les trois. Supprimer l’entrée met son document à la corbeille.
+Un `PATCH` d’entrée crée une nouvelle version, renvoie ses IDs et relance l’indexation sous le même `documentId`. Si `topic` et `content` sont identiques après suppression des espaces en début et fin de chaîne, aucune version n’est créée et l’ID actif est conservé. Un `PATCH` sur une ligne remplacée donne **409**, `KNOWLEDGE_ENTRY_SUPERSEDED`, avec la ligne active du sujet dans `data.activeId` (et sa remplaçante directe dans `data.supersededBy`) : modifie cette ligne-là, sans remonter la chaîne. Une entrée créée ou remplacée par cette porte porte `source: "api"` (le formulaire de l’application écrit `manual`, la capture de l’assistant `chat` et, depuis le contrat 3.23.0, un agent doté de `knowledge_entry_write` `agent`), ce qui permet au tableau des entrées de connaissances de les distinguer. Supprimer l’entrée met son document à la corbeille.
 
 Ces écritures nécessitent le droit de modifier les connaissances. Un Membre en lecture seule reçoit **403**, `KNOWLEDGE_ENTRY_FORBIDDEN`. Si le stockage objet n’accepte pas le contenu en 30 secondes, la réponse est **503**, `KNOWLEDGE_ENTRY_STORE_TIMEOUT`, sans écriture.
 
@@ -449,6 +451,7 @@ Branche ton client sur `indexing.errorCode`, pas sur le texte d’`error`. Le sc
 | --- | --- |
 | `unsupported` : `unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed` | Remplace ou réexporte la source dans un format pris en charge. Pour `not_text`, fournis du véritable texte UTF-8. `malformed` désigne actuellement un PDF illisible ; un fichier Office corrompu peut plutôt donner `indexer_error`. La route de relance ignore ces codes définitifs, y compris sur une ancienne ligne encore marquée `failed`. |
 | `failed` : `embedding_upstream`, `indexer_error`, `index_rebuilding` | Le traitement de fond réessaie. Consulte le statut avant de demander un nouvel essai. |
+| `failed` : `usage_limit` | Un plafond de budget qui s’applique à la personne pour qui le fichier est indexé — qui l’a téléversé, le propriétaire d’un lecteur synchronisé, l’organisation pour une pièce jointe d’e-mail — est atteint. L’indexation reprend d’elle-même dans l’heure qui suit la réinitialisation ou le relèvement du plafond, après ce qu’elle avait déjà enregistré ; un `retry-indexing` avant cela attend à nouveau. |
 | `failed` : `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Fais corriger la configuration du fournisseur, les autorisations ou l’état de l’index par l’opérateur, puis réessaie. `embedding_provider_refused` couvre aussi un modèle qui renvoie des vecteurs d’une autre largeur que celle indiquée dans les réglages, ainsi que des identifiants d’embedding que la plateforme ne peut pas utiliser (aucun configuré, supprimés, désactivés ou illisibles) ; enregistrer des réglages d’embedding corrigés, ou ajouter ou réparer les identifiants qu’utilise le modèle d’embedding, remet en file d’attente chaque document qui a échoué sur le modèle d’embedding. |
 | `failed` : `secret_detected`, `pii_blocked` | Corrige la source ou la politique de contenu approuvée de l’organisation avant de réessayer. |
 | `failed` sans `errorCode` | La plateforme a clôturé l’échec sans le classer, le plus souvent parce que l’indexation s’est arrêtée avant la fin (une tâche perdue ou un worker arrêté). N’attends pas de nouvel essai automatique : demande un `retry-indexing`. |
@@ -550,7 +553,7 @@ Chaque agent appartient à un projet. L’ID du projet est obligatoire dans l’
 | Enregistrer toute la configuration | `PUT /api/v1/projects/{id}/agents/{agentId}`    | `200 {agent}`  |
 | Supprimer                          | `DELETE /api/v1/projects/{id}/agents/{agentId}` | `204`          |
 
-Choisis un projet existant, un harness que `GET /api/v1/models` liste sous `harnesses` — ceux que la plateforme fait tourner avec ses propres identifiants — et un modèle qu’il peut utiliser. Cet exemple crée un agent Claude Code et relit sa configuration ; il ne lance aucune tâche.
+Choisis un projet existant, un environnement d’agent que `GET /api/v1/models` liste sous `harnesses` — ceux que la plateforme fait tourner avec ses propres identifiants — et un modèle qu’il peut utiliser. Cet exemple crée un agent Claude Code et relit sa configuration ; il ne lance aucune tâche.
 
 ```bash
 : "${BASE:?Set BASE to your Tale origin}"
@@ -568,12 +571,13 @@ AGENT_ID=$(curl -fsS "$AGENT_URL" \
 curl -fsS "$AGENT_URL/$AGENT_ID" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: $ORG_SLUG" \
-  | jq '.agent | {name, harness, skills, connectors}'
+  | jq '.agent | {name, handle, harness, skills, connectors}'
 ```
 
 ```json
 {
   "name": "Reviewer",
+  "handle": "reviewer",
   "harness": "claude-code",
   "skills": [],
   "connectors": []
@@ -596,13 +600,21 @@ Un projet peut contenir au maximum 50 agents. Les noms sont limités à 120 cara
 
 Une configuration invalide ou un dépassement de limite donne **400**. Un nom déjà utilisé donne **409**, `PROJECT_AGENT_NAME_TAKEN`, comme les autres conflits de doublon sur cette interface. Retrouve l’agent existant ou choisis un autre nom avant de réessayer.
 
+Chaque agent a aussi un `handle` : ce que tu saisis après `@` pour le mentionner. C’est son nom actuel en lettres minuscules, chiffres et tirets simples : « My Opus Agent #3 » répond donc à `my-opus-agent-3`. Un handle est unique dans son projet : si un autre agent le porte déjà, ou si un membre ou une automatisation de l’organisation y répond déjà, l’agent reçoit le suivant disponible, `-02`, puis `-03` et ainsi de suite. Il en va de même quand un membre ou une automatisation se met plus tard à répondre au handle d’un agent. Renommer un agent lui donne le handle de son nouveau nom, sauf si seules la casse ou la ponctuation changent. Pour t’adresser plus tard à un agent, garde son `id` ; le handle suit le nom (contrat 3.24.0).
+
 Choisis `model` dans le catalogue de l’organisation et précise `modelProvider` si plusieurs fournisseurs servent ce modèle. `tools` doit contenir uniquement des autorisations connues. Une valeur invalide donne **400** avec `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` ou `PROJECT_AGENT_TOOL_UNKNOWN`. `task_start_agent` permet à l’agent de mettre au travail un autre agent du même projet sur une tâche (contrat 3.8.0).
 
 `task_update_metadata` est une autorisation facultative pour les agents de projet (contrat 3.10.0). Elle permet de modifier la priorité et l’agent assigné à une tâche existante sans lancer d’exécution. La demande indique `taskId`, `priority` et/ou `agentId`, avec la valeur actuelle de chaque champ concerné dans `expected` ; `null` efface une valeur et les champs omis restent inchangés. Construis `expected.assignee` sous la forme `{type, id}` à partir de `assigneeType` et `assigneeId` renvoyés par `task_get`, ou utilise `null` sans assignation ; une priorité absente vaut également `null`. Une valeur périmée entraîne le refus de toute la demande. Le [guide des agents de projet](/fr/platform/projects/project-agents) explique la protection des exécutions actives et des revues en attente. `task_upsert_by_external_ref` continue d’utiliser `priority` uniquement lors de la création d’une tâche.
 
+`task_delegate_review` est une permission distincte, explicitement accordée à un agent de projet, pour transférer une relecture enregistrée en attente d’un agent à un autre. Transmets `{taskId, reviewerAgentId, expected: {approvalId, runId, evidenceRevision, reviewer: {kind: "agent", agentId}}, reason}` avec des UUID natifs complets et un motif non vide de 2 000 caractères au plus. Les champs inconnus sont refusés. L’appel exige une exécution active du manager avec une autorité sur tout le projet, sa permission actuelle, un destinataire admissible et indépendant, ainsi qu’une source et des éléments inchangés. L’agent qui a réalisé la source enregistrée est refusé comme manager. Il préserve le responsable de l’implémentation, l’état, les attributions futures et les permissions, sans lancer d’exécution. `task_get.reviewDelegation` expose le reçu historique validé du transfert vers la dernière relecture ; lis `pendingReview` pour connaître l’attribution actuelle. Une répétition identique exige la même exécution émettrice encore autorisée ainsi qu’une approbation suivante toujours en attente et des éléments inchangés. Les relectures humaines et liées à un workflow restent protégées. Voir [la réattribution des relectures](/fr/platform/projects/task-automation#delegate-review).
+
+`knowledge_entry_write` est une permission facultative pour les agents de projet et les étapes d’agent des automatisations (contrat 3.23.0). Elle enregistre un fait comme entrée de connaissances de toute l’organisation, identifiée par son sujet : transmets `{topic, content, expectedVersionId?}`, avec un sujet de 120 caractères au plus et un contenu de 8 000 caractères au plus. Un sujet sans entrée en reçoit une nouvelle. Modifier une entrée existante exige `expectedVersionId`, la version que l’agent a lue : l’`id` que `knowledge_entry_find` renvoie depuis le contrat 3.23.0, ou la `versionId` de son dernier enregistrement. Sans elle, ou si cette version a été remplacée entre-temps, rien n’est enregistré ; la réponse contient alors la version actuelle et son texte, dans lequel l’agent intègre sa modification. Enregistrer à nouveau le texte actuel n’écrit rien. Ce qu’un agent enregistre porte `source: "agent"`, nomme l’agent dans `createdBy` et est consigné dans le journal d’audit sous `knowledge_entry.created` ou `knowledge_entry.updated`. Une exécution lancée par un membre, qui ne peut travailler que sur sa propre tâche, est refusée (`member_run`). Les enregistrements des agents relèvent d’une limite de débit propre à chaque organisation, distincte de celle des modifications faites par des personnes. L’indexation est asynchrone : `knowledge_entry_find` liste une entrée enregistrée immédiatement, `rag_search` seulement une fois qu’elle est indexée.
+
 `task_review` ajoute une permission facultative pour les agents de projet dans le contrat 3.11.0. Elle décide uniquement d’une relecture native en attente attribuée à l’agent relecteur actif, pour une exécution terminée d’un autre agent du même projet. Transmets `taskId`, `expected: {approvalId, runId, evidenceRevision}` depuis le `task_get.pendingReview` actuel, `decision: "approve" | "request_changes"`, un `feedback` non vide et `evidence: {checks, pullRequests}`. Chaque vérification indique son résultat (`passed` ou `failed`) et des précisions ; une Pull Request GitHub fournie indique son URL, le `headSha` exact et l’état de ses contrôles. L’approbation exige la réussite de toutes les vérifications fournies. Les éléments GitHub sont attestés par l’agent ; Tale ne les vérifie pas auprès du service distant.
 
 L’outil vérifie à nouveau la permission actuelle, les droits de l’exécution active qui l’appelle, le relecteur enregistré, l’exécution de réalisation et la révision des éléments locaux. Un résultat périmé exige une nouvelle lecture ; changer l’assignation actuelle ne rend pas le relecteur indépendant. L’approbation passe la tâche à `done` ; `request_changes` la passe à `todo` avec un retour, sans démarrer d’exécution, même si ce retour contient une mention. Les compétences humaines requises et les approbations de workflows restent hors de cet outil. Il n’existe aucun point d’entrée REST public pour une décision d’agent.
+
+Depuis le contrat 3.25.0, un agent qui travaille sur d’autres tâches est lancé quand même : chacune de ses exécutions travaille dans un worker d’agent distinct. Le `task_start_agent` natif et l’étape d’automatisation `task.start_agent` ne répondent plus `agent_busy` ni `busyTaskId`. Un lancement répond `started: true`, et une exécution qui attend un worker libre porte `waitingReason` : `org_limit` (tous les workers d’agent de l’organisation sont occupés), `host` (l’hôte des sandboxes est plein), `destroy_pending` (l’espace de travail qu’elle utiliserait est en cours de suppression) ou `exec_limit` (sa sandbox termine encore un processus précédent). Une telle exécution démarre d’elle-même ; ne la relance pas. Un agent qui se désigne lui-même pour une autre tâche est refusé avec `self_start`. Le `task_get.agentRuns` natif porte `waitingReason` tant qu’une exécution attend. Aucune opération REST ne change.
 
 Depuis le contrat 3.15.0, le `task_get.agentRuns` natif contient un booléen explicite `retryPending`. Seule la dernière exécution en échec d’un agent encore présent peut avoir la valeur `true`, selon les mêmes vérifications de tentative prévue, de refus définitif et de quota restant que la carte de tâche. Laisse cette tentative se poursuivre. `false` n’autorise pas une relance et ne donne pas l’heure de réinitialisation du fournisseur ; si le champ manque sur une ancienne plateforme, cet état est inconnu. Avant toute action, relis la tâche, son responsable, ses exécutions et sa revue, puis respecte les délais du fournisseur et tout `retryAfter` renvoyé lors d’un refus de démarrage. Aucun point d’accès REST public ni texte d’erreur brut n’est ajouté.
 
@@ -644,7 +656,9 @@ Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la f
 - `projectIds` indique les projets où l’automatisation est installée.
 - `description` décrit son rôle.
 - `inputs` contient le schéma d’entrée de la version déployée ou, à défaut, de la dernière version enregistrée.
-- `trigger` contient le type de déclencheur, son activation et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
+- `trigger` contient le type de déclencheur, son activation, `nextRunAt` et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
+
+Une automatisation installée uniquement dans des projets que le titulaire de la clé ne peut pas lire n’apparaît pas dans la liste, et `GET /api/v1/automations/{name}`, ses versions et ses déclencheurs répondent **404** `AUTOMATION_NOT_FOUND` pour elle, comme pour une automatisation qui n’existe pas ; une automatisation installée nulle part appartient à toute l’organisation.
 
 `GET /api/v1/automations/{name}` lit par défaut la dernière version enregistrée (`?version=latest` explicite ce défaut), qui peut être un brouillon. Utilise `?version=deployed` pour lire celle qu’une exécution réelle utilisera, ou un numéro pour lire une version précise. Une version absente, y compris `deployed` si rien n’est déployé, donne **404**, `AUTOMATION_VERSION_UNKNOWN`. Une automatisation inconnue donne `AUTOMATION_NOT_FOUND`.
 
@@ -677,15 +691,36 @@ curl -sS --compressed -X PUT "https://your-host.example.com/api/v1/automations/b
 
 Choisis `kind` selon le mode de démarrage :
 
-- `schedule` exige un `cron` à cinq champs et accepte un `timezone` IANA facultatif.
+- `schedule` s’exécute selon une règle de répétition (`repeat`) ou une expression cron (`cron`), jamais les deux (contrat 3.24.0).
 - `webhook` renvoie une seule fois le `token` utilisé dans l’URL. Voir [Webhooks](/fr/develop/webhooks).
 - `event` exige le nom d’un événement émis par la plateforme.
 
-Une configuration impossible à déclencher donne **400**, `AUTOMATION_TRIGGER_INVALID`, avec une explication : expression cron sans occurrence, comme `0 0 30 2 *`, fuseau non IANA ou événement non pris en charge.
+`repeat` est une `ScheduleRule`, la règle qu’écrit aussi le sélecteur de planification de l’application. Une règle `daily`, `weekly`, `monthly` ou `yearly` s’exécute à une à douze heures locales dans `times`, écrites `HH:MM` ; une règle `minutely` ou `hourly` démarre toutes les quelques minutes ou heures, à la minute `minute` après l’heure pile pour `hourly`, éventuellement certains jours de la semaine seulement et entre deux heures (`window`). Elle exige un `timezone`. `startDate`, un jour `YYYY-MM-DD` dans ce fuseau, est le premier jour où elle peut s’exécuter et le jour à partir duquel « toutes les 2 semaines » se compte ; s’il manque, c’est aujourd’hui : renvoie donc celui que lit `GET .../triggers` pour garder une règle en phase. `cron` est une expression à cinq champs, lue dans `timezone`, ou en UTC sans fuseau.
 
-Chaque type accepte uniquement ses propres champs : `cron` et `timezone` pour `schedule`, `event` pour `event`, `rotateToken` pour `webhook`. Un champ d’un autre type donne **400**, `INVALID_BODY`, et figure dans `data.issues`. Un webhook ne peut donc pas conserver implicitement une planification.
+```json
+{
+  "kind": "schedule",
+  "repeat": {
+    "frequency": "weekly",
+    "interval": 1,
+    "weekdays": [1, 2, 3, 4, 5],
+    "times": ["09:00", "17:30"]
+  },
+  "timezone": "Europe/Zurich",
+  "catchUp": "latest",
+  "input": { "region": "emea" }
+}
+```
 
-Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trigger": "event", "event": "<name>", "payload": <les données de l'événement> }`. Les événements disponibles sont :
+Les jours de la semaine comptent à partir de 0 pour dimanche. Une heure locale que l’horloge saute démarre une fois, décalée de la durée du saut, et une heure qu’elle répète démarre une fois, à sa première occurrence ; une règle `minutely` ou `hourly`, comme une expression cron dont la minute ou l’heure commence par `*`, garde en revanche son intervalle réel. `catchUp` décide de ce que fait une planification des occurrences manquées pendant que la plateforme ne tournait pas : `latest`, la valeur par défaut, lance la plus récente une fois, quel que soit le retard ; `skip` ne la lance que si elle a au plus dix minutes de retard. Dans les deux cas, les autres sont comptées, pas rattrapées.
+
+Chaque type accepte aussi `enabled` (absent, il vaut `true`) et `input`, une entrée fixe : un objet JSON d’au plus 16 KiB que reçoit chaque exécution lancée par le déclencheur, ses propres champs `trigger`, `firedAt`, `event` et `payload` étant placés par-dessus — elle ne peut pas les nommer. Ce sont de simples données ; un modèle qu’elle contient arrive sous forme de texte. Le `PUT` remplace tout le déclencheur : un champ omis est réinitialisé.
+
+Un déclencheur qui enfreint une règle ou ne pourrait jamais se déclencher donne **400**, `AUTOMATION_TRIGGER_INVALID`, chaque problème figurant dans `data.issues` sous la forme `{ "path", "code", "message" }` : ni `repeat` ni `cron`, ou les deux (`schedule.cron_or_repeat`) ; une expression cron sans occurrence, y compris un jour qu’aucun mois nommé n’a (`0 0 30 2 *`) ; une heure qui n’est pas écrite `HH:MM`, plus de douze heures, un intervalle que la règle ne propose pas, un jour que le mois n’a jamais, ou une plage où aucun démarrage ne tombe ; un fuseau vide ou non IANA ; une entrée fixe qui n’est pas un objet, nomme l’un des champs propres au déclencheur ou dépasse 16 KiB ; un événement que la plateforme n’émet pas.
+
+Chaque type accepte uniquement ses propres champs : `cron`, `repeat`, `startDate`, `timezone` et `catchUp` pour `schedule`, `event` pour `event`, `rotateToken` pour `webhook`, ainsi que `enabled` et `input` pour tous. Un champ d’un autre type donne **400**, `INVALID_BODY`, et figure dans `data.issues`. Un webhook ne peut donc pas conserver implicitement une planification.
+
+Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trigger": "event", "event": "<name>", "payload": <les données de l'événement> }`, à côté d’une éventuelle entrée fixe. Les événements disponibles sont :
 
 | Événement                                               | Émis quand                                                                                                                                                       |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -698,14 +733,16 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 | `comment.created`                                       | un commentaire arrive sur une tâche                                                                                                                              |
 | `comment.mentioned`                                     | un commentaire de tâche mentionne quelqu’un avec `@`                                                                                                             |
 
+Le `comment` d’un événement de commentaire contient `body` tel qu’il est enregistré, chaque mention sous forme de lien de mention, et `bodyText`, le même texte avec chaque mention sous la forme `@` suivi du nom actuel. Compare les mots, comme un nom, avec `bodyText` (contrat 3.24.0).
+
 ### Vérifier le déclencheur et le suspendre
 
-`GET .../triggers` renvoie `triggers`, une liste contenant au maximum un élément. Les horodatages distinguent les exécutions réellement lancées des occurrences ignorées :
+`GET .../triggers` renvoie `triggers`, une liste contenant au maximum un élément, avec ce qui a été enregistré (`repeat` et `startDate` ou `cron`, `timezone`, `catchUp`, `input`) et le prochain démarrage (`nextRunAt`, `null` tant que le déclencheur est désactivé, ainsi que pour un webhook ou un événement). Les horodatages distinguent les exécutions réellement lancées des occurrences ignorées :
 
 - `lastFiredAt` et `lastRunId` correspondent à la dernière exécution lancée. Ils restent `null` tant qu’aucune exécution n’a démarré.
 - `lastSkippedAt` et `lastSkipReason` décrivent la dernière occurrence qui n’a rien lancé. Une livraison de webhook que le schéma `inputs` de la version déployée refuse est un autre cas : l’expéditeur reçoit **400** `AUTOMATION_INPUT_INVALID`, rien ne démarre et aucun de ces horodatages ne bouge — la liaison n’était pas due, un webhook dont chaque livraison est refusée se lit donc comme un webhook jamais appelé. Vérifie les livraisons côté expéditeur.
 
-Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, `start_refused` si le schéma `inputs` déployé refuse l’entrée, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
+Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si la planification ou son fuseau ne peut pas être interprété, `start_refused` si le démarrage a été refusé — le schéma `inputs` déployé refuse l’entrée, ou le projet de l’exécution ne peut pas la recevoir, comme un projet archivé pour un événement ; `lastSkipDetail.code` précise lequel —, `missed_occurrences` si des occurrences étaient dues pendant que la plateforme ne tournait pas, comme le décrit `catchUp`, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification. `lastSkipDetail` contient les faits derrière le motif : l’occurrence concernée (`occurrence`), le `code` d’un refus, la `version` qui a refusé, son `message` et ses `issues`, et `missed` — `count` (jusqu’à 1 000, `capped` au-delà), `firstAt`, `lastAt` et la `policy` — quand des occurrences ont été manquées. Une pause après des échecs n’a pas de détail ; ses faits sont les champs d’échec ci-dessous.
 
 Compare `lastFiredAt` à la cadence attendue. Si `lastSkippedAt` est plus récent, consulte la raison avant de relancer. Changer le type de déclencheur réinitialise ces horodatages.
 
@@ -717,7 +754,7 @@ Une planification dont les exécutions échouent sans cesse se met en pause d’
 
 Quand le compteur d’une planification atteint cinq, la plateforme passe `enabled: false` et `lastSkipReason: "paused_after_failures"`, écrit une ligne d’audit `automation.trigger.paused` et prévient les Propriétaires et Admins de l’organisation. Corrige l’automatisation, puis envoie un `PUT` du déclencheur avec `enabled: true`. Chaque `PUT` remet le compteur à zéro et efface ce motif ; un `PUT` sans `enabled` réactive le déclencheur, car `enabled` vaut `true` par défaut. Les liaisons webhook et événement continuent de compter, mais ne sont jamais mises en pause (contrat 3.1.0).
 
-La réponse `PUT` indique aussi `deployed`. Il est possible de configurer le déclencheur avant le déploiement, mais ses occurrences sont ignorées avec `not_deployed` jusqu’à ce qu’une version soit déployée. Le champ `trigger` de `GET /api/v1/automations` permet de constater cet état.
+La réponse `PUT` indique aussi `deployed`. Il est possible de configurer le déclencheur avant le déploiement, mais ses occurrences sont ignorées avec `not_deployed` jusqu’à ce qu’une version soit déployée. Le champ `trigger` de `GET /api/v1/automations` permet de constater cet état. Pour une planification, la réponse ajoute `nextRunAt`. Quand une version est déployée, elle ajoute `warnings`, ce que cette version ferait de l’entrée du déclencheur ; le déclencheur est enregistré dans tous les cas. `TRIGGER_INPUT_MISMATCH` signifie que son schéma `inputs` refuse ce que le déclencheur transmet à une exécution et nomme les champs obligatoires manquants dans `params.missing` (le corps d’un webhook n’est pas jugé) ; `TRIGGER_INPUT_NOT_TEMPLATED` signifie que l’entrée fixe contient un modèle, qui arrive sous forme de texte.
 
 ## Démarrer une exécution, puis la suivre
 
@@ -740,22 +777,29 @@ Une fois l’exécution terminée, lis-la en entier pour obtenir `output`, la `t
 
 `status: waiting` ne signifie pas nécessairement qu’une personne doit intervenir. Consulte `waitingFor` :
 
-- `approval` attend une décision humaine ; `ask` attend une réponse à une question.
+- `approval` attend une décision humaine ; `ask` attend une réponse à une question ; `in_doubt` (depuis le contrat 3.18.0) attend qu’une personne décide de la suite : une écriture que l’exécution effectuait quand son serveur s’est arrêté a peut-être déjà atteint son service, ou peut-être pas.
 - `agent` attend la fin d’un tour d’agent ; `room` attend qu’un tour d’agent trouve une place de sandbox pour démarrer (depuis le contrat 3.14.0) ; `repeat` attend qu’un nœud atteigne sa condition `repeatUntil`. Ces trois états peuvent durer plusieurs minutes sans anomalie.
 
-Pour repérer les exécutions qui nécessitent une personne, filtre donc sur `waitingFor` égal à `approval` ou `ask`. `detail` identifie le point d’attente, par exemple `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` ou `repeat:<nodeId>`. Après un échec, il contient l’explication de cet échec.
+Pour repérer les exécutions qui nécessitent une personne, filtre donc sur `waitingFor` égal à `approval`, `ask` ou `in_doubt`. `detail` identifie le point d’attente, par exemple `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` ou `in_doubt:<nodeId>`. Après un échec, il contient l’explication de cet échec.
+
+Une exécution en attente sur `in_doubt` se décide dans l’application, sur la page de l’exécution : relancer l’étape, l’ignorer ou faire échouer l’exécution. L’API signale ce point d’attente, mais ne permet pas de le résoudre.
+
+Une exécution peut changer de serveur en cours de route : un serveur mis à jour ou redémarré la transmet, et un autre la reprend quand le serveur qui l’exécute ne répond plus. Les étapes déjà terminées ne s’exécutent pas une seconde fois. Depuis le contrat 3.18.0, une exécution indique `resumeCount`, le nombre de ces changements, et `lastResume`, le dernier d’entre eux : sa raison `reason` (`shutdown` ou `lease_expired`) et son heure `at`. `stalled: true` signale une exécution `running` qu’aucun serveur n’exécute pour le moment ; un autre la reprend en une minute et demie environ. Un résumé omet ces trois champs tant qu’ils ne sont pas renseignés.
 
 `POST /api/v1/projects/{id}/runs/{runId}/cancel` arrête l’exécution à la prochaine limite entre nœuds. Il n’annule pas les effets déjà produits.
 
 Une exécution en échec expose un `failureCode` stable en plus du message lisible dans `detail`. Les autres états renvoient `null` ; une ancienne exécution en échec peut aussi ne pas avoir de code. Les résumés omettent un code non renseigné.
 
+Deux codes concernent une exécution interrompue (contrat 3.18.0). `engine_incompatible` signifie que cette version de Tale n’a pas pu lire la progression enregistrée de l’exécution et l’a arrêtée au lieu de la recommencer : aucune étape ne s’est exécutée deux fois. `effect_in_doubt` signifie qu’une personne a fait échouer l’exécution sur une écriture qui avait peut-être déjà atteint son service ; vérifie ce service avant de lancer une nouvelle exécution.
+
 Une exécution lancée par un déclencheur (`startedBy: "trigger:<id>"`) porte aussi `startedVia` — `schedule`, `webhook` ou `event` —, lu dans l’entrée de l’exécution elle-même : une liste distingue ainsi une exécution planifiée d’une livraison webhook, et une ancienne exécution garde son type même si la liaison change ensuite. Les exécutions lancées par une personne ou une clé API omettent ce champ (contrat 2.1.0).
 
 | Origine de l’échec | Exemples et action |
 | --- | --- |
-| Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
+| Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
 | Fournisseur de modèle | Par exemple `credit_exhausted` ou `rate_limited` : résous le problème du fournisseur avant un nouvel essai. |
-| Exécution d’agent | Par exemple `harness_error`, `session_gone`, `deadline` ou `budget_exceeded` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
+| Exécution d’agent | Par exemple `harness_error`, `session_gone` ou `deadline` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
+| Limite de budget | `budget_exceeded` : une limite de budget a refusé un tour d’agent ou l’appel d’une étape `llm`, ou un tour a épuisé l’enveloppe avec laquelle il a démarré. Lis `detail`, puis attends que la limite se réinitialise ou demande à un administrateur de la relever. |
 
 Le code identifie la cause sans garantir qu’un redémarrage complet soit sans effet indésirable : des nœuds précédents peuvent déjà avoir modifié un système externe. `startedAt` indique l’acceptation du démarrage, avant sa prise en charge par un worker. Aucun horodatage distinct ne marque cette prise en charge ; `finishedAt - startedAt` inclut donc la file et les autres attentes.
 
@@ -800,6 +844,42 @@ Avec `include`, une page contient au maximum 25 lignes et 8 Mio. Elle peut s’a
 Une automatisation sans association à un projet peut démarrer sans projet via `POST /api/v1/automations/{name}/runs`. Une automatisation associée donne **409** sur cette route. `GET /api/v1/automations/{name}/runs` et `/api/v1/runs/{runId}` exposent uniquement les exécutions sans projet. Pour lire, annuler ou supprimer une exécution de projet, utilise toujours la route de ce projet.
 
 `DELETE /api/v1/projects/{id}/runs/{runId}`, ou `/api/v1/runs/{runId}`, exige la capacité développeur et supprime une exécution terminée, entrée et sortie comprises. Une exécution active donne **409**, `RUN_ACTIVE` : annule-la d’abord.
+
+### Lire une exécution étape par étape
+
+`GET /api/v1/runs/{runId}/record` (ou la forme projet) renvoie l’enregistrement de l’exécution : chaque étape dans l’ordre où elle s’exécute – l’entrée de l’exécution comme `__start`, les étapes de la version, la sortie du document comme `__end` – avec son statut, ses durées et ses tentatives, les décisions qui l’ont exécutée ou ignorée (chaque condition expliquée avec les valeurs qu’elle a lues), pourquoi elle n’a produit aucune sortie, remonté jusqu’à la cause, pourquoi elle a échoué (une `reason` tirée d’une liste fixe, avec les `params` qui la formulent), et un aperçu de ce qu’elle a reçu et renvoyé. Les valeurs elles-mêmes restent hors de l’enregistrement : lis une étape en entier sur `…/record/node?node=<path>` et ajoute `item` ou `pass` pour l’un de ses éléments ou passages. `…/record/items?node=<path>` parcourt les éléments et passages d’une étape page par page ; `status=failed` ne garde que ceux qui ont échoué. `…/compare/{otherRunId}` compare deux exécutions de la même automatisation étape par étape et nomme la première étape où elles ont divergé ; des exécutions d’automatisations différentes renvoient **400** `RUN_COMPARE_MISMATCH`. Chaque lecture demande le même accès que la lecture de l’exécution, et les secrets restent partout retenus.
+
+Pour suivre une exécution pendant qu’elle travaille, renvoie le `cursor` de l’enregistrement comme `since` : la réponse ne contient alors que les étapes écrites depuis et les événements depuis – fusionne les étapes par `path` et les événements par `id`. Un enregistrement reste sous 512 KiB et une étape sous 256 KiB ; `truncated` dit ce qui a été laissé de côté pour tenir. Ces lectures nécessitent le contrat d’API 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "format": 1, "nodes": [{ "path": "__start", "status": "succeeded", … },
+#   { "path": "triage", "status": "skipped", "skip": { "reason": "when", … },
+#     "decisions": [{ "kind": "when", "result": false, "explanation": [ … ] }] }, …],
+#   "cursor": 1758210000000 }
+```
+
+### Relancer une exécution
+
+`POST /api/v1/runs/{runId}/replay` (ou la forme projet) démarre une nouvelle exécution de la même automatisation, dans le périmètre de l’exécution : avec son entrée (`"kind": "again"`), avec une `input` que tu envoies (`"edited"`), ou à partir d’une étape (`"from"` avec `from`). Une relance à partir d’une étape réutilise les étapes que l’exécution a terminées hors de cette étape et de ce qu’elle alimente – leurs résultats et leur enregistrement, jamais leurs effets – et exécute le reste ; le `replayOf` de la nouvelle exécution nomme celle qu’elle relance. `version` choisit la version (`same` par défaut, ou `deployed`, `latest`, un numéro) et `mode` le mode (celui de l’exécution par défaut). Une relance réelle demande la capacité de développeur et la version déployée, et une relance à partir d’une étape d’une exécution simulée reste simulée (**409** `REPLAY_MODE_MISMATCH`).
+
+Une étape qui écrit s’exécute à nouveau et écrit à nouveau, sous une nouvelle clé de requête : les services qui ignorent les requêtes répétées n’y verront donc pas une répétition. Planifie d’abord : `GET …/replay` avec la même requête dans la query renvoie ce qui est réutilisé, ce qui s’exécute à nouveau, ce que chaque étape fait hors de Tale, et `writesAgain`, les écritures qui repartent une seconde fois – ou le `refusal` qu’elle rencontrerait : l’exécution n’est pas terminée (`REPLAY_RUN_NOT_FINISHED`), la version à exécuter a changé ce que calcule une étape réutilisée (`REPLAY_GRAPH_CHANGED`, avec les étapes), aucune étape de ce nom (`REPLAY_NODE_UNKNOWN`), ou l’exécution n’a gardé aucune entrée (`REPLAY_INPUT_UNAVAILABLE`). Envoie `Idempotency-Key` pour pouvoir réessayer sans risque. Ces points d’accès nécessitent le contrat d’API 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/replay?kind=from&from=send" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "reuse": [{ "nodeId": "fetch", "status": "ok" }], "rerun": [{ "nodeId": "send", "effect": "write", … }],
+#   "writesAgain": 1, … }
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/runs/<runId>/replay" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: fix-4711" \
+  -d '{ "kind": "from", "from": "send" }'
+# → 202 { "runId": "...", "version": 3, "mode": "live", "kind": "from", "reused": 1 }
+```
 
 ## Agir pour un membre : répondre à la question d’une exécution, décider la relecture d’une tâche
 
@@ -1137,6 +1217,7 @@ Les erreurs d’embedding demandent des traitements distincts :
 - **409**, `EMBEDDING_CREDIT_EXHAUSTED` : le fournisseur refuse pour une raison de compte, comme un solde épuisé, un plafond de dépenses ou un forfait sans accès au modèle.
 - **409**, `EMBEDDING_CREDENTIAL_REJECTED` : le fournisseur rejette la clé ou son accès au modèle. Le même code répond quand la plateforme n’a aucun identifiant utilisable à envoyer : le fournisseur n’a pas d’identifiants par défaut, ou ceux que nomment les réglages d’embedding ont été supprimés, désactivés ou sont illisibles ; `error` en donne la raison.
 - **503**, `EMBEDDING_UPSTREAM_ERROR` : autre panne du fournisseur, avec `Retry-After`. Réessaie en espaçant progressivement les tentatives.
+- **429**, `BUDGET_EXCEEDED` : l’embedding de la requête est une requête de modèle que paie la personne titulaire de la clé. Un plafond de budget qui s’applique à elle, à l’une de ses équipes, au projet recherché, à l’organisation ou à la clé est atteint ; rien n’est recherché. `data` nomme le plafond et `Retry-After` le délai jusqu’à la réinitialisation de sa période.
 
 Les refus liés au compte ou aux identifiants ne sont pas des limites de débit. Ils nécessitent une correction par un administrateur, pas une simple attente.
 
@@ -1447,7 +1528,7 @@ Le `projectId` vient de l’URL : le répéter dans le corps provoque **400**. 
 
 Avec `externalSystem: "github"` ou `"glitchtip"`, `externalState` ne modifie jamais le statut de la tâche Tale. Les nouvelles tâches arrivent dans `backlog` ; fermer, résoudre ou rouvrir l’issue à la source ne change pas leur avancement local. Les automatisations d’import affichent l’état de la source séparément sur la tâche.
 
-Pour les autres systèmes sources, `externalState` synchronise l’état de l’élément source :
+Pour les autres systèmes sources, `externalState` synchronise l’état de l’élément source selon les règles suivantes. Dès qu’une tâche utilise la route de statut source validé décrite ci-dessous, les actualisations suivantes par cette entrée conservent son statut et son archivage au lieu d’appliquer ces règles ouvert/fermé :
 
 - `closed` place la tâche en `in_review` pour qu’une personne puisse la terminer. Dans ce parcours de synchronisation, seul un appel du moteur de workflow lui-même peut directement la placer en `done`.
 - `open` ramène en `backlog` une tâche que la synchronisation avait placée en `in_review`, ou une tâche en `done`.
@@ -1520,6 +1601,33 @@ Ces vérifications précèdent la facturation du budget de démarrage. `reason: 
 
 Des démarrages simultanés de la même tâche avec la même automatisation retrouvent la même exécution active. Ce mécanisme ne correspond pas à une prise en charge d’`Idempotency-Key` pour les tâches : après sa fin, un nouvel appel peut créer une autre exécution. Conserve le `runId` renvoyé et consulte-le avant de répéter un démarrage au résultat incertain.
 
+### Synchroniser un statut source validé
+
+Depuis le contrat 3.16.0, une source personnalisée qui valide ses propres transitions métier peut refléter les six colonnes Tale, y compris une clôture approuvée à la source. Crée d’abord la tâche avec ses clés externes par la route d’entrée. La projection exige exactement ses `externalSystem` et `externalId`, un projet actif et le droit existant de modifier la tâche. GitHub, GlitchTip et les tâches portant un instantané d’issue externe sont exclus (`TASK_EXTERNAL_REF_INVALID`).
+
+Lis `GET /api/v1/projects/{id}/tasks/{taskId}/status` avant de valider un déplacement sur le tableau. La réponse contient `task`, la `revision` opaque, `statusChangedAt`, la modification du statut actuel `change` et le dernier reçu accepté `externalStatus`. Un archivage ou une restauration ultérieurs augmentent `revision` tout en conservant l’auteur réel du statut dans `change`. `change.origin` distingue `native` de `external`. Pour une personne, `actor.userId` identifie l’auteur enregistré ; `actor.email` apparaît uniquement tant qu’elle est membre actif et vérifié de l’organisation. Vérifie `actor.type`, `emailVerified` et `activeMember` avant de transmettre son intention à la source. Une identité absente ou non fiable ne doit pas être remplacée par celle du worker.
+
+Une fois la transition métier acceptée ou refusée par la source, reflète son état accepté avec `PUT /api/v1/projects/{id}/tasks/{taskId}/external-status`. Remplace `<observed-revision>` par la révision que tu as validée et utilise la révision et l’horodatage d’état de ta source :
+
+```bash
+curl -sS --compressed -X PUT "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/external-status" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "externalSystem": "quality-service", "externalId": "ticket:7", "expectedRevision": "<observed-revision>", "sourceRevision": "accepted:2", "sourceStatusAt": 1791229200000, "status": "done", "archived": false }'
+# → 200, l’instantané de statut actualisé
+```
+
+`status` vaut `backlog`, `todo`, `in_progress`, `in_review`, `done` ou `cancelled`. `archived` est facultatif : sans ce champ, l’archivage actuel reste inchangé. Statut et archivage changent atomiquement, même pour une tâche déjà archivée ; attribution, commentaires et autres champs sont conservés. Tale enregistre la décision source comme preuve externe attribuée au détenteur de la clé. Il n’enregistre aucune approbation humaine Tale, ne démarre aucun agent, n’ouvre aucune seconde relecture et ne crée aucune copie récurrente locale. Quitter une relecture humaine en attente la retire. Une relecture attribuée à un agent refuse la projection avec **409** `TASK_AGENT_REVIEW_REQUIRED` jusqu’à sa résolution ou son transfert explicite par son propriétaire natif. Des sous-tâches ouvertes empêchent toujours un statut final avec `TASK_HAS_OPEN_SUBTASKS`.
+
+`revision` change lors des modifications d’état, pas lors des actualisations ordinaires du titre, des libellés ou des commentaires. Une `expectedRevision` différente provoque **409** `TASK_STATUS_CONFLICT` : relis et valide la nouvelle intention avant de réessayer. `sourceStatusAt` doit augmenter à chaque changement de statut ou d’archivage source, même lors du retour à un état précédent. Les observations anciennes ou les états contradictoires au même horodatage provoquent **409** `TASK_EXTERNAL_STATUS_STALE`. Une `sourceRevision` portant uniquement un changement de contenu peut conserver l’horodatage si statut et archivage sont identiques. Un nouvel essai identique après une réponse perdue ne modifie rien uniquement tant que cette projection reste la dernière révision d’état. Conserve les reçus et compare régulièrement les deux côtés pour réconcilier redémarrages, événements manqués et changements refusés. Explique le refus à l’utilisateur puis projette l’état accepté par la source avec la révision fraîchement lue.
+
+La projection peut publier `workflow: { actions: [...] }`. Chaque action contient `id`, `title`, le `status` cible Tale, éventuellement `description`/`i18n`, et des `fields` au format des paramètres existants : `key`, `label`, `type`, `required`, `default`, `pattern`, `options`, aide et textes localisés. Types : `text`, `number`, `boolean`, `select` ; le texte accepte `multiline: true`. La déclaration appartient à la `sourceRevision` acceptée. Limites : 16 actions, 30 champs par action, 1 000 options, 4 000 caractères par texte/défaut, 256 KiB au total. Des motifs sûrs imposent les limites plus étroites de la source avant la capture. L'omission conserve le formulaire ; un tableau d'actions vide retire les actions disponibles.
+
+Les détails natifs affichent ces actions, y compris une vérification dans la même colonne ou une clôture/réouverture avec notes obligatoires. Un membre vérifié et actif envoie via la route réservée aux sessions `POST /api/app/tasks/{taskId}/external-status-request?orgId={organizationId}` avec `{requestId, expectedRevision, expectedSourceRevision, actionId, values}`. `requestId` est un nouvel UUID ; `values` contient les chaînes déclarées. Tale vérifie champs obligatoires, motifs et choix, puis convertit nombres et booléens. La session fournit la personne réelle : ni une clé API ni un acteur choisi dans le corps ne peuvent envoyer. L'intention immuable avance `revision` sans déplacer la colonne. Une seule demande peut attendre ; une répétition identique conserve ID et corps, un corps différent sous le même ID provoque un conflit.
+
+Le snapshot `/status` contient `workflow` et la dernière `request` : `id`, `revision`, `statusChangeId` capturé, `actionId`, `status` cible, `input` typé avec `move`, `sourceRevision`/`sourceStatusAt` d'origine, acteur actuellement vérifié et `decision` durable ou `null`. Valide toutes les règles et la version source avec cet acteur et l'entrée complète. Compare `change.id` à `request.statusChangeId` pour distinguer un changement de colonne indépendant ultérieur d'un ancien changement remplacé par le formulaire ; l'archivage avance la CAS sans changer l'origine du statut. Persiste la décision sous `request.id` avant de répondre, pour éviter une nouvelle exécution après perte de réponse. Projette l'état accepté actuel avec CAS fraîche et `requestId`/`decision: {accepted, reason?}` ensemble. Un refus exige un motif visible ; une décision enregistrée ne peut pas être contredite. Un ancien accusé fidèle règle son propre historique après rapprochement des intentions plus récentes, sans remplacer la dernière demande. Demandes et décisions survivent aux redémarrages et rechargements.
+
 ### Archiver ou restaurer une tâche
 
 `PATCH /api/v1/projects/{id}/tasks/{taskId}` avec `{ "archived": true }` archive la tâche — comme depuis le tableau : elle reste lisible ici et refuse les commentaires et les démarrages avec **403**, `TASK_ARCHIVED` — et `{ "archived": false }` la restaure. Les deux sont idempotents ; un miroir qui remplace une tâche (une nouvelle livraison qui en a ouvert une autre, un enregistrement source annulé) classe l’ancienne sans la lire d’abord. Il faut un projet **actif** et le droit de modifier la tâche, en tant qu’Éditeur ou rôle supérieur, ou en tant que membre qui l’a créée ou à qui elle est attribuée (**403**, `PROJECT_ARCHIVED` ou `RBAC_FORBIDDEN`) ; la tâche elle-même peut être archivée, c’est à cela que sert la restauration. Le corps contient exactement `archived` ; le titre, la description et les libellés passent par la répétition de l’admission. La réponse est la tâche dans son nouvel état.
@@ -1560,6 +1668,8 @@ La lecture d’une tâche renvoie aussi son calendrier, en lecture seule sur cet
 ### Lire les commentaires et télécharger les livrables
 
 Lors de l’écriture d’un commentaire, le texte d’origine `body`, sans ses espaces de début et de fin, doit compter de 1 à 10 000 unités de code UTF-16 (la plupart des emojis en comptent 2). Tu peux lui ajouter `bodyByLocale`. La lecture le renvoie lorsqu’il existe. Fournis des traductions équivalentes et non vides pour `en`, `de` et `fr` ; d’autres clés de langue ou de région, comme `nl`, `it` et `de-CH`, sont acceptées. Chaque valeur est nettoyée et limitée de la même façon, avec au plus 16 langues par commentaire. Affiche la variante exacte choisie par le lecteur, puis la langue de base, puis `en`, puis `body`. L’auteur reste le titulaire de la clé. Une modification du texte seul dans Tale efface les anciennes traductions pour qu’elles ne masquent pas la modification.
+
+Une mention est enregistrée comme un lien Markdown qui désigne la personne mentionnée : `[@Ada Lovelace](mention:user/<userId>)`, ou `agent/` suivi de l’ID d’un agent du projet, ou `automation/` suivi du nom d’enregistrement d’une automatisation. Quand tu envoies `@` suivi du `handle` d’un agent, du nom d’e-mail d’un membre, du nom d’enregistrement d’une automatisation ou d’un ID, Tale enregistre ce lien, et la mention reste valable après un renommage. Un texte écrit avant le contrat 3.24.0 continue de désigner les agents qu’il désignait : un agent répond toujours à son nom d’alors, en minuscules, avec des points à la place des espaces ou sans espaces. Le texte entre crochets est le nom au moment de l’enregistrement du commentaire ; `bodyText` renvoie le commentaire avec chaque mention sous la forme `@` suivi du nom actuel. Compare donc les mots avec `bodyText` et affiche `body`. Si tu mentionnes quelqu’un qui ne peut pas ouvrir la tâche, un agent d’un autre projet ou une personne extérieure à l’organisation, la mention est enregistrée en texte brut et ne notifie personne ; dans du code, une mention reste du texte. Les lectures de tâche renvoient `description` sous la même forme enregistrée, avec `descriptionText` à côté. La collecte de tâches enregistre de la même façon les mentions de la description, sans notifier personne ; une tâche dont `externalSystem` vaut `github` ou `glitchtip` garde les `@noms` de ce suivi tels qu’ils sont écrits (contrat 3.24.0).
 
 Les agents de tâche et de workflow reçoivent la consigne de conserver la langue du titre et de la description de la tâche. Si aucune langue ne s’en dégage, ils utilisent celle définie par défaut pour les agents de l’organisation. Les mots fixes d’un modèle de titre, les identifiants de trimestre, la langue des documents sources et celle de l’interface de la personne qui démarre l’exécution ne déterminent pas la langue de la tâche. Cette règle couvre aussi les questions, les reprises et la création de tâches associées. Il s’agit de consignes au modèle ; les traductions enregistrées des commentaires de progression permettent aux clients de choisir la langue affichée indépendamment de celle de la tâche.
 
@@ -1646,7 +1756,7 @@ Un instantané de contenu plus récent lié à un contact dans la corbeille donn
 | **408** | la réception complète des en-têtes et du corps a dépassé 15 minutes : `REQUEST_TIMEOUT`. La réponse contient un nouveau `requestId`, car la requête expirée n’en avait pas encore reçu. La connexion est fermée ; utilise une connexion plus rapide ou des transferts plus petits pour réessayer. |
 | **431** | les en-têtes dépassent ensemble le plafond de 64 Kio du serveur frontal. En HTTP/1.1, la réponse n’a ni enveloppe JSON ni `X-Request-Id` — l’analyseur du frontal l’écrit avant qu’une route tourne. Le frontal tolère quelques Kio de marge : une URL ou un en-tête légèrement trop long peut encore atteindre la plateforme et y être refusé selon ses règles. Une URL de 66 Kio reçoit ainsi **414**. En HTTP/2, le plafond de 64 Kio est strict et son dépassement entraîne la fermeture de la connexion. |
 | **500** | une erreur interne est survenue : `INTERNAL_ERROR`. Fournis le `requestId` de l’enveloppe lorsque tu la signales. |
-| **503** | une dépendance nécessaire est indisponible. La base de données de la plateforme peut elle-même redémarrer ou être injoignable (`DATABASE_UNAVAILABLE`, avec `Retry-After` et un `requestId`) : toute opération peut alors répondre ainsi, y compris le déclencheur webhook et la vérification de la clé, si bien qu’une clé valide n’est jamais refusée avec **401** pendant ce temps. Cela comprend aussi le fournisseur d’embedding (`EMBEDDING_UPSTREAM_ERROR`, avec `Retry-After`), le stockage d’un téléchargement (`OBJECT_STORE_UNAVAILABLE`, avec `Retry-After`), un stockage non configuré (`OBJECT_STORE_UNCONFIGURED`) ou une purge inachevée (`PURGE_INCOMPLETE`). `KNOWLEDGE_ENTRY_STORE_TIMEOUT` signifie que le stockage a accepté l’écriture d’une entrée de connaissances sans répondre dans les 30 secondes ; aucun enregistrement n’est créé. Réessaie avec un délai croissant. |
+| **503** | une dépendance nécessaire est indisponible. La base de données de la plateforme peut elle-même redémarrer ou être injoignable (`DATABASE_UNAVAILABLE`, avec `Retry-After` et un `requestId`) : toute opération peut alors répondre ainsi, y compris le déclencheur webhook et la vérification de la clé, si bien qu’une clé valide n’est jamais refusée avec **401** pendant ce temps. Cela comprend aussi le fournisseur d’embedding (`EMBEDDING_UPSTREAM_ERROR`, avec `Retry-After`), le stockage d’un téléchargement (`OBJECT_STORE_UNAVAILABLE`, avec `Retry-After`), un stockage non configuré (`OBJECT_STORE_UNCONFIGURED`), une purge inachevée (`PURGE_INCOMPLETE`) ou la liste des personnes, agents et automatisations qu’un commentaire ou la description d’une nouvelle tâche mentionne (`MENTION_DIRECTORY_UNAVAILABLE`, rien n’est publié ni créé). `KNOWLEDGE_ENTRY_STORE_TIMEOUT` signifie que le stockage a accepté l’écriture d’une entrée de connaissances sans répondre dans les 30 secondes ; aucun enregistrement n’est créé. Réessaie avec un délai croissant. |
 | **502**, **503**, **504** | le serveur frontal ne peut pas joindre la plateforme, par exemple pendant son redémarrage : `UPSTREAM_UNAVAILABLE`. Il fournit `Retry-After` et un nouveau `requestId`, sans `X-Tale-Api-Version`. Ce comportement concerne les routes destinées aux programmes : `/api/*`, `/events`, `/status.json`, `/openapi.json` et `/.well-known/*`. Une navigation dans le navigateur reçoit la page de maintenance. Réessaie avec un délai croissant. |
 
 Un `If-Match` de document qui ne correspond plus à sa représentation lue donne aussi `412 PRECONDITION_FAILED`, avec le tag courant dans `data.etag` et aucune écriture.

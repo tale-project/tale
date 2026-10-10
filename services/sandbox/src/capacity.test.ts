@@ -1,12 +1,7 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
 import type { K8sClient } from './backend/kubernetes/k8s-client.ts';
-import {
-  CapacityReader,
-  parseCpuCounters,
-  parseMemory,
-  usedCpuCores,
-} from './capacity.ts';
+import { CapacityReader } from './capacity.ts';
 import { loadConfig } from './config.ts';
 import type { RunDockerResult } from './spawn-util.ts';
 
@@ -267,6 +262,45 @@ describe('infrastructure capacity observations', () => {
     expect(sleep).toHaveBeenCalledTimes(2);
   });
 
+  test('host resources alone read /proc and never list containers', async () => {
+    const docker = dockerStub();
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker,
+      sleep: async () => {},
+      kernelRelease: () => 'test-kernel',
+      read: async (path) =>
+        path === '/proc/stat'
+          ? 'cpu 100 0 0 100 0 0 0 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n'
+          : 'MemTotal: 1000 kB\nMemAvailable: 400 kB\nMemFree: 10 kB\n',
+    });
+    const resources = await reader.hostResources();
+    expect(resources.memory).toEqual({
+      totalBytes: 1024_000,
+      usedBytes: 600 * 1024,
+    });
+    expect(resources.cpu.totalCores).toBe(2);
+    await reader.hostResources();
+    expect(docker.mock.calls.map(([args]) => args[0])).toEqual([
+      'info',
+      'context',
+    ]);
+  });
+
+  test('host resources are unknown, never an error, while the daemon does not answer', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const reader = new CapacityReader(config(), () => new Map(), {
+        docker: mock(async () => ({ ...ok(''), exitCode: 1 })),
+      });
+      expect(await reader.hostResources()).toEqual({
+        cpu: { totalCores: null, usedCores: null },
+        memory: { totalBytes: null, usedBytes: null },
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('a failed second sample leaves the first CPU reading unknown but primes the next poll', async () => {
     let now = 10_000;
     let busy = 100;
@@ -315,6 +349,96 @@ describe('infrastructure capacity observations', () => {
       (await reader.forOrganization('a')).resources.cpu.usedCores,
     ).toBeNull();
     expect(read).not.toHaveBeenCalled();
+  });
+
+  test('reads the host facts once per ten minutes and the inventory on every snapshot', async () => {
+    let now = 10_000;
+    const docker = dockerStub();
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker,
+      now: () => now,
+      sleep: async () => {},
+      kernelRelease: () => 'test-kernel',
+      read: async (path) =>
+        path === '/proc/stat'
+          ? 'cpu 100 0 0 100 0 0 0 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n'
+          : 'MemTotal: 1000 kB\nMemAvailable: 400 kB\n',
+    });
+    const calls = (command: string) =>
+      docker.mock.calls.filter(([args]) => args[0] === command).length;
+    expect((await reader.forOrganization('a')).resources.memory.usedBytes).toBe(
+      600 * 1024,
+    );
+    expect([calls('ps'), calls('info'), calls('context')]).toEqual([1, 1, 1]);
+    // Each later snapshot forks the inventory alone and still reads usage.
+    now += 6_000;
+    const later = await reader.forOrganization('a');
+    expect(later.resources.memory).toEqual({
+      totalBytes: 1024_000,
+      usedBytes: 600 * 1024,
+    });
+    expect(later.resources.cpu.totalCores).toBe(2);
+    expect([calls('ps'), calls('info'), calls('context')]).toEqual([2, 1, 1]);
+    now += 10 * 60_000;
+    await reader.forOrganization('a');
+    expect([calls('ps'), calls('info'), calls('context')]).toEqual([3, 2, 2]);
+  });
+
+  test('a DOCKER_HOST naming the local socket needs no context lookup', async () => {
+    const cfg = config();
+    process.env.DOCKER_HOST = 'unix:///var/run/docker.sock';
+    const docker = dockerStub();
+    const reader = new CapacityReader(cfg, () => new Map(), {
+      docker,
+      sleep: async () => {},
+      kernelRelease: () => 'test-kernel',
+      read: async () => 'MemTotal: 1000 kB\nMemAvailable: 400 kB\n',
+    });
+    expect((await reader.forOrganization('a')).resources.memory.usedBytes).toBe(
+      600 * 1024,
+    );
+    expect(
+      docker.mock.calls.filter(([args]) => args[0] === 'context'),
+    ).toHaveLength(0);
+  });
+
+  test('an endpoint the CLI could not resolve keeps the totals and is asked again after 30 s', async () => {
+    let now = 10_000;
+    let contextFails = true;
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    const stub = dockerStub();
+    const docker = mock(async (args: string[]) =>
+      args[0] === 'context' && contextFails
+        ? { ...ok(''), exitCode: 1 }
+        : stub(args),
+    );
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker,
+      now: () => now,
+      sleep: async () => {},
+      kernelRelease: () => 'test-kernel',
+      read: async () => 'MemTotal: 1000 kB\nMemAvailable: 400 kB\n',
+    });
+    const contextCalls = () =>
+      docker.mock.calls.filter(([args]) => args[0] === 'context').length;
+    try {
+      expect((await reader.forOrganization('a')).resources.memory).toEqual({
+        totalBytes: 1024_000,
+        usedBytes: null,
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      now += 6_000;
+      await reader.forOrganization('a');
+      expect(contextCalls()).toBe(1);
+      contextFails = false;
+      now += 30_000;
+      expect(
+        (await reader.forOrganization('a')).resources.memory.usedBytes,
+      ).toBe(600 * 1024);
+      expect(contextCalls()).toBe(2);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('namespace inventory includes pending Pods and does not pretend to measure cluster nodes', async () => {
@@ -443,22 +567,4 @@ describe('infrastructure capacity observations', () => {
       expect(kubernetesReader(response).forOrganization('a')).rejects.toThrow();
     }
   });
-});
-
-test('CPU counter parsing ignores already-accounted guest time and handles resets', () => {
-  const parsed = parseCpuCounters(
-    'cpu 10 10 10 70 10 0 0 0 100 100\ncpu0 1 1 1 1\n',
-  );
-  expect(parsed).toEqual({ total: 110, idle: 80, cores: 1 });
-  expect(usedCpuCores({ total: 120, idle: 90, cores: 1 }, parsed!)).toBeNull();
-  expect(parseCpuCounters('cpu broken')).toBeNull();
-});
-
-test('memory pressure uses MemAvailable, including genuinely zero available bytes', () => {
-  expect(parseMemory('MemTotal: 1000 kB\nMemAvailable: 0 kB\n')).toEqual({
-    totalBytes: 1024_000,
-    usedBytes: 1024_000,
-  });
-  expect(parseMemory('MemTotal: 1000 kB\nMemFree: 0 kB\n')).toBeNull();
-  expect(parseMemory('MemTotal: 1000 kB\nMemAvailable: 2000 kB\n')).toBeNull();
 });

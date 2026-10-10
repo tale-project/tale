@@ -55,12 +55,25 @@ export function createRestBrowserSessionRoutes(deps: {
     });
   });
 
+  /** A key bound to one organization acts with that one membership; its
+   * member's standing in other organizations is not the key's. */
+  const boundMembership = (c: Context<RestEnv>) =>
+    c.get('apiKeyOwner') !== null
+      ? {
+          boundMembership: {
+            organizationId: c.get('organizationId'),
+            role: c.get('role'),
+          },
+        }
+      : {};
+
   /** Null when the key holder may write to the pool; the 403 otherwise. */
   const importerRefusal = async (c: Context<RestEnv>) => {
     try {
       await assertBrowserSessionImporter(deps.sql, {
         callerUserId: c.get('userId'),
         callerEmail: c.get('userEmail'),
+        ...boundMembership(c),
       });
       return null;
     } catch (error) {
@@ -77,6 +90,7 @@ export function createRestBrowserSessionRoutes(deps: {
       const result = await importBrowserSession(deps.sql, {
         callerUserId: c.get('userId'),
         callerEmail: c.get('userEmail'),
+        ...boundMembership(c),
         organizationId: c.get('organizationId'),
         ...body,
       });

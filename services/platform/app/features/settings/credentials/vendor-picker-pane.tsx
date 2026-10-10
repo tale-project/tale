@@ -7,6 +7,7 @@ import { SearchInput } from '@tale/ui/search-input';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { VendorIcon } from '@tale/ui/vendor-icon';
 import { ChevronRight, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -17,7 +18,6 @@ import {
   type CredentialLike,
   type CredentialVendor,
 } from './adapter';
-import { VendorIcon } from './vendor-icon';
 
 /**
  * Step one of adding a credential: the whole shipped catalog, as a list.

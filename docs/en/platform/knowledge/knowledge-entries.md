@@ -39,7 +39,7 @@ Avoid relative dates such as “next Friday” or references such as “the poli
 
 <Step title="Save and check indexing">
 
-Click **Save**. The entry appears in the table with its topic, content, source (**Manual** for the form, **Chat** for a fact the assistant captured, **API** for one an integration wrote over REST), indexing status, and update time. Open it to read the full content. Indexing happens in the background; saving the row does not mean search is already using it.
+Click **Save**. The entry appears in the table with its topic, content, source (**Manual** for the form, **Chat** for a fact the assistant captured, **API** for one an integration wrote over REST, **Agent** for one an agent saved), indexing status, and update time. Open it to read the full content. Indexing happens in the background; saving the row does not mean search is already using it.
 
 </Step>
 
@@ -62,6 +62,16 @@ Open the entry's details to inspect **Version history** after a correction. Prev
 When a chat uncovers a useful fact, verify it against the source, then add or edit an entry yourself. Chat does not automatically save facts to the organization's knowledge base.
 
 </Tip>
+
+## Let an agent keep facts current
+
+A project agent or an automation's agent step can save facts too. Give it **Add and edit knowledge entries** under **Skills, connectors & tools** in the [agent's equipment](/platform/projects/project-agents). The agent saves one fact per topic; a topic without an entry gets a new one, with **Agent** as its source.
+
+To change an existing entry, the agent must name the version it read. If a person or another agent changed the entry in the meantime, nothing is saved: the agent receives the current text and merges its change into it. **Version history** keeps every earlier text, as it does for your own edits.
+
+Entries belong to the whole organization, so a run a Member started can't save any, and no agent can delete an entry. Agents have their own limit on how many entries they save per minute, so a busy agent never holds up people editing entries. Every save by an agent is recorded in the audit log.
+
+Agents always search the knowledge base, with no grant needed: the equipment menu lists this as **Search the knowledge base**, always on.
 
 ## Remove an obsolete entry
 

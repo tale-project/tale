@@ -3,7 +3,6 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -11,6 +10,7 @@ import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
+  assertBrandingWriter,
   BrandingError,
   deleteBrandingImage,
   readBranding,
@@ -24,8 +24,9 @@ import {
  * /api/app/branding — per-org theming. The READ is deliberately open (the
  * pre-auth login shell needs the `default` bucket before any session
  * exists; an org id that no longer resolves falls back to it too). Writes
- * require the `orgSettings` capability in the org, matching the settings
- * page's own gate. Image bytes are served by the shell's static handler.
+ * require the `orgSettings` capability in the org (`assertBrandingWriter`),
+ * matching the settings page's own gate. Image bytes are served by the
+ * shell's static handler.
  */
 
 function handleError<E extends OrgEnv>(
@@ -53,16 +54,10 @@ export function createBrandingRoutes(deps: {
   const admin = new Hono<OrgEnv>();
   admin.use(requireSession(deps.auth), requireOrgMember(deps.sql));
   admin.use(async (c, next) => {
-    if (
-      defineAbilityFor(c.get('orgMember').role).cannot('write', 'orgSettings')
-    ) {
-      return c.json(
-        {
-          error: 'ORG_FORBIDDEN',
-          message: `Role "${c.get('orgMember').role}" lacks the org-settings capability required to modify branding.`,
-        },
-        403,
-      );
+    try {
+      assertBrandingWriter(c.get('orgMember').role);
+    } catch (error) {
+      return handleError(c, error);
     }
     return next();
   });

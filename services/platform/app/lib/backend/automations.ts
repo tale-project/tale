@@ -8,10 +8,15 @@
  */
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import {
+  nodeTypeCatalogSchema,
+  type NodeTypeCatalog,
+} from '@/lib/shared/schemas/node-type-catalog';
 
 import type {
   ActionQueryAdapter,
   AdapterContext,
+  PaginatedAdapter,
   ReadAdapter,
   WriteAdapter,
 } from './adapters';
@@ -21,13 +26,20 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 type GetAutomationResult = ReturnsOf<'automations/queries:getAutomation'>;
 type ListVersionsResult = ReturnsOf<'automations/queries:listVersions'>;
 type ListTriggersResult = ReturnsOf<'automations/queries:listTriggers'>;
+type ListTriggerRunsResult = ReturnsOf<'automations/queries:listTriggerRuns'>;
 type ListRunsResult = ReturnsOf<'automations/queries:listRuns'>;
 type GetRunResult = ReturnsOf<'automations/queries:getRun'>;
 type PendingAskResult = ReturnsOf<'automations/human_asks:getPendingAskForRun'>;
+type RunRecordResult = ReturnsOf<'automations/queries:getRunRecord'>;
+type RunNodeResult = ReturnsOf<'automations/queries:getRunNode'>;
+type RunItemsResult = ReturnsOf<'automations/queries:getRunItems'>;
+type CompareRunsResult = ReturnsOf<'automations/queries:compareRuns'>;
+type ReplayPlanResult = ReturnsOf<'automations/queries:getReplayPlan'>;
+type ReplayRunResult = ReturnsOf<'automations/mutations:replayRun'>;
+type RunInDoubtResult = ReturnsOf<'automations/queries:getRunInDoubt'>;
 type OrgAutomationMetricsResult =
   ReturnsOf<'automations/queries:getOrgAutomationMetrics'>;
 type ApprovalResult = ReturnsOf<'approvals/queries:getApproval'>;
-type NodeTypesResult = ReturnsOf<'automations/catalog:listNodeTypes'>;
 type AutomationCapabilitiesResult =
   ReturnsOf<'chat/composer:listAutomationCapabilities'>;
 type SaveAutomationResult = ReturnsOf<'automations/mutations:saveAutomation'>;
@@ -67,8 +79,18 @@ function stringArg(args: Record<string, unknown>, key: string): string {
   return value;
 }
 
+/** The attempt an in-doubt decision is about: without it the door could
+ * not tell an earlier attempt of a write from a later one. */
+function attemptArg(args: Record<string, unknown>): number {
+  const value = args.attempt;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new Error('Missing attempt for adapted write');
+  }
+  return value;
+}
+
 /** Automation names are '/'-separated paths — encode per segment. */
-function namePath(name: string): string {
+export function namePath(name: string): string {
   return name.split('/').map(encodeURIComponent).join('/');
 }
 
@@ -117,6 +139,28 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
           `/automations/${namePath(name)}/triggers`,
           { orgId },
         ).then((body) => body.triggers),
+    };
+  },
+  // Keyed under the run entity, so a run the trigger starts, or a status it
+  // reaches, refreshes the list through the run hints.
+  'automations/queries:listTriggerRuns': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    const limit = typeof args.limit === 'number' ? args.limit : 10;
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'trigger',
+        name,
+        String(limit),
+      ),
+      queryFn: () =>
+        backendFetch<{ runs: ListTriggerRunsResult }>(
+          `/automations/${namePath(name)}/trigger/runs?limit=${limit}`,
+          { orgId },
+        ).then((body) => body.runs),
     };
   },
   'automations/queries:listAutomationProjects': (args, ctx) => {
@@ -195,6 +239,168 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.ask),
     };
   },
+  // A run step by step. Keyed under the run, so its own hint refreshes the
+  // record, the open step and the open page; `since` asks only for what
+  // changed after a cursor, for a reader that merges.
+  'automations/queries:getRunRecord': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    if (orgId === undefined || typeof runId !== 'string') return null;
+    const params = new URLSearchParams();
+    if (typeof args.since === 'number') params.set('since', String(args.since));
+    if (args.travels === true) params.set('include', 'travels');
+    const qs = params.size > 0 ? `?${params.toString()}` : '';
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'record',
+        runId,
+        typeof args.since === 'number' ? args.since : null,
+        args.travels === true,
+      ),
+      queryFn: () =>
+        backendFetch<{ record: RunRecordResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/record${qs}`,
+          { orgId },
+        ).then((body) => body.record),
+    };
+  },
+  'automations/queries:getRunNode': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const node = args.node;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof node !== 'string'
+    ) {
+      return null;
+    }
+    const item = typeof args.item === 'number' ? args.item : -1;
+    const pass = typeof args.pass === 'number' ? args.pass : -1;
+    const params = new URLSearchParams({
+      node,
+      item: String(item),
+      pass: String(pass),
+    });
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'node',
+        runId,
+        node,
+        item,
+        pass,
+      ),
+      queryFn: () =>
+        backendFetch<{ node: RunNodeResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/record/node?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.node),
+    };
+  },
+  'automations/queries:getRunItems': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const node = args.node;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof node !== 'string'
+    ) {
+      return null;
+    }
+    const params = new URLSearchParams({ node });
+    if (typeof args.cursor === 'string') params.set('cursor', args.cursor);
+    if (typeof args.limit === 'number') params.set('limit', String(args.limit));
+    if (args.status === 'failed') params.set('status', 'failed');
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'items',
+        runId,
+        node,
+        params.toString(),
+      ),
+      queryFn: () =>
+        backendFetch<{ page: RunItemsResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/record/items?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.page),
+    };
+  },
+  'automations/queries:compareRuns': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const otherRunId = args.otherRunId;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof otherRunId !== 'string'
+    ) {
+      return null;
+    }
+    // Not under the run's own entity: a run's progress hint must not run
+    // the comparison of two finished runs again.
+    return {
+      queryKey: backendKey(orgId, 'automation_run_compare', runId, otherRunId),
+      queryFn: () =>
+        backendFetch<{ diff: CompareRunsResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/compare/${encodeURIComponent(otherRunId)}`,
+          { orgId },
+        ).then((body) => body.diff),
+    };
+  },
+  'automations/queries:getReplayPlan': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const kind = args.kind;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof kind !== 'string'
+    ) {
+      return null;
+    }
+    const params = new URLSearchParams({ kind });
+    if (typeof args.from === 'string') params.set('from', args.from);
+    if (typeof args.version === 'string' || typeof args.version === 'number') {
+      params.set('version', String(args.version));
+    }
+    if (typeof args.mode === 'string') params.set('mode', args.mode);
+    // Read when the replay dialog opens; a run's progress hint leaves it.
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_replay_plan',
+        runId,
+        params.toString(),
+      ),
+      queryFn: () =>
+        backendFetch<{ plan: ReplayPlanResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/replay?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.plan),
+    };
+  },
+  // Keyed under the run, so the run's own hint refreshes it: a decision
+  // taken elsewhere, or the run moving on, clears the card everywhere.
+  'automations/queries:getRunInDoubt': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    if (orgId === undefined || typeof runId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'automation_run', 'in-doubt', runId),
+      queryFn: () =>
+        backendFetch<{ inDoubt: RunInDoubtResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/in-doubt`,
+          { orgId },
+        ).then((body) => body.inDoubt),
+    };
+  },
   'automations/queries:getOrgAutomationMetrics': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -219,14 +425,22 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
   'sandbox/session_queries_public:getAgentNodeSandboxOp': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const runId = args.runId;
+    const nodeId = args.nodeId;
+    if (nodeId !== undefined && typeof nodeId !== 'string') return null;
     if (orgId === undefined || typeof runId !== 'string' || runId === '') {
       return null;
     }
     return {
-      queryKey: backendKey(orgId, 'automation', 'agent-node-op', runId),
+      queryKey: backendKey(
+        orgId,
+        'automation',
+        'agent-node-op',
+        runId,
+        ...(typeof nodeId === 'string' ? [nodeId] : []),
+      ),
       queryFn: () =>
         backendFetch<{ op: unknown }>(
-          `/sandbox/agent-node-op?runId=${encodeURIComponent(runId)}`,
+          `/sandbox/agent-node-op?runId=${encodeURIComponent(runId)}${typeof nodeId === 'string' ? `&nodeId=${encodeURIComponent(nodeId)}` : ''}`,
           { orgId },
         ).then((body) => body.op),
       // The execution log follows a LIVE turn: poll while the dialog is
@@ -249,6 +463,21 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
   },
 };
 
+/** The node-type catalog, parsed at the boundary: an answer in a shape this
+ * app does not read is a failed read (the editor then works from the core
+ * types alone), never a cast. */
+function readNodeTypeCatalog(body: unknown): NodeTypeCatalog {
+  const parsed = nodeTypeCatalogSchema.safeParse(body);
+  if (!parsed.success) {
+    console.warn(
+      '[automations] the node-type catalog answered in a shape this app does not read',
+      parsed.error.issues,
+    );
+    throw new Error('The node-type catalog answered in an unreadable shape.');
+  }
+  return parsed.data;
+}
+
 /** pg run rows carry `id`; the 0.4 wire uses `_id`. */
 function mapRunIds(rows: unknown[]): unknown[] {
   return rows.map((row) =>
@@ -264,10 +493,9 @@ export const automationActionQueryAdapters: Record<string, ActionQueryAdapter> =
       const orgId = orgOf(args, ctx);
       if (orgId === undefined) return null;
       return () =>
-        backendFetch<{ nodeTypes: NodeTypesResult }>(
-          '/automations/catalog/node-types',
-          { orgId },
-        ).then((body) => body.nodeTypes);
+        backendFetch<unknown>('/automations/catalog/node-types', {
+          orgId,
+        }).then(readNodeTypeCatalog);
     },
     'chat/composer:listAutomationCapabilities': (args, ctx) => {
       const orgId = orgOf(args, ctx);
@@ -294,6 +522,25 @@ function invalidateAutomations(
   });
 }
 
+/**
+ * What one run's hint refreshes: that run's own reads — its row, question,
+ * write in doubt, record, open step and open pages — and the listings and
+ * figures every run moves. Every read keyed under `automation_run` is
+ * built in this file, so this is the whole of them.
+ */
+export function runHintPrefixes(
+  orgId: string,
+  runId: string,
+): ReadonlyArray<readonly unknown[]> {
+  return [
+    backendKey(orgId, 'automation_run', 'list'),
+    backendKey(orgId, 'automation_run', 'metrics'),
+    ...(['detail', 'ask', 'in-doubt', 'record', 'node', 'items'] as const).map(
+      (read) => backendKey(orgId, 'automation_run', read, runId),
+    ),
+  ];
+}
+
 function invalidateRuns(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
   args: Record<string, unknown>,
@@ -305,6 +552,53 @@ function invalidateRuns(
     queryKey: backendEntityPrefix(orgId, 'automation_run'),
   });
 }
+
+/** The keyset cursor of the runs page (`<startedAt>|<id>`), or none. */
+function runPageCursor(next: unknown): string {
+  if (typeof next !== 'object' || next === null) return '';
+  const at = 'at' in next ? next.at : undefined;
+  const id = 'id' in next ? next.id : undefined;
+  return typeof at === 'number' && typeof id === 'string' ? `${at}|${id}` : '';
+}
+
+export const automationPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  // One automation's runs, newest first, narrowed as the Runs table asks;
+  // keyed under the run entity, so a run's hint refreshes the list.
+  'automations/queries:listRunsPaginated': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    const params = new URLSearchParams({ name });
+    if (typeof args.projectId === 'string') {
+      params.set('projectId', args.projectId);
+    }
+    if (Array.isArray(args.statuses) && args.statuses.length > 0) {
+      params.set('status', args.statuses.join(','));
+    }
+    if (args.mode === 'mock' || args.mode === 'live') {
+      params.set('mode', args.mode);
+    }
+    return {
+      queryKey: backendKey(orgId, 'automation_run', 'page', params.toString()),
+      fetchPage: (cursor, numItems) => {
+        const page = new URLSearchParams(params);
+        page.set('limit', String(Math.min(Math.max(numItems, 1), 100)));
+        if (cursor !== null && cursor !== '') page.set('cursor', cursor);
+        return backendFetch<{ items: unknown[]; next: unknown }>(
+          `/automations/runs/page?${page.toString()}`,
+          { orgId },
+        ).then((body) => {
+          const continueCursor = runPageCursor(body.next);
+          return {
+            page: body.items,
+            isDone: continueCursor === '',
+            continueCursor,
+          };
+        });
+      },
+    };
+  },
+};
 
 export const automationWriteAdapters: Record<string, WriteAdapter> = {
   'automations/mutations:saveAutomation': {
@@ -443,6 +737,47 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
       ),
     invalidate: invalidateRuns,
   },
+  'automations/mutations:replayRun': {
+    run: (args, ctx) => {
+      const { organizationId: _org, runId: _run, ...request } = args;
+      return backendFetch<ReplayRunResult>(
+        `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/replay`,
+        { orgId: requireOrg(args, ctx), body: request },
+      );
+    },
+    invalidate: invalidateRuns,
+  },
+  'automations/mutations:requestLegacyRunStop': {
+    run: (args, ctx) =>
+      backendFetch<ReturnsOf<'automations/mutations:requestLegacyRunStop'>>(
+        `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/legacy-quarantine`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            expectedClaimEpoch: args.expectedClaimEpoch,
+            expectedObservedAt: args.expectedObservedAt,
+            action: args.action,
+            acknowledgeUnknownExternalEffects:
+              args.acknowledgeUnknownExternalEffects,
+          },
+        },
+      ),
+    invalidate: invalidateRuns,
+  },
+  'automations/mutations:resolveRunInDoubt': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/in-doubt/${encodeURIComponent(stringArg(args, 'attemptId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            resolution: stringArg(args, 'resolution'),
+            attempt: attemptArg(args),
+          },
+        },
+      ).then(() => null),
+    invalidate: invalidateRuns,
+  },
   'approvals/mutations:updateApprovalStatus': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(
@@ -461,6 +796,11 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
       invalidateRuns(client, args, ctx);
       const orgId = orgOf(args, ctx);
       if (orgId === undefined) return;
+      // The decided approval itself: its card reads the recorded decision
+      // back without waiting for the approval hint.
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'approval'),
+      });
       void client.invalidateQueries({
         queryKey: backendEntityPrefix(orgId, 'gdpr_erasure'),
       });

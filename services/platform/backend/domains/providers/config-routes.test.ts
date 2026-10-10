@@ -8,6 +8,7 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org';
+import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers';
 import { createProviderSettingRoutes } from './routes';
 
 const { caller, catalog, transcriptionState, bearer } = vi.hoisted(() => ({
@@ -168,7 +169,7 @@ describe('native custom provider definition HTTP door', () => {
     ).toEqual({ config: null, hash: null });
   });
 
-  it('rejects non-admin writes, malformed JSON and unknown fields without echoing submitted content', async () => {
+  it('rejects non-admin writes, malformed JSON and unknown fields without echoing submitted content [PROV-R1] [PROV-R2]', async () => {
     caller.role = 'member';
     expect((await put({ config: definition, expectedHash: null })).status).toBe(
       403,
@@ -264,7 +265,7 @@ describe('native custom provider definition HTTP door', () => {
     ).toBe(404);
   });
 
-  it('deletes a definition behind the role gate and the in-use refusal, archiving its preimage', async () => {
+  it('deletes a definition behind the role gate and the in-use refusal, archiving its preimage [PROV-R1] [PROV-R3] [PROV-R4]', async () => {
     expect((await put({ config: definition, expectedHash: null })).status).toBe(
       200,
     );
@@ -337,6 +338,75 @@ describe('native custom provider definition HTTP door', () => {
     expect(second?.baseUrl).toBe('https://models.example.test/v2');
     expect(second?.definitionHash).toBe((await read()).hash);
     expect(second?.definitionHash).not.toBe(first?.definitionHash);
+  });
+
+  it('refreshes every live catalog the organization resolves, reporting each count or failure behind the role gate', async () => {
+    expect((await put({ config: definition, expectedHash: null })).status).toBe(
+      200,
+    );
+    // A shipped or custom provider whose models come from a live source;
+    // a static list or none has nothing to refresh.
+    const live = resolveProvidersForOrg(caller.slug)
+      .filter(
+        (provider) =>
+          provider.catalog.source !== 'static' &&
+          provider.catalog.source !== 'none',
+      )
+      .map((provider) => provider.name);
+    expect(live).toContain('local-chat');
+    const model = {
+      id: 'model-a',
+      provider: 'local-chat',
+      contextWindow: 4096,
+      supportsTools: true,
+      supportsVision: false,
+      tags: ['chat'],
+    };
+    catalog.mockImplementation(async (provider: { name: string }) =>
+      provider.name === 'local-chat' ? [model] : [],
+    );
+    bearer.mockResolvedValue('sk-listing');
+    const refresh = () =>
+      app().request(`/catalogs/refresh?orgId=${caller.orgId}`, {
+        method: 'POST',
+      });
+    type Results = {
+      results: Array<{ name: string; modelCount: number; error?: string }>;
+    };
+    const refreshed = await refresh();
+    expect(refreshed.status).toBe(200);
+    const { results } = (await refreshed.json()) as Results;
+    expect(results.map((entry) => entry.name)).toEqual(live);
+    expect(results.find((entry) => entry.name === 'local-chat')).toEqual({
+      name: 'local-chat',
+      modelCount: 1,
+    });
+    expect(bearer).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-a',
+      expect.objectContaining({ name: 'local-chat' }),
+    );
+    for (const [, options] of catalog.mock.calls) {
+      expect(options).toEqual({
+        forceRefresh: true,
+        bearerToken: 'sk-listing',
+      });
+    }
+
+    catalog.mockRejectedValue(new Error('upstream refused the listing'));
+    const failed = (await (await refresh()).json()) as Results;
+    expect(failed.results.find((entry) => entry.name === 'local-chat')).toEqual(
+      {
+        name: 'local-chat',
+        modelCount: 0,
+        error: 'upstream refused the listing',
+      },
+    );
+
+    catalog.mockClear();
+    caller.role = 'member';
+    expect((await refresh()).status).toBe(403);
+    expect(catalog).not.toHaveBeenCalled();
   });
 
   it('marks organization-defined providers in the catalog listing', async () => {

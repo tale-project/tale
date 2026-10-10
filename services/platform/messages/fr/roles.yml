@@ -1,0 +1,8 @@
+# The roles a member holds in an organization, by their names everywhere
+# (member tables, the account menu, invitations).
+owner: Propriétaire
+admin: Admin
+developer: Développeur
+editor: Éditeur
+member: Membre
+disabled: Désactivé
