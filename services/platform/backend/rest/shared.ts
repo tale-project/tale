@@ -14,7 +14,10 @@ import {
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { mintCursorFor, verifyCursorFor } from '../core/lib/signed_cursor.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
-import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
+import type {
+  ApiKeyOwner,
+  ApiKeyOwnerKind,
+} from '../domains/api_keys/owners.ts';
 import {
   budgetRetryAfterSeconds,
   type ChatBudgetExceededError,
@@ -113,15 +116,20 @@ export function restApiKeyId(c: Context<RestEnv>): string | undefined {
 }
 
 /**
- * What a caller of this door authenticated with. Today one kind: a personal
- * API key, which acts with its holder's live role in the resolved
- * organization and never with more.
+ * What a caller of this door authenticated with. Today one kind: an API
+ * key, which acts with its holder's live role in the resolved organization
+ * and never with more.
  */
 export type RestCredential = {
   readonly kind: 'api-key';
   /** The key row the bearer verified as (`restApiKeyId`); absent only when
    * the verified session named none, which the real door never does. */
   readonly apiKeyId?: string;
+  /** Whose key it is when it is not its person's own: a key an Owner or
+   * Admin made for a member, or a team's, a project's or the
+   * organization's own key (`domains/api_keys/owners.ts`) — each works in
+   * its organization alone. Absent for a person's own key. */
+  readonly owner?: ApiKeyOwnerKind;
 };
 
 /**

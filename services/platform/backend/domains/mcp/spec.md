@@ -237,6 +237,19 @@ is queued again. The similarity floor and the serving limits change at any time.
   refused, naming the 40 documents; her agent lowers the similarity floor instead → it is
   changed, and nothing is indexed again.
 
+### MCP-R29 · Only a person's own key reaches the deployment's settings
+
+The deployment's settings are every organization's, and who may read and change them is decided
+by a person's standing in every organization they belong to. A key made for a member, a team, a
+project or the organization works in its own organization alone, so it reads and changes none of
+them, and `get_settings` says so for the kind (`FORBIDDEN_INSTANCE_ADMIN`). A person's own key
+reads and changes them as the person may in the app.
+
+- **Example**: Mia is a developer at Acme and an admin of Beta, and her address is on the
+  deployment's editor allowlist. Ada, an admin at Acme, makes the key "Billing sync" for Mia;
+  Ada's agent reads the deployment's settings with it → refused, and a change of the sandbox
+  runtime is refused too. Mia's own key reads and changes them.
+
 ## Answers and refusals
 
 ### MCP-R18 · A refusal comes back as an answer the agent can read, not a protocol error
