@@ -45,9 +45,11 @@ const meta: Meta<typeof FeatureFlagsEditor> = {
     mocked(useOrgTeams).mockReturnValue({
       teams: [],
       isLoading: false,
-      isError: false,
-      isFetching: false,
-      refetch: fn<ReturnType<typeof useOrgTeams>['refetch']>(),
+      unavailable: false,
+      stale: false,
+      retrying: false,
+      failureCount: 0,
+      retry: fn<ReturnType<typeof useOrgTeams>['retry']>(),
     });
   },
 };

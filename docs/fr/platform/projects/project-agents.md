@@ -41,7 +41,7 @@ Une ancienne configuration peut nommer un modèle sans fournisseur fixé. Le dia
 
 <Step title="Accorder l’équipement et écrire les instructions">
 
-Sous **Skills, connectors & outils**, ajoute les bundles, services et opérations nécessaires. Pour un nouvel agent, les skills de documents `docx`, `pptx`, `xlsx` et `pdf` sont cochés s’ils sont accessibles au projet. Ils contiennent des consignes pour travailler avec des fichiers Word, PowerPoint, Excel et PDF. Décoche ceux dont l’agent n’a pas besoin. La modification d’un agent existant conserve son équipement enregistré. La liste de skills suit les accès des équipes du projet, pas seulement ta visibilité personnelle. Un skill absent peut donc demander une modification de son partage.
+Sous **Skills, connectors & outils**, ajoute les bundles, services et opérations nécessaires. Pour un nouvel agent, les skills de documents `docx`, `pptx`, `xlsx` et `pdf` sont cochés s’ils sont accessibles au projet. Ils contiennent des consignes pour travailler avec des fichiers Word, PowerPoint, Excel et PDF. Décoche ceux dont l’agent n’a pas besoin. La modification d’un agent existant conserve son équipement enregistré. La liste de skills suit les accès des équipes du projet, pas seulement ta visibilité personnelle. Un skill absent peut donc demander une modification de son partage. Après une modification du partage, la liste se met à jour dans chaque boîte de dialogue **Nouvel agent** ou de modification ouverte, y compris dans les sessions d’autres personnes, sans rechargement.
 
 <Frame caption="Le menu Skills d’un nouvel agent, avec les skills de documents déjà activés ; chaque skill indique qui l’a créé.">
 

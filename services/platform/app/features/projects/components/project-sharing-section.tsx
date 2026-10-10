@@ -1,12 +1,12 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import {
@@ -22,52 +22,6 @@ import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useUpdateProjectSharing } from '../hooks/mutations';
-
-function TeamsReadError({
-  audience,
-  message,
-  retrying,
-  retryLabel,
-  onRetry,
-  onFocusLost,
-}: {
-  audience: string;
-  message: string;
-  retrying: boolean;
-  retryLabel: string;
-  onRetry: () => void;
-  onFocusLost: () => void;
-}) {
-  const [root, setRoot] = useState<HTMLDivElement | null>(null);
-
-  useLayoutEffect(() => {
-    if (root === null) return undefined;
-    return () => {
-      if (root.contains(document.activeElement)) {
-        requestAnimationFrame(onFocusLost);
-      }
-    };
-  }, [root, onFocusLost]);
-
-  return (
-    <div ref={setRoot}>
-      <Text variant="muted">{audience}</Text>
-      <Text role="alert">{message}</Text>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        aria-busy={retrying || undefined}
-        aria-disabled={retrying || undefined}
-        onClick={() => {
-          if (!retrying) onRetry();
-        }}
-      >
-        {retryLabel}
-      </Button>
-    </div>
-  );
-}
 
 interface ProjectSharingSectionProps {
   projectId: string;
@@ -91,19 +45,22 @@ export function ProjectSharingSection({
 }: ProjectSharingSectionProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
-  // What the viewer may ASSIGN (an admin: every team) — the picker's options.
+  // What the viewer may ASSIGN (an admin: every team) — the picker's options,
+  // with how that read stands: a failed read is never an org without teams.
   const {
     teams: assignableTeams,
     isLoading: teamsLoading,
-    isError: teamsError,
-    isFetching: teamsFetching,
-    refetch: refetchTeams,
+    unavailable: teamsUnavailable,
+    stale: teamsStale,
+    retrying: teamsRetrying,
+    failureCount: teamsFailures,
+    retry: retryTeams,
   } = useOrgTeams();
   // Every team by name — the read-only summary must name a team the viewer
   // is not in, too.
-  const { nameOf } = useTeamNames();
+  const names = useTeamNames();
   const { mutateAsync: updateSharing, isPending } = useUpdateProjectSharing();
-  const [teamsRetrying, setTeamsRetrying] = useState(false);
+  const summaryRef = useRef<HTMLDivElement>(null);
 
   const [acknowledgedAudience, setAcknowledgedAudience] = useState<{
     projectId: string;
@@ -184,12 +141,24 @@ export function ProjectSharingSection({
     [applySave, audienceTeamIds],
   );
 
+  // A team's name comes from the directory, or from the assignable list an
+  // admin's picker already holds. Only an answered directory can call a team
+  // unknown: while it loads, or after its read failed, the summary counts the
+  // teams instead of naming each one "Unknown team".
+  const nameOf = (teamId: string) =>
+    names.nameOf(teamId) ??
+    assignableTeams?.find((team) => team.id === teamId)?.name;
+  const namesPending =
+    names.teams === undefined &&
+    audienceTeamIds.some((id) => nameOf(id) === undefined);
   const audience =
     audienceTeamIds.length === 0
       ? t('list.sharingOrgWide')
-      : audienceTeamIds
-          .map((id) => nameOf(id) ?? t('list.unknownTeam'))
-          .join(', ');
+      : namesPending
+        ? t('sharing.teamCount', { count: audienceTeamIds.length })
+        : audienceTeamIds
+            .map((id) => nameOf(id) ?? t('list.unknownTeam'))
+            .join(', ');
 
   const focusAudience = useCallback(() => {
     document
@@ -198,50 +167,62 @@ export function ProjectSharingSection({
       )
       ?.focus();
   }, [projectId]);
-
-  useLayoutEffect(() => {
-    if (!teamsRetrying || teamsFetching || teamsError || !assignableTeams) {
-      return;
-    }
-    requestAnimationFrame(focusAudience);
-  }, [
-    assignableTeams,
-    focusAudience,
-    teamsError,
-    teamsFetching,
-    teamsRetrying,
-  ]);
+  const focusSummary = useCallback(() => summaryRef.current?.focus(), []);
 
   if (!canAdminister) {
     return (
       <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow label={t('sharing.effectiveAudience')}>
-          <Text variant="muted">{audience}</Text>
+          {/* A named group the focus can return to once a retried names
+              read takes its notice away. */}
+          {({ labelId }) => (
+            <div
+              ref={summaryRef}
+              role="group"
+              aria-labelledby={labelId}
+              tabIndex={-1}
+              className="space-y-2 outline-none"
+            >
+              <Text variant="muted">{audience}</Text>
+              {namesPending && names.unavailable ? (
+                <CatalogLoadError
+                  message={t('sharing.teamNamesLoadError')}
+                  failureKey={names.failureCount}
+                  isRetrying={names.retrying}
+                  onRetry={names.retry}
+                  onFocusLost={focusSummary}
+                />
+              ) : namesPending && names.isLoading ? (
+                <Spinner size="sm" label={tCommon('actions.loading')} />
+              ) : null}
+            </div>
+          )}
         </SettingsFieldRow>
       </SettingsFieldList>
     );
   }
 
-  if (teamsError || (teamsRetrying && teamsFetching)) {
+  // A settled failed read, also while its retry runs, and a refresh that
+  // failed: the saved audience stays readable, the picker's options are not
+  // offered from a read that did not answer, and Try again hands the focus
+  // to the picker once it is back.
+  if (teamsUnavailable || teamsStale) {
     return (
       <SettingsFieldList data-project-audience={projectId}>
         <SettingsFieldRow
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
         >
-          <TeamsReadError
-            audience={audience}
-            message={t('sharing.teamsLoadError')}
-            retryLabel={tCommon('actions.tryAgain')}
-            retrying={teamsRetrying}
-            onRetry={() => {
-              setTeamsRetrying(true);
-              void refetchTeams().then(() => {
-                setTeamsRetrying(false);
-              });
-            }}
-            onFocusLost={focusAudience}
-          />
+          <div className="space-y-2">
+            <Text variant="muted">{audience}</Text>
+            <CatalogLoadError
+              message={t('sharing.teamsLoadError')}
+              failureKey={teamsFailures}
+              isRetrying={teamsRetrying}
+              onRetry={retryTeams}
+              onFocusLost={focusAudience}
+            />
+          </div>
         </SettingsFieldRow>
       </SettingsFieldList>
     );

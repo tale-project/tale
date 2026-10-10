@@ -446,4 +446,6 @@ sharing:
   effectiveAudience: Audience effective
   noTeamsHint: Aucune équipe pour l'instant.
   teamsLoadError: Impossible de charger les équipes.
+  teamNamesLoadError: Impossible de charger les noms des équipes.
+  teamCount: '{count, plural, one {# équipe} other {# équipes}}'
   noTeamsCreateLink: Créer une équipe

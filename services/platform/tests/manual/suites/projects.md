@@ -376,6 +376,17 @@ projects-list row ⋯ menu.
   existing agent leaves its equipment exactly as saved. (The catalog
   lifecycle cases are automated: see `reference/automation.md`.)
 
+- [ ] `PROJ-F66` · **Skills follow the Audience in every open session** — Two
+  sessions on an organization-wide project, with a skill shared only with
+  team A: in session B, as an editor, open **Agents** → **New agent**
+  (`projects.agents.newAgent`) → open **Skills, connectors & tools**
+  (`projects.agents.equipmentLabel`) → the team skill is absent; in session
+  A, as an owner, add team A under **Audience** (`projects.settings.audience`)
+  on General and confirm → within a few seconds session B's still-open menu
+  lists the skill without closing or reloading, and **New agent** in session
+  A lists it too. Clear the audience again → session B's open menu drops the
+  skill, and editing an agent that kept it equipped lists it as unavailable
+  (`chat.skills.unavailableOption`).
 - [ ] `PROJ-F36` · **A member reads the Agents tab** — With the
   organization's standard agent switched off ([governance.md](governance.md)
   `GOV-F52`), as a member of a project with no agent, open **Agents**
@@ -507,6 +518,22 @@ projects-list row ⋯ menu.
   `*/api/app/documents/by-project/*` instead → the folders stay and the
   notice reads `projects.files.loadFailed`; both blocked →
   `projects.files.treeLoadFailed`. No toast.
+- [ ] `PROJ-B19` · **Teams that don't load keep the Audience** — As an owner
+  on General of a project shared with two teams, block `*/api/app/teams?*`
+  in DevTools and reload → after the retries the **Audience** row
+  (`projects.settings.audience`) keeps both team names, one notice
+  (`projects.sharing.teamsLoadError`) with **Try again**, no picker and never
+  **No teams yet.** (`projects.sharing.noTeamsHint`); unblock, Tab to **Try
+  again** and press Enter → the picker returns with both teams selected and
+  the focus on it, and a reload shows the audience unchanged. Block
+  `*/api/app/teams*` (both team reads) → the row reads **2 teams**
+  (`projects.sharing.teamCount`), never **Unknown team**
+  (`projects.list.unknownTeam`). As a member who cannot administer the
+  project, block `*/api/app/teams/directory*` → **Effective audience**
+  (`projects.sharing.effectiveAudience`) reads **2 teams** with
+  (`projects.sharing.teamNamesLoadError`) and **Try again**; unblock and press
+  it → both names return and the focus stays on the row. Repeat the first
+  state in German and French.
 - [ ] `PROJ-B11` · **A Member is offered no project create** — Sign in as a
   Member and open the Home panel, then `/dashboard/{org}/projects` → the
   **Projects** section header offers **All projects** but no **New project**
