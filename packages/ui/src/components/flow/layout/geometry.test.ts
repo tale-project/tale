@@ -6,6 +6,7 @@ import {
   dropRedundant,
   isAxisAligned,
   joinSections,
+  pointAlongRoute,
   rectsOverlap,
   roundedOrthogonalPath,
   sampleRoute,
@@ -221,5 +222,34 @@ describe('sampleRoute', () => {
       { x: 3, y: 4, offset: 0 },
     ]);
     expect(sampleRoute([], 8)).toEqual([]);
+  });
+});
+
+describe('pointAlongRoute', () => {
+  it('finds a fraction of the way along a route by its length, bends included', () => {
+    const route = [
+      { x: 0, y: 0 },
+      { x: 0, y: 30 },
+      { x: 10, y: 30 },
+    ];
+    expect(pointAlongRoute(route, 0.5)).toEqual({ x: 0, y: 20 });
+    expect(pointAlongRoute(route, 0.75)).toEqual({ x: 0, y: 30 });
+    expect(pointAlongRoute(route, 0.9)).toEqual({ x: 6, y: 30 });
+    expect(pointAlongRoute(route, 0)).toEqual({ x: 0, y: 0 });
+    expect(pointAlongRoute(route, 1)).toEqual({ x: 10, y: 30 });
+  });
+
+  it('answers the one point of a route without length, and nothing for none', () => {
+    expect(pointAlongRoute([{ x: 4, y: 8 }], 0.5)).toEqual({ x: 4, y: 8 });
+    expect(
+      pointAlongRoute(
+        [
+          { x: 4, y: 8 },
+          { x: 4, y: 8 },
+        ],
+        0.5,
+      ),
+    ).toEqual({ x: 4, y: 8 });
+    expect(pointAlongRoute([], 0.5)).toBeNull();
   });
 });

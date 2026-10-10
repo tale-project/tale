@@ -93,12 +93,14 @@ describe('engine purity', () => {
     // the secret-key list are runtime-neutral, and so is
     // `@tale/ui`'s data core (summaries, shapes, diffs, pointers, hashes),
     // whose own guard (`packages/ui/src/data/pure.test.ts`) holds it to
-    // imports of itself; everything else outside the engine tree is a
-    // layering violation.
+    // imports of itself, and its line diff (`code-diff/compute`, the one
+    // unified patch), which its test holds to jsdiff alone; everything
+    // else outside the engine tree is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
       '@tale/shared/automation-replay',
+      '@tale/ui/code-diff/compute',
       '@tale/ui/data/hash',
       '@tale/ui/data/infer-schema',
       '@tale/ui/data/json-pointer',

@@ -18,11 +18,12 @@ import { ISSUE_SEVERITY_FRAME_CLASS } from '../../feedback/issue-severity';
 import type { IssueCounts } from '../../feedback/issue-summary';
 import { TooltipContent } from '../../overlays/tooltip';
 import type { FlowCompareFace, FlowCompareSide } from '../compare/compare';
+import type { FlowDiffKind } from '../diff/diff';
 import { FLOW_MOTION_CLASS, FLOW_STRIP_SETTLE } from '../motion/flow-motion';
 import { flowNodeIssueFrameClass } from '../node-issue-marker';
 import { FLOW_NODE_STATE, type FlowNodeState } from '../node-status';
 import type { FlowNotice } from '../types';
-import { FLOW_NODE_DASHED } from './chrome';
+import { FLOW_DIFF_FRAME, FLOW_DIFF_HATCH, FLOW_NODE_DASHED } from './chrome';
 
 /** How a box looks right now: its run state, and where it stands in a
  *  highlight. */
@@ -39,6 +40,10 @@ export interface FlowNodeLook {
   differs?: boolean;
   /** Not in one compared run's version: dashed. */
   absent?: boolean;
+  /** Two versions compared: what became of it — a 2 px frame in the
+   *  change's colour and its badge; a removed box hatched, its title
+   *  struck through. */
+  diff?: FlowDiffKind;
 }
 
 /** How a line looks right now. */
@@ -46,6 +51,10 @@ export interface FlowEdgeLook {
   look: 'base' | 'quiet' | 'emphasis' | 'travelled' | 'error';
   /** A Yes or No line in a run: whether the run took it. */
   taken?: boolean;
+  /** Two versions compared: a line only the newer (`added`) or only the
+   *  older (`removed`) draws, in the change's colour with its sign; every
+   *  other line `unchanged`, in the plain line colour. */
+  diff?: 'added' | 'removed' | 'unchanged';
 }
 
 /** A part of the chart joining or leaving with a live relayout. */
@@ -74,6 +83,8 @@ export interface FlowRenderContextValue {
   edgeLooks: ReadonlyMap<string, FlowEdgeLook>;
   /** The counter on a frame's header in a run ("12 of 50 items"). */
   frameCounters: ReadonlyMap<string, string>;
+  /** Two versions compared: a frame only one of them draws, by group id. */
+  frameDiffs: ReadonlyMap<string, 'added' | 'removed'>;
   /** Strips settle softly when their words change (a run playing on). */
   stripSettle: boolean;
   /** Nodes that changed outside this tab, ringed once (by `key`). */
@@ -249,7 +260,8 @@ function FlowNodeTooltip({
  * on a muted surface — its words never fade), and a live relayout grows it
  * in or shrinks it out (`phase`). A box on its way out is inert. Two runs
  * compared ring a box where they differ and dash one a run's version does
- * not have.
+ * not have. Two versions compared frame a box in its change's colour,
+ * 2 px, and hatch one the newer version removed — at the same size.
  *
  * A pointer resting on it reads its tooltip: the host's words (a gate's
  * full condition) and the run's explanation. The tooltip's frame is always
@@ -292,6 +304,7 @@ export function FlowNodeButton({
       }
       data-flow-differs={look.differs || undefined}
       data-flow-absent={look.absent || undefined}
+      data-flow-diff={look.diff}
       tabIndex={!leaving && context.tabStopId === id ? 0 : -1}
       inert={leaving || undefined}
       aria-hidden={leaving || undefined}
@@ -323,6 +336,9 @@ export function FlowNodeButton({
         // state's frame wins over a problem's.
         flowNodeIssueFrameClass(counts),
         RUN_FRAME[look.state],
+        // Two versions compared: the change's frame wins over a problem's.
+        look.diff !== undefined && FLOW_DIFF_FRAME[look.diff],
+        look.diff === 'removed' && FLOW_DIFF_HATCH,
         // Where two runs differ: a thin ring a highlight or the selection
         // draws over.
         look.differs === true && 'ring-1 ring-[hsl(var(--info-foreground))]',
