@@ -2,7 +2,12 @@ import type { Sql } from 'postgres';
 
 import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
-import { failureCauseOf } from '../../../lib/engine/core/record/failure.ts';
+import { nodeTypeFor } from '../../../lib/connectors/registry.ts';
+import {
+  connectorFailureOf,
+  failureCauseOf,
+  reasonFamily,
+} from '../../../lib/engine/core/record/failure.ts';
 import { NodeFailure } from '../../core/automations/failure.ts';
 import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
@@ -349,15 +354,25 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         // JSON of its data, so the run's failure detail printed a raw
         // `{"code":…}` blob (2026-09-26 evaluation, D-09).
         // A refusal that knows its cause in the run record's words (the
-        // HTTP connector's statuses and blocked hosts) keeps it. A usage
-        // limit stays `budget_exceeded`, as an llm step's does: it may
-        // have room at the next occurrence, where `connector_error` counts
-        // toward pausing a schedule that fails every time.
+        // HTTP connector's statuses and blocked hosts) keeps it; any other
+        // is classified the way the in-process executor classifies it, by
+        // the status the service answered. The run's code follows the
+        // cause: a usage limit stays `budget_exceeded`, as an llm step's
+        // does, and a service that did not answer or was busy is
+        // `connector_unavailable` — both may pass at the next occurrence,
+        // where `connector_error` counts toward pausing a schedule.
         if (error instanceof ConnectorError) {
-          const cause = failureCauseOf(error);
+          const cause =
+            failureCauseOf(error) ??
+            connectorFailureOf(
+              error,
+              args.connector,
+              nodeTypeFor(args.connector, args.action),
+            );
+          const family = reasonFamily(cause.reason, cause.params);
           throw new NodeFailure(
-            cause?.reason === 'BUDGET_EXCEEDED'
-              ? 'budget_exceeded'
+            family === 'budget_exceeded' || family === 'connector_unavailable'
+              ? family
               : 'connector_error',
             error.message,
             error.hint,

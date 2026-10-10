@@ -162,12 +162,37 @@ export const STEP_FAILURE_META: Readonly<
   UNKNOWN: { params: [], technical: ['detail'] },
 };
 
+/** A connector's causes a later occurrence may well not meet: the service
+ * did not answer, answered too slowly, or was busy. */
+const TRANSIENT_CONNECTOR_REASONS: ReadonlySet<string> = new Set([
+  'CONNECTOR_UNREACHABLE',
+  'CONNECTOR_RATE_LIMITED',
+  'HTTP_TIMEOUT',
+  'HTTP_UNREACHABLE',
+  'HTTP_RATE_LIMITED',
+]);
+
+/** A status that says the service is busy or failing on its own side. */
+function busyStatus(params: FailureParams | undefined): boolean {
+  const status = params?.status;
+  return typeof status === 'number' && (status === 429 || status >= 500);
+}
+
 /**
  * The run-level family of a reason, for a run that has no runtime of its
- * own to name it (the in-process executor): the durable runtime names the
- * family itself, from the error it caught.
+ * own to name it (the in-process executor), and for a connector door that
+ * caught a refusal (the durable runtime's). A connector the next
+ * occurrence may well find answering again is `connector_unavailable`,
+ * never `connector_error`, which counts toward pausing a schedule.
  */
-export function reasonFamily(reason: string): string {
+export function reasonFamily(reason: string, params?: FailureParams): string {
+  if (
+    TRANSIENT_CONNECTOR_REASONS.has(reason) ||
+    ((reason === 'HTTP_STATUS' || reason === 'CONNECTOR_FAILED') &&
+      busyStatus(params))
+  ) {
+    return 'connector_unavailable';
+  }
   if (
     reason.startsWith('CONNECTOR_') ||
     reason.startsWith('HTTP_') ||

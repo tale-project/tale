@@ -387,6 +387,10 @@ runFailure:
       title: Ein Dienstaufruf ist fehlgeschlagen
       explanation: Ein verbundener Dienst hat einen Aufruf abgelehnt oder ist dabei fehlgeschlagen.
       fix: Prüfe die Eingabe des Schritts und die Verbindung zum Dienst.
+    connector_unavailable:
+      title: Ein Dienst war nicht verfügbar
+      explanation: Ein verbundener Dienst hat nicht geantwortet, zu langsam geantwortet, war ausgelastet oder ist auf seiner Seite fehlgeschlagen.
+      fix: Führe den Lauf später erneut aus. Ein Zeitplan läuft trotzdem weiter.
     llm_output_invalid:
       title: Die Antwort des Modells passte nicht
       explanation: Die Antwort entsprach nicht dem Ausgabeschema des Schritts.
