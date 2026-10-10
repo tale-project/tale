@@ -76,6 +76,8 @@ Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktio
 
 **`http.get`** und **`http.send`** rufen jede HTTPS-API auf, für die es keinen eigenen Connector gibt, mit gespeicherten Zugangsdaten oder ohne. Siehe [Eine API aus einer Automatisierung aufrufen](/de/platform/automations/http).
 
+**`knowledge.search`** durchsucht deine Dokumente und indexierten Websites und gibt die Passagen zurück, die am besten zu einer Anfrage passen, für einen späteren Schritt. Die Suche liest, was ihr Lauf lesen darf. Siehe [Dein Wissen aus einer Automatisierung durchsuchen](/de/platform/automations/knowledge-search).
+
 ### Strukturierte und unstrukturierte Ausgabe
 
 Eine **strukturierte** Ausgabe hat benannte Felder, die du über `nodes.<id>.output.<field>` referenzierst. Eine **unstrukturierte** Ausgabe enthält freien Text. Verwende dafür `nodes.<id>.output.text` in einem Textausdruck; behandle die Ausgabe nicht wie ein Objekt mit weiteren Feldern.

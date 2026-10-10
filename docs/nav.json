@@ -147,6 +147,7 @@
             "platform/automations/editor",
             "platform/automations/triggers",
             "platform/automations/http",
+            "platform/automations/knowledge-search",
             "platform/automations/execution-logs",
             "platform/automations/approvals-in-workflows",
             "platform/automations/assistant"
