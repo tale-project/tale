@@ -13,7 +13,7 @@ Tale includes ten automation packages: three mailbox syncs, three inbox digests,
 
 ## Start with one package
 
-Open **Automations**, select a package, and inspect its nodes in the [workflow editor](/platform/automations/editor). Check that the required connector is connected. The packages name a model: when Tale adds them and none of your providers serves it, each `llm` node gets a comparable model they do serve, and the message of version 1 says which. A package added before any provider was connected keeps its model, and validation warns about it when you save — choose a served model with **Change model**, which swaps it in every step at once. A test run uses mock responses; it validates the flow without proving access to your real mailbox or repository.
+Open **Automations**, select a package, and inspect its nodes in the [workflow editor](/platform/automations/editor). Check that the required connector is connected. The packages name a model: when Tale adds them and none of your providers serves it, each `llm` node gets a comparable model they do serve, and the message of version 1 says which. A package added before any provider was connected — as every package of a new organization is — keeps its model, and validation warns about it when you save — choose a served model with **Change model**, which swaps it in every step at once. A test run uses mock responses; it validates the flow without proving access to your real mailbox or repository.
 
 The packages are added when an organization is created. Existing versions are preserved when the shipped package changes; only its shipped name and description refresh. A deleted package stays deleted. Your edits create new versions, which you deploy separately.
 
