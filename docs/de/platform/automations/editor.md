@@ -115,7 +115,7 @@ Danach folgen drei Tabs:
 
 </Frame>
 
-Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch **Probleme** warnt dann, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist.
+Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch **Probleme** warnt dann, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Modell wechseln** in der Kopfzeile verwendet ein anderes Modell in jeder `llm`-Node, die ein bestimmtes Modell nennt — die betroffenen Schritte werden vorher aufgeführt — als eine Änderung, die du dann speicherst.
 
 Öffne **Ablaufsteuerung** für Bedingung, Wiederholung und Fehlerbehandlung der Node; nutzt die Node eines davon, ist der Abschnitt schon offen. **Wenn**, **Für jedes** und **Wiederholen bis** nehmen Ausdrücke auf. **Sonst zu** bietet nur Nodes mit einer Bedingung an, und **Keine** entfernt die Alternative. **Maximale Wiederholungen** erscheint mit **Wiederholen bis** und nimmt eine ganze Zahl von 1 bis 20. **Bei Fehler** wählt zwischen **Lauf stoppen** und **Ohne sie weiterlaufen**; geht der Lauf weiter, wird jede Node übersprungen, die die Ausgabe der fehlgeschlagenen Node liest. Unter einer Bedingung, einer Liste oder einer Alternative sagt ein Satz in Worten, was die Einstellung bewirkt.
 

@@ -115,7 +115,7 @@ Three tabs follow:
 
 </Frame>
 
-The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but **Problems** then warns that a live run would fail at that node until its provider is connected.
+The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but **Problems** then warns that a live run would fail at that node until its provider is connected. **Change model**, in the header, uses another model in every `llm` node that names one model — the steps it changes are listed first — as one edit you then save.
 
 Open **Control flow** for the node's condition, iteration and failure handling; it is already open on a node that uses one of them. **When**, **For each** and **Repeat until** take expressions. **Else of** offers only nodes that have a condition, and **None** removes the alternative. **Maximum repeats** appears with **Repeat until** and takes a whole number from 1 to 20. **On error** chooses between **Stop the run** and **Continue without it**; continuing skips every node that reads the failed node's output. Under a condition, a list or an alternative, a sentence says in words what the setting does.
 

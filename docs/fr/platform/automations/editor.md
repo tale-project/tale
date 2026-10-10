@@ -115,7 +115,7 @@ Trois onglets suivent :
 
 </Frame>
 
-Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais **Problèmes** avertit alors qu’une exécution réelle échouerait à ce nœud tant que son fournisseur n’est pas connecté.
+Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais **Problèmes** avertit alors qu’une exécution réelle échouerait à ce nœud tant que son fournisseur n’est pas connecté. **Changer de modèle**, dans l’en-tête, utilise un autre modèle dans chaque nœud `llm` qui nomme un même modèle — les étapes concernées sont listées d’abord — en une seule modification que tu enregistres ensuite.
 
 Ouvre **Contrôle du flux** pour la condition, l’itération et la gestion des échecs du nœud ; si le nœud en utilise une, la section est déjà ouverte. **Si**, **Pour chaque** et **Répéter jusqu’à** prennent des expressions. **Sinon de** ne propose que des nœuds qui ont une condition, et **Aucun** retire l’alternative. **Répétitions maximales** apparaît avec **Répéter jusqu’à** et prend un nombre entier de 1 à 20. **En cas d’erreur** choisit entre **Arrêter l’exécution** et **Continuer sans lui** ; continuer ignore chaque nœud qui lit la sortie du nœud en échec. Sous une condition, une liste ou une alternative, une phrase dit en mots ce que fait le réglage.
 
