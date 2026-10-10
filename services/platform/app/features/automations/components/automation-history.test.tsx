@@ -16,8 +16,23 @@ const query = vi.hoisted(() => ({
   refetch: vi.fn(),
 }));
 
+// The runs list reads a page at a time; the same read state drives it.
+function runsPage() {
+  return {
+    results: query.data ?? [],
+    status: query.isPending ? 'LoadingFirstPage' : 'Exhausted',
+    isLoading: query.isPending,
+    loadMore: vi.fn(),
+    error: query.isError ? query.error : null,
+    retry: query.refetch,
+    isRetrying: false,
+    unavailable: query.isError && query.data === undefined,
+    errorCount: query.isError ? 1 : 0,
+  };
+}
+
 vi.mock('../hooks/queries', () => ({
-  useAutomationRuns: () => query,
+  useAutomationRunsPage: () => runsPage(),
   useAutomationVersions: () => query,
 }));
 
@@ -40,11 +55,14 @@ const histories = [
   {
     name: 'Runs',
     empty: 'This automation has not run yet.',
+    // The runs table masks itself while its first page loads.
+    pending: 'Loading content',
     element: <AutomationRunsTab organizationId="org-1" automationSlug="sync" />,
   },
   {
     name: 'Versions',
     empty: 'No versions saved yet.',
+    pending: 'Versions',
     element: (
       <AutomationVersionPicker
         organizationId="org-1"
@@ -64,87 +82,97 @@ beforeEach(async () => {
   query.refetch.mockReset();
 });
 
-describe.each(histories)('$name history', ({ element, empty, name }) => {
-  it('shows a failed read with a keyboard-reachable retry, never empty history', async () => {
-    query.isError = true;
-    const { user } = render(element);
+describe.each(histories)(
+  '$name history',
+  ({ element, empty, name, pending }) => {
+    it('shows a failed read with a keyboard-reachable retry, never empty history', async () => {
+      query.isError = true;
+      const { user } = render(element);
 
-    expect(screen.queryByText(empty)).not.toBeInTheDocument();
-    const retry = await screen.findByRole('button', { name: 'Try again' });
-    retry.focus();
-    expect(retry).toHaveFocus();
-    await user.keyboard('{Enter}');
-    expect(query.refetch).toHaveBeenCalledOnce();
-    expect(
-      screen.getByText(
-        'Something went wrong while loading this page. Try again or go to another section.',
-      ),
-    ).toBeVisible();
-  });
+      expect(screen.queryByText(empty)).not.toBeInTheDocument();
+      const retry = await screen.findByRole('button', { name: 'Try again' });
+      retry.focus();
+      expect(retry).toHaveFocus();
+      await user.keyboard('{Enter}');
+      expect(query.refetch).toHaveBeenCalledOnce();
+      expect(
+        screen.getByText(
+          'Something went wrong while loading this page. Try again or go to another section.',
+        ),
+      ).toBeVisible();
+    });
 
-  it('preserves the successful empty-history copy', async () => {
-    query.data = [];
-    render(element);
+    it('preserves the successful empty-history copy', async () => {
+      query.data = [];
+      render(element);
 
-    expect(await screen.findByText(empty)).toBeVisible();
-    expect(
-      screen.queryByRole('button', { name: 'Try again' }),
-    ).not.toBeInTheDocument();
-  });
+      expect(await screen.findByText(empty)).toBeVisible();
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    });
 
-  it('does not report cached empty history as success after a failed refetch', async () => {
-    query.data = [];
-    query.isError = true;
-    render(element);
-
-    expect(await screen.findByRole('alert')).toBeVisible();
-    expect(screen.queryByText(empty)).not.toBeInTheDocument();
-  });
-
-  it('exposes a pending history read without a retry', () => {
-    query.isPending = true;
-    render(element);
-
-    expect(screen.getByRole('status', { name })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Try again' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('announces the error and hands retry focus to the history heading on recovery', async () => {
-    query.isError = true;
-    const { rerender } = render(element);
-    const alert = await screen.findByRole('alert');
-    const retry = within(alert).getByRole('button', { name: 'Try again' });
-    retry.focus();
-    query.isError = false;
-    query.data = [];
-    rerender(cloneElement(element));
-
-    expect(await screen.findByText(empty)).toBeVisible();
-    await waitFor(() =>
-      expect(screen.getByText(name, { selector: 'span' })).toHaveFocus(),
-    );
-  });
-
-  it.each([
-    ['en', 'Try again', 'Something went wrong. Try again.'],
-    ['de', 'Erneut versuchen', 'Etwas ist schiefgelaufen. Versuch es erneut.'],
-    ['fr', 'Réessayer', "Une erreur s'est produite. Réessaie."],
-  ])(
-    'uses the shared localized failure controls in %s',
-    async (locale, retryLabel, title) => {
-      await i18n.changeLanguage(locale);
-      localStorage.setItem('user-locale', locale);
+    it('does not report cached empty history as success after a failed refetch', async () => {
+      query.data = [];
       query.isError = true;
       render(element);
 
-      const alert = await screen.findByRole('alert');
-      expect(within(alert).getByRole('heading', { name: title })).toBeVisible();
+      expect(await screen.findByRole('alert')).toBeVisible();
+      expect(screen.queryByText(empty)).not.toBeInTheDocument();
+    });
+
+    it('exposes a pending history read without a retry', () => {
+      query.isPending = true;
+      render(element);
+
+      expect(screen.getByRole('status', { name: pending })).toBeInTheDocument();
+      expect(screen.queryByText(empty)).not.toBeInTheDocument();
       expect(
-        within(alert).getByRole('button', { name: retryLabel }),
-      ).toBeVisible();
-      await checkAccessibility(alert);
-    },
-  );
-});
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('announces the error and hands retry focus to the history heading on recovery', async () => {
+      query.isError = true;
+      const { rerender } = render(element);
+      const alert = await screen.findByRole('alert');
+      const retry = within(alert).getByRole('button', { name: 'Try again' });
+      retry.focus();
+      query.isError = false;
+      query.data = [];
+      rerender(cloneElement(element));
+
+      expect(await screen.findByText(empty)).toBeVisible();
+      await waitFor(() =>
+        expect(screen.getByText(name, { selector: 'span' })).toHaveFocus(),
+      );
+    });
+
+    it.each([
+      ['en', 'Try again', 'Something went wrong. Try again.'],
+      [
+        'de',
+        'Erneut versuchen',
+        'Etwas ist schiefgelaufen. Versuch es erneut.',
+      ],
+      ['fr', 'Réessayer', "Une erreur s'est produite. Réessaie."],
+    ])(
+      'uses the shared localized failure controls in %s',
+      async (locale, retryLabel, title) => {
+        await i18n.changeLanguage(locale);
+        localStorage.setItem('user-locale', locale);
+        query.isError = true;
+        render(element);
+
+        const alert = await screen.findByRole('alert');
+        expect(
+          within(alert).getByRole('heading', { name: title }),
+        ).toBeVisible();
+        expect(
+          within(alert).getByRole('button', { name: retryLabel }),
+        ).toBeVisible();
+        await checkAccessibility(alert);
+      },
+    );
+  },
+);
