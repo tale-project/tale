@@ -165,6 +165,26 @@ describe('connectorSchema', () => {
     expect(confluence.endpointMode).toBe('per-credential');
   });
 
+  it('requires a credential unless the connector makes it optional', () => {
+    expect(connectorSchema.parse(GITHUB).credential).toBe('required');
+    expect(
+      connectorSchema.parse({
+        ...connectorSchema.parse(GITHUB),
+        credential: 'optional',
+      }).credential,
+    ).toBe('optional');
+  });
+
+  it('refuses an optional credential on a connector that is the platform itself', () => {
+    const platform = {
+      ...connectorSchema.parse(MAILBOX),
+      name: 'tasks',
+      auth: [{ method: 'platform' }],
+      credential: 'optional',
+    };
+    expect(connectorSchema.safeParse(platform).success).toBe(false);
+  });
+
   it('rejects an unknown endpointMode', () => {
     const github = connectorSchema.parse(GITHUB);
     expect(
