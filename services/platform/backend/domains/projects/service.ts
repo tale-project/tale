@@ -2117,6 +2117,51 @@ export async function readAgentModelConfiguration(
  * their own complete tuple, which the turn job reads even while queued.
  * Serializable callers protect the hash and invalidate stale full-agent saves;
  * no running worker, equipment or credential grant is modified. */
+/**
+ * The serving a managed model change asks of an agent, checked as its
+ * writer checks it and reading only: a runtime project agents run on, a
+ * model and an explicit provider, and — when it changes what serves the
+ * agent — a pair this organization can call for the person making the
+ * change. Answers the fields as they are stored, and whether they differ
+ * from the agent's. The writer checks it before it writes; a settings plan
+ * before anything is applied.
+ */
+export async function checkAgentModelConfiguration(
+  db: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  agent: Pick<ProjectAgentRow, 'harness' | 'model' | 'modelProvider'>,
+  config: { harness: string; model: string; modelProvider: string },
+): Promise<{
+  fields: { harness: string; model: string; modelProvider: string };
+  changed: boolean;
+}> {
+  const served = validateProjectAgentServing(config);
+  const { modelProvider } = served;
+  if (modelProvider === undefined)
+    throw new ProjectError(
+      'PROJECT_AGENT_MODEL_INVALID',
+      'Managed model configuration requires an explicit provider',
+    );
+  const fields = {
+    harness: served.harness,
+    model: served.model,
+    modelProvider,
+  };
+  if (
+    agent.harness === fields.harness &&
+    agent.model === fields.model &&
+    agent.modelProvider === fields.modelProvider
+  )
+    return { fields, changed: false };
+  const refusal = await agentModelRefusal(db, {
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    ...fields,
+  });
+  if (refusal !== null) throw new ProjectError(refusal.code, refusal.message);
+  return { fields, changed: true };
+}
+
 export async function updateAgentModelConfiguration(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -2147,24 +2192,13 @@ export async function updateAgentModelConfiguration(
     );
   const previous = agentModelConfiguration(agent);
   assertExpectedHash(managedConfigurationHash(previous), expectedHash);
-  const fields = validateProjectAgentServing(config);
-  if (fields.modelProvider === undefined)
-    throw new ProjectError(
-      'PROJECT_AGENT_MODEL_INVALID',
-      'Managed model configuration requires an explicit provider',
-    );
-  if (
-    agent.harness === fields.harness &&
-    agent.model === fields.model &&
-    agent.modelProvider === fields.modelProvider
-  )
-    return;
-  const refusal = await agentModelRefusal(tx, {
-    organizationId: auth.organizationId,
-    userId: auth.userId,
-    ...fields,
-  });
-  if (refusal !== null) throw new ProjectError(refusal.code, refusal.message);
+  const { fields, changed } = await checkAgentModelConfiguration(
+    tx,
+    auth,
+    agent,
+    config,
+  );
+  if (!changed) return;
   await tx`
     UPDATE app.project_agents SET harness = ${fields.harness}, model = ${fields.model},
       model_provider = ${fields.modelProvider}, updated_at_ms = ${Math.max(Date.now(), agent.updatedAt + 1)}

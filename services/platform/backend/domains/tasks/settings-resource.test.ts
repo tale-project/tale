@@ -12,7 +12,13 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { task, review } = vi.hoisted(() => ({
-  task: { description: 'Draft the report.', archived: false, workable: true },
+  task: {
+    description: 'Draft the report.',
+    archived: false,
+    workable: true,
+    /** A mention the task's own rules refuse, when its description names it. */
+    unmentionable: null as string | null,
+  },
   review: {
     context: null as null | {
       projectId: string;
@@ -21,6 +27,10 @@ const { task, review } = vi.hoisted(() => ({
       enabled: boolean;
     },
     editor: true,
+    /** Whether the task has run, been reviewed or has children. */
+    history: false,
+    /** The reviewer agent's tools; null when the project has no such agent. */
+    reviewerTools: ['task_review'] as string[] | null,
   },
 }));
 
@@ -80,7 +90,46 @@ vi.mock('./service.ts', async (original) => {
   });
   return {
     ...actual,
-    loadTaskOrThrow: async () => ({ id: 't-1', projectId: 'p-1' }),
+    // A new operational task, as one is enrolled for a review.
+    loadTaskOrThrow: async () => ({
+      id: 't-1',
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      status: 'todo',
+      externalSystem: null,
+      externalId: null,
+      externalUrl: null,
+      parentTaskId: null,
+      repeat: null,
+      repeatContinued: false,
+      repeatNextTaskId: null,
+      completedAt: null,
+      attachments: null,
+      outputs: null,
+      threadId: null,
+      sourceDiscussionThreadId: null,
+      assigneeId: null,
+      assigneeType: null,
+      description: task.description,
+    }),
+    assertTaskDescriptionMentions: async (
+      _db: unknown,
+      _auth: unknown,
+      _task: unknown,
+      _projectId: string,
+      description: string,
+    ) => {
+      if (
+        task.unmentionable !== null &&
+        description.includes(task.unmentionable)
+      ) {
+        throw new actual.TaskError(
+          'TASK_MENTION_INVALID',
+          'The description mentions someone who cannot be mentioned on this task.',
+          400,
+        );
+      }
+    },
     assertTaskWorkable: async () => {
       if (!task.workable) {
         throw new actual.TaskError(
@@ -146,7 +195,18 @@ function contextOf(role: string): SettingsContext {
     role,
     credential: { kind: 'api-key', apiKeyId: 'key-laptop' },
   };
-  const tag = async () => [{ email: `${role}@example.test` }];
+  // The reads the review context's own checks make, and the caller's
+  // address for everything else.
+  const tag = async (strings: TemplateStringsArray) => {
+    const text = strings.join('?');
+    if (text.includes('AS present')) return [{ present: review.history }];
+    if (text.includes('SELECT tools FROM app.project_agents')) {
+      return review.reviewerTools === null
+        ? []
+        : [{ tools: review.reviewerTools }];
+    }
+    return [{ email: `${role}@example.test` }];
+  };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: tag as unknown as Sql, caller };
 }
@@ -162,8 +222,14 @@ beforeEach(() => {
     description: 'Draft the report.',
     archived: false,
     workable: true,
+    unmentionable: null,
   });
-  Object.assign(review, { context: null, editor: true });
+  Object.assign(review, {
+    context: null,
+    editor: true,
+    history: false,
+    reviewerTools: ['task_review'],
+  });
   vi.clearAllMocks();
 });
 
@@ -293,5 +359,51 @@ describe("a task's review context over MCP", () => {
     ]);
     expect(plan.changes[0]?.refusal?.code).toBe('RBAC_FORBIDDEN');
     expect(updateTaskReviewContextConfiguration).not.toHaveBeenCalled();
+  });
+});
+
+describe("what a task's writers refuse, planned before anything is applied [MCP-R11]", () => {
+  const context = {
+    projectId: 'p-1',
+    taskId: 't-1',
+    reviewerAgentId: 'reviewer',
+    enabled: true,
+  };
+  const set = (config: typeof context) => ({
+    kind: 'task-review-context' as const,
+    op: 'set' as const,
+    config,
+  });
+  const refusalOf = async (config: typeof context) =>
+    (await planSettings(contextOf('editor'), registry, [set(config)]))
+      .changes[0]?.refusal?.code;
+
+  it('refuses another reviewer for an enrolled task, a task with history, a reviewer that cannot review, and an archived task', async () => {
+    review.context = context;
+    expect(await refusalOf({ ...context, reviewerAgentId: 'other' })).toBe(
+      'TASK_REVIEW_INVALID',
+    );
+    // Enabled or not, the reviewer it was enrolled with may stay.
+    expect(await refusalOf({ ...context, enabled: false })).toBeUndefined();
+    review.context = null;
+    review.history = true;
+    expect(await refusalOf(context)).toBe('TASK_REVIEW_INVALID');
+    review.history = false;
+    review.reviewerTools = [];
+    expect(await refusalOf(context)).toBe('TASK_REVIEW_FORBIDDEN');
+    review.reviewerTools = null;
+    expect(await refusalOf(context)).toBe('TASK_REVIEW_FORBIDDEN');
+    review.reviewerTools = ['task_review'];
+    task.archived = true;
+    expect(await refusalOf(context)).toBe('TASK_ARCHIVED');
+    expect(updateTaskReviewContextConfiguration).not.toHaveBeenCalled();
+  });
+
+  it('refuses a description that mentions someone the task cannot mention', async () => {
+    task.unmentionable = '@[Outsider]';
+    const plan = await planSettings(contextOf('member'), registry, [
+      change('Ask @[Outsider] to check it.'),
+    ]);
+    expect(plan.changes[0]?.refusal?.code).toBe('TASK_MENTION_INVALID');
   });
 });

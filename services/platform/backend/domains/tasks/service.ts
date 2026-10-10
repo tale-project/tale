@@ -1710,9 +1710,38 @@ export async function updateTaskInstructionsConfiguration(
   // Stored exactly as sent, so the hash the caller reads back is the one it
   // wrote; a mention token it adds must still name someone who can be
   // mentioned on the task.
-  const check = await prepareSurfaceText(tx, {
+  await assertTaskDescriptionMentions(
+    tx,
+    auth,
+    task,
+    config.projectId,
+    description,
+  );
+  await updateTaskFields(
+    tx,
+    auth,
+    { taskId: config.taskId, description },
+    undefined,
+    { notifyDescriptionMentions: false, storeVerbatim: true },
+  );
+}
+
+/**
+ * Refuse a description, stored exactly as sent, that mentions someone who
+ * cannot be mentioned on the task; a mention its stored description already
+ * holds stays. Reads only: the managed writer checks it before it writes,
+ * and a settings plan before anything is applied.
+ */
+export async function assertTaskDescriptionMentions(
+  db: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  task: Pick<TaskRow, 'description'>,
+  projectId: string,
+  description: string,
+): Promise<void> {
+  const check = await prepareSurfaceText(db, {
     organizationId: auth.organizationId,
-    projectId: config.projectId,
+    projectId,
     body: description,
     cap: TASK_DESCRIPTION_MAX,
     mode: 'verbatim',
@@ -1726,13 +1755,6 @@ export async function updateTaskInstructionsConfiguration(
       { mentions: check.invalidTokens },
     );
   }
-  await updateTaskFields(
-    tx,
-    auth,
-    { taskId: config.taskId, description },
-    undefined,
-    { notifyDescriptionMentions: false, storeVerbatim: true },
-  );
 }
 
 export async function updateTask(

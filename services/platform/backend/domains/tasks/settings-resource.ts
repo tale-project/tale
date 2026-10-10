@@ -27,10 +27,12 @@ import {
 } from '../projects/settings-resource.ts';
 import { TaskError } from './errors.ts';
 import {
+  assertTaskReviewContextChange,
   readTaskReviewContextConfiguration,
   updateTaskReviewContextConfiguration,
 } from './review-context.ts';
 import {
+  assertTaskDescriptionMentions,
   assertTaskNotArchived,
   assertTaskWorkable,
   loadTaskOrThrow,
@@ -134,12 +136,20 @@ export const taskInstructionsSettings: SettingsKindHandler = {
     const project = await loadProjectOrThrow(ctx.sql, projectId);
     await assertTaskWorkable(ctx.sql, project, task, auth);
     assertTaskNotArchived(task);
-    return {
-      after,
-      unchanged:
-        current !== null &&
-        configurationHash(after) === configurationHash(current.config),
-    };
+    const unchanged =
+      current !== null &&
+      configurationHash(after) === configurationHash(current.config);
+    // The writer's own check of what the new text mentions.
+    if (!unchanged) {
+      await assertTaskDescriptionMentions(
+        ctx.sql,
+        auth,
+        task,
+        projectId,
+        after.description,
+      );
+    }
+    return { after, unchanged };
   },
   apply: async (ctx, change, expectedHash) => {
     const id = taskIdOf('task-instructions', change);
@@ -212,19 +222,29 @@ export const taskReviewContextSettings: SettingsKindHandler = {
       ID_FORM,
     );
     // The writer's own rules, before anything is applied: the task is in
-    // the project, and the caller holds the project's editor role.
+    // the project, the caller holds the project's editor role and may work
+    // on the task, neither is archived, and what the context asks for is
+    // what an enrolled task may become.
     const auth = await projectAuthOf(ctx);
     await readTaskReviewContextConfiguration(ctx.sql, auth, projectId, taskId);
     const project = await loadProjectOrThrow(ctx.sql, projectId);
     if (!checkProjectAccess(project, auth.teamIds, auth.role).canEdit) {
       throw new TaskError('RBAC_FORBIDDEN', 'Editor role required', 403);
     }
-    return {
-      after,
-      unchanged:
-        current !== null &&
-        configurationHash(after) === configurationHash(current.config),
-    };
+    const task = await loadTaskOrThrow(ctx.sql, taskId, auth.organizationId);
+    await assertTaskWorkable(ctx.sql, project, task, auth);
+    assertTaskNotArchived(task);
+    const unchanged =
+      current !== null &&
+      configurationHash(after) === configurationHash(current.config);
+    if (!unchanged) {
+      const prior =
+        current === null || current.config === null
+          ? null
+          : managedTaskReviewContextSchema.parse(current.config);
+      await assertTaskReviewContextChange(ctx.sql, auth, task, prior, after);
+    }
+    return { after, unchanged };
   },
   apply: async (ctx, change, expectedHash) => {
     const id = taskIdOf('task-review-context', change);
