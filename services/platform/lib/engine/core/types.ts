@@ -54,6 +54,10 @@ export interface NodeDef {
   onError?: 'fail' | 'continue';
 
   // Per-type payloads.
+  /** A connector step: the name of the stored credential it acts as. Absent,
+   * it acts as the organization's default one — or, on a connector whose
+   * credential is optional, as none. */
+  credential?: string;
   /** Connector/transform input mapping; template strings allowed in
    * values. */
   input?: Record<string, unknown>;
