@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen } from '@/tests/utils/render';
 
 import { connectorConfigExtras } from './config-fields';
@@ -279,5 +280,54 @@ describe('connectorConfigExtras', () => {
     ).toEqual({
       config: { imapHost: 'other.example.com', fromAddress: 'a@b.test' },
     });
+  });
+});
+
+describe('the declared fields in the reader’s language', () => {
+  const httpFields: ConnectorSummary['configFields'] = [
+    {
+      key: 'baseUrl',
+      label: 'Base URL',
+      type: 'string',
+      required: true,
+      description: 'The address every call stays under.',
+      i18n: {
+        de: {
+          label: 'Basis-URL',
+          description: 'Die Adresse, unter der jeder Aufruf bleibt.',
+        },
+        fr: { label: 'URL de base' },
+      },
+    },
+  ];
+
+  afterEach(async () => {
+    localStorage.removeItem('user-locale');
+    await i18n.changeLanguage('en');
+  });
+
+  it.each([
+    ['en', 'Base URL', 'The address every call stays under.'],
+    ['de', 'Basis-URL', 'Die Adresse, unter der jeder Aufruf bleibt.'],
+    // An override names the label alone: the help falls back to English.
+    ['fr', 'URL de base', 'The address every call stays under.'],
+    // A regional tag falls back to its base language.
+    ['de-CH', 'Basis-URL', 'Die Adresse, unter der jeder Aufruf bleibt.'],
+  ])('labels a field in %s', async (locale, label, help) => {
+    localStorage.setItem('user-locale', locale);
+    await i18n.changeLanguage(locale);
+    const Fields = extras.Fields;
+    if (Fields === null) throw new Error('the config fields are missing');
+    render(
+      <Fields
+        vendor={{ summary: summary(httpFields) }}
+        value={{}}
+        onChange={() => {}}
+      />,
+    );
+    const input = screen.getByRole('textbox', {
+      name: new RegExp(`^${label}`),
+    });
+    expect(input).toHaveAccessibleDescription(help);
   });
 });

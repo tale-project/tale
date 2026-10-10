@@ -53,7 +53,7 @@ nodes:
 
 ## Mit Zugangsdaten anmelden
 
-Füge unter **Einstellungen › Connectors** Zugangsdaten zu **HTTP** hinzu. Wähle, wie sie sich anmelden: mit einem Bearer-Token, einem API-Key in einem Header oder mit Benutzername und Passwort. Gib ihre **Base URL** ein, etwa `https://api.example.com/v2`; bei einem API-Key nennt **API key header** den Header, standardmäßig `X-Api-Key`. Gib den Zugangsdaten einen Namen und nenne ihn im Feld `credential` des Schritts.
+Füge unter **Einstellungen › Connectors** Zugangsdaten zu **HTTP** hinzu. Wähle, wie sie sich anmelden: mit einem Bearer-Token, einem API-Key in einem Header oder mit Benutzername und Passwort. Gib ihre **Basis-URL** ein, etwa `https://api.example.com/v2`; bei einem API-Key nennt **API-Key-Header** den Header, standardmäßig `X-Api-Key`. Gib den Zugangsdaten einen Namen und nenne ihn im Feld `credential` des Schritts.
 
 <Frame caption="HTTP-Zugangsdaten mit einem API-Key: der Name, über den ein Schritt sie wählt, der Key, die Basis-URL, unter der jeder Aufruf bleibt, und der Header, in dem der Key gesendet wird.">
 

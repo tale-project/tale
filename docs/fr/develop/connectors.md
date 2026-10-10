@@ -34,7 +34,7 @@ Un connector dont le nom est fait de mots courants, comme `task` (Tasks), décla
 | `endpointMode: fixed` | Valeur par défaut. Les appels HTTP réels utilisent des URL fixes ; `allowedHosts` contient les hôtes exacts |
 | `endpointMode: per-credential` | Chaque identifiant fournit une `endpointUrl` HTTPS ; les actions lisent son origine sans barre oblique finale via `ctx.endpoint` |
 | `allowedHosts` en mode per-credential | Suffixes d'hôtes : `atlassian.net` autorise ses sous-domaines |
-| `configFields` | Valeurs non secrètes propres à l'identifiant : hôte, port, région ou version d'API |
+| `configFields` | Valeurs non secrètes propres à l'identifiant : hôte, port, région ou version d'API ; le `label` et la `description` d'un champ prennent des traductions sous `i18n.de` et `i18n.fr` pour le formulaire des identifiants |
 
 Confluence, GlitchTip et Shopify utilisent des origines propres à chaque identifiant. Les secrets n'ont pas leur place dans `configFields` : conserve-les dans les données d'identification chiffrées. Pour les actions JavaScript, `ctx.http` applique la restriction des destinations HTTP. Les backends natifs, comme les protocoles de messagerie, appliquent leurs propres contrôles ; une liste HTTP ne décrit pas toute leur sécurité réseau.
 

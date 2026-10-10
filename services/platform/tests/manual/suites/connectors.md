@@ -35,12 +35,13 @@ facet**
   seeded FROM the URL, not bound to it: the facet is multi-select, so the moment
   the operator touches the facet (or clears filters) the param is removed from
   the URL and the facet takes over.
-- The catalog ships 19 connector definitions
-  (`configs/platform/system/connectors/`), but the four **platform-auth**
-  connectors (conversation, document, sandbox, task) never reach the client —
-  the listing drops them, so the add-dialog picker offers **15** vendors:
-  confluence, discord, github, glitchtip, gmail, google-drive, imap-smtp, jev
-  (**Jev decisions**), outlook, shopify, slack, tavily, teams, twilio, webdav.
+- The catalog ships 21 connector definitions
+  (`configs/platform/system/connectors/`), but the five **platform-auth**
+  connectors (conversation, document, knowledge, sandbox, task) never reach the
+  client — the listing drops them, so the add-dialog
+  picker offers **16** vendors: confluence, discord, github, glitchtip, gmail,
+  google-drive, http, imap-smtp, jev (**Jev decisions**), outlook, shopify,
+  slack, tavily, teams, twilio, webdav.
 - Both legacy MCP routes redirect in **one hop** to `…/settings/connectors`.
   The MCP **endpoint** section (the platform's own inbound MCP surface) renders
   on `/dashboard/{org}/settings/api/mcp`.
@@ -100,7 +101,7 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the way in — never a bare empty grid.
 - [ ] `CONN-F3` · **Catalog picker (step 1)** — **Add credential** → A dialog
   titled **Add credential** (`settings.credentials.catalog.title`) with its
-  own search (`settings.connectors.searchPlaceholder`). 15 vendors in one list
+  own search (`settings.connectors.searchPlaceholder`). 16 vendors in one list
   (each row: icon, name, tags + action count meta
   `settings.connectors.card.actionCount`); configured vendors carry a
   **Configured** badge (`settings.credentials.catalog.configured`). The

@@ -53,7 +53,7 @@ nodes:
 
 ## Se connecter avec des identifiants
 
-Dans **Paramètres › Connectors**, ajoute des identifiants à **HTTP**. Choisis comment ils se connectent : avec un jeton Bearer, une clé d’API envoyée dans un en-tête, ou un nom d’utilisateur et un mot de passe. Saisis leur **Base URL**, comme `https://api.example.com/v2` ; pour une clé d’API, **API key header** nomme l’en-tête, `X-Api-Key` par défaut. Donne un nom aux identifiants, et indique-le dans le champ `credential` de l’étape.
+Dans **Paramètres › Connectors**, ajoute des identifiants à **HTTP**. Choisis comment ils se connectent : avec un jeton Bearer, une clé d’API envoyée dans un en-tête, ou un nom d’utilisateur et un mot de passe. Saisis leur **URL de base**, comme `https://api.example.com/v2` ; pour une clé d’API, **En-tête de la clé d’API** nomme l’en-tête, `X-Api-Key` par défaut. Donne un nom aux identifiants, et indique-le dans le champ `credential` de l’étape.
 
 <Frame caption="Des identifiants HTTP avec une clé d’API : le nom par lequel une étape les choisit, la clé, l’URL de base sous laquelle reste chaque appel, et l’en-tête dans lequel la clé est envoyée.">
 

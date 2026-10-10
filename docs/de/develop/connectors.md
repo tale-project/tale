@@ -34,7 +34,7 @@ Ein Connector, dessen Name aus gewöhnlichen Wörtern besteht, etwa `task` (Task
 | `endpointMode: fixed` | Standard. Live-HTTP-Aufrufe verwenden feste Anbieter-URLs; `allowedHosts` enthält genaue Hostnamen |
 | `endpointMode: per-credential` | Jeder Zugang enthält eine HTTPS-`endpointUrl`; Aktionen lesen den Ursprung ohne abschließenden Schrägstrich über `ctx.endpoint` |
 | `allowedHosts` bei per-credential | Hostsuffixe: `atlassian.net` erlaubt seine Subdomains |
-| `configFields` | Nicht geheime Angaben je Zugang, etwa Serverhost, Port, Region oder API-Version |
+| `configFields` | Nicht geheime Angaben je Zugang, etwa Serverhost, Port, Region oder API-Version; `label` und `description` eines Felds nehmen für das Formular der Zugangsdaten Übersetzungen unter `i18n.de` und `i18n.fr` |
 
 Confluence, GlitchTip und Shopify verwenden Ursprünge je Zugang. Geheimnisse gehören nicht in `configFields`, sondern in die verschlüsselten Zugangsdaten. Bei JavaScript-Aktionen setzt `ctx.http` die erlaubten HTTP-Ziele durch. Native Backends, etwa für Mailprotokolle, prüfen ihren Transport selbst; eine HTTP-Freigabeliste beschreibt nicht ihre gesamte Sicherheitsgrenze.
 

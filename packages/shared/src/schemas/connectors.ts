@@ -162,6 +162,20 @@ const configFieldSchema = z
     max: z.number().finite().optional(),
     /** Applied when the field is absent; must match `type`. */
     default: z.union([z.string(), z.number(), z.boolean()]).optional(),
+    /** Per-locale overrides of the label and description a form shows,
+     * same locale chain as an action's `title`: exact tag, then base
+     * language, then the authored English. */
+    i18n: z
+      .record(
+        z.string().regex(LOCALE_RE),
+        z
+          .object({
+            label: z.string().min(1).max(120).optional(),
+            description: z.string().max(2000).optional(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 
