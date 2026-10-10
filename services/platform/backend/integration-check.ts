@@ -454,7 +454,6 @@ async function checkAuditChainInlineAppendDuringRoll(sql: Sql): Promise<void> {
     await import('./domains/audit_logs/service.ts');
   const { buildAuditRecordHashInput, toStoredAuditRecord } =
     await import('./domains/audit_logs/hash-input.ts');
-  const { computeAuditHash } = await import('./core/lib/helpers/audit_hash.ts');
   const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
   const orgId = `itest-roll-${randomUUID().slice(0, 8)}`;
   await sql.begin((tx) => createAuditLog(tx, chainProbe(orgId, 'before')));
@@ -7378,11 +7377,13 @@ async function checkTaskCommentBurst(
 
 /**
  * A burst of serializable commenters on DIFFERENT tasks of one org: the task
- * keys never collide, so every one of them meets the others at the org's
- * audit chain head and all but the first lose there. The loss is marked with
- * the chain-head key inside the task's queue, and the marks nest, so each
- * retry holds the task key AND the chain-head key from before its BEGIN —
- * a retry queued on the task key alone would lose at the head again.
+ * keys never collide, and the audit rows they write meet no chain head any
+ * more (the chain is sealed off the write path). Serializable isolation can
+ * still abort one of two writers over an index page both touch; the loser's
+ * retry holds the org's comment key exclusively while the first attempts
+ * hold it shared (`queuedCommentWrite`), so every one lands, none loses more
+ * than once, and the sealer then chains their rows into a chain that
+ * verifies.
  */
 async function checkTaskCommentCrossTaskBurst(
   sql: Sql,
@@ -7439,15 +7440,16 @@ async function checkTaskCommentCrossTaskBurst(
     WHERE project_id = ${projectId}
   `;
   const landed = counts.filter((row) => row.commentCount === 1).length;
+  const { sealAuditChainNow } = await import('./domains/audit_logs/service.ts');
+  await sealAuditChainNow(sql, orgId);
   const chain = await verifyAuditChain(sql, orgId);
   record(
     "tasks: a burst of serializable commenters across one org's tasks all land",
     failures.length === 0 &&
       landed === COMMENTERS &&
       chain.valid &&
-      attempts > COMMENTERS &&
       attempts <= COMMENTERS * 2,
-    `landed=${landed}/${COMMENTERS} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${chain.valid} attempts=${attempts} (want >${COMMENTERS} — losers at the chain head retried — and ≤${COMMENTERS * 2}: each lost at most once, queued on task + chain head)`,
+    `landed=${landed}/${COMMENTERS} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${chain.valid} attempts=${attempts} (want ≤${COMMENTERS * 2}: nobody lost more than once; ${COMMENTERS} means nobody lost at all)`,
   );
 }
 

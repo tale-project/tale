@@ -62,8 +62,8 @@ function jitteredSleep(ms: number): Promise<void> {
  * retry reaches it, because a SERIALIZABLE snapshot is fixed at the
  * transaction's FIRST statement — an advisory lock taken inside the
  * transaction is therefore acquired after the snapshot and cannot protect a
- * hot row (the audit chain head, bumped by every audited write of an org).
- * Under a burst the five attempts all lose and the caller sees a 40001.
+ * hot row (a task's comment count, bumped by every comment on it). Under a
+ * burst the five attempts all lose and the caller sees a 40001.
  *
  * A callback that knows which resource it lost on marks the failure with a
  * queue key ({@link markRetryQueueKey}). The next attempt then reserves one
@@ -73,15 +73,20 @@ function jitteredSleep(ms: number): Promise<void> {
  * the transaction-level lock on the same key inside their own transaction
  * queue behind it instead of bumping the row underneath it.
  *
- * Marks nest. A callback wrapped in another queue (a task comment inside a
- * task's queue, whose audit write sits inside the org's chain-head queue)
- * marks inner-first, and each outer mark is PREPENDED, so the list reads in
- * the callback's own acquisition order — task, then chain head. The queued
- * retry takes the session locks in exactly that order and unlocks in
- * reverse; every first attempt takes its transaction-level locks in the same
- * order, so a queued retry and a first attempt never hold the two keys in
- * opposite orders. A retry queued on the outer key alone would drop the
- * inner one and lose there again.
+ * A first attempt may hold its key SHARED (an organization's comment
+ * writes): first attempts then never wait for each other, while a queued
+ * retry, which takes every key exclusively, waits for those already running
+ * and runs before those that arrive after it.
+ *
+ * Marks nest. A callback wrapped in another queue (an agent run's
+ * completion inside its task's queue, whose wake write sits inside its
+ * project's work queue) marks inner-first, and each outer mark is
+ * PREPENDED, so the list reads in the callback's own acquisition order —
+ * task, then project. The queued retry takes the session locks in exactly
+ * that order and unlocks in reverse; every first attempt takes its
+ * transaction-level locks in the same order, so a queued retry and a first
+ * attempt never hold the two keys in opposite orders. A retry queued on the
+ * outer key alone would drop the inner one and lose there again.
  */
 
 const RETRY_QUEUE_KEY = Symbol.for('tale.db.retryQueueKey');
