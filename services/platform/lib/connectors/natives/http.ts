@@ -7,11 +7,12 @@
  *
  *  - Every request goes through `safeFetch`, the platform's audited outbound
  *    client: DNS is pinned for each hop, private and cloud metadata addresses
- *    are refused (private ones are admitted only where the deployment admits
- *    private provider hosts), and the answer is capped.
- *  - Plain `http:` reaches only such an admitted private host. A public host
- *    is called over HTTPS, and an `https:` start never follows a redirect
- *    onto `http:`.
+ *    are refused, and the answer is capped. The switch that admits private
+ *    model-provider hosts does not reach here: an automation author is not
+ *    the operator who configured a provider.
+ *  - Every call is HTTPS, and an `https:` start never follows a redirect onto
+ *    `http:`. Plain `http:` reaches only a private host a host of this module
+ *    admits (`privateHostsAllowed`), which the platform's does not.
  *  - A credentialed call stays under its credential's base URL: a path is
  *    placed under it, a full URL must start with it, a redirect may not leave
  *    its host, and the address a redirect chain ended on is checked the same
@@ -31,10 +32,7 @@
 import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
 
 import type { FailureCause } from '../../engine/core/record/failure';
-import {
-  BLOCKED_METADATA_HOSTS,
-  privateProviderHostsAllowed,
-} from '../../net/host-policy';
+import { BLOCKED_METADATA_HOSTS } from '../../net/host-policy';
 import {
   safeFetch,
   SafeFetchError,
@@ -131,8 +129,8 @@ export interface HttpNativeDeps {
     url: string,
     options: SafeFetchOptions,
   ) => Promise<SafeFetchResponse>;
-  /** Whether the deployment admits private hosts: the provider host
-   * policy's own switch, read per call. */
+  /** Whether a call may reach a private network address. No by default,
+   * and the platform's host keeps it so. */
   readonly privateHostsAllowed?: () => boolean;
   /** The calls-at-once gate; one per process unless a test hands another. */
   readonly atOnce?: AtOnceGate;
@@ -639,9 +637,7 @@ async function callApi(
   deps: HttpNativeDeps,
 ): Promise<HttpAnswer> {
   const input = readInput(raw, action);
-  const privateAllowed = (
-    deps.privateHostsAllowed ?? (() => privateProviderHostsAllowed())
-  )();
+  const privateAllowed = deps.privateHostsAllowed?.() ?? false;
   const signing = signingOf(ctx, action);
   const base = signing === undefined ? undefined : baseOf(ctx, action);
   if (base !== undefined) refuseBlockedHost(base, privateAllowed, action);

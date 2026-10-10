@@ -270,8 +270,8 @@ runtime:
     HTTP_BLOCKED_HOST:
       title: L’adresse n’est pas autorisée
       explanation: Les automatisations appellent des adresses publiques, en HTTPS.
-      cause: '{why, select, private {{host} est une adresse de réseau privé, que les automatisations ne peuvent pas appeler sur ce déploiement.} metadata {{host} est une adresse de métadonnées d’un cloud, qui n’est jamais appelée.} other {{host} a été appelé en HTTP simple, ce qui pourrait exposer le contenu de la requête.}}'
-      fix: '{why, select, private {Appelle une adresse publique, ou demande aux personnes qui gèrent Tale d’autoriser les adresses privées.} metadata {Appelle une adresse publique.} other {Utilise l’adresse avec https://.}}'
+      cause: '{why, select, private {{host} est une adresse de réseau privé, que les automatisations n’appellent pas.} metadata {{host} est une adresse de métadonnées d’un cloud, qui n’est jamais appelée.} other {{host} a été appelé en HTTP simple, ce qui pourrait exposer le contenu de la requête.}}'
+      fix: '{why, select, private {Appelle une adresse publique.} metadata {Appelle une adresse publique.} other {Utilise l’adresse avec https://.}}'
     HTTP_OFF_ORIGIN:
       title: L’adresse est hors de celle des identifiants
       explanation: Une étape qui se connecte avec des identifiants n’appelle que des adresses sous leur URL de base, redirections comprises.

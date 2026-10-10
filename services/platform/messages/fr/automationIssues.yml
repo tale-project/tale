@@ -307,7 +307,7 @@ codes:
     title: L’adresse n’est pas en HTTPS
     explanation: Une étape HTTP sans identifiants n’appelle des adresses publiques qu’en HTTPS, une exécution refuse donc cette adresse.
     cause: '{nodeLabel} appelle une adresse http:// simple.'
-    fix: Utilise l’adresse https://. Le http simple n’atteint qu’un hôte privé que ce déploiement autorise.
+    fix: Utilise l’adresse https://.
   HTTP_SECRET_IN_URL:
     title: Identifiants dans l’adresse
     explanation: Des identifiants écrits dans l’adresse d’une étape sont enregistrés avec chaque version et apparaissent dans chaque exécution. Des identifiants enregistrés signent la requête à leur place.

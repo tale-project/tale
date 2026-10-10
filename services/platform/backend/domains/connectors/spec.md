@@ -153,9 +153,8 @@ header, or a user name and password.
 ### CONN-R15 · A call without a credential carries none, and reaches public HTTPS hosts only
 
 A step that names no credential is never signed with the organization's default one. It may
-call a public address over HTTPS; a private network address is reached only where the
-deployment admits private hosts, over HTTPS or plain HTTP, and a cloud metadata address
-never.
+call a public address over HTTPS, and never a private network address or a cloud metadata
+address.
 
 - **Example**: Ada's step reads `https://status.example.com/api` without a credential → the
   call goes out unsigned. Her step on `http://169.254.169.254/latest` is refused before any

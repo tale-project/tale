@@ -173,7 +173,7 @@ describe('a call without a credential [CONN-R15]', () => {
     expect(api.fetch).not.toHaveBeenCalled();
   });
 
-  it('reaches a private address only where the deployment admits private hosts', async () => {
+  it('reaches a private address only where its host admits private hosts', async () => {
     const refused = client();
     await expect(
       causeOf(

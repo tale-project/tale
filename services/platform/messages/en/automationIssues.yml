@@ -312,7 +312,7 @@ codes:
     title: Address isn't HTTPS
     explanation: An HTTP step without a credential calls public addresses over HTTPS only, so a run refuses this address.
     cause: '{nodeLabel} calls a plain http:// address.'
-    fix: Use the https:// address. Plain http reaches only a private host this deployment allows.
+    fix: Use the https:// address.
   HTTP_SECRET_IN_URL:
     title: Credential in the address
     explanation: A credential written into a step's address is saved with every version and shows in every run. A stored credential signs the request instead.

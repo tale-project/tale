@@ -307,7 +307,7 @@ codes:
     title: Adresse ist kein HTTPS
     explanation: Ein HTTP-Schritt ohne Zugangsdaten ruft öffentliche Adressen nur über HTTPS auf, deshalb lehnt ein Lauf diese Adresse ab.
     cause: '{nodeLabel} ruft eine einfache http://-Adresse auf.'
-    fix: Verwende die https://-Adresse. Einfaches http erreicht nur einen privaten Host, den dieses Deployment erlaubt.
+    fix: Verwende die https://-Adresse.
   HTTP_SECRET_IN_URL:
     title: Zugangsdaten in der Adresse
     explanation: Zugangsdaten in der Adresse eines Schritts werden mit jeder Version gespeichert und erscheinen in jedem Lauf. Stattdessen melden gespeicherte Zugangsdaten die Anfrage an.
