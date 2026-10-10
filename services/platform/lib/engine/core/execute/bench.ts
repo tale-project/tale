@@ -61,11 +61,13 @@ export interface BenchPlan {
   /**
    * A forEach node's simulated outputs, one per item of its list of `count`
    * items: the entries of its stand-in, which must be a list at least that
-   * long. Otherwise the sentence the node fails with.
+   * long — or, for a run that picks one item (`only` with `item`), long
+   * enough to hold that item's. Otherwise the sentence the node fails with.
    */
   itemOutputs(
     nodeId: string,
     count: number,
+    picked?: number,
   ): { ok: true; outputs: readonly Json[] } | { ok: false; message: string };
 }
 
@@ -384,13 +386,21 @@ export function planBench(
       }
       return CALL_AS_WRITTEN;
     },
-    itemOutputs(nodeId, items) {
+    itemOutputs(nodeId, items, picked) {
       const mock = mocks[nodeId];
       if (!Array.isArray(mock)) {
         return {
           ok: false,
           message: `the test's simulated output for "${nodeId}" is ${kindWords(mock)}, but "${nodeId}" runs once per item (forEach) — it needs a list`,
         };
+      }
+      if (picked !== undefined) {
+        return mock.length > picked
+          ? { ok: true, outputs: mock }
+          : {
+              ok: false,
+              message: `the test's simulated output for "${nodeId}" has ${plural(mock.length, 'entry', 'entries')}, but this run picks item ${picked} — items count from 0`,
+            };
       }
       if (mock.length < items) {
         return {

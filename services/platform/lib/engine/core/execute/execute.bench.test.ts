@@ -513,6 +513,54 @@ describe('step tests', () => {
       },
     });
   });
+
+  it('one item of a node with a stand-in needs the stand-in to reach that item only', async () => {
+    const d = doc([
+      {
+        id: 'each',
+        type: 'mail.send',
+        forEach: '{{ input.to }}',
+        input: { to: '{{ item }}' },
+      },
+    ]);
+    const input = {
+      to: ['a@example.test', 'b@example.test', 'c@example.test'],
+    };
+    const two = [{ id: 'zero' }, { id: 'one' }];
+    const one = await run(
+      d,
+      { only: 'each', item: 1, mocks: { each: two } },
+      input,
+    );
+    expect(one.status).toBe('success');
+    expect(one.output).toEqual({ id: 'one' });
+    expect(one.effects).toEqual([
+      {
+        node: 'each',
+        connector: 'mail.send',
+        input: { to: 'b@example.test' },
+        item: 1,
+      },
+    ]);
+    const past = await run(
+      d,
+      { only: 'each', item: 2, mocks: { each: two } },
+      input,
+    );
+    expect(past.error?.message).toBe(
+      'the test\'s simulated output for "each" has 2 entries, but this run picks item 2 — items count from 0',
+    );
+    // An item the list does not have is refused before any stand-in is
+    // looked at.
+    const outside = await run(
+      d,
+      { only: 'each', item: 3, mocks: { each: two } },
+      input,
+    );
+    expect(outside.validation?.errors.map((i) => i.code)).toEqual([
+      'BENCH_ITEM_OUT_OF_RANGE',
+    ]);
+  });
 });
 
 describe('a run’s time limit and its caller’s stop', () => {

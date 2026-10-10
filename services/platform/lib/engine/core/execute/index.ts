@@ -949,12 +949,6 @@ export async function execute(
           rec,
         );
         entry.input = { forEach: `${arr.length} item(s)` };
-        if (call.kind === 'mock' && plan !== undefined) {
-          // A forEach stand-in is a list: item i returns entry i.
-          const fits = plan.itemOutputs(n.id, arr.length);
-          if (!fits.ok) throw new ExprError(n.id, fits.message);
-          itemMocks = fits.outputs;
-        }
         // Run alone with one item picked, the node runs that item only, and
         // its output is that item's.
         const picked =
@@ -970,6 +964,13 @@ export async function execute(
               ptr('bench', 'item'),
             ),
           );
+        }
+        if (call.kind === 'mock' && plan !== undefined) {
+          // A forEach stand-in is a list: item i returns entry i — of the
+          // items that run.
+          const fits = plan.itemOutputs(n.id, arr.length, picked);
+          if (!fits.ok) throw new ExprError(n.id, fits.message);
+          itemMocks = fits.outputs;
         }
         const outs: unknown[] = [];
         for (const [index, item] of arr.entries()) {
