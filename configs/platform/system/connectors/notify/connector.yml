@@ -1,0 +1,96 @@
+# Platform capability — tell members something from an automation step: a
+# row in each one's bell and an email, with the step's title, words and link
+# in a frame that names the automation. Native-backed over the collaboration
+# domain's own notification writer: recipients must be members of the
+# organization, each one's switch for messages from automations is honoured,
+# and a run sends a bounded number of messages. `platform` auth — nothing to
+# connect. The mock is deterministic.
+name: notify
+displayName: Notify
+i18n:
+  de:
+    displayName: Benachrichtigen
+  fr:
+    displayName: Notifier
+description: >-
+  Tell members of the organization something from an automation — in their
+  notifications and by email.
+tags:
+  - Platform
+auth:
+  - method: platform
+actions:
+  - name: member
+    title: Notify members
+    i18n:
+      de:
+        title: Mitglieder benachrichtigen
+      fr:
+        title: Notifier des membres
+    description: >-
+      Send a message to members of the organization: each gets it in their
+      notifications and by email, with its title, its words and a link, in a
+      frame that names the automation. Name each member by email or user id,
+      or `run-starter` for the person who started the run (a run a trigger
+      started has none, and is listed as skipped). Someone who is not a
+      member fails the step; someone who switched off messages from
+      automations is skipped and listed. The link is a page of the
+      organization (a path starting /dashboard/) or an https address. At most
+      20 members per call and 100 messages per run. One delivery per
+      execution of the step: a retry sends nothing twice.
+    effects: write
+    # Each message row carries the execution's ledger key, so repeating the
+    # call finds the rows already written instead of writing a second set.
+    idempotent: true
+    input:
+      type: object
+      required: [to, title]
+      additionalProperties: false
+      properties:
+        to:
+          {
+            type: array,
+            minItems: 1,
+            maxItems: 20,
+            items: { type: string, minLength: 1, maxLength: 320 },
+            description: 'Members by email or user id, or run-starter for the person who started the run.',
+          }
+        title:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 120,
+            description: 'What the message is about, in one line.',
+          }
+        message:
+          {
+            type: string,
+            maxLength: 2000,
+            description: 'The words below the title, as plain text.',
+          }
+        link:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 2000,
+            description: 'A page of the organization (a path starting /dashboard/) or an https address to open.',
+          }
+    output: '{ delivered: Array<{ to: string, userId: string }>, skipped: Array<{ to: string, userId?: string, reason: "preference" | "no_starter" }> }'
+    mock: |
+      const to = Array.isArray(input.to) ? input.to : [];
+      return {
+        delivered: to.map((recipient, at) => ({
+          to: recipient,
+          userId: 'usr_mock_' + (at + 1),
+        })),
+        skipped: [],
+      };
+    backend:
+      kind: native
+      impl: notify.member
+    exampleInput:
+      {
+        to: [run-starter],
+        title: Weekly report ready,
+        message: 'Revenue is up 4 % on last week.',
+      }

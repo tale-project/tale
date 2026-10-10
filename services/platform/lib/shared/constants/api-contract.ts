@@ -658,5 +658,11 @@
  * date and labels — one per execution of the step, naming the automation as
  * its creator. `StepFailure.reason` gains `TASK_PROJECT_NOT_BOUND` and
  * `TASK_ASSIGNEE_UNKNOWN`.
+ *
+ * 3.35.0 — 2026-10-11: a `notify.member` connector node type tells members of
+ * the organization something from an automation — a title, words and a link
+ * (a page of the organization or an https address), in their notifications
+ * and by email — and answers who got it and who was skipped.
+ * `StepFailure.reason` gains `NOTIFY_NOT_A_MEMBER` and `NOTIFY_RUN_LIMIT`.
  */
-export const API_CONTRACT_VERSION = '3.34.0';
+export const API_CONTRACT_VERSION = '3.35.0';

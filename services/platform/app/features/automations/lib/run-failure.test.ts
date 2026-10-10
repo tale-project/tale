@@ -60,6 +60,7 @@ const SAMPLE: StepFailure['params'] = {
   atOnce: 10,
   assignee: 'nobody@example.com',
   projectId: 'prj_relaunch',
+  recipient: 'noah@example.com',
 };
 
 /** The run-level code each reason's failure carries. */

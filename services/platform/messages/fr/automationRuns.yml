@@ -322,6 +322,16 @@ runtime:
       explanation: Une tâche va à un membre de l’organisation ou à un agent de son projet.
       cause: 'Aucun membre ni agent du projet n’est {assignee}, ou il ne peut pas y travailler.'
       fix: Nomme l’e-mail ou l’identifiant d’un membre, ou un agent du projet.
+    NOTIFY_NOT_A_MEMBER:
+      title: Une personne destinataire n’est pas membre
+      explanation: Une automatisation n’envoie de messages qu’aux membres de l’organisation, et n’envoie rien si une personne qu’elle nomme n’en est pas.
+      cause: '{recipient} n’est pas membre de l’organisation.'
+      fix: Nomme les membres par leur e-mail ou leur identifiant, ou retire les personnes qui sont parties.
+    NOTIFY_RUN_LIMIT:
+      title: L’exécution a envoyé trop de messages
+      explanation: Une exécution envoie un nombre limité de messages, pour qu’une étape dans une boucle n’inonde pas les notifications.
+      cause: 'Avec cette étape, l’exécution aurait dépassé {limit} messages, elle n’a donc rien envoyé.'
+      fix: Envoie un seul message à plusieurs membres plutôt qu’un par élément, ou répartis le travail sur plusieurs exécutions.
     LLM_OUTPUT_INVALID:
       title: La réponse du modèle ne correspondait pas
       explanation: L’étape a demandé au modèle une réponse structurée, et la réponse ne correspondait pas au schéma de sortie.

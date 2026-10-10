@@ -57,6 +57,8 @@ export const STEP_FAILURE_REASONS = [
   'KNOWLEDGE_UNAVAILABLE',
   'TASK_PROJECT_NOT_BOUND',
   'TASK_ASSIGNEE_UNKNOWN',
+  'NOTIFY_NOT_A_MEMBER',
+  'NOTIFY_RUN_LIMIT',
   'LLM_OUTPUT_INVALID',
   'LLM_PROVIDER',
   'AGENT_FAILED',
@@ -158,6 +160,9 @@ export const STEP_FAILURE_META: Readonly<
     technical: ['projectId'],
   },
   TASK_ASSIGNEE_UNKNOWN: { params: ['assignee'] },
+  // The first recipient the step named who is not a member.
+  NOTIFY_NOT_A_MEMBER: { params: ['recipient'] },
+  NOTIFY_RUN_LIMIT: { params: ['limit'] },
   LLM_OUTPUT_INVALID: { params: ['model'] },
   LLM_PROVIDER: { params: ['model', 'providerCode'] },
   AGENT_FAILED: { params: ['agentCode'], optional: ['harness', 'attempts'] },
@@ -215,7 +220,8 @@ export function reasonFamily(reason: string, params?: FailureParams): string {
     reason.startsWith('CONNECTOR_') ||
     reason.startsWith('HTTP_') ||
     reason.startsWith('KNOWLEDGE_') ||
-    reason.startsWith('TASK_')
+    reason.startsWith('TASK_') ||
+    reason.startsWith('NOTIFY_')
   ) {
     return 'connector_error';
   }

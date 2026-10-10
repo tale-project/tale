@@ -21,6 +21,7 @@ import {
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
   type WorkflowKnowledgeSearch,
+  type WorkflowNotifyStore,
   type WorkflowTaskStore,
 } from './index';
 
@@ -248,6 +249,12 @@ const NATIVE_ACTIONS: Array<{
     action: 'query_sync_cursor',
     input: { connectorSlug: 'gmail', direction: 'inbound' },
   },
+  {
+    impl: 'notify.member',
+    connector: 'notify',
+    action: 'member',
+    input: { to: ['ada@example.com'], title: 'Weekly report ready' },
+  },
 ];
 
 /** The store double: enough shape for the actions, no Convex. */
@@ -444,6 +451,18 @@ const knowledgeStore: WorkflowKnowledgeSearch = {
     }),
 };
 
+const notifyStore: WorkflowNotifyStore = {
+  notify: ({ to }) =>
+    Promise.resolve({
+      ok: true,
+      delivered: to.map((recipient, at) => ({
+        to: recipient,
+        userId: `usr_${at}`,
+      })),
+      skipped: [],
+    }),
+};
+
 const conversationStore: WorkflowConversationStore = {
   ingestEmails: () =>
     Promise.resolve({
@@ -548,6 +567,7 @@ beforeEach(() => {
     documents: documentStore,
     conversations: conversationStore,
     knowledge: knowledgeStore,
+    notify: notifyStore,
     mailAttachments,
     mailTransport: transport,
     mailConfig: () => ({
@@ -594,6 +614,7 @@ describe('registration', () => {
       documents: documentStore,
       conversations: conversationStore,
       knowledge: knowledgeStore,
+      notify: notifyStore,
       mailAttachments,
       mailTransport: transport,
     });
@@ -647,6 +668,7 @@ describe('dispatching the shipped native actions', () => {
       documents: documentStore,
       conversations: conversationStore,
       knowledge: knowledgeStore,
+      notify: notifyStore,
       mailAttachments,
       mailTransport: transport,
     });
@@ -686,6 +708,7 @@ describe('dispatching the shipped native actions', () => {
         documents: documentStore,
         conversations: conversationStore,
         knowledge: knowledgeStore,
+        notify: notifyStore,
         mailAttachments,
         mailTransport: transport,
         tasks: {

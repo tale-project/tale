@@ -260,6 +260,34 @@ the call began — a label it minted — stays written.
 - **Example**: Noah's step assigns the task to `nobody@example.com` → the run fails at the step,
   saying the task's assignee isn't known and how to name one.
 
+## Telling members from an automation
+
+A `notify.member` step sends a message to members of the organization, as its automation run:
+the run names the automation in the message's frame, and `run-starter` means the run's own
+starter.
+
+### CONN-R25 · A message step tells the members it names, and refuses anyone who is not one
+
+Members are named by email (any case) or user id; someone named twice is told once.
+`run-starter` is the person who started the run — a run a trigger started, or whose starter
+left, has none, and the step lists it as skipped. Someone who switched off messages from
+automations is skipped and listed. A recipient who is not a member — or whose membership is
+disabled — fails the step with `NOTIFY_NOT_A_MEMBER`, and nobody is told: a message never
+quietly misses someone it names.
+
+- **Example**: The weekly report step names `ada@example.com` and `run-starter` on a schedule's
+  run → Ada is told; `run-starter` is listed as skipped, because no person started the run.
+
+### CONN-R26 · A message step sends once per execution, and a run sends a bounded number
+
+A retry of the same execution tells nobody twice: it answers the members the first try reached.
+One run sends at most 100 messages across its steps; a step that would pass that fails with
+`NOTIFY_RUN_LIMIT` and sends none.
+
+- **Example**: A step in a loop tells the account owner about each of 150 overdue invoices → the
+  run stops at the step that would send the 101st message, and says to send one message to
+  several members instead.
+
 ## Not yet
 
 - **The catalog of connectors**, what each can do, and which need an approval before they
