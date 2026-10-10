@@ -252,6 +252,56 @@ runtime:
       explanation: Der Dienst antwortete mit einem Fehler.
       cause: '{status, select, none {{connectorLabel} ist bei {actionLabel} fehlgeschlagen.} other {{connectorLabel} antwortete auf {actionLabel} mit {status}.}}'
       fix: Die technischen Details enthalten den Wortlaut des Dienstes. Korrigiere die Eingabe oder versuche es erneut.
+    HTTP_STATUS:
+      title: Die API hat mit einem Fehler geantwortet
+      explanation: Die Anfrage hat den Dienst erreicht, und er hat mit einem Status geantwortet, der kein Erfolg ist.
+      cause: '{host} hat auf die {method}-Anfrage mit {status} geantwortet.'
+      fix: Prüfe URL, Query und Body anhand der Dokumentation der API. Ist dieser Status eine Antwort, die du erwartest, trage ihn unter okStatuses ein.
+    HTTP_TIMEOUT:
+      title: Die API hat zu lange gebraucht
+      explanation: Der Dienst hat seine Antwort nicht rechtzeitig vollständig gesendet, deshalb wurde die Anfrage abgebrochen.
+      cause: '{host} hat auf die {method}-Anfrage nicht innerhalb von {limit} geantwortet.'
+      fix: Prüfe den Status des Dienstes, oder gib dem Schritt mit timeoutMs mehr Zeit (höchstens 30 Sekunden).
+    HTTP_UNREACHABLE:
+      title: Die API war nicht erreichbar
+      explanation: Tale konnte keine Verbindung zum Dienst aufbauen, deshalb blieb die Anfrage ohne Antwort.
+      cause: '{host} war nicht erreichbar.'
+      fix: Prüfe die Adresse und den Status des Dienstes und führe den Lauf dann erneut aus. Die technischen Details sagen, was fehlgeschlagen ist.
+    HTTP_BLOCKED_HOST:
+      title: Die Adresse ist nicht erlaubt
+      explanation: Automatisierungen rufen öffentliche Adressen über HTTPS auf.
+      cause: '{why, select, private {{host} ist eine Adresse in einem privaten Netzwerk, die Automatisierungen in dieser Installation nicht aufrufen dürfen.} metadata {{host} ist eine Metadatenadresse einer Cloud und wird nie aufgerufen.} other {{host} wurde über einfaches HTTP aufgerufen, wodurch der Inhalt der Anfrage offenliegen könnte.}}'
+      fix: '{why, select, private {Rufe eine öffentliche Adresse auf, oder bitte die Betreiber von Tale, private Adressen zu erlauben.} metadata {Rufe eine öffentliche Adresse auf.} other {Verwende die Adresse mit https://.}}'
+    HTTP_OFF_ORIGIN:
+      title: Die Adresse liegt außerhalb der Zugangsdaten
+      explanation: Ein Schritt, der sich mit Zugangsdaten anmeldet, ruft nur Adressen unter deren Basis-URL auf, auch bei Weiterleitungen.
+      cause: '{target} liegt nicht unter {baseUrl}.'
+      fix: Rufe einen Pfad unter der Basis-URL der Zugangsdaten auf, oder verwende Zugangsdaten, die für diese Adresse angelegt sind.
+    HTTP_URL_INVALID:
+      title: Die Adresse kann nicht aufgerufen werden
+      explanation: Die URL des Schritts ist keine, die ein HTTP-Schritt aufrufen kann.
+      cause: '{why, select, scheme {Die URL beginnt nicht mit https://.} userinfo {Die URL enthält einen Benutzernamen oder ein Passwort.} path {Die URL ist ein Pfad, und nur ein Schritt mit Zugangsdaten kann einen Pfad aufrufen.} base {Die Basis-URL der Zugangsdaten ist keine gültige Adresse.} other {Die URL ist keine gültige Adresse.}}'
+      fix: '{why, select, userinfo {Entferne Benutzername und Passwort aus der URL und melde dich stattdessen mit Zugangsdaten an.} path {Schreibe die vollständige Adresse, oder wähle Zugangsdaten, unter deren Basis-URL der Pfad liegt.} base {Korrigiere die Basis-URL in den Zugangsdaten.} other {Schreibe eine vollständige Adresse, die mit https:// beginnt.}}'
+    HTTP_HEADER_RESERVED:
+      title: Ein Header gehört zu den Zugangsdaten
+      explanation: Authorization, Cookie und der API-Key-Header kommen aus den Zugangsdaten des Schritts, nie vom Schritt selbst.
+      cause: Der Schritt setzt den Header {header}.
+      fix: Entferne den Header aus dem Schritt und melde dich stattdessen mit Zugangsdaten an.
+    HTTP_TOO_LARGE:
+      title: Die Antwort ist zu groß
+      explanation: Ein HTTP-Schritt liest Antworten bis 1 MB.
+      cause: '{host} hat eine Antwort über 1 MB gesendet.'
+      fix: Frage bei der API weniger auf einmal ab, zum Beispiel mit einer Seitengröße oder einem Filter.
+    HTTP_NOT_JSON:
+      title: Die Antwort ist kein JSON
+      explanation: Der Schritt liest die Antwort als JSON, und der Dienst hat etwas anderes gesendet.
+      cause: '{contentType, select, none {{host} hat mit einem Body geantwortet, der kein JSON ist.} other {{host} hat mit {contentType} geantwortet, nicht mit JSON.}}'
+      fix: Lies die Antwort mit responseType text als Text, oder prüfe, ob die URL die der API ist und nicht die einer Webseite.
+    HTTP_RATE_LIMITED:
+      title: Zu viele API-Aufrufe auf einmal
+      explanation: Die Automatisierungen einer Organisation dürfen nur eine begrenzte Zahl von HTTP-Aufrufen machen.
+      cause: Die Automatisierungen deiner Organisation haben mehr als {perMinute} HTTP-Aufrufe in einer Minute oder {atOnce} gleichzeitig gemacht.
+      fix: Führe den Lauf später erneut aus, oder rufe die API für weniger Elemente auf einmal auf.
     LLM_OUTPUT_INVALID:
       title: Die Antwort des Modells passte nicht
       explanation: Der Schritt hat das Modell um eine strukturierte Antwort gebeten, und die Antwort entsprach nicht dem Ausgabeschema.

@@ -252,6 +252,56 @@ runtime:
       explanation: Le service a répondu par une erreur.
       cause: '{status, select, none {{connectorLabel} a échoué sur {actionLabel}.} other {{connectorLabel} a répondu {status} à {actionLabel}.}}'
       fix: Les détails techniques donnent le message exact du service. Corrige l’entrée, ou réessaie.
+    HTTP_STATUS:
+      title: L’API a répondu par une erreur
+      explanation: La requête a atteint le service, qui a répondu par un statut qui n’est pas un succès.
+      cause: '{host} a répondu {status} à la requête {method}.'
+      fix: Vérifie l’URL, la query et le corps d’après la documentation de l’API. Si ce statut est une réponse que tu attends, ajoute-le sous okStatuses.
+    HTTP_TIMEOUT:
+      title: L’API a mis trop de temps
+      explanation: Le service n’a pas envoyé toute sa réponse à temps, la requête a donc été interrompue.
+      cause: '{host} n’a pas répondu à la requête {method} en {limit}.'
+      fix: Vérifie l’état du service, ou donne plus de temps à l’étape avec timeoutMs (30 secondes au plus).
+    HTTP_UNREACHABLE:
+      title: L’API était injoignable
+      explanation: Tale n’a pas pu se connecter au service, la requête est donc restée sans réponse.
+      cause: '{host} était injoignable.'
+      fix: Vérifie l’adresse et l’état du service, puis relance. Les détails techniques disent ce qui a échoué.
+    HTTP_BLOCKED_HOST:
+      title: L’adresse n’est pas autorisée
+      explanation: Les automatisations appellent des adresses publiques, en HTTPS.
+      cause: '{why, select, private {{host} est une adresse de réseau privé, que les automatisations ne peuvent pas appeler sur cette installation.} metadata {{host} est une adresse de métadonnées d’un cloud, qui n’est jamais appelée.} other {{host} a été appelé en HTTP simple, ce qui pourrait exposer le contenu de la requête.}}'
+      fix: '{why, select, private {Appelle une adresse publique, ou demande aux personnes qui gèrent Tale d’autoriser les adresses privées.} metadata {Appelle une adresse publique.} other {Utilise l’adresse avec https://.}}'
+    HTTP_OFF_ORIGIN:
+      title: L’adresse est hors de celle des identifiants
+      explanation: Une étape qui se connecte avec des identifiants n’appelle que des adresses sous leur URL de base, redirections comprises.
+      cause: '{target} n’est pas sous {baseUrl}.'
+      fix: Appelle un chemin sous l’URL de base des identifiants, ou utilise des identifiants créés pour cette adresse.
+    HTTP_URL_INVALID:
+      title: L’adresse ne peut pas être appelée
+      explanation: L’URL de l’étape n’est pas une adresse qu’une étape HTTP peut appeler.
+      cause: '{why, select, scheme {L’URL ne commence pas par https://.} userinfo {L’URL contient un nom d’utilisateur ou un mot de passe.} path {L’URL est un chemin, et seule une étape avec des identifiants peut appeler un chemin.} base {L’URL de base des identifiants n’est pas une adresse valide.} other {L’URL n’est pas une adresse valide.}}'
+      fix: '{why, select, userinfo {Retire le nom d’utilisateur et le mot de passe de l’URL, et connecte-toi plutôt avec des identifiants.} path {Écris l’adresse complète, ou choisis des identifiants sous l’URL de base desquels se trouve le chemin.} base {Corrige l’URL de base dans les identifiants.} other {Écris une adresse complète qui commence par https://.}}'
+    HTTP_HEADER_RESERVED:
+      title: Un en-tête appartient aux identifiants
+      explanation: Authorization, Cookie et l’en-tête de la clé d’API viennent des identifiants de l’étape, jamais de l’étape elle-même.
+      cause: L’étape définit l’en-tête {header}.
+      fix: Retire l’en-tête de l’étape, et connecte-toi plutôt avec des identifiants.
+    HTTP_TOO_LARGE:
+      title: La réponse est trop volumineuse
+      explanation: Une étape HTTP lit des réponses jusqu’à 1 Mo.
+      cause: '{host} a envoyé une réponse de plus de 1 Mo.'
+      fix: Demande moins à l’API à la fois, par exemple avec une taille de page ou un filtre.
+    HTTP_NOT_JSON:
+      title: La réponse n’est pas du JSON
+      explanation: L’étape lit la réponse en JSON, et le service a envoyé autre chose.
+      cause: '{contentType, select, none {{host} a répondu avec un corps qui n’est pas du JSON.} other {{host} a répondu avec {contentType}, pas du JSON.}}'
+      fix: Lis la réponse comme du texte avec responseType text, ou vérifie que l’URL est bien celle de l’API et non celle d’une page web.
+    HTTP_RATE_LIMITED:
+      title: Trop d’appels d’API à la fois
+      explanation: Les automatisations d’une organisation peuvent faire un nombre limité d’appels HTTP.
+      cause: Les automatisations de ton organisation ont fait plus de {perMinute} appels HTTP en une minute, ou {atOnce} à la fois.
+      fix: Relance plus tard, ou appelle l’API pour moins d’éléments à la fois.
     LLM_OUTPUT_INVALID:
       title: La réponse du modèle ne correspondait pas
       explanation: L’étape a demandé au modèle une réponse structurée, et la réponse ne correspondait pas au schéma de sortie.

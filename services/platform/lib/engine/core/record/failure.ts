@@ -43,6 +43,16 @@ export const STEP_FAILURE_REASONS = [
   'CONNECTOR_RATE_LIMITED',
   'CONNECTOR_UNREACHABLE',
   'CONNECTOR_FAILED',
+  'HTTP_STATUS',
+  'HTTP_TIMEOUT',
+  'HTTP_UNREACHABLE',
+  'HTTP_BLOCKED_HOST',
+  'HTTP_OFF_ORIGIN',
+  'HTTP_URL_INVALID',
+  'HTTP_HEADER_RESERVED',
+  'HTTP_TOO_LARGE',
+  'HTTP_NOT_JSON',
+  'HTTP_RATE_LIMITED',
   'LLM_OUTPUT_INVALID',
   'LLM_PROVIDER',
   'AGENT_FAILED',
@@ -109,6 +119,24 @@ export const STEP_FAILURE_META: Readonly<
     optional: ['status'],
     technical: ['detail'],
   },
+  // The HTTP connector's own causes. `host` is the address's host only and
+  // `target` a URL without its query: a query may carry a value the author
+  // keeps to themselves.
+  HTTP_STATUS: {
+    params: ['status', 'method', 'host'],
+    technical: ['detail'],
+  },
+  HTTP_TIMEOUT: { params: ['method', 'host', 'limitMs'] },
+  HTTP_UNREACHABLE: { params: ['host'], technical: ['detail'] },
+  // `why`: private, metadata or plaintext.
+  HTTP_BLOCKED_HOST: { params: ['host', 'why'] },
+  HTTP_OFF_ORIGIN: { params: ['target', 'baseUrl'] },
+  // `why`: url, scheme, userinfo, path or base.
+  HTTP_URL_INVALID: { params: ['why'] },
+  HTTP_HEADER_RESERVED: { params: ['header'] },
+  HTTP_TOO_LARGE: { params: ['host'] },
+  HTTP_NOT_JSON: { params: ['host'], optional: ['contentType'] },
+  HTTP_RATE_LIMITED: { params: ['perMinute', 'atOnce'] },
   LLM_OUTPUT_INVALID: { params: ['model'] },
   LLM_PROVIDER: { params: ['model', 'providerCode'] },
   AGENT_FAILED: { params: ['agentCode'], optional: ['harness', 'attempts'] },
@@ -132,7 +160,9 @@ export const STEP_FAILURE_META: Readonly<
  * family itself, from the error it caught.
  */
 export function reasonFamily(reason: string): string {
-  if (reason.startsWith('CONNECTOR_')) return 'connector_error';
+  if (reason.startsWith('CONNECTOR_') || reason.startsWith('HTTP_')) {
+    return 'connector_error';
+  }
   switch (reason) {
     case 'LLM_OUTPUT_INVALID':
       return 'llm_output_invalid';
