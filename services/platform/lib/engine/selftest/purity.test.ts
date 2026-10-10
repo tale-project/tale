@@ -13,8 +13,8 @@ import { describe, expect, it } from 'vitest';
  * flows through the slots. The backends under `runners/` are the ONE
  * sanctioned exception — `node-vm.ts` exists to wrap `node:vm` and to
  * supervise the child process (`node-vm-child.ts`) it evaluates in; test
- * files and the test-support modules under `selftest/` are host code and
- * exempt.
+ * and bench files and the test-support modules under `selftest/` are host
+ * code and exempt.
  */
 
 const ENGINE_ROOT = path.join(
@@ -51,7 +51,11 @@ function sourceFiles(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(full));
-    else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) {
+    else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.includes('.test.') &&
+      !entry.name.includes('.bench.')
+    ) {
       out.push(full);
     }
   }
