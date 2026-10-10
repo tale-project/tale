@@ -192,6 +192,9 @@ export async function evaluateTwoFactorEnforcement(
     /** Every organization the user belongs to, when the caller already
      * read them (the org gate does, with the membership itself). */
     organizationIds: readonly string[];
+    /** The user row's `twoFactorEnabled`, when the caller holds the row
+     * (the org gate does, in its session). */
+    twoFactorEnabled?: boolean;
   },
 ): Promise<TwoFactorEnforcement> {
   const orgIds = known?.organizationIds ?? (await userOrgIds(db, userId));
@@ -222,10 +225,14 @@ export async function evaluateTwoFactorEnforcement(
       policy: wire,
     };
   }
-  const users = await db<{ twoFactorEnabled: boolean | null }[]>`
-    SELECT "twoFactorEnabled" FROM "user" WHERE "id" = ${userId} LIMIT 1
-  `;
-  if (users[0]?.twoFactorEnabled === true) {
+  const twoFactorEnabled =
+    known?.twoFactorEnabled ??
+    (
+      await db<{ twoFactorEnabled: boolean | null }[]>`
+        SELECT "twoFactorEnabled" FROM "user" WHERE "id" = ${userId} LIMIT 1
+      `
+    )[0]?.twoFactorEnabled;
+  if (twoFactorEnabled === true) {
     return {
       decision: 'ok',
       graceUntilToSet: null,
