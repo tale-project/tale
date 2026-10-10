@@ -2347,7 +2347,6 @@ export async function setTaskReviewer(
     taskAudit(auth, task, TASK_AUDIT_ACTIONS.updated, {
       previousState: {
         reviewer: taskReviewerFromIds(task),
-        resolvedReviewer: await resolveTaskReviewer(sql, task),
         approvalId: args.expected.pendingReview?.approvalId ?? null,
       },
       newState: {
