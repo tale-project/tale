@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 179 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 180 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1319,6 +1319,13 @@ output:
       project's cost limit and run the step again in that project → it fails
       with `automationRuns.reasons.BUDGET_EXCEEDED`, and the technical
       details name the limit.
+- [ ] `AUTO-F129` · **Run live an `http.get` step on
+      `https://httpbin.org/status/503`, then on
+      `https://httpbin.org/status/404`** → the first run fails as
+      `automationRuns.runFailure.codes.connector_unavailable` (a service was
+      unavailable, run again later), the second as
+      `automationRuns.runFailure.codes.connector_error`; both steps explain
+      `automationRuns.reasons.HTTP_STATUS` with the status the API answered.
 
 ## Boundary & error tests
 

@@ -642,5 +642,14 @@
  * step of a platform connector (`task`, `document`, `conversation`,
  * `sandbox`, `knowledge`) takes no `credential`, which it ignored:
  * validation answers `NODE_UNKNOWN_FIELD` for one.
+ *
+ * 3.33.0 — 2026-10-10: `Run.failureCode` gains `connector_unavailable`, for a
+ * connector whose service did not answer, answered too slowly, was busy or
+ * failed on its own side (a 429 or a 5xx): it neither counts toward a
+ * schedule's pause nor resets the count, where `connector_error` counted. A
+ * live connector failure that names no cause is now classified by the
+ * status the service answered (`CONNECTOR_AUTH`, `CONNECTOR_NOT_FOUND`,
+ * `CONNECTOR_RATE_LIMITED`, `CONNECTOR_UNREACHABLE`, `CONNECTOR_FAILED`),
+ * as a test run's always was; it read `UNKNOWN`.
  */
-export const API_CONTRACT_VERSION = '3.32.0';
+export const API_CONTRACT_VERSION = '3.33.0';

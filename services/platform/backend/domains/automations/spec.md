@@ -345,6 +345,7 @@ would repeat:
 | --- | --- |
 | an error in the automation's own steps (`node_error`) | yes |
 | a connector error (`connector_error`) | yes |
+| a connected service that did not answer, answered too slowly, was busy, or failed on its own side (`connector_unavailable`) | no, and it does not reset the count |
 | a model answer that does not fit its schema (`llm_output_invalid`) | yes |
 | a problem with the organization's model provider account (`auth_error`, `missing_api_key`, `credit_exhausted`, `model_not_found`) | yes |
 | anything else, such as a rate limit or an unreachable provider | no, and it does not reset the count |

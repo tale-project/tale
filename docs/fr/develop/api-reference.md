@@ -796,7 +796,7 @@ Une exécution lancée par un déclencheur (`startedBy: "trigger:<id>"`) porte a
 
 | Origine de l’échec | Exemples et action |
 | --- | --- |
-| Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
+| Automatisation | `node_error`, `connector_error`, `connector_unavailable`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
 | Fournisseur de modèle | Par exemple `credit_exhausted` ou `rate_limited` : résous le problème du fournisseur avant un nouvel essai. |
 | Exécution d’agent | Par exemple `harness_error`, `session_gone` ou `deadline` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
 | Limite de budget | `budget_exceeded` : une limite de budget a refusé un tour d’agent ou l’appel d’une étape `llm`, ou un tour a épuisé l’enveloppe avec laquelle il a démarré. Lis `detail`, puis attends que la limite se réinitialise ou demande à un administrateur de la relever. |

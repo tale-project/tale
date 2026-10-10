@@ -387,6 +387,10 @@ runFailure:
       title: A service call failed
       explanation: A connected service refused or failed a call.
       fix: Check the step's input and the service's connection.
+    connector_unavailable:
+      title: A service was unavailable
+      explanation: A connected service didn't answer, answered too slowly, was busy, or failed on its side.
+      fix: Run again later. A schedule keeps running through it.
     llm_output_invalid:
       title: The model's answer didn't fit
       explanation: The reply didn't match the step's output schema.

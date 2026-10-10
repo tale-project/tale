@@ -387,6 +387,10 @@ runFailure:
       title: Un appel de service a échoué
       explanation: Un service connecté a refusé un appel ou a échoué.
       fix: Vérifie l’entrée de l’étape et la connexion au service.
+    connector_unavailable:
+      title: Un service était indisponible
+      explanation: Un service connecté n’a pas répondu, a répondu trop lentement, était surchargé ou a échoué de son côté.
+      fix: Relance plus tard. Une planification continue de tourner malgré cela.
     llm_output_invalid:
       title: La réponse du modèle ne correspondait pas
       explanation: La réponse ne correspondait pas au schéma de sortie de l’étape.

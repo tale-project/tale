@@ -1027,8 +1027,9 @@ export async function execute(
         : /Cannot read propert/.test(message)
           ? 'a referenced value is null/undefined — check the exact output shape in the trace of the upstream node'
           : undefined;
+      const cause = failureCauseOf(e);
       const failure = classifyStepFailure(e, {
-        code: reasonFamily(failureCauseOf(e)?.reason ?? 'UNKNOWN'),
+        code: reasonFamily(cause?.reason ?? 'UNKNOWN', cause?.params),
         message,
         ...(hint !== undefined && { hint }),
         pointer,

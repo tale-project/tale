@@ -138,6 +138,64 @@ describe('the connector action seam', () => {
     expect((caught as NodeFailure).failure).toEqual(refusal.failure);
   });
 
+  it.each([
+    [
+      'a busy service',
+      Object.assign(
+        new ConnectorError('LIVE_BODY_FAILED', 'The service answered 503', {
+          connector: 'github',
+          action: 'create_issue',
+        }),
+        { status: 503 },
+      ),
+      'connector_unavailable',
+      { reason: 'CONNECTOR_FAILED', status: 503 },
+    ],
+    [
+      'a service that never answered',
+      new ConnectorError('LIVE_BODY_FAILED', 'fetch failed', {
+        connector: 'github',
+        action: 'create_issue',
+      }),
+      'connector_unavailable',
+      { reason: 'CONNECTOR_UNREACHABLE' },
+    ],
+    [
+      'a refusal with no status',
+      new ConnectorError('LIVE_BODY_FAILED', 'Repository is archived', {
+        connector: 'github',
+        action: 'create_issue',
+      }),
+      'connector_error',
+      { reason: 'CONNECTOR_FAILED' },
+    ],
+  ])(
+    'classifies %s the way the in-process executor does',
+    async (_case, refusal, code, expected) => {
+      runConnectorAction.mockRejectedValueOnce(refusal);
+      const handler = handlers['connectors/execute_action:runConnectorAction'];
+      if (!handler) throw new Error('no connector handler');
+      const caught = await handler({
+        connector: 'github',
+        action: 'create_issue',
+      }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(caught).toBeInstanceOf(NodeFailure);
+      const failure = caught as NodeFailure;
+      expect(failure.code).toBe(code);
+      expect(failure.failure).toMatchObject({
+        reason: expected.reason,
+        params: {
+          connector: 'github',
+          action: 'github.create_issue',
+          ...('status' in expected && { status: expected.status }),
+        },
+      });
+    },
+  );
+
   it('lets any other failure through untouched', async () => {
     runConnectorAction.mockRejectedValueOnce(new Error('connection reset'));
     const handler = handlers['connectors/execute_action:runConnectorAction'];

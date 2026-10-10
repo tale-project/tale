@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.32.0",
+    "version": "3.33.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -42887,7 +42887,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.32.0"
+          "example": "3.33.0"
         }
       },
       "Location": {
@@ -47629,6 +47629,7 @@
             "enum": [
               "node_error",
               "connector_error",
+              "connector_unavailable",
               "llm_output_invalid",
               "approval_rejected",
               "execution_limit",
@@ -47811,6 +47812,7 @@
             "enum": [
               "node_error",
               "connector_error",
+              "connector_unavailable",
               "llm_output_invalid",
               "approval_rejected",
               "execution_limit",
@@ -47979,6 +47981,7 @@
             "enum": [
               "node_error",
               "connector_error",
+              "connector_unavailable",
               "llm_output_invalid",
               "approval_rejected",
               "execution_limit",
