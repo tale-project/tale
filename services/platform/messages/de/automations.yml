@@ -366,29 +366,90 @@ trigger:
   timezoneInvalid: 'Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).'
 canvas:
   ariaLabel: Canvas der Automatisierung
-  readsFrom: 'Liest {nodes}'
   unpinnedModel: Kein fester Anbieter — der Lauf wählt ihn automatisch.
   empty:
     title: Diese Version hat keine Nodes
-    description:
-      Ein Automatisierungsdokument besteht aus Nodes. Sobald du dem Dokument
-      eine hinzufügst, erscheint sie hier.
+    description: Eine Automatisierung erledigt ihre Arbeit in Nodes. Bitte deinen Coding-Agent, welche hinzuzufügen.
   cycle:
     title: Diese Nodes verweisen im Kreis aufeinander
     description: Gezeigt wird die Reihenfolge, in der die Nodes im Dokument
       stehen – nicht die Reihenfolge, in der sie laufen würden, denn die Engine
       kann keinen Kreis ausführen. Entferne eine der Referenzen, um ihn
       aufzubrechen.
+  view:
+    label: Ansicht
+    canvas: Canvas
+    list: Liste
+    source: Quelltext
+  legend:
+    data: 'Durchgezogene Linie: liest die Ausgabe der Node darüber'
+    control: 'Gestrichelte Linie: läuft danach, ohne ihre Ausgabe zu lesen'
+    gate: 'Bedingung: entscheidet, ob die Node darunter läuft'
+    yes: 'Ja: läuft, wenn die Bedingung zutrifft'
+    no: 'Nein: läuft, wenn die Bedingung nicht zutrifft'
+    completion: 'Gepunktete Linie: Der Lauf endet nach dieser Node'
+    conditional: 'Gestrichelter Rahmen: läuft vielleicht nicht oder lief nicht'
+    loop: 'Rahmen: läuft einmal pro Element oder wiederholt sich'
+  readsNothing: Liest keine andere Node
+  node:
+    returnsUnknown: Struktur nach einem Lauf bekannt
+    returns: 'Gibt {shape} zurück'
+    writes: Ändert Daten in {connector}. Ein Live-Lauf wartet unter Umständen auf eine Freigabe.
+    asks: Kann eine Frage stellen und auf die Antwort warten.
+    catalog:
+      transform: Transformation
+      llm: Sprachmodell
+      agent: Agent
+      subautomation: 'Ruft {automation} auf'
+      subautomationUnset: Ruft eine Automatisierung auf
+      connector: '{connector} · {action}'
+      withModel: '{type} · {model}'
+      unknown: 'Unbekannter Typ {type}'
+    source:
+      input: 'die Laufeingabe ({keys})'
+      inputAll: die Laufeingabe
+      item: jedes Element
+  gate:
+    asCode: Als Code geschrieben
   edge:
-    data: '{target} liest die Ausgabe von {source}'
-    control: '{target} läuft nach {source}'
+    carries: 'Überträgt {fields}'
   controlFlow:
-    when: 'wenn {value}'
-    elseOf: 'sonst zu {value}'
-    forEach: 'für jedes {value}'
-    repeatUntil: 'wiederholen bis {value}'
-    repeatUntilCapped: 'wiederholen bis {value}, höchstens {maxRepeats}×'
-    onError: bei Fehler weiterlaufen
+    forEach: 'Für jedes Element von {list}'
+    forEachRaw: Für jedes Element ihrer Liste
+    repeatUntilCapped: 'Wiederholt sich, bis {condition}, höchstens {maxRepeats}×'
+    repeatRaw: 'Wiederholt sich, bis ihre Bedingung zutrifft, höchstens {maxRepeats}×'
+    onError: Läuft bei Fehler weiter
+  updated: 'Jetzt wird v{version} angezeigt.'
+  selectionRemoved: '{node} ist in dieser Version nicht mehr enthalten.'
+  newerVersion:
+    title: Eine neuere Version wurde gespeichert
+    body: 'v{version} wurde gespeichert, während du bearbeitet hast. Dein Entwurf basiert auf v{base}.'
+    show: 'v{version} zeigen und Entwurf verwerfen'
+  start:
+    manual: Von Hand, über die API oder MCP
+    manualOnly: Nur von Hand, über die API oder MCP – kein Trigger
+    webhook: Eine Anfrage an ihre Webhook-URL
+    event: 'Wenn {event}'
+    scheduleZone: '{schedule} · {zone}'
+    off: Aus
+    notLive: Wartet auf eine Live-Version
+    paused: Pausiert — es starten keine Läufe
+    nextRun: 'Nächster Lauf {at}'
+    anyInput: Beliebige JSON-Eingabe
+    noFields: Keine Eingabefelder
+    fromTrigger: vom Trigger
+    description: '{triggers}. Eingabe: {fields}.'
+  end:
+    returnsNode: 'Die Ausgabe von {node}'
+    returnsNothing: Nichts – diese Automatisierung hat keine Ausgabe
+    fieldFrom: 'aus {nodes}'
+    maybeEmpty: kann leer sein
+    emptyOnPath: auf diesem Pfad leer
+    succeeded: gibt die Ausgabe zurück
+    failed: '{count, plural, =0 {keine Node stoppt den Lauf} one {wenn # Node fehlschlägt} other {wenn eine von # Nodes fehlschlägt}}'
+    stopped: wenn jemand ihn stoppt
+    someEmpty: Manche Läufe geben leere Werte zurück
+    failedAt: 'Fehlgeschlagen bei {node}'
 editor:
   unknownType: 'Unbekannter Node-Typ: {type}'
   catalogUnavailable:
@@ -396,12 +457,68 @@ editor:
     sind nur die eingebauten Typen beschrieben. Die Felder dieser Node siehst
     du trotzdem.
   invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
+  fixSuggestion: 'Durch {name} ersetzen'
+  jsonMustBeObject: Das muss ein JSON-Objekt in geschweiften Klammern sein.
+  jsonMustBeList: Das muss eine JSON-Liste in eckigen Klammern sein.
+  inspector:
+    copyId: Node-ID kopieren
+    tabs:
+      fields: Felder
+      shape: Struktur
+      run: Letzter Lauf
+  start:
+    title: Start
+    description: Was diese Automatisierung startet und was jeder Lauf erhält.
+    trigger: Trigger
+    editTrigger: In Allgemein ändern
+    inputs: Eingaben
+    inputsDescription: Die Daten, die jeder Lauf erhält, als JSON-Schema. Ein Lauf mit unpassender Eingabe wird abgelehnt, bevor eine Node läuft.
+  end:
+    title: Ende
+    description: Was ein erfolgreicher Lauf zurückgibt und wie ein Lauf enden kann.
+    outputDescription: Ein JSON-Wert. Lies Node-Ausgaben mit Templates, etwa '{{' nodes.report.output '}}'.
+    outcomes: Wie ein Lauf endet
+  flow:
+    title: Wann sie läuft
+    always: Bei jedem Lauf
+    some: 'Auf {count} von {total} Pfaden'
+    never: 'Nie: Keine Kombination von Bedingungen lässt sie laufen'
+    skipWhen: Übersprungen, wenn ihre Bedingung nicht zutrifft
+    skipElse: 'Übersprungen, wenn {node} läuft'
+    skipUpstream: 'Übersprungen, wenn {node} übersprungen wird'
+    skipError: Übersprungen, wenn sie fehlschlägt
+    failHalts: Schlägt sie fehl, stoppt der Lauf mit ihrem Fehler.
+    failContinues: '{count, plural, =0 {Schlägt sie fehl, geht der Lauf ohne sie weiter.} one {Schlägt sie fehl, geht der Lauf ohne sie weiter und überspringt # Node, die sie liest.} other {Schlägt sie fehl, geht der Lauf ohne sie weiter und überspringt # Nodes, die sie lesen.}}'
+    failsWhen: 'Schlägt fehl, wenn {reasons}.'
+  explain:
+    when: 'Läuft nur, wenn {condition}. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
+    whenRaw: 'Läuft nur, wenn diese Bedingung zutrifft. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
+    forEach: 'Läuft einmal für jedes Element von {list}. Ihre Ausgabe ist die Liste der Ergebnisse.'
+    repeatUntil: 'Läuft erneut, bis {condition}, insgesamt höchstens {max}-mal.'
+    elseOf: 'Läuft nur, wenn {node} durch ihre eigene Bedingung übersprungen wird.'
+  shape:
+    receives: Erhält
+    receivesCode: Was ihr Code als input liest
+    item: Jedes Element
+    returns: Gibt zurück
+    readBy: Gelesen von
+    readByOutput: Die Ausgabe der Automatisierung
+    notRead: Nichts liest ihre Ausgabe.
+    checking: Wird aktualisiert…
+    unavailable: Die Strukturen konnten nicht ermittelt werden. Sie erscheinen nach der nächsten erfolgreichen Prüfung.
+    origin:
+      declared: Aus ihrem Ausgabeschema
+      signature: 'Wie {connector} es beschreibt'
+      inferred: Aus ihrem Code abgeleitet
+      fixed: 'Jede Node dieses Typs ({type}) gibt das zurück'
+      child: 'Was {automation} zurückgibt'
+      unknown: Tale kann nicht erkennen, was sie zurückgibt. Ein Testlauf zeigt die echten Daten.
   versionNotFound:
     title: 'Version {version} gibt es nicht'
     description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
     openLatest: Neueste öffnen
   controlFlowTitle: Ablaufsteuerung
-  nodeSheetDescription: Bearbeite die Felder dieses Knotens, dann speichere die
+  nodeSheetDescription: Bearbeite die Felder dieser Node, dann speichere die
     Änderung oder verwirf sie.
   agent:
     equipmentLabel: Ausrüstung
@@ -418,7 +535,6 @@ editor:
     typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
     modelIdLabel: Modell-ID
     modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
-  runTitle: In diesem Lauf
   resolvedInput: Aufgelöste Eingabe
   output: Ausgabe
   fields:
@@ -451,6 +567,13 @@ editor:
     repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
     maxRepeats: Maximale Wiederholungen
     onError: Bei Fehler
+    onErrorStop: Lauf stoppen
+    onErrorContinue: Ohne sie weiterlaufen
+    onErrorDescription: Was passiert, wenn diese Node fehlschlägt. Geht der Lauf weiter, wird jede Node übersprungen, die ihre Ausgabe liest.
+    maxRepeatsDescription: Höchstens so viele Durchläufe, von 1 bis 20. Leer bedeutet 5.
+    maxRepeatsRange: Gib eine ganze Zahl von 1 bis 20 ein.
+    elseOfNone: Keine
+    elseOfEmpty: Keine andere Node hat eine Bedingung.
     output: Ausgabe
     type: Typ
     id: ID
@@ -710,7 +833,7 @@ problems:
   refusedDeploy: Diese Version hat Probleme, die das Live-Schalten verhindern. Du findest sie unter Probleme.
   refusedDeployDraft: Diese Version hat Probleme, die das Live-Schalten verhindern. Verwirf deinen Entwurf, um sie unter Probleme zu sehen.
   open: Probleme anzeigen
-  notEditableHere: Dieser Teil der Automatisierung lässt sich hier nicht bearbeiten. Ändere ihn über MCP, die API oder ein hochgeladenes Paket.
+  notEditableHere: Ändere das mit deinem Coding-Agent.
   nodeTitle: Probleme in dieser Node
   filter:
     label: Probleme anzeigen
@@ -719,3 +842,77 @@ problems:
     warnings: Warnungen
   emptyFiltered: '{filter, select, errors {Keine Fehler} warnings {Keine Warnungen} other {Keine Probleme}}'
   fieldPart: '{part}: {message}'
+condition:
+  group: '({parts})'
+  gt: '{a} größer als {b} ist'
+  gte: '{a} mindestens {b} ist'
+  lt: '{a} kleiner als {b} ist'
+  lte: '{a} höchstens {b} ist'
+  eq: '{a} gleich {b} ist'
+  neq: '{a} nicht gleich {b} ist'
+  empty: '{a} leer ist'
+  notEmpty: '{a} nicht leer ist'
+  set: '{a} gesetzt ist'
+  notSet: '{a} nicht gesetzt ist'
+  contains: '{a} {b} enthält'
+  notContains: '{a} {b} nicht enthält'
+  startsWith: '{a} mit {b} beginnt'
+  endsWith: '{a} auf {b} endet'
+  ref:
+    node: '{path} von {node}'
+    nodeOutput: 'die Ausgabe von {node}'
+    input: '{path} der Laufeingabe'
+    inputWhole: die Laufeingabe
+    item: '{path} des Elements'
+    itemWhole: das Element
+    index: die Position des Elements
+    output: '{path} des Ergebnisses dieses Durchlaufs'
+    outputWhole: das Ergebnis dieses Durchlaufs
+    length: 'die Anzahl von {inner}'
+  literal:
+    valueTrue: wahr
+    valueFalse: falsch
+    valueNull: leer
+  quote: '„{text}“'
+paths:
+  button: '{count, plural, one {# Pfad} other {# Pfade}}'
+  title: Mögliche Pfade
+  description: Jeder Weg, den ein erfolgreicher Lauf nehmen kann. Zeig auf einen oder wähle ihn aus, um ihn im Canvas zu sehen.
+  single: 'Jeder Lauf nimmt denselben Pfad: {count, plural, one {die # Node läuft} other {alle # Nodes laufen}}.'
+  row: 'Pfad {index}'
+  rowRuns: '{ran, plural, one {# von {total} Nodes läuft} other {# von {total} Nodes laufen}}'
+  clause:
+    runs: '{node} läuft'
+    skipped: '{node} wird übersprungen'
+    fails: '{node} schlägt fehl, der Lauf geht weiter'
+    succeeds: '{node} läuft erfolgreich'
+  more: '{count, plural, one {# weiterer Pfad ist nicht aufgeführt} other {# weitere Pfade sind nicht aufgeführt}}'
+  truncated: Diese Automatisierung hat {count} Bedingungen – zu viele, um jeden Pfad aufzuführen. Jede Node zeigt trotzdem, wann sie läuft.
+  halts:
+    title: Beendet den Lauf, wenn sie fehlschlägt
+    row: '{node} schlägt fehl, wenn {reasons}'
+  showing: 'Pfad {index} wird gezeigt: {ran, plural, one {# von {total} Nodes läuft} other {# von {total} Nodes laufen}}.'
+  pill: 'Pfad {index} · {ran, plural, one {# von {total} Nodes läuft} other {# von {total} Nodes laufen}}'
+  skip:
+    when: 'Übersprungen: Bedingung trifft nicht zu'
+    else: 'Übersprungen: {node} läuft'
+    upstream: 'Übersprungen: {node} wird übersprungen'
+    error: Schlägt fehl, der Lauf geht weiter
+failureReason:
+  external: ein aufgerufener Dienst fehlschlägt
+  code: ihr Code einen Fehler wirft
+  expression: einer ihrer Ausdrücke fehlschlägt
+  iteration: ihre Liste nicht durchlaufen werden kann
+  inputContract: ihre Eingabe abgelehnt wird
+  subautomation: die aufgerufene Automatisierung fehlschlägt
+source:
+  ariaLabel: Quelltext dieser Automatisierung (YAML)
+  copy: YAML kopieren
+  download: YAML herunterladen
+  readOnlyHint: Um das Dokument zu ändern, nutze die Felder oder deinen Coding-Agent.
+codingAgent:
+  button: Mit deinem Coding-Agent bearbeiten
+  body: Coding-Agents wie Claude Code, Codex und Cursor ändern Automatisierungen über den MCP-Server von Tale. Sie lesen diese Automatisierung, ändern und prüfen sie und speichern eine neue Version, die dann hier erscheint.
+  nameLabel: Name dieser Automatisierung
+  setUp: MCP einrichten
+  learnMore: So verbindest du einen Coding-Agent

@@ -1,3 +1,6 @@
+condition:
+  gt: '{a} grösser als {b} ist'
+  quote: '«{text}»'
 runs:
   quarantine:
     changed: Die Sperre hat sich geändert. Schliesse diesen Dialog und prüfe die aktuellen Angaben, bevor du entscheidest.

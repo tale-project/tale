@@ -7,7 +7,7 @@ Ouvre une automatisation, passe à son onglet **Exécutions** et choisis une lig
 
 <Frame caption="Une exécution de test terminée : son statut, son mode, sa version, son initiateur et ses horaires au-dessus du workflow, avec le résultat de chaque nœud.">
 
-![La page d’une exécution de test de Triage GitHub issues, marquée Succeeded, Test et v1 et lancée par toi, avec ses heures de début et de fin au-dessus du graphe du workflow, où les nœuds issues, open issues, score et report affichent chacun Ran ; la liste des effets de l’exécution commence sous le graphe.](/images/platform/automation-run-detail.webp)
+![La page d’une exécution de test de Triage GitHub issues, marquée Succeeded, Test et v1 et lancée par toi, avec ses heures de début et de fin au-dessus du graphe du workflow, où les nœuds issues, open issues, score et report affichent chacun Succeeded ; la liste des effets de l’exécution commence sous le graphe.](/images/platform/automation-run-detail.webp)
 
 </Frame>
 
@@ -36,9 +36,11 @@ Laisse l’exécution suspendue pendant tes vérifications. **Demander l’arrê
 
 ## Examiner le nœud concerné
 
-Sélectionne un nœud sur le canvas de l’exécution. **Entrée résolue** montre les valeurs après évaluation des expressions, et **Sortie** le résultat de l’étape. Ces champs distinguent une mauvaise référence d’une défaillance du service.
+Une exécution en échec s’ouvre avec le nœud en échec en vue. Il est encadré de rouge et sa ligne du bas montre la première ligne de son erreur ; les nœuds par lesquels l’exécution est passée pour l’atteindre ressortent, tandis que les autres passent au second plan ; et Fin indique où l’exécution a échoué, par exemple **Échec à Propose**.
 
-Les états comprennent **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint**, **Pas encore atteint** et, pour une exécution arrêtée, **Arrêté ici** pour le nœud sur lequel elle se trouvait au moment de l’arrêt. Une condition fausse, une dépendance, une branche alternative ou une règle de poursuite après erreur peut expliquer un nœud ignoré. Ce n’est pas toujours un problème.
+Sélectionne un nœud sur le canevas de l’exécution pour ouvrir son onglet **Dernière exécution**. **Entrée résolue** montre les valeurs après évaluation des expressions, et **Sortie** le résultat de l’étape. Ces champs distinguent une mauvaise référence d’une défaillance du service.
+
+Sur le canevas, la ligne du bas de chaque nœud indique comment il s’est terminé : **Réussi**, **Échoué**, **Ignoré**, **Non exécuté**, **Pas encore atteint** ou, pour une exécution arrêtée, **Arrêté ici** pour le nœud sur lequel elle se trouvait au moment de l’arrêt. Chaque condition montre comment elle a décidé, **Oui** ou **Non**. Le badge de l’onglet **Dernière exécution** nomme les mêmes états **Exécuté**, **En échec**, **Ignoré**, **Jamais atteint**, **Pas encore atteint** et **Arrêté ici**. Une condition fausse, une dépendance, une branche alternative ou une règle de poursuite après erreur peut expliquer un nœud ignoré. Ce n’est pas toujours un problème.
 
 Par exemple, un rappel peut recevoir le nom du client mais un identifiant de facture vide. Examine la sortie précédente. Si le champ a été renommé, corrige la référence plutôt que les identifiants de messagerie. Vérifie ensuite l’entrée résolue dans un nouvel essai.
 

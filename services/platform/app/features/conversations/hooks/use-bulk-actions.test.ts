@@ -212,13 +212,13 @@ describe('useBulkActions handleSendMessages', () => {
       expect.objectContaining({
         conversationId: 'conv-1',
         organizationId: 'org-1',
-        content: 'Hello there',
+        content: '<p>Hello there</p>',
       }),
     );
     expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: 'conv-2',
-        content: 'Hello there',
+        content: '<p>Hello there</p>',
       }),
     );
     expect(onComplete).toHaveBeenCalledTimes(1);
@@ -243,6 +243,7 @@ describe('useBulkActions handleSendMessages', () => {
       'content',
       'conversationId',
       'organizationId',
+      'sourceMarkdown',
     ]);
   });
 

@@ -18,12 +18,14 @@ import { useCallback, useRef } from 'react';
  * swaps the error state for the loading state): focus a reader had put on
  * either **Try again** lands on the list, not on the page.
  */
-export function useListReadRecovery(read: {
+export function useListReadRecovery<
+  T extends HTMLElement = HTMLDivElement,
+>(read: {
   error: Error | null;
   results: readonly unknown[];
   retry: () => void;
 }) {
-  const regionRef = useRef<HTMLDivElement>(null);
+  const regionRef = useRef<T>(null);
   const focusRegion = useCallback(() => {
     regionRef.current?.focus();
   }, []);

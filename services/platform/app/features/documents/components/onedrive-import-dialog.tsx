@@ -380,9 +380,12 @@ export function OneDriveImportDialog({
     return allFiles;
   };
 
+  const activeFolderPath =
+    sourceTab === 'sharepoint' ? spFolderPath : folderPath.slice(1);
+
   const buildItemPath = (item: OneDriveApiItem): string => {
     const pathParts: string[] = [];
-    folderPath.forEach((folder) => {
+    activeFolderPath.forEach((folder) => {
       if (folder.id) {
         pathParts.push(folder.id);
       }
@@ -502,10 +505,12 @@ export function OneDriveImportDialog({
     setSourceTab(tab);
     setSelectedItems(new Map());
     setSearchQuery('');
-    if (tab === 'onedrive') {
-      setSelectedSite(null);
-      setSelectedDrive(null);
-    }
+    setCurrentFolderId(undefined);
+    setFolderPath([{ id: undefined, name: t('breadcrumb.oneDrive') }]);
+    setSelectedSite(null);
+    setSelectedDrive(null);
+    setSpFolderId(undefined);
+    setSpFolderPath([]);
   };
 
   const handleImport = async () => {
@@ -528,8 +533,7 @@ export function OneDriveImportDialog({
         selectedItemsArray.map((item: OneDriveSelectedItem) => item.id),
       );
 
-      const currentRelativePath = folderPath
-        .slice(1)
+      const currentRelativePath = activeFolderPath
         .map((folder) => folder.name)
         .join('/');
 
@@ -733,8 +737,21 @@ export function OneDriveImportDialog({
       onTabChange: handleTabChange,
       onSearchChange: setSearchQuery,
       onBreadcrumbClick: handleBreadcrumbClick,
-      onSiteClick: setSelectedSite,
-      onDriveClick: setSelectedDrive,
+      onSiteClick: (site) => {
+        setSelectedSite(site);
+        setSelectedDrive(null);
+        setSpFolderId(undefined);
+        setSpFolderPath([]);
+        setSelectedItems(new Map());
+        setSearchQuery('');
+      },
+      onDriveClick: (drive) => {
+        setSelectedDrive(drive);
+        setSpFolderId(undefined);
+        setSpFolderPath([]);
+        setSelectedItems(new Map());
+        setSearchQuery('');
+      },
       onSpFolderClick: (folder) => {
         setSpFolderId(folder.id);
         setSpFolderPath([
@@ -749,6 +766,7 @@ export function OneDriveImportDialog({
         setSelectedItems(new Map());
       },
       onSpSiteReset: () => {
+        setSearchQuery('');
         setSelectedSite(null);
         setSelectedDrive(null);
         setSpFolderId(undefined);
@@ -756,6 +774,7 @@ export function OneDriveImportDialog({
         setSelectedItems(new Map());
       },
       onSpDriveReset: () => {
+        setSearchQuery('');
         setSelectedDrive(null);
         setSpFolderId(undefined);
         setSpFolderPath([]);

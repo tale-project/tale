@@ -37,6 +37,7 @@ function fail(message) { console.error(message); process.exit(1); }
 const values = (name) => a.filter((_, i) => a[i - 1] === name);
 const [command, sub] = a;
 const name = a.at(-1);
+if (command === 'image' && sub === 'inspect') done('sha256:' + 'a'.repeat(64));
 if (command === 'volume' && sub === 'create') {
   // Creating an existing volume answers its name and leaves its labels as
   // they are.

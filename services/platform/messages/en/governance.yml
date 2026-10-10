@@ -658,6 +658,10 @@ guardrailsOverview:
     description:
       Last 50 detections / blocks / provider errors for this org. Raw
       matched text is never stored.
+    error:
+      title: Could not load recent events
+      description: Recent guardrail events are unavailable. Retry to check for detections, blocks, and errors.
+      retry: Retry
     filterPii: PII
     filterChatFilter: Content safety
     filterModeration: Moderation

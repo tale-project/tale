@@ -197,7 +197,6 @@ common:
     somethingWentWrong: Etwas ist schiefgelaufen. Versuch es erneut.
     tryAgain: Erneut versuchen
   flow:
-    aiEditor: KI-Editor
     resetView: Ansicht zurücksetzen
     zoomIn: Vergrößern
     zoomOut: Verkleinern
@@ -436,6 +435,170 @@ issues:
   technicalDetails: Technische Details
   learnMore: Mehr erfahren
   goTo: Zur Stelle
+
+codeEditor:
+  roleDescription: Code-Editor
+  loading: Editor wird geladen…
+  keyboardHint: Tab rückt ein. Um den Editor zu verlassen, drücke Esc und dann Tab.
+  submitHint: 'Tastenkürzel {shortcut}: {action}.'
+  legend:
+    leave: Esc, dann Tab zum Verlassen
+    submit: '{shortcut}: {action}'
+  leaveArmed: Drücke Tab, um weiterzugehen.
+  tabFocusOn: Tab wechselt jetzt den Fokus.
+  tabFocusOff: Tab rückt jetzt ein.
+  expand: Editor vergrößern
+  collapse: Zurück zum Feld
+  loadFailed: 'Der Editor wurde nicht geladen. Du kannst hier als reiner Text weiterbearbeiten.'
+  retry: 'Editor erneut laden'
+  diagnostics:
+    atCursor: '{severity} in Zeile {line}: {message}'
+    severity:
+      error: Fehler
+      warning: Warnung
+      info: Hinweis
+    fixAvailable: 'Korrektur verfügbar: Drücke {shortcut}.'
+    fixApplied: 'Angewendet: {label}'
+    fixMenu: Korrekturen
+    lineItem: 'Zeile {line}: {message}'
+    more: '{count, plural, one {und # weiteres Problem} other {und # weitere Probleme}}'
+  syntax:
+    json: Hier ist das kein gültiges JSON.
+    yaml: Hier ist das kein gültiges YAML.
+    javascript: Das lässt sich hier nicht als JavaScript lesen. Prüfe, ob eine Klammer, ein Anführungszeichen oder ein Komma fehlt.
+    unterminatedTemplate: "Zu diesem '{{' fehlt das schließende '}}'."
+  typeInfo:
+    label: Typ
+    announce: '{title}: {type}'
+    optional: optional
+    sample: 'Letzter Lauf: {value}'
+  phrases:
+    controlCharacter: Steuerzeichen
+    close: Schließen
+    selectionDeleted: Auswahl gelöscht
+    foldedCode: eingeklappter Code
+    unfold: ausklappen
+    to: bis
+    foldedLines: Eingeklappte Zeilen
+    unfoldedLines: Ausgeklappte Zeilen
+    foldLine: Zeile einklappen
+    unfoldLine: Zeile ausklappen
+    completions: Vorschläge
+    find: Suchen
+    replaceField: Ersetzen
+    next: Weiter
+    previous: Zurück
+    all: Alle
+    matchCase: Groß-/Kleinschreibung
+    regexp: Regex
+    byWord: Ganzes Wort
+    replace: Ersetzen
+    replaceAll: Alle ersetzen
+    goToLine: Zu Zeile springen
+    go: Los
+    currentMatch: aktueller Treffer
+    onLine: in Zeile
+    replacedMatches: $ Treffer ersetzt
+    replacedMatchOnLine: Treffer in Zeile $ ersetzt
+
+schemaTree:
+  label: Felder
+  kinds:
+    string: Text
+    number: eine Zahl
+    integer: eine ganze Zahl
+    boolean: wahr oder falsch
+    object: ein Objekt
+    'null': leer
+    any: beliebig
+    array: Liste von {item}
+  kindsPlural:
+    string: Texten
+    number: Zahlen
+    integer: ganzen Zahlen
+    boolean: Wahrheitswerten
+    object: Objekten
+    array: Listen
+    any: Werten
+  oneOf: eines von {values}
+  required: Pflicht
+  optional: optional
+  maybeEmpty: kann leer sein
+  more: '{count, plural, one {# weiteres Feld} other {# weitere Felder}}'
+  asTypeScript: Als TypeScript zeigen
+
+flow:
+  canvas:
+    roleDescription: Ablaufdiagramm
+    keyboardHelp: Folge mit den Pfeiltasten den Verbindungen zwischen den Nodes. Pos1 und Ende springen zu Start und Ende, mit der Eingabetaste öffnest du eine Node.
+    arranging: Nodes werden angeordnet…
+    arrangeFailed: Die Nodes ließen sich nicht anordnen und stehen deshalb untereinander.
+    touchHint: Verschiebe das Diagramm mit zwei Fingern
+  controls:
+    showList: Als Liste anzeigen
+    showChart: Als Diagramm anzeigen
+    legend: Legende
+  legend:
+    title: So liest du das Diagramm
+  node:
+    entry: Start
+    exit: Ende
+    triggers: Startet
+    inputs: Eingabe
+    outputs: Gibt zurück
+    outcomes: Endet
+    noInput: Keine Eingabe
+    noOutput: Gibt nichts zurück
+    more: +{count} weitere
+    unreachable: Läuft nie
+    position: Node {index} von {count}
+    section: '{heading}: {items}'
+    rowWithDetail: '{label} ({detail})'
+  gate:
+    onlyIf: Nur wenn
+    ifElse: Wenn
+    name: 'Bedingung für {node}: {condition}'
+    branches: Ja führt zu {yes}, Nein zu {no}
+  branch:
+    'yes': Ja
+    'no': Nein
+  group:
+    items: '{done} von {total, plural, one {# Element} other {# Elementen}}'
+    pass: Durchgang {pass} von {max}
+  relation:
+    comesFrom: Kommt von {list}
+    leadsTo: Führt zu {list}
+    onlyIf: Läuft nur, wenn {condition}
+    otherwise: Läuft, wenn die Bedingung von {node} nicht zutrifft
+  state:
+    pending: Noch nicht erreicht
+    running: Läuft
+    waiting: Wartet
+    succeeded: Erfolgreich
+    failed: Fehlgeschlagen
+    skipped: Übersprungen
+    stopped: Hier gestoppt
+    notRun: Nicht ausgeführt
+    decidedYes: Bedingung traf zu
+    decidedNo: Bedingung traf nicht zu
+    failedHere: Der Lauf endete hier
+  list:
+    label: Nodes
+    reads: Liest {list}
+    empty: Noch keine Nodes
+  paths:
+    showAll: Alle zeigen
+  playback:
+    label: Zeitachse des Laufs
+    play: Abspielen
+    pause: Pausieren
+    previous: Vorheriges Ereignis
+    next: Nächstes Ereignis
+    speed: Wiedergabegeschwindigkeit
+    position: '{elapsed} von {total}'
+    valueText: '{position} – {events}'
+    live: Live
+    followLive: Live folgen
 mentions:
   listboxLabel: Jemanden erwähnen
   empty: Keine Treffer

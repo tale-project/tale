@@ -25,6 +25,8 @@ auth:
   - method: api-key
 ```
 
+Un connector dont le nom est fait de mots courants, comme `task` (Tasks), déclare aussi `i18n.de.displayName` et `i18n.fr.displayName`. Un connector qui porte le nom d’un produit, comme Tavily, garde ce nom dans toutes les langues.
+
 ### Définir les destinations autorisées
 
 | Champ | Signification |
@@ -47,6 +49,7 @@ Ajouter un connector demande une contribution au code source. L'exécution lit l
 | Champ | Contrat pour l'auteur et l'appelant |
 | --- | --- |
 | `name`, `description` | Nom stable en snake_case et explication de l'usage de l'action |
+| `title`, `i18n` | L’action en mots pour les personnes : un `title` anglais court, avec une seule majuscule initiale et sans le nom du connector (« List issues »), plus `i18n.de.title` et `i18n.fr.title` (et `de-CH` quand l’orthographe suisse diffère). Le canevas d’automatisation affiche un nœud sous la forme « GitHub · Lister les issues » dans la langue du lecteur ; une action fournie à laquelle il en manque un fait échouer les tests du catalogue |
 | `input` | Schéma JSON objet, validé avant exécution ; décrire les champs et signaler ceux requis |
 | `output` | Signature du résultat au style TypeScript ; documentation, pas validation des sorties à l'exécution |
 | `effects` | `read` ou `write` ; les écritures passent par la politique d'approbation |

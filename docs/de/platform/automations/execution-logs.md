@@ -7,7 +7,7 @@ description: Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte
 
 <Frame caption="Ein abgeschlossener Testlauf: Status, Modus, Version, Starter und Zeiten über dem Workflow, mit dem Ergebnis jeder Node.">
 
-![Die Seite eines Testlaufs von Triage GitHub issues, markiert mit Succeeded, Test und v1 und von dir gestartet, mit Start- und Endzeit über dem Workflow-Graphen, in dem die Nodes issues, open issues, score und report jeweils Ran zeigen; unter dem Graphen beginnt die Liste der Auswirkungen des Laufs.](/images/platform/automation-run-detail.webp)
+![Die Seite eines Testlaufs von Triage GitHub issues, markiert mit Succeeded, Test und v1 und von dir gestartet, mit Start- und Endzeit über dem Workflow-Graphen, in dem die Nodes issues, open issues, score und report jeweils Succeeded zeigen; unter dem Graphen beginnt die Liste der Auswirkungen des Laufs.](/images/platform/automation-run-detail.webp)
 
 </Frame>
 
@@ -36,9 +36,11 @@ Lass den Lauf während der Prüfung zurückgehalten. **Stopp anfordern** bittet 
 
 ## Die betroffene Node untersuchen
 
-Wähle eine Node auf dem Canvas des Laufs. **Aufgelöste Eingabe** zeigt die Werte nach der Vorlagenauswertung, **Ausgabe** das Ergebnis des Schritts. So unterscheidest du einen falschen Verweis von einem Dienstausfall.
+Ein fehlgeschlagener Lauf öffnet sich mit der fehlgeschlagenen Node im Blick. Sie ist rot umrahmt, und ihre unterste Zeile zeigt die erste Zeile ihres Fehlers; die Nodes, über die der Lauf zu ihr kam, treten hervor, während die übrigen zurücktreten; und Ende sagt, wo der Lauf fehlschlug, etwa **Fehlgeschlagen bei Propose**.
 
-Node-Zustände sind unter anderem **Gelaufen**, **Übersprungen**, **Fehlgeschlagen**, **Nie erreicht**, **Noch nicht erreicht** und bei einem gestoppten Lauf **Hier gestoppt** für die Node, an der der Lauf beim Stoppen stand. Eine Node kann wegen einer falschen Bedingung, einer Abhängigkeit, eines anderen Zweigs oder einer Weiterlaufregel übersprungen werden. Das ist nicht immer ein Fehler.
+Wähle eine Node auf dem Canvas des Laufs, um ihren Tab **Letzter Lauf** zu öffnen. **Aufgelöste Eingabe** zeigt die Werte nach der Vorlagenauswertung, **Ausgabe** das Ergebnis des Schritts. So unterscheidest du einen falschen Verweis von einem Dienstausfall.
+
+Im Canvas sagt die unterste Zeile jeder Node, wie sie endete: **Erfolgreich**, **Fehlgeschlagen**, **Übersprungen**, **Nicht ausgeführt**, **Noch nicht erreicht** oder bei einem gestoppten Lauf **Hier gestoppt** für die Node, an der der Lauf beim Stoppen stand. Jede Bedingung zeigt, wie sie entschieden hat, **Ja** oder **Nein**. Die Kennzeichnung im Tab **Letzter Lauf** nennt dieselben Zustände **Gelaufen**, **Fehlgeschlagen**, **Übersprungen**, **Nie erreicht**, **Noch nicht erreicht** und **Hier gestoppt**. Eine Node kann wegen einer falschen Bedingung, einer Abhängigkeit, eines anderen Zweigs oder einer Weiterlaufregel übersprungen werden. Das ist nicht immer ein Fehler.
 
 Beispielsweise kann eine Erinnerungs-Node den Kundennamen, aber eine leere Rechnungs-ID erhalten. Prüfe die Ausgabe davor. Verwendet der Datensatz inzwischen ein anderes Feld, korrigiere den Verweis statt der Mail-Zugangsdaten. Prüfe danach die aufgelöste Eingabe in einem neuen Testlauf.
 

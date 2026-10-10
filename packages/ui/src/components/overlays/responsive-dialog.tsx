@@ -14,10 +14,12 @@ import {
 } from 'react';
 import { Drawer as DrawerPrimitive } from 'vaul';
 
+import { useImeComposition } from '../../hooks/use-ime-composition';
 import { useIsMobile } from '../../hooks/use-is-mobile';
 import { useRestoreFocus } from '../../hooks/use-restore-focus';
 import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
+import { respectEscapeClaims } from './claims-escape';
 import { CLOSE_BUTTON_CLASS } from './close-button-class';
 import { PagePointerPin } from './page-pointer-pin';
 
@@ -207,6 +209,10 @@ export const ResponsiveDialogContent = forwardRef<
       if (preventCloseAutoFocus) event.preventDefault();
       else restoreFocus(event);
     };
+    const { isComposing, compositionProps } = useImeComposition(open);
+    const onEscapeKeyDown = respectEscapeClaims<KeyboardEvent>((event) => {
+      if (isComposing(event)) event.preventDefault();
+    });
 
     if (isMobile) {
       return (
@@ -214,6 +220,8 @@ export const ResponsiveDialogContent = forwardRef<
           <DrawerPrimitive.Overlay className="bg-bg-overlay data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 duration-[var(--duration-short)] motion-reduce:animate-none" />
           <DrawerPrimitive.Content
             ref={ref}
+            {...compositionProps}
+            onEscapeKeyDown={onEscapeKeyDown}
             aria-modal="true"
             data-tale-modal=""
             onOpenAutoFocus={onOpenAutoFocus}
@@ -290,6 +298,8 @@ export const ResponsiveDialogContent = forwardRef<
         />
         <DialogPrimitive.Content
           ref={ref}
+          {...compositionProps}
+          onEscapeKeyDown={onEscapeKeyDown}
           aria-modal="true"
           data-tale-modal=""
           onOpenAutoFocus={onOpenAutoFocus}

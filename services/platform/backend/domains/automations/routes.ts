@@ -7,6 +7,7 @@ import { registerConnector } from '../../../lib/connectors/registry.ts';
 import { dispatch } from '../../../lib/engine/api/dispatch.ts';
 import { nodeTypes } from '../../../lib/engine/core/slots.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import type { NodeTypeCatalog } from '../../../lib/shared/schemas/node-type-catalog.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
@@ -14,6 +15,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
 import {
+  connectorIconUrl,
   findConnector,
   loadConnectorDefinitions,
 } from '../../core/connector_credentials/connector_catalog.ts';
@@ -421,17 +423,22 @@ export function createAutomationRoutes(deps: {
   });
 
   /** Node-type catalog (the 0.4 `catalog.listNodeTypes` — connector types
-   * only; the editor folds its own core floor over these). */
+   * only; the editor folds its own core floor over these). Each action
+   * carries its connector and its title in every language it ships in; each
+   * connector, once, its display name and its icon as a data URL, so a node
+   * reads "GitHub · List issues" in the reader's language. */
   app.get('/catalog/node-types', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
-    for (const connector of loadConnectorDefinitions()) {
+    const definitions = loadConnectorDefinitions();
+    for (const connector of definitions) {
       registerConnector(connector);
     }
-    const summaries = [];
+    const nodeTypeRows: NodeTypeCatalog['nodeTypes'] = [];
     for (const def of nodeTypes().values()) {
       if (def.kind !== 'connector') continue;
-      summaries.push({
+      const display = def.connector?.display;
+      nodeTypeRows.push({
         type: def.type,
         kind: def.kind,
         description: def.description,
@@ -439,10 +446,26 @@ export function createAutomationRoutes(deps: {
         requiredFields: [...def.requiredFields],
         outputKind: def.outputKind,
         hasEffect: def.connector?.hasEffect ?? false,
+        ...(display !== undefined && { connector: display.connector }),
+        ...(display?.title !== undefined && { title: display.title }),
+        ...(display?.i18n !== undefined && { i18n: display.i18n }),
       });
     }
-    summaries.sort((a, b) => a.type.localeCompare(b.type));
-    return c.json({ nodeTypes: summaries });
+    nodeTypeRows.sort((a, b) => a.type.localeCompare(b.type));
+    const connectors: NodeTypeCatalog['connectors'] = [];
+    for (const connector of definitions) {
+      const row: NodeTypeCatalog['connectors'][number] = {
+        name: connector.name,
+        displayName: connector.displayName,
+      };
+      if (connector.i18n !== undefined) row.i18n = connector.i18n;
+      const iconUrl = connectorIconUrl(connector.name);
+      if (iconUrl !== undefined) row.iconUrl = iconUrl;
+      connectors.push(row);
+    }
+    connectors.sort((a, b) => a.name.localeCompare(b.name));
+    const body: NodeTypeCatalog = { nodeTypes: nodeTypeRows, connectors };
+    return c.json(body);
   });
 
   /** Run KPIs for the metrics page (member-readable, like the 0.4 query). */

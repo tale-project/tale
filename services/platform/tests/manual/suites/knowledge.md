@@ -601,6 +601,9 @@ records and delete them after.
   `products.edit.validation.stockInteger`; **Review** is never shown. Price
   `12.50`, stock `3` → **Next** → **Create** → the row shows them. **Edit** a
   product to price `-5` → **Save** → the same field error, nothing saved.
+  Stock `1e3` (the number field takes an exponent) → **Review** shows `1e3`
+  → **Create** → the row shows `1000`, never `1`; **Edit** that stock to
+  `2.5e2` → **Save** → `250`.
 - [ ] `KNOW-B10` · **A refused image says why** — **Add product** → **Basics**:
   upload an SVG carrying `onload="alert(1)"` → under **Image** and as a toast,
   `products.edit.imageActiveContent` (names scripts/event handlers), never

@@ -231,6 +231,8 @@ feedback:
     noComment: (no comment)
     loadingComment: Loading full comment…
     commentLoadFailed: Couldn't load the full comment.
+    loadFailed: Couldn't load recent feedback.
+    retry: Retry
     helpfulAria: Helpful
     notHelpfulAria: Not helpful
     types:

@@ -18,6 +18,8 @@ limits:
   usageUnavailable: Allocation data unavailable
   # Under the agent workers limit: the runs a higher limit would start now.
   waitingForWorkers: '{count, plural, one {# agent run is waiting for a free worker.} other {# agent runs are waiting for a free worker.}}'
+  usageLoadFailed: Couldn't load sandbox allocation data
+  usageRetry: Retry
   invalidSessions: Must be a whole number between 1 and 500.
   total: Total organization sessions
   totalValue: '{total} / {maxSessions}'

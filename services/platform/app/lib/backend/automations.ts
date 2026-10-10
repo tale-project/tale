@@ -8,6 +8,10 @@
  */
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import {
+  nodeTypeCatalogSchema,
+  type NodeTypeCatalog,
+} from '@/lib/shared/schemas/node-type-catalog';
 
 import type {
   ActionQueryAdapter,
@@ -29,7 +33,6 @@ type RunInDoubtResult = ReturnsOf<'automations/queries:getRunInDoubt'>;
 type OrgAutomationMetricsResult =
   ReturnsOf<'automations/queries:getOrgAutomationMetrics'>;
 type ApprovalResult = ReturnsOf<'approvals/queries:getApproval'>;
-type NodeTypesResult = ReturnsOf<'automations/catalog:listNodeTypes'>;
 type AutomationCapabilitiesResult =
   ReturnsOf<'chat/composer:listAutomationCapabilities'>;
 type SaveAutomationResult = ReturnsOf<'automations/mutations:saveAutomation'>;
@@ -306,6 +309,21 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
   },
 };
 
+/** The node-type catalog, parsed at the boundary: an answer in a shape this
+ * app does not read is a failed read (the editor then works from the core
+ * types alone), never a cast. */
+function readNodeTypeCatalog(body: unknown): NodeTypeCatalog {
+  const parsed = nodeTypeCatalogSchema.safeParse(body);
+  if (!parsed.success) {
+    console.warn(
+      '[automations] the node-type catalog answered in a shape this app does not read',
+      parsed.error.issues,
+    );
+    throw new Error('The node-type catalog answered in an unreadable shape.');
+  }
+  return parsed.data;
+}
+
 /** pg run rows carry `id`; the 0.4 wire uses `_id`. */
 function mapRunIds(rows: unknown[]): unknown[] {
   return rows.map((row) =>
@@ -321,10 +339,9 @@ export const automationActionQueryAdapters: Record<string, ActionQueryAdapter> =
       const orgId = orgOf(args, ctx);
       if (orgId === undefined) return null;
       return () =>
-        backendFetch<{ nodeTypes: NodeTypesResult }>(
-          '/automations/catalog/node-types',
-          { orgId },
-        ).then((body) => body.nodeTypes);
+        backendFetch<unknown>('/automations/catalog/node-types', {
+          orgId,
+        }).then(readNodeTypeCatalog);
     },
     'chat/composer:listAutomationCapabilities': (args, ctx) => {
       const orgId = orgOf(args, ctx);

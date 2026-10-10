@@ -197,7 +197,6 @@ common:
     somethingWentWrong: Something went wrong. Try again.
     tryAgain: Try again
   flow:
-    aiEditor: AI editor
     resetView: Reset view
     zoomIn: Zoom in
     zoomOut: Zoom out
@@ -436,6 +435,170 @@ issues:
   technicalDetails: Technical details
   learnMore: Learn more
   goTo: Go to
+
+codeEditor:
+  roleDescription: code editor
+  loading: Loading the editor…
+  keyboardHint: Tab indents. To leave the editor, press Esc, then Tab.
+  submitHint: 'Shortcut {shortcut}: {action}.'
+  legend:
+    leave: Esc, then Tab to leave
+    submit: '{shortcut}: {action}'
+  leaveArmed: Press Tab to move on.
+  tabFocusOn: Tab now moves focus.
+  tabFocusOff: Tab now indents.
+  expand: Expand editor
+  collapse: Back to the field
+  loadFailed: 'The editor didn''t load. You can keep editing here as plain text.'
+  retry: 'Try the editor again'
+  diagnostics:
+    atCursor: '{severity} on line {line}: {message}'
+    severity:
+      error: Error
+      warning: Warning
+      info: Note
+    fixAvailable: 'Fix available: press {shortcut}.'
+    fixApplied: 'Applied: {label}'
+    fixMenu: Fixes
+    lineItem: 'Line {line}: {message}'
+    more: '{count, plural, one {and # more problem} other {and # more problems}}'
+  syntax:
+    json: This isn't valid JSON here.
+    yaml: This isn't valid YAML here.
+    javascript: This can't be read as JavaScript here. Look for a missing bracket, quote or comma.
+    unterminatedTemplate: "This '{{' has no closing '}}'."
+  typeInfo:
+    label: Type
+    announce: '{title}: {type}'
+    optional: optional
+    sample: 'Last run: {value}'
+  phrases:
+    controlCharacter: Control character
+    close: Close
+    selectionDeleted: Selection deleted
+    foldedCode: folded code
+    unfold: unfold
+    to: to
+    foldedLines: Folded lines
+    unfoldedLines: Unfolded lines
+    foldLine: Fold line
+    unfoldLine: Unfold line
+    completions: Completions
+    find: Find
+    replaceField: Replace
+    next: Next
+    previous: Previous
+    all: All
+    matchCase: Match case
+    regexp: Regex
+    byWord: Whole word
+    replace: Replace
+    replaceAll: Replace all
+    goToLine: Go to line
+    go: Go
+    currentMatch: current match
+    onLine: on line
+    replacedMatches: Replaced $ matches
+    replacedMatchOnLine: Replaced a match on line $
+
+schemaTree:
+  label: Fields
+  kinds:
+    string: text
+    number: a number
+    integer: a whole number
+    boolean: true or false
+    object: an object
+    'null': empty
+    any: anything
+    array: list of {item}
+  kindsPlural:
+    string: texts
+    number: numbers
+    integer: whole numbers
+    boolean: true/false values
+    object: objects
+    array: lists
+    any: values
+  oneOf: one of {values}
+  required: required
+  optional: optional
+  maybeEmpty: may be empty
+  more: '{count, plural, one {# more field} other {# more fields}}'
+  asTypeScript: Show as TypeScript
+
+flow:
+  canvas:
+    roleDescription: flow chart
+    keyboardHelp: Use the arrow keys to follow the connections between nodes, Home and End to jump to Start and End, and Enter to open a node.
+    arranging: Arranging the nodes…
+    arrangeFailed: Couldn't arrange the nodes, so they're shown in one column.
+    touchHint: Use two fingers to move the chart
+  controls:
+    showList: Show as list
+    showChart: Show as chart
+    legend: Legend
+  legend:
+    title: How to read the chart
+  node:
+    entry: Start
+    exit: End
+    triggers: Starts
+    inputs: Input
+    outputs: Returns
+    outcomes: Ends
+    noInput: No input
+    noOutput: Returns nothing
+    more: +{count} more
+    unreachable: Never runs
+    position: Node {index} of {count}
+    section: '{heading}: {items}'
+    rowWithDetail: '{label} ({detail})'
+  gate:
+    onlyIf: Only if
+    ifElse: If
+    name: 'Condition for {node}: {condition}'
+    branches: Yes leads to {yes}, No leads to {no}
+  branch:
+    'yes': 'Yes'
+    'no': 'No'
+  group:
+    items: '{done} of {total, plural, one {# item} other {# items}}'
+    pass: Pass {pass} of {max}
+  relation:
+    comesFrom: Comes from {list}
+    leadsTo: Leads to {list}
+    onlyIf: Runs only if {condition}
+    otherwise: Runs when the condition of {node} is false
+  state:
+    pending: Not reached yet
+    running: Running
+    waiting: Waiting
+    succeeded: Succeeded
+    failed: Failed
+    skipped: Skipped
+    stopped: Stopped here
+    notRun: Not run
+    decidedYes: Condition was true
+    decidedNo: Condition was false
+    failedHere: The run stopped here
+  list:
+    label: Nodes
+    reads: Reads {list}
+    empty: No nodes yet
+  paths:
+    showAll: Show all
+  playback:
+    label: Run timeline
+    play: Play
+    pause: Pause
+    previous: Previous event
+    next: Next event
+    speed: Playback speed
+    position: '{elapsed} of {total}'
+    valueText: '{position} — {events}'
+    live: Live
+    followLive: Follow live
 mentions:
   listboxLabel: Mention someone
   empty: No matches

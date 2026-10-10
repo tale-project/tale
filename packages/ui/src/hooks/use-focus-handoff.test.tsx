@@ -1,81 +1,177 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
-import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { act, render, screen } from '@/tests/utils/render';
 
 import { useFocusHandoff } from './use-focus-handoff';
 
-/** A host that stays while its action gives way to a status, as a notice
- * does once its action worked. */
-function Notice({ onFocusLost }: { onFocusLost: () => void }) {
-  const [done, setDone] = useState(false);
-  const actionRef = useFocusHandoff<HTMLDivElement>(onFocusLost);
+function Failure({ onFocusLost }: { onFocusLost: () => void }) {
+  const ref = useFocusHandoff<HTMLDivElement>(onFocusLost);
   return (
-    <div>
-      <button type="button">Elsewhere</button>
-      {done ? (
-        <p>Done.</p>
-      ) : (
-        <div ref={actionRef}>
-          <button type="button" onClick={() => setDone(true)}>
-            Act
-          </button>
-        </div>
-      )}
+    <div ref={ref}>
+      <button type="button">Try again</button>
     </div>
   );
 }
 
-/** A host that leaves with the element, as an error state does when a
- * retry's answer replaces it. */
-function RetryRow({ onFocusLost }: { onFocusLost: () => void }) {
-  const ref = useFocusHandoff<HTMLSpanElement>(onFocusLost);
+function Pane({
+  show,
+  onFocusLost,
+}: {
+  show: boolean;
+  onFocusLost: () => void;
+}) {
   return (
-    <span ref={ref}>
-      <button type="button">Try again</button>
-    </span>
+    <div data-testid="ancestor" tabIndex={-1}>
+      <section aria-label="Recovered list" tabIndex={-1} />
+      <button type="button">Elsewhere</button>
+      {show && <Failure onFocusLost={onFocusLost} />}
+    </div>
   );
 }
 
-describe('useFocusHandoff', () => {
-  it('hands focus on when the element alone leaves while focused', async () => {
-    const onFocusLost = vi.fn();
-    render(<Notice onFocusLost={onFocusLost} />);
-    const act_ = screen.getByRole('button', { name: 'Act' });
-    act_.focus();
-    act(() => act_.click());
-    expect(screen.getByText('Done.')).toBeVisible();
-    await waitFor(() => expect(onFocusLost).toHaveBeenCalledTimes(1));
-  });
+function DialogPane({
+  show,
+  onFocusLost,
+}: {
+  show: boolean;
+  onFocusLost: () => void;
+}) {
+  return (
+    <div role="dialog" tabIndex={-1}>
+      <section aria-label="Recovered list" tabIndex={-1} />
+      <button type="button">Elsewhere</button>
+      {show && <Failure onFocusLost={onFocusLost} />}
+    </div>
+  );
+}
 
-  it('hands focus on when its whole host leaves while focused', async () => {
-    const onFocusLost = vi.fn();
-    const { rerender } = render(<RetryRow onFocusLost={onFocusLost} />);
-    screen.getByRole('button', { name: 'Try again' }).focus();
-    rerender(<p>Loaded.</p>);
-    await waitFor(() => expect(onFocusLost).toHaveBeenCalledTimes(1));
-  });
-
-  it('leaves the focus alone when it was not inside', async () => {
-    const onFocusLost = vi.fn();
-    render(<Notice onFocusLost={onFocusLost} />);
-    screen.getByRole('button', { name: 'Elsewhere' }).focus();
-    act(() => screen.getByRole('button', { name: 'Act' }).click());
-    // A frame passes, and nothing is handed on.
-    await act(
-      () => new Promise((resolve) => requestAnimationFrame(() => resolve(0))),
+describe('useFocusHandoff frame-time ownership', () => {
+  let frames: FrameRequestCallback[];
+  beforeEach(() => {
+    frames = [];
+    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(
+      (callback) => {
+        frames.push(callback);
+        return frames.length;
+      },
     );
-    expect(onFocusLost).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
   });
 
-  it('calls the latest callback the host passed', async () => {
-    const first = vi.fn();
-    const latest = vi.fn();
-    const { rerender } = render(<RetryRow onFocusLost={first} />);
-    rerender(<RetryRow onFocusLost={latest} />);
+  afterEach(() => vi.restoreAllMocks());
+
+  function removeFocusedRetry(onFocusLost: () => void) {
+    const view = render(<Pane show onFocusLost={onFocusLost} />);
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+    expect(retry).toHaveFocus();
+    view.rerender(<Pane show={false} onFocusLost={onFocusLost} />);
+    expect(retry.isConnected).toBe(false);
+    expect(document.activeElement).toBe(document.body);
+    expect(frames).toHaveLength(1);
+    return view;
+  }
+
+  function runFrame() {
+    act(() => {
+      for (const frame of frames.splice(0)) frame(0);
+    });
+  }
+
+  it('hands actual BODY fallback to the mounted named region after the frame', () => {
+    const handoff = vi.fn(() =>
+      screen.getByRole('region', { name: 'Recovered list' }).focus(),
+    );
+    removeFocusedRetry(handoff);
+    expect(handoff).not.toHaveBeenCalled();
+
+    runFrame();
+
+    expect(handoff).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole('region', { name: 'Recovered list' }),
+    ).toHaveFocus();
+  });
+
+  it.each(['foreign control', 'ancestor', 'already restored target'] as const)(
+    'preserves connected focus on the %s chosen before the queued frame',
+    (destination) => {
+      const handoff = vi.fn();
+      removeFocusedRetry(handoff);
+      const target =
+        destination === 'foreign control'
+          ? screen.getByRole('button', { name: 'Elsewhere' })
+          : destination === 'ancestor'
+            ? screen.getByTestId('ancestor')
+            : screen.getByRole('region', { name: 'Recovered list' });
+      target.focus();
+      expect(target).toHaveFocus();
+      expect(target.isConnected).toBe(true);
+
+      runFrame();
+
+      expect(handoff).not.toHaveBeenCalled();
+      expect(target).toHaveFocus();
+    },
+  );
+
+  it('hands off when a dialog focus trap parks focus on its root', () => {
+    const handoff = vi.fn();
+    const view = render(<DialogPane show onFocusLost={handoff} />);
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+    view.rerender(<DialogPane show={false} onFocusLost={handoff} />);
+    expect(frames).toHaveLength(1);
+
+    const dialog = screen.getByRole('dialog');
+    dialog.focus();
+    runFrame();
+
+    expect(handoff).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves focus when the reader chooses another dialog control', () => {
+    const handoff = vi.fn();
+    const view = render(<DialogPane show onFocusLost={handoff} />);
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+    view.rerender(<DialogPane show={false} onFocusLost={handoff} />);
+    const destination = screen.getByRole('button', { name: 'Elsewhere' });
+    destination.focus();
+
+    runFrame();
+
+    expect(handoff).not.toHaveBeenCalled();
+    expect(destination).toHaveFocus();
+  });
+
+  it('does not queue a handoff when the member left before removal', () => {
+    const handoff = vi.fn();
+    const view = render(<Pane show onFocusLost={handoff} />);
     screen.getByRole('button', { name: 'Try again' }).focus();
-    rerender(<p>Loaded.</p>);
-    await waitFor(() => expect(latest).toHaveBeenCalledTimes(1));
-    expect(first).not.toHaveBeenCalled();
+    const target = screen.getByRole('button', { name: 'Elsewhere' });
+    target.focus();
+
+    view.rerender(<Pane show={false} onFocusLost={handoff} />);
+    expect(frames).toHaveLength(0);
+    runFrame();
+
+    expect(handoff).not.toHaveBeenCalled();
+    expect(target).toHaveFocus();
+  });
+
+  it('uses the latest committed callback without treating a callback change as removal', () => {
+    const initial = vi.fn();
+    const latest = vi.fn();
+    const view = render(<Pane show onFocusLost={initial} />);
+    screen.getByRole('button', { name: 'Try again' }).focus();
+    view.rerender(<Pane show onFocusLost={latest} />);
+    expect(frames).toHaveLength(0);
+    view.rerender(<Pane show={false} onFocusLost={latest} />);
+    expect(frames).toHaveLength(1);
+
+    runFrame();
+
+    expect(initial).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledTimes(1);
   });
 });

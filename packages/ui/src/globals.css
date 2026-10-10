@@ -253,6 +253,55 @@
   --chart-primary: 217 91% 60%;
   --radius: 0.5rem;
   --chat-max-width: 48rem;
+
+  /* Code: one palette for every renderer. Shiki's read-only blocks (its
+     css-variables theme, prefix `--code-`) and the code editor's highlight
+     style both read these roles, so a value reads the same while it is
+     edited and while it is shown. Every token colour clears 4.5:1 on
+     `--background`, `--color-bg-elevated` (the code-block surface) and
+     `--card`, and on the template tint over each — `code-palette.test.ts`
+     holds the line. They started from Shiki's min-light, whose comments
+     (1.69:1), parameters, constants and string expressions failed AA. */
+  --code-foreground: #24292e;
+  --code-background: transparent;
+  --code-token-keyword: #c62828;
+  --code-token-string: #2b5581;
+  --code-token-string-expression: #1f7a35;
+  --code-token-constant: #1565c0;
+  --code-token-function: #6f42c1;
+  --code-token-parameter: #9a5b00;
+  --code-token-comment: #5f6b76;
+  --code-token-punctuation: #212121;
+  --code-token-link: #1565c0;
+  --code-token-inserted: #1f7a35;
+  --code-token-deleted: #b31d28;
+  --code-token-changed: #005cc5;
+  --code-invalid: hsl(var(--destructive));
+  /* Editor chrome. The line numbers match `.code-block-numbered`; the
+     squiggles are non-text marks and keep 3:1 on every code surface and on
+     the template tint (amber-600 drops to 2.8:1 on the tint, so the warning
+     takes amber-700, the colour of the warning glyph). */
+  --code-line-number: var(--color-fg-subtle);
+  --code-line-number-active: hsl(var(--foreground));
+  --code-active-line: hsl(var(--foreground) / 0.04);
+  --code-selection: hsl(var(--info-foreground) / 0.18);
+  --code-selection-inactive: hsl(var(--foreground) / 0.08);
+  --code-template-tint: hsl(var(--info-foreground) / 0.05);
+  --code-match: hsl(var(--info-foreground) / 0.15);
+  --code-squiggle-error: hsl(var(--destructive));
+  --code-squiggle-warning: #b45309;
+  --code-squiggle-info: hsl(var(--info-foreground));
+
+  /* A flow chart's "No" branch: amber, never red ("No" is a path the author
+     drew, not an error). The warning amber is 2.2:1 on white, too faint for
+     a line, so light mode takes amber-700 (5:1); the edge palette reads it
+     through FLOW_EDGE_COLORS.negative. */
+  --flow-edge-negative: #b45309;
+  /* A flow box's dashed border ("may not run", "did not run"): the dash is
+     the meaning, so it keeps 3:1 against the card and the muted surface of
+     a box stepping back from a highlight — the plain border (1.3:1) left the
+     dashes unreadable at half zoom. */
+  --flow-node-dashed: hsl(var(--muted-foreground) / 0.8);
 }
 
 .dark {
@@ -334,6 +383,45 @@
   --chart-warning: 43 96% 56%;
   --chart-neutral: 0 0% 55%;
   --chart-primary: 213 94% 68%;
+
+  /* Code (dark). From Shiki's min-dark; plain text is neutral instead of
+     min-dark's purple, so a prompt written in prose reads as text, and
+     comments lift to 5:1. */
+  --code-foreground: #e1e4e8;
+  --code-token-keyword: #f97583;
+  --code-token-string: #9db1c5;
+  --code-token-string-expression: #ffab70;
+  --code-token-constant: #79b8ff;
+  --code-token-function: #b392f0;
+  --code-token-parameter: #ff9800;
+  --code-token-comment: #8b949e;
+  --code-token-punctuation: #bbbbbb;
+  --code-token-link: #ffab70;
+  --code-token-inserted: #85e89d;
+  --code-token-deleted: #f97583;
+  --code-token-changed: #79b8ff;
+  --code-active-line: hsl(var(--foreground) / 0.05);
+  --code-selection: hsl(var(--info-foreground) / 0.3);
+  --code-selection-inactive: hsl(var(--foreground) / 0.12);
+  --code-template-tint: hsl(var(--info-foreground) / 0.1);
+  --code-match: hsl(var(--info-foreground) / 0.25);
+  --code-squiggle-warning: #f59e0b;
+  --flow-edge-negative: #f59e0b;
+  --flow-node-dashed: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* Windows contrast themes repaint text in their own colours; the selection
+   and the problem underlines follow the system's highlight and text colours
+   so they stay visible. */
+@media (forced-colors: active) {
+  :root,
+  .dark {
+    --code-selection: Highlight;
+    --code-selection-inactive: Highlight;
+    --code-squiggle-error: CanvasText;
+    --code-squiggle-warning: CanvasText;
+    --code-squiggle-info: CanvasText;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -729,6 +817,60 @@
 
 .animate-row-enter {
   animation: row-enter 0.2s ease-out;
+}
+
+/* Workflow canvas motion (components/flow/motion/flow-motion.ts names the
+   timings; every one is skipped under reduced motion). A node that joins a
+   relaid chart grows in from the exit scale, one that leaves shrinks back
+   to it, a re-routed line fades out, a changed node's ring fades in and
+   away, and a light glides along a running node's top bar. Opacity and
+   transform only. */
+@keyframes flow-enter {
+  from {
+    opacity: 0;
+    transform: scale(var(--scale-exit));
+  }
+}
+
+@keyframes flow-exit {
+  to {
+    opacity: 0;
+    transform: scale(var(--scale-exit));
+  }
+}
+
+@keyframes flow-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* In over 150 ms (`--duration-short` of 1.2 s), out over the last 400 ms
+   (`--duration-long`). */
+@keyframes flow-ring {
+  0% {
+    opacity: 0;
+  }
+  12.5% {
+    opacity: 1;
+  }
+  66.667% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The light is a third of the track: from just off its left end to just
+   off its right. */
+@keyframes flow-running-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
 }
 
 /* "Thinking" dots (`@tale/ui/thread/thinking-dots`): a gentle staggered

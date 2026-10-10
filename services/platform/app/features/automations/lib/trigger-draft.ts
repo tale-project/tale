@@ -79,7 +79,7 @@ export function defaultTriggerDraft(viewerZone: string): TriggerDraft {
 }
 
 /** The stored cron, when it is set. */
-function storedCron(row: TriggerView | null): string | null {
+function storedCron(row: { cron?: string | null } | null): string | null {
   const cron = row?.cron?.trim() ?? '';
   return cron === '' ? null : cron;
 }
@@ -119,9 +119,13 @@ export function draftFromStored(
 }
 
 /** The stored schedule as a rule — its own, or its cron's — when it is
- * one. */
-function storedRule(
-  stored: TriggerView | null,
+ * one: what the trigger card and Start's row say in words. */
+export function storedRule(
+  stored: {
+    kind: string;
+    repeat?: ScheduleRule | null;
+    cron?: string | null;
+  } | null,
 ): { rule: ScheduleRule; fromCron: boolean } | null {
   if (stored === null || stored.kind !== 'schedule') return null;
   if (stored.repeat != null) return { rule: stored.repeat, fromCron: false };

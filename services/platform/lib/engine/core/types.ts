@@ -132,7 +132,8 @@ export interface Automation {
   /** The automation's return value; templates allowed anywhere inside. */
   output?: unknown;
   tests?: AutomationTest[];
-  /** Canvas metadata (e.g. `{positions}`); ignored by the engine. */
+  /** Free metadata; ignored — the canvas lays out every automation from its
+   * references. */
   ui?: Record<string, unknown>;
 }
 
