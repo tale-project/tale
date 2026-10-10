@@ -74,6 +74,8 @@ Four types are built in, and every connector action and platform native — know
 
 **`subautomation`** runs another saved automation as a single node, its `automation` field naming `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
 
+**`http.get`** and **`http.send`** call any HTTPS API that has no connector of its own, with a stored credential or without one. See [Call an API from an automation](/platform/automations/http).
+
 ### Structured and unstructured output
 
 A **structured** output has named fields that you can reference with `nodes.<id>.output.<field>`. An **unstructured** output is free text. Reference it through `nodes.<id>.output.text` in a string expression; do not treat it as an object with additional fields.
@@ -129,9 +131,13 @@ A `subautomation` node is checked against the version a run would call: the vers
 
 ### What the organization has {#checks-organization}
 
-Tale also compares an `agent` node with your organization. It warns when the node asks for a skill that no run of the automation can use, a connector nobody has connected, a secret nobody has stored, or an agent runtime this deployment can't run. A node that runs a connector action nobody has connected gets the same warning, and so does an event trigger that waits for an event Tale doesn't raise. When the automation runs, a missing skill or agent runtime fails the node, a node without its connector can't reach that app, and a missing secret is simply not there.
+Tale also compares an `agent` node with your organization. It warns when the node asks for a skill that no run of the automation can use, a connector nobody has connected, a secret nobody has stored, or an agent runtime this deployment can't run. A node that runs a connector action nobody has connected gets the same warning, and so does an event trigger that waits for an event Tale doesn't raise. When the automation runs, a missing skill or agent runtime fails the node, a node without its connector can't reach that app, and a missing secret is simply not there. A connector node that names a credential its connector doesn't hold in service gets a warning too; a live run fails at that node.
 
 These stay warnings because your organization can change before the run: connect the connector or add the skill, and the next check no longer reports it. Only Owners, Admins and Developers are told about secrets, because only they can see which secrets exist.
+
+### HTTP steps {#checks-http}
+
+An `http.get` or `http.send` node without a credential gets a warning for a plain `http://` address, which its run would refuse. A credential written into its address, such as a token in a query parameter, and an `Authorization` or `Cookie` header set by the node are errors: store the credential in **Settings › Connectors** and name it in the node's `credential` field instead. See [Call an API from an automation](/platform/automations/http).
 
 ### Tests {#checks-tests}
 

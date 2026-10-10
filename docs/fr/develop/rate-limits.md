@@ -21,6 +21,8 @@ Un seau de jetons se remplit en continu jusqu’à sa capacité de rafale. Une c
 | Livraisons webhook avant validation du jeton | 120/minute | 240 | Adresse de l’expéditeur |
 | Livraisons à un déclencheur webhook vérifié | 20/minute | 40 | Déclencheur |
 
+Les étapes HTTP des automatisations ont leur propre budget, par organisation : 120 appels par minute sur tout le déploiement, et 10 à la fois sur un serveur. Voir [Appeler une API depuis une automatisation](/fr/platform/automations/http).
+
 Les appels REST d’exécution et de téléversement consomment aussi le budget général. Un fichier de projet nécessite par exemple une autorisation de téléversement puis un rattachement. Chacun de ces appels compte dans les deux budgets. Le budget de téléversement plus large ne contourne pas la limite générale.
 
 L’exécution comprend les démarrages d’automatisation avec ou sans projet, les messages de fil et les démarrages explicites de tâche. La création ou mise à jour d’une tâche consomme aussi ce budget si `runWorkflowSlug` est fourni. Une requête qui démarre du travail est facturée une fois que son corps et ses en-têtes ont passé les vérifications propres de la porte — un `400 INVALID_BODY` ou `INVALID_HEADER` ne coûte rien — et avant que quoi que ce soit soit cherché, si bien qu’un `404` pour un fil, une tâche ou une automatisation que tu ne peux pas voir coûte un jeton, comme un `409` que l’état répond. Certaines mutations, comme les commentaires de tâche ou les changements de dossier, ont des limites supplémentaires partagées avec l’application.
