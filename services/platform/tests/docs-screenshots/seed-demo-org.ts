@@ -446,6 +446,11 @@ async function ensureEmbeddingModel(page: Page, orgId: string): Promise<void> {
     name: t('settings.dataResidency.orgEmbedding.title'),
   });
   await expect(toggle).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The page stays masked until every read answers, and until then the
+  // switch reads OFF even for a saved model.
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
   const model = page.getByRole('textbox', {
     name: t('settings.dataResidency.orgEmbedding.model'),
   });
@@ -1525,9 +1530,8 @@ async function ensureAutomationTestRun(
   orgId: string,
 ): Promise<void> {
   const runsRoute = `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/runs`;
-  const runRow = page.locator(`a[href*="/runs/"]`);
   await page.goto(runsRoute);
-  if (await alreadySeeded(runRow)) return;
+  if (await hasRun(page, orgId, DEMO_TEST_RUN.automation)) return;
 
   await page.goto(
     `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/editor`,
@@ -1538,13 +1542,19 @@ async function ensureAutomationTestRun(
       exact: true,
     }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await page
-    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
-    .click();
+  const testRun = page.getByRole('button', {
+    name: t('automations.detail.runMock'),
+    exact: true,
+  });
   const dialog = page.getByRole('dialog', {
     name: t('automations.detail.runMock'),
     exact: true,
   });
+  // Test run opens nothing until the editor has read the stored version.
+  await expect(async () => {
+    if (!(await dialog.isVisible())) await testRun.click();
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: TIMEOUT.PERSIST });
   await dialog
     .getByRole('textbox', { name: t('automations.detail.runInput.label') })
     .fill(JSON.stringify(DEMO_TEST_RUN.input, null, 2));
@@ -1620,6 +1630,31 @@ async function appApiOk(
     );
   }
   return answer.body;
+}
+
+/**
+ * Whether the automation has any run, read from the runs list's own API —
+ * instant either way, where waiting for a row to appear costs its whole
+ * timeout on a fresh seed. The page must be on the app's origin.
+ */
+async function hasRun(
+  page: Page,
+  orgId: string,
+  automation: string,
+): Promise<boolean> {
+  const answer = await appApi(
+    page,
+    orgId,
+    `/automations/runs?limit=1&name=${automation}`,
+  );
+  const runs =
+    answer.status === 200 &&
+    typeof answer.body === 'object' &&
+    answer.body !== null &&
+    'runs' in answer.body
+      ? answer.body.runs
+      : null;
+  return Array.isArray(runs) && runs.length > 0;
 }
 
 /** The stored trigger of an automation, as `GET …/triggers` reads it. */
@@ -1743,8 +1778,8 @@ async function ensureWebhookDeliveries(
     presentation: { name },
     create: true,
   });
-  // 409: an earlier seed saved it already.
-  if (created.status !== 200 && created.status !== 409) {
+  // 201 is the saved version; 409: an earlier seed saved it already.
+  if (created.status !== 201 && created.status !== 409) {
     throw new Error(
       `Saving ${automation} answered ${created.status}: ${JSON.stringify(created.body)}`,
     );
@@ -1821,9 +1856,8 @@ async function ensureAutomationFailedRun(
 ): Promise<void> {
   const automationRoute = `/dashboard/${orgId}/automations/${DEMO_FAILED_RUN.automation}`;
   const runsRoute = `${automationRoute}/runs`;
-  const runRow = page.locator(`a[href*="/runs/"]`);
   await page.goto(runsRoute);
-  if (await alreadySeeded(runRow)) return;
+  if (await hasRun(page, orgId, DEMO_FAILED_RUN.automation)) return;
 
   const versionSelect = page.getByRole('button', {
     name: t('automations.detail.versionSelect'),
@@ -1835,9 +1869,29 @@ async function ensureAutomationFailedRun(
     await page.goto(`${automationRoute}/editor`);
   }
   await expect(versionSelect).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await page
-    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
-    .click();
+  const testRun = page.getByRole('button', {
+    name: t('automations.detail.runMock'),
+    exact: true,
+  });
+  // Test run starts nothing until the editor has read the stored version,
+  // so click until the start request leaves.
+  await expect(async () => {
+    const started = page
+      .waitForRequest(
+        (request) =>
+          request.method() === 'POST' &&
+          request
+            .url()
+            .includes(`/automations/${DEMO_FAILED_RUN.automation}/start`),
+        { timeout: 3_000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+    await testRun.click();
+    expect(await started).toBe(true);
+  }).toPass({ timeout: TIMEOUT.PERSIST });
 
   const failed = page.getByText(t('automations.runs.status.failed'), {
     exact: true,
