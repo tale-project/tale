@@ -1220,6 +1220,13 @@ answer, answered too slowly, was busy or failed on its own side is `connector_un
 and `backend/core/automations/failure.test.ts` keeps it out of the count. `AUTO-F129`
 keeps the run page's words for both codes against a real API in the manual layer.
 
+The task creation step's guarantees are automated in
+`backend/domains/connectors/task-store.create.test.ts` and
+`lib/connectors/natives/platform-tasks.test.ts`: one task per execution under the run ledger's
+key, created as the automation in a project it is installed in, and a refused one writes nothing.
+`AUTO-F130` and `AUTO-F131` keep a live task on a real board and its failures on the run page in
+the manual layer.
+
 ## Moving a box here
 
 When a spec takes a box over end to end, **delete the box and add its row to

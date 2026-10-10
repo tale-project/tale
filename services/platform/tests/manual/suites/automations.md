@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 180 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 182 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1326,6 +1326,19 @@ output:
       unavailable, run again later), the second as
       `automationRuns.runFailure.codes.connector_error`; both steps explain
       `automationRuns.reasons.HTTP_STATUS` with the status the API answered.
+- [ ] `AUTO-F130` · **In an automation installed in Customer onboarding
+      portal, add a `task.create` step with `title: Reply to {{ input.from }}`,
+      `assignee` your own email, `status: todo`, `dueDate: 2026-10-17` and
+      `labels: [support]`, deploy and **Run live** in that project** → a task
+      appears on the project's board in To do, assigned to you, due 17
+      October, labelled support, its creator shown as the automation; the
+      step's output carries its `taskId`, `number`, `title` and a `url` that
+      opens it. A **Test run** creates nothing and answers with the mock.
+- [ ] `AUTO-F131` · **Run the same step with `assignee: nobody@example.com`,
+      then in a project the automation is not installed in** → the first run
+      fails at the step with `automationRuns.reasons.TASK_ASSIGNEE_UNKNOWN`,
+      the second with `automationRuns.reasons.TASK_PROJECT_NOT_BOUND`;
+      neither leaves a task or a new label on any board.
 
 ## Boundary & error tests
 
