@@ -358,7 +358,8 @@ export interface CredentialListItem {
   name: string;
   envName: string | null;
   endpointUrl: string | null;
-  accountId: string | null;
+  /** Only subscription credentials carry a vendor account identifier. */
+  accountId?: string | null;
   maskedPreview: string | null;
   modelAllowlist: string[] | null;
   isDefault: boolean;
