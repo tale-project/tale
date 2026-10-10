@@ -94,19 +94,12 @@ export interface SaveProviderDefinitionOptions {
   alongside?: (tx: TransactionSql) => Promise<void>;
 }
 
-export async function saveProviderDefinition(
-  sql: Sql,
-  scope: {
-    organizationId: string;
-    orgSlug: string;
-    userId: string;
-    email?: string;
-  },
+/** A definition as a save checks it, and the file it is kept in. */
+function checkedDefinition(
+  orgSlug: string,
   name: string,
-  config: ProviderDefinition,
-  expectedHash: string | null,
-  options: SaveProviderDefinitionOptions = {},
-) {
+  config: unknown,
+): { definition: ProviderDefinition; file: string } {
   const parsed = providerDefinitionSchema.safeParse(config);
   if (!parsed.success || parsed.data.name !== name) {
     throw new ConfigurationError(
@@ -115,7 +108,7 @@ export async function saveProviderDefinition(
       400,
     );
   }
-  const file = definitionPath(scope.orgSlug, name);
+  const file = definitionPath(orgSlug, name);
   for (const endpoint of [
     parsed.data.baseUrl,
     parsed.data.harnessEndpoint?.baseUrl,
@@ -134,7 +127,55 @@ export async function saveProviderDefinition(
       );
     }
   }
-  const content = stringifyYaml(parsed.data);
+  return { definition: parsed.data, file };
+}
+
+/**
+ * Check a custom provider's definition as a save checks it, writing
+ * nothing: the definition's own shape under the name it is saved as, a
+ * name that is a provider's and no shipped provider's, and endpoints that
+ * carry no credentials and pass the deployment's host policy. Answers the
+ * definition as the save stores it.
+ */
+export function checkProviderDefinition(
+  orgSlug: string,
+  name: string,
+  config: unknown,
+): ProviderDefinition {
+  return checkedDefinition(orgSlug, name, config).definition;
+}
+
+/** How many of the organization's credentials name the provider — a
+ * provider is removed only once none does. */
+export async function providerCredentialCount(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<number> {
+  const rows = await db<{ count: number }[]>`
+    SELECT count(*)::int AS count
+    FROM app.provider_credentials
+    WHERE org_id = ${organizationId}
+      AND provider_slug = ${name}
+  `;
+  return rows[0]?.count ?? 0;
+}
+
+export async function saveProviderDefinition(
+  sql: Sql,
+  scope: {
+    organizationId: string;
+    orgSlug: string;
+    userId: string;
+    email?: string;
+  },
+  name: string,
+  config: ProviderDefinition,
+  expectedHash: string | null,
+  options: SaveProviderDefinitionOptions = {},
+) {
+  const { definition, file } = checkedDefinition(scope.orgSlug, name, config);
+  const content = stringifyYaml(definition);
   const save = (tx: TransactionSql) =>
     withConfigWriteLock(tx, scope.orgSlug, 'providers', async () => {
       const current = await readProviderDefinition(scope.orgSlug, name);
@@ -248,13 +289,11 @@ export async function deleteProviderDefinition(
         );
       }
       assertExpectedHash(current.hash, expectedHash);
-      const rows = await tx<{ count: number }[]>`
-        SELECT count(*)::int AS count
-        FROM app.provider_credentials
-        WHERE org_id = ${scope.organizationId}
-          AND provider_slug = ${name}
-      `;
-      const inUse = rows[0]?.count ?? 0;
+      const inUse = await providerCredentialCount(
+        tx,
+        scope.organizationId,
+        name,
+      );
       if (inUse > 0) {
         throw new ConfigurationError(
           'PROVIDER_IN_USE',

@@ -4,9 +4,9 @@
       "type": "object",
       "properties": {
         "topic": {
-          "description": "Which reference: \"authoring\" (the default — the automation grammar and every method), \"triggers\" (what starts an automation, each kind's fields and the events), \"validation\" (how to read a validation result, and every issue code) or \"skill\" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.",
+          "description": "Which reference: \"authoring\" (the default — the automation grammar and every method), \"triggers\" (what starts an automation, each kind's fields and the events), \"validation\" (how to read a validation result, and every issue code), \"settings\" (every kind of setting with its fields, the effects of a plan and every refusal) or \"skill\" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.",
           "type": "string",
-          "enum": ["authoring", "triggers", "validation", "skill"]
+          "enum": ["authoring", "triggers", "validation", "settings", "skill"]
         }
       },
       "additionalProperties": false
@@ -1970,6 +1970,349 @@
       },
       "required": ["events", "hint"],
       "additionalProperties": {}
+    }
+  },
+  "get_settings": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "description": "The kinds to read. Left out, the catalog: every kind, what it is and what your role may do with it.",
+          "minItems": 1,
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "provider-credential",
+              "governance",
+              "knowledge-embedding",
+              "branding",
+              "project-instructions",
+              "agent-instructions",
+              "agent-tools",
+              "agent-model",
+              "task-instructions",
+              "task-review-context",
+              "deployment"
+            ],
+            "description": "The kind of setting; get_settings without kinds lists them."
+          }
+        },
+        "ids": {
+          "description": "Only these resources, by id; with exactly one kind.",
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 600,
+            "pattern": "\\S"
+          }
+        },
+        "cursor": {
+          "description": "The nextCursor a read of one kind answered, for its next page.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "available": {
+                "type": "boolean"
+              },
+              "read": {
+                "type": "boolean"
+              },
+              "write": {
+                "type": "boolean"
+              }
+            },
+            "required": ["kind", "available", "read", "write"],
+            "additionalProperties": {}
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "hash": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "key", "id", "hash"],
+            "additionalProperties": {}
+          }
+        },
+        "refused": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "code", "error"],
+            "additionalProperties": {}
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["resources", "refused", "nextCursor", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "plan_settings": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "changes": {
+          "minItems": 1,
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "provider",
+                  "provider-credential",
+                  "governance",
+                  "knowledge-embedding",
+                  "branding",
+                  "project-instructions",
+                  "agent-instructions",
+                  "agent-tools",
+                  "agent-model",
+                  "task-instructions",
+                  "task-review-context",
+                  "deployment"
+                ],
+                "description": "The kind of setting; get_settings without kinds lists them."
+              },
+              "id": {
+                "description": "The resource's id within its kind, as get_settings answers it. Left out for a kind with one resource.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600,
+                "pattern": "\\S"
+              },
+              "op": {
+                "type": "string",
+                "enum": ["set", "delete", "act"],
+                "description": "set: replace the resource with config, creating it when absent; delete: remove it; act: run one of the kind's actions on it."
+              },
+              "config": {
+                "description": "With set: the whole config the resource should hold, as get_settings answers it. A secret stays the masked value it read, which keeps what is stored."
+              },
+              "act": {
+                "description": "With act: the action, one of the kind's acts.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "\\S"
+              },
+              "args": {
+                "description": "With act: what the action takes."
+              }
+            },
+            "required": ["kind", "op"],
+            "additionalProperties": false
+          },
+          "description": "The changes to plan, at most 32: each names its kind, its resource (id) and its operation; set sends the whole config the resource should hold."
+        }
+      },
+      "required": ["changes"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "op": {
+                "type": "string"
+              },
+              "diff": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path"],
+                  "additionalProperties": {}
+                }
+              },
+              "effects": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "risk": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "key", "op", "diff", "effects", "risk"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["ok", "changes"],
+      "additionalProperties": {}
+    }
+  },
+  "apply_settings": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "changes": {
+          "minItems": 1,
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "provider",
+                  "provider-credential",
+                  "governance",
+                  "knowledge-embedding",
+                  "branding",
+                  "project-instructions",
+                  "agent-instructions",
+                  "agent-tools",
+                  "agent-model",
+                  "task-instructions",
+                  "task-review-context",
+                  "deployment"
+                ],
+                "description": "The kind of setting; get_settings without kinds lists them."
+              },
+              "id": {
+                "description": "The resource's id within its kind, as get_settings answers it. Left out for a kind with one resource.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600,
+                "pattern": "\\S"
+              },
+              "op": {
+                "type": "string",
+                "enum": ["set", "delete", "act"],
+                "description": "set: replace the resource with config, creating it when absent; delete: remove it; act: run one of the kind's actions on it."
+              },
+              "config": {
+                "description": "With set: the whole config the resource should hold, as get_settings answers it. A secret stays the masked value it read, which keeps what is stored."
+              },
+              "act": {
+                "description": "With act: the action, one of the kind's acts.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "\\S"
+              },
+              "args": {
+                "description": "With act: what the action takes."
+              }
+            },
+            "required": ["kind", "op"],
+            "additionalProperties": false
+          },
+          "description": "The changes to make, at most 32 — the ones you planned and showed the person."
+        },
+        "expected": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 700,
+            "pattern": "\\S"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": "The hash each changed resource had when you read it, by its key (kind/id, or the kind alone for a kind with one resource); null for one you create. If any resource changed since, nothing is applied."
+        }
+      },
+      "required": ["changes", "expected"],
+      "additionalProperties": false
     }
   },
   "search_capabilities": {

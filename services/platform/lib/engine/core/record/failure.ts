@@ -9,8 +9,8 @@
  * at the one place it arrives.
  */
 
+import { credentialKind } from '../../../shared/secret-scan';
 import { cutText, storableText } from '../../../shared/utils/storable-text';
-import { credentialKind } from '../secret-patterns';
 import {
   FAILURE_PARAM_LENGTH,
   type EvalTrace,

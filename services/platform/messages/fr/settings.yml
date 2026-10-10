@@ -83,6 +83,10 @@ mcpEndpoint:
       description: Consulter ce qu'une automatisation peut nommer — modèles,
         environnements d'agent, skills, connectors, noms de secrets, projets
         et événements.
+    settings:
+      title: Paramètres
+      description: Lire, planifier et modifier les paramètres que ton rôle
+        autorise. Les secrets se saisissent toujours dans Tale.
     capability:
       title: Capacités & connaissances
       description: La surface propre à l'organisation — chercher ce qu'elle
@@ -1356,6 +1360,8 @@ logs:
       folder.deleted: Dossier supprimé
       knowledge_entry.created: Entrée de connaissances créée
       knowledge_entry.updated: Entrée de connaissances mise à jour
+      knowledge_embedding.saved: Modèle d’embedding enregistré
+      knowledge_embedding.removed: Modèle d’embedding supprimé
       branding.updated: Branding mis à jour
       branding.image_uploaded: Image de branding chargée
       branding.image_deleted: Image de branding retirée
@@ -1570,6 +1576,7 @@ logs:
       document: Document
       folder: Dossier
       knowledge_entry: Entrée de connaissances
+      knowledge_embedding: Modèle d’embedding
       agent: Agent
       workflow: Automatisation
       workflow_run: Exécution d'automatisation

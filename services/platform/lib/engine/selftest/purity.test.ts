@@ -36,6 +36,11 @@ const PURE_SHARED_HELPERS = [
     '../../../../packages/shared/src/automation-replay.ts',
   ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/secret-scan.ts'),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/utils/stable-stringify.ts',
+  ),
   path.resolve(ENGINE_ROOT, '../shared/utils/bound-json.ts'),
   path.resolve(ENGINE_ROOT, '../shared/utils/storable-text.ts'),
   path.resolve(ENGINE_ROOT, '../shared/audit-redaction.ts'),
@@ -89,14 +94,15 @@ describe('engine purity', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
     // periscopic scopes, the zimmerframe walker, is-reference), the shared
     // safe YAML loader, type guards, name grammar, stable serializer, JSON
-    // bounding and the secret-key list are runtime-neutral, and so is
-    // `@tale/ui`'s data core (summaries, shapes, diffs, pointers, hashes),
-    // whose own guard (`packages/ui/src/data/pure.test.ts`) holds it to
-    // imports of itself; everything else outside the engine tree is a
-    // layering violation.
+    // bounding, the secret-key list and the credential detector are
+    // runtime-neutral, and so is `@tale/ui`'s data core (summaries, shapes,
+    // diffs, pointers, hashes), whose own guard
+    // (`packages/ui/src/data/pure.test.ts`) holds it to imports of itself;
+    // everything else outside the engine tree is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/shared/utils/stable-stringify',
       '@tale/shared/automation-replay',
       '@tale/ui/data/hash',
       '@tale/ui/data/infer-schema',
@@ -114,6 +120,7 @@ describe('engine purity', () => {
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
+      path.join('lib', 'shared', 'secret-scan'),
       path.join('lib', 'shared', 'utils', 'bound-json'),
       path.join('lib', 'shared', 'utils', 'storable-text'),
       path.join('lib', 'shared', 'audit-redaction'),

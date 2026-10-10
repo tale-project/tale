@@ -178,6 +178,16 @@ function readCalls(): Array<[string, Record<string, unknown>]> {
     ['list_agent_secrets', {}],
     ['list_projects', { includeArchived: true }],
     ['list_events', {}],
+    ['get_settings', {}],
+    ['get_settings', { kinds: ['governance'], ids: ['password_policy'] }],
+    [
+      'plan_settings',
+      {
+        changes: [
+          { kind: 'branding', op: 'set', config: { accentColor: '#336699' } },
+        ],
+      },
+    ],
     ['search_capabilities', { query: 'orders' }],
     ['get_knowledge', { query: 'refunds' }],
   ];
@@ -299,6 +309,8 @@ describe('tools/list', () => {
       get_run: { 'anthropic/maxResultSizeChars': 500_000 },
       get_run_node: { 'anthropic/maxResultSizeChars': 300_000 },
       compare_runs: { 'anthropic/maxResultSizeChars': 500_000 },
+      get_settings: { 'anthropic/maxResultSizeChars': 250_000 },
+      apply_settings: { 'anthropic/requiresUserInteraction': true },
     });
   });
 });
@@ -340,6 +352,127 @@ describe('a write over MCP names the coding agent', () => {
         tool: 'save_automation',
         apiKeyId: 'key_1',
         clientName: 'Claude Code',
+      },
+    ]);
+  });
+});
+
+/**
+ * The settings tools at the door: a change draws from its own budget once
+ * its arguments pass, reading and planning draw from none, and what a kind
+ * does not take is refused with every other problem before anything runs.
+ */
+describe('settings over MCP', () => {
+  const apply = findMcpTool('apply_settings');
+  const plan = findMcpTool('plan_settings');
+  const get = findMcpTool('get_settings');
+  if (apply === undefined || plan === undefined || get === undefined) {
+    throw new Error('no settings tools');
+  }
+  const change = {
+    changes: [
+      { kind: 'branding', op: 'set', config: { accentColor: '#000000' } },
+    ],
+    expected: { branding: null },
+  };
+
+  it('draws one settings change from the key holder’s settings budget', async () => {
+    const charged: string[] = [];
+    const reply = await callTool(caller, apply, change, {
+      host,
+      requestId: 'r',
+      charge: async (lane) => {
+        charged.push(lane);
+        return null;
+      },
+    });
+    if (reply.kind !== 'answer') throw new Error('not admitted');
+    expect(charged).toEqual(['rest:settings']);
+  });
+
+  it('refuses a change once that budget is spent, and runs nothing', async () => {
+    const platform = vi.fn(host.platform);
+    const reply = await callTool(caller, apply, change, {
+      host: { ...host, platform },
+      requestId: 'r',
+      charge: async () => ({ retryAfterMs: 1500 }),
+    });
+    if (reply.kind !== 'answer') throw new Error('not admitted');
+    expect(reply.answer.result.isError).toBe(true);
+    expect(JSON.parse(reply.answer.result.content[0]?.text ?? '{}')).toEqual({
+      error:
+        'apply_settings is refused for now: this key holder has changed settings as often as a minute allows; retry in 2 s',
+      code: 'RATE_LIMITED',
+      hint: expect.stringContaining('plan_settings'),
+      data: { retryAfterMs: 1500 },
+    });
+    expect(platform).not.toHaveBeenCalled();
+  });
+
+  it('charges nothing to read or plan', async () => {
+    const charge = vi.fn(async () => null);
+    for (const [tool, args] of [
+      [get, {}],
+      [plan, { changes: change.changes }],
+    ] as const) {
+      const reply = await callTool(caller, tool, args, {
+        host,
+        requestId: 'r',
+        charge,
+      });
+      if (reply.kind !== 'answer') throw new Error('not admitted');
+    }
+    expect(charge).not.toHaveBeenCalled();
+  });
+
+  it('refuses what a kind does not take with every other problem, before anything runs', async () => {
+    const platform = vi.fn(host.platform);
+    const reply = await callTool(
+      caller,
+      plan,
+      {
+        changes: [
+          { kind: 'governance', id: 'budgets', op: 'delete' },
+          { kind: 'branding', op: 'act', act: 'reset' },
+          { kind: 'provider', id: 'vendor', op: 'set' },
+          { kind: 'provider', id: 'vendor', op: 'act', act: 'rename' },
+          { kind: 'files', op: 'set', config: {} },
+        ],
+      },
+      { host: { ...host, platform }, requestId: 'r' },
+    );
+    if (reply.kind !== 'answer') throw new Error('not admitted');
+    const answer = JSON.parse(reply.answer.result.content[0]?.text ?? '{}');
+    expect(answer.code).toBe('INVALID_ARGUMENTS');
+    expect(
+      answer.data.issues.map(
+        (issue: { path: string; code: string }) =>
+          `${issue.path} ${issue.code}`,
+      ),
+    ).toEqual([
+      'changes.0.op op_not_supported',
+      'changes.1.op op_not_supported',
+      'changes.2.config required',
+      'changes.3.act act_unknown',
+      'changes.4.kind invalid_value',
+    ]);
+    expect(platform).not.toHaveBeenCalled();
+  });
+
+  it('reads one kind’s pages or ids only, never several kinds’ at once', async () => {
+    const reply = await callTool(
+      caller,
+      get,
+      { kinds: ['governance', 'branding'], ids: ['budgets'] },
+      { host, requestId: 'r' },
+    );
+    if (reply.kind !== 'answer') throw new Error('not admitted');
+    const answer = JSON.parse(reply.answer.result.content[0]?.text ?? '{}');
+    expect(answer.data.issues).toEqual([
+      {
+        path: 'kinds',
+        code: 'one_kind',
+        message: 'must name exactly one kind when ids or cursor is given',
       },
     ]);
   });

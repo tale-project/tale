@@ -1,7 +1,8 @@
-import { parsePlatformConfiguration } from './platform-model';
+import { platformConfigurationSchema } from './platform-resources';
 
 /** Synthetic settings span ordinary policies and external providers. No model
- * hardware, source checkout, organization or endpoint is shared by clients. */
+ * hardware, source checkout, organization or endpoint is shared by clients.
+ * Test support for the shared model's suite and the CLI's plan/apply suites. */
 export function platformConfigurationFixture() {
   const providers = ['reasoning', 'vision', 'embedding'].map((role) => ({
     kind: 'provider' as const,
@@ -30,7 +31,7 @@ export function platformConfigurationFixture() {
       },
     ],
   }));
-  return parsePlatformConfiguration({
+  return platformConfigurationSchema.parse({
     schemaVersion: 1,
     resources: [
       { kind: 'branding', config: { accentColor: '#336699' } },

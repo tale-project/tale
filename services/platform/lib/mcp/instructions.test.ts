@@ -14,18 +14,14 @@ import {
 import { MCP_TOOLS } from './tools';
 
 /**
- * The lines the instructions gain once the settings tools, agent requests
- * and subscriptions ship, as long as they are planned to be. A client keeps
- * only the first 2,048 characters, so the limit holds for the full set: the
- * text today leaves their room, and none of them has to cut it to land. A
- * line moves into `INSTRUCTION_FRAGMENTS`, with its final words, together
- * with its tools.
+ * The lines the instructions gain once agent requests and subscriptions
+ * ship, as long as they are planned to be. A client keeps only the first
+ * 2,048 characters, so the limit holds for the full set: the text today
+ * leaves their room, and none of them has to cut it to land. A line moves
+ * into `INSTRUCTION_FRAGMENTS`, with its final words, together with its
+ * tools.
  */
 const LATER_FRAGMENTS: readonly InstructionFragment[] = [
-  {
-    text: "Settings: get_settings -> plan_settings -> show the plan -> apply_settings with each resource's expected hash.",
-    tools: ['get_settings', 'plan_settings', 'apply_settings'],
-  },
   {
     text: 'Never ask for, accept or print a secret (API keys, tokens, passwords). A change that needs one returns a link where the person finishes it in Tale; poll get_agent_request.',
     tools: ['get_agent_request'],

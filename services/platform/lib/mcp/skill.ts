@@ -54,7 +54,11 @@ export const SKILL_DESCRIPTION: readonly SkillLine[] = [
     ],
   },
   {
-    text: 'Use when the user asks to create or change a Tale automation, workflow, trigger or schedule, or to find out why a Tale run failed.',
+    text: "Also reads and changes the organization's settings within the person's role (get_settings, plan_settings, apply_settings).",
+    tools: ['get_settings', 'plan_settings', 'apply_settings'],
+  },
+  {
+    text: 'Use when the user asks to create or change a Tale automation, workflow, trigger or schedule, to find out why a Tale run failed, or to change a Tale setting.',
     tools: [],
   },
 ];
@@ -77,6 +81,10 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
       },
       {
         text: '- Finding out why a Tale run failed, and fixing the automation.',
+        tools: [],
+      },
+      {
+        text: "- Changing the organization's settings — a policy, a provider, the branding, a project's or an agent's instructions — when the person asks.",
         tools: [],
       },
       {
@@ -201,6 +209,31 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
     ],
   },
   {
+    heading: 'Settings',
+    lines: [
+      {
+        text: '1. Read the settings reference once: tale://docs/settings, or get_docs with topic "settings".',
+        tools: ['get_docs'],
+      },
+      {
+        text: "2. get_settings without kinds lists every kind and what the person's role may do with it; with kinds (and ids), each resource with its key, config and hash.",
+        tools: ['get_settings'],
+      },
+      {
+        text: '3. plan_settings shows what a change would do — its diff, effects and risk — and writes nothing. Show the plan to the person; apply only once they agree.',
+        tools: ['plan_settings'],
+      },
+      {
+        text: '4. apply_settings with the same changes and expected: each key with the hash you read (null for one you create). A set replaces the whole resource, so send every field it should keep.',
+        tools: ['apply_settings'],
+      },
+      {
+        text: '- A secret reads as {masked: true, preview} in get_settings: send it back unchanged in apply_settings to keep it. Never put a secret in a change; the person enters it in Tale.',
+        tools: ['get_settings', 'apply_settings'],
+      },
+    ],
+  },
+  {
     heading: 'Reading refusals',
     lines: [
       {
@@ -235,6 +268,18 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
         tools: [],
       },
       {
+        text: '| SETTINGS_STALE | The setting changed since you read it: read it again with get_settings, plan against what is stored, apply with data.currentHash. |',
+        tools: ['get_settings'],
+      },
+      {
+        text: '| SECRET_ARGUMENT_REFUSED | Take the secret out of the change (data.places says where); the person enters it in Tale. |',
+        tools: [],
+      },
+      {
+        text: '| SETTINGS_TALE_ONLY | The change is made in Tale alone: tell the person where. |',
+        tools: [],
+      },
+      {
         text: '| RATE_LIMITED | Wait data.retryAfterMs, then call again. |',
         tools: [],
       },
@@ -260,6 +305,10 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
         ],
       },
       {
+        text: "- Ask the person before apply_settings, with the plan's effects and risk in front of them.",
+        tools: ['apply_settings'],
+      },
+      {
         text: '- Approvals are human-only: never try to decide one.',
         tools: [],
       },
@@ -282,6 +331,10 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
       },
       {
         text: '- tale://docs/validation: reading a validation result, and every issue code (get_docs with topic "validation").',
+        tools: ['get_docs'],
+      },
+      {
+        text: '- tale://docs/settings: every kind of setting with its fields, the effects of a plan and every refusal (get_docs with topic "settings").',
         tools: ['get_docs'],
       },
       {

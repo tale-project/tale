@@ -64559,6 +64559,14 @@ async function main(): Promise<void> {
         () => checkMcpEras(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       [
+        'checkMcpSettingsConfig',
+        async () => {
+          const { checkMcpSettingsConfig } =
+            await import('./domains/mcp/settings.integration.ts');
+          await checkMcpSettingsConfig(sql, baseUrl, record);
+        },
+      ],
+      [
         'checkRetiredBuilderRoute',
         () => checkRetiredBuilderRoute(baseUrl, authCtx),
       ],

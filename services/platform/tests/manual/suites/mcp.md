@@ -1,6 +1,6 @@
 # MCP
 
-> **Prefix** `MCP-` · **Reset** none · **Cost** 12 boxes
+> **Prefix** `MCP-` · **Reset** none · **Cost** 15 boxes
 
 Exercise Tale's MCP endpoint, `/api/v1/mcp`, from a real coding agent: connecting a client with an
 API key and working in the organization through it. A person drives the agent in a terminal beside
@@ -132,6 +132,38 @@ earlier boxes left.
   question the run asked, word for word, without guessing an id; Claude Code asks you before it
   calls `answer_run_ask`; after you accept, the run in
   `/dashboard/{org}/automations/{slug}/runs` leaves **Waiting** and goes on with your answer.
+
+## Settings through the agent
+
+These boxes reuse `MCP-F1`'s Claude Code connection. They change the organization's branding and
+password policy; put both back by hand afterwards if the organization is shared.
+
+- [ ] `MCP-F9` · **Change settings through the agent** — Ask the agent to set the organization's
+  accent color to `#1A6B4F` and to turn on password rotation every 90 days → before it changes
+  anything, the agent shows you a plan whose password change names the effect
+  `may-lock-out-members` and the risk `critical`; Claude Code asks you before it calls
+  `apply_settings`; after you accept, a reload of **Settings > Branding** shows `#1A6B4F` as the
+  **Accent color** (`settings.branding.accentColor`), and **Settings > Governance > Security**
+  shows **Enable password rotation** (`governance.passwordPolicy.rotationEnabled`) on with a
+  **Rotation period (days)** (`governance.passwordPolicy.rotationDays`) of 90; in
+  **Settings > Governance > Logs** the newest **Branding updated** row
+  (`settings.logs.audit.actionLabels.branding.updated`) and the newest row of the password policy
+  show **Source** (`settings.logs.audit.viaLabel`) as **Coding agent**
+  (`settings.logs.audit.viaLabels.mcp`).
+- [ ] `MCP-B1` · **A member's agent is refused what a member is refused** — As an owner, give a
+  member the developer role, sign in as that member, create an API key under **Settings > API >
+  REST**, sign back in as the owner and set the member's role back to member; connect Claude Code
+  with the member's key as in `MCP-F1` and ask the agent to raise the password policy's minimum
+  length to 14 → the agent reports the change refused with Tale's reason, without retrying; as
+  the owner, **Settings > Governance > Security** still shows the earlier **Minimum length**
+  (`governance.passwordPolicy.minLength`), and **Settings > Governance > Logs** has no new row of
+  the password policy.
+- [ ] `MCP-B2` · **A key pasted into a setting is refused** — With the owner's connection, ask the
+  agent to add `sk-test-0000000000000000000000000000` to the organization's system prompt in
+  **Settings > Governance > Guardrails** → the agent reports the change refused because it
+  carries a secret, naming the field and never repeating the key; a reload of the Guardrails page
+  shows the system prompt unchanged, and searching **Settings > Governance > Logs** for `sk-test`
+  finds nothing.
 
 ## What the organization sees
 

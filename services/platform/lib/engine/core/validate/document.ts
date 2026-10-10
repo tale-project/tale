@@ -11,9 +11,9 @@
 
 import type { ValidateFunction } from 'ajv';
 
+import { findSecrets } from '../../../shared/secret-scan';
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
-import { credentialKind } from '../secret-patterns';
 import { ptr } from '../syntax/pointer';
 import type { Issue } from '../types';
 import { AUTOMATION_NAME_RULE, isValidAutomationName } from './name';
@@ -229,39 +229,7 @@ function checkTestInput(
 }
 
 function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
-  const hits: Array<{ path: string; pointer: string; label: string }> = [];
-
-  const scanString = (
-    value: string,
-    path: string,
-    pointer: string,
-    key?: string,
-  ): void => {
-    const label = credentialKind(value, key);
-    if (label !== undefined) hits.push({ path, pointer, label });
-  };
-
-  const walk = (
-    value: unknown,
-    path: string,
-    pointer: string,
-    key?: string,
-  ): void => {
-    if (typeof value === 'string') {
-      scanString(value, path, pointer, key);
-    } else if (Array.isArray(value)) {
-      for (const [i, item] of value.entries()) {
-        walk(item, `${path}[${i}]`, pointer + ptr(i));
-      }
-    } else if (isRecord(value)) {
-      for (const [k, item] of Object.entries(value)) {
-        walk(item, path === '' ? k : `${path}.${k}`, pointer + ptr(k), k);
-      }
-    }
-  };
-  walk(doc, '', '');
-
-  for (const { path, pointer, label } of hits.slice(0, 5)) {
+  for (const { path, pointer, label } of findSecrets(doc).slice(0, 5)) {
     issues.push(
       err(
         'SECRET_IN_DOCUMENT',

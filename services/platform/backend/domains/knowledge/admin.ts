@@ -59,6 +59,7 @@ import {
   hasSopsKey,
   invalidateSecretsCache,
 } from '../../core/lib/sops.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
  * The knowledge-DB + embedding ADMIN config (the 0.4 `knowledge/actions` +
@@ -424,12 +425,37 @@ function assertProviderCanEmbed(orgSlug: string, providerSlug: string): void {
   }
 }
 
-export async function writeKnowledgeEmbedding(
-  sql: Sql,
+/** Who changes the embedding model, recorded on its audit row. */
+export interface KnowledgeAuditActor {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly email?: string;
+}
+
+/** The fields every audit row of the embedding model carries. */
+function embeddingAuditFields(actor: KnowledgeAuditActor) {
+  return {
+    organizationId: actor.organizationId,
+    actorId: actor.userId,
+    ...(actor.email !== undefined ? { actorEmail: actor.email } : {}),
+    actorType: 'user' as const,
+    category: 'admin' as const,
+    resourceType: 'knowledge_embedding',
+    resourceId: KNOWLEDGE_EMBEDDING_KEY,
+    status: 'success' as const,
+  };
+}
+
+/**
+ * Check an embedding model as a save checks it, writing nothing: the
+ * config is the file's own shape, its endpoint passes the deployment's
+ * host policy, and its provider does not declare that it cannot embed.
+ * Answers the config as the write reads it.
+ */
+export function checkKnowledgeEmbedding(
   orgSlug: string,
   config: unknown,
-  expectedHash?: string | null,
-): Promise<void> {
+): KnowledgeEmbeddingWrite {
   // The similarity floor and the serving limits are settings the Settings
   // form does not carry (see `resolveKeptEmbeddingSettings`), so the body
   // may say `null` for them — clear — as well as a value.
@@ -444,20 +470,51 @@ export async function writeKnowledgeEmbedding(
     assertHostAllowed(parsed.data.baseUrl);
   }
   assertProviderCanEmbed(orgSlug, parsed.data.providerSlug);
-  await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
-    const current = await readKnowledgeEmbeddingView(orgSlug);
-    if (expectedHash !== undefined)
-      assertExpectedHash(current.hash, expectedHash);
-    const filePath = embeddingFilePath(orgSlug);
-    const serialized = serializeEmbeddingJson(
-      resolveKeptEmbeddingSettings(parsed.data, current.config),
-    );
-    const currentContent = await readFileSafe(filePath);
-    if (currentContent) {
-      await snapshotHistory(orgSlug, KNOWLEDGE_EMBEDDING_KEY, currentContent);
-    }
-    await atomicWrite(filePath, serialized);
-  });
+  return parsed.data;
+}
+
+/**
+ * Save the organization's embedding model, compare-and-set on the hash a
+ * change names. With an actor, a save that changes the stored model leaves
+ * one audit row (`knowledge_embedding.saved`) with the model before and
+ * after, written in the transaction that holds the knowledge config's
+ * write lock and before the file, so a failed write takes the row back; a
+ * save of what is stored leaves none. `sql` is the root handle: the write
+ * opens its own transaction.
+ */
+export async function writeKnowledgeEmbedding(
+  sql: Sql,
+  orgSlug: string,
+  config: unknown,
+  expectedHash?: string | null,
+  actor?: KnowledgeAuditActor,
+): Promise<void> {
+  const written = checkKnowledgeEmbedding(orgSlug, config);
+  await sql.begin((tx) =>
+    withConfigWriteLock(tx, orgSlug, 'knowledge', async () => {
+      const current = await readKnowledgeEmbeddingView(orgSlug);
+      if (expectedHash !== undefined)
+        assertExpectedHash(current.hash, expectedHash);
+      const filePath = embeddingFilePath(orgSlug);
+      const next = resolveKeptEmbeddingSettings(written, current.config);
+      const serialized = serializeEmbeddingJson(next);
+      const currentContent = await readFileSafe(filePath);
+      if (actor !== undefined && currentContent !== serialized) {
+        await createAuditLog(tx, {
+          ...embeddingAuditFields(actor),
+          action: 'knowledge_embedding.saved',
+          ...(current.config !== null
+            ? { previousState: { ...current.config } }
+            : {}),
+          newState: { ...next },
+        });
+      }
+      if (currentContent) {
+        await snapshotHistory(orgSlug, KNOWLEDGE_EMBEDDING_KEY, currentContent);
+      }
+      await atomicWrite(filePath, serialized);
+    }),
+  );
 }
 
 /**
@@ -482,14 +539,44 @@ export function resolveKeptEmbeddingSettings(
   return knowledgeEmbeddingSchema.parse(next);
 }
 
+/**
+ * Remove the organization's embedding model and its history. With an
+ * actor, removing a stored model leaves one audit row
+ * (`knowledge_embedding.removed`) with the model removed, written in the
+ * same transaction before the file goes; removing none leaves none.
+ * `sql` is the root handle: the removal opens its own transaction.
+ */
 export async function deleteKnowledgeEmbedding(
   sql: Sql,
   orgSlug: string,
+  actor?: KnowledgeAuditActor,
 ): Promise<void> {
-  await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
-    await removeFileSafe(embeddingFilePath(orgSlug));
-    await removeDirSafe(historyDir(orgSlug, KNOWLEDGE_EMBEDDING_KEY));
-  });
+  await sql.begin((tx) =>
+    withConfigWriteLock(tx, orgSlug, 'knowledge', async () => {
+      const filePath = embeddingFilePath(orgSlug);
+      if (actor !== undefined && (await readFileSafe(filePath)) !== null) {
+        // A model that no longer parses is still removed, and the row says
+        // so without it: a broken file is exactly what someone removes.
+        let removed: Record<string, unknown> | undefined;
+        try {
+          const { config } = await readKnowledgeEmbeddingView(orgSlug);
+          if (config !== null) removed = { ...config };
+        } catch (error) {
+          console.warn(
+            `[knowledge] the embedding model removed for ${orgSlug} was unreadable; its audit row names none:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+        await createAuditLog(tx, {
+          ...embeddingAuditFields(actor),
+          action: 'knowledge_embedding.removed',
+          ...(removed !== undefined ? { previousState: removed } : {}),
+        });
+      }
+      await removeFileSafe(filePath);
+      await removeDirSafe(historyDir(orgSlug, KNOWLEDGE_EMBEDDING_KEY));
+    }),
+  );
 }
 
 export interface EmbeddingRecommendation {

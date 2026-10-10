@@ -65,6 +65,11 @@ describe('MCP tool grouping', () => {
       'list_projects',
       'list_events',
     ]);
+    expect(byGroup('settings')).toEqual([
+      'get_settings',
+      'plan_settings',
+      'apply_settings',
+    ]);
     expect(byGroup('capability')).toEqual([
       'search_capabilities',
       'invoke_capability',
@@ -137,6 +142,9 @@ describe('MCP tool annotations', () => {
     list_agent_secrets: { ...READ, idempotentHint: true },
     list_projects: { ...READ, idempotentHint: true },
     list_events: { ...READ, idempotentHint: true },
+    get_settings: { ...READ, idempotentHint: true },
+    plan_settings: { ...READ, idempotentHint: true },
+    apply_settings: hints(false, true, false, true),
     search_capabilities: { ...READ, idempotentHint: true },
     invoke_capability: hints(false, true, false, true),
     get_knowledge: { ...READ, idempotentHint: true },
@@ -173,6 +181,7 @@ describe('MCP tool annotations', () => {
       'invoke_capability',
       'run_automation',
       'test_automation',
+      'apply_settings',
     ]);
     for (const tool of MCP_TOOLS) {
       expect(tool.annotations.readOnlyHint, tool.name).toBe(
@@ -346,6 +355,14 @@ describe('MCP tool roles and budgets', () => {
     ]);
   });
 
+  test('a settings change draws from the settings budget; planning one does not', () => {
+    expect(
+      MCP_TOOLS.filter((tool) => tool.lane === 'settings').map(
+        (tool) => tool.name,
+      ),
+    ).toEqual(['apply_settings']);
+  });
+
   test('a read never draws from it', () => {
     for (const tool of MCP_TOOLS) {
       if (tool.annotations.readOnlyHint) {
@@ -384,7 +401,7 @@ describe('MCP tool answers and client hints', () => {
     }
   });
 
-  test('putting a version live, deleting, installing, binding a trigger and answering for a person ask the person before every call', () => {
+  test('putting a version live, deleting, installing, binding a trigger, answering for a person and changing settings ask the person before every call', () => {
     expect(
       MCP_TOOLS.filter((tool) => tool.requiresUserInteraction).map(
         (tool) => tool.name,
@@ -395,6 +412,7 @@ describe('MCP tool answers and client hints', () => {
       'set_trigger',
       'answer_run_ask',
       'set_automation_projects',
+      'apply_settings',
     ]);
     for (const tool of MCP_TOOLS) {
       if (tool.annotations.readOnlyHint) {

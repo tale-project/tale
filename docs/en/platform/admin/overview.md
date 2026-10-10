@@ -32,7 +32,7 @@ Owners and Admins manage organization settings. Developers can reach the technic
 
 ## Sign-in, integrations, and appearance
 
-Configure [enterprise SSO](/platform/admin/enterprise-sso) for your identity provider and [two-factor authentication](/platform/admin/two-factor-authentication) for account protection. Use [API keys](/platform/admin/api-keys) when software needs to call Tale.
+Configure [enterprise SSO](/platform/admin/enterprise-sso) for your identity provider and [two-factor authentication](/platform/admin/two-factor-authentication) for account protection. Use [API keys](/platform/admin/api-keys) when software needs to call Tale. A coding agent connected with one can change many of these settings itself, within the role of the key's owner; [Settings over MCP](/develop/mcp-settings) lists which.
 
 [Branding](/platform/admin/branding) changes the organization's logo and colors. [Sandboxes](/platform/admin/sandboxes) shows execution capacity and workload limits; with [sandbox devices](/platform/admin/sandbox-devices), your organization's sandboxes run on machines of your own. For a project agent's access to these resources, read [Agents (admin view)](/platform/admin/agents).
 
