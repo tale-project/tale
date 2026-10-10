@@ -80,6 +80,35 @@ describe('connector registry', () => {
     ).toBe(false);
   });
 
+  it('lets a step name a credential only where its connector signs in with one', async () => {
+    const fields = (connector: string, action: string) =>
+      nodeTypes().get(nodeTypeFor(connector, action))?.allowedFields;
+    expect(fields('github', 'create_issue')).toContain('credential');
+    expect(fields('http', 'get')).toContain('credential');
+    // A platform capability acts as the organization, with nothing to sign in.
+    expect(fields('knowledge', 'search')).toEqual(['input']);
+    expect(fields('task', 'get')).toEqual(['input']);
+    const { errors } = await validate({
+      version: 1,
+      name: 'triage',
+      nodes: [
+        {
+          id: 'card',
+          type: 'task.get',
+          credential: 'Ops bot',
+          input: { taskId: 'task_1' },
+        },
+      ],
+      output: '{{ nodes.card.output }}',
+    });
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: 'NODE_UNKNOWN_FIELD',
+        params: expect.objectContaining({ field: 'credential' }),
+      }),
+    ]);
+  });
+
   it('refuses a connector whose name disagrees with its directory', () => {
     expect(() =>
       loadConnectors(

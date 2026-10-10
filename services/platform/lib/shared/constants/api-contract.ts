@@ -638,6 +638,9 @@
  * bound projects', or the hub's) and spending under the run's subject.
  * `StepFailure.reason` gains `KNOWLEDGE_NOT_CONFIGURED` and
  * `KNOWLEDGE_UNAVAILABLE`, and `BUDGET_EXCEEDED` for a step a usage limit
- * refused — an `llm` step's refusal, which read `UNKNOWN`, now says so.
+ * refused — an `llm` step's refusal, which read `UNKNOWN`, now says so. A
+ * step of a platform connector (`task`, `document`, `conversation`,
+ * `sandbox`, `knowledge`) takes no `credential`, which it ignored:
+ * validation answers `NODE_UNKNOWN_FIELD` for one.
  */
 export const API_CONTRACT_VERSION = '3.32.0';
