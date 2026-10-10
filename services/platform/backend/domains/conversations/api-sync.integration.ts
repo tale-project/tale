@@ -452,7 +452,10 @@ export async function checkConversationApi(
   `;
   assert.equal(assignAudit.length, 1);
   assert.equal(assignAudit[0]?.actorId, ctx.userId);
-  assert.equal(assignAudit[0]?.actorType, 'user');
+  // This request crossed the API-key door. The audit writer preserves the
+  // key maker as the actor and marks the door as `api`; a session write would
+  // retain the `user` actor type.
+  assert.equal(assignAudit[0]?.actorType, 'api');
   const refusal = async (body: unknown) => {
     const res = await machine('/conversations/assignment', body);
     const code = z.object({ code: z.string() }).parse(await res.json()).code;
