@@ -1,7 +1,9 @@
 /**
  * The document the blank-automation wizard saves: one agent node carrying
- * the equipment the wizard collected, its text as the automation's output.
- * The harness and anything else are refined on the canvas afterward.
+ * the equipment the wizard collected and the run's input as its own — what
+ * a trigger sends reaches the agent, staged in its workspace as
+ * `input.json` — and its text as the automation's output. The harness and
+ * anything else are refined on the canvas afterward.
  *
  * A module of its own so the shipped-document corpus
  * (`lib/engine/core/analysis/corpus.test.ts`) validates exactly what the
@@ -44,6 +46,7 @@ export function blankAutomationDocument(
           modelProvider: choices.modelProvider,
         }),
         prompt: choices.prompt.trim(),
+        input: { run: '{{ input }}' },
         ...(skills.length > 0 && { skills: [...skills] }),
         ...(connectors.length > 0 && { connectors: [...connectors] }),
         ...(tools.length > 0 && { tools: [...tools] }),
