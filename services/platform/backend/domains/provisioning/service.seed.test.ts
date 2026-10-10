@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   loadSeedablePacks: vi.fn(),
+  resolveModelReplacements: vi.fn(),
   saveVersion: vi.fn(),
   setTrigger: vi.fn(),
   createProject: vi.fn(),
@@ -21,6 +22,9 @@ const h = vi.hoisted(() => ({
 
 vi.mock('../../core/provisioning/provision_default_automations.ts', () => ({
   loadSeedablePacks: h.loadSeedablePacks,
+}));
+vi.mock('../automations/model-defaults.ts', () => ({
+  resolveModelReplacements: h.resolveModelReplacements,
 }));
 vi.mock('../automations/store.ts', () => ({
   saveVersion: h.saveVersion,
@@ -93,6 +97,7 @@ const pack = (name: string) => ({ document: { name } });
 describe('seedDefaultAutomationPacks', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    h.resolveModelReplacements.mockResolvedValue(new Map());
     h.loadSeedablePacks.mockReturnValue([
       pack('ops/daily'),
       pack('ops/weekly'),
@@ -178,6 +183,75 @@ describe('seedDefaultAutomationPacks', () => {
         actor: 'system:provisioning',
       },
     ]);
+  });
+});
+
+describe("a shipped pack's model [PROVN-R8]", () => {
+  const triage = (name: string) => ({
+    document: {
+      version: 1,
+      name,
+      nodes: [
+        { id: 'fetch', type: 'transform', code: 'return {}' },
+        { id: 'score', type: 'llm', model: 'anthropic/claude-haiku-4-5' },
+      ],
+    },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.resolveModelReplacements.mockResolvedValue(new Map());
+    h.loadSeedablePacks.mockReturnValue([
+      triage('gmail/triage-inbox'),
+      triage('outlook/triage-inbox'),
+    ]);
+  });
+
+  it('is replaced by one the organization serves, and the version says so', async () => {
+    h.resolveModelReplacements.mockResolvedValue(
+      new Map([['anthropic/claude-haiku-4-5', 'gpt-5-mini']]),
+    );
+    const { sql } = organizationSql({});
+    await seedDefaultAutomationPacks(sql, 'org-1');
+    // Asked once for the model, however many packs name it.
+    expect(h.resolveModelReplacements).toHaveBeenCalledTimes(1);
+    expect(h.resolveModelReplacements).toHaveBeenCalledWith(sql, 'org-1', [
+      'anthropic/claude-haiku-4-5',
+    ]);
+    const saved = h.saveVersion.mock.calls.map((call) => call[1]);
+    expect(saved).toHaveLength(2);
+    for (const version of saved) {
+      expect(version).toMatchObject({
+        message:
+          "Shipped default pack. Model anthropic/claude-haiku-4-5 isn't served here; using gpt-5-mini.",
+        document: {
+          nodes: [
+            { id: 'fetch' },
+            { id: 'score', type: 'llm', model: 'gpt-5-mini' },
+          ],
+        },
+      });
+    }
+  });
+
+  it('stays as shipped when it is served, or nothing could replace it', async () => {
+    const { sql } = organizationSql({});
+    await seedDefaultAutomationPacks(sql, 'org-1');
+    expect(h.saveVersion.mock.calls[0]?.[1]).toMatchObject({
+      message: 'Shipped default pack',
+      document: {
+        nodes: [{ id: 'fetch' }, { model: 'anthropic/claude-haiku-4-5' }],
+      },
+    });
+  });
+
+  it('is never looked at for a pack the organization already has', async () => {
+    const { sql } = organizationSql({
+      automations: ['gmail/triage-inbox', 'outlook/triage-inbox'],
+    });
+    await seedDefaultAutomationPacks(sql, 'org-1');
+    expect(h.resolveModelReplacements).not.toHaveBeenCalled();
+    expect(h.saveVersion).not.toHaveBeenCalled();
   });
 });
 

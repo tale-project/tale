@@ -136,6 +136,26 @@ export async function getAccessibleModelsForUser(
   );
 }
 
+/** The accessible subset of a candidate list for the organization's members
+ * as a whole — a member of no team, under the rules every member is under —
+ * for a choice made for the organization rather than for one person: the
+ * model a shipped pack is given when its own is not served. */
+export async function getAccessibleModelsForMembers(
+  sql: Sql,
+  args: { organizationId: string; modelIds: string[] },
+): Promise<string[]> {
+  const config = await readGovernancePolicyForOrg(
+    sql,
+    args.organizationId,
+    'model_access',
+  );
+  return filterAccessibleModels(
+    config,
+    { userId: '', teamIds: [], userRole: 'member' },
+    args.modelIds,
+  );
+}
+
 /** The turn-boundary model-access verdict (the picker filter's server twin). */
 export async function checkModelAccessForUser(
   sql: Sql,
