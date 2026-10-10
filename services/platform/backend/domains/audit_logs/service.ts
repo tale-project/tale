@@ -98,11 +98,10 @@ export async function lockAuditChain(
 /**
  * {@link lockAuditChain} without waiting: `true` when this transaction now
  * holds the org's chain key (or already did), `false` when another holds it.
- * For a sweep that must not stall behind one busy organization — the wake
- * scan (`automations/wakes.ts`) skips that org for the minute instead; the
- * order stays the chain key first.
+ * The sealer's: two sealing passes over one organization never wait on each
+ * other, and the one that lost tries again on its next round.
  */
-export async function tryLockAuditChain(
+async function tryLockAuditChain(
   tx: TransactionSql,
   organizationId: string,
 ): Promise<boolean> {
