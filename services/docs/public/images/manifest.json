@@ -73,6 +73,19 @@
       "height": 1800
     },
     {
+      "file": "images/platform/automation-editor-canvas-mobile.webp",
+      "shot": "automation-editor-canvas-mobile",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 2,
+      "width": 780,
+      "height": 1688,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-editor-canvas.webp",
       "shot": "automation-editor-canvas",
       "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
@@ -83,6 +96,84 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800
+    },
+    {
+      "file": "images/platform/automation-editor-code.webp",
+      "shot": "automation-editor-code",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-editor-node-shape.webp",
+      "shot": "automation-editor-node-shape",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-editor-paths.webp",
+      "shot": "automation-editor-paths",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-editor-problems.webp",
+      "shot": "automation-editor-problems",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-editor-source.webp",
+      "shot": "automation-editor-source",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-editor-start.webp",
+      "shot": "automation-editor-start",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/automation-general-trigger.webp",
@@ -110,6 +201,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-run-failed.webp",
+      "shot": "automation-run-failed",
+      "route": "/dashboard/:orgId/automations/invoice-digest/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-run-input.webp",
       "shot": "automation-run-input",
       "route": "/dashboard/:orgId/automations/github-triage-issues/editor",
@@ -120,6 +224,84 @@
       "dpr": 2,
       "width": 768,
       "height": 1332
+    },
+    {
+      "file": "images/platform/automation-trigger-event.webp",
+      "shot": "automation-trigger-event",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/general",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-trigger-schedule-custom-times.webp",
+      "shot": "automation-trigger-schedule-custom-times",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/general",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1920,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-trigger-schedule-interval.webp",
+      "shot": "automation-trigger-schedule-interval",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/general",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-trigger-schedule-presets.webp",
+      "shot": "automation-trigger-schedule-presets",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/general",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-trigger-skip-reason.webp",
+      "shot": "automation-trigger-skip-reason",
+      "route": "/dashboard/:orgId/automations/github-review-pull-requests/general",
+      "viewport": {
+        "width": 1440,
+        "height": 1600
+      },
+      "dpr": 2,
+      "width": 1474,
+      "height": 2814,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-trigger-webhook.webp",
+      "shot": "automation-trigger-webhook",
+      "route": "/dashboard/:orgId/automations/invoice-intake/general",
+      "viewport": {
+        "width": 1440,
+        "height": 1200
+      },
+      "dpr": 2,
+      "width": 1474,
+      "height": 2036,
+      "locale": "en"
     },
     {
       "file": "images/platform/automations-catalog.webp",

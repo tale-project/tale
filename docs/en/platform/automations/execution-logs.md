@@ -42,6 +42,12 @@ Below the card, the step and its field, such as **Greet › input.email**, sit b
 
 On the canvas, the failed node is framed in red and its bottom line repeats the failure’s title; the nodes the run went through to reach it stand out while the others step back; and End says where the run failed, such as **Failed at Propose**. The **Runs** list names a failed run’s cause with the same title.
 
+<Frame caption="A failed run opens on where and why it failed; on the canvas, the way to the failed node stands out.">
+
+![The run page of a failed test run of Invoice digest: the card The run failed at Totals with the title Its code threw an error, the cause, How to fix, Technical details, Totals › Code with Show in editor, Show step and Retry from this step; on the canvas below, Start and Invoices succeeded, Totals is framed in red with Its code threw an error, and Digest, which didn’t run, is dashed.](/images/platform/automation-run-failed.webp)
+
+</Frame>
+
 Applications reading the [run API](/develop/api-reference) also receive `failureCode` when a failed run has a classified cause. For example, `approval_rejected` means a person refused the operation, while `llm_output_invalid` means a model response did not match the required structure. Historical failures can lack a code. Use it to route an investigation; it does not establish that retrying is safe or will succeed.
 
 ## Find out why a step ran or was skipped {#conditions}

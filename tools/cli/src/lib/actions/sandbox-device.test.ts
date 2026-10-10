@@ -128,7 +128,56 @@ async function makeDeps(
   return { deps, home, rec };
 }
 
+/** The rejection of a promise, or null when it resolved. */
+async function rejection(promise: Promise<unknown>): Promise<Error | null> {
+  try {
+    await promise;
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/** A Docker that answers `docker version` with an engine of `version`. */
+function engineDocker(version: string) {
+  return mock(async (args: string[]) => {
+    if (args[0] === 'version')
+      return ok(
+        JSON.stringify({
+          Version: version,
+          Components: [{ Name: 'Engine', Version: version }],
+        }),
+      );
+    if (args[0] === 'info') return ok(`8|17179869184|${version}`);
+    return ok();
+  });
+}
+
 describe('tale sandbox connect', () => {
+  test('refuses an engine that cannot pull the images before spending the join token', async () => {
+    const { deps, home, rec } = await makeDeps({
+      docker: engineDocker('20.10.24'),
+    });
+    expect(
+      await rejection(
+        connectSandboxDevice(
+          {
+            url: 'https://acme.tale.dev/',
+            token: 'tsdj_abc',
+            autoUpdate: true,
+          },
+          deps,
+        ),
+      ),
+    ).toMatchObject({ message: expect.stringContaining('older than 24.0') });
+    // The token was never sent, and nothing was written or started.
+    expect(rec.requests).toEqual([]);
+    expect(rec.streamed).toEqual([]);
+    expect(
+      await readSandboxDeviceConfig(sandboxDeviceConfigPath(home)),
+    ).toBeNull();
+  });
+
   test('joins with the machine facts, writes the config and starts the stack at the server release', async () => {
     const { deps, home, rec } = await makeDeps();
     await connectSandboxDevice(
@@ -280,6 +329,15 @@ describe('tale sandbox status / update / disconnect', () => {
     await writeSandboxDeviceConfig(config, sandboxDeviceConfigPath(made.home));
     return made;
   }
+
+  test('update refuses an engine that cannot pull the release, before pulling it', async () => {
+    const made = await connected();
+    made.deps.docker = engineDocker('20.10.24');
+    expect(
+      await rejection(updateSandboxDevice({ imageTag: '0.5.61' }, made.deps)),
+    ).toMatchObject({ message: expect.stringContaining('older than 24.0') });
+    expect(made.rec.streamed).toEqual([]);
+  });
 
   test('status reports the server view and the containers', async () => {
     const { deps } = await connected();

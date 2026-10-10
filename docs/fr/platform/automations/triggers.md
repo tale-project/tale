@@ -39,13 +39,31 @@ Ouvre l’automatisation, puis son onglet **Général**. Sans liaison, la sectio
 
 Laisse **Format de la planification** sur **Répétition** et ouvre **Planification**. Les choix rapides sont **Toutes les 15 minutes**, **Toutes les heures**, ainsi que des exécutions quotidiennes, en semaine, hebdomadaires et mensuelles à une heure donnée. Les choix hebdomadaire et mensuel reprennent le jour de la semaine et le jour du mois d’aujourd’hui, et chaque choix avec une heure garde l’heure la plus tôt de la planification. Choisir une option ferme la fenêtre et la reporte dans le formulaire. Sous les choix rapides et les vues personnalisées, la fenêtre liste les trois prochaines exécutions de la planification que tu composes.
 
+<Frame caption="Les choix rapides, la ligne propre à la planification enregistrée avec sa phrase, et les trois prochaines exécutions.">
+
+![La fenêtre Schedule dans l’onglet General de Triage the Gmail inbox : les choix rapides Every 15 minutes, Every hour, Daily at 9:00 AM, Every weekday at 9:00 AM, Weekly on Saturday at 9:00 AM et Monthly on day 10 at 9:00 AM ; Custom interval, coché, avec Every 6 hours ; Custom times ; et les trois prochaines exécutions en UTC.](/images/platform/automation-trigger-schedule-presets.webp)
+
+</Frame>
+
 </Step>
 
 <Step title="Ou composer la tienne">
 
 Choisis **Horaires personnalisés** pour démarrer à des heures précises : sélectionne **Jour**, **Semaine**, **Mois** ou **Année**, l’intervalle (par exemple toutes les 2 semaines), les jours de la semaine ou le jour, puis jusqu’à 12 horaires sous **À**. **Ajouter un horaire** ajoute un horaire une heure après le dernier. Un horaire déjà présent dans la liste ne s’exécute qu’une fois, et l’enregistrement trie les horaires.
 
+<Frame caption="Horaires personnalisés : en semaine à 9 h 00 et 17 h 30, avec les exécutions qui en découlent.">
+
+![La vue Custom times du sélecteur de planification : Week sélectionné, every 1 week, du lundi au vendredi choisis, les heures 9:00 AM et 5:30 PM avec Add time en dessous, les trois prochaines exécutions en UTC, et Cancel et Save.](/images/platform/automation-trigger-schedule-custom-times.webp)
+
+</Frame>
+
 Choisis **Intervalle personnalisé** pour démarrer toutes les quelques minutes ou heures : jusqu’à toutes les 30 minutes, par pas qui divisent une heure, ou jusqu’à toutes les 12 heures, par pas qui divisent une journée, à un nombre donné de minutes après l’heure pile. Garde les jours de la semaine où elle doit s’exécuter et, avec **Seulement entre**, limite-la aux heures comprises entre deux horaires. Sous les heures, le sélecteur indique la première et la dernière exécution de la journée.
+
+<Frame caption="Intervalle personnalisé : toutes les 15 minutes en semaine, uniquement entre 8 h 00 et 18 h 00.">
+
+![La vue Custom interval du sélecteur de planification : toutes les 15 minutes, du lundi au vendredi choisis, Only between coché de 8:00 AM à 6:00 PM, la ligne Each day, the first run starts at 8:00 AM and the last at 5:45 PM, les trois prochaines exécutions en UTC, et Cancel et Save.](/images/platform/automation-trigger-schedule-interval.webp)
+
+</Frame>
 
 **Enregistrer**, Entrée ou Ctrl+Entrée (Cmd+Entrée sur Mac) applique la planification personnalisée ; **Annuler** ou Échap l’abandonne.
 
@@ -130,6 +148,12 @@ Fournis un identifiant de livraison, par exemple `Idempotency-Key` ou un en-têt
 
 **Livraisons récentes** liste les dix dernières exécutions lancées par le webhook, les plus récentes d’abord, chacune avec son statut et **Voir l’exécution**. Tant que Tale se souvient d’une livraison, la ligne indique aussi comment il reconnaît une répétition : **ID issu de** l’en-tête lu, ou **Sans ID de livraison**. Une requête refusée par Tale n’a lancé aucune exécution et n’apparaît pas ; la réponse reçue par l’expéditeur en donne la raison.
 
+<Frame caption="Un webhook installé dans deux projets : une URL par projet, une requête de test et les livraisons qui ont lancé des exécutions.">
+
+![La section Trigger d’un webhook : la dernière exécution a réussi, Enabled est activé, Project URLs liste Website relaunch et Customer onboarding portal avec le jeton masqué, puis Rotate token, une requête de test curl qui lit l’URL dans TALE_WEBHOOK_URL, Recent deliveries avec deux exécutions réussies, chacune ID from idempotency-key, et This run receives avec le payload.](/images/platform/automation-trigger-webhook.webp)
+
+</Frame>
+
 <Warning>
 
 L’URL autorise le démarrage. Protège-la comme un identifiant et ne la transmets qu’au système expéditeur. **Renouveler le token** demande une confirmation, produit ensuite un remplacement et invalide l’ancienne URL. Retirer ou remplacer le déclencheur la révoque également. Mets l’expéditeur à jour après un renouvellement.
@@ -139,6 +163,12 @@ L’URL autorise le démarrage. Protège-la comme un identifiant et ne la transm
 ## Réagir à un événement de la plateforme
 
 Choisis **Événement de la plateforme**, puis l’événement sous **Nom de l’événement**. La liste regroupe les événements par sujet et affiche pour chacun son nom, son ID et le moment où il se produit ; tape une partie de l’un d’eux pour chercher. Enregistre, puis active **Actif** quand tout est prêt.
+
+<Frame caption="Les événements, regroupés selon ce qu’ils concernent, chacun avec son nom, son ID et le moment où il est émis.">
+
+![La liste Event name ouverte pour un déclencheur Platform event : un champ de recherche au-dessus des groupes Tasks, avec Task created et Task status changed, Comments, avec Comment added et Mentioned in a comment, et Conversations, chaque événement avec son ID et une phrase qui dit quand il est émis.](/images/platform/automation-trigger-event.webp)
+
+</Frame>
 
 | Événement | ID | Déclenché quand | `payload` contient |
 | --- | --- | --- | --- |
@@ -287,6 +317,12 @@ Le haut de la section **Déclencheur** indique où en est le déclencheur : l�
 | **En pause après des échecs répétés** | La planification s’est désactivée d’elle-même. | Voir [Quand une planification se met en pause](#quand-une-planification-se-met-en-pause). |
 
 **Détails techniques**, replié au départ, contient les faits bruts, en anglais : le code, la version qui a refusé le démarrage, son message et chaque problème avec son champ. Quand des exécutions précédentes ont aussi été manquées, l’avis indique combien. L’API expose les mêmes faits dans `lastSkipReason` et `lastSkipDetail` ; consulte la [référence API](/fr/develop/api-reference#verifier-le-declencheur-et-le-suspendre).
+
+<Frame caption="Un démarrage refusé : l’avis dit pourquoi, propose la correction et garde les faits bruts sous Détails techniques.">
+
+![La section Trigger d’une planification activée avec l’avis Skipped: the run’s input was refused, qui dit que le démarrage était dû le 10 octobre 2026 à 11 h 00, mais que la version 1 a refusé ce que le déclencheur envoie, avec Add the 2 missing fields et Open the editor ; Technical details est ouvert sur owner et repo, tous deux requis, le code AUTOMATION_INPUT_INVALID et le message. En dessous, la planification tourne toutes les 30 minutes, et This run receives se termine par l’avertissement que la version 1 n’accepte pas cette entrée.](/images/platform/automation-trigger-skip-reason.webp)
+
+</Frame>
 
 Certains démarrages manqués n’affichent aucun avis :
 

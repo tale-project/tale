@@ -2,6 +2,7 @@
 
 import { ContentArea } from '@tale/ui/content-area';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -23,18 +24,25 @@ export function AutomationRunsTab({
   projectId?: string;
 }) {
   const { t } = useT('automations');
+  // A failed read's retry hands its focus here once the runs arrive.
+  const headingRef = useRef<HTMLSpanElement>(null);
 
   return (
     <ContentArea gap={6}>
       <StickySectionHeader
         as="h2"
-        title={t('runs.title')}
+        title={
+          <span ref={headingRef} tabIndex={-1}>
+            {t('runs.title')}
+          </span>
+        }
         description={t('runs.description')}
       />
       <RunsTable
         organizationId={organizationId}
         automationSlug={automationSlug}
         {...(projectId !== undefined && { projectId })}
+        onErrorFocusLost={() => headingRef.current?.focus()}
       />
     </ContentArea>
   );

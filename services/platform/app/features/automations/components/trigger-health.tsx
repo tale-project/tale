@@ -150,7 +150,7 @@ function SkipNotice({
   actions: TriggerHealthActions;
 }) {
   const { t } = useT('automations');
-  const { formatDateSmart } = useFormatDate();
+  const { formatDate } = useFormatDate();
   const skippedAt = trigger.lastSkippedAt;
   const reason = trigger.lastSkipReason;
   if (skippedAt == null || reason == null) return null;
@@ -158,7 +158,9 @@ function SkipNotice({
   if (reason === 'paused_after_failures') return null;
   const detail: TriggerSkipDetail | null = trigger.lastSkipDetail ?? null;
   const kind = trigger.kind === 'event' ? 'event' : 'schedule';
-  const at = (instant: number) => formatDateSmart(new Date(instant), 'long');
+  // Always a day and a time: the sentence reads "on {at}", which a bare
+  // time of today would break.
+  const at = (instant: number) => formatDate(new Date(instant), 'long');
   const missedLine = (missed: MissedSummary | undefined) =>
     missed === undefined
       ? null

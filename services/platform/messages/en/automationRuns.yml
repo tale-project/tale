@@ -185,7 +185,7 @@ runtime:
     EXPR_FAILED:
       title: An expression failed
       explanation: An expression threw an error while it was worked out.
-      cause: '{fieldLabel, select, none {{expr} threw {errorName, select, none {an error} other {a {errorName}}}.} other {In {fieldLabel}, {expr} threw {errorName, select, none {an error} other {a {errorName}}}.}}'
+      cause: '{fieldLabel, select, none {{expr} threw {errorName, select, none {an error} Error {an error} EvalError {an EvalError} other {a {errorName}}}.} other {In {fieldLabel}, {expr} threw {errorName, select, none {an error} Error {an error} EvalError {an EvalError} other {a {errorName}}}.}}'
       fix: Check the values it read in the step's Data tab. The technical details have the error's own words.
     EXPR_TIMEOUT:
       title: An expression took too long
@@ -210,7 +210,7 @@ runtime:
     CODE_FAILED:
       title: Its code threw an error
       explanation: The transform's code stopped with an error.
-      cause: '{errorName, select, none {The code threw an error.} other {The code threw a {errorName}.}}'
+      cause: '{errorName, select, none {The code threw an error.} Error {The code threw an error.} EvalError {The code threw an EvalError.} other {The code threw a {errorName}.}}'
       fix: Check the values the code read in the step's Data tab. The technical details have the error's own words.
     CODE_TIMEOUT:
       title: Its code took too long

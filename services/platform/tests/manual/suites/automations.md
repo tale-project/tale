@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 172 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 173 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1419,6 +1419,17 @@ output:
 - [ ] `AUTO-B22` · **Open a comparison of a run with itself, and with a run
       of another automation** → `automationRuns.compare.same`, then
       `automationRuns.compare.notFound`; neither shows a table.
+
+- [ ] `AUTO-B23` · **History read failure and recovery** — Keep the automation
+      detail read successful and fail only its Runs request until retries are
+      exhausted; repeat for the Version history request → Each history shows
+      an announced error and keyboard-reachable **Try again**
+      (`common.errors.tryAgain`), never its successful empty-history message.
+      Restore the request and activate retry with Enter → Only that history
+      reloads, and focus moves to its heading, not the page body. A successful
+      empty response still shows `automations.runs.empty` or
+      `automations.versions.empty`. Repeat in EN/DE/FR and check the control's
+      visible focus and wrapping in the narrow layout.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
