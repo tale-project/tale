@@ -50,7 +50,7 @@ curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_docs","arguments":{}}}'
 ```
 
-Un résultat `get_docs` réussi contient la référence des automatisations en texte et ne porte pas d'indicateur d'erreur. Ajoute `"arguments":{"topic":"triggers"}` pour la référence des déclencheurs (les champs de chaque type de déclencheur, l’entrée avec laquelle ses exécutions démarrent et les événements), `"validation"` pour lire un résultat de validation et connaître chaque code d’erreur, ou `"skill"` pour le [skill Tale](/fr/develop/use-tale-from-your-editor#tale-skill). Pour consulter les schémas des outils, envoie plutôt `method: "tools/list"`. Conserve l'`id` JSON-RPC pour associer chaque résultat à sa requête.
+Un résultat `get_docs` réussi contient la référence des automatisations en texte et ne porte pas d'indicateur d'erreur. Ajoute `"arguments":{"topic":"triggers"}` pour la référence des déclencheurs (les champs de chaque type de déclencheur, l’entrée avec laquelle ses exécutions démarrent et les événements), `"validation"` pour lire un résultat de validation et connaître chaque code d’erreur, `"settings"` pour chaque type de paramètre avec ses champs ([Paramètres par MCP](/fr/develop/mcp-settings)), ou `"skill"` pour le [skill Tale](/fr/develop/use-tale-from-your-editor#tale-skill). Pour consulter les schémas des outils, envoie plutôt `method: "tools/list"`. Conserve l'`id` JSON-RPC pour associer chaque résultat à sa requête.
 
 ### Transport et lots
 
@@ -192,6 +192,8 @@ Chaque réponse porte un `hint` qui nomme l’outil ou le paramètre qui la fait
 
 Une modification indique son type (`kind`), l’`id` de la ressource (absent pour un type qui n’a qu’une ressource) et son opération (`op`) : `set` remplace la ressource par toute la `config` et la crée si elle n’existe pas ; `delete` la supprime ; `act` lance une des actions du type, avec ses `args`. Planifie d’abord, montre le plan à la personne, puis applique les mêmes modifications : `apply_settings` demande à la personne avant chaque appel et dispose de son propre [budget](/fr/develop/rate-limits).
 
+[Paramètres par MCP](/fr/develop/mcp-settings) liste chaque type de paramètre, qui peut le modifier et ce qui reste dans Tale.
+
 Aucun secret ne passe par ces outils. Un secret enregistré se lit `{"masked": true, "preview": "…"}` ; renvoie cette valeur telle quelle pour le garder. Une modification qui porte une autre valeur à la place d’un secret, ou des identifiants n’importe où dans sa configuration, est refusée avec `SECRET_ARGUMENT_REFUSED` ; une personne saisit un nouveau secret dans Tale.
 
 ### Capacités & connaissances {#capabilities}
@@ -214,7 +216,7 @@ En plus des outils, le point d’accès sert des ressources, qu’un client lit 
 
 | Adresse | Contenu | Se lit comme |
 | --- | --- | --- |
-| `tale://docs/authoring`, `tale://docs/triggers`, `tale://docs/validation`, `tale://docs/skill` | Les références, en Markdown | `get_docs` avec ce `topic` |
+| `tale://docs/authoring`, `tale://docs/triggers`, `tale://docs/validation`, `tale://docs/settings`, `tale://docs/skill` | Les références, en Markdown | `get_docs` avec ce `topic` |
 | `tale://catalog/{kind}` (`transform`, `llm`, `agent`, `subautomation`, `connector`) | La section de la référence consacrée à un type de nœud de base, ou les actions des connectors | `get_catalog` avec ce `kind` |
 | `tale://automations/{name}` | La dernière version enregistrée, en JSON | `get_automation` |
 | `tale://automations/{name}/versions/{version}` | Une version enregistrée ; `{version}` est un numéro ou `deployed` | `get_automation` avec `version` |

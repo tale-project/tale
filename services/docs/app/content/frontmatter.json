@@ -105,6 +105,14 @@
       "i18nLintExclude": ""
     }
   },
+  "de:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Einstellungen über MCP",
+      "description": "Lass einen Coding-Agenten die Einstellungen von Tale über den MCP-Endpunkt lesen und ändern — im Rahmen der Rolle der Person, deren API-Schlüssel er nutzt."
+    }
+  },
   "de:develop/overview": {
     "slug": "develop/overview",
     "locale": "de",
@@ -1257,6 +1265,14 @@
       "i18nLintExclude": ""
     }
   },
+  "en:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Settings over MCP",
+      "description": "Let a coding agent read and change Tale settings through the MCP endpoint, within the role of the person whose API key it uses."
+    }
+  },
   "en:develop/overview": {
     "slug": "develop/overview",
     "locale": "en",
@@ -2407,6 +2423,14 @@
       "title": "Endpoint MCP",
       "description": "Connecte un client MCP, découvre les outils Tale, développe des automatisations et traite les refus et les résultats.",
       "i18nLintExclude": ""
+    }
+  },
+  "fr:develop/mcp-settings": {
+    "slug": "develop/mcp-settings",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Paramètres par MCP",
+      "description": "Laisse un agent de code lire et modifier les paramètres de Tale par le point d’accès MCP, dans les limites du rôle de la personne dont il utilise la clé API."
     }
   },
   "fr:develop/overview": {

@@ -30,6 +30,7 @@
         "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
         "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
         "$TURBO_ROOT$/docs/*/develop/mcp-endpoint.md",
+        "$TURBO_ROOT$/docs/*/develop/mcp-settings.md",
         "$TURBO_ROOT$/docs/*/platform/admin/connectors.md",
         "$TURBO_ROOT$/docs/*/platform/connectors/overview.md",
         "$TURBO_ROOT$/docs/*/platform/projects/tasks.md",

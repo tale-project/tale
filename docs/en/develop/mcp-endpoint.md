@@ -50,7 +50,7 @@ curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_docs","arguments":{}}}'
 ```
 
-A successful `get_docs` result contains the automation reference as text and has no error flag set. Add `"arguments":{"topic":"triggers"}` for the triggers reference (each trigger kind's fields, the input its runs start with, and the events), `"validation"` for how to read a validation result and every issue code, or `"skill"` for the [Tale skill](/develop/use-tale-from-your-editor#tale-skill). To inspect tool schemas instead, send `method: "tools/list"`. Keep the JSON-RPC `id` so a client can match a result to its request.
+A successful `get_docs` result contains the automation reference as text and has no error flag set. Add `"arguments":{"topic":"triggers"}` for the triggers reference (each trigger kind's fields, the input its runs start with, and the events), `"validation"` for how to read a validation result and every issue code, `"settings"` for every kind of setting with its fields ([Settings over MCP](/develop/mcp-settings)), or `"skill"` for the [Tale skill](/develop/use-tale-from-your-editor#tale-skill). To inspect tool schemas instead, send `method: "tools/list"`. Keep the JSON-RPC `id` so a client can match a result to its request.
 
 ### Transport and batches
 
@@ -192,6 +192,8 @@ Each answer carries a `hint` that names the tool or the setting that changes it.
 
 A change names its `kind`, the resource's `id` (left out for a kind with one resource) and its `op`: `set` replaces the resource with the whole `config`, creating it when it does not exist; `delete` removes it; `act` runs one of the kind's actions, with its `args`. Plan first, show the plan to the person, then apply the same changes: `apply_settings` asks the person before every call and uses a [budget](/develop/rate-limits) of its own.
 
+[Settings over MCP](/develop/mcp-settings) lists every kind of setting, who may change it and what stays in Tale.
+
 No secret travels through these tools. A stored secret reads as `{"masked": true, "preview": "…"}`; send that value back unchanged to keep it. A change that carries any other value in a secret's place, or a credential anywhere in its config, is refused with `SECRET_ARGUMENT_REFUSED`; a person enters a new secret in Tale.
 
 ### Capabilities & knowledge {#capabilities}
@@ -214,7 +216,7 @@ Besides tools, the endpoint serves resources, which a client reads by address, a
 
 | Address | Contents | Read like |
 | --- | --- | --- |
-| `tale://docs/authoring`, `tale://docs/triggers`, `tale://docs/validation`, `tale://docs/skill` | The references, as Markdown | `get_docs` with that `topic` |
+| `tale://docs/authoring`, `tale://docs/triggers`, `tale://docs/validation`, `tale://docs/settings`, `tale://docs/skill` | The references, as Markdown | `get_docs` with that `topic` |
 | `tale://catalog/{kind}` (`transform`, `llm`, `agent`, `subautomation`, `connector`) | A core node kind's section of the reference, or the connector actions | `get_catalog` with that `kind` |
 | `tale://automations/{name}` | The latest saved version, as JSON | `get_automation` |
 | `tale://automations/{name}/versions/{version}` | One saved version; `{version}` is a number or `deployed` | `get_automation` with `version` |
