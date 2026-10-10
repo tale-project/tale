@@ -254,7 +254,7 @@ describe('deleteAutomationCascade [AUTO-R15]', () => {
     expect(statements.some((s) => /^(DELETE|INSERT)/.test(s.text))).toBe(false);
   });
 
-  it('removes the versions, the deployment, the trigger and the project installs, leaves a tombstone, and keeps every run', async () => {
+  it('removes the versions, the deployment, the trigger, the project installs and the writes allowed without approval, leaves a tombstone, and keeps every run', async () => {
     const { sql, statements } = fakeAutomation(null);
     await deleteAutomationCascade(sql, automation);
     // The whole list: nothing deletes from `app.automation_runs`.
@@ -267,6 +267,7 @@ describe('deleteAutomationCascade [AUTO-R15]', () => {
       'DELETE FROM app.automation_deployments',
       'DELETE FROM app.automation_triggers',
       'DELETE FROM app.automation_project_bindings',
+      'DELETE FROM app.automation_approval_allowances',
     ]);
     for (const removal of statements.filter((s) =>
       s.text.startsWith('DELETE FROM'),

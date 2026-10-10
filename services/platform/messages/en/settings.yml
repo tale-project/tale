@@ -1383,6 +1383,8 @@ logs:
       automation.trigger.deleted: Automation trigger removed
       automation.project.bound: Automation installed in a project
       automation.project.unbound: Automation removed from a project
+      automation.approval_allowance.granted: Automation allowed to write without approval
+      automation.approval_allowance.revoked: "Automation's write without approval withdrawn"
       create_connector: Created connector
       delete_connector: Deleted connector
       update_credential: Updated credential

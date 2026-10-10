@@ -1440,6 +1440,8 @@ logs:
       automation.trigger.deleted: Automatisierungs-Trigger entfernt
       automation.project.bound: Automatisierung in einem Projekt installiert
       automation.project.unbound: Automatisierung aus einem Projekt entfernt
+      automation.approval_allowance.granted: Automatisierung darf ohne Freigabe schreiben
+      automation.approval_allowance.revoked: Schreiben ohne Freigabe für Automatisierung zurückgenommen
       create_connector: Connector erstellt
       delete_connector: Connector gelöscht
       update_credential: Zugangsdaten aktualisiert

@@ -7,7 +7,8 @@ import type { AuditLogActorType } from '../audit_logs/types.ts';
 /**
  * The audit row of a change to an automation's DEFINITION — a version saved,
  * a version deployed, a trigger set or removed, an installation in a project
- * added or removed, the automation deleted. Every door reaches these writes
+ * added or removed, a write it may make without approval granted or
+ * withdrawn, the automation deleted. Every door reaches these writes
  * through the store (the editor, a package upload, the REST API, a coding
  * agent over MCP, managed configuration, the shipped default packs), so the
  * row is written there, in the write's own transaction: no door can change a
@@ -32,7 +33,9 @@ export type AutomationDefinitionAction =
   | 'automation.trigger.set'
   | 'automation.trigger.deleted'
   | 'automation.project.bound'
-  | 'automation.project.unbound';
+  | 'automation.project.unbound'
+  | 'automation.approval_allowance.granted'
+  | 'automation.approval_allowance.revoked';
 
 /** Who an actor string names, as the audit row records it: the person (a
  * bare id, `user:<id>`, `api-key:<id>`) with the door's actor type, or the

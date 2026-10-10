@@ -57,6 +57,19 @@ Once the approved write has run, the approval is used up.
 - **Example**: Ada approves a write and the run carries it out → the approval is marked
   completed and cannot carry out the write again.
 
+### APV-R13 · An automation an owner or admin allowed makes that one write without approval
+
+An owner or admin can let one automation make one kind of write — send a Slack message, post to
+an API — without a person approving it each run. Only that automation passes, and only for that
+action: every other automation, and every other write of this one, still asks. A rule of the
+organization's approval policy that requires a person for the action still requires one. The
+allowance goes when the automation is deleted, and erasing the person who granted it leaves it
+in place under a pseudonym.
+
+- **Example**: Ada allows the morning digest to send Slack messages → its runs post without
+  waiting; the weekly digest's Slack step still waits for a person. An operator adds a rule that
+  Slack messages always need a person → the morning digest waits again.
+
 ## Who can see and decide an approval
 
 | The approval belongs to | Can see the card | Can approve or reject |

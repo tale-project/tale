@@ -12,7 +12,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import type { NodeTypeCatalog } from '../../../lib/shared/schemas/node-type-catalog.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
-import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
+import { isAdminOrDeveloperRole, isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
@@ -36,6 +36,10 @@ import {
 } from '../projects/service.ts';
 import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
 import { auditIfPublishRefused } from '../skills/publish.ts';
+import {
+  readApprovalAllowanceRows,
+  setApprovalAllowances,
+} from './approval-allowances.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { legacyRunStopSchema } from './legacy-quarantine.ts';
 import {
@@ -146,6 +150,12 @@ const validateSchema = z.object({
     .array(z.enum(['analysis', 'types']))
     .max(2)
     .optional(),
+});
+
+/** The whole set of write actions an automation may make without a
+ * person: step types such as `slack.send_message`. */
+const approvalAllowancesSchema = z.object({
+  allowed: z.array(z.string().min(3).max(200)).max(100),
 });
 
 const projectsSchema = z.object({
@@ -1396,6 +1406,46 @@ export function createAutomationRoutes(deps: {
       nameFrom(c, 'projects'),
     );
     return c.json({ projectIds: projectIds.filter((id) => visible.has(id)) });
+  });
+
+  // The writes the automation may make without a person approving each run:
+  // what its General tab lists. Authors read them; only an owner or admin
+  // changes them (`canGrant` tells the tab which it is).
+  app.get('/:name{.+}/approval-allowances', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const actions = await readApprovalAllowanceRows(deps.sql, {
+      organizationId: c.get('orgId'),
+      automation: nameFrom(c, 'approval-allowances'),
+    });
+    return c.json({
+      actions,
+      canGrant: isAdminRole(c.get('orgMember').role),
+    });
+  });
+
+  app.put('/:name{.+}/approval-allowances', async (c) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'owner or admin role required' }, 403);
+    }
+    const body = approvalAllowancesSchema.safeParse(await c.req.json());
+    if (!body.success) {
+      return invalidBodyResponse(c, body.error);
+    }
+    try {
+      const userId = c.get('sessionBundle').user.id;
+      return c.json(
+        await setApprovalAllowances(deps.sql, {
+          organizationId: c.get('orgId'),
+          automation: nameFrom(c, 'approval-allowances'),
+          allowed: body.data.allowed,
+          actor: userId,
+          grantedBy: userId,
+        }),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.delete('/:name{.+}', async (c) => {

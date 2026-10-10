@@ -1470,6 +1470,8 @@ logs:
       automation.trigger.deleted: Déclencheur d’automatisation supprimé
       automation.project.bound: Automatisation installée dans un projet
       automation.project.unbound: Automatisation retirée d’un projet
+      automation.approval_allowance.granted: Automatisation autorisée à écrire sans approbation
+      automation.approval_allowance.revoked: Écriture sans approbation retirée à l’automatisation
       create_connector: Connector créée
       delete_connector: Connector supprimée
       update_credential: Identifiants mis à jour

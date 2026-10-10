@@ -1371,6 +1371,20 @@ export async function processErasure(
     return changed.length;
   });
 
+  // An automation's allowance to write without approval names the owner or
+  // admin who granted it. Pseudonymised rather than deleted: the
+  // organization made the decision, and withdrawing it would make the
+  // automation's runs wait for a person again, unannounced.
+  await pass('automationAllowances', async () => {
+    const changed = await sql<{ automationName: string }[]>`
+      UPDATE app.automation_approval_allowances SET
+        granted_by = ${ERASED_SUBJECT}
+      WHERE org_id = ${organizationId} AND granted_by = ${targetUserId}
+      RETURNING automation_name AS "automationName"
+    `;
+    return changed.length;
+  });
+
   // Other people's task text that mentions the subject stores their name and
   // id in the mention (`[@Ada Lovelace](mention:user/<id>)`). Both give way
   // to the pseudonym wherever such text is kept: comments and their
