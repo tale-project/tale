@@ -15,17 +15,13 @@
  * nothing; the caller then marks the whole field.
  */
 
-import {
-  isMap,
-  isNode,
-  isPair,
-  isScalar,
-  isSeq,
-  parseDocument,
-  type Node as YamlNode,
-  type Pair,
-  type Scalar,
-} from 'yaml';
+import type { Node as YamlNode, Pair, Scalar } from 'yaml';
+
+// YAML pointer mapping is needed only when a YAML diagnostic is focused. Keep
+// the parser out of the editor's initial lazy chunk while preserving the
+// synchronous locator API after this module has loaded.
+const { isMap, isNode, isPair, isScalar, isSeq, parseDocument } =
+  await import('yaml');
 
 export type LocateSubject = 'value' | 'key' | 'missing';
 

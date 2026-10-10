@@ -46940,13 +46940,17 @@ async function checkAnsweredAskRecovery(
 
   record(
     'answered-ask recovery: lost resume re-enqueued, moved/pending/fresh spared',
-    result.examined === 1 &&
-      result.requeued === 1 &&
+    // The waker scans the whole database. A neighboring lane may leave one
+    // additional stale ask in the same process, so its aggregate counters can
+    // legitimately exceed this fixture's one lost resume. The ask-id checks
+    // below remain exact for the four rows this probe owns.
+    result.examined >= 1 &&
+      result.requeued >= 1 &&
       enqueued.has(lostAsk) &&
       !enqueued.has(movedAsk) &&
       !enqueued.has(pendingAsk) &&
       !enqueued.has(freshAsk),
-    `examined=${result.examined}/1 requeued=${result.requeued}/1 lost=${enqueued.has(lostAsk)} moved=${!enqueued.has(movedAsk)} pending=${!enqueued.has(pendingAsk)} fresh=${!enqueued.has(freshAsk)}`,
+    `examined=${result.examined}/≥1 requeued=${result.requeued}/≥1 lost=${enqueued.has(lostAsk)} moved=${!enqueued.has(movedAsk)} pending=${!enqueued.has(pendingAsk)} fresh=${!enqueued.has(freshAsk)}`,
   );
 
   await sql.begin(async (fixtureTx) => {
@@ -50777,31 +50781,47 @@ async function checkBellHintWire(
     const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
     const isBellHint = (e: SseEvent): boolean =>
       e.event === 'hint' && e.data === bellHint;
-    const mateGotIt = await waitFor(
-      () => mateStream.events.some(isBellHint),
-      5_000,
-    );
-    await sleep(700); // two poll cycles — the owner's stream had every chance
-    const ownerSpared = !ownerStream.events.some(isBellHint);
-    const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
-      SELECT user_id AS "userId", entity FROM app_realtime.outbox
+    // Notification hints intentionally have no resource id. Match the row we
+    // just wrote by its outbox id so an unrelated notification emitted by a
+    // neighboring integration lane cannot make the recipient-only assertion
+    // fail (or, worse, make the owner's stream look guilty).
+    const outboxRows = await sql<
+      {
+        id: string;
+        userId: string | null;
+        entity: string;
+      }[]
+    >`
+      SELECT id::text AS id, user_id AS "userId", entity
+      FROM app_realtime.outbox
       WHERE org_id = ${orgId} AND id > ${startId}::bigint
         AND entity IN ('notification', 'user_notification')
     `;
+    const targetOutboxId = outboxRows.find(
+      (row) => row.entity === 'notification' && row.userId === mateId,
+    )?.id;
+    const isTargetBellHint = (e: SseEvent): boolean =>
+      targetOutboxId !== undefined && isBellHint(e) && e.id === targetOutboxId;
+    const mateGotIt = await waitFor(
+      () => mateStream.events.some(isTargetBellHint),
+      5_000,
+    );
+    await sleep(700); // two poll cycles — the owner's stream had every chance
+    const ownerSpared = !ownerStream.events.some(isTargetBellHint);
     const narrowed =
       outboxRows.length === 1 &&
       outboxRows[0]?.entity === 'notification' &&
       outboxRows[0].userId === mateId;
 
     // The recipient reads everything → their own streams are told as well.
-    const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+    const eventsBeforeRead = mateStream.events.length;
     const markAll = await post(
       `/api/app/collab/notifications/read-all?orgId=${orgId}`,
       undefined,
       mateCookie,
     );
     const mateToldOfRead = await waitFor(
-      () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+      () => mateStream.events.slice(eventsBeforeRead).some(isBellHint),
       5_000,
     );
     const row = await sql<{ read: boolean }[]>`
