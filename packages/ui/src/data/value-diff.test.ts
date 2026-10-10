@@ -87,6 +87,27 @@ describe('diffValues', () => {
     expect(result.identical).toBe(false);
   });
 
+  it('reads only the members an object holds, whatever they are named', () => {
+    const kinds = (result: ReturnType<typeof diffValues>) =>
+      result.changes.map(({ pointer, kind }) => [pointer, kind]);
+    // JSON.parse keeps a member named __proto__ as the object's own, and a
+    // member named like a method every object inherits is data like any
+    // other: none of them is read from what the object inherits.
+    const withProto = JSON.parse('{"a": 1, "__proto__": {"b": 2}}') as unknown;
+    expect(kinds(diffValues({ a: 1 }, withProto))).toEqual([
+      ['/__proto__', 'added'],
+    ]);
+    expect(kinds(diffValues(withProto, { a: 1 }))).toEqual([
+      ['/__proto__', 'removed'],
+    ]);
+    expect(kinds(diffValues({}, { constructor: 'x' }))).toEqual([
+      ['/constructor', 'added'],
+    ]);
+    expect(
+      kinds(diffValues({ toString: 1 }, {}, { mode: 'includes' })),
+    ).toEqual([['/toString', 'removed']]);
+  });
+
   it('reads null against a value as changed and other kind pairs as type-changed', () => {
     const result = diffValues({ a: null, b: '1' }, { a: 3, b: 1 });
     expect(result.changes.map((change) => change.kind)).toEqual([
