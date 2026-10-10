@@ -23,6 +23,12 @@ Ein Live-Lauf prüft vor der Freigabeanfrage, ob der Connector ein nutzbares Cre
 
 Auf der Freigabekarte kannst du keine Parameter ändern. Lehne eine falsche Anfrage ab, korrigiere den Workflow oder seine Eingaben und teste die Änderung vor einem neuen Live-Lauf. Änderungen an der Freigaberichtlinie geben eine bereits offene Karte nicht frei. [Freigabekonzepte](/de/platform/approvals/concepts) erklärt den Ablauf; die [Konfiguration der Freigaberichtlinie](/de/self-hosted/configuration/approvals) beschreibt die Regeln für den Betrieb.
 
+## Eine Automatisierung ohne Freigabe schreiben lassen
+
+Ein Schreibzugriff, der bei jedem Lauf auf eine Person wartet — ein Morgen-Digest, der in Slack postet —, lässt sich für genau diese Automatisierung erlauben. Öffne den Tab **Allgemein** der Automatisierung: **Läuft ohne Freigabe** listet jeden Schreibzugriff ihrer neuesten Version. Ein Inhaber oder Admin schaltet den Schreibzugriff ein und speichert; ab dann führen ihre Live-Läufe ihn sofort aus, und ihr Kasten auf dem Canvas zeigt **Läuft ohne Freigabe**. Jede andere Automatisierung und jeder andere Schreibzugriff dieser einen fragt weiterhin.
+
+Eine Regel der [Freigaberichtlinie](/de/self-hosted/configuration/approvals), die für die Aktion eine Person verlangt, hat weiterhin Vorrang vor einer Erlaubnis. Jede Erlaubnis und jede Rücknahme steht im [Audit-Protokoll](/de/platform/admin/governance/audit-logs), und das Löschen der Automatisierung entfernt ihre Erlaubnisse.
+
 ## Eine Rückfrage des Agenten beantworten
 
 Nutzt eine Agent-Node `ask_human`, zeigen die Laufdetails **Der Agent braucht deine Antwort, um weiterzumachen**. Beantworte vorgegebene Auswahlfragen direkt auf der Karte. Bei einer offenen Frage schreibst du unter **Deine Antwort** einen Text und klickst auf **Antwort senden & fortsetzen**.

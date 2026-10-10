@@ -28,7 +28,7 @@ Verwende Bezeichner aus dem ausgelieferten Katalog, keine übersetzten Anzeigena
 
 ## Überlappende Regeln auswerten
 
-Eine Aktionsregel hat unabhängig von ihrer Position Vorrang vor einer Connector-Regel. Bei gleich spezifischen Treffern gewinnt die letzte Regel. Ohne Treffer verwendet Tale die oben beschriebene Unterscheidung zwischen intern und extern. Führe jedes Ziel möglichst nur einmal auf, damit das Ergebnis ohne Nachverfolgen von Überschreibungen verständlich bleibt.
+Eine Aktionsregel hat unabhängig von ihrer Position Vorrang vor einer Connector-Regel. Bei gleich spezifischen Treffern gewinnt die letzte Regel. Ohne Treffer führt eine Automatisierung, der ein Inhaber oder Admin den Schreibzugriff ohne Freigabe erlaubt hat (in ihrem Tab **Allgemein** unter **Läuft ohne Freigabe**), ihn aus; sonst verwendet Tale die oben beschriebene Unterscheidung zwischen intern und extern. Eine `require_approval`-Regel hat Vorrang vor einer solchen Erlaubnis. Führe jedes Ziel möglichst nur einmal auf, damit das Ergebnis ohne Nachverfolgen von Überschreibungen verständlich bleibt.
 
 Die Richtlinie wirkt auf neue Prüfungen. Eine ausstehende Genehmigung bleibt erhalten, wenn du die Regel lockerst; sie wird nicht automatisch erteilt. Die Datei hebt auch keine unabhängigen Prüfungen auf, etwa die Veröffentlichung einer Automation oder den Abschluss einer prüfpflichtigen Aufgabe.
 

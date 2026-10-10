@@ -28,7 +28,7 @@ Use connector and action identifiers from the shipped catalog, not translated di
 
 ## Resolve overlapping rules
 
-An action rule wins over a connector rule regardless of their order. Among equally specific matching rules, the last one wins. If no rule matches, Tale uses the internal-versus-external default above. Keep each target once where possible so readers can predict the result without tracing overrides.
+An action rule wins over a connector rule regardless of their order. Among equally specific matching rules, the last one wins. If no rule matches, an automation an Owner or Admin allowed to make the write without approval (on its **General** tab, under **Runs without approval**) makes it; otherwise Tale uses the internal-versus-external default above. A `require_approval` rule wins over such an allowance. Keep each target once where possible so readers can predict the result without tracing overrides.
 
 The policy affects new gate evaluations. A pending approval is retained when you relax the rule; it does not silently become approved. This file also does not remove independent review gates such as publishing an automation or completing a task that needs review.
 

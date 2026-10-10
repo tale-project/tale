@@ -23,6 +23,12 @@ A live run checks that the connector has a usable credential before it asks for 
 
 You cannot revise parameters on the approval card. Reject an incorrect request, fix the workflow or run input, and test the correction before starting a new live run. Changes to the approval policy do not release an already pending card. See [Approval concepts](/platform/approvals/concepts) for the decision lifecycle and [approval policy configuration](/self-hosted/configuration/approvals) for operator rules.
 
+## Let one automation write without approval
+
+A write that waits for a person on every run — a morning digest posting to Slack — can be allowed for that one automation. Open the automation's **General** tab: **Runs without approval** lists each write its latest version makes. An Owner or Admin turns the write on and saves; from then on, its live runs make that write straight away, and its box on the canvas says **Runs without approval**. Every other automation, and every other write of this one, still asks.
+
+A rule of the [approval policy](/self-hosted/configuration/approvals) that requires a person for the action still wins over an allowance. Each grant and withdrawal is recorded in the [audit log](/platform/admin/governance/audit-logs), and deleting the automation removes its allowances.
+
 ## Answer an agent’s question
 
 When an agent node uses `ask_human`, the run detail displays **The agent needs your answer to continue**. If choices are offered, answer the questions on the card. For an open question, enter text under **Your answer**, then choose **Send answer & resume**.
