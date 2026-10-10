@@ -312,6 +312,16 @@ runtime:
       explanation: Der Embedding-Anbieter konnte die Anfrage nicht in eine Suche umwandeln, deshalb wurde nichts gesucht.
       cause: Der Anbieter des Embedding-Modells der Organisation hat den Aufruf abgelehnt oder ist dabei fehlgeschlagen.
       fix: Führe den Lauf erneut aus; wenn es wieder passiert, prüft deine Administration das Embedding-Modell unter Einstellungen › Datenresidenz. Die technischen Details sagen, was fehlgeschlagen ist.
+    TASK_PROJECT_NOT_BOUND:
+      title: Das Projekt der Aufgabe gehört nicht zur Automatisierung
+      explanation: Eine Automatisierung erstellt Aufgaben nur in einem Projekt, in dem sie installiert ist, und ein Lauf in einem Projekt nur dort.
+      cause: Der Lauf kann im Projekt, das der Schritt nennt, keine Aufgaben erstellen.
+      fix: Installiere die Automatisierung in diesem Projekt oder nenne ein Projekt, in dem sie installiert ist.
+    TASK_ASSIGNEE_UNKNOWN:
+      title: Die zuständige Person der Aufgabe ist unbekannt
+      explanation: Eine Aufgabe geht an ein Mitglied der Organisation oder an einen Agenten ihres Projekts.
+      cause: 'Kein Mitglied und kein Agent des Projekts ist {assignee}, oder sie dürfen dort nicht arbeiten.'
+      fix: Nenne die E-Mail-Adresse oder Benutzer-ID eines Mitglieds oder einen Agenten des Projekts.
     LLM_OUTPUT_INVALID:
       title: Die Antwort des Modells passte nicht
       explanation: Der Schritt hat das Modell um eine strukturierte Antwort gebeten, und die Antwort entsprach nicht dem Ausgabeschema.

@@ -140,6 +140,7 @@
     "platform/agents/webhook-triggers",
     "platform/approvals/concepts",
     "platform/approvals/configure",
+    "platform/automations/add-tasks",
     "platform/automations/approvals-in-workflows",
     "platform/automations/assistant",
     "platform/automations/builtin",

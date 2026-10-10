@@ -278,6 +278,19 @@
       "height": 1332
     },
     {
+      "file": "images/platform/automation-task-create-run.webp",
+      "shot": "automation-task-create-run",
+      "route": "/dashboard/:orgId/automations/support-follow-ups/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-trigger-event.webp",
       "shot": "automation-trigger-event",
       "route": "/dashboard/:orgId/automations/gmail-triage-inbox/general",

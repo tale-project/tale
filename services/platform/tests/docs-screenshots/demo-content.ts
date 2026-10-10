@@ -699,6 +699,48 @@ export const DEMO_KNOWLEDGE_SEARCH = {
   },
 } as const;
 
+/**
+ * The task creation page's demo: an automation installed in Customer
+ * onboarding portal whose one step creates a follow-up task for a support
+ * email, deployed and run live once in that project — the run shows the
+ * task it made. The project id reaches the step through the run's input.
+ */
+export const DEMO_TASK_CREATE = {
+  automation: 'support-follow-ups',
+  name: 'Follow up on support emails',
+  node: 'ticket',
+  project: DEMO_PROJECTS[1].name,
+  input: { from: 'Ada Lovelace', subject: 'Refund for the annual plan' },
+  document: {
+    version: 1,
+    name: 'support-follow-ups',
+    inputs: {
+      type: 'object',
+      required: ['projectId', 'from', 'subject'],
+      properties: {
+        projectId: { type: 'string' },
+        from: { type: 'string' },
+        subject: { type: 'string' },
+      },
+    },
+    nodes: [
+      {
+        id: 'ticket',
+        type: 'task.create',
+        input: {
+          projectId: '{{ input.projectId }}',
+          title: 'Reply to {{ input.from }}: {{ input.subject }}',
+          assignee: DEMO_OWNER.email,
+          status: 'todo',
+          dueDate: '2026-10-17',
+          labels: ['support'],
+        },
+      },
+    ],
+    output: '{{ nodes.ticket.output }}',
+  },
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

@@ -19,6 +19,91 @@ tags:
 auth:
   - method: platform
 actions:
+  - name: create
+    title: Create task
+    i18n:
+      de:
+        title: Aufgabe erstellen
+      fr:
+        title: Créer une tâche
+    description: >-
+      Create a task in a project the automation is installed in — from an
+      email, a form, a failed check — with its title, description, assignee,
+      status, due date and labels. The assignee is a member's email or user
+      id, or an agent of the project by its name or handle. One task per
+      execution of the step: a retry returns the task it made. The task names
+      the automation as its creator, and its events reach other automations
+      as automation-made.
+    effects: write
+    # The task's id derives from the execution's ledger key, so repeating the
+    # call returns the task already made instead of a second one.
+    idempotent: true
+    input:
+      type: object
+      required: [projectId, title]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1, description: The project id. }
+        title:
+          {
+            type: string,
+            maxLength: 10000,
+            description: 'The task title; one over 200 characters is cut, ending in "…".',
+          }
+        description:
+          {
+            type: string,
+            maxLength: 100000,
+            description: 'Markdown; one over the board''s limit is cut.',
+          }
+        assignee:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 320,
+            description: "A member's email or user id, or an agent of the project by its name or handle.",
+          }
+        status:
+          {
+            type: string,
+            enum: [backlog, todo, in_progress],
+            description: 'backlog by default.',
+          }
+        dueDate:
+          {
+            type: string,
+            minLength: 1,
+            maxLength: 40,
+            description: 'A date such as 2026-10-17, or an ISO date and time.',
+          }
+        labels:
+          {
+            type: array,
+            maxItems: 50,
+            items: { type: string, minLength: 1, maxLength: 64 },
+            description: 'Label names; the project''s catalog gains those it lacks when the run''s starter may edit the project, or a trigger started the run.',
+          }
+    output: '{ taskId: string, number: number, title: string, url: string }'
+    mock: |
+      const title = String(input.title ?? '').trim();
+      return {
+        taskId: 'tsk_mock_1',
+        number: 42,
+        title: title.length > 200 ? title.slice(0, 199) + '…' : title,
+        url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=tsk_mock_1',
+      };
+    backend:
+      kind: native
+      impl: task.create
+    exampleInput:
+      {
+        projectId: 'prj_1',
+        title: 'Reply to Ada about the refund',
+        assignee: 'ada@example.com',
+        status: todo,
+        dueDate: '2026-10-17',
+        labels: [support],
+      }
   - name: get
     title: Get task
     i18n:

@@ -1372,15 +1372,26 @@ export interface CreateTaskArgs {
   sourceThreadId?: string;
 }
 
+/** What only the platform's own writers set on a new task. */
+export interface CreateTaskOptions {
+  /** Internal managed provisioning only; no generic task input exposes IDs. */
+  readonly taskId?: string;
+  /** Who the task says created it when it is not the person `auth` names:
+   * an automation (`app`, by its name) or the workflow engine (`agent`). */
+  readonly creator?: { readonly id: string; readonly type: 'app' | 'agent' };
+  /** Add the labels the project's catalog lacks instead of refusing them,
+   * as an import does for a writer who may edit the project. */
+  readonly mintLabels?: boolean;
+}
+
 export async function createTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: CreateTaskArgs,
-  /** Internal managed provisioning only; no generic task input exposes IDs. */
-  identity?: { taskId: string },
+  options: CreateTaskOptions = {},
 ): Promise<string> {
   const explicitId =
-    identity === undefined ? undefined : z.uuid().parse(identity.taskId);
+    options.taskId === undefined ? undefined : z.uuid().parse(options.taskId);
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertTaskCreatable(project, auth);
 
@@ -1391,6 +1402,7 @@ export async function createTask(
     projectId: args.projectId,
     names: args.labels,
     createdBy: auth.userId,
+    ...(options.mintLabels === true && { createIfMissing: true }),
   });
   assertScheduleOrder(args.startDate, args.dueDate);
   const repeat =
@@ -1486,7 +1498,8 @@ export async function createTask(
       ${startArrivedStamp(args.startDate ?? null, now)},
       ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
-      ${auth.userId}, 'user', ${now}, ${now}, ${now},
+      ${options.creator?.id ?? auth.userId},
+      ${options.creator?.type ?? 'user'}, ${now}, ${now}, ${now},
       ${TERMINAL_STATUSES.has(status) ? now : null},
       ${args.sourceThreadId ?? null}, ${explicitId ?? tx`DEFAULT`}
     )
@@ -1502,14 +1515,18 @@ export async function createTask(
     'none',
     taskCountBucket({ status, archivedAt: null }),
   );
+  // A task the platform makes on the workflow's behalf speaks for the
+  // workflow in its activity and its event, as an import's does, and no
+  // person starts following it.
+  const byWorkflow = options.creator !== undefined;
   await recordActivity(tx, {
     task: {
       id: taskId,
       organizationId: auth.organizationId,
       projectId: args.projectId,
     },
-    actorType: 'user',
-    actorId: auth.userId,
+    actorType: byWorkflow ? 'agent' : 'user',
+    actorId: byWorkflow ? 'workflow' : auth.userId,
     action: 'created',
     toValue: status,
   });
@@ -1530,18 +1547,20 @@ export async function createTask(
     eventData: {
       taskId,
       projectId: args.projectId,
-      actorType: 'user',
-      actorId: auth.userId,
+      actorType: byWorkflow ? 'workflow' : 'user',
+      actorId: byWorkflow ? 'workflow' : auth.userId,
     },
   });
   // The human creator starts following their task.
-  await autoSubscribe(tx, {
-    organizationId: auth.organizationId,
-    taskId,
-    subscriberType: 'user',
-    subscriberId: auth.userId,
-    reason: 'creator',
-  });
+  if (!byWorkflow) {
+    await autoSubscribe(tx, {
+      organizationId: auth.organizationId,
+      taskId,
+      subscriberType: 'user',
+      subscriberId: auth.userId,
+      reason: 'creator',
+    });
+  }
   // The status choreography applies to a card BORN in a column too — the
   // create dialog offers the full picker: an agent-owned task created
   // straight at In progress gets its run (the board never shows an

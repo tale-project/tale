@@ -78,6 +78,8 @@ Four types are built in, and every connector action and platform native — know
 
 **`knowledge.search`** searches your documents and indexed websites and returns the passages that match a query best, for a later step to use. It reads what its run may read. See [Search your knowledge from an automation](/platform/automations/knowledge-search).
 
+**`task.create`** creates a task in a project the automation is installed in, once each time the step runs. See [Add tasks from an automation](/platform/automations/add-tasks).
+
 ### Structured and unstructured output
 
 A **structured** output has named fields that you can reference with `nodes.<id>.output.<field>`. An **unstructured** output is free text. Reference it through `nodes.<id>.output.text` in a string expression; do not treat it as an object with additional fields.

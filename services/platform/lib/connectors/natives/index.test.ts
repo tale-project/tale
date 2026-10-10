@@ -344,6 +344,16 @@ const scriptRunner: SandboxScriptRunner = ({ skill, entry }) =>
 
 /** Task and document store doubles — the declared shapes, no Convex. */
 const taskStore: WorkflowTaskStore = {
+  create: ({ projectId, title }) =>
+    Promise.resolve({
+      ok: true,
+      task: {
+        taskId: 'task_created',
+        number: 7,
+        title,
+        url: `/dashboard/org_1/projects/${projectId}/tasks?task=task_created`,
+      },
+    }),
   upsertIssues: ({ issues }) =>
     Promise.resolve(
       issues.map((issue) => ({

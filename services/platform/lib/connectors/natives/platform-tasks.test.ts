@@ -656,3 +656,108 @@ describe('task.get_import_cursor / task.save_import_cursor', () => {
     expect(store.saveImportCursor).not.toHaveBeenCalled();
   });
 });
+
+describe('task.create as an automation step', () => {
+  const step = {
+    organizationId: 'org-1',
+    caller: { kind: 'workflow', runId: 'run-1', nodeId: 'ticket' },
+    idempotencyKey: 'run-1/ticket/0/0',
+  };
+  const task = {
+    taskId: 'task-1',
+    number: 12,
+    title: 'Reply to Ada',
+    url: '/dashboard/org-1/projects/project-1/tasks?task=task-1',
+  };
+  const nativeWith = (create: ReturnType<typeof vi.fn>) =>
+    platformTaskNatives({ create } as never)['task.create'];
+
+  it('creates as the run, with its execution key and the due date as the board keeps it [CONN-R23]', async () => {
+    const create = vi.fn().mockResolvedValue({ ok: true, task });
+    await expect(
+      nativeWith(create)?.(
+        {
+          projectId: 'project-1',
+          title: 'Reply to Ada',
+          dueDate: '2026-10-17',
+          status: 'todo',
+        },
+        step as never,
+      ),
+    ).resolves.toEqual(task);
+    expect(create).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      title: 'Reply to Ada',
+      status: 'todo',
+      // A date alone is noon UTC: the same day almost everywhere.
+      dueDate: Date.parse('2026-10-17T12:00:00Z'),
+      organizationId: 'org-1',
+      caller: step.caller,
+      idempotencyKey: 'run-1/ticket/0/0',
+    });
+  });
+
+  it('takes a date and time as written', async () => {
+    const create = vi.fn().mockResolvedValue({ ok: true, task });
+    await nativeWith(create)?.(
+      {
+        projectId: 'project-1',
+        title: 'Reply',
+        dueDate: '2026-10-17T09:30:00+02:00',
+      },
+      step as never,
+    );
+    expect(create.mock.calls[0]?.[0].dueDate).toBe(
+      Date.parse('2026-10-17T07:30:00Z'),
+    );
+  });
+
+  it.each([
+    [{ projectId: 'project-1', title: 'Reply', dueDate: 'next friday' }],
+    [{ projectId: 'project-1', title: '   ' }],
+    [{ projectId: 'project-1', title: 'Reply', status: 'done' }],
+  ])('refuses %j before the store is asked', async (input) => {
+    const create = vi.fn();
+    await expect(
+      nativeWith(create)?.(input, step as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a call that is not an automation step', async () => {
+    const create = vi.fn();
+    await expect(
+      nativeWith(create)?.({ projectId: 'project-1', title: 'Reply' }, {
+        ...step,
+        caller: { kind: 'user', userId: 'user-1' },
+      } as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['project', 'TASK_PROJECT_NOT_BOUND', { projectId: 'project-1' }],
+    ['assignee', 'TASK_ASSIGNEE_UNKNOWN', { assignee: 'nobody@example.com' }],
+  ])(
+    'fails a %s refusal with its cause [CONN-R24]',
+    async (kind, reason, params) => {
+      const create = vi
+        .fn()
+        .mockResolvedValue({ ok: false, refusal: { kind, detail: 'refused' } });
+      await expect(
+        nativeWith(create)?.(
+          {
+            projectId: 'project-1',
+            title: 'Reply',
+            assignee: 'nobody@example.com',
+          },
+          step as never,
+        ),
+      ).rejects.toMatchObject({
+        connector: 'task',
+        action: 'create',
+        failure: { reason, params },
+      });
+    },
+  );
+});

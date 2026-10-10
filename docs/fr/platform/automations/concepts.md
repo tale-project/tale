@@ -78,6 +78,8 @@ Quatre types sont intégrés, et chaque action de connector comme chaque capacit
 
 **`knowledge.search`** cherche dans tes documents et tes sites indexés et renvoie les passages qui correspondent le mieux à une requête, pour une étape suivante. La recherche lit ce que son exécution peut lire. Voir [Chercher dans tes connaissances depuis une automatisation](/fr/platform/automations/knowledge-search).
 
+**`task.create`** crée une tâche dans un projet où l’automatisation est installée, une fois à chaque exécution de l’étape. Voir [Ajouter des tâches depuis une automatisation](/fr/platform/automations/add-tasks).
+
 ### Sortie structurée et non structurée
 
 Une sortie **structurée** possède des champs nommés, accessibles avec `nodes.<id>.output.<field>`. Une sortie **non structurée** contient du texte libre. Référence-la avec `nodes.<id>.output.text` dans une expression textuelle ; ne la traite pas comme un objet possédant d’autres champs.
