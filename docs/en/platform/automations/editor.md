@@ -17,6 +17,12 @@ The **Version** selector stays at the right of the Editor, General and Runs tabs
 
 On a phone, opening an automation starts with compact navigation. The editor canvas fills the available height, and its run and deploy controls sit in a toolbar at the bottom of the canvas. Selecting a node opens its fields — and Save and Discard — in a panel at the bottom of the screen.
 
+<Frame caption="On a phone, the canvas takes the height of the screen, and its run controls sit in a toolbar at its foot.">
+
+![The editor of Triage the Gmail inbox on a phone: compact navigation with Editor, General and Runs, the canvas with Start, Inbox and Due, and a toolbar at the foot of the canvas with Deploy v1, Test run and No problems.](/images/platform/automation-editor-canvas-mobile.webp)
+
+</Frame>
+
 <Frame caption="On a wide screen, select a node to inspect its fields beside the canvas.">
 
 ![The workflow editor shows the nodes of Gmail triage inbox between Start and End, a condition in words above one node, and the selected node’s fields beside the canvas.](/images/platform/automation-editor-canvas.webp)
@@ -83,6 +89,12 @@ A run's conditions decide which nodes run. The paths button at the top right of 
 
 Point at a path, or move to it with the arrow keys, to preview it on the canvas. Click it or press Enter to keep it shown: nodes off the path turn dashed and say why they don't run, End marks the outputs that stay empty on that path, and a screen reader hears which path is shown. **Show all**, or Escape, shows every node again. The list stays open while you select nodes, so you can compare a path with a node's fields.
 
+<Frame caption="Three ways a run of the Gmail triage can go; Path 2, kept shown, is the one where Propose fails and the run goes on.">
+
+![Possible paths open beside the canvas of Triage the Gmail inbox: Path 1 runs 6 of 6 nodes; Path 2, pinned, runs 5 of 6 nodes because Triage runs and Propose fails while the run goes on; Path 3 runs 1 of 6 nodes because Triage is skipped. Below them, Ends the run when it fails says what makes Inbox fail.](/images/platform/automation-editor-paths.webp)
+
+</Frame>
+
 Under **Ends the run when it fails**, the list names the nodes whose failure stops the run, with what can make each one fail. Point at one to ring all of them in red; select one to open it.
 
 On a phone, the list opens in a panel at the bottom of the screen. Choosing a path closes the panel and leaves a pill at the top of the canvas that names the path, with **Show all**. When every run takes the same path, the list says so. An automation with more than 12 conditions and tolerated failures has too many paths to list; each node's **When it runs** still says when it runs. A canvas with a cycle has no paths button. [Paths a run can take](/platform/automations/concepts#paths) explains how Tale works the paths out.
@@ -97,6 +109,12 @@ Three tabs follow:
 - **Shape** shows what the node receives and returns, where Tale got that shape from, and which nodes read its output. Select a reader to open it. **Show as TypeScript** shows the same shape as a type.
 - **Last run** shows the node's **Resolved input**, **Output** and effects in the run shown on the canvas. It appears while the canvas shows a run.
 
+<Frame caption="The Shape tab: what Triage returns, where that shape comes from, and the nodes that read it.">
+
+![The panel of Triage, a language model node, open on Shape: When it runs says on 2 of 3 paths and skipped when its condition is false; Returns lists, from its output schema, items with action, reason, priority and conversationId, and summary, above Show as TypeScript; Read by offers Record, Due and The automation output.](/images/platform/automation-editor-node-shape.webp)
+
+</Frame>
+
 The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but **Problems** then warns that a live run would fail at that node until its provider is connected.
 
 Open **Control flow** for the node's condition, iteration and failure handling; it is already open on a node that uses one of them. **When**, **For each** and **Repeat until** take expressions. **Else of** offers only nodes that have a condition, and **None** removes the alternative. **Maximum repeats** appears with **Repeat until** and takes a whole number from 1 to 20. **On error** chooses between **Stop the run** and **Continue without it**; continuing skips every node that reads the failed node's output. Under a condition, a list or an alternative, a sentence says in words what the setting does.
@@ -107,6 +125,12 @@ Use **Close** to return to the canvas. On a wide screen, clicking the empty canv
 
 Code, prompts, conditions and JSON fields are code editors. They colour the syntax and every `{{ }}` template, and they know the automation. Type `{{` in a prompt and the closing braces appear with the cursor between them; type `nodes.` to see only the nodes that run earlier, and `.output.` to see that node's fields with their types. Ctrl+Space opens the suggestions anywhere. Point at a reference to see its type, or press ⌘K ⌘I (Ctrl+K Ctrl+I) to have the type at the cursor shown and read out.
 
+<Frame caption="After nodes. in a template, the suggestions offer the nodes that run earlier, each with its shape.">
+
+![The Prompt field of Triage in the code editor: its last line is a template with the cursor after nodes., and the suggestion list offers inbox beside the shape it returns, an object with a list of conversations.](/images/platform/automation-editor-code.webp)
+
+</Frame>
+
 A moment after you stop typing, a problem is underlined exactly where it is. F8 and Shift+F8 move to the next and previous problem and read it out; ⌘. (Ctrl+.) applies a suggested fix, such as the closest node name. In a field with several lines, Tab indents; to leave it with the keyboard, press Escape, then Tab. **Expand editor** opens a long field in a larger editor, and **Back to the field** returns to it with your edit and your cursor in place.
 
 A JSON field such as **Input** changes the node only when its text is valid JSON of the right kind. While you type, the node keeps its last valid value and the field says what is missing, such as "This must be a JSON object, in curly braces."
@@ -115,11 +139,23 @@ A JSON field such as **Input** changes the node only when its text is valid JSON
 
 Select **Start** to see what starts the automation. **Trigger** lists it in words; **Change in General** opens the **General** tab, where you set the trigger. Under **Fields**, **Inputs** shows the fields of the run input as a tree, and **Input schema** holds the JSON Schema behind them, which you can edit. **Shape** shows the input as Tale reads it, and **Last run** the input of the run shown.
 
+<Frame caption="Start’s fields: the trigger in words, the fields of the run input, and the JSON Schema behind them.">
+
+![Start selected on the canvas, with its panel beside it: the trigger Every 6 hours · UTC, switched off, and By hand, the API or MCP, above Change in General; under Fields, Inputs lists limit, firedAt and trigger with their descriptions, and Input schema holds the JSON Schema in a code editor.](/images/platform/automation-editor-start.webp)
+
+</Frame>
+
 Select **End** to see what a run returns. **How a run ends** lists the three outcomes; under **Failed**, each node whose failure stops the run is a button that opens it. Under **Fields**, **Output** holds the JSON value a successful run returns, with templates such as `{{ nodes.report.output }}`. **Shape** shows the output's shape, and **Last run** the output of the run shown.
 
 ## Read the source
 
 Choose **Source** in the view switch to read the whole document as YAML, highlighted, with line numbers, folding and search (⌘F or Ctrl+F). Every problem the check found is underlined at the line it concerns, so a problem in a part without a field of its own, such as a test or the name, has a place to be read. The source is read-only: **Copy YAML** copies it, and **Download YAML** saves it as a file named after the automation and version, such as `gmail-triage-inbox-v3.yml`, with `-draft` added while you have unsaved changes. To change the document, use the fields or your coding agent.
+
+<Frame caption="Source: the whole document as highlighted YAML, to copy or download.">
+
+![The Source view of Triage the Gmail inbox: YAML with line numbers and fold markers, from name: gmail-triage-inbox through its inbox and triage nodes, under the line To change the document, use the fields or your coding agent, with Copy YAML, Download YAML and Edit with your coding agent above it.](/images/platform/automation-editor-source.webp)
+
+</Frame>
 
 ## Edit with your coding agent
 
@@ -130,6 +166,12 @@ Larger changes, such as adding nodes or reworking the flow, come from a coding a
 While you edit, Tale checks the draft the same way it checks a save. A moment after you stop typing, the **Problems** button beside **Save** shows what the check found: a red error icon and an amber warning icon, each with its count, or **No problems**. On a phone, the button sits in the toolbar over the canvas. An error is something a run would fail on, such as a reference to a node that does not exist. A warning is something that might go wrong, such as reading the output of a node that is sometimes skipped. A node, a condition, Start or End with problems shows the same counts on its box, and a field with a problem explains it under the field.
 
 Click **Problems** to list them. On a wide screen the list opens under the canvas; on narrower screens it opens in a panel. Each entry says what is wrong, where it is, why, and how to fix it. **Technical details** shows the engine's own message, and the code beside the title helps when you search or ask for support. **All**, **Errors** and **Warnings** filter the list, and Escape closes it.
+
+<Frame caption="A reference to a node that doesn’t exist: the field marks it, Save waits, and Problems says why and how to fix it.">
+
+![The editor with one error: the Prompt of Triage ends in a template reading nodes.nope.output, underlined in red, with the reason under the field; the header shows 1 error beside a disabled Save, and Problems under the canvas lists Reference to an unknown node at triage › Prompt, its code REF_UNKNOWN_NODE, why the read fails and how to fix it.](/images/platform/automation-editor-problems.webp)
+
+</Frame>
 
 Select an entry, or press Enter on it, to go there: the node opens, its field takes focus, and the part that causes the problem is selected. A problem with no field of its own, such as a model the organization does not serve, is listed under **Problems in this node** at the top of the node's fields. A problem in the inputs opens **Start**, one in the output opens **End**, and one in any other part of the document, such as a test or the name, opens **Source** at that line. A problem in a node that your draft no longer has says "Change this with your coding agent."
 

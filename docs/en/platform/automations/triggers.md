@@ -39,13 +39,31 @@ Open the automation, then its **General** tab. Without a binding, the **Trigger*
 
 Leave **Schedule format** on **Repeat** and open **Schedule**. The presets are **Every 15 minutes**, **Every hour**, and daily, weekday, weekly and monthly runs at a time of day. The weekly and monthly presets use today’s weekday and day of the month, and every preset with a time keeps the schedule’s earliest time. Choosing a preset closes the popover and puts it in the form. Under the presets and the custom views, the popover lists the next three runs of the schedule you are building.
 
+<Frame caption="The presets, the stored schedule’s own row with its sentence, and the next three runs.">
+
+![The Schedule popover on the General tab of Triage the Gmail inbox: the presets Every 15 minutes, Every hour, Daily at 9:00 AM, Every weekday at 9:00 AM, Weekly on Saturday at 9:00 AM and Monthly on day 10 at 9:00 AM; Custom interval, checked, reading Every 6 hours; Custom times; and the next three runs in UTC.](/images/platform/automation-trigger-schedule-presets.webp)
+
+</Frame>
+
 </Step>
 
 <Step title="Or build your own">
 
 Choose **Custom times** to run at times of day: pick **Day**, **Week**, **Month** or **Year**, the interval (for example every 2 weeks), the weekdays or the day, and up to 12 times under **At**. **Add time** adds a time one hour after the last one. A time that is already in the list runs once, and saving sorts the times.
 
+<Frame caption="Custom times: weekdays at 9:00 AM and 5:30 PM, with the runs they give.">
+
+![The Custom times view of the schedule picker: Week selected, every 1 week, Monday to Friday chosen, the times 9:00 AM and 5:30 PM with Add time below them, the next three runs in UTC, and Cancel and Save.](/images/platform/automation-trigger-schedule-custom-times.webp)
+
+</Frame>
+
 Choose **Custom interval** to start every few minutes or hours: up to every 30 minutes in steps that divide an hour, or up to every 12 hours in steps that divide a day, at a number of minutes past the hour. Keep the weekdays it should run on and, with **Only between**, limit it to the hours between two times. Under the hours, the picker names the day’s first and last run.
+
+<Frame caption="Custom interval: every 15 minutes on weekdays, only between 8:00 AM and 6:00 PM.">
+
+![The Custom interval view of the schedule picker: every 15 minutes, Monday to Friday chosen, Only between checked from 8:00 AM to 6:00 PM, the line Each day, the first run starts at 8:00 AM and the last at 5:45 PM, the next three runs in UTC, and Cancel and Save.](/images/platform/automation-trigger-schedule-interval.webp)
+
+</Frame>
 
 **Save**, Enter or Ctrl+Enter (Cmd+Enter on a Mac) applies the custom schedule; **Cancel** or Escape discards it.
 
@@ -130,6 +148,12 @@ Send a delivery ID, such as `Idempotency-Key` or the sender’s supported delive
 
 **Recent deliveries** lists the last ten runs the webhook started, newest first, with each run’s status and **View run**. While Tale still remembers a delivery, the row also says how it recognizes a repeat: **ID from** the header it read, or **No delivery ID**. A request Tale refused started no run and is not listed; the sender’s response says why.
 
+<Frame caption="A webhook installed in two projects: one URL per project, a test request, and the deliveries that started runs.">
+
+![The Trigger section of a webhook: the last run succeeded, Enabled is on, Project URLs lists Website relaunch and Customer onboarding portal with the token hidden, then Rotate token, a curl test request that reads the URL from TALE_WEBHOOK_URL, Recent deliveries with two succeeded runs, each ID from idempotency-key, and This run receives with the payload.](/images/platform/automation-trigger-webhook.webp)
+
+</Frame>
+
 <Warning>
 
 The URL authorizes a run. Store it as a credential and share it only with the sending system. **Rotate token** asks for confirmation, then creates a replacement and invalidates the old URL; removing or replacing the trigger also revokes it. Update the sender after a rotation.
@@ -139,6 +163,12 @@ The URL authorizes a run. Store it as a credential and share it only with the se
 ## React to a platform event
 
 Choose **Platform event**, then pick the event under **Event name**. The list groups the events by what they concern and shows each one’s name, ID and when it is raised; type part of any of them to search. Save, and turn on **Enabled** when ready.
+
+<Frame caption="The events, grouped by what they concern, each with its name, ID and when it’s raised.">
+
+![The Event name list open for a Platform event trigger: a search field above the groups Tasks, with Task created and Task status changed, Comments, with Comment added and Mentioned in a comment, and Conversations, each event with its ID and a sentence saying when it is raised.](/images/platform/automation-trigger-event.webp)
+
+</Frame>
 
 | Event | ID | Raised when | `payload` holds |
 | --- | --- | --- | --- |
@@ -287,6 +317,12 @@ The top of the **Trigger** section says how the trigger is doing: the time of th
 | **Paused after repeated failures** | The schedule turned itself off. | See [When a schedule pauses itself](#when-a-schedule-pauses-itself). |
 
 **Technical details**, closed at first, holds the raw facts in English: the code, the version that refused the start, its message and each problem with its field. When earlier runs were missed too, the notice says how many. The API reads the same facts as `lastSkipReason` and `lastSkipDetail`; see the [API reference](/develop/api-reference#check-trigger-health-and-pause-safely).
+
+<Frame caption="A start that was refused: the notice says why, offers the fix, and keeps the raw facts under Technical details.">
+
+![The Trigger section of a switched-on schedule with the notice Skipped: the run’s input was refused, saying it came due on October 10, 2026 11:00 AM but version 1 refused what the trigger sends, with Add the 2 missing fields and Open the editor; Technical details is open on owner and repo, both required, the code AUTOMATION_INPUT_INVALID and the message. Below, the schedule runs every 30 minutes, and This run receives ends with a warning that version 1 doesn’t accept this input.](/images/platform/automation-trigger-skip-reason.webp)
+
+</Frame>
 
 Some missing starts show no notice:
 

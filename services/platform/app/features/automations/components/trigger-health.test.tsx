@@ -182,6 +182,21 @@ describe('TriggerHealth', () => {
       );
     });
 
+    it('names the day it came due, even when that day is today', () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(SCANNED);
+      try {
+        renderHealth(
+          skipped('not_deployed', { reason: 'not_deployed', occurrence: DUE }),
+        );
+        expect(notice('Skipped: no version is deployed')).toHaveTextContent(
+          /It came due on October 12, 2026 /,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('says an event arrived for an event trigger', () => {
       renderHealth(
         skipped(

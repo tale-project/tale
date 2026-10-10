@@ -185,7 +185,7 @@ runtime:
     EXPR_FAILED:
       title: Ein Ausdruck ist fehlgeschlagen
       explanation: Ein Ausdruck hat beim Auswerten einen Fehler ausgelöst.
-      cause: '{fieldLabel, select, none {{expr} hat {errorName, select, none {einen Fehler} other {einen {errorName}}} ausgelöst.} other {In {fieldLabel} hat {expr} {errorName, select, none {einen Fehler} other {einen {errorName}}} ausgelöst.}}'
+      cause: '{fieldLabel, select, none {{expr} hat {errorName, select, none {einen Fehler} Error {einen Fehler} other {einen {errorName}}} ausgelöst.} other {In {fieldLabel} hat {expr} {errorName, select, none {einen Fehler} Error {einen Fehler} other {einen {errorName}}} ausgelöst.}}'
       fix: Prüfe die gelesenen Werte im Tab Daten des Schritts. Die technischen Details enthalten den genauen Wortlaut des Fehlers.
     EXPR_TIMEOUT:
       title: Ein Ausdruck dauerte zu lange
@@ -210,7 +210,7 @@ runtime:
     CODE_FAILED:
       title: Der Code hat einen Fehler ausgelöst
       explanation: Der Code des Transform-Schritts wurde mit einem Fehler beendet.
-      cause: '{errorName, select, none {Der Code hat einen Fehler ausgelöst.} other {Der Code hat einen {errorName} ausgelöst.}}'
+      cause: '{errorName, select, none {Der Code hat einen Fehler ausgelöst.} Error {Der Code hat einen Fehler ausgelöst.} other {Der Code hat einen {errorName} ausgelöst.}}'
       fix: Prüfe die Werte, die der Code gelesen hat, im Tab Daten des Schritts. Die technischen Details enthalten den genauen Wortlaut des Fehlers.
     CODE_TIMEOUT:
       title: Der Code dauerte zu lange

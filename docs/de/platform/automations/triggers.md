@@ -39,13 +39,31 @@ API- und MCP-Clients können auch ohne Trigger starten. API-Schlüssel und Proje
 
 Lass **Format des Zeitplans** auf **Wiederholung** und öffne **Zeitplan**. Die Schnellauswahl bietet **Alle 15 Minuten**, **Stündlich** sowie tägliche, werktägliche, wöchentliche und monatliche Läufe zu einer Uhrzeit. Die wöchentliche und die monatliche Vorlage richten sich nach dem heutigen Wochentag und Monatstag, und jede Vorlage mit Uhrzeit übernimmt die früheste Uhrzeit des Zeitplans. Ein Klick auf eine Vorlage schließt das Popover und übernimmt sie ins Formular. Unter der Schnellauswahl und den benutzerdefinierten Ansichten zeigt das Popover die nächsten drei Läufe des Zeitplans, den du gerade zusammenstellst.
 
+<Frame caption="Die Vorlagen, die eigene Zeile des gespeicherten Zeitplans mit ihrem Satz und die nächsten drei Läufe.">
+
+![Das Popover Schedule im Tab General von Triage the Gmail inbox: die Vorlagen Every 15 minutes, Every hour, Daily at 9:00 AM, Every weekday at 9:00 AM, Weekly on Saturday at 9:00 AM und Monthly on day 10 at 9:00 AM; Custom interval, ausgewählt, mit Every 6 hours; Custom times; und die nächsten drei Läufe in UTC.](/images/platform/automation-trigger-schedule-presets.webp)
+
+</Frame>
+
 </Step>
 
 <Step title="Oder selbst zusammenstellen">
 
 Wähle **Benutzerdefinierte Uhrzeiten**, um zu festen Uhrzeiten zu starten: Wähle **Tag**, **Woche**, **Monat** oder **Jahr**, das Intervall (etwa alle 2 Wochen), die Wochentage oder den Tag und unter **Um** bis zu 12 Uhrzeiten. **Uhrzeit hinzufügen** ergänzt eine Uhrzeit eine Stunde nach der letzten. Eine Uhrzeit, die schon in der Liste steht, läuft nur einmal, und beim Speichern werden die Uhrzeiten sortiert.
 
+<Frame caption="Benutzerdefinierte Uhrzeiten: werktags um 9:00 und 17:30 Uhr, mit den Läufen, die sich daraus ergeben.">
+
+![Die Ansicht Custom times der Zeitplanauswahl: Week gewählt, every 1 week, Montag bis Freitag ausgewählt, die Uhrzeiten 9:00 AM und 5:30 PM mit Add time darunter, die nächsten drei Läufe in UTC sowie Cancel und Save.](/images/platform/automation-trigger-schedule-custom-times.webp)
+
+</Frame>
+
 Wähle **Benutzerdefiniertes Intervall**, um alle paar Minuten oder Stunden zu starten: bis zu alle 30 Minuten in Schritten, die eine Stunde teilen, oder bis zu alle 12 Stunden in Schritten, die einen Tag teilen, jeweils eine bestimmte Anzahl Minuten nach der vollen Stunde. Lass die Wochentage eingeschaltet, an denen es laufen soll, und beschränke es mit **Nur zwischen** auf die Stunden zwischen zwei Uhrzeiten. Unter den Uhrzeiten nennt die Auswahl den ersten und den letzten Lauf des Tages.
+
+<Frame caption="Benutzerdefiniertes Intervall: alle 15 Minuten an Werktagen, nur zwischen 8:00 und 18:00 Uhr.">
+
+![Die Ansicht Custom interval der Zeitplanauswahl: alle 15 Minuten, Montag bis Freitag ausgewählt, Only between angehakt von 8:00 AM bis 6:00 PM, die Zeile Each day, the first run starts at 8:00 AM and the last at 5:45 PM, die nächsten drei Läufe in UTC sowie Cancel und Save.](/images/platform/automation-trigger-schedule-interval.webp)
+
+</Frame>
 
 **Speichern**, Enter oder Strg+Enter (auf dem Mac Cmd+Enter) übernimmt den benutzerdefinierten Zeitplan; **Abbrechen** oder Escape verwirft ihn.
 
@@ -130,6 +148,12 @@ Sende eine Zustellungs-ID, etwa `Idempotency-Key` oder einen unterstützten Head
 
 **Letzte Zustellungen** listet die letzten zehn Läufe, die der Webhook gestartet hat, die neuesten zuerst, jeweils mit Status und **Lauf ansehen**. Solange sich Tale an eine Zustellung erinnert, sagt die Zeile auch, woran Tale eine Wiederholung erkennt: **ID aus** dem gelesenen Header oder **Ohne Zustell-ID**. Eine Anfrage, die Tale abgelehnt hat, hat keinen Lauf gestartet und steht nicht in der Liste; die Antwort an den Absender nennt den Grund.
 
+<Frame caption="Ein Webhook, der in zwei Projekten installiert ist: eine URL pro Projekt, eine Testanfrage und die Zustellungen, die Läufe gestartet haben.">
+
+![Der Abschnitt Trigger eines Webhooks: Der letzte Lauf war erfolgreich, Enabled ist eingeschaltet, Project URLs listet Website relaunch und Customer onboarding portal mit verborgenem Token, darunter Rotate token, eine curl-Testanfrage, die die URL aus TALE_WEBHOOK_URL liest, Recent deliveries mit zwei erfolgreichen Läufen, jeweils ID from idempotency-key, und This run receives mit dem payload.](/images/platform/automation-trigger-webhook.webp)
+
+</Frame>
+
 <Warning>
 
 Die URL berechtigt zum Start. Bewahre sie wie Zugangsdaten auf und gib sie nur dem sendenden System. **Token rotieren** fragt nach einer Bestätigung, erzeugt dann einen Ersatz und macht die alte URL ungültig. Entfernen oder Ersetzen des Triggers widerruft sie ebenfalls. Aktualisiere den Absender nach einer Rotation.
@@ -139,6 +163,12 @@ Die URL berechtigt zum Start. Bewahre sie wie Zugangsdaten auf und gib sie nur d
 ## Auf ein Plattform-Ereignis reagieren
 
 Wähle **Plattform-Ereignis** und dann unter **Ereignisname** das Ereignis. Die Liste gruppiert die Ereignisse nach ihrem Gegenstand und zeigt zu jedem Namen, ID und Anlass; tippe einen Teil davon, um zu suchen. Speichere und schalte **Aktiv** ein, wenn alles bereit ist.
+
+<Frame caption="Die Ereignisse, gruppiert nach ihrem Gegenstand, jedes mit Name, ID und dem Moment, in dem es ausgelöst wird.">
+
+![Die Liste Event name eines Triggers vom Typ Platform event: ein Suchfeld über den Gruppen Tasks mit Task created und Task status changed, Comments mit Comment added und Mentioned in a comment sowie Conversations, jedes Ereignis mit seiner ID und einem Satz, wann es ausgelöst wird.](/images/platform/automation-trigger-event.webp)
+
+</Frame>
 
 | Ereignis | ID | Ausgelöst, wenn | `payload` enthält |
 | --- | --- | --- | --- |
@@ -287,6 +317,12 @@ Oben im Abschnitt **Trigger** siehst du, wie es um den Trigger steht: wann er zu
 | **Nach wiederholten Fehlern pausiert** | Der Zeitplan hat sich selbst ausgeschaltet. | Siehe [Wenn sich ein Zeitplan selbst pausiert](#wenn-sich-ein-zeitplan-selbst-pausiert). |
 
 **Technische Details** ist anfangs zugeklappt und enthält die rohen Fakten auf Englisch: den Code, die Version, die den Start abgelehnt hat, ihre Meldung und jedes Problem mit seinem Feld. Wurden auch frühere Läufe verpasst, nennt der Hinweis ihre Zahl. Über die API liest du dieselben Fakten als `lastSkipReason` und `lastSkipDetail`; siehe die [API-Referenz](/de/develop/api-reference#triggerzustand-pruefen-und-gezielt-pausieren).
+
+<Frame caption="Ein abgelehnter Start: Der Hinweis sagt, warum, bietet die Behebung an und behält die rohen Fakten unter Technische Details.">
+
+![Der Abschnitt Trigger eines eingeschalteten Zeitplans mit dem Hinweis Skipped: the run’s input was refused, der sagt, dass der Start am 10. Oktober 2026 um 11:00 fällig war, Version 1 aber ablehnte, was der Trigger sendet, dazu Add the 2 missing fields und Open the editor; Technical details ist geöffnet mit owner und repo, beide erforderlich, dem Code AUTOMATION_INPUT_INVALID und der Meldung. Darunter läuft der Zeitplan alle 30 Minuten, und This run receives endet mit der Warnung, dass Version 1 diese Eingabe nicht akzeptiert.](/images/platform/automation-trigger-skip-reason.webp)
+
+</Frame>
 
 Manche ausgebliebenen Starts zeigen keinen Hinweis:
 

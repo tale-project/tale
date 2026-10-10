@@ -185,7 +185,7 @@ runtime:
     EXPR_FAILED:
       title: Une expression a échoué
       explanation: Une expression a levé une erreur pendant son évaluation.
-      cause: '{fieldLabel, select, none {{expr} a levé {errorName, select, none {une erreur} other {une {errorName}}}.} other {Dans {fieldLabel}, {expr} a levé {errorName, select, none {une erreur} other {une {errorName}}}.}}'
+      cause: '{fieldLabel, select, none {{expr} a levé {errorName, select, none {une erreur} Error {une erreur} other {une {errorName}}}.} other {Dans {fieldLabel}, {expr} a levé {errorName, select, none {une erreur} Error {une erreur} other {une {errorName}}}.}}'
       fix: Vérifie les valeurs lues dans l’onglet Données de l’étape. Les détails techniques donnent le message exact de l’erreur.
     EXPR_TIMEOUT:
       title: Une expression a pris trop de temps
@@ -210,7 +210,7 @@ runtime:
     CODE_FAILED:
       title: Le code a levé une erreur
       explanation: Le code de l’étape de transformation s’est arrêté sur une erreur.
-      cause: '{errorName, select, none {Le code a levé une erreur.} other {Le code a levé une {errorName}.}}'
+      cause: '{errorName, select, none {Le code a levé une erreur.} Error {Le code a levé une erreur.} other {Le code a levé une {errorName}.}}'
       fix: Vérifie les valeurs lues par le code dans l’onglet Données de l’étape. Les détails techniques donnent le message exact de l’erreur.
     CODE_TIMEOUT:
       title: Le code a pris trop de temps

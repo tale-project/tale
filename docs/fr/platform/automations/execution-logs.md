@@ -42,6 +42,12 @@ Sous la carte, l’étape et son champ, par exemple **Greet › input.email**, c
 
 Sur le canevas, le nœud en échec est encadré de rouge et sa ligne du bas reprend le titre de l’échec ; les nœuds par lesquels l’exécution est passée pour l’atteindre ressortent, tandis que les autres passent au second plan ; et Fin indique où l’exécution a échoué, par exemple **Échec à Propose**. La liste **Exécutions** nomme la cause d’une exécution en échec avec le même titre.
 
+<Frame caption="Une exécution en échec s’ouvre sur l’endroit et la raison de l’échec ; sur le canevas, le chemin jusqu’au nœud en échec ressort.">
+
+![La page d’une exécution de test en échec de Invoice digest : la carte The run failed at Totals avec le titre Its code threw an error, la cause, How to fix, Technical details, Totals › Code avec Show in editor, Show step et Retry from this step ; sur le canevas en dessous, Start et Invoices ont réussi, Totals est encadré de rouge avec Its code threw an error, et Digest, qui ne s’est pas exécuté, est en pointillés.](/images/platform/automation-run-failed.webp)
+
+</Frame>
+
 Une application qui lit l’[API des exécutions](/fr/develop/api-reference) reçoit aussi `failureCode` lorsqu’une cause a été attribuée à l’échec. Par exemple, `approval_rejected` indique qu’une personne a refusé l’opération, tandis que `llm_output_invalid` signale une réponse du modèle qui ne respecte pas la structure attendue. Les anciens échecs peuvent ne pas avoir de code. Celui-ci aide à orienter le diagnostic ; il ne garantit ni qu’une relance est sans risque, ni qu’elle réussira.
 
 ## Savoir pourquoi une étape s’est exécutée ou a été ignorée {#conditions}

@@ -17,6 +17,12 @@ Le sélecteur **Version** reste à droite des onglets Éditeur, Général et Ex�
 
 Sur téléphone, la navigation est compacte à l’ouverture d’une automatisation. Le canevas de l’éditeur occupe la hauteur disponible, et les commandes d’exécution et de mise en service se trouvent dans une barre au bas du canevas. Sélectionne un nœud pour ouvrir ses champs — avec Enregistrer et Abandonner — dans un panneau au bas de l’écran.
 
+<Frame caption="Sur téléphone, le canevas prend la hauteur de l’écran et ses commandes d’exécution se trouvent dans une barre en bas.">
+
+![L’éditeur de Triage the Gmail inbox sur téléphone : navigation compacte avec Editor, General et Runs, le canevas avec Start, Inbox et Due, et une barre au bas du canevas avec Deploy v1, Test run et No problems.](/images/platform/automation-editor-canvas-mobile.webp)
+
+</Frame>
+
 <Frame caption="Sur un écran large, sélectionne un nœud pour examiner ses champs à côté du canevas.">
 
 ![L’éditeur montre les nœuds de Gmail triage inbox entre Début et Fin, une condition formulée en mots au-dessus d’un nœud et les champs du nœud sélectionné à côté du canevas.](/images/platform/automation-editor-canvas.webp)
@@ -83,6 +89,12 @@ Les conditions d’une exécution décident des nœuds qui s’exécutent. Le bo
 
 Pointe sur un chemin, ou atteins-le avec les flèches, pour le prévisualiser sur le canevas. Clique dessus ou appuie sur Entrée pour le garder affiché : les nœuds hors du chemin deviennent tiretés et disent pourquoi ils ne s’exécutent pas, Fin marque les sorties qui restent vides sur ce chemin, et un lecteur d’écran annonce le chemin affiché. **Tout afficher**, ou Échap, affiche de nouveau chaque nœud. La liste reste ouverte pendant que tu sélectionnes des nœuds, pour comparer un chemin avec les champs d’un nœud.
 
+<Frame caption="Trois chemins possibles pour une exécution du tri Gmail ; le chemin 2, épinglé, est celui où Propose échoue et où l’exécution continue.">
+
+![Possible paths ouvert à côté du canevas de Triage the Gmail inbox : Path 1 exécute 6 nœuds sur 6 ; Path 2, épinglé, 5 sur 6, car Triage s’exécute et Propose échoue pendant que l’exécution continue ; Path 3 seulement 1 sur 6, car Triage est ignoré. En dessous, Ends the run when it fails dit ce qui fait échouer Inbox.](/images/platform/automation-editor-paths.webp)
+
+</Frame>
+
 Sous **Arrête l’exécution en cas d’échec**, la liste nomme les nœuds dont l’échec arrête l’exécution, avec ce qui peut faire échouer chacun d’eux. Pointe sur l’un d’eux pour les entourer tous de rouge ; sélectionne-en un pour l’ouvrir.
 
 Sur téléphone, la liste s’ouvre dans un panneau au bas de l’écran. Choisir un chemin ferme le panneau et laisse en haut du canevas une pastille qui nomme le chemin, avec **Tout afficher**. Quand chaque exécution suit le même chemin, la liste le dit. Au-delà de 12 conditions et échecs tolérés, les chemins sont trop nombreux pour être listés ; **Quand il s’exécute** indique toujours, pour chaque nœud, quand il s’exécute. Un canevas qui contient un cycle n’a pas de bouton des chemins. [Les chemins qu’une exécution peut prendre](/fr/platform/automations/concepts#paths) explique comment Tale les détermine.
@@ -97,6 +109,12 @@ Trois onglets suivent :
 - **Structure** montre ce que le nœud reçoit et renvoie, d’où Tale tient cette structure et quels nœuds lisent sa sortie. Sélectionne un lecteur pour l’ouvrir. **Afficher en TypeScript** montre la même structure sous forme de type.
 - **Dernière exécution** montre l’**Entrée résolue**, la **Sortie** et les effets du nœud dans l’exécution affichée sur le canevas. L’onglet apparaît tant que le canevas montre une exécution.
 
+<Frame caption="L’onglet Structure : ce que Triage renvoie, d’où vient cette structure et quels nœuds la lisent.">
+
+![Le panneau de Triage, un nœud de modèle de langage, ouvert sur Shape : When it runs indique 2 chemins sur 3 et ignoré quand sa condition est fausse ; Returns liste, d’après son schéma de sortie, items avec action, reason, priority et conversationId, puis summary, au-dessus de Show as TypeScript ; Read by propose Record, Due et The automation output.](/images/platform/automation-editor-node-shape.webp)
+
+</Frame>
+
 Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais **Problèmes** avertit alors qu’une exécution réelle échouerait à ce nœud tant que son fournisseur n’est pas connecté.
 
 Ouvre **Contrôle du flux** pour la condition, l’itération et la gestion des échecs du nœud ; si le nœud en utilise une, la section est déjà ouverte. **Si**, **Pour chaque** et **Répéter jusqu’à** prennent des expressions. **Sinon de** ne propose que des nœuds qui ont une condition, et **Aucun** retire l’alternative. **Répétitions maximales** apparaît avec **Répéter jusqu’à** et prend un nombre entier de 1 à 20. **En cas d’erreur** choisit entre **Arrêter l’exécution** et **Continuer sans lui** ; continuer ignore chaque nœud qui lit la sortie du nœud en échec. Sous une condition, une liste ou une alternative, une phrase dit en mots ce que fait le réglage.
@@ -107,6 +125,12 @@ Utilise **Fermer** pour revenir au canevas. Sur un écran large, tu peux aussi f
 
 Le code, les prompts, les conditions et les champs JSON sont des éditeurs de code. Ils colorent la syntaxe et chaque template `{{ }}`, et connaissent l’automatisation. Tape `{{` dans un prompt et les accolades fermantes apparaissent, avec le curseur entre les deux ; tape `nodes.` pour ne voir que les nœuds qui s’exécutent avant, et `.output.` pour voir les champs de ce nœud avec leurs types. Ctrl+Espace ouvre les suggestions partout. Pointe sur une référence pour voir son type, ou appuie sur ⌘K ⌘I (Ctrl+K Ctrl+I) pour afficher et faire lire le type à la position du curseur.
 
+<Frame caption="Après nodes. dans un template, les suggestions proposent les nœuds qui s’exécutent avant, chacun avec sa structure.">
+
+![Le champ Prompt de Triage dans l’éditeur de code : sa dernière ligne est un template avec le curseur après nodes., et la liste de suggestions propose inbox à côté de la structure qu’il renvoie, un objet avec une liste de conversations.](/images/platform/automation-editor-code.webp)
+
+</Frame>
+
 Un instant après ta dernière frappe, un problème est souligné exactement là où il se trouve. F8 et Maj+F8 passent au problème suivant et précédent et le lisent ; ⌘. (Ctrl+.) applique une correction proposée, comme le nom de nœud le plus proche. Dans un champ de plusieurs lignes, Tab indente ; pour le quitter au clavier, appuie sur Échap, puis sur Tab. **Agrandir l'éditeur** ouvre un long champ dans un éditeur plus grand, et **Revenir au champ** t’y ramène avec ta modification et ton curseur au même endroit.
 
 Un champ JSON comme **Entrée** ne modifie le nœud que si son texte est du JSON valide du bon type. Pendant la saisie, le nœud garde sa dernière valeur valide, et le champ indique ce qui manque, par exemple « Ce doit être un objet JSON, entre accolades. »
@@ -115,11 +139,23 @@ Un champ JSON comme **Entrée** ne modifie le nœud que si son texte est du JSON
 
 Sélectionne **Début** pour voir ce qui démarre l’automatisation. **Déclencheur** le décrit en mots ; **Modifier dans Général** ouvre l’onglet **Général**, où tu règles le déclencheur. Sous **Champs**, **Entrées** montre les champs de l’entrée de l’exécution sous forme d’arbre, et **Schéma des données** contient le schéma JSON qui les définit, que tu peux modifier. **Structure** montre l’entrée telle que Tale la lit, et **Dernière exécution** l’entrée de l’exécution affichée.
 
+<Frame caption="Les champs de Début : le déclencheur en mots, les champs de l’entrée d’exécution et le schéma JSON derrière eux.">
+
+![Start sélectionné sur le canevas, avec son panneau à côté : le déclencheur Every 6 hours · UTC, désactivé, et By hand, the API or MCP, au-dessus de Change in General ; sous Fields, Inputs liste limit, firedAt et trigger avec leurs descriptions, et Input schema contient le schéma JSON dans un éditeur de code.](/images/platform/automation-editor-start.webp)
+
+</Frame>
+
 Sélectionne **Fin** pour voir ce que renvoie une exécution. **Comment une exécution se termine** liste les trois issues ; sous **En échec**, chaque nœud dont l’échec arrête l’exécution est un bouton qui l’ouvre. Sous **Champs**, **Sortie** contient la valeur JSON que renvoie une exécution réussie, avec des templates comme `{{ nodes.report.output }}`. **Structure** montre la structure de la sortie, et **Dernière exécution** la sortie de l’exécution affichée.
 
 ## Lire la source
 
 Choisis **Source** dans le sélecteur de vue pour lire tout le document en YAML, coloré, avec numéros de ligne, repli et recherche (⌘F ou Ctrl+F). Chaque problème trouvé par la vérification est souligné sur la ligne qu’il concerne : un problème dans une partie sans champ propre, comme un test ou le nom, a ainsi un endroit où le lire. La source est en lecture seule : **Copier le YAML** la copie, et **Télécharger le YAML** l’enregistre dans un fichier nommé d’après l’automatisation et la version, par exemple `gmail-triage-inbox-v3.yml`, avec `-draft` en plus tant que tu as des modifications non enregistrées. Pour modifier le document, utilise les champs ou ton agent de code.
+
+<Frame caption="Source : tout le document en YAML coloré, à copier ou à télécharger.">
+
+![La vue Source de Triage the Gmail inbox : du YAML avec numéros de ligne et marques de repli, de name: gmail-triage-inbox jusqu’aux nœuds inbox et triage, sous la ligne To change the document, use the fields or your coding agent, avec Copy YAML, Download YAML et Edit with your coding agent au-dessus.](/images/platform/automation-editor-source.webp)
+
+</Frame>
 
 ## Modifier avec ton agent de code
 
@@ -130,6 +166,12 @@ Les changements plus importants, comme ajouter des nœuds ou remanier le flux, p
 Pendant que tu modifies, Tale vérifie le brouillon comme il vérifie chaque enregistrement. Un instant après ta dernière frappe, le bouton **Problèmes** à côté d’**Enregistrer** montre ce que la vérification a trouvé : une icône d’erreur rouge et une icône d’avertissement orange, chacune avec son nombre, ou **Aucun problème**. Sur un téléphone, le bouton se trouve dans la barre au-dessus du canevas. Une erreur fait échouer une exécution, par exemple une référence à un nœud qui n’existe pas. Un avertissement signale un risque, par exemple la lecture de la sortie d’un nœud parfois ignoré. Un nœud, une condition, Début ou Fin qui a des problèmes affiche les mêmes nombres sur son bloc, et un champ concerné explique le problème juste en dessous.
 
 Clique sur **Problèmes** pour les lister. Sur un écran large, la liste s’ouvre sous le canevas ; sur un écran plus étroit, dans un panneau. Chaque entrée indique ce qui ne va pas, où, pourquoi et comment le corriger. **Détails techniques** affiche le message du moteur lui-même, et le code à côté du titre t’aide pour une recherche ou une demande d’assistance. **Tous**, **Erreurs** et **Avertissements** filtrent la liste ; Échap la ferme.
+
+<Frame caption="Une référence à un nœud qui n’existe pas : le champ la signale, Enregistrer attend, et Problèmes dit pourquoi et comment la corriger.">
+
+![L’éditeur avec une erreur : le Prompt de Triage se termine par un template qui lit nodes.nope.output, souligné en rouge, avec la raison sous le champ ; l’en-tête affiche 1 erreur à côté de Save désactivé, et Problems sous le canevas liste Reference to an unknown node à triage › Prompt, son code REF_UNKNOWN_NODE, pourquoi la lecture échoue et comment la corriger.](/images/platform/automation-editor-problems.webp)
+
+</Frame>
 
 Sélectionne une entrée, ou appuie sur Entrée dessus, pour t’y rendre : le nœud s’ouvre, son champ reçoit le focus et la partie en cause est sélectionnée. Un problème sans champ à lui, par exemple un modèle que ton organisation ne sert pas, figure sous **Problèmes de ce nœud** en haut des champs du nœud. Un problème dans les entrées ouvre **Début**, un problème dans la sortie ouvre **Fin**, et un problème dans une autre partie du document, comme un test ou le nom, ouvre **Source** sur cette ligne. Un problème dans un nœud que ton brouillon n’a plus indique « Modifie-le avec ton agent de code. »
 

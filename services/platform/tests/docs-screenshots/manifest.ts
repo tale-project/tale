@@ -424,6 +424,17 @@ async function showTriageAutomationExamples(page: Page): Promise<void> {
  * rule (every 6 hours, UTC) is no preset, so its custom row is checked. */
 const PICKER_AUTOMATION = 'gmail-triage-inbox';
 
+/** The first row of an automation's runs list that ended with `status`.
+ * A row opens its run on click; matching the status waits out the loading
+ * rows, which carry none. */
+const runRow = (page: Page, status: 'success' | 'failed'): Locator =>
+  page
+    .getByRole('row')
+    .filter({
+      hasText: t(`automations.runs.status.${status}`),
+    })
+    .first();
+
 /** The General tab's Trigger section. */
 const triggerSection = (page: Page): Locator =>
   page.getByRole('region', {
@@ -454,7 +465,10 @@ async function openSchedulePicker(page: Page): Promise<Locator> {
   await picker.click();
   const popover = schedulePopover(page);
   await expect(
-    popover.getByRole('group', { name: t('recurrence.presets'), exact: true }),
+    popover.getByRole('radiogroup', {
+      name: t('recurrence.presets'),
+      exact: true,
+    }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   return popover;
 }
@@ -1832,10 +1846,10 @@ export const SHOTS: readonly Shot[] = [
     prepare: async (page) => {
       await openSchedulePicker(page);
     },
+    // The list is named for its zone too ("Next runs · UTC").
     readyWhen: (page) =>
       schedulePopover(page).getByRole('list', {
-        name: t('recurrence.nextRuns'),
-        exact: true,
+        name: labelStart(t('recurrence.nextRuns')),
       }),
   },
   {
@@ -1869,6 +1883,9 @@ export const SHOTS: readonly Shot[] = [
         name: t('timeField.minutes'),
         exact: true,
       }),
+    // Two times make the popover taller than the default window; its
+    // Cancel and Save stay in view.
+    viewport: { width: 1440, height: 960 },
   },
   {
     // Custom interval: every 15 minutes on weekdays, only between 8:00 and
@@ -1922,7 +1939,9 @@ export const SHOTS: readonly Shot[] = [
         exact: true,
       }),
     capture: triggerSection,
-    viewport: { width: 1440, height: 900 },
+    // The section is captured whole, and only what the window shows is
+    // painted: it must fit.
+    viewport: { width: 1440, height: 1600 },
   },
   {
     // A webhook installed in two projects (seeded): one URL per project with
@@ -1942,7 +1961,8 @@ export const SHOTS: readonly Shot[] = [
         .nth(DEMO_WEBHOOK.deliveries.length - 1),
     sanitize: replaceRigNames,
     capture: triggerSection,
-    viewport: { width: 1440, height: 900 },
+    // Tall enough for the whole section, like the shot above.
+    viewport: { width: 1440, height: 1200 },
   },
   {
     // The event list of a Platform event trigger, open: the events grouped
@@ -2037,7 +2057,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/runs`,
     prepare: async (page) => {
-      await page.locator('a[href*="/runs/"]').first().click();
+      await runRow(page, 'success').click();
     },
     readyWhen: (page) =>
       page.locator('[data-flow-node="report"][data-flow-state="succeeded"]'),
@@ -2055,7 +2075,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: `/dashboard/:orgId/automations/${DEMO_FAILED_RUN.automation}/runs`,
     prepare: async (page) => {
-      await page.locator('a[href*="/runs/"]').first().click();
+      await runRow(page, 'failed').click();
     },
     readyWhen: (page) =>
       page.locator(
