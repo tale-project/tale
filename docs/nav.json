@@ -148,6 +148,7 @@
             "platform/automations/triggers",
             "platform/automations/http",
             "platform/automations/knowledge-search",
+            "platform/automations/add-tasks",
             "platform/automations/execution-logs",
             "platform/automations/approvals-in-workflows",
             "platform/automations/assistant"
