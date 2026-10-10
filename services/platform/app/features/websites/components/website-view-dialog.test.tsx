@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
@@ -7,7 +7,13 @@ import {
   type CrawlerPage,
   isSkippedPageKind,
 } from '@/backend/core/websites/types';
+import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import {
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
 import {
   act,
   fireEvent,
@@ -21,7 +27,7 @@ import { WebsiteViewDialog } from './website-view-dialog';
 
 const canWrite = { current: true };
 const scanNowMutate = vi.hoisted(() => vi.fn());
-const searchToast = vi.hoisted(() => vi.fn());
+const toastSpy = vi.hoisted(() => vi.fn());
 /** Each action's hook-level success handler, to answer a request later. */
 const answerAction = vi.hoisted(
   () => new Map<string, (data: unknown) => void>(),
@@ -34,7 +40,9 @@ const searchRequests = vi.hoisted(
     }>,
 );
 /** Each action's hook-level error handler, to fail a request later. */
-const failAction = vi.hoisted(() => new Map<string, () => void>());
+const failAction = vi.hoisted(
+  () => new Map<string, (error: Error, args: unknown) => void>(),
+);
 const pagesPayload = {
   current: null as null | {
     pages: CrawlerPage[];
@@ -73,13 +81,13 @@ const pagesRead = {
     | ((args: PagesArgs) => NonNullable<typeof pagesPayload.current>),
 };
 
-vi.mock('@/app/hooks/use-organization-id', () => ({
-  useOrganizationId: () => 'org-1',
-}));
-
 vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
-  toast: searchToast,
+  toast: toastSpy,
+}));
+
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -96,7 +104,10 @@ vi.mock('@/app/hooks/use-backend-action', () => {
   return {
     useBackendAction: (
       name: string,
-      options?: { onSuccess?: (data: unknown) => void; onError?: () => void },
+      options?: {
+        onSuccess?: (data: unknown) => void;
+        onError?: (error: Error, args: unknown) => void;
+      },
     ) => {
       if (options?.onSuccess) onSuccessByName.set(name, options.onSuccess);
       if (options?.onError) failAction.set(name, options.onError);
@@ -154,7 +165,7 @@ describe('WebsiteViewDialog', () => {
     pagesPayload.current = null;
     pagesRead.current = null;
     scanNowMutate.mockClear();
-    searchToast.mockClear();
+    toastSpy.mockClear();
     searchRequests.length = 0;
   });
 
@@ -269,7 +280,7 @@ describe('WebsiteViewDialog', () => {
         screen.getByRole('status', { name: 'Loading' }),
       ).toBeInTheDocument();
       expect(screen.queryByText('No results found')).not.toBeInTheDocument();
-      expect(searchToast).not.toHaveBeenCalled();
+      expect(toastSpy).not.toHaveBeenCalled();
 
       await act(async () => {
         searchRequests[1]?.onSuccess?.({ results: [] });
@@ -296,7 +307,7 @@ describe('WebsiteViewDialog', () => {
     expect(
       screen.queryByRole('status', { name: 'Loading' }),
     ).not.toBeInTheDocument();
-    expect(searchToast).toHaveBeenCalledExactlyOnceWith({
+    expect(toastSpy).toHaveBeenCalledExactlyOnceWith({
       title: 'Search failed',
       variant: 'destructive',
     });
@@ -349,7 +360,7 @@ describe('WebsiteViewDialog', () => {
           searchRequests[0]?.onError?.();
         }
       });
-      expect(searchToast).not.toHaveBeenCalled();
+      expect(toastSpy).not.toHaveBeenCalled();
       expect(search).toHaveValue(invalidation === 'edit' ? 'second' : '');
 
       await user.clear(search);
@@ -360,7 +371,7 @@ describe('WebsiteViewDialog', () => {
       expect(
         screen.getByRole('status', { name: 'Loading' }),
       ).toBeInTheDocument();
-      expect(searchToast).not.toHaveBeenCalled();
+      expect(toastSpy).not.toHaveBeenCalled();
 
       await act(async () => {
         searchRequests[1]?.onSuccess?.({ results: [] });
@@ -383,11 +394,22 @@ describe('WebsiteViewDialog', () => {
       searchRequests[0]?.onError?.();
     });
 
-    expect(searchToast).toHaveBeenCalledExactlyOnceWith({
+    expect(toastSpy).toHaveBeenCalledExactlyOnceWith({
       title: 'Search failed',
       variant: 'destructive',
     });
   });
+
+  /** Fails the pages read that is out, as the hook reports it: the error,
+   * then the arguments the read was sent with. */
+  const failPagesRead = (args: PagesArgs = { offset: 0, limit: 20 }) => {
+    act(() =>
+      failAction.get('websites/actions:fetchPages')?.(
+        new Error('Bad gateway'),
+        { websiteId: 'w-1', ...args },
+      ),
+    );
+  };
 
   it('names the site in the shared record details', async () => {
     render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
@@ -1316,9 +1338,12 @@ describe('WebsiteViewDialog', () => {
       const dialog = screen.getByRole('dialog', { name: 'Website details' });
       expect(within(dialog).queryByRole('alert')).toBeNull();
 
-      act(() => failAction.get('websites/actions:fetchPages')?.());
+      failPagesRead();
 
-      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+      // The scan's Alert, above the read's own failure.
+      const alerts = within(dialog).getAllByRole('alert');
+      expect(alerts).toHaveLength(2);
+      expect(alerts[1]).toHaveTextContent("Couldn't load the website's pages.");
     });
 
     it('keeps it however far the list is read when no page says why', async () => {
@@ -1468,6 +1493,276 @@ describe('WebsiteViewDialog', () => {
     expect(
       screen.queryByRole('button', { name: 'Load more' }),
     ).not.toBeInTheDocument();
+  });
+
+  // A failed first read left the list empty, and the list said "No pages
+  // crawled yet" under a row counting crawled pages, with only a toast to
+  // tell otherwise and no way to read again short of reopening (#3848).
+  describe('a pages read that failed', () => {
+    const pageAt = (index: number): CrawlerPage => ({
+      url: `https://docs.example.com/${index}`,
+      title: null,
+      word_count: 10,
+      status: 'active',
+      content_hash: 'h',
+      last_crawled_at: '2026-09-14T11:11:00.000Z',
+      discovered_at: '2026-09-14T11:11:00.000Z',
+      chunks_count: 1,
+      indexed: true,
+      fail_count: 0,
+      last_error: null,
+      last_error_kind: null,
+      last_error_at: null,
+    });
+    /** Answers every read with the window it asks of `total` pages. */
+    const listPages = (total: number) => {
+      pagesRead.current = ({ offset, limit }) => ({
+        offset,
+        hasMore: offset + limit < total,
+        pages: Array.from(
+          { length: Math.max(0, Math.min(limit, total - offset)) },
+          (_, index) => pageAt(offset + index),
+        ),
+      });
+    };
+    const crawledSite = { ...WEBSITE, crawledPageCount: 2, failedPageCount: 0 };
+
+    it('says the pages could not be read, not that there are none, and reads them again on Try again', async () => {
+      const { mutate: fetchPages } = useBackendAction(
+        'websites/actions:fetchPages',
+      );
+      vi.mocked(fetchPages).mockClear();
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={crawledSite} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+
+      failPagesRead();
+
+      const failure = within(dialog).getByRole('alert');
+      expect(failure).toHaveTextContent("Couldn't load the website's pages.");
+      expect(
+        within(dialog).queryByText('No pages crawled yet'),
+      ).not.toBeInTheDocument();
+      // The list says it, once: no toast besides.
+      expect(toastSpy).not.toHaveBeenCalled();
+
+      listPages(2);
+      await user.click(
+        within(failure).getByRole('button', { name: 'Try again' }),
+      );
+
+      expect(fetchPages).toHaveBeenCalledTimes(2);
+      expect(fetchPages).toHaveBeenLastCalledWith({
+        websiteId: 'w-1',
+        offset: 0,
+        limit: 20,
+      });
+      expect(
+        within(dialog).getByRole('link', {
+          name: 'https://docs.example.com/1',
+        }),
+      ).toBeInTheDocument();
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+      expect(
+        within(dialog).getByRole('region', { name: 'Website pages' }),
+      ).toHaveFocus();
+    });
+
+    it('keeps the failure and the focus on the list through a retry that fails again', async () => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={crawledSite} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      failPagesRead();
+
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Try again' }),
+      );
+      const section = within(dialog).getByRole('region', {
+        name: 'Website pages',
+      });
+      expect(section).toHaveFocus();
+      failPagesRead();
+
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+        "Couldn't load the website's pages.",
+      );
+      expect(
+        within(dialog).getByRole('button', { name: 'Try again' }),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).queryByText('No pages crawled yet'),
+      ).not.toBeInTheDocument();
+      expect(section).toHaveFocus();
+    });
+
+    it('hands the focus on Try again to the list when a scan refresh reads the pages', async () => {
+      const { rerender } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={crawledSite} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      failPagesRead();
+      const retry = within(dialog).getByRole('button', { name: 'Try again' });
+      act(() => retry.focus());
+      expect(retry).toHaveFocus();
+
+      listPages(3);
+      rerender(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{ ...crawledSite, crawledPageCount: 3 }}
+        />,
+      );
+
+      expect(
+        within(dialog).getByRole('link', {
+          name: 'https://docs.example.com/2',
+        }),
+      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(
+          within(dialog).getByRole('region', { name: 'Website pages' }),
+        ).toHaveFocus();
+      });
+    });
+
+    it('pays no heed to the failed read of a state the reader has left', async () => {
+      const { user } = render(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{ ...crawledSite, failedPageCount: 1 }}
+        />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      await user.click(
+        within(dialog).getByRole('button', { name: '1 page failed' }),
+      );
+
+      // The read of every page, left behind, fails.
+      failPagesRead();
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+
+      failPagesRead({ offset: 0, limit: 20, state: 'failed' });
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+        "Couldn't load the website's pages.",
+      );
+      expect(
+        within(dialog).queryByText('No page failed'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('says a site whose read found no page has none, with nothing to retry', () => {
+      listPages(0);
+      render(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{ ...WEBSITE, crawledPageCount: 0, failedPageCount: 0 }}
+        />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+
+      expect(within(dialog).getByText('No pages crawled yet')).toBeVisible();
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    });
+
+    describe.each(SHIPPED_LOCALES)('in %s', (locale) => {
+      afterEach(async () => {
+        await forgetSavedLocale();
+      });
+
+      it('names the failed read and its retry in the reader language', async () => {
+        saveLocale(locale);
+        await i18n.changeLanguage(locale);
+        const t = (key: string) => i18n.t(key, { ns: 'websites' });
+        render(
+          <WebsiteViewDialog isOpen onClose={vi.fn()} website={crawledSite} />,
+        );
+        failPagesRead();
+
+        const section = screen.getByRole('region', {
+          name: t('pagesDialog.title'),
+        });
+        const failure = within(section).getByRole('alert');
+        expect(failure).toHaveTextContent(t('pagesDialog.loadFailed'));
+        expect(
+          within(failure).getByRole('button', {
+            name: i18n.t('actions.tryAgain', { ns: 'common' }),
+          }),
+        ).toBeInTheDocument();
+        expect(
+          within(section).queryByText(t('pagesDialog.noPages')),
+        ).not.toBeInTheDocument();
+        expect(t('pagesDialog.loadFailed')).not.toBe('pagesDialog.loadFailed');
+      });
+    });
+
+    it('keeps the rows when a later page fails, and Load more asks for that page again', async () => {
+      const { mutate: fetchPages } = useBackendAction(
+        'websites/actions:fetchPages',
+      );
+      listPages(30);
+      const { user } = render(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{ ...crawledSite, crawledPageCount: 30 }}
+        />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      await within(dialog).findByRole('link', {
+        name: 'https://docs.example.com/19',
+      });
+
+      // The read leaves and fails.
+      pagesRead.current = null;
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Load more' }),
+      );
+      failPagesRead({ offset: 20, limit: 20 });
+
+      expect(
+        within(dialog).getAllByRole('link', {
+          name: /^https:\/\/docs\.example\.com\/\d+$/,
+        }),
+      ).toHaveLength(20);
+      expect(
+        within(dialog).queryByText('No pages crawled yet'),
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+      expect(toastSpy).toHaveBeenCalledWith({
+        title: "Couldn't load pages",
+        variant: 'destructive',
+      });
+
+      vi.mocked(fetchPages).mockClear();
+      listPages(30);
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Load more' }),
+      );
+
+      expect(fetchPages).toHaveBeenCalledWith({
+        websiteId: 'w-1',
+        offset: 20,
+        limit: 20,
+      });
+      expect(
+        within(dialog).getAllByRole('link', {
+          name: /^https:\/\/docs\.example\.com\/\d+$/,
+        }),
+      ).toHaveLength(30);
+      expect(
+        within(dialog).queryByRole('button', { name: 'Load more' }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   // A page the crawler skipped on purpose — a JSON endpoint, a noindex page,

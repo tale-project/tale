@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 71 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 72 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -797,6 +797,19 @@ records and delete them after.
   distinct one-line facts → past the agents' per-minute limit its calls answer
   `rate_limited` with a retry time and save nothing more until then; meanwhile
   **Add entry** in Knowledge entries still saves your own entry at once.
+
+- [ ] `KNOW-B24` · **Website pages that cannot load say so** — Open **View**
+  (`common.actions.view`) on a site whose row counts crawled pages, with
+  `*/api/app/websites/*/pages*` blocked → the **Website pages** section
+  (`websites.pagesDialog.title`) reads **Couldn't load the website's
+  pages.** (`websites.pagesDialog.loadFailed`) with **Try again**, never
+  **No pages crawled yet** (`websites.pagesDialog.noPages`); unblock →
+  **Try again** → the pages appear and focus rests on the section. On a
+  site with more than 20 pages, block the route once the first 20 show →
+  **Load more** (`websites.pagesDialog.loadMore`) keeps the 20 rows and
+  toasts `websites.toast.fetchPagesError`; unblock → **Load more** goes on
+  from page 21, with no gap and no duplicate. A site whose read answers no
+  page still reads `websites.pagesDialog.noPages`, with no **Try again**.
 
 ## Accessibility (WCAG 2.1 AA)
 
