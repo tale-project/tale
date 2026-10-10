@@ -614,5 +614,22 @@
  * kind with its config's fields, the effects of a plan and every refusal.
  * The server instructions and the Tale skill name the settings loop. No
  * REST operation changes.
+ *
+ * 3.31.0 — 2026-10-10: two connector node types call any HTTPS API from the
+ * new `http` connector: `http.get` reads and `http.send` writes, behind
+ * approval like every write. A credential of the connector holds the API's
+ * base URL and signs the request; a step without one reaches public HTTPS
+ * hosts only. A connector step's `credential` now names the stored
+ * credential it acts as (it was accepted and ignored), and a connector whose
+ * credential is optional runs a step that names none without any.
+ * `StepFailure.reason` gains the HTTP connector's causes: `HTTP_STATUS`,
+ * `HTTP_TIMEOUT`, `HTTP_UNREACHABLE`, `HTTP_BLOCKED_HOST`, `HTTP_OFF_ORIGIN`,
+ * `HTTP_URL_INVALID`, `HTTP_HEADER_RESERVED`, `HTTP_TOO_LARGE`,
+ * `HTTP_NOT_JSON` and `HTTP_RATE_LIMITED`. Validation answers four more
+ * codes: `HTTP_URL_NOT_HTTPS` (a warning), `HTTP_SECRET_IN_URL` and
+ * `HTTP_HEADER_RESERVED` (errors) for an HTTP step's written-out address and
+ * headers, and `CREDENTIAL_UNKNOWN` (a warning) for a connector step that
+ * names a credential its connector does not hold in service. The rate-limit
+ * catalog gains `automation:http`, 120 calls a minute per organization.
  */
-export const API_CONTRACT_VERSION = '3.30.0';
+export const API_CONTRACT_VERSION = '3.31.0';

@@ -147,6 +147,7 @@
     "platform/automations/concepts",
     "platform/automations/editor",
     "platform/automations/execution-logs",
+    "platform/automations/http",
     "platform/automations/metrics",
     "platform/automations/triggers",
     "platform/automations/workflows",

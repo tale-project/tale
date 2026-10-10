@@ -95,6 +95,12 @@ export const CODES = {
 
   // Connector contracts.
   CONNECTOR_INPUT_INVALID: 'connector inputs must match their JSON Schema',
+  HTTP_URL_NOT_HTTPS:
+    'an HTTP step without a credential calls public hosts over https',
+  HTTP_SECRET_IN_URL:
+    "an HTTP step's address carries no credential; a stored credential signs the request",
+  HTTP_HEADER_RESERVED:
+    'Authorization and Cookie come from the credential, never from the step',
   SUBAUTOMATION_INPUT_INVALID:
     "a subautomation's input matches the inputs schema of the automation it calls",
   TRIGGER_INPUT_MISMATCH:
@@ -134,6 +140,8 @@ export const CODES = {
     "an agent step's skills should be skills a run of the automation can reach",
   CONNECTOR_NOT_CONNECTED:
     'a connector a step uses should be one the organization connected',
+  CREDENTIAL_UNKNOWN:
+    "the credential a connector step names should be one of its connector's credentials in service",
   SECRET_UNKNOWN:
     "an agent step's secrets should be secrets the organization stored",
   HARNESS_UNKNOWN:
@@ -454,6 +462,21 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['node', 'type', 'property', 'keyword', 'suggestion?', 'detail'],
     technical: ['detail'],
   },
+  HTTP_URL_NOT_HTTPS: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'type'],
+  },
+  HTTP_SECRET_IN_URL: {
+    level: 'error',
+    family: 'contract',
+    params: ['node', 'type', 'place'],
+  },
+  HTTP_HEADER_RESERVED: {
+    level: 'error',
+    family: 'contract',
+    params: ['node', 'type', 'header'],
+  },
   SUBAUTOMATION_INPUT_INVALID: {
     level: 'warning',
     family: 'contract',
@@ -565,6 +588,11 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     level: 'warning',
     family: 'contract',
     params: ['node', 'connector', 'catalogued', 'suggestion?'],
+  },
+  CREDENTIAL_UNKNOWN: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'connector', 'credential', 'suggestion?'],
   },
   SECRET_UNKNOWN: {
     level: 'warning',

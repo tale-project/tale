@@ -42,6 +42,7 @@ vi.mock('../../../lib/connectors/catalog.ts', () => ({
   loadConnectorDefinitions: () => [
     { name: 'task', auth: [{ method: 'platform' }] },
     { name: 'imap-smtp', auth: [{ method: 'basic' }] },
+    { name: 'http', auth: [{ method: 'bearer' }], credential: 'optional' },
   ],
 }));
 
@@ -85,6 +86,30 @@ describe('the connector action seam', () => {
     expect(failure.message).not.toContain('{"code"');
   });
 
+  it('keeps the reason a connector gave for its refusal', async () => {
+    const refusal = Object.assign(
+      new ConnectorError('LIVE_BODY_FAILED', 'The service answered 404', {
+        connector: 'http',
+        action: 'get',
+      }),
+      {
+        failure: {
+          reason: 'HTTP_STATUS' as const,
+          params: { status: 404, method: 'GET', host: 'api.example.com' },
+        },
+      },
+    );
+    runConnectorAction.mockRejectedValueOnce(refusal);
+    const handler = handlers['connectors/execute_action:runConnectorAction'];
+    if (!handler) throw new Error('no connector handler');
+    const caught = await handler({ connector: 'http', action: 'get' }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(NodeFailure);
+    expect((caught as NodeFailure).failure).toEqual(refusal.failure);
+  });
+
   it('lets any other failure through untouched', async () => {
     runConnectorAction.mockRejectedValueOnce(new Error('connection reset'));
     const handler = handlers['connectors/execute_action:runConnectorAction'];
@@ -94,6 +119,32 @@ describe('the connector action seam', () => {
 });
 
 describe('the credential probe', () => {
+  it('answers usable without a lookup for a step that names no credential where none is needed', async () => {
+    await expect(
+      probeCredentialUsable(sql, {
+        organizationId: 'org_1',
+        connectorSlug: 'http',
+      }),
+    ).resolves.toEqual({ usable: true });
+    expect(assertConnectorCredentialInService).not.toHaveBeenCalled();
+  });
+
+  it('checks the credential a step names', async () => {
+    assertConnectorCredentialInService.mockResolvedValueOnce(undefined);
+    await expect(
+      probeCredentialUsable(sql, {
+        organizationId: 'org_1',
+        connectorSlug: 'http',
+        credentialRef: 'Shop API',
+      }),
+    ).resolves.toEqual({ usable: true });
+    expect(assertConnectorCredentialInService).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      connectorSlug: 'http',
+      credentialRef: 'Shop API',
+    });
+  });
+
   it('answers usable without a lookup for a platform connector', async () => {
     await expect(
       probeCredentialUsable(sql, {

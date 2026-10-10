@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 173 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 177 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1277,6 +1277,33 @@ output:
       `/agent/workspace/input.json`, which holds the payload under `run`.
       Repeat with **Deploy v1 now** unchecked → v1 stays a draft and the same
       request starts nothing until you deploy it from the editor.
+- [ ] `AUTO-F123` · **Add an `http.get` step without a credential reading
+      `https://httpbin.org/json`, save and **Run live** a deployed version** →
+      the step succeeds; its output shows `status: 200`, `ok: true`, the JSON
+      `body`, and only the allowed answer headers (`content-type`, never
+      `set-cookie`). Change the URL to `http://httpbin.org/json` → the editor
+      warns `HTTP_URL_NOT_HTTPS` under the URL, and a live run fails with
+      `automationRuns.reasons.HTTP_BLOCKED_HOST` (plain HTTP).
+- [ ] `AUTO-F124` · **In Settings › Connectors add an HTTP credential "Echo"
+      (Bearer token `tok_manual_check_12345`, base URL
+      `https://httpbin.org/anything`), then run live an `http.get` step with
+      `credential: Echo` and `url: /orders`** → the call reaches
+      `https://httpbin.org/anything/orders`; the echoed body shows the
+      Authorization header as `Bearer [redacted]`, never the token, in the
+      output and in the run's record. Change the URL to
+      `https://httpbin.org/get` → the run fails with
+      `automationRuns.reasons.HTTP_OFF_ORIGIN` before any request leaves.
+- [ ] `AUTO-F125` · **Give an `http.send` step `method: POST`, a JSON
+      `body` and the header `Authorization: Bearer x`** → the editor refuses
+      the save with `HTTP_HEADER_RESERVED` on the header; remove it and run
+      live → the run waits for an approval like every write, and once
+      approved posts the body as `application/json`. A **Test run** never
+      sends: the step's output is the mock answer.
+- [ ] `AUTO-F126` · **Name a credential the connector does not have
+      (`credential: Shop APII` on an `http.get` step)** → the editor warns
+      `CREDENTIAL_UNKNOWN` under the field with "Did you mean "Shop API"?"
+      when a Shop API credential exists; a live run fails at the step
+      saying the credential was not found.
 
 ## Boundary & error tests
 

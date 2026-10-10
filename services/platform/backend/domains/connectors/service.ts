@@ -28,6 +28,7 @@ import {
 } from '../../core/conversations/sync_mailbox.ts';
 import { installCodeRunner } from '../../lib/code-runner.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { limitRate } from '../../lib/rate-limit.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
@@ -296,6 +297,17 @@ function assembleConnectorHost(sql: Sql): void {
     // files domain refuses a ref outside the org before any byte moves.
     mailAttachments: ({ organizationId, storageRef }) =>
       getOrgBlobBytes(sql, organizationId, storageRef),
+    // Every HTTP step's call draws from its organization's budget.
+    http: {
+      budget: {
+        charge: async (organizationId) =>
+          (
+            await limitRate(sql, 'automation:http', {
+              key: `org:${organizationId}`,
+            })
+          ).ok,
+      },
+    },
     ...(mailTransportOverride !== undefined
       ? { mailTransport: mailTransportOverride }
       : {}),

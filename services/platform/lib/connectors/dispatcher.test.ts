@@ -224,7 +224,7 @@ afterEach(() => {
 
 describe('resolution', () => {
   it('loads every shipped connector into the catalog', () => {
-    expect(shipped.length).toBe(19);
+    expect(shipped.length).toBe(20);
   });
 
   it('names a near-miss connector', async () => {
@@ -959,6 +959,73 @@ describe('native backends', () => {
         },
       }),
     ).rejects.toMatchObject({ code: 'NATIVE_IMPL_UNAVAILABLE' });
+  });
+});
+
+describe('a connector whose credential is optional', () => {
+  const OPEN: Connector = connectorSchema.parse({
+    name: 'open',
+    displayName: 'Open',
+    description: 'A connector a call may use with or without a credential.',
+    auth: [{ method: 'bearer' }],
+    credential: 'optional',
+    actions: [
+      {
+        name: 'fetch',
+        description: 'Fetch something.',
+        effects: 'read',
+        input: { type: 'object', properties: {} },
+        output: '{ ok: boolean }',
+        mock: 'return { ok: true };',
+        backend: { kind: 'native', impl: 'open.fetch' },
+      },
+    ],
+  });
+
+  async function call(credentialRef?: string) {
+    const seen: NativeConnectorContext[] = [];
+    const dispose = registerNativeImpl('open.fetch', async (_input, ctx) => {
+      seen.push(ctx);
+      return { ok: true };
+    });
+    const credentials = resolver();
+    try {
+      await executeConnectorAction({
+        connector: 'open',
+        action: 'fetch',
+        input: {},
+        ...(credentialRef !== undefined && { credentialRef }),
+        caller: { kind: 'system', reason: 'an automation step' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials,
+          audit: auditSink(),
+        },
+      });
+    } finally {
+      dispose();
+    }
+    return { ctx: seen[0], calls: credentials.calls };
+  }
+
+  beforeEach(() => {
+    installConnectorCatalog([...shipped, DEMO, OPEN]);
+  });
+
+  it('runs a call that names no credential with none — never the default [CONN-R15]', async () => {
+    const { ctx, calls } = await call();
+    expect(calls).toEqual([]);
+    expect(ctx?.credentialId).toBe('none');
+    expect(ctx?.authMethod).toBe('none');
+    expect(ctx?.secrets.get('token')).toBe('');
+  });
+
+  it('acts as the credential a call names [CONN-R19]', async () => {
+    const { ctx, calls } = await call('Shop API');
+    expect(calls).toEqual([[ORG, 'open', 'Shop API']]);
+    expect(ctx?.credentialId).toBe('cred_1');
+    expect(ctx?.secrets.get('token')).toBe('sekrit');
   });
 });
 

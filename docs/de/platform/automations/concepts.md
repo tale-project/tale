@@ -74,6 +74,8 @@ Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktio
 
 **`subautomation`** führt eine andere gespeicherte Automatisierung als einzelne Node aus; ihr Feld `automation` benennt `"name"` oder `"name@version"`. Ohne Version läuft die live geschaltete, und die Verschachtelung endet bei drei Ebenen.
 
+**`http.get`** und **`http.send`** rufen jede HTTPS-API auf, für die es keinen eigenen Connector gibt, mit gespeicherten Zugangsdaten oder ohne. Siehe [Eine API aus einer Automatisierung aufrufen](/de/platform/automations/http).
+
 ### Strukturierte und unstrukturierte Ausgabe
 
 Eine **strukturierte** Ausgabe hat benannte Felder, die du über `nodes.<id>.output.<field>` referenzierst. Eine **unstrukturierte** Ausgabe enthält freien Text. Verwende dafür `nodes.<id>.output.text` in einem Textausdruck; behandle die Ausgabe nicht wie ein Objekt mit weiteren Feldern.
@@ -129,9 +131,13 @@ Eine `subautomation`-Node wird gegen die Version geprüft, die ein Lauf aufrufen
 
 ### Was die Organisation hat {#checks-organization}
 
-Tale vergleicht eine `agent`-Node außerdem mit deiner Organisation. Es warnt, wenn die Node einen Skill verlangt, den kein Lauf der Automatisierung verwenden kann, einen Connector, den niemand verbunden hat, ein Secret, das niemand gespeichert hat, oder eine Agent-Laufzeit, die dieses Deployment nicht ausführen kann. Dieselbe Warnung bekommt eine Node, die eine Connector-Aktion ausführt, deren Connector niemand verbunden hat, und ein Ereignis-Trigger, der auf ein Ereignis wartet, das Tale nicht auslöst. Im Lauf schlägt die Node fehl, wenn ihr Skill oder ihre Agent-Laufzeit fehlt; ohne ihren Connector erreicht sie die App nicht, und ein fehlendes Secret ist einfach nicht vorhanden.
+Tale vergleicht eine `agent`-Node außerdem mit deiner Organisation. Es warnt, wenn die Node einen Skill verlangt, den kein Lauf der Automatisierung verwenden kann, einen Connector, den niemand verbunden hat, ein Secret, das niemand gespeichert hat, oder eine Agent-Laufzeit, die dieses Deployment nicht ausführen kann. Dieselbe Warnung bekommt eine Node, die eine Connector-Aktion ausführt, deren Connector niemand verbunden hat, und ein Ereignis-Trigger, der auf ein Ereignis wartet, das Tale nicht auslöst. Im Lauf schlägt die Node fehl, wenn ihr Skill oder ihre Agent-Laufzeit fehlt; ohne ihren Connector erreicht sie die App nicht, und ein fehlendes Secret ist einfach nicht vorhanden. Auch eine Connector-Node, die Zugangsdaten nennt, die ihr Connector nicht in Betrieb hat, erhält eine Warnung; ein Live-Lauf scheitert an dieser Node.
 
 Es bleiben Warnungen, weil sich deine Organisation bis zum Lauf ändern kann: Verbinde den Connector oder füge den Skill hinzu, dann meldet die nächste Prüfung nichts mehr. Über Secrets erfahren nur Inhaber, Admins und Entwickler etwas, denn nur sie sehen, welche Secrets es gibt.
+
+### HTTP-Schritte {#checks-http}
+
+Eine `http.get`- oder `http.send`-Node ohne Zugangsdaten erhält eine Warnung für eine einfache `http://`-Adresse, die ihr Lauf ablehnen würde. Zugangsdaten in ihrer Adresse, etwa ein Token in einem Query-Parameter, und ein `Authorization`- oder `Cookie`-Header, den die Node setzt, sind Fehler: Speichere die Zugangsdaten stattdessen unter **Einstellungen › Connectors** und nenne sie im Feld `credential` der Node. Siehe [Eine API aus einer Automatisierung aufrufen](/de/platform/automations/http).
 
 ### Tests {#checks-tests}
 

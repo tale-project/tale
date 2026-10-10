@@ -74,6 +74,8 @@ Quatre types sont intégrés, et chaque action de connector comme chaque capacit
 
 **`subautomation`** exécute une autre automatisation enregistrée comme un seul nœud ; son champ `automation` nomme `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
 
+**`http.get`** et **`http.send`** appellent n’importe quelle API HTTPS qui n’a pas son propre connector, avec des identifiants enregistrés ou sans. Voir [Appeler une API depuis une automatisation](/fr/platform/automations/http).
+
 ### Sortie structurée et non structurée
 
 Une sortie **structurée** possède des champs nommés, accessibles avec `nodes.<id>.output.<field>`. Une sortie **non structurée** contient du texte libre. Référence-la avec `nodes.<id>.output.text` dans une expression textuelle ; ne la traite pas comme un objet possédant d’autres champs.
@@ -129,9 +131,13 @@ Un nœud `subautomation` est vérifié par rapport à la version qu’une exécu
 
 ### Ce que l’organisation possède {#checks-organization}
 
-Tale compare aussi un nœud `agent` avec ton organisation. Il avertit quand le nœud demande un skill qu’aucune exécution de l’automatisation ne peut utiliser, un connector que personne n’a connecté, un secret que personne n’a enregistré, ou un environnement d’agent que ce déploiement ne peut pas exécuter. Un nœud qui exécute une action d’un connector que personne n’a connecté reçoit le même avertissement, tout comme un déclencheur d’événement qui attend un événement que Tale n’émet pas. À l’exécution, un skill ou un environnement d’agent manquant fait échouer le nœud, un nœud privé de son connector ne peut pas atteindre l’application, et un secret manquant est simplement absent.
+Tale compare aussi un nœud `agent` avec ton organisation. Il avertit quand le nœud demande un skill qu’aucune exécution de l’automatisation ne peut utiliser, un connector que personne n’a connecté, un secret que personne n’a enregistré, ou un environnement d’agent que ce déploiement ne peut pas exécuter. Un nœud qui exécute une action d’un connector que personne n’a connecté reçoit le même avertissement, tout comme un déclencheur d’événement qui attend un événement que Tale n’émet pas. À l’exécution, un skill ou un environnement d’agent manquant fait échouer le nœud, un nœud privé de son connector ne peut pas atteindre l’application, et un secret manquant est simplement absent. Un nœud de connector qui nomme des identifiants que son connector n’a pas en service reçoit aussi un avertissement ; une exécution en direct échoue à ce nœud.
 
 Ces vérifications restent des avertissements, car ton organisation peut changer d’ici l’exécution : connecte le connector ou ajoute le skill, et la vérification suivante ne le signale plus. Seuls les rôles Propriétaire, Admin et Développeur sont informés des secrets, car eux seuls voient quels secrets existent.
+
+### Étapes HTTP {#checks-http}
+
+Un nœud `http.get` ou `http.send` sans identifiants reçoit un avertissement pour une adresse `http://` simple, que son exécution refuserait. Des identifiants écrits dans son adresse, comme un jeton dans un paramètre de requête, et un en-tête `Authorization` ou `Cookie` défini par le nœud sont des erreurs : enregistre plutôt les identifiants dans **Paramètres › Connectors** et indique-les dans le champ `credential` du nœud. Voir [Appeler une API depuis une automatisation](/fr/platform/automations/http).
 
 ### Tests {#checks-tests}
 

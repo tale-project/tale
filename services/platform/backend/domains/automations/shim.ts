@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { failureCauseOf } from '../../../lib/engine/core/record/failure.ts';
 import { NodeFailure } from '../../core/automations/failure.ts';
 import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
@@ -127,14 +128,21 @@ export type CredentialProbe =
  */
 export async function probeCredentialUsable(
   sql: Sql,
-  args: { organizationId: string; connectorSlug: string },
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
 ): Promise<CredentialProbe> {
   const connector = loadConnectorDefinitions().find(
     (entry) => entry.name === args.connectorSlug,
   );
   if (
     connector === undefined ||
-    connector.auth.some((method) => method.method === 'platform')
+    connector.auth.some((method) => method.method === 'platform') ||
+    // A step that names no credential on a connector that needs none runs
+    // with none: there is nothing to look up.
+    (connector.credential === 'optional' && args.credentialRef === undefined)
   ) {
     return { usable: true };
   }
@@ -340,8 +348,15 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         // It used to be re-thrown as an `AppError`, whose `message` is the
         // JSON of its data, so the run's failure detail printed a raw
         // `{"code":…}` blob (2026-09-26 evaluation, D-09).
+        // A refusal that knows its cause in the run record's words (the
+        // HTTP connector's statuses and blocked hosts) keeps it.
         if (error instanceof ConnectorError) {
-          throw new NodeFailure('connector_error', error.message, error.hint);
+          throw new NodeFailure(
+            'connector_error',
+            error.message,
+            error.hint,
+            failureCauseOf(error),
+          );
         }
         throw error;
       }
@@ -358,7 +373,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       raw,
     ) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
-      const args = raw as { organizationId: string; connectorSlug: string };
+      const args = raw as {
+        organizationId: string;
+        connectorSlug: string;
+        credentialRef?: string;
+      };
       return probeCredentialUsable(sql, args);
     },
 

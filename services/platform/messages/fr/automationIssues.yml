@@ -303,6 +303,21 @@ codes:
     explanation: Chaque capacité déclare l’entrée qu’elle accepte. Une entrée qui ne convient pas est refusée, donc le nœud échoue.
     cause: '{keyword, select, required {{nodeLabel} ({type}) a besoin de l’entrée « {property} ».} additionalProperties {{nodeLabel} ({type}) n’accepte pas d’entrée « {property} ».} other {{property, select, none {L’entrée de {nodeLabel} ({type}) ne correspond pas à ce que la capacité accepte.} other {L’entrée « {property} » de {nodeLabel} ({type}) ne correspond pas à ce que la capacité accepte.}}}}'
     fix: '{suggestion, select, none {Adapte l’entrée à ce que la capacité accepte. Les détails techniques montrent ce que la vérification a trouvé.} other {Voulais-tu dire « {suggestion} » ?}}'
+  HTTP_URL_NOT_HTTPS:
+    title: L’adresse n’est pas en HTTPS
+    explanation: Une étape HTTP sans identifiants n’appelle des adresses publiques qu’en HTTPS, une exécution refuse donc cette adresse.
+    cause: '{nodeLabel} appelle une adresse http:// simple.'
+    fix: Utilise l’adresse https://.
+  HTTP_SECRET_IN_URL:
+    title: Identifiants dans l’adresse
+    explanation: Des identifiants écrits dans l’adresse d’une étape sont enregistrés avec chaque version et apparaissent dans chaque exécution. Des identifiants enregistrés signent la requête à leur place.
+    cause: '{place, select, password {L’adresse de {nodeLabel} contient un mot de passe.} other {L’adresse de {nodeLabel} contient des identifiants dans « {place} ».}}'
+    fix: Enregistre-les comme identifiants HTTP dans Paramètres › Connectors, indique ces identifiants dans le champ credential de l’étape et retire-les de l’adresse.
+  HTTP_HEADER_RESERVED:
+    title: L’en-tête appartient aux identifiants
+    explanation: Authorization et Cookie viennent des identifiants de l’étape, jamais de l’étape elle-même, une exécution refuse donc cette étape.
+    cause: '{nodeLabel} définit l’en-tête {header}.'
+    fix: Retire l’en-tête, et indique des identifiants dans le champ credential de l’étape.
   SUBAUTOMATION_INPUT_INVALID:
     title: L’entrée ne convient pas à l’automatisation appelée
     explanation: Les valeurs transmises à l’automatisation appelée ne correspondent pas à ce qu’elle accepte. Elle refuse donc de démarrer, et ce nœud échoue.
@@ -398,6 +413,11 @@ codes:
     explanation: Un nœud utilise un connector qui n’est pas connecté dans cette organisation. Une exécution en direct ne peut donc pas atteindre cette application.
     cause: '{catalogued, select, true {{nodeLabel} utilise « {connector} », que personne n’a encore connecté.} other {{nodeLabel} utilise « {connector} », que ce déploiement ne propose pas.}}'
     fix: '{catalogued, select, true {Connecte-le dans Paramètres › Connectors.} other {{suggestion, select, none {Choisis un connector dans le catalogue.} other {Voulais-tu dire « {suggestion} » ?}}}}'
+  CREDENTIAL_UNKNOWN:
+    title: Identifiants introuvables
+    explanation: Une étape nomme les identifiants enregistrés avec lesquels elle se connecte. Ceux-ci ne font pas partie des identifiants en service de son connector, une exécution en direct échoue donc à cette étape.
+    cause: '{nodeLabel} nomme les identifiants « {credential} » de « {connector} », qui n’existent pas ou sont désactivés.'
+    fix: '{suggestion, select, none {Ajoute-les ou active-les dans Paramètres › Connectors, ou nomme d’autres identifiants.} other {Voulais-tu dire « {suggestion} » ?}}'
   SECRET_UNKNOWN:
     title: Secret introuvable
     explanation: Un nœud agent demande un secret que cette organisation n’a pas enregistré. L’agent s’exécute alors sans ce secret.

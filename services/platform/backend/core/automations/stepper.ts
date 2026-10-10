@@ -893,6 +893,9 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         input: resolved,
         mode: run.mode,
         caller: { kind: 'workflow', runId: run.runId, nodeId: node.id },
+        ...(node.credential !== undefined && {
+          credentialRef: node.credential,
+        }),
         idempotencyKey: connectorIdempotencyKey(
           run.runId,
           args.path,
@@ -1179,6 +1182,7 @@ type StepOutcome =
 async function assertConnectorCredentialUsable(
   run: RunContext,
   nodeType: string,
+  credentialRef: string | undefined,
 ): Promise<void> {
   const separator = nodeType.indexOf('.');
   if (separator <= 0 || separator === nodeType.length - 1) return;
@@ -1188,6 +1192,7 @@ async function assertConnectorCredentialUsable(
     {
       organizationId: run.organizationId,
       connectorSlug: nodeType.slice(0, separator),
+      ...(credentialRef !== undefined && { credentialRef }),
     },
   )) as { usable?: boolean; message?: string; hint?: string } | null;
   // Only an explicit refusal fails the node — a seam that answers nothing
@@ -1368,7 +1373,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       // only the approver's "yes" surfaced the missing credential
       // (2026-09-26 evaluation, D-09). The probe is the dispatcher's own
       // lookup, done ahead of it, so the failure reads the same.
-      await assertConnectorCredentialUsable(run, node.type);
+      await assertConnectorCredentialUsable(run, node.type, node.credential);
       // The card shows the call the step would make, not the run's input:
       // the same resolution the connector body performs, done ahead of it.
       const preview = await previewNodeInput(node, makeScope(input, outputs));

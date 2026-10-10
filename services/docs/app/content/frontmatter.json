@@ -516,6 +516,14 @@
       "description": "Erfahre, warum ein Lauf fehlschlug oder ein Schritt übersprungen wurde, was jeder Schritt gelesen und zurückgegeben hat, spiel den Lauf ab und führe ihn erneut, ab einem Schritt oder im Vergleich mit einem anderen Lauf aus."
     }
   },
+  "de:platform/automations/http": {
+    "slug": "platform/automations/http",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Eine API aus einer Automatisierung aufrufen",
+      "description": "Lies mit den Schritten http.get und http.send aus jeder HTTPS-API oder sende an sie, mit gespeicherten Zugangsdaten oder ohne, und erfahre, was Tale ablehnt."
+    }
+  },
   "de:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "de",
@@ -1676,6 +1684,14 @@
       "description": "See why a run failed or a step was skipped, what each step read and returned, play the run back, and run it again, from a step, or side by side with another run."
     }
   },
+  "en:platform/automations/http": {
+    "slug": "platform/automations/http",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Call an API from an automation",
+      "description": "Read from or send to any HTTPS API with the http.get and http.send steps, with a stored credential or without one, and know what Tale refuses."
+    }
+  },
   "en:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "en",
@@ -2834,6 +2850,14 @@
     "frontmatter": {
       "title": "Examiner les exécutions et corriger les échecs",
       "description": "Comprends pourquoi une exécution a échoué ou une étape a été ignorée, ce que chaque étape a lu et renvoyé, rejoue l’exécution et relance-la, à partir d’une étape ou à côté d’une autre exécution."
+    }
+  },
+  "fr:platform/automations/http": {
+    "slug": "platform/automations/http",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Appeler une API depuis une automatisation",
+      "description": "Lis depuis n’importe quelle API HTTPS ou envoie-lui des données avec les étapes http.get et http.send, avec des identifiants enregistrés ou sans, et sache ce que Tale refuse."
     }
   },
   "fr:platform/automations/triggers": {

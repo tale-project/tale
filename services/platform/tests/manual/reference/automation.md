@@ -1198,6 +1198,15 @@ the write itself continues, and actual failures still report once from its own p
 The offline-paused case is automated. Browser focus, modal transitions and a genuinely
 stalled network connection remain manual observations.
 
+The HTTP connector's guarantees are automated in
+`lib/connectors/natives/http.test.ts`, as the connectors spec states them: a call without a
+credential carries none and reaches public HTTPS hosts only, a credentialed call stays under
+its base URL with its redirects, only the credential signs and nothing handed back carries it,
+and the organization's lane bounds the calls. A step acting as the credential it names is held
+by `backend/core/automations/stepper.credential.test.ts`, the editor's checks by the golden
+corpus. `AUTO-F123`–`AUTO-F126` keep the live calls against a real API, the editor's warnings
+in place and a send's approval in the manual layer.
+
 ## Moving a box here
 
 When a spec takes a box over end to end, **delete the box and add its row to

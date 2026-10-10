@@ -818,6 +818,14 @@ export async function executeConnectorAction(
       authMethod: 'platform',
       secrets: {},
     };
+  } else if (
+    credentialRef === undefined &&
+    connector.credential === 'optional'
+  ) {
+    // The node names no credential and the connector allows that: the call
+    // carries none. Falling back to the organization's default would aim a
+    // stored secret at whatever the call names.
+    credential = { credentialId: 'none', authMethod: 'none', secrets: {} };
   } else {
     if (!ctx.credentials) {
       throw new ConnectorError(

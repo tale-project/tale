@@ -56,7 +56,7 @@ beforeAll(() => {
       kind: 'connector',
       outputKind: 'structured',
       description: `test connector: ${type}`,
-      allowedFields: ['input'],
+      allowedFields: ['input', 'credential'],
       requiredFields: ['input'],
       connector: {
         name: type,
@@ -165,6 +165,74 @@ describe('org-state warnings [MCP-R15]', () => {
         params: { node: 'lead', connector: 'crm', catalogued: true },
       }),
     ]);
+  });
+
+  it('warns about a step that names a credential its connector does not hold in service', async () => {
+    const store = memoryStore({
+      orgFacts: {
+        ...FACTS,
+        connectors: {
+          catalogued: new Set(['github', 'crm']),
+          connected: new Set(['github']),
+          needsCredential: new Set(['github', 'crm']),
+          credentials: new Map([
+            ['github', [{ id: 'cred_gh', name: 'Release bot' }]],
+          ]),
+        },
+      },
+    });
+    const doc = {
+      version: 1,
+      name: 'crm/sync',
+      nodes: [
+        {
+          id: 'typo',
+          type: 'github.create_issue',
+          credential: 'Release bots',
+          input: {},
+        },
+        {
+          id: 'by_name',
+          type: 'github.create_issue',
+          credential: 'release BOT',
+          input: {},
+        },
+        {
+          id: 'by_id',
+          type: 'github.create_issue',
+          credential: 'cred_gh',
+          input: {},
+        },
+        { id: 'lead', type: 'crm.create_lead', credential: 'Sales', input: {} },
+      ],
+      output: {
+        typo: '{{ nodes.typo.output }}',
+        by_name: '{{ nodes.by_name.output }}',
+        by_id: '{{ nodes.by_id.output }}',
+        lead: '{{ nodes.lead.output }}',
+      },
+    };
+    const { errors, warnings } = await validate(doc, { store });
+    expect(errors).toEqual([]);
+    expect(warnings.filter((w) => w.code === 'CREDENTIAL_UNKNOWN')).toEqual([
+      expect.objectContaining({
+        nodeId: 'typo',
+        at: { pointer: '/nodes/0/credential' },
+        params: {
+          node: 'typo',
+          connector: 'github',
+          credential: 'Release bots',
+          suggestion: 'Release bot',
+        },
+      }),
+      expect.objectContaining({
+        nodeId: 'lead',
+        at: { pointer: '/nodes/3/credential' },
+        params: { node: 'lead', connector: 'crm', credential: 'Sales' },
+      }),
+    ]);
+    // A step that names its credential is judged by that name alone.
+    expect(codes(warnings)).not.toContain('CONNECTOR_NOT_CONNECTED');
   });
 
   it('warns when the event trigger waits for an event Tale does not raise', async () => {

@@ -252,6 +252,56 @@ runtime:
       explanation: The service answered with an error.
       cause: '{status, select, none {{connectorLabel} failed {actionLabel}.} other {{connectorLabel} answered {status} to {actionLabel}.}}'
       fix: The technical details have the service's own words. Fix the input, or try again.
+    HTTP_STATUS:
+      title: The API answered with an error
+      explanation: The request reached the service, and it answered with a status that isn't a success.
+      cause: '{host} answered {status} to the {method} request.'
+      fix: Check the URL, the query and the body against the API's documentation. If this status is an answer you expect, list it under okStatuses.
+    HTTP_TIMEOUT:
+      title: The API took too long
+      explanation: The service didn't send its whole answer in time, so the request was cut.
+      cause: "{host} didn't answer the {method} request within {limit}."
+      fix: Check the service's status, or give the step more time with timeoutMs (at most 30 seconds).
+    HTTP_UNREACHABLE:
+      title: The API couldn't be reached
+      explanation: Tale couldn't connect to the service, so the request got no answer.
+      cause: "{host} couldn't be reached."
+      fix: Check the address and the service's status, then run again. The technical details say what failed.
+    HTTP_BLOCKED_HOST:
+      title: The address isn't allowed
+      explanation: Automations call public addresses, over HTTPS.
+      cause: "{why, select, private {{host} is a private network address, which automations don't call.} metadata {{host} is a cloud metadata address, which is never called.} other {{host} was called over plain HTTP, which could expose what the request carries.}}"
+      fix: '{why, select, private {Call a public address.} metadata {Call a public address.} other {Use the address with https://.}}'
+    HTTP_OFF_ORIGIN:
+      title: The address is outside the credential's
+      explanation: A step that signs in with a credential calls addresses under the credential's base URL only, redirects included.
+      cause: "{target} isn't under {baseUrl}."
+      fix: Call a path under the credential's base URL, or use a credential made for this address.
+    HTTP_URL_INVALID:
+      title: The address can't be called
+      explanation: The step's URL isn't one an HTTP step can call.
+      cause: "{why, select, scheme {The URL doesn't start with https://.} userinfo {The URL carries a user name or a password.} path {The URL is a path, and only a step with a credential can call a path.} base {The credential's base URL isn't a valid address.} other {The URL isn't a valid address.}}"
+      fix: '{why, select, userinfo {Remove the user name and the password from the URL, and sign in with a credential instead.} path {Write the full address, or choose a credential whose base URL the path belongs under.} base {Correct the base URL in the credential.} other {Write a full address that starts with https://.}}'
+    HTTP_HEADER_RESERVED:
+      title: A header belongs to the credential
+      explanation: Authorization, Cookie and the API key header come from the step's credential, never from the step itself.
+      cause: The step sets the {header} header.
+      fix: Remove the header from the step, and sign in with a credential instead.
+    HTTP_TOO_LARGE:
+      title: The answer is too large
+      explanation: An HTTP step reads answers of up to 1 MB.
+      cause: '{host} sent an answer larger than 1 MB.'
+      fix: Ask the API for less at once, for example with a page size or a filter.
+    HTTP_NOT_JSON:
+      title: The answer isn't JSON
+      explanation: The step reads the answer as JSON, and the service sent something else.
+      cause: "{contentType, select, none {{host} answered with a body that isn't JSON.} other {{host} answered with {contentType}, not JSON.}}"
+      fix: Read the answer as text with responseType text, or check that the URL is the API's and not a web page.
+    HTTP_RATE_LIMITED:
+      title: Too many API calls at once
+      explanation: An organization's automations may make a limited number of HTTP calls.
+      cause: "Your organization's automations made more than {perMinute} HTTP calls in a minute, or {atOnce} at once."
+      fix: Run again later, or call the API for fewer items at once.
     LLM_OUTPUT_INVALID:
       title: The model's answer didn't fit
       explanation: The step asked the model for a structured answer, and the reply didn't match the output schema.

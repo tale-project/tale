@@ -21,6 +21,8 @@ Ein Token-Bucket füllt sich kontinuierlich bis zu seiner Burst-Kapazität auf. 
 | Webhook-Zustellungen vor der Tokenprüfung | 120/Minute | 240 | Absenderadresse |
 | Zustellungen an einen geprüften Webhook-Auslöser | 20/Minute | 40 | Auslöser |
 
+HTTP-Schritte von Automatisierungen haben ein eigenes Budget pro Organisation: 120 Aufrufe pro Minute im ganzen Deployment und 10 gleichzeitig auf einem Server. Siehe [Eine API aus einer Automatisierung aufrufen](/de/platform/automations/http).
+
 REST-Ausführungen und Uploads verbrauchen zusätzlich das allgemeine Budget. Eine Projektdatei braucht beispielsweise eine Upload-Freigabe und eine anschließende Dateizuordnung. Beide Aufrufe zählen gegen allgemeines und Upload-Budget. Das größere Upload-Budget umgeht die allgemeine Grenze nicht.
 
 Zur Ausführung gehören projektgebundene und globale Automatisierungsstarts, Thread-Nachrichten und ausdrückliche Aufgabenstarts. Die Aufgabenübernahme verbraucht ebenfalls Ausführungsbudget, wenn `runWorkflowSlug` gesetzt ist. Eine Arbeit-startende Anfrage wird belastet, sobald Body und Kopfzeilen die eigenen Prüfungen der Tür bestanden haben — eine `400 INVALID_BODY` oder `INVALID_HEADER` kostet nichts — und bevor irgendetwas nachgeschlagen wird, eine `404` für einen Thread, eine Aufgabe oder eine Automatisierung, die du nicht sehen kannst, kostet also ein Token, so wie eine `409`, die der Zustand antwortet. Manche Änderungen, etwa Aufgabenkommentare und Ordneränderungen, unterliegen weiteren Fachbereichslimits, die auch für die App gelten.

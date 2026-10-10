@@ -49,6 +49,15 @@ const SAMPLE: StepFailure['params'] = {
   max: 8,
   limit: 10_000,
   message: 'the conversation was closed meanwhile',
+  host: 'api.example.com',
+  method: 'GET',
+  why: 'private',
+  target: 'https://elsewhere.example.com/orders',
+  baseUrl: 'https://api.example.com/v2',
+  header: 'Authorization',
+  contentType: 'text/html',
+  perMinute: 120,
+  atOnce: 10,
 };
 
 /** The run-level code each reason's failure carries. */
