@@ -47936,6 +47936,7 @@
               "APPROVAL_REJECTED",
               "EXECUTION_LIMIT",
               "EFFECT_IN_DOUBT_FAILED",
+              "SIMULATED_FAILURE",
               "UNKNOWN"
             ]
           },
