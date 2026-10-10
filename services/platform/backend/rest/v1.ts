@@ -1,6 +1,7 @@
 import { Hono, type Context, type Env } from 'hono';
 import type { Sql } from 'postgres';
 
+import { withRunnerTenant } from '../../lib/engine/runners/tenant.ts';
 import {
   isValidOrgSlug,
   MAX_ORG_SLUG_LENGTH,
@@ -415,6 +416,10 @@ export function createRestV1Routes(deps: {
     c.set('apiKeyOwner', null);
     return next();
   });
+
+  // Automation code a request evaluates queues as its organization's, so the
+  // runner serves organizations in turn (`runners/tenant.ts`).
+  app.use((c, next) => withRunnerTenant(c.get('organizationId'), next));
 
   // Authorization stays with the member; every audit append made during
   // this verified request instead names the key and its maker. A person's

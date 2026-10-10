@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { currentRunnerTenant } from '../../lib/engine/runners/tenant.ts';
 import { trustedRoleHolds } from '../domains/trusted_headers/service.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
@@ -121,5 +122,34 @@ describe('a trusted-headers role on the session [THDR-R10]', () => {
       }),
     ).resolves.toBe('member');
     expect(trustedRoleHolds).not.toHaveBeenCalled();
+  });
+});
+
+describe("a request's automation code", () => {
+  it("queues as its organization's in the runner", async () => {
+    vi.mocked(requireOrganizationMembership).mockResolvedValue({
+      member: {
+        id: 'member-a',
+        organizationId: 'org-a',
+        userId: 'user-a',
+        role: 'member',
+      },
+      organizationIds: ['org-a'],
+    });
+    vi.mocked(evaluateTwoFactorEnforcement).mockResolvedValue({
+      decision: 'allowed',
+    } as never);
+    const app = new Hono<OrgEnv>();
+    app.use(async (c, next) => {
+      c.set('sessionBundle', {
+        user: { id: 'user-a', email: 'a@example.invalid', name: 'A' },
+        session: { id: 'session-a' },
+      });
+      await next();
+    });
+    app.use(requireOrgMember({} as never));
+    app.get('/me', (c) => c.json({ tenant: currentRunnerTenant() }));
+    const response = await app.request('/me?orgId=org-a');
+    expect(await response.json()).toEqual({ tenant: 'org-a' });
   });
 });
