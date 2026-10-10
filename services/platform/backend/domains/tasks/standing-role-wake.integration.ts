@@ -70,10 +70,13 @@ export async function checkStandingRoleWake(
     return rows[0] ?? null;
   };
   const show = (state: WakeState | null) => JSON.stringify(state);
-  /** Let the schedule's minute be claimable again (the scan's own cursor). */
+  /** Let the schedule's minute be claimable again: the scan's own cursor,
+   * and the instant it next finds the schedule due, which a save or a fire
+   * set ahead. */
   const backdate = () => sql`
     UPDATE app.automation_triggers
-    SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL
+    SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL,
+        next_due_at_ms = ${Date.now() - 60_000}
     WHERE org_id = ${orgId} AND name = ${name}
   `;
   /** A worker's run in its standing workspace (the owner starts it). */

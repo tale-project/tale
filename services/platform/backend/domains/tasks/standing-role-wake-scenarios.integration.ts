@@ -362,9 +362,12 @@ export async function checkStandingRoleWakeScenarios(
     const run = await kickWorker(s, index);
     await settleAgentRun(sql, { runId: run.runId, resultText: 'done' });
   };
+  // The claim moves back, and so does the instant the scan next finds the
+  // schedule due, which a save or a fire set ahead.
   const backdate = (s: Scenario) => sql`
     UPDATE app.automation_triggers
-    SET last_due_at_ms = ${Date.now() - 2 * MINUTE_MS}, last_fired_at_ms = NULL
+    SET last_due_at_ms = ${Date.now() - 2 * MINUTE_MS}, last_fired_at_ms = NULL,
+        next_due_at_ms = ${Date.now() - MINUTE_MS}
     WHERE org_id = ${s.orgId} AND name = ${s.name}
   `;
   const clearWait = (s: Scenario) => sql`
