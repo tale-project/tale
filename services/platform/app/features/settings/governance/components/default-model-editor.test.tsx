@@ -29,6 +29,7 @@ const { state } = vi.hoisted(() => ({
       enabled: boolean;
       rules: unknown[];
     } | null,
+    accessConfig: null as Record<string, unknown> | null,
     result: undefined as unknown,
   },
 }));
@@ -42,7 +43,15 @@ function refreshPolicy() {
 refreshPolicy();
 
 vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => state.result,
+  useGovernancePolicy: (_organizationId: string, policyType: string) => ({
+    isLoading: state.isLoading,
+    data: state.isLoading
+      ? undefined
+      : {
+          config:
+            policyType === 'model_access' ? state.accessConfig : state.config,
+        },
+  }),
 }));
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
@@ -84,15 +93,37 @@ function setLoaded() {
       { scope: 'default', providerName: 'openai', modelId: 'openai/gpt-4o' },
     ],
   };
+  state.accessConfig = null;
   refreshPolicy();
 }
 function setLoading() {
   state.isLoading = true;
   state.config = null;
+  state.accessConfig = null;
   refreshPolicy();
 }
 
 describe('DefaultModelEditor', () => {
+  it('keeps default-model conflict warnings when legacy access rules lack targets', async () => {
+    setLoaded();
+    state.accessConfig = {
+      enabled: true,
+      mode: 'blocklist',
+      rules: [
+        {
+          scope: 'default',
+          allowedModels: [],
+          blockedModels: ['openai/gpt-4o'],
+        },
+        { scope: 'user', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
+      ],
+    };
+    refreshPolicy();
+    const { user } = render(<DefaultModelEditor organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /edit rule 1/i }));
+    expect(screen.getByText('Model is blocked')).toBeInTheDocument();
+  });
+
   describe('loaded state', () => {
     it('renders the real action button (in the a11y tree)', () => {
       setLoaded();

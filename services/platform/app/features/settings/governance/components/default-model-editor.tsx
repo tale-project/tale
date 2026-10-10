@@ -2,7 +2,7 @@
 
 import {
   defaultModelsConfigSchema,
-  modelAccessConfigSchema,
+  storedModelAccessConfigSchema,
   type DefaultModelsConfig,
   type DefaultModelRule,
   type ModelAccessConfig,
@@ -94,7 +94,7 @@ function computeAccessConflict(
 function parseModelAccessConfig(policy: unknown): ModelAccessConfig | null {
   const config = isRecord(policy) ? policy : null;
   if (!config) return null;
-  const result = modelAccessConfigSchema.safeParse(config);
+  const result = storedModelAccessConfigSchema.safeParse(config);
   return result.success ? result.data : null;
 }
 
