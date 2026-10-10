@@ -244,7 +244,7 @@ testPosix(
       fetch: f.fetcher,
     });
     expect(observed.status).toBe('observed');
-    expect(readdirSync(join(f.stateDirectory, 'compiled'))).toEqual([
+    expect(readdirSync(join(f.stateDirectory, 'compiled')).toSorted()).toEqual([
       'duplicate',
       'retained',
     ]);

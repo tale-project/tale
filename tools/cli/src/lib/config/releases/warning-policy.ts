@@ -25,7 +25,7 @@ export const ADVISORY_IMPORT_WARNINGS: ReadonlySet<string> = new Set([
 ]);
 
 /** A warning's code, from the `[CODE]` the native import writes into it. */
-export function warningCode(warning: unknown): string | undefined {
+function warningCode(warning: unknown): string | undefined {
   return typeof warning === 'string'
     ? /\[([A-Z][A-Z0-9_]*)\]/.exec(warning)?.[1]
     : undefined;

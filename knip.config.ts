@@ -293,6 +293,7 @@ export default {
       // runtime edges, even though this workspace does not import them
       // directly.
       ignoreDependencies: [
+        '@tale/ui',
         'ajv',
         'acorn',
         'is-reference',
