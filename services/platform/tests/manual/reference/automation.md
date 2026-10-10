@@ -351,7 +351,7 @@ The history read-state regression in
 `app/features/automations/components/automation-history.test.tsx` owns failed
 Runs and Version history reads, retry invocation, unchanged successful empty
 responses, pending states, EN/DE/FR controls, alert semantics and focus handoff.
-`AUTO-B21` keeps live request recovery, visible focus and narrow-layout wrapping
+`AUTO-B23` keeps live request recovery, visible focus and narrow-layout wrapping
 in the manual layer.
 
 Feedback analytics keeps summary metrics visible when the recent-feedback read

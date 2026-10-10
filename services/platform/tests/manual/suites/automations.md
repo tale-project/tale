@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 172 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 173 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1420,7 +1420,7 @@ output:
       of another automation** → `automationRuns.compare.same`, then
       `automationRuns.compare.notFound`; neither shows a table.
 
-- [ ] `AUTO-B21` · **History read failure and recovery** — Keep the automation
+- [ ] `AUTO-B23` · **History read failure and recovery** — Keep the automation
       detail read successful and fail only its Runs request until retries are
       exhausted; repeat for the Version history request → Each history shows
       an announced error and keyboard-reachable **Try again**
