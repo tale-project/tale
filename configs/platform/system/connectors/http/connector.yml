@@ -100,7 +100,7 @@ actions:
             items: { type: integer, minimum: 100, maximum: 599 },
             description: 'Statuses outside 200–299 that do not fail the step, such as 404.',
           }
-    output: '{ status: number, ok: boolean, headers: Record<string, string>, body: unknown, truncated?: boolean }'
+    output: '{ status: number, ok: boolean, headers: Record<string, string>, body: unknown }'
     mock: |
       return {
         status: 200,
@@ -189,7 +189,7 @@ actions:
             items: { type: integer, minimum: 100, maximum: 599 },
             description: 'Statuses outside 200–299 that do not fail the step, such as 409.',
           }
-    output: '{ status: number, ok: boolean, headers: Record<string, string>, body: unknown, truncated?: boolean }'
+    output: '{ status: number, ok: boolean, headers: Record<string, string>, body: unknown }'
     mock: |
       return {
         status: 200,
