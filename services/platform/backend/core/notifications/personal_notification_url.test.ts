@@ -30,6 +30,37 @@ const ORG = 'org_1';
 const SITE = 'https://app.example.com';
 
 describe('buildPersonalNotificationUrl — routing [NOTIF-R3]', () => {
+  it("opens the page of the organization an automation's message links to", () => {
+    expect(
+      buildPersonalNotificationUrl({
+        organizationId: ORG,
+        params: {
+          automation: 'reports/weekly',
+          runId: 'run_1',
+          link: `/dashboard/${ORG}/documents/?doc=doc_1`,
+        },
+        siteUrl: SITE,
+      }),
+    ).toBe(`${SITE}/dashboard/${ORG}/documents?doc=doc_1`);
+  });
+
+  it.each([
+    ['links to the web', 'https://reports.example.com/weekly'],
+    ['links into another organization', '/dashboard/org_2/documents'],
+    ['links nowhere', undefined],
+  ])(
+    "lands an automation's message that %s on the organization",
+    (_case, link) => {
+      expect(
+        buildPersonalNotificationUrl({
+          organizationId: ORG,
+          params: { automation: 'reports/weekly', runId: 'run_1', link },
+          siteUrl: SITE,
+        }),
+      ).toBe(`${SITE}/dashboard/${ORG}`);
+    },
+  );
+
   it('opens the budget rules for a credit request', () => {
     expect(
       buildPersonalNotificationUrl({

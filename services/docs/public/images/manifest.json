@@ -240,6 +240,32 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-notify-bell.webp",
+      "shot": "automation-notify-bell",
+      "route": "/dashboard/:orgId",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 896,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-notify-run.webp",
+      "shot": "automation-notify-run",
+      "route": "/dashboard/:orgId/automations/weekly-report-ready/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-run-detail.webp",
       "shot": "automation-run-detail",
       "route": "/dashboard/:orgId/automations/github-triage-issues/runs",

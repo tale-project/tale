@@ -72,6 +72,9 @@ apiKeyCreatedForYou: API-Schlüssel für dich erstellt
 apiKeyCreatedForYouBody: '{name} hat den API-Schlüssel "{keyName}" für dich erstellt. Er handelt in dieser Organisation in deinem Namen; brauchst du ihn nicht, widerrufe ihn unter Einstellungen > API > REST.'
 automationTriggerPaused: Zeitplan pausiert
 automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
+automationMessage: '{title}'
+automationMessageBody: "{message}\n\nGesendet von der Automatisierung \"{automation}\"."
+automationMessageBodyNoText: 'Gesendet von der Automatisierung "{automation}".'
 agentRunFailed: Agenten-Lauf fehlgeschlagen
 agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
 agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
@@ -79,6 +82,7 @@ agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht
 agentRunFailedInputBody: 'Ein Anhang von "{title}" ist nicht mehr im Speicher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
 email:
   cta: In Tale öffnen
+  openLink: Link öffnen
   footer:
     Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert
     hast.

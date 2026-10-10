@@ -80,6 +80,8 @@ Four types are built in, and every connector action and platform native — know
 
 **`task.create`** creates a task in a project the automation is installed in, once each time the step runs. See [Add tasks from an automation](/platform/automations/add-tasks).
 
+**`notify.member`** tells members of the organization something — a title, words and a link — in their notifications and by email, once each time the step runs. See [Notify members from an automation](/platform/automations/notify-members).
+
 ### Structured and unstructured output
 
 A **structured** output has named fields that you can reference with `nodes.<id>.output.<field>`. An **unstructured** output is free text. Reference it through `nodes.<id>.output.text` in a string expression; do not treat it as an object with additional fields.

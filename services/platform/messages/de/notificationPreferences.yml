@@ -38,6 +38,9 @@ fields:
   automationAlerts:
     label: Automatisierungs-Warnungen
     description: Wenn der Zeitplan einer Automatisierung pausiert, weil ihre Läufe immer wieder fehlschlagen.
+  automationMessages:
+    label: Nachrichten von Automatisierungen
+    description: Wenn dir eine Automatisierung eine Nachricht schickt, etwa zu einem fertigen Bericht.
   conversationMessages:
     label: Konversationsnachrichten
     description: Wenn eine Kontaktnachricht in Konversationen ankommt.

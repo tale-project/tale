@@ -129,6 +129,7 @@ entries:
   - 'inbox.documentReviewRequestedBody'
   - 'inbox.documentReviewRequestedBodyNoActor'
   - 'inbox.email.cta'
+  - 'inbox.email.openLink'
   - 'inbox.email.footer'
   - 'inbox.humanInputEscalated'
   - 'inbox.humanInputEscalatedBody'
@@ -183,6 +184,12 @@ entries:
   # stopped itself after repeated permanent failures; owners and admins.
   - 'inbox.automationTriggerPaused'
   - 'inbox.automationTriggerPausedBody'
+  # Automation messages (domains/collab/service.ts notifyAutomationMessage):
+  # a step's message to members, framed by the automation's name; the
+  # NoText body frames a message without words of its own.
+  - 'inbox.automationMessage'
+  - 'inbox.automationMessageBody'
+  - 'inbox.automationMessageBodyNoText'
   # Failed agent runs (domains/collab/service.ts notifyAgentRunFailed): a
   # project agent's run failed and nothing retries it; the body is picked by
   # who can act on the failure.

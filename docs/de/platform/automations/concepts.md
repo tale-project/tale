@@ -80,6 +80,8 @@ Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktio
 
 **`task.create`** erstellt eine Aufgabe in einem Projekt, in dem die Automatisierung installiert ist, einmal pro Ausführung des Schritts. Siehe [Aufgaben aus einer Automatisierung anlegen](/de/platform/automations/add-tasks).
 
+**`notify.member`** teilt Mitgliedern der Organisation etwas mit — Titel, Text und Link — in ihren Benachrichtigungen und per E-Mail, einmal pro Ausführung des Schritts. Siehe [Mitglieder aus einer Automatisierung benachrichtigen](/de/platform/automations/notify-members).
+
 ### Strukturierte und unstrukturierte Ausgabe
 
 Eine **strukturierte** Ausgabe hat benannte Felder, die du über `nodes.<id>.output.<field>` referenzierst. Eine **unstrukturierte** Ausgabe enthält freien Text. Verwende dafür `nodes.<id>.output.text` in einem Textausdruck; behandle die Ausgabe nicht wie ein Objekt mit weiteren Feldern.

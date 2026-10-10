@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
+import { ExternalLink } from '@tale/ui/external-link';
 import { IconButton } from '@tale/ui/icon-button';
 import { Tabs } from '@tale/ui/tabs';
 import {
@@ -28,6 +29,7 @@ import { isTaskStatus } from '@/app/features/tasks/lib/display';
 import { useT } from '@/lib/i18n/client';
 import { isActionableNotificationType } from '@/lib/shared/attention';
 import { readableNotificationParams } from '@/lib/shared/notification-params';
+import { classifyMessageLink } from '@/lib/shared/notifications/message-link';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
@@ -646,19 +648,22 @@ export function NotificationListPanel({
                   taskId: n.taskId,
                   params: n.params,
                 });
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
+                const readable = readableNotificationParams(
+                  params,
+                  (statusId) =>
+                    isTaskStatus(statusId)
+                      ? tTasks(`status.${statusId}`)
+                      : undefined,
+                ) as Record<string, string | number> | undefined;
+                // An automation's message that links to the web: the row
+                // names the site and opens it in a new tab.
+                const link = classifyMessageLink(params?.link, organizationId);
                 return (
                   <NotificationRow
                     key={`personal:${n._id}`}
-                    title={tInbox(n.titleKey)}
-                    body={tInbox(
-                      n.bodyKey,
-                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
-                      readableNotificationParams(params, (statusId) =>
-                        isTaskStatus(statusId)
-                          ? tTasks(`status.${statusId}`)
-                          : undefined,
-                      ) as Record<string, string | number> | undefined,
-                    )}
+                    title={tInbox(n.titleKey, readable)}
+                    body={tInbox(n.bodyKey, readable)}
                     createdAt={n.createdAt}
                     read={n.read}
                     target={target}
@@ -668,7 +673,19 @@ export function NotificationListPanel({
                     }}
                     onMarkRead={() => handleMarkMyRead(n._id)}
                     markReadPending={markMyRead.isPending}
-                  />
+                  >
+                    {link?.kind === 'web' && (
+                      <ExternalLink
+                        href={link.url}
+                        className="text-primary text-xs font-medium break-all"
+                        onClick={() => {
+                          if (!n.read) handleMarkMyRead(n._id);
+                        }}
+                      >
+                        {t('openWebLink', { host: link.host })}
+                      </ExternalLink>
+                    )}
+                  </NotificationRow>
                 );
               }
               const n = entry.item;

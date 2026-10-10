@@ -117,6 +117,7 @@ export function createCollabRoutes(deps: {
         escalation: z.boolean().optional(),
         automationAlerts: z.boolean().optional(),
         conversationMessages: z.boolean().optional(),
+        automationMessages: z.boolean().optional(),
         actionableEmail: z.boolean().optional(),
       })
       .safeParse(await c.req.json());

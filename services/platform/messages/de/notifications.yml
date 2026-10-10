@@ -7,6 +7,7 @@ emptyOlderUnreadDescription: Lade mehr, um sie zu sehen.
 emptyAllTitle: Noch keine Benachrichtigungen
 emptyAllDescription: Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.
 markAsRead: Als gelesen markieren
+openWebLink: '{host} öffnen'
 markAllAsRead: Alle als gelesen markieren
 expand: Vergrößern
 filterLabel: Anzeigen

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 182 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 184 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1339,6 +1339,23 @@ output:
       fails at the step with `automationRuns.reasons.TASK_ASSIGNEE_UNKNOWN`,
       the second with `automationRuns.reasons.TASK_PROJECT_NOT_BOUND`;
       neither leaves a task or a new label on any board.
+- [ ] `AUTO-F132` · **Add a `notify.member` step with `to: [run-starter]`,
+      `title: Weekly report ready`, a `message` and
+      `link: /dashboard/{org}/documents`, deploy and run it live** → your bell
+      shows **Weekly report ready** with the message and "Sent by the
+      automation" naming it (`inbox.automationMessageBody`); clicking the row
+      opens Documents. The step's output lists you under `delivered`. Change
+      the link to `https://example.com/report` → the row offers **Open
+      example.com** (`notifications.openWebLink`), which opens a new tab. A
+      **Test run** tells nobody and answers with the mock.
+- [ ] `AUTO-F133` · **Switch off Messages from automations
+      (`notificationPreferences.fields.automationMessages.label`) in
+      Settings › Notifications and run the step again** → no row reaches your
+      bell; the step's output lists you under `skipped` with
+      `reason: preference`. Name `nobody@example.com` beside you → the run
+      fails at the step with `automationRuns.reasons.NOTIFY_NOT_A_MEMBER` and
+      nobody is told. Started by a schedule, `run-starter` is listed as
+      skipped with `reason: no_starter`.
 
 ## Boundary & error tests
 

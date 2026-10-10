@@ -488,6 +488,65 @@ describe('NotificationListPanel', () => {
     await user.click(screen.getByRole('tab', { name: 'All' }));
   }
 
+  describe('an automation message', () => {
+    const message = (extra: Record<string, unknown>): MockNotification => ({
+      _id: 'automation-message',
+      createdAt: 1000,
+      read: false,
+      titleKey: 'automationMessage',
+      bodyKey: 'automationMessageBody',
+      params: {
+        automation: 'reports/weekly',
+        runId: 'run-1',
+        title: 'Weekly report ready',
+        message: 'Revenue is up.',
+        deliveryKey: 'run-1/tell/0/0',
+        ...extra,
+      },
+    });
+
+    it("shows the author's title, and their words in a frame naming the automation", () => {
+      streamState.myResults = [message({})];
+      renderPanel();
+      expect(screen.getByText('Weekly report ready')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.textContent ===
+            'Revenue is up.\n\nSent by the automation "reports/weekly".',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('names the site a web link opens, opens it in a new tab and marks the row read', async () => {
+      streamState.myResults = [
+        message({ link: 'https://reports.example.com/weekly' }),
+      ];
+      const { user } = renderPanel();
+      const open = screen.getByRole('link', {
+        name: 'Open reports.example.com',
+      });
+      expect(open).toHaveAttribute(
+        'href',
+        'https://reports.example.com/weekly',
+      );
+      expect(open).toHaveAttribute('target', '_blank');
+      expect(open).toHaveAttribute('rel', 'noopener noreferrer');
+      await user.click(open);
+      expect(markMyRead.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ notificationId: 'automation-message' }),
+      );
+    });
+
+    it('offers no web action for a page of the organization', () => {
+      streamState.myResults = [message({ link: '/dashboard/org-1/documents' })];
+      renderPanel();
+      expect(
+        screen.queryByRole('link', { name: /^Open / }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe('combined load-more', () => {
     it('hides "Load more" when both streams are exhausted', () => {
       renderPanel();

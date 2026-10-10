@@ -540,6 +540,14 @@
       "description": "Finde mit dem Schritt knowledge.search die Passagen deiner Dokumente und indexierten Websites, die zu einer Frage passen, verwende sie in einem späteren Schritt und erfahre, was eine Suche lesen darf."
     }
   },
+  "de:platform/automations/notify-members": {
+    "slug": "platform/automations/notify-members",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Mitglieder aus einer Automatisierung benachrichtigen",
+      "description": "Teile Mitgliedern mit dem Schritt notify.member etwas aus einer Automatisierung mit — Titel, Text und Link, in ihren Benachrichtigungen und per E-Mail — und erfahre, wer übersprungen und was abgelehnt wird."
+    }
+  },
   "de:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "de",
@@ -1724,6 +1732,14 @@
       "description": "Find the passages of your documents and indexed websites that match a question with the knowledge.search step, use them in a later step, and know what a search may read."
     }
   },
+  "en:platform/automations/notify-members": {
+    "slug": "platform/automations/notify-members",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Notify members from an automation",
+      "description": "Tell members something from an automation with the notify.member step — a title, words and a link, in their notifications and by email — and know who is skipped and what is refused."
+    }
+  },
   "en:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "en",
@@ -2906,6 +2922,14 @@
     "frontmatter": {
       "title": "Chercher dans tes connaissances depuis une automatisation",
       "description": "Trouve avec l’étape knowledge.search les passages de tes documents et de tes sites indexés qui répondent à une question, utilise-les dans une étape suivante, et sache ce qu’une recherche peut lire."
+    }
+  },
+  "fr:platform/automations/notify-members": {
+    "slug": "platform/automations/notify-members",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Notifier des membres depuis une automatisation",
+      "description": "Fais savoir quelque chose à des membres depuis une automatisation avec l’étape notify.member — un titre, un texte et un lien, dans leurs notifications et par e-mail — et sache qui est ignoré et ce qui est refusé."
     }
   },
   "fr:platform/automations/triggers": {

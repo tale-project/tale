@@ -322,6 +322,16 @@ runtime:
       explanation: Eine Aufgabe geht an ein Mitglied der Organisation oder an einen Agenten ihres Projekts.
       cause: 'Kein Mitglied und kein Agent des Projekts ist {assignee}, oder sie dürfen dort nicht arbeiten.'
       fix: Nenne die E-Mail-Adresse oder Benutzer-ID eines Mitglieds oder einen Agenten des Projekts.
+    NOTIFY_NOT_A_MEMBER:
+      title: Eine genannte Person ist kein Mitglied
+      explanation: Eine Automatisierung schickt Nachrichten nur an Mitglieder der Organisation und schickt gar nichts, wenn jemand, den sie nennt, keines ist.
+      cause: '{recipient} ist kein Mitglied der Organisation.'
+      fix: Nenne Mitglieder mit ihrer E-Mail-Adresse oder Benutzer-ID, oder entferne die, die gegangen sind.
+    NOTIFY_RUN_LIMIT:
+      title: Der Lauf hat zu viele Nachrichten geschickt
+      explanation: Ein Lauf schickt nur eine begrenzte Zahl von Nachrichten, damit ein Schritt in einer Schleife niemandes Benachrichtigungen überflutet.
+      cause: 'Mit diesem Schritt hätte der Lauf mehr als {limit} Nachrichten geschickt, deshalb hat er gar nichts geschickt.'
+      fix: Schicke eine Nachricht an mehrere Mitglieder statt eine pro Eintrag, oder verteile die Arbeit auf mehrere Läufe.
     LLM_OUTPUT_INVALID:
       title: Die Antwort des Modells passte nicht
       explanation: Der Schritt hat das Modell um eine strukturierte Antwort gebeten, und die Antwort entsprach nicht dem Ausgabeschema.

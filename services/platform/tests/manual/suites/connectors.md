@@ -35,10 +35,10 @@ facet**
   seeded FROM the URL, not bound to it: the facet is multi-select, so the moment
   the operator touches the facet (or clears filters) the param is removed from
   the URL and the facet takes over.
-- The catalog ships 21 connector definitions
-  (`configs/platform/system/connectors/`), but the five **platform-auth**
-  connectors (conversation, document, knowledge, sandbox, task) never reach the
-  client — the listing drops them, so the add-dialog
+- The catalog ships 22 connector definitions
+  (`configs/platform/system/connectors/`), but the six **platform-auth**
+  connectors (conversation, document, knowledge, notify, sandbox, task) never
+  reach the client — the listing drops them, so the add-dialog
   picker offers **16** vendors: confluence, discord, github, glitchtip, gmail,
   google-drive, http, imap-smtp, jev (**Jev decisions**), outlook, shopify,
   slack, tavily, teams, twilio, webdav.
@@ -105,7 +105,8 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   (each row: icon, name, tags + action count meta
   `settings.connectors.card.actionCount`); configured vendors carry a
   **Configured** badge (`settings.credentials.catalog.configured`). The
-  platform connectors (conversation, document, sandbox, task) are absent.
+  platform connectors (conversation, document, knowledge, notify, sandbox,
+  task) are absent.
 - [ ] `CONN-F4` · **Add a token credential** — Picker → **GitHub** → step 2 →
   Step 2 titled `settings.credentials.addTitle` with description naming GitHub
   (`settings.credentials.addDescription`), a back control

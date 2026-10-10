@@ -37,6 +37,7 @@ import {
   knowledgeNatives,
   type WorkflowKnowledgeSearch,
 } from './platform-knowledge';
+import { notifyNatives, type WorkflowNotifyStore } from './platform-notify';
 import { platformTaskNatives, type WorkflowTaskStore } from './platform-tasks';
 import {
   sandboxScriptNatives,
@@ -93,6 +94,12 @@ export {
   type KnowledgeRunRefusal,
   type WorkflowKnowledgeSearch,
 } from './platform-knowledge';
+export {
+  type NotifiedMember,
+  type NotifyRefusal,
+  type SkippedRecipient,
+  type WorkflowNotifyStore,
+} from './platform-notify';
 
 /**
  * What the natives need from the platform.
@@ -116,6 +123,10 @@ export interface NativeConnectorDeps {
   /** The knowledge domain's search, as an automation run — same rationale:
    * what a run reads and whose spend it is come from the run itself. */
   readonly knowledge: WorkflowKnowledgeSearch;
+  /** The notification domain's writer, as an automation run — same
+   * rationale: who a message reaches and what its run may still send are
+   * decided by the platform, from the run and the organization. */
+  readonly notify: WorkflowNotifyStore;
   /** Outbound mail attachment bytes, by org-scoped blob ref — required for
    * the same reason: the mail native must never read a file or a URL a
    * caller names, so the org's blob store is its only source of bytes. */
@@ -151,6 +162,7 @@ export const NATIVE_IMPL_IDS = [
   'imap-smtp.get_message',
   'imap-smtp.send',
   'knowledge.search',
+  'notify.member',
   'sandbox.run_script',
   'task.comment',
   'task.create',
@@ -189,6 +201,7 @@ export function registerNativeConnectors(
       ...(deps.mailConfig !== undefined && { resolveConfig: deps.mailConfig }),
     }),
     ...knowledgeNatives(deps.knowledge),
+    ...notifyNatives(deps.notify),
     ...platformConversationNatives(deps.conversations),
     ...platformDocumentNatives(deps.documents),
     ...platformTaskNatives(deps.tasks),
