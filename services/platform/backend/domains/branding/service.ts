@@ -278,12 +278,31 @@ export async function saveBranding(
   return { hash: nextHash };
 }
 
+/**
+ * The versions of the branding config an image write moved between: the
+ * `hash` it left, which a later write can be sent against, and the
+ * `previousHash` it found (`null` when there was no branding file). A writer
+ * that tracks the version it last saw learns from `previousHash` whether
+ * someone else wrote in between.
+ */
+export interface BrandingWriteVersions {
+  hash: string;
+  previousHash: string | null;
+}
+
 export async function saveBrandingImage(
   sql: Sql,
   orgSlug: string,
-  args: { type: string; base64: string; mimeType: string },
+  args: {
+    type: string;
+    base64: string;
+    mimeType: string;
+    /** The branding version the write was decided on: when the config has
+     * moved since, nothing is stored (`CONFIG_VERSION_CONFLICT`). */
+    expectedHash?: string | null;
+  },
   actor: BrandingAuditActor,
-): Promise<{ filename: string }> {
+): Promise<{ filename: string } & BrandingWriteVersions> {
   if (!validateImageType(args.type)) {
     throw new BrandingError(
       'IMAGE_TYPE_INVALID',
@@ -321,20 +340,27 @@ export async function saveBrandingImage(
   // Replacing an image is a delete-then-write across extensions: two saves
   // of the same type interleaving there leave the loser's file beside the
   // winner's, and the reader picks by prefix.
-  await sql.begin((tx) =>
+  const versions = await sql.begin((tx) =>
     withConfigWriteLock(tx, orgSlug, 'branding', async () => {
+      // A write sent against a version is decided before any file moves: a
+      // favicon derived from a logo must not replace one chosen since.
+      if (args.expectedHash !== undefined) {
+        const current = await readBrandingConfig(orgSlug);
+        assertExpectedHash(current.hash, args.expectedHash);
+      }
       await mkdir(imagesDir, { recursive: true });
       await removeImageVariants(imagesDir, imageType, 'saveBrandingImage');
       await atomicWriteBuffer(resolveImagePath(orgSlug, filename), buffer);
-      await writeImageReference(orgSlug, imageType, filename);
+      const written = await writeImageReference(orgSlug, imageType, filename);
       await createAuditLog(tx, {
         ...brandingAuditFields(actor),
         action: 'branding.image_uploaded',
         metadata: { type: imageType, filename, bytes: buffer.length },
       });
+      return written;
     }),
   );
-  return { filename };
+  return { filename, ...versions };
 }
 
 /** The config field that names an image type's stored file. */
@@ -352,13 +378,13 @@ function imageReferenceField(
  * reference cannot wait for the settings header's Save: a reload before that
  * Save used to show the default again, and a replacement across extensions
  * left the config naming a file the write had removed. Runs under the
- * caller's write lock.
+ * caller's write lock, and answers the versions it moved between.
  */
 async function writeImageReference(
   orgSlug: string,
   type: BrandingImageType,
   filename: string | undefined,
-): Promise<void> {
+): Promise<BrandingWriteVersions> {
   const current = await readBrandingFile(orgSlug);
   if (!current.ok && current.error !== 'not_found') {
     throw new BrandingError(
@@ -371,10 +397,12 @@ async function writeImageReference(
   const next = brandingJsonSchema.parse(
     filename === undefined ? rest : { ...rest, [field]: filename },
   );
-  await atomicWrite(
-    resolveBrandingFilePath(orgSlug),
-    serializeBrandingJson(next),
-  );
+  const content = serializeBrandingJson(next);
+  await atomicWrite(resolveBrandingFilePath(orgSlug), content);
+  return {
+    hash: sha256(content),
+    previousHash: current.ok ? current.hash : null,
+  };
 }
 
 /** Remove any existing file for this image type (may differ in extension).
@@ -403,7 +431,7 @@ export async function deleteBrandingImage(
   orgSlug: string,
   type: string,
   actor: BrandingAuditActor,
-): Promise<void> {
+): Promise<BrandingWriteVersions> {
   if (!validateImageType(type)) {
     throw new BrandingError(
       'IMAGE_TYPE_INVALID',
@@ -412,19 +440,20 @@ export async function deleteBrandingImage(
   }
   // Narrowed here: the guard above does not reach into the closure.
   const imageType: BrandingImageType = type;
-  await sql.begin((tx) =>
+  return sql.begin((tx) =>
     withConfigWriteLock(tx, orgSlug, 'branding', async () => {
       await removeImageVariants(
         resolveImagesDir(orgSlug),
         imageType,
         'deleteBrandingImage',
       );
-      await writeImageReference(orgSlug, imageType, undefined);
+      const written = await writeImageReference(orgSlug, imageType, undefined);
       await createAuditLog(tx, {
         ...brandingAuditFields(actor),
         action: 'branding.image_deleted',
         metadata: { type: imageType },
       });
+      return written;
     }),
   );
 }

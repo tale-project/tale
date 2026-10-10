@@ -7,6 +7,7 @@
  */
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import type {
   ActionQueryAdapter,
@@ -25,7 +26,9 @@ type VerifyIntegrityResult =
   ReturnsOf<'audit_logs/verify_integrity:verifyIntegrity'>;
 type RequestExportResult = ReturnsOf<'audit_logs/actions:requestExport'>;
 type BrandingReadResult = ReturnsOf<'branding/file_actions:readBranding'>;
+type SaveBrandingResult = ReturnsOf<'branding/file_actions:saveBranding'>;
 type SaveImageResult = ReturnsOf<'branding/file_actions:saveImage'>;
+type DeleteImageResult = ReturnsOf<'branding/file_actions:deleteImage'>;
 type SsoConnectionViewResult = ReturnsOf<'enterprise_sso/config/queries:get'>;
 type TestSsoResult = ReturnsOf<'enterprise_sso/config/actions:testConnection'>;
 type ParseIdpMetadataResult =
@@ -344,6 +347,21 @@ function invalidateBranding(
   });
 }
 
+/** The version a branding write was sent against, when it names one. */
+function expectedHashOf(
+  args: Record<string, unknown>,
+): { expectedHash: string } | Record<string, never> {
+  return typeof args.expectedHash === 'string'
+    ? { expectedHash: args.expectedHash }
+    : {};
+}
+
+/** A branding write refused because the branding moved since it was read:
+ * the page's copy is stale, so the refusal refreshes it like a success. */
+function brandingMoved(error: unknown): boolean {
+  return backendErrorCode(error) === 'CONFIG_VERSION_CONFLICT';
+}
+
 function invalidateSso(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
   args: Record<string, unknown>,
@@ -388,11 +406,15 @@ export const adminWriteAdapters: Record<string, WriteAdapter> = {
   },
   'branding/file_actions:saveBranding': {
     run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>('/branding/save', {
+      backendFetch<SaveBrandingResult>('/branding/save', {
         orgId: requireOrg(args, ctx),
-        body: args.config ?? {},
-      }).then(() => null),
+        body: {
+          ...(typeof args.config === 'object' ? args.config : {}),
+          ...expectedHashOf(args),
+        },
+      }),
     invalidate: invalidateBranding,
+    refusalInvalidates: brandingMoved,
   },
   'branding/file_actions:saveImage': {
     run: (args, ctx) =>
@@ -402,16 +424,18 @@ export const adminWriteAdapters: Record<string, WriteAdapter> = {
           type: stringArg(args, 'type'),
           base64: stringArg(args, 'base64'),
           mimeType: stringArg(args, 'mimeType'),
+          ...expectedHashOf(args),
         },
       }),
     invalidate: invalidateBranding,
+    refusalInvalidates: brandingMoved,
   },
   'branding/file_actions:deleteImage': {
     run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
+      backendFetch<{ ok: boolean } & DeleteImageResult>(
         `/branding/images/${encodeURIComponent(stringArg(args, 'type'))}`,
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
-      ).then(() => null),
+      ).then(({ hash, previousHash }) => ({ hash, previousHash })),
     invalidate: invalidateBranding,
   },
   'branding/file_actions:snapshotToHistory': {

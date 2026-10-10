@@ -25,7 +25,7 @@ Ohne Logo dient der Organisationsname als Textmarke. Diesen Namen änderst du un
 
 Wähle im jeweiligen Uploadfeld das Bild aus. Das Hochladen oder Entfernen eines Bildes wirkt sofort und wartet nicht auf Speichern. Nach erfolgreichem Abschluss werden Vorschau und Organisationsdarstellung aktualisiert.
 
-Wenn kein eigenes Favicon hinterlegt ist, kann Tale eines aus dem hochgeladenen Logo ableiten. Verwende ein eigenes Symbol, wenn das vollständige Logo in Tab-Größe schwer zu erkennen ist. Prüfe nach dem Upload das Tab-Symbol und die Seitenleiste auch im anderen Design.
+Wenn kein eigenes Favicon hinterlegt ist, kann Tale eines aus dem hochgeladenen Logo ableiten. Wählt jemand ein Favicon, während Tale noch eines ableitet – auf dieser Seite oder in einem anderen Fenster –, bleibt diese Wahl bestehen, und das abgeleitete Favicon wird nicht gespeichert. Verwende ein eigenes Symbol, wenn das vollständige Logo in Tab-Größe schwer zu erkennen ist. Prüfe nach dem Upload das Tab-Symbol und die Seitenleiste auch im anderen Design.
 
 <Note>
 
@@ -37,6 +37,8 @@ Verwerfen im Seitenkopf setzt ausstehende Formularänderungen zurück. Ein berei
 
 Bearbeite **Akzentfarbe** und prüfe die Vorschau. Mit **Speichern** im Seitenkopf übernimmst du die Änderung; **Verwerfen** stellt den gespeicherten Wert wieder her. Das Farbfeld zeigt den Wert für das aktuelle Design. Eine abgeleitete Farbe im dunklen Design kann deshalb vom gespeicherten Wert für das helle Design abweichen. Die Vorschau zeigt die Farbe so, wie sie nach dem Speichern aussieht. Im dunklen Design kann sie deshalb vom Wert im Farbfeld abweichen. Das Speichern einer Änderung sowie das Hochladen oder Entfernen eines Bildes hinterlassen je einen Eintrag im Audit-Log unter **Einstellungen > Richtlinien > Protokolle**.
 
+Ändert sich das Branding, nachdem du die Seite geöffnet hast – weil jemand es in einem anderen Fenster speichert, ein Bild hochlädt oder es zurücksetzt –, wird dein **Speichern** abgelehnt, statt diese Änderung zu überschreiben, und deine Eingabe bleibt im Feld. Wähle **Verwerfen**, um das aktuelle Branding zu laden, und nimm deine Änderung dann erneut vor.
+
 Schaltflächen behalten deine Farbe so genau, wie es die Lesbarkeit zulässt. Andere Markierungen in der Akzentfarbe verwenden deine Farbe nur, wenn sie auf der Seite als Text lesbar ist. Ist sie das nicht, nimmt Tale einen dunkleren Ton davon, im dunklen Design einen helleren. Zu diesen Markierungen gehören ein Link, eine Erwähnung, ein Quellenverweis, der ausgewählte Navigationseintrag, ein Punkt für Ungelesenes, der Fokusrahmen, ein eingeschalteter Schalter und ein Fortschrittsbalken. Eine mittlere Farbe kann deshalb auf einem Link oder Schalter etwas anders wirken als auf einer Schaltfläche.
 
 Lade die Seite nach dem Speichern neu und prüfe einen ausgewählten Navigationseintrag, eine Schaltfläche und den Tastaturfokus. Eine Farbe, die als große Fläche gut aussieht, ist in einem kleinen Bedienelement nicht unbedingt gut erkennbar.
@@ -45,4 +47,4 @@ Lade die Seite nach dem Speichern neu und prüfe einen ausgewählten Navigations
 
 Das Branding gilt innerhalb des jeweiligen Arbeitsbereichs. Beim Wechsel der Organisation wird deren Darstellung geladen. Anmeldeseiten erscheinen vor der Organisationsauswahl und verwenden das Standard-Branding der Plattform.
 
-Zeigt der Browser noch ein altes Tab-Symbol, lade die Seite neu und prüfe die Favicon-Felder. Ein eigenes Favicon hat Vorrang vor der Ableitung aus dem Logo. Verwende **Zurücksetzen** nur, wenn du das konfigurierte Branding der Organisation entfernen möchtest, und lies vorher die Bestätigung. Die Bestätigung wirkt sofort: Die Bilder werden gelöscht und die geleerte Akzentfarbe wird gespeichert – ein weiteres **Speichern** ist nicht nötig, und es bleibt nichts ungespeichert.
+Zeigt der Browser noch ein altes Tab-Symbol, lade die Seite neu und prüfe die Favicon-Felder. Ein eigenes Favicon hat Vorrang vor der Ableitung aus dem Logo. Verwende **Zurücksetzen** nur, wenn du das konfigurierte Branding der Organisation entfernen möchtest, und lies vorher die Bestätigung. Die Bestätigung wirkt sofort: Die Bilder werden gelöscht und die geleerte Akzentfarbe wird gespeichert – ein weiteres **Speichern** ist nicht nötig, und es bleibt nichts ungespeichert. Ein **Speichern**, das du vor dem Zurücksetzen ausgelöst hast, kann die früheren Werte danach nicht mehr zurückbringen.

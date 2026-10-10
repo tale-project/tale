@@ -114,6 +114,7 @@ export function createBrandingRoutes(deps: {
         type: z.string().max(50),
         base64: z.string().max(4_000_000),
         mimeType: z.string().max(100),
+        expectedHash: expectedConfigurationHashSchema.optional(),
       })
       .safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
@@ -132,13 +133,13 @@ export function createBrandingRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      await deleteBrandingImage(
+      const versions = await deleteBrandingImage(
         deps.sql,
         orgSlug,
         c.req.param('type'),
         actorOf(c),
       );
-      return c.json({ ok: true });
+      return c.json({ ok: true, ...versions });
     } catch (error) {
       return handleError(c, error);
     }

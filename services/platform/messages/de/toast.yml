@@ -25,6 +25,7 @@ error:
     title: Organisation konnte nicht aktualisiert werden
   brandingUpdateFailed:
     title: Branding konnte nicht aktualisiert werden
+    changedElsewhere: Das Branding wurde in einer anderen Sitzung geändert. Verwirf deinen Entwurf, um es zu laden, und nimm deine Änderung dann erneut vor.
   imageUploadFailed: Bild konnte nicht hochgeladen werden
   logoTooSmall: Das Logo muss mindestens {min}×{min} Pixel groß sein.
   imageTooLarge: Bild ist zu groß. Maximale Größe ist 2 MB.
