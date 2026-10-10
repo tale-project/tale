@@ -153,6 +153,38 @@ describe('stepFailureText — every reason in every language', () => {
     expect(de.cause).toBe('GitHub antwortete auf „Issues auflisten“ mit 404.');
   });
 
+  it('names the error that was thrown with the article its name takes', () => {
+    const threw = (
+      reason: 'CODE_FAILED' | 'EXPR_FAILED',
+      errorName: string,
+      locale: string,
+    ) => {
+      const failure = failureOf(reason, false);
+      return stepFailureText(
+        { ...failure, params: { ...failure.params, errorName } },
+        context(locale),
+      ).cause;
+    };
+    expect(threw('CODE_FAILED', 'Error', 'en')).toBe(
+      'The code threw an error.',
+    );
+    expect(threw('CODE_FAILED', 'EvalError', 'en')).toBe(
+      'The code threw an EvalError.',
+    );
+    expect(threw('CODE_FAILED', 'TypeError', 'en')).toBe(
+      'The code threw a TypeError.',
+    );
+    expect(threw('EXPR_FAILED', 'Error', 'en')).toBe(
+      'nodes.fetch.output.customer.email threw an error.',
+    );
+    expect(threw('CODE_FAILED', 'Error', 'de')).toBe(
+      'Der Code hat einen Fehler ausgelöst.',
+    );
+    expect(threw('CODE_FAILED', 'Error', 'fr')).toBe(
+      'Le code a levé une erreur.',
+    );
+  });
+
   it('leads with the run-level code of a provider’s or an agent’s failure', () => {
     const provider = stepFailureText(
       failureOf('LLM_PROVIDER', true),
