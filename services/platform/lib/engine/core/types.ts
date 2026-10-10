@@ -352,6 +352,8 @@ export interface RunResult {
   /** The run stopped between steps: it ran out of time, or its caller
    * cancelled it. */
   stoppedBy?: 'time_limit' | 'cancelled';
-  /** Nodes the bench stood in for that the run skipped or left out. */
+  /** Nodes the bench stood in for whose stand-in the run never used: it
+   * skipped them, left them out or never got to them, or they ran over no
+   * items. */
   unusedMocks?: string[];
 }

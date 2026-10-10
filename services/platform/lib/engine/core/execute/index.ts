@@ -237,17 +237,15 @@ export async function execute(
         }
       : { node: node.id, type: node.type, status: 'not_run' };
 
+  /** The nodes whose stand-in took the place of a call, or whose pinned
+   * data a step test used. */
+  const used = new Set<string>();
   /** What a run with a bench says beside its outcome: its scope, and the
-   * stand-ins it never used because their nodes were skipped or left out. */
+   * stand-ins it never used — their node was skipped, left out or never
+   * got to, or ran over no items. */
   const benchFacts = (): Pick<RunResult, 'focus' | 'unusedMocks'> => {
     if (plan === undefined) return {};
-    const statusOf = new Map(trace.map((e) => [e.node, e.status]));
-    const unused = plan.standIns.filter((id) => {
-      const status = statusOf.get(id);
-      return (
-        status === undefined || status === 'skipped' || status === 'not_run'
-      );
-    });
+    const unused = plan.standIns.filter((id) => !used.has(id));
     return {
       ...(plan.focus !== undefined && { focus: plan.focus }),
       ...(unused.length > 0 && { unusedMocks: unused }),
@@ -386,6 +384,7 @@ export async function execute(
       entry.output = pin;
       entry.bench = 'pinned';
       entry.note = 'pinned data';
+      used.add(n.id);
       nodeOutputs[n.id] = { output: pin };
       finish();
       rec.meta(nodeKey, { bench: 'pinned' });
@@ -444,11 +443,15 @@ export async function execute(
         }
       }
       // A stand-in replaces the node's call, never the node: it applies
-      // only once the skip rules let the node run.
-      if (call.kind === 'mock' || call.kind === 'fail') {
+      // only once the skip rules let the node run, and it is marked where
+      // it takes a call's place — a node that runs per item over no items
+      // makes no call, and its stand-in goes unused.
+      const markStandIn = (): void => {
+        if (used.has(n.id)) return;
+        used.add(n.id);
         entry.bench = call.kind === 'mock' ? 'mocked' : 'failed';
         rec.meta(nodeKey, { bench: entry.bench });
-      }
+      };
 
       const connectorCheck = def.connector
         ? connectorValidator(def.connector)
@@ -463,8 +466,12 @@ export async function execute(
       const standIn = (
         extra: Record<string, unknown>,
       ): { output: unknown } | undefined => {
-        if (call.kind === 'fail') throw simulatedFailure(n.id, call.message);
+        if (call.kind === 'fail') {
+          markStandIn();
+          throw simulatedFailure(n.id, call.message);
+        }
         if (call.kind !== 'mock') return undefined;
+        markStandIn();
         if (itemMocks !== undefined) {
           return { output: cloneData(itemMocks[Number(extra.index ?? 0)]) };
         }
@@ -969,7 +976,11 @@ export async function execute(
           // A forEach stand-in is a list: item i returns entry i — of the
           // items that run.
           const fits = plan.itemOutputs(n.id, arr.length, picked);
-          if (!fits.ok) throw new ExprError(n.id, fits.message);
+          if (!fits.ok) {
+            // The stand-in is what the node fails on.
+            markStandIn();
+            throw new ExprError(n.id, fits.message);
+          }
           itemMocks = fits.outputs;
         }
         const outs: unknown[] = [];

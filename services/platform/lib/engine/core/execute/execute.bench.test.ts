@@ -331,6 +331,40 @@ describe('a test replaces only the calls it names; everything else runs as writt
     );
   });
 
+  it('a node that runs per item over no items never uses its stand-in', async () => {
+    const d = doc(
+      [
+        {
+          id: 'each',
+          type: 'ping.send',
+          forEach: '{{ input.items }}',
+          input: {},
+        },
+      ],
+      { output: '{{ nodes.each.output }}' },
+    );
+    for (const bench of [
+      { failures: { each: 'down' } },
+      { mocks: { each: [] } },
+    ] satisfies RunBench[]) {
+      const result = await execute(d, {
+        input: { items: [] },
+        mode: 'mock',
+        bench,
+        recorder: createRecorder({ now: () => Date.now() }),
+      });
+      expect(result.status).toBe('success');
+      expect(result.output).toEqual([]);
+      // Nothing stood in for a call that was never made.
+      expect(result.trace[0]?.bench).toBeUndefined();
+      expect(
+        result.record?.find((r) => r.key.path === 'each' && r.key.item < 0)
+          ?.meta.bench,
+      ).toBeUndefined();
+      expect(result.unusedMocks).toEqual(['each']);
+    }
+  });
+
   it('a repeating node returns its stand-in on every pass, judged as written', async () => {
     const d = (until: string) =>
       doc(
