@@ -1511,14 +1511,18 @@ export async function createTask(
     'none',
     taskCountBucket({ status, archivedAt: null }),
   );
+  // A task the platform makes on the workflow's behalf speaks for the
+  // workflow in its activity and its event, as an import's does, and no
+  // person starts following it.
+  const byWorkflow = options.creator !== undefined;
   await recordActivity(tx, {
     task: {
       id: taskId,
       organizationId: auth.organizationId,
       projectId: args.projectId,
     },
-    actorType: 'user',
-    actorId: auth.userId,
+    actorType: byWorkflow ? 'agent' : 'user',
+    actorId: byWorkflow ? 'workflow' : auth.userId,
     action: 'created',
     toValue: status,
   });
@@ -1539,18 +1543,20 @@ export async function createTask(
     eventData: {
       taskId,
       projectId: args.projectId,
-      actorType: 'user',
-      actorId: auth.userId,
+      actorType: byWorkflow ? 'workflow' : 'user',
+      actorId: byWorkflow ? 'workflow' : auth.userId,
     },
   });
   // The human creator starts following their task.
-  await autoSubscribe(tx, {
-    organizationId: auth.organizationId,
-    taskId,
-    subscriberType: 'user',
-    subscriberId: auth.userId,
-    reason: 'creator',
-  });
+  if (!byWorkflow) {
+    await autoSubscribe(tx, {
+      organizationId: auth.organizationId,
+      taskId,
+      subscriberType: 'user',
+      subscriberId: auth.userId,
+      reason: 'creator',
+    });
+  }
   // The status choreography applies to a card BORN in a column too — the
   // create dialog offers the full picker: an agent-owned task created
   // straight at In progress gets its run (the board never shows an
