@@ -32,10 +32,11 @@ export type Mismatch = DiffChange;
 /** How many changes a comparison lists by default. */
 const DEFAULT_CAP = 20;
 
-/** A value as the pass rule reads it: its JSON, keys sorted, a member
- * holding `undefined` as `null`. */
-function asCompared(value: unknown): unknown {
-  return JSON.parse(stableStringify(value));
+/** A value as the pass rule reads it: its JSON text, keys sorted, a member
+ * holding `undefined` as `null`, and that text read back. */
+function asCompared(value: unknown): { text: string; value: unknown } {
+  const text = stableStringify(value);
+  return { text, value: JSON.parse(text) };
 }
 
 /** The changes between an expectation and a run's value, at most `cap` of
@@ -48,7 +49,7 @@ export function mismatchesOf(
 ): { changes: Mismatch[]; total: number } {
   const before = asCompared(expected);
   const after = asCompared(actual);
-  const result = diffValues(before, after, {
+  const result = diffValues(before.value, after.value, {
     mode,
     arrays: 'index',
     maxChanges: Math.max(1, cap),
@@ -57,16 +58,21 @@ export function mismatchesOf(
     .filter(([kind]) => kind !== 'unchanged')
     .reduce((sum, [, n]) => sum + n, 0);
   const changes = result.changes.slice(0, cap);
-  // Past the most values one diff visits, a difference can go unseen: an
-  // exact comparison then still answers whether the two differ at all.
-  if (
-    changes.length === 0 &&
-    result.truncated &&
-    mode === 'exact' &&
-    stableStringify(before) !== stableStringify(after)
-  ) {
+  // An exact comparison differs exactly when the pass rule's texts do. Where
+  // the diff saw no difference between two texts that differ — past the most
+  // values it visits, or in a member it read as one every object inherits
+  // (`__proto__`) — the two differ as a whole.
+  if (changes.length === 0 && mode === 'exact' && before.text !== after.text) {
     return {
-      changes: [{ pointer: '', path: [], kind: 'changed', before, after }],
+      changes: [
+        {
+          pointer: '',
+          path: [],
+          kind: 'changed',
+          before: before.value,
+          after: after.value,
+        },
+      ],
       total: Math.max(total, 1),
     };
   }
@@ -103,7 +109,7 @@ const REPORT_CHARS = 200;
  * way reads as its cut JSON text), every string storable.
  */
 export function reportValue(value: unknown, chars = REPORT_CHARS): Json {
-  const plain: unknown = value === undefined ? null : asCompared(value);
+  const plain: unknown = value === undefined ? null : asCompared(value).value;
   if (typeof plain === 'string') return cut(plain, chars);
   if (plain === null || typeof plain !== 'object') {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a number or a boolean, read back from JSON

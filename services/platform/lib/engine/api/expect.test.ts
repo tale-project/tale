@@ -72,6 +72,22 @@ describe('compareExact', () => {
     ]);
   });
 
+  it('keeps the pass rule for a member named like what every object inherits', () => {
+    // A run's output is read back through JSON.parse, which keeps a member
+    // named __proto__ as a member of its own.
+    const withProto = JSON.parse('{"a": 1, "__proto__": {}}') as unknown;
+    expect(stableStringify(withProto)).not.toBe(stableStringify({ a: 1 }));
+    expect(compareExact({ a: 1 }, withProto)).not.toEqual([]);
+    expect(compareExact(withProto, { a: 1 })).not.toEqual([]);
+    expect(
+      compareExact({}, JSON.parse('{"__proto__": {}}') as unknown),
+    ).not.toEqual([]);
+    expect(
+      compareExact(withProto, JSON.parse('{"a": 1, "__proto__": {}}')),
+    ).toEqual([]);
+    expect(mismatchesOf('exact', { a: 1 }, withProto).total).toBeGreaterThan(0);
+  });
+
   it('names what the test expected and the run lacks, and what it has besides', () => {
     expect(
       compareExact(
