@@ -6,6 +6,11 @@
 // a suite can stop a run between two turns, change what the ledger holds,
 // and step it again. Test-only: never imported by shipped code.
 
+import {
+  type NodeRunWrite,
+  unitKeyOf,
+} from '../../../lib/engine/core/record/recorder';
+import type { NodeRunRecord } from '../../../lib/engine/core/record/types';
 import type { Automation } from '../../../lib/engine/core/types';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { BeginAttempt } from './ledger';
@@ -63,6 +68,12 @@ export interface FakeWorld {
   /** Runs right after a claim is granted — where a suite lets another
    * walker take the run over. */
   afterClaim?: () => void;
+  /** The run record's rows as the store would hold them, by unit, and the
+   * bytes of values they hold. */
+  nodeRuns: Map<string, NodeRunRecord>;
+  recordBytes: number;
+  /** Every standalone start write, in order. */
+  startedWrites: Array<Record<string, unknown>>;
 }
 
 export function ledgerKey(
@@ -112,6 +123,20 @@ export function fakeStepperWorld(options: {
     progress: [],
     lookups: [],
     heartbeats: 0,
+    nodeRuns: new Map(),
+    recordBytes: 0,
+    startedWrites: [],
+  };
+
+  /** Keep the rows a write carried, as the store would, once it landed. */
+  const keepNodeRuns = (args: Record<string, unknown>): void => {
+    const rows = Array.isArray(args.nodeRuns) ? args.nodeRuns : [];
+    for (const row of rows) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper passes NodeRunWrite rows
+      const write = row as NodeRunWrite;
+      world.nodeRuns.set(unitKeyOf(write.record.key), clone(write.record));
+      world.recordBytes += write.bytes;
+    }
   };
   let nextAttemptId = 1;
 
@@ -201,6 +226,10 @@ export function fakeStepperWorld(options: {
             checkpoints: clone(world.run.checkpoints),
           },
           document: options.document,
+          openNodeRuns: [...world.nodeRuns.values()]
+            .filter((r) => r.status === 'running' || r.status === 'waiting')
+            .map(clone),
+          recordBytes: world.recordBytes,
         };
       }
       if (name.endsWith(':loadAutomationDocument')) return lookup(args);
@@ -226,6 +255,12 @@ export function fakeStepperWorld(options: {
       if (name.endsWith(':evaluateApprovalGate')) return { decision: 'allow' };
       if (name.endsWith(':beginNodeAttempt')) return begin(args);
       if (name.endsWith(':finishNodeAttempt')) return finishAttempt(args);
+      if (name.endsWith(':recordNodeRunsStarted')) {
+        world.startedWrites.push(clone(args));
+        if (args.epoch !== world.run.epoch) return { written: false };
+        keepNodeRuns({ nodeRuns: args.rows });
+        return { written: true };
+      }
       if (name.endsWith(':recordProgress')) {
         world.progress.push(clone(args));
         const answer = world.answerNextProgress;
@@ -233,6 +268,7 @@ export function fakeStepperWorld(options: {
           delete world.answerNextProgress;
           return { status: answer };
         }
+        keepNodeRuns(args);
         const checkpoints = world.run.checkpoints;
         const nodes =
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stand-in keeps the store's shape
@@ -249,6 +285,7 @@ export function fakeStepperWorld(options: {
       }
       if (name.endsWith(':suspendRun')) {
         world.suspended.push(clone(args));
+        keepNodeRuns(args);
         world.run.status = 'waiting';
         world.run.detail = text(args.detail);
         world.run.checkpoints = {
@@ -260,11 +297,13 @@ export function fakeStepperWorld(options: {
       }
       if (name.endsWith(':continueRun')) {
         world.continued.push(clone(args));
+        keepNodeRuns(args);
         world.run.status = 'queued';
         return { scheduled: true };
       }
       if (name.endsWith(':finishRun')) {
         world.finished.push(clone(args));
+        keepNodeRuns(args);
         world.run.status = text(args.status);
         return { status: args.status };
       }

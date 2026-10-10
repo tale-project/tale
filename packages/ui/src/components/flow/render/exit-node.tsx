@@ -5,17 +5,19 @@ import { Flag } from 'lucide-react';
 import { memo } from 'react';
 
 import { useT } from '../../../i18n/client';
+import { cn } from '../../../lib/cn';
+import { SKELETON_PULSE } from '../../feedback/skeleton';
 import { flowNodeTitle } from '../describe';
 import { FLOW_SECTION_ROWS } from '../layout/sizes';
 import type { FlowExitNode } from '../types';
-import { FlowNodeNotice, FlowNodeSection } from './entry-node';
+import { FlowNodeSection } from './entry-node';
 import { FlowNodeButton, FlowNodeStrip } from './flow-render-context';
 import { FlowNodeTitleRow, type FlowNodeData } from './step-node';
 
 /**
  * End: what a successful run returns (and its shape) and every way a run
  * can end, below everything else. Its strip names the nodes that finish
- * the run.
+ * the run, or says its notice.
  */
 export const FlowExitNodeView = memo(function FlowExitNodeView({
   data,
@@ -42,9 +44,24 @@ export const FlowExitNodeView = memo(function FlowExitNodeView({
           max={FLOW_SECTION_ROWS.outputs}
           empty={node.outputsEmpty ?? t('node.noOutput')}
         />
-        {node.shape && (
-          <span className="text-muted-foreground mt-1 h-4 truncate font-mono text-xs leading-4">
-            {node.shape}
+        {node.shape !== undefined && (
+          <span className="text-muted-foreground mt-1 flex h-4 items-center text-xs leading-4">
+            {node.shape === null ? (
+              <span
+                aria-hidden="true"
+                className={cn(SKELETON_PULSE, 'h-2.5 w-3/5 rounded')}
+              />
+            ) : (
+              <span
+                className={cn(
+                  'truncate',
+                  (typeof node.shape === 'string' || node.shape.code) &&
+                    'font-mono',
+                )}
+              >
+                {typeof node.shape === 'string' ? node.shape : node.shape.text}
+              </span>
+            )}
           </span>
         )}
         {outcomes.length > 0 && (
@@ -55,9 +72,11 @@ export const FlowExitNodeView = memo(function FlowExitNodeView({
             empty=""
           />
         )}
-        {node.notice && <FlowNodeNotice notice={node.notice} />}
       </span>
-      <FlowNodeStrip id={node.id} />
+      <FlowNodeStrip
+        id={node.id}
+        {...(node.notice !== undefined && { notice: node.notice })}
+      />
     </FlowNodeButton>
   );
 });

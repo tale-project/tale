@@ -587,6 +587,23 @@ terms:
     _note:
       Streaming text-to-speech for assistant replies. Matches the shipped UI
       label.
+  - key: feature_valueShape
+    category: feature
+    en: Shape
+    de: Struktur
+    fr: Structure
+    _note:
+      The fields a value has and the kind each holds, read from the value or
+      expected of it (the data view's Values / Shape switch). Not Form or
+      Schema in DE; not Forme in FR.
+  - key: feature_structuralDiff
+    category: feature
+    en: Changes
+    de: Änderungen
+    fr: Modifications
+    _note:
+      What changed between two values, field by field (a data diff). One
+      sentence per change; the counts read added, removed, changed.
   - key: tech_textToSpeech
     category: translateBucket
     en: Text-to-speech

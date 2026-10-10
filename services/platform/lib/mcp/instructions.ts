@@ -75,7 +75,7 @@ export const INSTRUCTION_FRAGMENTS: readonly InstructionFragment[] = [
     tools: [],
   },
   {
-    text: "A failed run: read it with get_run, fix the document, reproduce with run_automation and the run's input.",
+    text: 'A failed run: read it with get_run, include ["record"] (failure.reason says why), fix the document, reproduce with run_automation.',
     tools: ['get_run', 'run_automation'],
   },
 ];

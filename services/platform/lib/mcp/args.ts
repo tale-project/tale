@@ -1,3 +1,5 @@
+import { REPLAY_KINDS } from '@tale/shared/automation-replay';
+import { checkReplayRequest } from '@tale/shared/schemas/automation-replay';
 import { automationSettingsSchema } from '@tale/shared/schemas/automation-settings';
 import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import { z } from 'zod';
@@ -380,7 +382,86 @@ export const ENGINE_TOOL_ARGS = {
       .describe(
         'What to answer beside the status: "input", "output", "trace", "effects". Left out, all of them; [] the status alone (and the question a waiting run asks) — poll a run with [], then read it whole once it finished.',
       ),
+    include: z
+      .array(z.enum(['record', 'travels']))
+      .max(2)
+      .optional()
+      .describe(
+        'What to add: "record" answers the run step by step under record — each step\'s status, why it ran or was skipped (each condition explained with the values it read), why it failed (failure.reason and its explanation), glimpses of its values; "travels" adds the data that travelled between steps.',
+      ),
   }),
+  get_run_node: z.strictObject({
+    runId,
+    node: nonBlank()
+      .max(512)
+      .describe(
+        "The step's path, as record.nodes lists it: its id, or parent[item:pass]/id inside a subautomation; __start and __end for the run input and output.",
+      ),
+    item: z
+      .number()
+      .int()
+      .min(-1)
+      .optional()
+      .describe(
+        'The item of a step that runs per item; left out (-1) for the step itself.',
+      ),
+    pass: z
+      .number()
+      .int()
+      .min(-1)
+      .optional()
+      .describe(
+        'The pass of a step that repeats; left out (-1) for the step itself.',
+      ),
+  }),
+  compare_runs: z.strictObject({
+    a: nonBlank().describe('The earlier run: its runId.'),
+    b: nonBlank().describe(
+      'The later run of the same automation: steps are compared in the order its version runs them.',
+    ),
+  }),
+  replay_run: z
+    .strictObject({
+      runId,
+      kind: z
+        .enum(REPLAY_KINDS)
+        .describe(
+          '"again" runs it with its own input, "edited" with input, "from" again from one step: the steps it finished outside that step and what it feeds are reused, the rest run anew.',
+        ),
+      from: nonBlank()
+        .max(200)
+        .optional()
+        .describe(
+          'kind "from": the step to run again from, as get_run {include: ["record"]} lists it.',
+        ),
+      version: z
+        .union([
+          z.enum(['same', 'deployed', 'latest']),
+          z.number().int().min(1).max(1_000_000),
+        ])
+        .optional()
+        .describe(
+          'The version to run: the one the run ran ("same", the default), the deployed one, the latest saved one, or a version number. A live run needs the deployed version.',
+        ),
+      mode: z
+        .enum(['mock', 'live'])
+        .optional()
+        .describe(
+          'The run’s own mode by default. A fork of a mock run stays mock: its results were made up.',
+        ),
+      input: z
+        .unknown()
+        .optional()
+        .describe('kind "edited": the input to run with.'),
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe(
+          'true: answer the plan — what it reuses, runs again and sends out a second time — and start nothing.',
+        ),
+      idempotencyKey: idempotencyKey.optional(),
+    })
+    .superRefine(checkReplayRequest),
   cancel_run: z.strictObject({ runId }),
   answer_run_ask: z.strictObject({
     runId,

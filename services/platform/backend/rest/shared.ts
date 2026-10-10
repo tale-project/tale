@@ -834,8 +834,14 @@ export function invalidBodyResponse(
  * The developer capability gate — authoring a trigger, starting a LIVE run,
  * cancelling a run (the same rule the session surface applies).
  */
+/** Whether the key holder's role carries the developer capability — what
+ * a live run needs (`capabilities.developer` on `/me`). */
+export function hasDeveloperCapability(c: Context<RestEnv>): boolean {
+  return defineAbilityFor(c.get('role')).can('read', 'developerSettings');
+}
+
 export function requireDeveloper(c: Context<RestEnv>): void {
-  if (defineAbilityFor(c.get('role')).cannot('read', 'developerSettings')) {
+  if (!hasDeveloperCapability(c)) {
     throw new RestRefusal(
       `Role "${c.get('role')}" lacks the developer capability required here.`,
       403,
@@ -1167,6 +1173,26 @@ export function readKeysetCursor(
   const position = verifyCursor(c, list, raw);
   return (
     (position === null ? null : parseKeysetCursor(position)) ??
+    invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE, [CURSOR_ISSUE])
+  );
+}
+
+/**
+ * The `cursor` query of a list whose position is a token of its own (a
+ * run's units, `item:pass`): null for the first page, the position the
+ * list signed, or the 400 for anything else — the same posture as
+ * `readKeysetCursor`. The list's own reader still refuses a position it
+ * cannot read.
+ */
+export function readSignedCursor(
+  c: Context<RestEnv>,
+  list: string,
+): string | null | Response {
+  const raw = c.req.query('cursor');
+  if (raw === undefined) return null;
+  if (raw.trim() === '') return blankParameterResponse(c, 'cursor');
+  return (
+    verifyCursor(c, list, raw) ??
     invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE, [CURSOR_ISSUE])
   );
 }

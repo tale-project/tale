@@ -614,7 +614,9 @@ describe('RunApprovalCard — keyboard recovery', () => {
       await user.keyboard('{Enter}');
       await waitFor(() => expect(retry.isConnected).toBe(false));
       if (moveFocus) {
-        await user.tab();
+        // A deliberate move to another control. (Tab would land on the
+        // card's own parameters tree first: the tree is a tab stop.)
+        await user.click(another);
         expect(another).toHaveFocus();
       }
 

@@ -505,7 +505,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungsläufe prüfen und Fehler beheben",
-      "description": "Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte Schreibvorgänge und entscheide über Stopp, Korrektur oder Neustart."
+      "description": "Erfahre, warum ein Lauf fehlschlug oder ein Schritt übersprungen wurde, was jeder Schritt gelesen und zurückgegeben hat, spiel den Lauf ab und führe ihn erneut, ab einem Schritt oder im Vergleich mit einem anderen Lauf aus."
     }
   },
   "de:platform/automations/triggers": {
@@ -1657,7 +1657,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Read automation runs and recover from failures",
-      "description": "Trace a run from its status to the failing node, inspect recorded writes and decide whether to stop, fix or retry."
+      "description": "See why a run failed or a step was skipped, what each step read and returned, play the run back, and run it again, from a step, or side by side with another run."
     }
   },
   "en:platform/automations/triggers": {
@@ -2809,7 +2809,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Examiner les exécutions et corriger les échecs",
-      "description": "Repère le nœud concerné, vérifie les écritures enregistrées et décide s’il faut arrêter, corriger ou relancer."
+      "description": "Comprends pourquoi une exécution a échoué ou une étape a été ignorée, ce que chaque étape a lu et renvoyé, rejoue l’exécution et relance-la, à partir d’une étape ou à côté d’une autre exécution."
     }
   },
   "fr:platform/automations/triggers": {

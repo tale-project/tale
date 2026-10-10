@@ -13,7 +13,8 @@
  * **What is bounded, and what deliberately is not.** Only fields nothing reads
  * back are safe to shorten:
  *
- *  - `trace` / `checkpoint.trace` — pure diagnostics. Bounded.
+ *  - `trace` / `checkpoint.trace` — pure diagnostics. Secrets withheld
+ *    (`redactValue`, the run record's own rule), then bounded.
  *  - `detail` — the operator-facing failure reason. Capped.
  *  - `checkpoint.output` — **NEVER**. `outputsFrom()` builds the executor's
  *    scope from it, so a later node reading `{{ nodes.x.output }}` would see a
@@ -38,6 +39,7 @@
  * keeps a default install bounded.
  */
 
+import { redactValue } from '../../../lib/engine/core/record/value';
 import type { NodeTrace } from '../../../lib/engine/core/types';
 import { boundJson } from '../../../lib/shared/utils/bound-json';
 import type { NodeCheckpoint } from './checkpoints';
@@ -73,10 +75,12 @@ function truncatedMarker(chars: number): Record<string, unknown> {
   };
 }
 
-/** Shape-bound a trace field, then enforce the hard ceiling. */
+/** Withhold its secrets, shape-bound a trace field, then enforce the hard
+ * ceiling. Secrets go first, so a cut can never leave a secret's tail behind;
+ * a withheld value reads `null`, as it does in the run record. */
 function boundTraceField(value: unknown): unknown {
   if (value === undefined) return undefined;
-  const shaped = boundJson(value, TRACE_LIMITS);
+  const shaped = boundJson(redactValue(value).value, TRACE_LIMITS);
   const chars = JSON.stringify(shaped)?.length ?? 0;
   return chars <= MAX_TRACE_FIELD_CHARS ? shaped : truncatedMarker(chars);
 }

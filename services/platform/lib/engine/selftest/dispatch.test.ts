@@ -210,6 +210,34 @@ describe('dispatch — the shared method table', () => {
     expect(run.status).toBe('success');
   });
 
+  it('run_deployed keeps the run with its input and its record, and serves no record', async () => {
+    const base = dispatchStore();
+    const recordRun = vi.fn(
+      (...args: Parameters<NonNullable<DispatchStore['recordRun']>>) =>
+        base.recordRun!(...args),
+    );
+    const store: DispatchStore = { ...base, recordRun };
+    await deployedExample(store);
+
+    const run = (await dispatch(
+      'run_deployed',
+      { name: 'order-report', input: DOC_EXAMPLE.input },
+      { store },
+    )) as RunResult & { version: number };
+    expect(run.status).toBe('success');
+    expect(run).not.toHaveProperty('record');
+    const kept = recordRun.mock.calls[0]?.[4];
+    expect(kept?.input).toEqual(DOC_EXAMPLE.input);
+    const paths = kept?.nodeRuns.map((row) => row.record.key.path) ?? [];
+    expect(paths[0]).toBe('__start');
+    expect(paths.at(-1)).toBe('__end');
+    expect(paths).toEqual(
+      expect.arrayContaining(
+        (DOC_EXAMPLE.automation as Automation).nodes.map((node) => node.id),
+      ),
+    );
+  });
+
   it('run_deployed with live enabled and no connector host hands the run to the durable runner, never to the mocks', async () => {
     // The platform hosts enable live but execute connectors only through the
     // durable stepper: a one-piece run must go there — authorized, executed

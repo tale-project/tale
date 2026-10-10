@@ -13,6 +13,7 @@ import type { ValidateFunction } from 'ajv';
 
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
+import { credentialKind } from '../secret-patterns';
 import { ptr } from '../syntax/pointer';
 import type { Issue } from '../types';
 import { AUTOMATION_NAME_RULE, isValidAutomationName } from './name';
@@ -28,22 +29,6 @@ const TOP_FIELDS = [
   'tests',
   'ui',
 ];
-
-const SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bsk-[A-Za-z0-9_-]{16,}/, 'API key (sk-…)'],
-  [/\bAKIA[0-9A-Z]{12,}/, 'AWS access key'],
-  [/\bxox[bap]-[A-Za-z0-9-]{10,}/, 'Slack token'],
-  [/\bghp_[A-Za-z0-9]{20,}/, 'GitHub token'],
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'private key material'],
-  [/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/, 'bearer token'],
-];
-
-/** Key names that mark their value as a credential when it looks opaque. */
-const CREDENTIAL_KEY_RE =
-  /^(?:api[_-]?key|apikey|secret|token|access[_-]?key|password|passwd|authorization|auth[_-]?token)$/i;
-
-/** A long single opaque word — no spaces, no template braces. */
-const OPAQUE_VALUE_RE = /^[A-Za-z0-9+/=_.-]{16,}$/;
 
 export function validateDocument(
   doc: Record<string, unknown>,
@@ -252,23 +237,8 @@ function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
     pointer: string,
     key?: string,
   ): void => {
-    for (const [re, label] of SECRET_PATTERNS) {
-      if (re.test(value)) {
-        hits.push({ path, pointer, label });
-        return;
-      }
-    }
-    if (
-      key !== undefined &&
-      CREDENTIAL_KEY_RE.test(key) &&
-      OPAQUE_VALUE_RE.test(value)
-    ) {
-      hits.push({
-        path,
-        pointer,
-        label: `credential-looking value under "${key}"`,
-      });
-    }
+    const label = credentialKind(value, key);
+    if (label !== undefined) hits.push({ path, pointer, label });
   };
 
   const walk = (

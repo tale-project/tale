@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { boundJson, type BoundJsonLimits } from './bound-json';
+import {
+  boundJson,
+  boundJsonOutOfBand,
+  type BoundJsonLimits,
+} from './bound-json';
 
 /**
  * These lock the algorithm that was previously inlined in the chat tool loop
@@ -80,5 +84,95 @@ describe('boundJson', () => {
     const twice = boundJson(once, LIMITS);
     expect(twice).toEqual({ big: 'xxxxxxxxxx…(+12 chars)' });
     expect(twice).not.toEqual(once);
+  });
+});
+
+describe('boundJsonOutOfBand', () => {
+  it('leaves a value inside the limits as it was, with no cuts', () => {
+    const value = { a: 'short', list: [1, 2, 3], nested: { b: null } };
+    expect(boundJsonOutOfBand(value, LIMITS)).toEqual({
+      value,
+      cuts: [],
+      total: 0,
+    });
+  });
+
+  it('cuts a long string without a marker and says how much it dropped', () => {
+    expect(boundJsonOutOfBand({ s: '0123456789abcde' }, LIMITS)).toEqual({
+      value: { s: '0123456789' },
+      cuts: [{ pointer: '/s', kind: 'string', dropped: 5 }],
+      total: 1,
+    });
+  });
+
+  it('never splits a character that takes two UTF-16 units', () => {
+    const text = `012345678${'😀'}tail`;
+    const { value, cuts } = boundJsonOutOfBand(text, LIMITS);
+    expect(value).toBe('012345678');
+    expect(cuts).toEqual([
+      { pointer: '', kind: 'string', dropped: text.length - 9 },
+    ]);
+  });
+
+  it('keeps the first items of a long list', () => {
+    expect(boundJsonOutOfBand([1, 2, 3, 4, 5], LIMITS)).toEqual({
+      value: [1, 2, 3],
+      cuts: [{ pointer: '', kind: 'items', dropped: 2 }],
+      total: 1,
+    });
+  });
+
+  it('replaces a value past the depth limit by null, with its size', () => {
+    const { value, cuts } = boundJsonOutOfBand(
+      { a: { b: { c: { d: 1 } } } },
+      LIMITS,
+    );
+    expect(value).toEqual({ a: { b: { c: null } } });
+    expect(cuts).toEqual([
+      { pointer: '/a/b/c', kind: 'depth', dropped: '{"d":1}'.length },
+    ]);
+  });
+
+  it('escapes keys in the pointers it reports', () => {
+    expect(
+      boundJsonOutOfBand({ 'a/b': { '~': '0123456789abc' } }, LIMITS).cuts,
+    ).toEqual([{ pointer: '/a~1b/~0', kind: 'string', dropped: 3 }]);
+  });
+
+  it('cuts as boundJson does, marker aside', () => {
+    const value = { s: 'x'.repeat(30), list: [1, 2, 3, 4], deep: [[['z']]] };
+    const marked = boundJson(value, LIMITS);
+    const { value: quiet } = boundJsonOutOfBand(value, LIMITS);
+    expect(quiet).toEqual({
+      s: 'x'.repeat(10),
+      list: [1, 2, 3],
+      deep: [[null]],
+    });
+    expect(marked).toEqual({
+      s: `${'x'.repeat(10)}…(+20 chars)`,
+      list: [1, 2, 3, '…(+1 more items)'],
+      deep: [['…']],
+    });
+  });
+
+  it('lists at most maxCuts cuts, and counts them all', () => {
+    const value = Array.from({ length: 3 }, () => 'y'.repeat(20));
+    const { cuts, total } = boundJsonOutOfBand(value, LIMITS, 2);
+    expect(cuts).toHaveLength(2);
+    expect(total).toBe(3);
+  });
+
+  it('lists no cut where a null sat past the depth limit', () => {
+    expect(boundJsonOutOfBand({ a: { b: { c: null } } }, LIMITS)).toEqual({
+      value: { a: { b: { c: null } } },
+      cuts: [],
+      total: 0,
+    });
+  });
+
+  it('keeps a member named __proto__ as a member', () => {
+    const value: unknown = JSON.parse('{"__proto__":{"x":1},"y":2}');
+    const { value: kept } = boundJsonOutOfBand(value, LIMITS);
+    expect(JSON.stringify(kept)).toBe('{"__proto__":{"x":1},"y":2}');
   });
 });

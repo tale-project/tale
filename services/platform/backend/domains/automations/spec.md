@@ -6,8 +6,8 @@ The rules an automation is held to between the editor and a finished run: who ca
 and run it live, what a saved version and a deployment guarantee, what a check for problems
 reports, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
-to another and what a resumed run never repeats, whose approval policy a run's steps ask, and
-what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
+to another and what a resumed run never repeats, what a run records of each step, whose
+approval policy a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
 agent steps and their retries, the rest of approvals and questions inside a run, package upload
 and managed configuration are not covered; see Not yet.
 
@@ -544,6 +544,64 @@ inferred. There is no resume, retry or skip action for this hold.
   → the run appears on hold. She requests a stop → the decision is recorded, but the run
   remains on hold and its task cannot start a replacement run.
 
+## What a run records
+
+A run keeps a record of each unit of work it did: its input, each step, each item of a step
+that runs per item, each pass of a step that repeats, and its output. Whoever may read the run
+may read its record.
+
+### AUTO-R38 · A run's record shows what each step read and returned, secrets withheld
+
+Each unit is recorded with when it started and ended, what it received and returned, the
+condition that decided whether it ran (with the values that condition read), and why it was
+skipped or failed. A value under a name that marks a secret, and text that looks like a
+credential, is withheld from the record: it reads empty and the record says where. The run's
+own input and output stay whole, for whoever may read the run. Each value is cut to a bound,
+and a run stores at most 2 MiB of values; past that a step keeps its summary, shape and size,
+never its value.
+
+- **Example**: Leo's run fetches an issue; the `fetch` step returns
+  `{ title: "Fix login", apiKey: "sk-…" }` → the run's record shows `fetch` with what it
+  received, `title: "Fix login"`, and `apiKey` withheld.
+
+### AUTO-R39 · A resumed run records each step once and counts its attempts
+
+A run that moved to another server, waited for a person or was handed on keeps one record per
+unit: the next turn updates it instead of adding another, and a wait ends when the run comes
+back. A step a stopped server was running counts as an interrupted attempt, and the record
+says how each attempt ended; a loop handed on between two items is not a new attempt. A server
+that lost the run records nothing, and a late write of an earlier server never replaces a
+later one's.
+
+- **Example**: Mia's run stops in the middle of its `list` step when its server restarts →
+  the next server runs `list` again, and the record shows one `list` at attempt 2, the first
+  attempt interrupted.
+
+### AUTO-R40 · A run's record is read like the run, and two runs compare only side by side
+
+Whoever may read a run may read its record, one step of it, a page of a step's items, and its
+comparison with another run of the same automation; a run hidden from them answers exactly like
+one that does not exist, and so does a comparison with a run hidden from them. Two runs of
+different automations are not compared. What a reader sees of the run's events names where and
+why something happened, never the server that saw it.
+
+- **Example**: Noor can read the runs of the Billing project but not of Payroll → reading the
+  record of a Payroll run answers "not found", the same as a run that never existed, and
+  comparing a Billing run with a Payroll run answers "not found" too.
+
+### AUTO-R41 · A run runs again in its own project, as a start would, a fork never more real
+
+Whoever may read a run may see what running it again would do. Running it again takes what
+starting a run takes: an author and the deployed version for a live run, the project's write
+access where a start needs it. The replay keeps the run's project and starts anew with the
+run's input, an edited input, or from one step — reusing the results and record of the steps
+the run finished outside that step and what it feeds, never their effects. A fork of a mock
+run stays mock, and a live replay is audited.
+
+- **Example**: Leo's live import failed at `send`. He runs it again from `send` → `fetch` and
+  `score` are reused, `send` runs again live and writes again, and the new run says it
+  replays Leo's run.
+
 ## Approvals inside a run
 
 ### AUTO-R21 · Each run asks its own organization's approval policy
@@ -582,7 +640,9 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   (`backend/core/automations/stepper.ts`, `checkpoints.ts`, `liveness.ts`, `agent_host.ts`,
   `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
   server steps a run, `AUTO-R22` how a restart hands it on, `AUTO-R18` what a run says once it
-  moved to another, and `AUTO-R19` and `AUTO-R20` what a resumed run never repeats.
+  moved to another, `AUTO-R19` and `AUTO-R20` what a resumed run never repeats, and
+  `AUTO-R38` and `AUTO-R39` what its record keeps, `AUTO-R40` who may read it, `AUTO-R41` how
+  it runs again.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
   (`backend/core/automations/stepper.ts`, `shim.ts`); `AUTO-R21` covers whose policy decides.
   An approval cannot be decided over the API; the contract debt ledger in

@@ -73,9 +73,11 @@ describe('flowNodeSize', () => {
     expect(flowNodeSize(many).height).toBe(224 + 40);
     // No inputs: one line of words.
     expect(flowNodeSize({ ...entry, inputs: [] }).height).toBe(224 - 20);
+    // A notice takes the strip's place: the box keeps its size whether the
+    // check found one or not.
     expect(
       flowNodeSize({ ...entry, notice: { tone: 'warning', text: 'x' } }).height,
-    ).toBe(224 + 36);
+    ).toBe(224);
   });
 
   it('sums End from its sections', () => {
@@ -87,6 +89,18 @@ describe('flowNodeSize', () => {
     // 12 + 20 + (8 + 16 + 4 + 20) + 12 + 28
     expect(flowNodeSize(exit).height).toBe(120);
     expect(flowNodeSize({ ...exit, shape: '{ a: number }' }).height).toBe(140);
+    // The shape's row is held while the host works it out, and holds a
+    // sentence as well as a shape.
+    expect(flowNodeSize({ ...exit, shape: null }).height).toBe(140);
+    expect(
+      flowNodeSize({
+        ...exit,
+        shape: { text: 'Shape known after a run', code: false },
+      }).height,
+    ).toBe(140);
+    expect(
+      flowNodeSize({ ...exit, notice: { tone: 'info', text: 'x' } }).height,
+    ).toBe(120);
     const outcomes = ['ok', 'failed', 'stopped'].map((id) => ({
       id,
       label: id,

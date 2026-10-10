@@ -25,6 +25,14 @@ export interface FlowNodeRunInfo {
   items?: { done: number; total?: number; failed?: number };
   /** A node that repeats: which pass it is on, of at most `max`. */
   pass?: { current: number; max?: number };
+  /**
+   * The whole story in one sentence, with the values that decided it — why
+   * it was skipped, how its condition decided, what failed ("Skipped because
+   * amount (250) is not greater than 1000"). A pointer gets it in a tooltip;
+   * it is added to the node's accessible description and its List view
+   * lines.
+   */
+  explanation?: string;
 }
 
 /** A run shown without time: an old run without timings, an editor's
@@ -41,6 +49,32 @@ export interface FlowRunOverlay {
   finished: boolean;
 }
 
+/** Where one node stands in each of two runs compared. */
+export interface FlowCompareNode {
+  a?: FlowNodeRunInfo;
+  b?: FlowNodeRunInfo;
+  /** The two runs differ here (state, decision, or what it returned):
+   *  ringed, with a "Differs" marker. */
+  differs: boolean;
+  /** The node is not in that run's version: dashed, and its strip says so. */
+  absentIn?: 'a' | 'b';
+}
+
+/**
+ * Two runs on one chart: where each node stood in each, and which lines
+ * each took. Exclusive with an overlay and a playback.
+ */
+export interface FlowCompareOverlay {
+  /** The runs' short names, "A" and "B" in the session's language when
+   *  left out. */
+  labels?: { a: string; b: string };
+  nodes: Readonly<Record<string, FlowCompareNode>>;
+  /** Which run took each line: `both` stands out, a line only one run took
+   *  carries "Only in A", `neither` steps back. A line not listed is
+   *  plain. */
+  edges: Readonly<Record<string, 'both' | 'a' | 'b' | 'neither'>>;
+}
+
 /** One stretch of a node's work on the timeline. */
 export interface FlowNodeSpan {
   nodeId: string;
@@ -53,15 +87,26 @@ export interface FlowNodeSpan {
     | 'skipped'
     | 'stopped'
     | 'waiting'
-    | 'not-run';
+    | 'not-run'
+    /** Taken from an earlier run (a zero-length span where the run began). */
+    | 'reused';
   reason?: string;
   detail?: string;
   /** A condition's decision (a zero-length span when it decides). */
   decision?: boolean;
-  /** Which item of a list this span worked on. */
+  /** Which item of a list this span worked on, from 0. */
   item?: number;
-  /** Which pass of a repeat this span is. */
+  /** Which pass of a repeat this span is, from 1. */
   pass?: number;
+  /** The full sentence behind the span ({@link FlowNodeRunInfo.explanation}). */
+  explanation?: string;
+  /**
+   * On a node's own span (one with neither `item` nor `pass`): how many
+   * items its list holds, or the most passes it may make — so the counter
+   * reads "3 of 12 items" while the run is live, and stays right when not
+   * every item was recorded.
+   */
+  total?: number;
 }
 
 /** A value moving along a line: it leaves the source at `start` and
@@ -85,6 +130,9 @@ export interface FlowTimelineMark {
   kind: 'wait' | 'resume' | 'failure' | 'restart';
   /** "Waited 3 h for approval". */
   label: string;
+  /** The node it happened at, when it belongs to one (the node that
+   *  waited, the node a restart interrupted). */
+  nodeId?: string;
 }
 
 export interface FlowPlaybackTimeline {

@@ -6,7 +6,7 @@ import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import Ajv from 'ajv';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../backend/auth/auth.ts';
 import type {
@@ -14,6 +14,7 @@ import type {
   SkillSummaryView,
 } from '../../backend/core/skills/views.ts';
 import { legacyRunStopSchema } from '../../backend/domains/automations/legacy-quarantine.ts';
+import { nodeRunRowOf } from '../../backend/domains/automations/node-runs.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
 import { PLATFORM_CAPABILITIES } from '../../backend/domains/governance/competence.ts';
@@ -31,6 +32,12 @@ import { createTaskRestRoutes } from '../../backend/rest/v1-tasks.ts';
 import { createThreadRestRoutes } from '../../backend/rest/v1-threads.ts';
 import { createRestWebsiteRoutes } from '../../backend/rest/v1-websites.ts';
 import { createRestV1Routes } from '../../backend/rest/v1.ts';
+import { execute } from '../../lib/engine/core/execute/index.ts';
+import { createRecorder } from '../../lib/engine/core/record/recorder.ts';
+import { setCodeRunner } from '../../lib/engine/core/runner.ts';
+import type { Automation } from '../../lib/engine/core/types.ts';
+import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
+import { memoryStore } from '../../lib/engine/selftest/memory-store.ts';
 import { contractFingerprint } from './fingerprint.ts';
 import { buildSpec, type Json } from './spec.ts';
 
@@ -444,6 +451,153 @@ const triggerRun = {
   startedBy: 'trigger:t-1',
   input: JSON.stringify({ trigger: 'schedule', firedAt: 1_700_000_000_000 }),
 };
+
+/**
+ * A run read step by step, through the REST doors and the read model, from
+ * the record a real run wrote: the published schemas hold what the doors
+ * answer — conditions with their explanations, a skip chain, a failure a
+ * step let the run go past, a step's items, a ledger call, two runs side by
+ * side.
+ */
+describe('a run read step by step validates against its schemas', () => {
+  const doc: Automation = {
+    version: 1,
+    name: 'billing/dunning',
+    nodes: [
+      {
+        id: 'fetch',
+        type: 'transform',
+        input: { n: '{{ input.n }}' },
+        code: 'return { amount: input.n * 600, note: "due" };',
+      },
+      {
+        id: 'gate',
+        type: 'transform',
+        when: '{{ nodes.fetch.output.amount > 1000 && input.n > 0 }}',
+        input: {},
+        code: 'return "urgent";',
+      },
+      {
+        id: 'each',
+        type: 'transform',
+        forEach: '{{ [1, 2, 3] }}',
+        onError: 'continue',
+        input: { label: 'item {{ item }} of {{ nodes.fetch.output.note }}' },
+        code: 'if (item === 2) throw new Error("two"); return item * 2;',
+      },
+    ],
+    output: '{{ nodes.fetch.output }}',
+  };
+  let rows: Array<ReturnType<typeof nodeRunRowOf> & { updated_at_ms: number }> =
+    [];
+
+  beforeAll(async () => {
+    setCodeRunner(nodeVmRunner());
+    const result = await execute(doc, {
+      input: { n: 1 },
+      mode: 'mock',
+      store: memoryStore(),
+      recorder: createRecorder({ now: () => Date.now() }),
+    });
+    rows = (result.record ?? []).map((record, index) =>
+      Object.assign(nodeRunRowOf(record), {
+        updated_at_ms: 1_700_000_000_100 + index,
+      }),
+    );
+  });
+
+  const respond = (text: string): object[] | undefined => {
+    // A page of one step's units: the step's own item rows, in order.
+    if (text.includes('item_index >= 0 OR pass >= 0')) {
+      return rows.filter((row) => row.path === 'each' && row.item_index >= 0);
+    }
+    if (text.includes('FROM app.automation_node_runs')) return rows;
+    if (text.includes('FROM app.automations WHERE')) {
+      return [{ name: doc.name, version: 2, document: doc }];
+    }
+    if (text.includes('FROM app.automation_run_events')) {
+      return [
+        {
+          id: 'ev-1',
+          at: 1_700_000_000_050,
+          kind: 'node_interrupted',
+          detail: { path: 'fetch', reason: 'lease_expired', instance: 'h:1' },
+          total: 1,
+        },
+      ];
+    }
+    if (text.includes('FROM app.automation_node_attempts')) {
+      return [
+        {
+          kind: 'connector',
+          type: 'transform',
+          attempt: 1,
+          status: 'done',
+          input: { n: 1 },
+          output: { amount: 600 },
+          failureCode: null,
+          resolution: null,
+          resolvedBy: null,
+          resolvedAt: null,
+          startedAt: 1_700_000_000_010,
+          finishedAt: 1_700_000_000_020,
+        },
+      ];
+    }
+    return undefined;
+  };
+
+  it.each([
+    ['/runs/run-1/record?include=travels', '/api/v1/runs/{runId}/record'],
+    ['/runs/run-1/record/node?node=gate', '/api/v1/runs/{runId}/record/node'],
+    [
+      '/runs/run-1/record/node?node=each&item=1',
+      '/api/v1/runs/{runId}/record/node',
+    ],
+    [
+      '/runs/run-1/record/items?node=each&limit=2',
+      '/api/v1/runs/{runId}/record/items',
+    ],
+    ['/runs/run-1/compare/run-1', '/api/v1/runs/{runId}/compare/{otherRunId}'],
+  ])('%s', async (request, path) => {
+    const routes = createAutomationRestRoutes({ sql: fakeSql([run], respond) });
+    const res = await mount(routes).request(`http://localhost${request}`);
+    const body: unknown = await res.json();
+    expect(res.status, JSON.stringify(body)).toBe(200);
+    const validate = responseValidator(path, 'get', '200');
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }, null, 2).slice(0, 4000),
+    ).toBe(true);
+  });
+
+  it('answers what the record holds', async () => {
+    const routes = createAutomationRestRoutes({ sql: fakeSql([run], respond) });
+    const record = (await (
+      await mount(routes).request('http://localhost/runs/run-1/record')
+    ).json()) as { nodes: Array<{ path: string; status: string }> };
+    expect(record.nodes.map((n) => `${n.path}:${n.status}`)).toEqual([
+      '__start:succeeded',
+      'fetch:succeeded',
+      'gate:skipped',
+      // An item failed and `onError: continue` let the run go on.
+      'each:failed',
+      '__end:succeeded',
+    ]);
+    const page = (await (
+      await mount(routes).request(
+        'http://localhost/runs/run-1/record/items?node=each&limit=1',
+      )
+    ).json()) as {
+      units: Array<{ item: number }>;
+      isDone: boolean;
+      continueCursor: string;
+    };
+    expect(page.units.map((u) => u.item)).toEqual([0]);
+    expect(page.isDone).toBe(false);
+    expect(page.continueCursor).not.toBe('');
+  });
+});
 
 describe('handler responses validate against the spec', () => {
   const cases: {

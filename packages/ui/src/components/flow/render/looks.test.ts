@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { flowCompareFromOverlays } from '../compare/compare';
 import type { FlowTranslate } from '../describe';
 import { flowRunText } from '../describe';
 import { highlightForIncident, highlightForNodes } from '../paths/highlight';
@@ -7,6 +8,7 @@ import { flowStateFromOverlay } from '../playback/derive-state';
 import {
   branchFlowGraph,
   branchRunOverlay,
+  branchRunOverlayB,
   triageFlowGraph,
 } from '../testing/flow-fixtures';
 import { flowFrameCounters, flowLooks, looksSignature } from './looks';
@@ -20,6 +22,34 @@ const t: FlowTranslate = (key, options) =>
         .join(', ')})`;
 
 describe('flowLooks', () => {
+  it('rings where two runs compared differ, dashes what a version lacks, and weighs lines by who took them', () => {
+    const graph = branchFlowGraph();
+    const { nodes, edges } = flowLooks({
+      graph,
+      run: null,
+      compare: flowCompareFromOverlays(
+        graph,
+        branchRunOverlay(),
+        branchRunOverlayB(),
+        { absent: { b: ['low'] } },
+      ),
+      primary: null,
+      incident: null,
+    });
+    expect(nodes.get('urgent')).toEqual({
+      state: 'idle',
+      quiet: false,
+      highlighted: 'none',
+      differs: true,
+    });
+    expect(nodes.get('low')).toMatchObject({ absent: true });
+    expect(nodes.get('low')?.differs).toBeUndefined();
+    expect(nodes.has('fetch')).toBe(false);
+    expect(edges.get('fetch>classify')).toEqual({ look: 'emphasis' });
+    expect(edges.has('__gate:urgent>urgent')).toBe(false);
+    expect(edges.get('__gate:normal>low')).toEqual({ look: 'quiet' });
+  });
+
   it('leaves a chart with nothing to say plain', () => {
     const { nodes, edges } = flowLooks({
       graph: triageFlowGraph(),

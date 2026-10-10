@@ -13,12 +13,23 @@ import { JsonViewer } from '@tale/ui/json-viewer';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { useNavigate } from '@tanstack/react-router';
 import { Ban, SearchX } from 'lucide-react';
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import type { RecordedStep } from '@/app/lib/backend/contract/automations';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
+import type { WaitRecord } from '@/lib/engine/core/record/types';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -27,16 +38,32 @@ import { useCancelAutomationRun } from '../hooks/mutations';
 import {
   useAutomation,
   useAutomationRun,
+  useAutomationRuns,
   useNodeTypeCatalog,
+  useRunNode,
   useRunPendingAsk,
+  useRunRecord,
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { useRunStarterLabel } from '../hooks/use-run-starter-label';
+import { automationDetailPathname } from '../lib/detail-paths';
 import { readDocument } from '../lib/document';
 import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { flowGraphTarget } from '../lib/flow-ids';
 import { issueImportResultSchema, issueSource } from '../lib/issue-import';
-import { nodeCatalogView } from '../lib/node-face';
+import {
+  actionTitle,
+  connectorName,
+  nodeCatalogView,
+  nodeTitle,
+} from '../lib/node-face';
+import { stepFailureText } from '../lib/run-failure';
+import {
+  type RunSearch,
+  type RunSearchChange,
+  runSearchSelection,
+} from '../lib/run-search';
+import type { RunUnitRef, TimelineWords } from '../lib/run-timeline';
 import {
   cursorNodeStatus,
   isRunFinished,
@@ -54,15 +81,23 @@ import {
   AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
 import { AgentExecutionLog } from './agent-execution-log';
-import { AutomationCanvas, type CanvasRun } from './automation-canvas';
+import {
+  AutomationCanvas,
+  type CanvasRun,
+  type RunCanvasView,
+} from './automation-canvas';
 import { EffectList } from './effect-list';
 import { IssueImportContinuation } from './issue-import-continuation';
 import { IssueImportResult } from './issue-import-result';
 import { NodeInspector, type InspectorContext } from './node-inspector';
+import { RunActions } from './run-actions';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
+import { RunFailureCard } from './run-failure-card';
 import { RunInDoubtCard } from './run-in-doubt-card';
+import { RunLineage } from './run-lineage';
 import { RunQuarantineCard } from './run-quarantine-card';
+import { RunReplayDialog } from './run-replay-dialog';
 import { RunBadge } from './run-status-badge';
 
 /**
@@ -108,30 +143,96 @@ interface RunDetailProps {
   organizationId: string;
   automationSlug: string;
   runId: string;
+  /** The route's search: the view, and the step — with one of its items or
+   *  passes — to open on load. */
+  search?: RunSearch;
+  /** The reader switched the view or picked a step or one of its items; the
+   *  route keeps it in the URL without a history entry. */
+  onSearchChange?: (change: RunSearchChange) => void;
 }
+
+/** What the page has written to its URL, to write it only on a change. */
+const searchKey = (
+  node: string | null,
+  unit: RunUnitRef | null,
+  view: RunCanvasView,
+) => JSON.stringify([node, unit?.item, unit?.pass, view]);
 
 function RunDetailBody({
   organizationId,
   automationSlug,
   runId,
+  search,
+  onSearchChange,
   onFocusLost,
 }: RunDetailProps & { onFocusLost: () => void }) {
   const { t } = useT('automations');
+  const { t: tRuns } = useT('automationRuns');
   const { formatDate } = useFormatDate();
   const inspectorId = useId();
   const effectsHeadingId = useId();
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // A link opens its step, and the item or pass it names, on load.
+  const [opened] = useState(() => runSearchSelection(search));
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
+    opened.node,
+  );
+  // One of the selected step's items or passes, chosen in the Steps view
+  // or in its list; any other choice of step clears it.
+  const [selectedUnit, setSelectedUnit] = useState<RunUnitRef | null>(
+    opened.unit,
+  );
+  const [runView, setRunView] = useState<RunCanvasView>(
+    search?.view === 'steps' ? 'steps' : 'chart',
+  );
+  // The view, the open step and its item follow into the URL, replacing
+  // the entry.
+  const writtenSearch = useRef(searchKey(opened.node, opened.unit, runView));
+  useEffect(() => {
+    const key = searchKey(selectedNodeId, selectedUnit, runView);
+    if (writtenSearch.current === key) return;
+    writtenSearch.current = key;
+    onSearchChange?.({
+      view: runView === 'steps' ? 'steps' : null,
+      node: selectedNodeId,
+      item: selectedUnit?.item ?? null,
+      pass: selectedUnit?.pass ?? null,
+    });
+  }, [selectedNodeId, selectedUnit, runView, onSearchChange]);
+  // The moment the playback rests on follows too: a link opens there.
+  const [openedMoment] = useState(search?.t);
+  const writtenMoment = useRef<number | null>(openedMoment ?? null);
+  const onRunMomentChange = useCallback(
+    (moment: number | null) => {
+      if (writtenMoment.current === moment) return;
+      writtenMoment.current = moment;
+      onSearchChange?.({ t: moment });
+    },
+    [onSearchChange],
+  );
+  const selectStep = useCallback(
+    (id: string | null, unit: RunUnitRef | null = null) => {
+      setSelectedNodeId(id);
+      setSelectedUnit(id === null ? null : unit);
+    },
+    [],
+  );
   const deselectNode = useCallback(() => {
     const id = selectedNodeId;
-    setSelectedNodeId(null);
+    selectStep(null);
     if (id !== null) {
       queueMicrotask(() => {
         focusAutomationNode(id);
       });
     }
-  }, [selectedNodeId]);
+  }, [selectedNodeId, selectStep]);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
+  /** The step a retry is being planned from, while its dialog is open. */
+  const [retryFrom, setRetryFrom] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const ability = useAbility();
+  // Live runs, like saving and deploying, are the author's.
+  const canStartLive = ability.can('read', 'developerSettings');
 
   const runQuery = useAutomationRun(organizationId, runId);
   const runRead = readStateOf(runQuery);
@@ -149,6 +250,16 @@ function RunDetailBody({
     automationSlug,
     run?.version,
   );
+  // The latest version, for a retry on it.
+  const latestQuery = useAutomation(organizationId, automationSlug);
+  // The Runs tab's own read: the run before this one, to compare with.
+  const runsQuery = useAutomationRuns(organizationId, automationSlug, 50);
+  // The run step by step: the canvas plays it back, and a failed run's
+  // card names the step it failed at.
+  const recordQuery = useRunRecord(organizationId, run ? runId : undefined, {
+    travels: true,
+    finished: run ? isRunFinished(readRunStatus(run.status)) : false,
+  });
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const cancel = useCancelAutomationRun();
   const starterLabel = useRunStarterLabel(organizationId);
@@ -202,6 +313,112 @@ function RunDetailBody({
     () => nodeCatalogView(nodeTypes, catalogQuery.data?.connectors ?? []),
     [nodeTypes, catalogQuery.data?.connectors],
   );
+  // The selected step read whole: what it read, received and returned.
+  const nodeQuery = useRunNode(
+    organizationId,
+    recordQuery.data ? runId : undefined,
+    selectedNodeId === null ? undefined : { node: selectedNodeId },
+  );
+  // The step the run failed at, as its record tells it: a step of this
+  // version (not one inside a subautomation), the last to fail.
+  const failedStep = useMemo<RecordedStep | undefined>(
+    () =>
+      recordQuery.data?.nodes
+        .filter(
+          (step) =>
+            step.status === 'failed' &&
+            step.parentPath === undefined &&
+            step.failure !== undefined,
+        )
+        .sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
+        .at(-1),
+    [recordQuery.data],
+  );
+  // The writes the run made, and where they went: what running it again
+  // live sends again.
+  const writes = useMemo(() => {
+    const sent = projection.effects.filter((effect) =>
+      effect.connector.includes('.'),
+    );
+    const slugs = [
+      ...new Set(sent.map((effect) => effect.connector.split('.')[0] ?? '')),
+    ];
+    return {
+      count: sent.length,
+      connectors: slugs.map((slug) => connectorName(slug, catalog, locale)),
+    };
+  }, [projection.effects, catalog, locale]);
+  /** The runs of this automation, where the run's own page hangs. */
+  const runsPath = `${automationDetailPathname({
+    organizationId,
+    automationSlug,
+    ...(run?.projectId !== undefined && { projectId: run.projectId }),
+  })}/runs`;
+  const previousRunId = useMemo(() => {
+    if (run === null) return undefined;
+    let previous: { id: string; startedAt: number } | undefined;
+    for (const other of runsQuery.data ?? []) {
+      if (other.id === run.id || other.startedAt >= run.startedAt) continue;
+      if (previous === undefined || other.startedAt > previous.startedAt) {
+        previous = other;
+      }
+    }
+    return previous?.id;
+  }, [run, runsQuery.data]);
+  const openRun = useCallback(
+    (started: { runId: string }) => {
+      void navigate({ to: `${runsPath}/${started.runId}` });
+    },
+    [navigate, runsPath],
+  );
+  const failureLabels = useMemo(
+    () => ({
+      connectorLabel: (slug: string) => connectorName(slug, catalog, locale),
+      actionLabel: (type: string) => actionTitle(type, catalog, locale),
+    }),
+    [catalog, locale],
+  );
+  // What the playback says about a step that failed or produced nothing,
+  // and about a wait.
+  const timelineWords = useMemo<TimelineWords>(() => {
+    const waits: Readonly<Record<WaitRecord['kind'], string>> = {
+      approval: tRuns('playback.wait.approval'),
+      ask: tRuns('playback.wait.ask'),
+      room: tRuns('playback.wait.room'),
+      repeat: tRuns('playback.wait.repeat'),
+      in_doubt: tRuns('playback.wait.in_doubt'),
+    };
+    return {
+      failed: (step) =>
+        step.failure === undefined
+          ? undefined
+          : stepFailureText(step.failure, {
+              t: tRuns,
+              locale,
+              ...failureLabels,
+            }).title,
+      skipped: (step) => {
+        const via = step.skip?.via?.[0];
+        switch (step.skip?.reason) {
+          case 'when':
+            return tRuns('playback.reason.when');
+          case 'else':
+            return via === undefined
+              ? tRuns('playback.reason.when')
+              : tRuns('playback.reason.else', { partner: nodeTitle(via) });
+          case 'upstream':
+            return via === undefined
+              ? undefined
+              : tRuns('playback.reason.upstream', { via: nodeTitle(via) });
+          case 'error':
+            return tRuns('playback.reason.error');
+          default:
+            return undefined;
+        }
+      },
+      wait: (wait) => waits[wait.kind],
+    };
+  }, [tRuns, locale, failureLabels]);
   const canvasRun = useMemo<CanvasRun | null>(
     () =>
       run === null
@@ -211,8 +428,24 @@ function RunDetailBody({
             projection,
             status: readRunStatus(run.status),
             startedBy: starterLabel(run),
+            ...(recordQuery.data !== null &&
+              recordQuery.data !== undefined && {
+                record: recordQuery.data,
+                words: timelineWords,
+                live: !isRunFinished(readRunStatus(run.status)),
+                items: { organizationId, runId },
+              }),
           },
-    [run, runStatusByNode, projection, starterLabel],
+    [
+      run,
+      runStatusByNode,
+      projection,
+      starterLabel,
+      recordQuery.data,
+      timelineWords,
+      organizationId,
+      runId,
+    ],
   );
   // A failed run opens on its failure: the node that failed comes into
   // view, and the way the run took to it stands out.
@@ -224,16 +457,19 @@ function RunDetailBody({
   );
   /** A condition opens its node; Start and End have no inspector of their
    * own yet. */
-  const selectOnCanvas = useCallback((id: string | null) => {
-    if (id === null) {
-      setSelectedNodeId(null);
-      return;
-    }
-    const target = flowGraphTarget(id);
-    if (target.kind === 'node' || target.kind === 'gate') {
-      setSelectedNodeId(target.nodeId);
-    }
-  }, []);
+  const selectOnCanvas = useCallback(
+    (id: string | null, unit?: RunUnitRef) => {
+      if (id === null) {
+        selectStep(null);
+        return;
+      }
+      const target = flowGraphTarget(id);
+      if (target.kind === 'node' || target.kind === 'gate') {
+        selectStep(target.nodeId, unit ?? null);
+      }
+    },
+    [selectStep],
+  );
 
   // What the inspector reads besides the node: no check runs on a run's
   // page, so it opens on what the run did and has no Shape tab.
@@ -353,6 +589,40 @@ function RunDetailBody({
             })}
           </Text>
         )}
+        {isRunFinished(status) && (
+          <RunActions
+            organizationId={organizationId}
+            automationSlug={automationSlug}
+            run={{
+              id: run.id,
+              version: run.version,
+              mode: run.mode,
+              input: run.input,
+              ...(run.projectId !== undefined && { projectId: run.projectId }),
+            }}
+            {...(automation?.inputs !== undefined && {
+              inputSchema: automation.inputs,
+            })}
+            {...(latestQuery.data?.version !== undefined && {
+              latestVersion: latestQuery.data.version,
+            })}
+            {...(versionQuery.data?.deployedVersion !== undefined && {
+              deployedVersion: versionQuery.data.deployedVersion,
+            })}
+            canStartLive={canStartLive}
+            writes={writes}
+            href={`${runsPath}/${run.id}`}
+            {...(previousRunId !== undefined && {
+              onComparePrevious: () => {
+                void navigate({
+                  to: `${runsPath}/compare`,
+                  search: { a: previousRunId, b: run.id },
+                });
+              },
+            })}
+            onStarted={openRun}
+          />
+        )}
         {!isRunFinished(status) && status !== 'quarantined' && (
           <Button
             variant="secondary"
@@ -365,6 +635,14 @@ function RunDetailBody({
           >
             {t('runs.cancel')}
           </Button>
+        )}
+        {run.replayOf !== undefined && (
+          <RunLineage
+            runId={run.id}
+            replayOf={run.replayOf}
+            runsPath={runsPath}
+            stepLabel={nodeTitle}
+          />
         )}
         {/* A run another server took over, or a stopping one handed on:
             how often, and the last time when and why — the platform's
@@ -473,7 +751,38 @@ function RunDetailBody({
         const reason = runReasonKey(run);
         if (reason === undefined) return null;
         if (reason.kind === 'failed') {
-          return <Alert variant="destructive" description={reason.detail} />;
+          const failedId = failedStep?.nodeId;
+          return (
+            <RunFailureCard
+              {...(failedStep?.failure !== undefined && {
+                failure: failedStep.failure,
+              })}
+              {...(failedId !== undefined && {
+                stepLabel: nodeTitle(failedId),
+                editor: {
+                  to: `${automationDetailPathname({
+                    organizationId,
+                    automationSlug,
+                    ...(run.projectId !== undefined && {
+                      projectId: run.projectId,
+                    }),
+                  })}/editor`,
+                  search: { node: failedId, version: run.version },
+                },
+                onShowStep: () => {
+                  selectStep(failedId);
+                },
+                onRetryFromStep: () => {
+                  setRetryFrom(failedId);
+                },
+              })}
+              {...(run.failureCode !== undefined && {
+                code: run.failureCode,
+              })}
+              detail={reason.detail}
+              labels={failureLabels}
+            />
+          );
         }
         if (run.waitingFor === 'ask' && pendingAsk !== null) return null;
         return (
@@ -516,7 +825,12 @@ function RunDetailBody({
               layoutKey={`${automationSlug}:run:${runId}`}
               catalog={catalog}
               selectedId={selectedNodeId}
+              selectedUnit={selectedUnit}
               onSelect={selectOnCanvas}
+              runView={runView}
+              onRunViewChange={setRunView}
+              {...(openedMoment !== undefined && { runMoment: openedMoment })}
+              onRunMomentChange={onRunMomentChange}
               revealId={selectedNodeId ?? failedNode}
               inspectorId={inspectorId}
               {...(canvasRun !== null && { run: canvasRun })}
@@ -540,6 +854,23 @@ function RunDetailBody({
             nodeType={nodeTypes.find((def) => def.type === selectedNode.type)}
             catalogUnavailable={catalogQuery.isError}
             runView={projection.byNode.get(selectedNode.id)}
+            {...(recordQuery.data !== null &&
+              recordQuery.data !== undefined && {
+                runRecord: (() => {
+                  const step = recordQuery.data.nodes.find(
+                    (each) => each.path === selectedNode.id,
+                  );
+                  const detail = nodeQuery.data ?? undefined;
+                  return {
+                    organizationId,
+                    runId,
+                    ...(step !== undefined && { step }),
+                    ...(detail !== undefined && { detail }),
+                    unit: selectedUnit,
+                    onUnitChange: setSelectedUnit,
+                  };
+                })(),
+              })}
             readOnly
             onChange={() => {
               // A recorded run is history: the inspector renders it read-only.
@@ -551,6 +882,31 @@ function RunDetailBody({
           />
         )}
       </div>
+
+      {retryFrom !== null && (
+        <RunReplayDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setRetryFrom(null);
+          }}
+          organizationId={organizationId}
+          run={{ id: run.id, version: run.version, mode: run.mode }}
+          from={retryFrom}
+          stepLabel={nodeTitle}
+          failedHere={retryFrom === failedStep?.nodeId}
+          {...(latestQuery.data?.version !== undefined && {
+            latestVersion: latestQuery.data.version,
+          })}
+          {...(versionQuery.data?.deployedVersion !== undefined && {
+            deployedVersion: versionQuery.data.deployedVersion,
+          })}
+          canStartLive={canStartLive}
+          onStarted={openRun}
+          onSelectStep={(id) => {
+            selectStep(id);
+          }}
+        />
+      )}
 
       {/* What an `agent` node did inside the sandbox — the one window into a
           turn that is otherwise an opaque spinner. Renders nothing for runs

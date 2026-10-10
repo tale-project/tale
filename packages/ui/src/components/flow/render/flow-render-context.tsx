@@ -1,6 +1,8 @@
 'use client';
 
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Handle, Position } from '@xyflow/react';
+import { Info, TriangleAlert } from 'lucide-react';
 import {
   createContext,
   useContext,
@@ -14,10 +16,12 @@ import {
 import { cn } from '../../../lib/cn';
 import { ISSUE_SEVERITY_FRAME_CLASS } from '../../feedback/issue-severity';
 import type { IssueCounts } from '../../feedback/issue-summary';
-import { Tooltip } from '../../overlays/tooltip';
+import { TooltipContent } from '../../overlays/tooltip';
+import type { FlowCompareFace, FlowCompareSide } from '../compare/compare';
 import { FLOW_MOTION_CLASS, FLOW_STRIP_SETTLE } from '../motion/flow-motion';
 import { flowNodeIssueFrameClass } from '../node-issue-marker';
-import type { FlowNodeState } from '../node-status';
+import { FLOW_NODE_STATE, type FlowNodeState } from '../node-status';
+import type { FlowNotice } from '../types';
 import { FLOW_NODE_DASHED } from './chrome';
 
 /** How a box looks right now: its run state, and where it stands in a
@@ -31,6 +35,10 @@ export interface FlowNodeLook {
   quiet: boolean;
   /** Inside the highlight: lifted and ringed (`error`: in the error red). */
   highlighted: 'none' | 'default' | 'error';
+  /** Two runs compared differ here: ringed, with a "Differs" glyph. */
+  differs?: boolean;
+  /** Not in one compared run's version: dashed. */
+  absent?: boolean;
 }
 
 /** How a line looks right now. */
@@ -72,6 +80,17 @@ export interface FlowRenderContextValue {
   ring: { ids: ReadonlySet<string>; key: string | number } | null;
   /** Yes and No labels highlight their paths under a pointer. */
   branchHover: boolean;
+  /** A box's tooltip lines: how its run went, in full (one line per run
+   *  compared). */
+  explanations: ReadonlyMap<string, readonly string[]>;
+  /** Two runs compared: their short names and what each box shows of
+   *  each; `null` otherwise. */
+  compare: {
+    labels: { a: string; b: string };
+    faces: ReadonlyMap<string, FlowCompareFace>;
+  } | null;
+  /** Pointer-hover words a line adds ("Only in A"), by edge id. */
+  edgeNotes: ReadonlyMap<string, string>;
   onActivate: (id: string) => void;
   onKeyDown: (id: string, event: KeyboardEvent<HTMLButtonElement>) => void;
   onFocusNode: (id: string, event: FocusEvent<HTMLButtonElement>) => void;
@@ -100,11 +119,13 @@ const PLAIN: FlowNodeLook = {
   highlighted: 'none',
 };
 
-/** The run states that mean "it did not run here": a dashed border. */
+/** The run states that mean "it did not run here": a dashed border. A
+ *  reused node's result came from an earlier run. */
 const PASSED_BY: ReadonlySet<FlowNodeState> = new Set([
   'skipped',
   'stopped',
   'not-run',
+  'reused',
 ]);
 
 /** The id of a node's hidden description. */
@@ -172,6 +193,52 @@ function RunChrome({ state }: { state: FlowNodeState }) {
   return null;
 }
 
+/** A tooltip's words: the host's lead, then one line per sentence;
+ *  nothing when there are none. */
+function NodeTooltipLines({
+  lead,
+  lines,
+}: {
+  lead: ReactNode;
+  lines: readonly string[] | undefined;
+}) {
+  if (!lead && (lines === undefined || lines.length === 0)) return null;
+  return (
+    <span className="flex max-w-xs flex-col gap-0.5">
+      {lead}
+      {lines?.map((line) => (
+        <span key={line} data-slot="flow-node-explanation">
+          {line}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * The canonical tooltip round a box, always mounted: words that come and
+ * go never swap the box's element. With nothing to say it opens to
+ * nothing.
+ */
+function FlowNodeTooltip({
+  content,
+  children,
+}: {
+  content: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <TooltipPrimitive.Root>
+      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+      {content ? (
+        <TooltipPrimitive.Portal>
+          <TooltipContent collisionPadding={8}>{content}</TooltipContent>
+        </TooltipPrimitive.Portal>
+      ) : null}
+    </TooltipPrimitive.Root>
+  );
+}
+
 /**
  * A box on the chart: one real `<button>` (no control inside it), named and
  * described for a screen reader, holding the chart's roving Tab stop when it
@@ -180,7 +247,14 @@ function RunChrome({ state }: { state: FlowNodeState }) {
  *
  * A run frames it by state, a highlight lifts it or steps it back (dashed
  * on a muted surface — its words never fade), and a live relayout grows it
- * in or shrinks it out (`phase`). A box on its way out is inert.
+ * in or shrinks it out (`phase`). A box on its way out is inert. Two runs
+ * compared ring a box where they differ and dash one a run's version does
+ * not have.
+ *
+ * A pointer resting on it reads its tooltip: the host's words (a gate's
+ * full condition) and the run's explanation. The tooltip's frame is always
+ * there, so a box whose explanation comes or goes while a run plays keeps
+ * its element — and the keyboard focus on it.
  */
 export function FlowNodeButton({
   id,
@@ -216,6 +290,8 @@ export function FlowNodeButton({
       data-flow-highlighted={
         look.highlighted === 'none' ? undefined : look.highlighted
       }
+      data-flow-differs={look.differs || undefined}
+      data-flow-absent={look.absent || undefined}
       tabIndex={!leaving && context.tabStopId === id ? 0 : -1}
       inert={leaving || undefined}
       aria-hidden={leaving || undefined}
@@ -237,12 +313,19 @@ export function FlowNodeButton({
         className,
         FLOW_NODE_LIFT,
         FLOW_NODE_RING,
-        (dashed || look.quiet || PASSED_BY.has(look.state)) && FLOW_NODE_DASHED,
+        (dashed ||
+          look.quiet ||
+          look.absent === true ||
+          PASSED_BY.has(look.state)) &&
+          FLOW_NODE_DASHED,
         // The frame takes the worst problem's colour; the selection ring
         // stays its own, so a picked node with a problem shows both. A run
         // state's frame wins over a problem's.
         flowNodeIssueFrameClass(counts),
         RUN_FRAME[look.state],
+        // Where two runs differ: a thin ring a highlight or the selection
+        // draws over.
+        look.differs === true && 'ring-1 ring-[hsl(var(--info-foreground))]',
         look.highlighted === 'default' && 'ring-foreground/20 shadow-md ring-1',
         look.highlighted === 'error' && 'ring-destructive shadow-md ring-2',
         selected && 'ring-ring ring-2 ring-offset-1',
@@ -274,11 +357,18 @@ export function FlowNodeButton({
         isConnectable={false}
         className="pointer-events-none! invisible!"
       />
-      {tooltip && !leaving ? (
-        <Tooltip content={tooltip}>{button}</Tooltip>
-      ) : (
-        button
-      )}
+      <FlowNodeTooltip
+        content={
+          leaving ? null : (
+            <NodeTooltipLines
+              lead={tooltip}
+              lines={context.explanations.get(id)}
+            />
+          )
+        }
+      >
+        {button}
+      </FlowNodeTooltip>
       {!leaving && (
         <span id={descriptionId} hidden>
           {context.descriptions.get(id)}
@@ -300,9 +390,17 @@ export function FlowNodeButton({
  * plays on, new words settle in softly; scrubbing back and reduced motion
  * swap them at once.
  */
-export function FlowNodeStrip({ id }: { id: string }) {
-  const { strips, stripSettle } = useFlowRender();
+export function FlowNodeStrip({
+  id,
+  notice,
+}: {
+  id: string;
+  /** Start's or End's notice: it takes the place of the strip's words. */
+  notice?: FlowNotice;
+}) {
+  const { strips, stripSettle, compare } = useFlowRender();
   const text = strips.get(id) ?? '';
+  const face = compare?.faces.get(id);
   const ref = useRef<HTMLSpanElement>(null);
   const shown = useRef(text);
   useLayoutEffect(() => {
@@ -321,6 +419,31 @@ export function FlowNodeStrip({ id }: { id: string }) {
     );
     return () => animation.cancel();
   }, [text, stripSettle]);
+  if (compare !== null && face !== undefined)
+    return <FlowCompareStrip face={face} labels={compare.labels} />;
+  if (notice !== undefined) {
+    const Icon = notice.tone === 'warning' ? TriangleAlert : Info;
+    return (
+      <span
+        data-slot="flow-node-strip"
+        data-flow-notice={notice.tone}
+        className="border-border flex h-7 shrink-0 items-center gap-1.5 border-t px-3 text-xs"
+      >
+        <Icon
+          aria-hidden="true"
+          className={cn(
+            'size-3.5 shrink-0',
+            notice.tone === 'warning'
+              ? 'text-amber-700 dark:text-amber-500'
+              : 'text-muted-foreground',
+          )}
+        />
+        <span className="text-foreground truncate" title={notice.text}>
+          {notice.text}
+        </span>
+      </span>
+    );
+  }
   return (
     <span
       data-slot="flow-node-strip"
@@ -329,6 +452,61 @@ export function FlowNodeStrip({ id }: { id: string }) {
       <span ref={ref} className="truncate">
         {text}
       </span>
+    </span>
+  );
+}
+
+/** One run's side on a box's foot: its letter, its state's glyph and its
+ *  words. */
+function CompareSide({
+  side,
+  label,
+  run,
+}: {
+  side: FlowCompareSide;
+  label: string;
+  run: 'a' | 'b';
+}) {
+  const { icon: Icon, iconClass } = FLOW_NODE_STATE[side.state];
+  return (
+    <span
+      data-flow-compare-side={run}
+      data-state={side.state}
+      className="inline-flex min-w-0 shrink items-center gap-1"
+    >
+      <span className="text-foreground shrink-0 font-medium">{label}</span>
+      <Icon aria-hidden="true" className={cn('size-3 shrink-0', iconClass)} />
+      <span className="truncate">{side.text}</span>
+    </span>
+  );
+}
+
+/**
+ * A box's foot when two runs are compared: "A ✓ 1.2 s · B ✕ Failed", or
+ * the run whose version does not have it. The box's name and description
+ * say the same in words.
+ */
+function FlowCompareStrip({
+  face,
+  labels,
+}: {
+  face: FlowCompareFace;
+  labels: { a: string; b: string };
+}) {
+  return (
+    <span
+      data-slot="flow-node-strip"
+      className="border-border text-muted-foreground flex h-7 shrink-0 items-center gap-1.5 overflow-hidden border-t px-3 text-xs"
+    >
+      {face.a && <CompareSide side={face.a} label={labels.a} run="a" />}
+      {face.a && (face.b || face.absent) && <span aria-hidden="true">·</span>}
+      {face.b && <CompareSide side={face.b} label={labels.b} run="b" />}
+      {face.b && face.absent && <span aria-hidden="true">·</span>}
+      {face.absent && (
+        <span data-flow-compare-absent className="truncate">
+          {face.absent}
+        </span>
+      )}
     </span>
   );
 }

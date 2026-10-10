@@ -5,6 +5,7 @@ import { isStructuredBackendError } from '@/app/hooks/use-action-query';
 import { CONNECTOR_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import { eventsUrl } from './api-client';
+import { runHintPrefixes } from './automations';
 import { probeBackendSoon, reportBackendReachable } from './connection-state';
 import {
   backendEntityPrefix,
@@ -163,7 +164,23 @@ export function useBackendHints(orgId: string | undefined): void {
           'entity' in hint &&
           typeof hint.entity === 'string'
         ) {
-          queueHint(hint.entity, backendEntityPrefix(org, hint.entity));
+          // A run's hint names the run: refresh its own reads and the
+          // listings, not every open run's. One without an id (an older
+          // server) refreshes them all.
+          const runId =
+            hint.entity === 'automation_run' &&
+            'entityId' in hint &&
+            typeof hint.entityId === 'string' &&
+            hint.entityId !== ''
+              ? hint.entityId
+              : undefined;
+          if (runId === undefined) {
+            queueHint(hint.entity, backendEntityPrefix(org, hint.entity));
+          } else {
+            for (const prefix of runHintPrefixes(org, runId)) {
+              queueHint(JSON.stringify(prefix), prefix);
+            }
+          }
           // Project writes also remove or hide the project's tasks and chats.
           // Refresh those entity lists so Home cannot retain stale rows.
           if (hint.entity === 'project') {

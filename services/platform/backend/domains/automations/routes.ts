@@ -1,3 +1,5 @@
+import { REPLAY_KINDS } from '@tale/shared/automation-replay';
+import { appReplayRequestSchema } from '@tale/shared/schemas/automation-replay';
 import { triggerWriteSchema } from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
@@ -54,6 +56,13 @@ import {
   readableProjectIds,
   runControlAccess,
 } from './project-visibility.ts';
+import { readReplayPlan, replayRunInTx } from './replay.ts';
+import {
+  readNodeDetail,
+  readNodePage,
+  readRunComparison,
+  readRunRecord,
+} from './run-record.ts';
 import {
   AutomationError,
   answerAsk,
@@ -68,6 +77,7 @@ import {
   getRun,
   listAutomationsForApp,
   listRuns,
+  listRunsPage,
   listTriggerRuns,
   listTriggers,
   listVersions,
@@ -75,6 +85,7 @@ import {
   setAutomationProjects,
   setTrigger,
   toRunDetail,
+  toRunSummary,
   triggerBodyRefusal,
   versionRow,
   deployedVersion,
@@ -228,6 +239,98 @@ function handleError<E extends OrgEnv>(
   }
   throw error;
 }
+
+/** A time in epoch milliseconds, as a query parameter. */
+const epochMsParam = z
+  .string()
+  .regex(/^\d{1,15}$/)
+  .transform(Number);
+
+/** A unit's item or pass: -1 for the step itself. */
+const unitIndexParam = z
+  .string()
+  .regex(/^-?\d{1,9}$/)
+  .transform(Number)
+  .pipe(z.number().int().min(-1));
+
+const recordQuerySchema = z.object({
+  since: epochMsParam.optional(),
+  include: z.string().max(64).optional(),
+});
+
+const nodeQuerySchema = z.object({
+  node: z.string().min(1).max(512),
+  item: unitIndexParam.optional(),
+  pass: unitIndexParam.optional(),
+});
+
+const itemsQuerySchema = z.object({
+  node: z.string().min(1).max(512),
+  cursor: z.string().max(32).optional(),
+  limit: z
+    .string()
+    .regex(/^\d{1,3}$/)
+    .transform(Number)
+    .pipe(z.number().int().min(1).max(200))
+    .optional(),
+  status: z.enum(['all', 'failed']).optional(),
+});
+
+/** The statuses a page of runs may be narrowed to. */
+const RUN_PAGE_STATUSES = new Set([
+  'queued',
+  'running',
+  'waiting',
+  'quarantined',
+  'success',
+  'failed',
+  'cancelled',
+]);
+
+/**
+ * A page of one automation's runs, as the Runs table asks for it: its
+ * name, the project it is read in, the statuses and mode it is narrowed to,
+ * and where the previous page ended (`<startedAt>|<id>`).
+ */
+const runPageQuerySchema = z.object({
+  name: z.string().min(1).max(512),
+  projectId: z.string().min(1).max(128).optional(),
+  status: z
+    .string()
+    .max(200)
+    .optional()
+    .transform((value) =>
+      value === undefined
+        ? undefined
+        : value.split(',').filter((status) => RUN_PAGE_STATUSES.has(status)),
+    ),
+  mode: z.enum(['mock', 'live']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z
+    .string()
+    .regex(/^\d{1,16}\|[\w-]{1,64}$/)
+    .optional()
+    .transform((value) => {
+      if (value === undefined) return undefined;
+      const [at, id] = value.split('|');
+      return { at: Number(at), id: id ?? '' };
+    }),
+});
+
+/** A replay's plan, asked for in the query: the same request a replay
+ * takes, its version a keyword or a number. */
+const replayQuerySchema = z.object({
+  kind: z.enum(REPLAY_KINDS),
+  from: z.string().trim().min(1).max(200).optional(),
+  version: z
+    .string()
+    .regex(/^(same|deployed|latest|[1-9]\d{0,6})$/)
+    .transform((v) =>
+      v === 'same' || v === 'deployed' || v === 'latest' ? v : Number(v),
+    )
+    .optional(),
+  mode: z.enum(['mock', 'live']).optional(),
+});
 
 /** The parts of a refusal the editor reads as structure, not as a sentence. */
 const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
@@ -598,6 +701,164 @@ export function createAutomationRoutes(deps: {
     });
   });
 
+  // A run step by step: its record, one unit of it whole, a page of a
+  // step's items and passes, and two runs side by side. Each is read like
+  // the run itself (AUTO-R2, AUTO-R40): a hidden or missing run is not
+  // found, and two runs compare only when both are readable.
+  const runNotFound = (): AutomationError =>
+    new AutomationError('RUN_NOT_FOUND', 'this run does not exist', 404);
+
+  app.get('/runs/:runId/record', async (c) => {
+    const query = recordQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const include = new Set((query.data.include ?? '').split(','));
+      const record = await readRunRecord(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        ...(query.data.since !== undefined && { since: query.data.since }),
+        travels: include.has('travels'),
+      });
+      if (record === null) throw runNotFound();
+      return c.json({ record });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/record/node', async (c) => {
+    const query = nodeQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const node = await readNodeDetail(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        path: query.data.node,
+        ...(query.data.item !== undefined && { item: query.data.item }),
+        ...(query.data.pass !== undefined && { pass: query.data.pass }),
+      });
+      if (node === null) {
+        throw new AutomationError(
+          'NODE_RUN_NOT_FOUND',
+          'this run has no record of that step',
+          404,
+        );
+      }
+      return c.json({ node });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/record/items', async (c) => {
+    const query = itemsQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const page = await readNodePage(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        path: query.data.node,
+        ...(query.data.cursor !== undefined && { cursor: query.data.cursor }),
+        ...(query.data.limit !== undefined && { limit: query.data.limit }),
+        ...(query.data.status !== undefined && { status: query.data.status }),
+      });
+      if (page === null) throw runNotFound();
+      return c.json({ page });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/compare/:otherRunId', async (c) => {
+    try {
+      const runId = c.req.param('runId');
+      const otherRunId = c.req.param('otherRunId');
+      if (
+        (await visibleRun(c, runId)) === null ||
+        (await visibleRun(c, otherRunId)) === null
+      ) {
+        throw runNotFound();
+      }
+      const diff = await readRunComparison(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        otherRunId,
+      });
+      if (diff === null) throw runNotFound();
+      return c.json({ diff });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Running a run again: its plan — what it reuses, runs again and sends out
+  // a second time — then the replay, born in the source's project. Both are
+  // read like the run itself; a live replay needs an author, as a live
+  // start does (AUTO-R41).
+  const mayStartLive = (c: Context<OrgEnv>): boolean =>
+    isAdminOrDeveloperRole(c.get('orgMember').role);
+
+  app.get('/runs/:runId/replay', async (c) => {
+    const query = replayQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const plan = await readReplayPlan(deps.sql, {
+        organizationId: c.get('orgId'),
+        sourceRunId: runId,
+        request: query.data,
+        canStartLive: mayStartLive(c),
+      });
+      if (plan === null) throw runNotFound();
+      return c.json({ plan });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/runs/:runId/replay', async (c) => {
+    const body = appReplayRequestSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const run = await visibleRun(c, runId);
+      if (run === null) throw runNotFound();
+      const { requestId, ...request } = body.data;
+      if ((request.mode ?? run.mode) === 'live') {
+        const denied = requireAuthor(c);
+        if (denied) return denied;
+      }
+      const visibleProjectIds = await readableProjectIds(
+        deps.sql,
+        await projectAuth(c),
+      );
+      const started = await deps.sql.begin((tx) =>
+        replayRunInTx(tx, {
+          organizationId: c.get('orgId'),
+          sourceRunId: runId,
+          request,
+          startedBy: `user:${c.get('sessionBundle').user.id}`,
+          canStartLive: mayStartLive(c),
+          visibleProjectIds,
+          ...(requestId !== undefined && { idempotencyKey: requestId }),
+        }),
+      );
+      if (started === null) throw runNotFound();
+      return c.json(started, started.duplicate === true ? 200 : 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   // Deciding resumes (or fails) the run, so it is a WRITE with the stop's
   // gate: a project run needs the project's write access, an organization
   // run member-level control. A hidden or missing run is "not found". The
@@ -690,6 +951,34 @@ export function createAutomationRoutes(deps: {
   // Both run reads answer the read model (`waitingFor`, `startedVia`), never
   // the raw row: the app names what a run waits on and what started it in
   // words, and the row's ask fact is the read's own input.
+  // One page of an automation's runs, newest first, narrowed as the Runs
+  // table asks; registered before `/runs/:runId`, which would read `page` as
+  // a run id.
+  app.get('/runs/page', async (c) => {
+    const query = runPageQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    const { name, projectId, status, mode, limit, cursor } = query.data;
+    const auth = await projectAuth(c);
+    if (
+      projectId !== undefined &&
+      (await readableProject(deps.sql, auth, projectId)) === null
+    ) {
+      return c.json({ items: [], next: null });
+    }
+    const page = await listRunsPage(deps.sql, c.get('orgId'), {
+      name,
+      ...(projectId !== undefined ? { projectId } : {}),
+      visibleProjectIds: await readableProjectIds(deps.sql, auth),
+      ...(status !== undefined && status.length > 0
+        ? { statuses: status }
+        : {}),
+      ...(mode !== undefined ? { mode } : {}),
+      ...(cursor !== undefined ? { before: cursor } : {}),
+      limit,
+    });
+    return c.json({ items: page.runs.map(toRunSummary), next: page.next });
+  });
+
   app.get('/runs/:runId', async (c) => {
     const run = await visibleRun(c, c.req.param('runId'));
     return run === null

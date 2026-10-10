@@ -1,6 +1,13 @@
 'use client';
 
-import { Box, Flag, Play, RefreshCw, Repeat } from 'lucide-react';
+import {
+  Box,
+  Flag,
+  GitCompareArrows,
+  Play,
+  RefreshCw,
+  Repeat,
+} from 'lucide-react';
 import {
   useId,
   useMemo,
@@ -15,6 +22,11 @@ import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 import type { IssueCounts } from '../feedback/issue-summary';
 import {
+  flowCompareFaces,
+  flowCompareLabels,
+  type FlowCompareFace,
+} from './compare/compare';
+import {
   describeFlowGraph,
   flowListFormat,
   flowStepIssues,
@@ -24,9 +36,13 @@ import {
   FlowNodeIssueMarker,
   flowNodeIssueFrameClass,
 } from './node-issue-marker';
-import { FlowNodeStatusIcon, type FlowNodeState } from './node-status';
+import {
+  FLOW_NODE_STATE,
+  FlowNodeStatusIcon,
+  type FlowNodeState,
+} from './node-status';
 import type { FlowHighlight } from './paths/highlight';
-import type { FlowFrameState } from './playback/types';
+import type { FlowCompareOverlay, FlowFrameState } from './playback/types';
 import { FLOW_ICON_TILE, FLOW_NODE_DASHED } from './render/chrome';
 import type { FlowGraph, FlowGroup, FlowNode } from './types';
 
@@ -42,6 +58,9 @@ export interface FlowStepListProps {
   controlsId?: string;
   /** A run shown with the list: each row says how its node went. */
   run?: FlowFrameState | null;
+  /** Two runs compared, in place of a run: each row says how its node went
+   *  in each, and where they differ. */
+  compare?: FlowCompareOverlay | null;
   /** A highlight: rows outside it step back and say why. */
   highlight?: FlowHighlight | null;
   /** The node a failed run stopped at, in focus. */
@@ -90,7 +109,10 @@ function iconOf(node: FlowNode) {
  * move between rows, Home and End jump, Enter or Space opens a row.
  *
  * With a run, each row carries its node's state glyph and says how it went
- * first; with a highlight, a row outside it is dashed and says why.
+ * first, then why (the run's explanation, a condition's decision folded
+ * into the node it guards); with two runs compared, a glyph per run and a
+ * "Differs" glyph where they differ. With a highlight, a row outside it is
+ * dashed and says why.
  */
 export function FlowStepList({
   graph,
@@ -100,6 +122,7 @@ export function FlowStepList({
   issues,
   controlsId,
   run = null,
+  compare = null,
   highlight = null,
   stoppedAt = null,
   className,
@@ -125,10 +148,21 @@ export function FlowStepList({
         list: flowListFormat(locale),
         issues,
         run,
+        compare,
         stoppedAt,
         reasons,
       }),
-    [graph, t, tIssues, locale, issues, run, stoppedAt, reasons],
+    [graph, t, tIssues, locale, issues, run, compare, stoppedAt, reasons],
+  );
+  const compared = useMemo(
+    () =>
+      compare === null
+        ? null
+        : {
+            labels: flowCompareLabels(compare, t),
+            faces: flowCompareFaces(graph, compare, t),
+          },
+    [graph, compare, t],
   );
   const items = useMemo(() => itemsOf(graph), [graph]);
   const stepIssues = useMemo(
@@ -190,6 +224,11 @@ export function FlowStepList({
       tabbable={tabStop === node.id}
       counts={stepIssues.get(node.id) ?? NO_ISSUES}
       state={run?.nodes[node.id]?.state ?? 'idle'}
+      compared={
+        compared === null
+          ? null
+          : { labels: compared.labels, face: compared.faces.get(node.id) }
+      }
       quiet={quietRest && !highlight?.nodes.has(node.id)}
       controlsId={controlsId}
       onActivate={() => onSelect?.(selectedId === node.id ? null : node.id)}
@@ -235,6 +274,7 @@ function FlowListRow({
   tabbable,
   counts,
   state,
+  compared,
   quiet,
   controlsId,
   onActivate,
@@ -248,6 +288,11 @@ function FlowListRow({
   tabbable: boolean;
   counts: IssueCounts;
   state: FlowNodeState;
+  /** Two runs compared: their names and this node's two sides. */
+  compared: {
+    labels: { a: string; b: string };
+    face: FlowCompareFace | undefined;
+  } | null;
   quiet: boolean;
   controlsId?: string;
   onActivate: () => void;
@@ -307,7 +352,11 @@ function FlowListRow({
           errors={counts.errors}
           warnings={counts.warnings}
         />
-        <FlowNodeStatusIcon state={state} />
+        {compared === null ? (
+          <FlowNodeStatusIcon state={state} />
+        ) : (
+          <ComparedGlyphs labels={compared.labels} face={compared.face} />
+        )}
       </button>
       {lines.length > 0 && (
         <span
@@ -320,5 +369,44 @@ function FlowListRow({
         </span>
       )}
     </li>
+  );
+}
+
+/** A row's two runs at a glance: each run's letter and state glyph, and the
+ *  "Differs" glyph where they differ. The row's name and lines say it in
+ *  words. */
+function ComparedGlyphs({
+  labels,
+  face,
+}: {
+  labels: { a: string; b: string };
+  face: FlowCompareFace | undefined;
+}) {
+  if (face === undefined) return null;
+  return (
+    <span aria-hidden="true" className="flex shrink-0 items-center gap-1.5">
+      {face.differs && (
+        <GitCompareArrows
+          data-slot="flow-row-differs"
+          className="text-muted-foreground size-3.5"
+        />
+      )}
+      {(['a', 'b'] as const).map((run) => {
+        const side = face[run];
+        if (side === undefined) return null;
+        const { icon: Icon, iconClass } = FLOW_NODE_STATE[side.state];
+        return (
+          <span
+            key={run}
+            data-flow-compare-side={run}
+            data-state={side.state}
+            className="inline-flex items-center gap-0.5 text-xs"
+          >
+            <span className="font-medium">{labels[run]}</span>
+            <Icon className={cn('size-3.5', iconClass)} />
+          </span>
+        );
+      })}
+    </span>
   );
 }

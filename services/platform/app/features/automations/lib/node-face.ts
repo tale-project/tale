@@ -143,6 +143,21 @@ export function connectorName(
   );
 }
 
+/** A connector action's title in the reader's language: the catalog's,
+ *  else its name in words ("List issues"). */
+export function actionTitle(
+  type: string,
+  catalog: NodeCatalogView,
+  locale: string,
+): string {
+  const entry = catalog.types.get(type);
+  const dot = type.indexOf('.');
+  return (
+    localized(entry?.title, entry?.i18n, 'title', locale) ??
+    nodeTitle(dot === -1 ? type : type.slice(dot + 1))
+  );
+}
+
 /** The node's icon: the connector's own, or one per core type. */
 export function nodeIcon(node: NodeDef, catalog: NodeCatalogView): FlowIcon {
   const core = CORE_ICONS[node.type];
@@ -194,13 +209,9 @@ export function catalogLabel(node: NodeDef, ctx: NodeFaceContext): string {
   if (parts === null) {
     return t('canvas.node.catalog.unknown', { type: node.type });
   }
-  const entry = catalog.types.get(node.type);
-  const action =
-    localized(entry?.title, entry?.i18n, 'title', locale) ??
-    nodeTitle(parts.action);
   return t('canvas.node.catalog.connector', {
     connector: connectorName(parts.connector, catalog, locale),
-    action,
+    action: actionTitle(node.type, catalog, locale),
   });
 }
 

@@ -845,6 +845,42 @@ Une automatisation sans association à un projet peut démarrer sans projet via 
 
 `DELETE /api/v1/projects/{id}/runs/{runId}`, ou `/api/v1/runs/{runId}`, exige la capacité développeur et supprime une exécution terminée, entrée et sortie comprises. Une exécution active donne **409**, `RUN_ACTIVE` : annule-la d’abord.
 
+### Lire une exécution étape par étape
+
+`GET /api/v1/runs/{runId}/record` (ou la forme projet) renvoie l’enregistrement de l’exécution : chaque étape dans l’ordre où elle s’exécute – l’entrée de l’exécution comme `__start`, les étapes de la version, la sortie du document comme `__end` – avec son statut, ses durées et ses tentatives, les décisions qui l’ont exécutée ou ignorée (chaque condition expliquée avec les valeurs qu’elle a lues), pourquoi elle n’a produit aucune sortie, remonté jusqu’à la cause, pourquoi elle a échoué (une `reason` tirée d’une liste fixe, avec les `params` qui la formulent), et un aperçu de ce qu’elle a reçu et renvoyé. Les valeurs elles-mêmes restent hors de l’enregistrement : lis une étape en entier sur `…/record/node?node=<path>` et ajoute `item` ou `pass` pour l’un de ses éléments ou passages. `…/record/items?node=<path>` parcourt les éléments et passages d’une étape page par page ; `status=failed` ne garde que ceux qui ont échoué. `…/compare/{otherRunId}` compare deux exécutions de la même automatisation étape par étape et nomme la première étape où elles ont divergé ; des exécutions d’automatisations différentes renvoient **400** `RUN_COMPARE_MISMATCH`. Chaque lecture demande le même accès que la lecture de l’exécution, et les secrets restent partout retenus.
+
+Pour suivre une exécution pendant qu’elle travaille, renvoie le `cursor` de l’enregistrement comme `since` : la réponse ne contient alors que les étapes écrites depuis et les événements depuis – fusionne les étapes par `path` et les événements par `id`. Un enregistrement reste sous 512 KiB et une étape sous 256 KiB ; `truncated` dit ce qui a été laissé de côté pour tenir. Ces lectures nécessitent le contrat d’API 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "format": 1, "nodes": [{ "path": "__start", "status": "succeeded", … },
+#   { "path": "triage", "status": "skipped", "skip": { "reason": "when", … },
+#     "decisions": [{ "kind": "when", "result": false, "explanation": [ … ] }] }, …],
+#   "cursor": 1758210000000 }
+```
+
+### Relancer une exécution
+
+`POST /api/v1/runs/{runId}/replay` (ou la forme projet) démarre une nouvelle exécution de la même automatisation, dans le périmètre de l’exécution : avec son entrée (`"kind": "again"`), avec une `input` que tu envoies (`"edited"`), ou à partir d’une étape (`"from"` avec `from`). Une relance à partir d’une étape réutilise les étapes que l’exécution a terminées hors de cette étape et de ce qu’elle alimente – leurs résultats et leur enregistrement, jamais leurs effets – et exécute le reste ; le `replayOf` de la nouvelle exécution nomme celle qu’elle relance. `version` choisit la version (`same` par défaut, ou `deployed`, `latest`, un numéro) et `mode` le mode (celui de l’exécution par défaut). Une relance réelle demande la capacité de développeur et la version déployée, et une relance à partir d’une étape d’une exécution simulée reste simulée (**409** `REPLAY_MODE_MISMATCH`).
+
+Une étape qui écrit s’exécute à nouveau et écrit à nouveau, sous une nouvelle clé de requête : les services qui ignorent les requêtes répétées n’y verront donc pas une répétition. Planifie d’abord : `GET …/replay` avec la même requête dans la query renvoie ce qui est réutilisé, ce qui s’exécute à nouveau, ce que chaque étape fait hors de Tale, et `writesAgain`, les écritures qui repartent une seconde fois – ou le `refusal` qu’elle rencontrerait : l’exécution n’est pas terminée (`REPLAY_RUN_NOT_FINISHED`), la version à exécuter a changé ce que calcule une étape réutilisée (`REPLAY_GRAPH_CHANGED`, avec les étapes), aucune étape de ce nom (`REPLAY_NODE_UNKNOWN`), ou l’exécution n’a gardé aucune entrée (`REPLAY_INPUT_UNAVAILABLE`). Envoie `Idempotency-Key` pour pouvoir réessayer sans risque. Ces points d’accès nécessitent le contrat d’API 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/replay?kind=from&from=send" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "reuse": [{ "nodeId": "fetch", "status": "ok" }], "rerun": [{ "nodeId": "send", "effect": "write", … }],
+#   "writesAgain": 1, … }
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/runs/<runId>/replay" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: fix-4711" \
+  -d '{ "kind": "from", "from": "send" }'
+# → 202 { "runId": "...", "version": 3, "mode": "live", "kind": "from", "reused": 1 }
+```
+
 ## Agir pour un membre : répondre à la question d’une exécution, décider la relecture d’une tâche
 
 Une exécution en pause sur `waitingFor: "ask"` attend une personne ; une tâche en `in_review` peut attendre une personne ou un agent désigné. Ces deux points d’entrée REST relaient le geste d’une personne depuis une autre application en la nommant comme `actor` : Tale enregistre cette personne, pas la clé. Ils demandent le contrat API 1.16.0 ; le contrat 3.11.0 ajoute le refus explicite d’une approbation humaine tant que la relecture appartient à un agent.

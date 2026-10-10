@@ -1,4 +1,10 @@
 import {
+  classifyStepFailure,
+  type FailureCause,
+  failureCauseOf,
+} from '../../../lib/engine/core/record/failure.ts';
+import type { StepFailure } from '../../../lib/engine/core/record/types.ts';
+import {
   CHAT_ERROR_CODES,
   classifyChatErrorCode,
   type ChatErrorCode,
@@ -171,12 +177,20 @@ export const PERMANENT_FAILURES_BEFORE_PAUSE = 5;
 export class NodeFailure extends Error {
   readonly code: RunFailureCode;
   readonly hint: string | undefined;
+  /** Why, in the run record's vocabulary, when the site can tell. */
+  readonly failure: FailureCause | undefined;
 
-  constructor(code: RunFailureCode, message: string, hint?: string) {
+  constructor(
+    code: RunFailureCode,
+    message: string,
+    hint?: string,
+    failure?: FailureCause,
+  ) {
     super(message);
     this.name = 'NodeFailure';
     this.code = code;
     this.hint = hint;
+    this.failure = failure;
   }
 }
 
@@ -189,11 +203,13 @@ export class NodeFailure extends Error {
  */
 export class RunStopFailure extends Error {
   readonly code: RunFailureCode;
+  readonly failure: FailureCause | undefined;
 
-  constructor(code: RunFailureCode, message: string) {
+  constructor(code: RunFailureCode, message: string, failure?: FailureCause) {
     super(message);
     this.name = 'RunStopFailure';
     this.code = code;
+    this.failure = failure;
   }
 }
 
@@ -234,4 +250,55 @@ export function agentFailureCodeOf(
     return value as RunFailureCode;
   }
   return AGENT_RETRY_ONLY_CODE_MAP.get(value) ?? 'harness_error';
+}
+
+/**
+ * The record of a step's failure, as the durable runtime caught it: the
+ * cause its site gave; else, for a model call the provider refused, the
+ * provider's code, and for an agent turn its own; else `UNKNOWN`.
+ */
+export function stepFailureOf(
+  error: unknown,
+  ctx: {
+    code: RunFailureCode;
+    message: string;
+    hint?: string;
+    pointer: string;
+    nodeType: string;
+    model?: string;
+  },
+): StepFailure {
+  const cause = failureCauseOf(error);
+  if (cause !== undefined) return classifyStepFailure(error, ctx);
+  if (
+    ctx.nodeType === 'llm' &&
+    (PROVIDER_FAILURE_CODES as readonly string[]).includes(ctx.code)
+  ) {
+    return classifyStepFailure(
+      {
+        failure: {
+          reason: 'LLM_PROVIDER',
+          params: { model: ctx.model ?? '', providerCode: ctx.code },
+          at: { pointer: `${ctx.pointer}/model` },
+        },
+      },
+      ctx,
+    );
+  }
+  if (
+    ctx.nodeType === 'agent' &&
+    (AGENT_FAILURE_CODES as readonly string[]).includes(ctx.code)
+  ) {
+    return classifyStepFailure(
+      {
+        failure: {
+          reason: 'AGENT_FAILED',
+          params: { agentCode: ctx.code },
+          at: { pointer: ctx.pointer },
+        },
+      },
+      ctx,
+    );
+  }
+  return classifyStepFailure(error, ctx);
 }

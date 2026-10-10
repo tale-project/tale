@@ -4,18 +4,25 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { seeded } from '@tale/ui/data/random-json';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
-import type { Automation, NodeDef } from '../types';
+import type { Decision, NodeRunRecord } from '../record/types';
+import type { Automation, NodeDef, NodeTrace } from '../types';
 import {
   analyzeFlow,
+  assignmentFromRun,
   constantCondition,
   flowModel,
   MAX_FREE_ATOMS,
+  pathIdOf,
   possiblePaths,
   simulate,
+  traceOutcome,
   type FlowFacts,
+  type FlowModel,
+  type PathOutcome,
 } from './flow';
 
 const REPO = path.resolve(
@@ -391,5 +398,411 @@ describe('a shipped pack: gmail/triage-inbox', () => {
       { nodeId: 'propose', reason: 'upstream', via: 'draft' },
       { nodeId: 'propose', reason: 'error' },
     ]);
+  });
+});
+
+/** A node's own record. */
+function row(
+  id: string,
+  extra: Partial<NodeRunRecord> & { item?: number; pass?: number } = {},
+): NodeRunRecord {
+  const { item = -1, pass = -1, ...rest } = extra;
+  return {
+    key: { path: id, item, pass },
+    nodeId: id.slice(id.lastIndexOf('/') + 1),
+    nodeType: 'transform',
+    status: 'ok',
+    activeMs: 1,
+    attempt: 1,
+    attempts: [],
+    decisions: [],
+    waits: [],
+    meta: {},
+    ...rest,
+  };
+}
+
+function decided(result: boolean): Decision {
+  return {
+    kind: 'when',
+    result,
+    value: { kind: 'boolean', text: String(result) },
+    trace: { pointer: '', units: [] },
+    at: 1,
+  };
+}
+
+const continued: Decision = { kind: 'onError', policy: 'continue', at: 2 };
+
+function entry(node: string, extra: Partial<NodeTrace> = {}): NodeTrace {
+  return { node, type: 'transform', status: 'ok', ...extra };
+}
+
+/** The notes both executors write. */
+const NOTES = {
+  when: 'skipped: when="{{ input.a }}" was falsy',
+  else: (partner: string) => `skipped: elseOf partner "${partner}" ran`,
+  upstream: (via: string) => `skipped: reads from skipped node(s) ${via}`,
+  error: 'onError: continue — dependents are skipped',
+};
+
+describe('traceOutcome', () => {
+  it.each<[Partial<NodeTrace>, string]>([
+    [{ status: 'ok' }, 'ran'],
+    [{ status: 'error' }, 'error'],
+    [{ status: 'error', note: NOTES.error }, 'error'],
+    [{ status: 'skipped', note: NOTES.when }, 'when'],
+    [{ status: 'skipped', note: NOTES.else('a') }, 'else'],
+    [{ status: 'skipped', note: NOTES.upstream('a, b') }, 'upstream'],
+    [{ status: 'skipped', note: 'skipped for a reason no one wrote' }, 'other'],
+    [{ status: 'skipped' }, 'other'],
+    [{ status: 'not_run' }, 'other'],
+  ])('%j reads %s', (extra, outcome) => {
+    expect(traceOutcome(entry('a', extra))).toBe(outcome);
+  });
+});
+
+describe('assignmentFromRun', () => {
+  const model = flowModel([
+    t('a', { when: '{{ input.a }}' }),
+    reads('b', 'a', { onError: 'continue' }),
+    t('c', { elseOf: 'a' }),
+    t('d', { when: '{{ true }}', onError: 'continue' }),
+  ]);
+  if (model === null) throw new Error('cycle');
+
+  it('reads a condition from its recorded decision', () => {
+    expect(
+      assignmentFromRun(model, {
+        record: [
+          row('a', {
+            status: 'skipped',
+            skip: { reason: 'when' },
+            decisions: [decided(false)],
+          }),
+          row('b', {
+            status: 'skipped',
+            skip: { reason: 'upstream', via: ['a'] },
+          }),
+          row('c'),
+          row('d', { decisions: [decided(true)] }),
+        ],
+      }),
+    ).toEqual({ 'when:a': false, 'fail:d': false });
+  });
+
+  it('takes the decision over what the status implies', () => {
+    expect(
+      assignmentFromRun(model, {
+        record: [row('a', { decisions: [decided(false)] })],
+      }),
+    ).toEqual({ 'when:a': false });
+  });
+
+  it('reads a condition from the status when no decision was kept', () => {
+    expect(assignmentFromRun(model, { record: [row('a')] })).toEqual({
+      'when:a': true,
+    });
+    expect(
+      assignmentFromRun(model, {
+        record: [row('a', { status: 'skipped', skip: { reason: 'when' } })],
+      }),
+    ).toEqual({ 'when:a': false });
+  });
+
+  it('reads a tolerated failure from the record', () => {
+    expect(
+      assignmentFromRun(model, {
+        record: [
+          row('a'),
+          row('b', { status: 'failed', skip: { reason: 'error' } }),
+          row('d', { status: 'failed', decisions: [continued] }),
+        ],
+      }),
+    ).toEqual({ 'when:a': true, 'fail:b': true, 'fail:d': true });
+    expect(
+      assignmentFromRun(model, {
+        record: [row('b', { status: 'skipped', skip: { reason: 'error' } })],
+      }),
+    ).toEqual({ 'fail:b': true });
+  });
+
+  it('answers a condition, never the failure, of a step still working', () => {
+    expect(
+      assignmentFromRun(model, {
+        record: [
+          row('a'),
+          row('b', { status: 'running' }),
+          row('d', { status: 'waiting' }),
+        ],
+      }),
+    ).toEqual({ 'when:a': true });
+    // A step that started got past a condition it has.
+    expect(
+      assignmentFromRun(model, { record: [row('a', { status: 'waiting' })] }),
+    ).toEqual({ 'when:a': true });
+  });
+
+  it('reads only each node’s own row at the top level', () => {
+    expect(
+      assignmentFromRun(model, {
+        record: [
+          row('b', { item: 0, status: 'failed' }),
+          row('b', { pass: 1, status: 'failed' }),
+          row('x[0:0]/a', { decisions: [decided(false)] }),
+        ],
+      }),
+    ).toEqual({});
+  });
+
+  it('reads a run recorded before records were kept from its trace', () => {
+    expect(
+      assignmentFromRun(model, {
+        trace: [
+          entry('a'),
+          entry('b', { status: 'error', note: NOTES.error }),
+          entry('c', { status: 'skipped', note: NOTES.else('a') }),
+          entry('d'),
+        ],
+      }),
+    ).toEqual({ 'when:a': true, 'fail:b': true, 'fail:d': false });
+    expect(
+      assignmentFromRun(model, {
+        trace: [
+          entry('a', { status: 'skipped', note: NOTES.when }),
+          entry('b', { status: 'skipped', note: NOTES.upstream('a') }),
+          entry('c'),
+          entry('d', { status: 'not_run' }),
+        ],
+      }),
+    ).toEqual({ 'when:a': false });
+  });
+
+  it('answers from the record first and fills its gaps from the trace', () => {
+    expect(
+      assignmentFromRun(model, {
+        record: [row('a', { decisions: [decided(true)] })],
+        trace: [
+          entry('a', { status: 'skipped', note: NOTES.when }),
+          entry('b', { status: 'error', note: NOTES.error }),
+        ],
+      }),
+    ).toEqual({ 'when:a': true, 'fail:b': true });
+    // A row that answers nothing (a skip without a reason) leaves the
+    // trace to answer.
+    expect(
+      assignmentFromRun(model, {
+        record: [row('a', { status: 'skipped' })],
+        trace: [entry('a')],
+      }),
+    ).toEqual({ 'when:a': true });
+  });
+
+  it('reads a condition that failed to evaluate as the trace does: the step got past it and failed', () => {
+    const failedAtCondition = row('a', {
+      status: 'failed',
+      failure: {
+        code: 'node_error',
+        reason: 'EXPR_READ_MISSING',
+        params: {},
+        message: 'Cannot read properties of undefined',
+        at: { pointer: '/nodes/0/when', range: [3, 10] },
+      },
+    });
+    const fromRecord = assignmentFromRun(model, {
+      record: [failedAtCondition],
+    });
+    const fromTrace = assignmentFromRun(model, {
+      trace: [entry('a', { status: 'error' })],
+    });
+    expect(fromRecord).toEqual({ 'when:a': true });
+    expect(fromRecord).toEqual(fromTrace);
+  });
+
+  it('names a path that exists for a run whose condition threw and went on', () => {
+    // `d`'s condition threw under onError: continue; the run succeeded.
+    const record = [
+      row('a', { decisions: [decided(true)] }),
+      row('b'),
+      row('c', { status: 'skipped', skip: { reason: 'else' } }),
+      row('d', {
+        status: 'skipped',
+        skip: { reason: 'error' },
+        decisions: [{ kind: 'onError', policy: 'continue', at: 1 }],
+        failure: {
+          code: 'node_error',
+          reason: 'EXPR_FAILED',
+          params: {},
+          message: 'boom',
+          at: { pointer: '/nodes/3/when', range: [3, 7] },
+        },
+      }),
+    ];
+    const assignment = assignmentFromRun(model, { record });
+    const id = pathIdOf(model, assignment);
+    expect(possiblePaths(model).paths.map((p) => p.id)).toContain(id);
+    expect(assignment['fail:d']).toBe(true);
+  });
+
+  it('answers nothing for an empty run', () => {
+    expect(assignmentFromRun(model, {})).toEqual({});
+  });
+});
+
+describe('pathIdOf', () => {
+  const model = flowModel([
+    t('a', { when: '{{ input.a }}' }),
+    reads('b', 'a', { onError: 'continue' }),
+    t('c', { elseOf: 'a' }),
+  ]);
+  if (model === null) throw new Error('cycle');
+
+  it('names every enumerated path by its own id', () => {
+    for (const p of possiblePaths(model).paths) {
+      expect(pathIdOf(model, p.assignment)).toBe(p.id);
+    }
+  });
+
+  it('leaves out what the run answered but never consulted', () => {
+    expect(pathIdOf(model, { 'when:a': false, 'fail:b': true })).toBe(
+      'when:a=0',
+    );
+  });
+
+  it('ends at the first atom a run consulted without answering', () => {
+    expect(pathIdOf(model, {})).toBe('');
+    expect(pathIdOf(model, { 'when:a': true })).toBe('when:a=1');
+    // An answer past the gap names no further step of the path.
+    expect(pathIdOf(model, { 'fail:b': true })).toBe('');
+  });
+});
+
+/** A random document of 2–8 nodes: data references, conditions that may
+ * read earlier nodes, alternatives and tolerated failures. */
+function generated(random: () => number): NodeDef[] {
+  const pick = <T>(xs: readonly T[]): T =>
+    xs[Math.floor(random() * xs.length)] as T;
+  const count = 2 + Math.floor(random() * 7);
+  const nodes: NodeDef[] = [];
+  for (let i = 0; i < count; i++) {
+    const id = `n${i}`;
+    const earlier = nodes.map((n) => n.id);
+    const input: Record<string, unknown> = {};
+    for (const ref of earlier.filter(() => random() < 0.35)) {
+      input[`r_${ref}`] = `{{ nodes.${ref}.output }}`;
+    }
+    const node: NodeDef = { id, type: 'transform', code: 'return 1;', input };
+    if (random() < 0.3) node.onError = 'continue';
+    if (random() < 0.4) {
+      node.when =
+        random() < 0.15
+          ? pick(['{{ true }}', '{{ false }}'])
+          : earlier.length > 0 && random() < 0.4
+            ? `{{ (nodes.${pick(earlier)}.output, input.w_${id}) }}`
+            : `{{ input.w_${id} }}`;
+    }
+    if (earlier.length > 0 && random() < 0.2) node.elseOf = pick(earlier);
+    nodes.push(node);
+  }
+  return nodes;
+}
+
+/** What each executor would have recorded on path `p`. */
+function recordedOn(model: FlowModel, p: PathOutcome): NodeRunRecord[] {
+  return model.nodes.map((n) => {
+    const gate = n.when.kind === 'none' ? [] : [decided(true)];
+    if (p.ran.includes(n.id)) return row(n.id, { decisions: gate });
+    const skip = p.skipped.find((s) => s.nodeId === n.id);
+    if (skip === undefined) throw new Error(`${n.id} neither ran nor skipped`);
+    switch (skip.reason) {
+      case 'error':
+        return row(n.id, {
+          status: 'failed',
+          skip: { reason: 'error' },
+          decisions: [...gate, continued],
+        });
+      case 'when':
+        return row(n.id, {
+          status: 'skipped',
+          skip: { reason: 'when' },
+          decisions: [decided(false)],
+        });
+      default:
+        return row(n.id, {
+          status: 'skipped',
+          skip: {
+            reason: skip.reason,
+            ...(skip.via !== undefined && { via: [skip.via] }),
+          },
+        });
+    }
+  });
+}
+
+/** What each executor would have traced on path `p`. */
+function tracedOn(model: FlowModel, p: PathOutcome): NodeTrace[] {
+  return model.nodes.map((n) => {
+    if (p.ran.includes(n.id)) return entry(n.id);
+    const skip = p.skipped.find((s) => s.nodeId === n.id);
+    switch (skip?.reason) {
+      case 'error':
+        return entry(n.id, { status: 'error', note: NOTES.error });
+      case 'when':
+        return entry(n.id, { status: 'skipped', note: NOTES.when });
+      case 'else':
+        return entry(n.id, { status: 'skipped', note: NOTES.else('x') });
+      default:
+        return entry(n.id, {
+          status: 'skipped',
+          note: NOTES.upstream(skip?.via ?? ''),
+        });
+    }
+  });
+}
+
+describe('a run placed among the paths [seeded]', () => {
+  it('reads back the path of every run of 200 generated documents, from records, traces and both', () => {
+    const random = seeded(20261009);
+    let runs = 0;
+    for (let d = 0; d < 200; d++) {
+      const model = flowModel(generated(random));
+      if (model === null) continue;
+      const { paths, truncated } = possiblePaths(model);
+      expect(truncated).toBe(false);
+      for (const p of paths) {
+        runs++;
+        const record = recordedOn(model, p);
+        const trace = tracedOn(model, p);
+        const context = `document ${d} path ${p.id}`;
+        expect(assignmentFromRun(model, { record }), context).toEqual(
+          p.assignment,
+        );
+        expect(assignmentFromRun(model, { trace }), context).toEqual(
+          p.assignment,
+        );
+        // A record with gaps, the trace filling them.
+        const gappy = record.filter(() => random() < 0.5);
+        expect(
+          assignmentFromRun(model, { record: gappy, trace }),
+          context,
+        ).toEqual(p.assignment);
+        expect(pathIdOf(model, p.assignment), context).toBe(p.id);
+        // A run still going: the steps after some point have no record
+        // yet, so its path is the start of this one.
+        const reached = record.slice(
+          0,
+          Math.floor(random() * (record.length + 1)),
+        );
+        const prefix = pathIdOf(
+          model,
+          assignmentFromRun(model, { record: reached }),
+        );
+        expect(
+          prefix === p.id || prefix === '' || p.id.startsWith(`${prefix}|`),
+          `${context}: ${prefix}`,
+        ).toBe(true);
+      }
+    }
+    expect(runs).toBeGreaterThan(400);
   });
 });

@@ -32,6 +32,7 @@ import type {
   RunSummary,
 } from '../../../lib/engine/api/dispatch.ts';
 import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
+import type { NodeRunWrite } from '../../../lib/engine/core/record/recorder.ts';
 import type { Issue } from '../../../lib/engine/core/types.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -101,6 +102,7 @@ import {
   managedDefinitionValue,
   managedScheduleValue,
 } from './managed-configuration-value';
+import { nodeRunBytes, startNodeRun, writeNodeRunsInTx } from './node-runs.ts';
 import { type RunEventKind, recordRunEventInTx } from './run-events.ts';
 import { recordTriggerRunOutcome } from './trigger-failures.ts';
 import { markAutomationWriterInTx } from './writer-protocol.ts';
@@ -2559,6 +2561,38 @@ export interface RunRow {
    * responding, or a stopping server handed it on and no other has taken
    * it yet. */
   stalled: boolean;
+  /** The run this one replays — null once that run was deleted, while
+   * `replayKind` still says it was a replay. Answered as `replayOf`; every
+   * read of the row selects them. */
+  replayOfRunId?: string | null;
+  replayKind?: RunReplayKind | null;
+  replayFromNode?: string | null;
+}
+
+/** How a replay ran its source again: with the same input, with an input a
+ * person edited, or from one of its steps. */
+export type RunReplayKind = 'again' | 'edited' | 'from';
+
+/** The run a replay ran again, as a read answers it. */
+export interface RunReplayOf {
+  /** Null once the run it replays was deleted. */
+  runId: string | null;
+  kind: RunReplayKind;
+  fromNode?: string;
+}
+
+/** A run's replay lineage, from its row; undefined for a run nobody
+ * replayed into being. */
+function runReplayOf(
+  row: Pick<RunRow, 'replayOfRunId' | 'replayKind' | 'replayFromNode'>,
+): RunReplayOf | undefined {
+  if (row.replayKind === null || row.replayKind === undefined) return undefined;
+  return {
+    runId: row.replayOfRunId ?? null,
+    kind: row.replayKind,
+    ...(row.replayFromNode !== null &&
+      row.replayFromNode !== undefined && { fromNode: row.replayFromNode }),
+  };
 }
 
 /** Why and when a run was last handed to another server. */
@@ -2602,7 +2636,9 @@ const RUN_COLUMNS = `
   resume_count AS "resumeCount",
   last_resume_reason AS "lastResumeReason",
   last_resumed_at_ms::float8 AS "lastResumedAt",
-  ${RUN_STALLED_SQL} AS "stalled"
+  ${RUN_STALLED_SQL} AS "stalled",
+  replay_of_run_id AS "replayOfRunId", replay_kind AS "replayKind",
+  replay_from_node AS "replayFromNode"
 `;
 
 async function runRow(
@@ -2877,29 +2913,41 @@ export function runWaitingFor(
  * resume stamps. */
 export function toRunDetail(row: RunRow): Omit<
   RunRow,
-  'askPending' | 'lastResumeReason' | 'lastResumedAt' | 'legacyQuarantine'
+  | 'askPending'
+  | 'lastResumeReason'
+  | 'lastResumedAt'
+  | 'legacyQuarantine'
+  | 'replayOfRunId'
+  | 'replayKind'
+  | 'replayFromNode'
 > & {
   legacyQuarantine?: LegacyRunQuarantine;
   waitingFor?: RunSummary['waitingFor'];
   startedVia?: RunSummary['startedVia'];
   lastResume?: RunLastResume;
+  replayOf?: RunReplayOf;
 } {
   const {
     askPending: _askPending,
     legacyQuarantine: _legacyQuarantine,
     lastResumeReason: _lastResumeReason,
     lastResumedAt: _lastResumedAt,
+    replayOfRunId: _replayOfRunId,
+    replayKind: _replayKind,
+    replayFromNode: _replayFromNode,
     ...rest
   } = row;
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
   const lastResume = runLastResume(row);
+  const replayOf = runReplayOf(row);
   return {
     ...rest,
     ...legacyRunReadFields(row),
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
     ...(lastResume !== undefined ? { lastResume } : {}),
+    ...(replayOf !== undefined ? { replayOf } : {}),
   };
 }
 
@@ -3042,6 +3090,15 @@ export interface BeginRunArgs {
    * admission too: omitting projectId must not infer a hidden project, nor
    * start an organization run able to operate in hidden bound projects. */
   visibleProjectIds?: string[];
+  /** A replay: the run it runs again and how. A replay from a step is born
+   * with the steps it takes from that run already finished — each entry
+   * marked `reused` — and runs the rest. */
+  replay?: {
+    of: string;
+    kind: RunReplayKind;
+    fromNode?: string;
+    reused?: Record<string, NodeCheckpoint>;
+  };
 }
 
 /** The same project admission for durable and in-process run artifacts.
@@ -3191,17 +3248,32 @@ export async function beginRunInTx(
     }
     const projectId = await resolveRunProject(tx, args);
     const now = Date.now();
+    // The record begins with what the run was given.
+    const start = startNodeRun(args.input, now);
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, project_id, status, mode, started_by,
-        api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms
+        api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms,
+        record_bytes, replay_of_run_id, replay_kind, replay_from_node,
+        replay_lineage_started_by
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${version},
         ${projectId}, 'queued', ${args.mode}, ${args.startedBy},
         ${args.apiKeyId ?? null},
         ${tx.json(toJson(JSON.stringify(args.input)))},
-        ${tx.json(toJson({ nodes: {}, executions: 0 }))},
-        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}
+        ${tx.json(toJson({ nodes: args.replay?.reused ?? {}, executions: 0 }))},
+        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}, ${start.bytes},
+        ${args.replay?.of ?? null}, ${args.replay?.kind ?? null},
+        ${args.replay?.fromNode ?? null},
+        -- Whose runs this one carries (0192): its source's starter and the
+        -- starters the source carried in turn, so an erasure of any of them
+        -- finds it after the source itself is gone.
+        (SELECT array_append(
+                  coalesce(s.replay_lineage_started_by, '{}'::text[]),
+                  s.started_by)
+           FROM app.automation_runs s
+          WHERE s.id = ${args.replay?.of ?? null}
+            AND s.org_id = ${args.organizationId})
       )
       RETURNING id
     `;
@@ -3209,6 +3281,12 @@ export async function beginRunInTx(
     // continuation, and an overdue row would also be re-poked by the sweep.
     const runId = inserted[0]?.id;
     if (!runId) throw new Error('run insert failed');
+    await writeNodeRunsInTx(tx, {
+      organizationId: args.organizationId,
+      runId,
+      epoch: 0,
+      rows: [start],
+    });
     await enqueueStep(tx, args.organizationId, runId, 0);
     await emitRunHint(tx, args.organizationId, runId);
     return { runId, version };
@@ -3912,6 +3990,9 @@ export async function recordProgress(
     checkpoint?: unknown;
     cursor?: unknown;
     executions: number;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
@@ -3943,7 +4024,8 @@ export async function recordProgress(
                    ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
         lease_expires_at_ms = CASE WHEN lease_expires_at_ms IS NULL THEN NULL
                                    ELSE ${now + RUN_LEASE_MS}::bigint END,
-        wake_at_ms = ${now + RUN_LEASE_MS}
+        wake_at_ms = ${now + RUN_LEASE_MS},
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
@@ -3960,6 +4042,7 @@ export async function recordProgress(
         ),
       };
     }
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     await emitRunHint(tx, args.organizationId, args.runId);
     return { status: written.status };
   });
@@ -3993,6 +4076,9 @@ export async function suspendRun(
     executions: number;
     resumeInMs: number;
     event?: { kind: RunEventKind; detail?: Record<string, unknown> };
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ suspended: boolean }> {
   return sql.begin(async (tx) => {
@@ -4029,7 +4115,8 @@ export async function suspendRun(
                    ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
         wake_at_ms = ${now + args.resumeInMs},
         chain_seq = chain_seq + 1,
-        lease_owner = NULL, lease_expires_at_ms = NULL
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
@@ -4037,6 +4124,7 @@ export async function suspendRun(
     `;
     const parked = rows[0];
     if (!parked) return { suspended: false };
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     if (
       parkedAgentSettled(parkCursor) ||
       (await approvalDecided(tx, args.organizationId, args.detail)) ||
@@ -4225,6 +4313,9 @@ export async function continueRun(
     epoch: number;
     resumeInMs: number;
     handoff?: RunHandoff;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ scheduled: boolean }> {
   return sql.begin(async (tx) => {
@@ -4239,13 +4330,15 @@ export async function continueRun(
         last_resume_reason = CASE WHEN ${handedOff}::boolean
           THEN 'shutdown' ELSE last_resume_reason END,
         last_resumed_at_ms = CASE WHEN ${handedOff}::boolean
-          THEN ${now}::bigint ELSE last_resumed_at_ms END
+          THEN ${now}::bigint ELSE last_resumed_at_ms END,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
       RETURNING id
     `;
     if (!rows[0]) return { scheduled: false };
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     await enqueueStep(tx, args.organizationId, args.runId, args.resumeInMs);
     const handoff = args.handoff;
     if (handoff !== undefined) {
@@ -4300,6 +4393,9 @@ export async function finishRun(
      * absent for a success, and for a failure no site could classify. */
     failureCode?: string | null;
     executions: number;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
@@ -4327,7 +4423,8 @@ export async function finishRun(
                THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END,
           'executions', ${args.executions}::int),
         wake_at_ms = NULL, finished_at_ms = ${now},
-        lease_owner = NULL, lease_expires_at_ms = NULL
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
@@ -4345,6 +4442,7 @@ export async function finishRun(
         ),
       };
     }
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     // The provenance record, atomic with the finish (LIVE runs only). The
     // full fold (approvals + connector effects) grows with those domains;
     // the terminal audit row is the contract that must never be missing.

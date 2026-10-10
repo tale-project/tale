@@ -30,6 +30,21 @@ export interface FlowRealWait {
   endedAt?: number;
   /** "Waited 3 h for approval". */
   label: string;
+  /** The node that waited. */
+  nodeId?: string;
+}
+
+/** A moment the run went through something other than its own work: a
+ *  server restarted and another took over, a person decided how it goes
+ *  on. */
+export interface FlowRealMark {
+  /** Epoch milliseconds. */
+  at: number;
+  kind: 'restart' | 'resume';
+  /** "The server restarted; another took over". */
+  label: string;
+  /** The node it happened at, when it belongs to one. */
+  nodeId?: string;
 }
 
 export interface FlowRealRun {
@@ -39,6 +54,9 @@ export interface FlowRealRun {
   spans: readonly FlowRealSpan[];
   travels: readonly FlowRealTravel[];
   waits?: readonly FlowRealWait[];
+  /** Restarts and resumes: marks on the scrubber, rows in the Steps
+   *  view, and events the replay steps to. */
+  marks?: readonly FlowRealMark[];
 }
 
 export interface BuildPlaybackTimelineOptions {
@@ -88,6 +106,7 @@ export function buildPlaybackTimeline(
     moments.add(wait.startedAt);
     if (wait.endedAt !== undefined) moments.add(wait.endedAt);
   }
+  for (const mark of run.marks ?? []) moments.add(mark.at);
   if (run.endedAt !== undefined) moments.add(run.endedAt);
   const real = [...moments]
     .filter((moment) => moment >= run.startedAt)
@@ -172,6 +191,7 @@ export function buildPlaybackTimeline(
       ...(wait.endedAt === undefined ? {} : { end: fromReal(wait.endedAt) }),
       kind: 'wait',
       label: wait.label,
+      ...(wait.nodeId === undefined ? {} : { nodeId: wait.nodeId }),
     });
   for (const span of spans)
     if (span.outcome === 'failed')
@@ -179,7 +199,19 @@ export function buildPlaybackTimeline(
         at: span.end ?? span.start,
         kind: 'failure',
         label: span.reason ?? span.detail ?? span.nodeId,
+        nodeId: span.nodeId,
       });
+  const moved: FlowTimelineMark[] = [];
+  for (const mark of run.marks ?? []) {
+    const moment: FlowTimelineMark = {
+      at: fromReal(mark.at),
+      kind: mark.kind,
+      label: mark.label,
+    };
+    if (mark.nodeId !== undefined) moment.nodeId = mark.nodeId;
+    moved.push(moment);
+  }
+  marks.push(...moved);
   marks.sort((a, b) => a.at - b.at);
 
   const events = [
@@ -188,6 +220,7 @@ export function buildPlaybackTimeline(
         span.end === undefined ? [span.start] : [span.start, span.end],
       ),
       ...travels.map((travel) => travel.start),
+      ...moved.map((mark) => mark.at),
     ]),
   ].sort((a, b) => a - b);
 

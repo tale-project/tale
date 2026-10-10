@@ -36,6 +36,8 @@
  */
 
 import { execute, type ExecuteOptions } from '../core/execute';
+import { createRecorder, type NodeRunWrite } from '../core/record/recorder';
+import { recordBudget, redactTrace } from '../core/record/value';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
 import type { Automation, Issue, RunResult } from '../core/types';
@@ -360,11 +362,14 @@ export interface DispatchStore extends StoreAdapter {
   ): Promise<SetTriggerOutcome | undefined>;
   /** Host authorization before an in-process deployed run starts executing. */
   authorizeRun?(name: string, mode: 'mock' | 'live'): Promise<void>;
+  /** Keep a run that executed in one call: its result, and — so it can be
+   * read step by step and run again — its input and its record's rows. */
   recordRun?(
     name: string,
     version: number,
     result: RunResult,
     mode: 'mock' | 'live',
+    run?: { input: unknown; nodeRuns: NodeRunWrite[] },
   ): Promise<void>;
   /** Hand a run to the host's durable runner. Returns the handle to poll, or
    * null when the automation has no version to run. `projectId`, when given,
@@ -404,6 +409,41 @@ export interface DispatchStore extends StoreAdapter {
     cursor?: string;
   }): Promise<RunPage | null>;
   getRun?(runId: string): Promise<RunDetail | null>;
+  /** A run step by step — the host's run record (the REST
+   * `GET …/runs/{runId}/record`); null when the run does not exist or the
+   * caller cannot read it. */
+  getRunRecord?(
+    runId: string,
+    options: { travels: boolean },
+  ): Promise<Record<string, unknown> | null>;
+  /** One unit of a run read whole: a step, or one of its items or passes.
+   * Null when the run does not exist or is hidden; a unit the record does
+   * not hold is refused (`NODE_RUN_NOT_FOUND`). */
+  getRunNode?(
+    runId: string,
+    unit: { node: string; item?: number; pass?: number },
+  ): Promise<Record<string, unknown> | null>;
+  /** Two runs of one automation side by side. Null when either does not
+   * exist or is hidden; runs of different automations are refused
+   * (`RUN_COMPARE_MISMATCH`). */
+  compareRuns?(
+    runId: string,
+    otherRunId: string,
+  ): Promise<Record<string, unknown> | null>;
+  /** What running a run again would do: what it reuses, runs again and
+   * sends out a second time, or why it cannot start. Null when the run does
+   * not exist or is hidden. */
+  planReplay?(
+    runId: string,
+    request: ReplayRequestArgs,
+  ): Promise<Record<string, unknown> | null>;
+  /** Run a run again, in its own project. Null when the run does not exist
+   * or is hidden; a replay its plan refuses throws the plan's refusal. */
+  replayRun?(
+    runId: string,
+    request: ReplayRequestArgs,
+    options: { idempotencyKey?: string },
+  ): Promise<Record<string, unknown> | null>;
   /** Stop a run. `cancelled: false` with a terminal `status` is a run that
    * had already finished; `cancelled: false` with NO `status` is a run that
    * does not exist (answered RUN_NOT_FOUND, like `get_run` and REST). */
@@ -523,6 +563,21 @@ const RUN_ID_HINT =
  * wins.
  */
 const HOST_REFUSAL_HINTS: Readonly<Record<string, string>> = {
+  NODE_RUN_NOT_FOUND:
+    'get_run {runId, include: ["record"]} lists the steps under record.nodes; a step’s items and passes carry item and pass',
+  RUN_COMPARE_MISMATCH:
+    'compare two runs of the same automation: list_runs {name} lists them',
+  REPLAY_RUN_NOT_FINISHED:
+    'wait for the run to finish (get_run {runId, detail: []}), or run it again whole with kind "again"',
+  REPLAY_NODE_UNKNOWN:
+    'name a step both versions have, as get_run {runId, include: ["record"]} lists it',
+  REPLAY_GRAPH_CHANGED:
+    'run it again whole (kind "again"), or from a step that comes before data.nodes, or in the version it ran (version "same")',
+  REPLAY_MODE_MISMATCH:
+    'run a mock run again from a step in mode "mock", or run it again whole in mode "live"',
+  REPLAY_PROGRESS_UNREADABLE: 'run it again whole with kind "again"',
+  REPLAY_INPUT_UNAVAILABLE:
+    'run it again with the input you mean: kind "edited" with input',
   AUTOMATION_NAME_TAKEN:
     'the name is in use, perhaps by an automation you cannot see: pick another name. To change one get_automation reads, save without create and with its version as baseVersion',
   AUTOMATION_NAME_RESERVED:
@@ -788,6 +843,98 @@ function detailParam(
 /** What `get_run` can answer beside the run's status, each the size of the
  * run's own data. */
 const RUN_DETAIL = ['input', 'output', 'trace', 'effects'] as const;
+
+/** What `get_run` can add: the run's record, step by step, and the data
+ * that travelled between its steps (which brings the record with it). */
+const RUN_INCLUDES = ['record', 'travels'] as const;
+
+function runIncludeParam(
+  v: unknown,
+):
+  | { value: ReadonlySet<string> }
+  | { error: string; code: 'INVALID_PARAMS'; hint: string } {
+  if (v === undefined) return { value: new Set() };
+  const known = new Set<unknown>(RUN_INCLUDES);
+  if (Array.isArray(v) && v.every((d) => known.has(d))) {
+    return { value: new Set(v.map(String)) };
+  }
+  return {
+    error: `params.include must list some of ${RUN_INCLUDES.map((d) => `"${d}"`).join(', ')} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'pass include: ["record"] to read the run step by step',
+  };
+}
+
+/** What `replay_run` asks for: how to run the run again, which version, in
+ * which mode, and an edited replay's input. */
+export interface ReplayRequestArgs {
+  kind: 'again' | 'edited' | 'from';
+  from?: string;
+  version?: 'same' | 'deployed' | 'latest' | number;
+  mode?: 'mock' | 'live';
+  input?: unknown;
+}
+
+/** `replay_run`'s request from its params; a refusal when it is not one. */
+function replayRequestParam(
+  p: Record<string, unknown>,
+):
+  | { value: ReplayRequestArgs }
+  | { error: string; code: 'INVALID_PARAMS'; hint: string } {
+  const kind = p.kind;
+  if (kind !== 'again' && kind !== 'edited' && kind !== 'from') {
+    return {
+      error: `params.kind must be "again", "edited" or "from" — got ${JSON.stringify(kind)}`,
+      code: 'INVALID_PARAMS',
+      hint: '"again" runs it with its own input, "edited" with input, "from" from a step',
+    };
+  }
+  const from = asString(p.from);
+  if (kind === 'from' && !from) {
+    return {
+      error: 'missing params.from',
+      code: 'INVALID_PARAMS',
+      hint: 'name the step to run again from, as get_run {include: ["record"]} lists it',
+    };
+  }
+  const version = p.version;
+  const versionOk =
+    version === undefined ||
+    version === 'same' ||
+    version === 'deployed' ||
+    version === 'latest' ||
+    (typeof version === 'number' && Number.isInteger(version) && version >= 1);
+  if (!versionOk) {
+    return {
+      error: `params.version must be "same", "deployed", "latest" or a version number — got ${JSON.stringify(version)}`,
+      code: 'INVALID_PARAMS',
+      hint: 'leave it out to run the version the run ran',
+    };
+  }
+  const mode = p.mode;
+  if (mode !== undefined && mode !== 'mock' && mode !== 'live') {
+    return {
+      error: `params.mode must be "mock" or "live" — got ${JSON.stringify(mode)}`,
+      code: 'INVALID_PARAMS',
+      hint: 'leave it out to run in the run’s own mode',
+    };
+  }
+  return {
+    value: {
+      kind,
+      ...(kind === 'from' && { from }),
+      ...(version !== undefined && { version }),
+      ...(mode !== undefined && { mode }),
+      ...(kind === 'edited' && 'input' in p && { input: p.input }),
+    },
+  };
+}
+
+/** A unit's item or pass: -1 for the step itself. */
+function unitIndexParam(v: unknown): number | undefined | null {
+  if (v === undefined) return undefined;
+  return typeof v === 'number' && Number.isInteger(v) && v >= -1 ? v : null;
+}
 
 /**
  * Read `params.detail` of get_run: which of the run's own data to answer.
@@ -1154,7 +1301,7 @@ export async function dispatch(
         }),
       });
       if (warnings.length > 0) result.validation = { errors: [], warnings };
-      return result;
+      return { ...result, trace: redactTrace(result.trace) };
     }
 
     case 'test_automation': {
@@ -1543,17 +1690,33 @@ export async function dispatch(
       } catch (error) {
         return refusalFrom(error);
       }
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
-      const result = await execute(found.automation as Automation, {
-        input: p.input ?? {},
-        mode,
-        store,
-        ...(ctx.connectorHost !== undefined && {
-          connectorHost: ctx.connectorHost,
-        }),
+      const input = p.input ?? {};
+      // The run is kept, so it keeps its record: what each step decided,
+      // read and returned.
+      const recorder = createRecorder({
+        now: () => Date.now(),
+        budget: recordBudget(),
       });
-      if (store.recordRun) await store.recordRun(name, version, result, mode);
-      return { version, ...result };
+      const { record: _record, ...result } = await execute(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
+        found.automation as Automation,
+        {
+          input,
+          mode,
+          store,
+          recorder,
+          ...(ctx.connectorHost !== undefined && {
+            connectorHost: ctx.connectorHost,
+          }),
+        },
+      );
+      if (store.recordRun) {
+        await store.recordRun(name, version, result, mode, {
+          input,
+          nodeRuns: recorder.drain(),
+        });
+      }
+      return { version, ...result, trace: redactTrace(result.trace) };
     }
 
     case 'start_run': {
@@ -1709,6 +1872,11 @@ export async function dispatch(
       }
       const detail = runDetailParam(p.detail);
       if ('error' in detail) return detail;
+      const include = runIncludeParam(p.include);
+      if ('error' in include) return include;
+      if (include.value.size > 0 && !store.getRunRecord) {
+        return notSupported('a run’s record is');
+      }
       const run = await store.getRun(runId);
       if (!run) {
         return {
@@ -1720,13 +1888,135 @@ export async function dispatch(
       // The run's own data the caller left out of `detail` is dropped; its
       // status, its scope and the question it waits on always stay.
       const dropped = RUN_DETAIL.filter((key) => !detail.value.has(key));
-      return {
+      const answer: Record<string, unknown> = {
         run: Object.fromEntries(
           Object.entries(run).filter(
             ([key]) => !(dropped as readonly string[]).includes(key),
           ),
         ),
       };
+      if (include.value.size > 0 && store.getRunRecord) {
+        const record = await store.getRunRecord(runId, {
+          travels: include.value.has('travels'),
+        });
+        if (record !== null) answer.record = record;
+      }
+      return answer;
+    }
+
+    case 'get_run_node': {
+      if (!store.getRunNode) return notSupported('a run’s record is');
+      const runId = asString(p.runId);
+      const node = asString(p.node);
+      if (!runId || !node) {
+        return {
+          error: !runId ? 'missing params.runId' : 'missing params.node',
+          code: 'INVALID_PARAMS',
+          hint: !runId
+            ? RUN_ID_HINT
+            : 'name a step by its path, as get_run {runId, include: ["record"]} lists it under record.nodes',
+        };
+      }
+      const item = unitIndexParam(p.item);
+      const pass = unitIndexParam(p.pass);
+      if (item === null || pass === null) {
+        return {
+          error: 'params.item and params.pass are whole numbers from -1',
+          code: 'INVALID_PARAMS',
+          hint: 'leave them out (or -1) for the step itself',
+        };
+      }
+      try {
+        const unit = await store.getRunNode(runId, {
+          node,
+          ...(item !== undefined && { item }),
+          ...(pass !== undefined && { pass }),
+        });
+        if (unit === null) {
+          return {
+            error: `no run "${runId}"`,
+            code: 'RUN_NOT_FOUND',
+            hint: RUN_ID_HINT,
+          };
+        }
+        return { node: unit };
+      } catch (e) {
+        return refusalFrom(e);
+      }
+    }
+
+    case 'compare_runs': {
+      if (!store.compareRuns) return notSupported('comparing runs is');
+      const a = asString(p.a);
+      const b = asString(p.b);
+      if (!a || !b) {
+        return {
+          error: !a ? 'missing params.a' : 'missing params.b',
+          code: 'INVALID_PARAMS',
+          hint: 'name two runs of one automation, as list_runs lists them',
+        };
+      }
+      try {
+        const diff = await store.compareRuns(a, b);
+        if (diff === null) {
+          return {
+            error: `no run "${a}" or "${b}" to compare`,
+            code: 'RUN_NOT_FOUND',
+            hint: RUN_ID_HINT,
+          };
+        }
+        return { diff };
+      } catch (e) {
+        return refusalFrom(e);
+      }
+    }
+
+    case 'replay_run': {
+      if (!store.replayRun || !store.planReplay) {
+        return notSupported('running a run again is');
+      }
+      const runId = asString(p.runId);
+      if (!runId) {
+        return {
+          error: 'missing params.runId',
+          code: 'INVALID_PARAMS',
+          hint: RUN_ID_HINT,
+        };
+      }
+      const request = replayRequestParam(p);
+      if ('error' in request) return request;
+      try {
+        if (p.dryRun === true) {
+          const plan = await store.planReplay(runId, request.value);
+          if (plan === null) {
+            return {
+              error: `no run "${runId}"`,
+              code: 'RUN_NOT_FOUND',
+              hint: RUN_ID_HINT,
+            };
+          }
+          return { plan };
+        }
+        const key = asString(p.idempotencyKey);
+        const started = await store.replayRun(
+          runId,
+          request.value,
+          key ? { idempotencyKey: key } : {},
+        );
+        if (started === null) {
+          return {
+            error: `no run "${runId}"`,
+            code: 'RUN_NOT_FOUND',
+            hint: RUN_ID_HINT,
+          };
+        }
+        return {
+          run: started,
+          note: 'the replay runs in the background — poll get_run {runId, detail: []} for its status, then get_run {runId, include: ["record"]} once it finished',
+        };
+      } catch (e) {
+        return refusalFrom(e);
+      }
     }
 
     case 'cancel_run': {

@@ -83,9 +83,9 @@ A frame is decoration, hidden from assistive technology. Repeat its words in the
 
 <Demo name="flow/entry-exit" />
 
-Start lists what starts a run (`triggers`, three rows) and what each run receives (`inputs`, four rows). A section with more rows shows the first ones and "+2 more"; the List view and the node's description keep every row. A row takes a muted `detail`, a second-line `note`, a `badge` such as "Off", and `code` for a field name. `inputsEmpty` replaces "No input" with your own words, such as "Any JSON input". A `notice` adds one line of warning or information.
+Start lists what starts a run (`triggers`, three rows) and what each run receives (`inputs`, four rows). A section with more rows shows the first ones and "+2 more"; the List view and the node's description keep every row. A row takes a muted `detail`, a second-line `note`, a `badge` such as "Off", and `code` for a field name. `inputsEmpty` replaces "No input" with your own words, such as "Any JSON input". A `notice` — one line of warning or information — takes the place of the strip's words at the box's foot, so it never changes the box's size.
 
-End lists what a successful run returns (`outputs`), an optional one-line `shape`, and how a run can end (`outcomes`). Start's strip names the nodes it leads to; End's names the nodes it comes from.
+End lists what a successful run returns (`outputs`), an optional one-line `shape`, and how a run can end (`outcomes`). A `shape` is a string or `{ text, code }` (mono when `code`); `null` holds its row with a placeholder while your app still works it out, so End never grows when the answer comes. Start's strip names the nodes it leads to; End's names the nodes it comes from; either says its `notice` instead when it has one.
 
 ## Mark problems
 

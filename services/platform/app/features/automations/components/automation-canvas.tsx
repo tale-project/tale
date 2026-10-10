@@ -2,15 +2,45 @@
 
 import { Alert } from '@tale/ui/alert';
 import { EmptyState } from '@tale/ui/empty-state';
+import { flowCompareFromOverlays } from '@tale/ui/flow/compare';
 import type { FlowLegendEntry } from '@tale/ui/flow/flow-legend';
 import type { FlowHighlight } from '@tale/ui/flow/paths';
+import {
+  buildPlaybackTimeline,
+  usePlaybackClock,
+} from '@tale/ui/flow/playback';
+import { FlowPlaybackBar, formatFlowClock } from '@tale/ui/flow/playback-bar';
+import {
+  FlowRunTimeline,
+  flowTimelineRows,
+  type FlowTimelineRow,
+} from '@tale/ui/flow/run-timeline';
 import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
-import { WorkflowCanvas, type FlowView } from '@tale/ui/flow/workflow-canvas';
+import {
+  WorkflowCanvas,
+  type FlowView,
+  type WorkflowCanvasProps,
+} from '@tale/ui/flow/workflow-canvas';
+import { formatDuration } from '@tale/ui/format-duration';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import type { IssueCounts } from '@tale/ui/issue-summary';
+import { SegmentedControl } from '@tale/ui/segmented-control';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { AlertTriangle, Hand, Workflow } from 'lucide-react';
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
+import type {
+  NodeRunPage,
+  RunRecordView,
+} from '@/app/lib/backend/contract/automations';
 import type { Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import type {
@@ -21,6 +51,15 @@ import type {
 import { useCanvasFlow } from '../hooks/use-canvas-flow';
 import type { NodeCatalogView, ReturnsSource } from '../lib/node-face';
 import { runOverlay } from '../lib/run-overlay';
+import {
+  realRunOf,
+  type RunUnitRef,
+  type TimelineWords,
+  unitRefOf,
+  unitRefOfRow,
+  unitRowId,
+  withUnitSpans,
+} from '../lib/run-timeline';
 import type { NodeRunStatus, RunProjection, RunStatus } from '../lib/run-view';
 import { AUTOMATION_WORKBENCH_COMPACT_QUERY } from '../lib/workbench';
 import {
@@ -29,6 +68,7 @@ import {
   AutomationPathsPill,
   AutomationPathsSheet,
 } from './automation-paths';
+import { RunUnitsReader } from './run-units-reader';
 
 /** A run laid over the canvas. */
 export interface CanvasRun {
@@ -37,6 +77,27 @@ export interface CanvasRun {
   status: RunStatus;
   /** Who or what started it, for Start's strip. */
   startedBy?: string;
+  /** The run step by step: with it, the canvas plays the run back. */
+  record?: RunRecordView;
+  /** What the playback says about a step or a wait. */
+  words?: TimelineWords;
+  /** The run is still going: the playback follows its end. */
+  live?: boolean;
+  /** Where the record's items and passes are read, a page at a time,
+   *  when the Steps view opens a step. */
+  items?: { organizationId: string; runId: string };
+}
+
+/** How a recorded run is shown: on the chart, or as its steps in time
+ *  order. */
+export type RunCanvasView = 'chart' | 'steps';
+
+/** Two runs on one chart: how each left every step, side by side. */
+export interface CanvasCompare {
+  a: CanvasRun;
+  b: CanvasRun;
+  /** Steps of the document drawn (B's version) that A's version lacks. */
+  absentInA?: readonly string[];
 }
 
 export interface AutomationCanvasProps {
@@ -62,10 +123,25 @@ export interface AutomationCanvasProps {
   issueCounts?: ReadonlyMap<string, IssueCounts>;
   /** The open box: a node, a condition, Start or End. */
   selectedId: string | null;
-  onSelect: (id: string | null) => void;
-  /** Id of the inspector region a box opens. */
-  inspectorId: string;
+  /** The item or pass of the open box chosen in the run's Steps view. */
+  selectedUnit?: RunUnitRef | null;
+  onSelect: (id: string | null, unit?: RunUnitRef) => void;
+  /** Id of the inspector region a box opens; without one, a box opens
+   * nothing (a comparison's chart). */
+  inspectorId?: string;
   run?: CanvasRun;
+  /** Two runs of this document side by side; wins over `run`. */
+  compare?: CanvasCompare;
+  /** A recorded run as a chart or as its steps in time order; the canvas
+   *  keeps the choice itself when left out. */
+  runView?: RunCanvasView;
+  onRunViewChange?: (view: RunCanvasView) => void;
+  /** The moment of a recorded run to open on, in real milliseconds since it
+   *  started; the run's end when left out. */
+  runMoment?: number;
+  /** Where the playback rests, 300 ms after it stops moving: real
+   *  milliseconds since the run started, or `null` at the run's end. */
+  onRunMomentChange?: (moment: number | null) => void;
   /** Bring this box into view. */
   revealId?: string | null;
   /** Nodes another window or a coding agent changed, ringed once. */
@@ -117,9 +193,15 @@ export function AutomationCanvas({
   startNotice,
   issueCounts,
   selectedId,
+  selectedUnit = null,
   onSelect,
   inspectorId,
   run,
+  compare,
+  runView,
+  onRunViewChange,
+  runMoment,
+  onRunMomentChange,
   revealId,
   changed,
   framed = true,
@@ -177,7 +259,7 @@ export function AutomationCanvas({
 
   const overlay = useMemo(
     () =>
-      run === undefined
+      run === undefined || compare !== undefined
         ? undefined
         : runOverlay({
             graph,
@@ -187,8 +269,29 @@ export function AutomationCanvas({
             t,
             ...(run.startedBy !== undefined && { startedBy: run.startedBy }),
           }),
-    [run, graph, t],
+    [run, compare, graph, t],
   );
+  // Two runs: each as one run's overlay, then how each left every step.
+  const compared = useMemo(() => {
+    if (compare === undefined) return undefined;
+    const overlayOf = (side: CanvasRun) =>
+      runOverlay({
+        graph,
+        statusByNode: side.statusByNode,
+        projection: side.projection,
+        status: side.status,
+        t,
+      });
+    return flowCompareFromOverlays(
+      graph,
+      overlayOf(compare.a),
+      overlayOf(compare.b),
+      {
+        labels: { a: 'A', b: 'B' },
+        absent: { a: [...(compare.absentInA ?? [])] },
+      },
+    );
+  }, [compare, graph, t]);
 
   const legend = useMemo<FlowLegendEntry[]>(
     () => [
@@ -276,57 +379,79 @@ export function AutomationCanvas({
       topStart
     );
 
+  const canvasProps: WorkflowCanvasProps = {
+    graph,
+    'aria-label': t('canvas.ariaLabel'),
+    layoutKey,
+    selectedId,
+    onSelect,
+    ...(inspectorId !== undefined && { controlsId: inspectorId }),
+    ...(revealId !== undefined && { revealId }),
+    ...(issueCounts !== undefined && { issues: issueCounts }),
+    ...(overlay !== undefined && { overlay }),
+    ...(compared !== undefined && { compare: compared }),
+    ...(paths !== null && { paths: paths.flowPaths }),
+    highlight,
+    ...(changed !== undefined && { changed }),
+    ...(view !== undefined && { view }),
+    ...(onViewChange !== undefined && { onViewChange }),
+    framed,
+    topStart: corner,
+    topEnd: (
+      <>
+        {paths !== null && (
+          <AutomationPathsButton
+            count={paths.count}
+            open={pathsOpen}
+            controls={pathsOpen && !compact ? panelId : undefined}
+            onToggle={() => {
+              setPathsOpen((open) => !open);
+              setPreviewId(null);
+            }}
+          />
+        )}
+        {topEnd}
+      </>
+    ),
+    toolbar,
+    legend,
+    ...(onLayout !== undefined && { onLayout }),
+    notice: hasCycle ? (
+      <Alert
+        variant="warning"
+        icon={AlertTriangle}
+        title={t('canvas.cycle.title')}
+        description={t('canvas.cycle.description')}
+        // Unframed, the canvas has no inset of its own: the warning
+        // keeps the page's instead of running into the edges.
+        className={framed ? 'mb-3' : 'm-4 mb-0'}
+      />
+    ) : undefined,
+  };
+  // A run recorded step by step plays back; one recorded before records
+  // were kept shows where each step ended.
+  const record = run?.record?.source === 'record' ? run.record : undefined;
+
   return (
     <>
-      <WorkflowCanvas
-        graph={graph}
-        aria-label={t('canvas.ariaLabel')}
-        layoutKey={layoutKey}
+      <RunCanvas
+        record={compare === undefined ? record : undefined}
+        words={run?.words ?? NO_WORDS}
+        live={run?.live === true}
+        canvasProps={canvasProps}
         selectedId={selectedId}
+        selectedUnit={selectedUnit}
         onSelect={onSelect}
-        controlsId={inspectorId}
-        {...(revealId !== undefined && { revealId })}
-        {...(issueCounts !== undefined && { issues: issueCounts })}
-        {...(overlay !== undefined && { overlay })}
-        {...(paths !== null && { paths: paths.flowPaths })}
-        highlight={highlight}
-        {...(changed !== undefined && { changed })}
-        {...(view !== undefined && { view })}
-        {...(onViewChange !== undefined && { onViewChange })}
-        framed={framed}
-        topStart={corner}
-        topEnd={
-          <>
-            {paths !== null && (
-              <AutomationPathsButton
-                count={paths.count}
-                open={pathsOpen}
-                controls={pathsOpen && !compact ? panelId : undefined}
-                onToggle={() => {
-                  setPathsOpen((open) => !open);
-                  setPreviewId(null);
-                }}
-              />
-            )}
-            {topEnd}
-          </>
-        }
-        toolbar={toolbar}
-        legend={legend}
-        {...(onLayout !== undefined && { onLayout })}
-        notice={
-          hasCycle ? (
-            <Alert
-              variant="warning"
-              icon={AlertTriangle}
-              title={t('canvas.cycle.title')}
-              description={t('canvas.cycle.description')}
-              // Unframed, the canvas has no inset of its own: the warning
-              // keeps the page's instead of running into the edges.
-              className={framed ? 'mb-3' : 'm-4 mb-0'}
-            />
-          ) : undefined
-        }
+        {...(compare === undefined &&
+          run?.items !== undefined && { items: run.items })}
+        {...(runView !== undefined && { view: runView })}
+        {...(onRunViewChange !== undefined && {
+          onViewChange: onRunViewChange,
+        })}
+        {...(runMoment !== undefined && { moment: runMoment })}
+        {...(onRunMomentChange !== undefined && {
+          onMomentChange: onRunMomentChange,
+        })}
       />
       {listProps !== null && compact && (
         <AutomationPathsSheet
@@ -336,6 +461,285 @@ export function AutomationCanvas({
             if (!open) setPreviewId(null);
           }}
           {...listProps}
+        />
+      )}
+    </>
+  );
+}
+
+const NO_WORDS: TimelineWords = {};
+
+/** The timeline of no run, for a chart whose record has not arrived. */
+const NO_TIMELINE = buildPlaybackTimeline({
+  startedAt: 0,
+  spans: [],
+  travels: [],
+});
+
+/** No step's items read yet. */
+const NO_UNITS: ReadonlyMap<string, readonly RecordedUnit[]> = new Map();
+
+type RecordedUnit = NodeRunPage['units'][number];
+
+/**
+ * The chart, and once a run's record is there, the run playing on it: the
+ * record as moments on this chart (`realRunOf`), compressed into a timeline
+ * a reader can follow, and the playback bar in the toolbar — opening on the
+ * whole story, the run's end, with the clock on the run's real elapsed
+ * time. The same chart stays mounted while the record arrives, so it never
+ * lays itself out twice.
+ *
+ * The Steps view lists a step's items or passes once the reader opens it
+ * (or picks one of them): they are read from the record then, a page at a
+ * time, and join the timeline where they ran — on the same clock, so
+ * nothing else moves.
+ */
+function RunCanvas({
+  record,
+  words,
+  live,
+  canvasProps,
+  selectedId,
+  selectedUnit,
+  onSelect,
+  items,
+  view: viewProp,
+  onViewChange,
+  moment,
+  onMomentChange,
+}: {
+  record: RunRecordView | undefined;
+  words: TimelineWords;
+  live: boolean;
+  canvasProps: WorkflowCanvasProps;
+  selectedId: string | null;
+  selectedUnit: RunUnitRef | null;
+  onSelect: (id: string | null, unit?: RunUnitRef) => void;
+  items?: { organizationId: string; runId: string };
+  /** The view the page holds; the canvas holds its own when left out. */
+  view?: RunCanvasView;
+  onViewChange?: (view: RunCanvasView) => void;
+  /** The moment to open on, in real milliseconds since the run started. */
+  moment?: number;
+  onMomentChange?: (moment: number | null) => void;
+}) {
+  const { t } = useT('automationRuns');
+  const { locale } = useLocale();
+  const { graph } = canvasProps;
+  const [ownView, setOwnView] = useState<RunCanvasView>('chart');
+  const view = viewProp ?? ownView;
+  const setView = (next: RunCanvasView) => {
+    setOwnView(next);
+    onViewChange?.(next);
+  };
+  const timeline = useMemo(
+    () =>
+      record === undefined
+        ? NO_TIMELINE
+        : buildPlaybackTimeline(realRunOf(record, graph, words)),
+    [record, graph, words],
+  );
+  const clock = usePlaybackClock({ timeline, live });
+  const { setT } = clock;
+  // The chart opens on the moment a link names, or on the run's end — once
+  // the record is there, whether it was from the start or landed later; a
+  // live run follows its end by itself.
+  const positioned = useRef(false);
+  useEffect(() => {
+    if (record === undefined || positioned.current) return;
+    positioned.current = true;
+    if (moment !== undefined)
+      setT(timeline.fromReal(record.startedAt + moment));
+    else if (!live) setT(timeline.duration);
+  }, [record, live, moment, timeline, setT]);
+  // Where the playback rests follows into the page's link once it has
+  // rested 300 ms; the run's end, where it opens, needs no moment.
+  const { playing, following } = clock;
+  const restsAt = clock.t;
+  useEffect(() => {
+    if (record === undefined || onMomentChange === undefined) return undefined;
+    if (playing || (live && following)) return undefined;
+    const at =
+      restsAt >= timeline.duration
+        ? null
+        : Math.max(0, Math.round(timeline.toReal(restsAt) - record.startedAt));
+    const timer = window.setTimeout(() => onMomentChange(at), 300);
+    return () => window.clearTimeout(timer);
+  }, [record, onMomentChange, playing, following, live, restsAt, timeline]);
+
+  // The steps whose items are read: those the reader opened, and the step
+  // of an item picked elsewhere (a link, the inspector). A step once read
+  // stays read — the Steps view may still show it open after the
+  // selection moved on.
+  const [reading, setReading] = useState<readonly string[]>(() =>
+    selectedUnit !== null && selectedId !== null ? [selectedId] : [],
+  );
+  if (
+    selectedUnit !== null &&
+    selectedId !== null &&
+    !reading.includes(selectedId)
+  )
+    setReading([...reading, selectedId]);
+  // Each step's pages by where they start, in the order they were read.
+  const [pages, setPages] = useState<
+    ReadonlyMap<string, ReadonlyMap<string, readonly RecordedUnit[]>>
+  >(() => new Map());
+  const onPage = useCallback(
+    (
+      node: string,
+      cursor: string | undefined,
+      units: readonly RecordedUnit[],
+    ) =>
+      setPages((current) => {
+        // A page read again with nothing new changes nothing.
+        if (current.get(node)?.get(cursor ?? '') === units) return current;
+        const forNode = new Map(current.get(node));
+        forNode.set(cursor ?? '', units);
+        return new Map(current).set(node, forNode);
+      }),
+    [],
+  );
+  const unitsByNode = useMemo(() => {
+    if (pages.size === 0) return NO_UNITS;
+    const byNode = new Map<string, readonly RecordedUnit[]>();
+    for (const node of reading) {
+      const forNode = pages.get(node);
+      if (forNode !== undefined) byNode.set(node, [...forNode.values()].flat());
+    }
+    return byNode;
+  }, [pages, reading]);
+  const stepsTimeline = useMemo(
+    () => withUnitSpans(timeline, unitsByNode),
+    [timeline, unitsByNode],
+  );
+  // A step whose items were read holds what was read — none at all, too —
+  // so it no longer says they load.
+  const rows = useMemo(() => {
+    const listed = flowTimelineRows(graph, stepsTimeline);
+    for (const row of listed)
+      if (
+        row.kind === 'node' &&
+        row.children === undefined &&
+        unitsByNode.has(row.nodeId)
+      )
+        row.children = [];
+    return listed;
+  }, [graph, stepsTimeline, unitsByNode]);
+
+  if (record === undefined) return <WorkflowCanvas {...canvasProps} />;
+  // A run of under a minute reads in seconds ("0.4s"), a longer one on a
+  // clock face ("03:12").
+  const short = (record.finishedAt ?? Date.now()) - record.startedAt < 60_000;
+  const formatTime = (at: number) => {
+    const elapsed = Math.max(0, timeline.toReal(at) - record.startedAt);
+    return short
+      ? formatDuration(elapsed, locale, { style: 'narrow', maxUnits: 1 })
+      : formatFlowClock(elapsed);
+  };
+  // How long each step, item and pass worked; one that never ran has no
+  // duration.
+  const activeOf = new Map(
+    record.nodes
+      .filter((step) => step.status !== 'skipped')
+      .map((step) => [step.path, step.activeMs]),
+  );
+  // A pass of one item belongs to that item, and has no row of its own.
+  for (const [node, units] of unitsByNode)
+    for (const unit of units)
+      if (unit.status !== 'skipped' && !(unit.item >= 0 && unit.pass >= 0))
+        activeOf.set(unitRowId(node, unitRefOf(unit)), unit.activeMs);
+  const rowDuration = (row: FlowTimelineRow): string | undefined => {
+    if (row.kind !== 'node' && row.kind !== 'item') return undefined;
+    const active = activeOf.get(row.kind === 'node' ? row.nodeId : row.id);
+    return active === undefined
+      ? undefined
+      : formatDuration(active, locale, { style: 'narrow', maxUnits: 1 });
+  };
+  const bar = (
+    <FlowPlaybackBar
+      timeline={timeline}
+      t={clock.t}
+      onTChange={setT}
+      playing={clock.playing}
+      onPlayingChange={clock.setPlaying}
+      speed={clock.speed}
+      onSpeedChange={clock.setSpeed}
+      formatTime={formatTime}
+      {...(live && !clock.following && { onFollowLive: clock.follow })}
+    />
+  );
+  // The run as a chart or as its steps in time order: one clock, so both
+  // show the same moment, and switching keeps where the reader was.
+  const switcher = (
+    <SegmentedControl
+      aria-label={t('view.label')}
+      value={view}
+      onValueChange={(next) => {
+        if (next === 'chart' || next === 'steps') setView(next);
+      }}
+      options={[
+        { value: 'chart', label: t('view.chart') },
+        { value: 'steps', label: t('view.steps') },
+      ]}
+    />
+  );
+  return (
+    <>
+      {items !== undefined &&
+        reading.map((node) => (
+          <RunUnitsReader
+            key={node}
+            organizationId={items.organizationId}
+            runId={items.runId}
+            node={node}
+            onPage={onPage}
+          />
+        ))}
+      {view === 'steps' ? (
+        <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {switcher}
+            <div className="min-w-0 flex-1">{bar}</div>
+          </div>
+          <FlowRunTimeline
+            graph={graph}
+            timeline={stepsTimeline}
+            rows={rows}
+            t={clock.t}
+            onSeek={setT}
+            selectedId={
+              selectedId !== null && selectedUnit !== null
+                ? unitRowId(selectedId, selectedUnit)
+                : selectedId
+            }
+            onSelect={(row) => {
+              if (row.kind === 'item') onSelect(row.nodeId, unitRefOfRow(row));
+              else onSelect(row.nodeId ?? null);
+            }}
+            {...(items !== undefined && {
+              onExpand: (row) =>
+                setReading((current) =>
+                  current.includes(row.nodeId)
+                    ? current
+                    : [...current, row.nodeId],
+                ),
+            })}
+            formatTime={formatTime}
+            formatDuration={rowDuration}
+            live={live}
+            className="min-h-0 flex-1"
+          />
+        </div>
+      ) : (
+        <WorkflowCanvas
+          {...canvasProps}
+          playback={{ timeline, t: clock.t }}
+          toolbar={
+            <div className="flex flex-wrap items-center gap-2">
+              {switcher}
+              {bar}
+            </div>
+          }
         />
       )}
     </>

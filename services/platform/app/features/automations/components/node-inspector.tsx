@@ -73,7 +73,7 @@ import { JsonCodeField, jsonFieldText } from './json-code-field';
 import { LlmModelField } from './llm-model-field';
 import { NodeFlowSummary } from './node-flow-summary';
 import { NodeShapePanel, type ShapeStatus } from './node-shape-panel';
-import { RunStepDetail } from './run-step-detail';
+import { RunStepDetail, type RunStepRecord } from './run-step-detail';
 
 /**
  * What the inspector reads besides the node: the document it is in, the
@@ -511,6 +511,8 @@ export interface NodeInspectorProps {
   catalogUnavailable?: boolean;
   /** What the overlaid run did to this node, when one is shown. */
   runView?: NodeRunView | undefined;
+  /** The node's step in the run's record. */
+  runRecord?: RunStepRecord | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   /** For the agent node's equipment pickers (skills/connectors/tools/secrets
@@ -631,6 +633,7 @@ export interface NodeFieldsProps {
   nodeType: NodeTypeSummary | undefined;
   catalogUnavailable?: boolean;
   runView?: NodeRunView | undefined;
+  runRecord?: RunStepRecord | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   organizationId: string;
@@ -753,6 +756,7 @@ export function NodeFields({
   nodeType,
   catalogUnavailable = false,
   runView,
+  runRecord,
   readOnly,
   onChange,
   organizationId,
@@ -1248,7 +1252,12 @@ export function NodeFields({
           ),
         })}
         {...(runView !== undefined && {
-          run: <RunStepDetail runView={runView} />,
+          run: (
+            <RunStepDetail
+              runView={runView}
+              {...(runRecord !== undefined && { record: runRecord })}
+            />
+          ),
         })}
       />
     </div>
