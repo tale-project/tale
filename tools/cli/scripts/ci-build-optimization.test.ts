@@ -22,6 +22,7 @@ type Step = {
   name?: string;
   uses?: string;
   if?: string;
+  'continue-on-error'?: boolean | string;
   run?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
