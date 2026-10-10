@@ -17,6 +17,12 @@ nodes:
       query: { status: open }
 ```
 
+<Frame caption="L’étape dans l’éditeur : les identifiants avec lesquels elle se connecte et son entrée, un chemin sous l’URL de base des identifiants avec des paramètres de requête.">
+
+![L’onglet Editor de Open orders : Start, Orders, Count et End sur le canevas, avec Orders sélectionnée, une étape HTTP · Get. À côté du canevas, ses champs montrent Shop API sous Credential, et sous Input l’url /orders et la query status open. La barre d’outils indique No problems.](/images/platform/automation-http-step.webp)
+
+</Frame>
+
 | Entrée | Ce qu’elle contient |
 | --- | --- |
 | `url` | Une adresse `https://` complète ou, avec des identifiants, un chemin sous leur URL de base, comme `/orders`. |
@@ -48,6 +54,12 @@ nodes:
 ## Se connecter avec des identifiants
 
 Dans **Paramètres › Connectors**, ajoute des identifiants à **HTTP**. Choisis comment ils se connectent : avec un jeton Bearer, une clé d’API envoyée dans un en-tête, ou un nom d’utilisateur et un mot de passe. Saisis leur **Base URL**, comme `https://api.example.com/v2` ; pour une clé d’API, **API key header** nomme l’en-tête, `X-Api-Key` par défaut. Donne un nom aux identifiants, et indique-le dans le champ `credential` de l’étape.
+
+<Frame caption="Des identifiants HTTP avec une clé d’API : le nom par lequel une étape les choisit, la clé, l’URL de base sous laquelle reste chaque appel, et l’en-tête dans lequel la clé est envoyée.">
+
+![La boîte de dialogue Add credential pour HTTP : Authentication method sur API key, Name Shop API, l’API key masquée, Base URL https://api.shop.example/v2, et API key header vide avec X-Api-Key comme indication, au-dessus de Cancel et Add credential.](/images/platform/automation-http-credential.webp)
+
+</Frame>
 
 Une étape avec des identifiants reste sous l’URL de base. Un chemin est placé dessous, une adresse complète doit commencer par elle, et une redirection ne peut pas la quitter. Seuls les identifiants signent la requête. Là où une réponse renverrait une de leurs valeurs, Tale la remplace par `[redacted]`, si bien qu’elle n’atteint jamais l’enregistrement d’une exécution.
 

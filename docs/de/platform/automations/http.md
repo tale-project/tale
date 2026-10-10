@@ -17,6 +17,12 @@ nodes:
       query: { status: open }
 ```
 
+<Frame caption="Der Schritt im Editor: die Zugangsdaten, mit denen er sich anmeldet, und seine Eingabe, ein Pfad unter der Basis-URL der Zugangsdaten mit einer Query.">
+
+![Der Tab Editor von Open orders: Start, Orders, Count und End auf dem Canvas, Orders ausgewählt, ein Schritt HTTP · Get. Neben dem Canvas zeigen seine Felder Shop API unter Credential und unter Input die url /orders und die query status open. Die Werkzeugleiste zeigt No problems.](/images/platform/automation-http-step.webp)
+
+</Frame>
+
 | Eingabe        | Was sie enthält                                                                                                    |
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `url`          | Eine vollständige `https://`-Adresse oder, mit Zugangsdaten, ein Pfad unter deren Basis-URL, etwa `/orders`.       |
@@ -48,6 +54,12 @@ nodes:
 ## Mit Zugangsdaten anmelden
 
 Füge unter **Einstellungen › Connectors** Zugangsdaten zu **HTTP** hinzu. Wähle, wie sie sich anmelden: mit einem Bearer-Token, einem API-Key in einem Header oder mit Benutzername und Passwort. Gib ihre **Base URL** ein, etwa `https://api.example.com/v2`; bei einem API-Key nennt **API key header** den Header, standardmäßig `X-Api-Key`. Gib den Zugangsdaten einen Namen und nenne ihn im Feld `credential` des Schritts.
+
+<Frame caption="HTTP-Zugangsdaten mit einem API-Key: der Name, über den ein Schritt sie wählt, der Key, die Basis-URL, unter der jeder Aufruf bleibt, und der Header, in dem der Key gesendet wird.">
+
+![Der Dialog Add credential für HTTP: Authentication method auf API key, Name Shop API, der API key verborgen, Base URL https://api.shop.example/v2 und API key header leer mit X-Api-Key als Platzhalter, darunter Cancel und Add credential.](/images/platform/automation-http-credential.webp)
+
+</Frame>
 
 Ein Schritt mit Zugangsdaten bleibt unter der Basis-URL. Ein Pfad wird darunter gesetzt, eine vollständige Adresse muss mit ihr beginnen, und eine Weiterleitung darf sie nicht verlassen. Nur die Zugangsdaten melden die Anfrage an. Wo eine Antwort einen ihrer Werte zurückgeben würde, ersetzt Tale ihn durch `[redacted]`, sodass er nie in die Aufzeichnung eines Laufs gelangt.
 
