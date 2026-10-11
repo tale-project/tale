@@ -186,14 +186,16 @@ features.images=true
 features.profiles=true
 features.storage.volumes=true      # required: else volumes land in `default`, read-only for this certificate
 restricted=true
-restricted.devices.disk=allow      # only for the /dev/shm tmpfs device
-restricted.devices.disk.paths=tmpfs:   # keeps host paths refused
 restricted.containers.nesting=allow    # only with Docker inside
 restricted.containers.interception=allow  # only with Docker inside
 ```
 
 Leave `restricted.containers.lowlevel` at `block`: allowing it also admits
-`raw.lxc`.
+`raw.lxc`. Leave `restricted.devices.disk` at its default (`managed`, pool-backed
+disks only), which is all the backend asks for: `allow` admits every host path
+unless `restricted.devices.disk.paths` confines it, and Incus accepts absolute
+paths there only, so no setting admits a `tmpfs` disk device without admitting
+the host's directories too. That is why `/dev/shm` is not a device (below).
 
 **Project limits** are an optional, server-side backstop to
 `SANDBOX_MAX_SESSIONS`: Incus counts them over every instance of the project
@@ -212,15 +214,14 @@ the platform sees as a failed create, not a busy spawner, so size
 Boot reads the server, project, profile, network and pool and **refuses**:
 a missing API extension (`instance_oci`, `instance_oci_entrypoint`,
 `oci_network_config`, `instance_create_start`, `storage_shifted`,
-`storage_initial_owner`, `storage_volumes_created_at`, and `container_disk_tmpfs`
-with the shm device), a project without its own storage volumes, a restricted
-project that does not allow the tmpfs device (unless
-`SANDBOX_INCUS_SHM_DEVICE=false`) or, with Docker inside, nesting and
-interception, a project that sets `limits.cpu`, or a disk limit while the
-profile's root disk has no size, an unmanaged network, a profile without a NIC
-on the configured network and without an ACL. Everything allowed but worth
-knowing is a warning: an unrestricted project, a project without its own
-images, disk devices allowed from anywhere, low-level keys allowed, project
+`storage_initial_owner` and `storage_volumes_created_at`), a project without
+its own storage volumes, a restricted project that does not allow, with Docker
+inside, nesting and interception, a project that sets `limits.cpu`, or a disk
+limit while the profile's root disk has no size, an unmanaged network, a
+profile without a NIC on the configured network and without an ACL, and a
+`SANDBOX_AGENT_SHM_SIZE` the entrypoint cannot mount. Everything allowed but
+worth knowing is a warning: an unrestricted project, a project without its own
+images, disk devices allowed from any host path, low-level keys allowed, project
 count, memory or process limits below what `SANDBOX_MAX_SESSIONS` can add up
 to, a kernel that reports no idmapped mounts, a NIC without port isolation, a
 root disk without a size or on another pool, a `dir` pool.
@@ -346,8 +347,6 @@ variables are named at once.
 | `SANDBOX_INCUS_SERVER_CERT_FILE`        | required           | Absolute path of the node's pinnable server certificate (PEM).                                                                       |
 | `SANDBOX_INCUS_POOL_SIZE`               | `0`                | Warm standbys kept ready (0 turns the pool off); at most `SANDBOX_MAX_SESSIONS`.                                                     |
 | `SANDBOX_INCUS_WORKSPACE_SIZE`          | `10GiB`            | Quota of a workspace volume (`10g`, `512m` and Incus sizes).                                                                         |
-| `SANDBOX_INCUS_SHM_DEVICE`              | `true`             | Give each session a tmpfs `/dev/shm` (Chromium crashes on the image's 64 MiB); needs the project to admit tmpfs disks.              |
-| `SANDBOX_INCUS_SHM_SIZE`                | the profile's      | Its size.                                                                                                                            |
 | `SANDBOX_INCUS_DNS`                     | the egress proxy   | Comma-separated IPv4 resolvers handed to a session.                                                                                  |
 | `SANDBOX_INCUS_DOCKER_CONFIG`           | nesting + intercept | A JSON object of instance config added to a session with Docker inside, replacing the default (`security.nesting`, and the `mknod` and `setxattr` interceptions). Only `security.nesting` and the interceptions a restricted project can allow (`security.syscalls.intercept.` plus `bpf`, `bpf.devices`, `mknod`, `mount`, `mount.fuse`, `setxattr` or `sysinfo`), each `true` or `false`; the other low-level keys, such as `security.idmap.size`, a restricted project refuses. |
 | `SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK` | `false`           | Lab only: do not require a network ACL.                                                                                              |
@@ -377,7 +376,7 @@ it, so unset it stays `8`, and boot says so.
 | AppArmor `docker-default`, Docker's seccomp | Incus's own per-container AppArmor profile and default seccomp policy                                                                                                                                                                                   |
 | user namespace (none on the runc tier)    | an isolated idmap per container: stronger than Docker's default                                                                                                                                                                                           |
 | `--read-only`, `--tmpfs /tmp`             | **not mapped.** The root filesystem is a writable copy-on-write clone that goes at stop, capped by the profile's root disk `size`. The profile's root device accepts `readonly=true`, which Incus itself calls unlikely to work well; nothing here has tried it |
-| `/dev/shm` size                           | a tmpfs disk device (`SANDBOX_INCUS_SHM_SIZE`)                                                                                                                                                                                                            |
+| `/dev/shm` size (`SANDBOX_AGENT_SHM_SIZE`) | the entrypoint mounts a tmpfs of that size on `/dev/shm` while it is still root (`TALE_SHM_SIZE`), because a restricted project admits no tmpfs disk device; the session therefore boots as root and drops to its user, as it does for transparent egress |
 | IPv6 off                                  | `linux.sysctl.net.ipv6.conf.{all,default}.disable_ipv6=1`                                                                                                                                                                                                 |
 | host-path workspace bind                  | a custom volume with a quota                                                                                                                                                                                                                              |
 | per-organization package caches, BuildKit | none: each session installs into its own workspace; Docker inside builds with its own inner builder                                                                                                                                                       |
@@ -507,7 +506,8 @@ documentation it was written from.
    `incus config show`: not ephemeral, the `user.tale.*` labels, the `oci.*` and
    `limits.*` keys of [the mapping](#how-dockers-limits-and-hardening-map), the
    workspace volume mounted at `/agent` and writable by uid 10001, a `/dev/shm`
-   of the configured size, one NIC (the profile's) with its ACL. Time it: the
+   of `SANDBOX_AGENT_SHM_SIZE` (`df -m /dev/shm`), one NIC (the profile's) with
+   its ACL. Time it: the
    DHCP wait is the long part.
 4. **OCI entrypoint and its wrapper.** `oci.entrypoint`
    (`/usr/bin/setpriv --no-new-privs -- /docker-entrypoint.sh daemon`) is split
@@ -553,9 +553,10 @@ documentation it was written from.
     /v1/drain` on the old spawner while the new one boots) the old one makes no
     standby, the new one takes the existing ones over without recreating them,
     and a create admitted before the drain still claims.
-11. **Restricted-project refusals.** The tmpfs `/dev/shm` device is admitted
-    under `restricted.devices.disk=allow` and `paths=tmpfs:`; a host-path disk
-    device is refused; the spawner never sends `raw.*`, swap or OOM keys.
+11. **Restricted-project refusals.** The project keeps `restricted.devices.disk`
+    at `managed`: a host-path disk device, a privileged container, `raw.lxc`,
+    swap and a NIC of the instance's own are all refused; the spawner never
+    sends any of them.
 12. **Project limits.** With `limits.memory` on the project at two sessions'
     worth, the third create fails with Incus's `Reached maximum aggregate value`
     message and leaves only its workspace volume, and the image warm-up still

@@ -3,6 +3,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import {
   incusInstanceName,
   incusPoolInstanceName,
@@ -181,6 +182,8 @@ describe('a session started cold', () => {
       'environment.TALE_EXEC_STALL_MS': '2700000',
       'environment.TALE_EXEC_ADMISSION_MEMORY_PERCENT': '90',
       'environment.TALE_TRANSPARENT_EGRESS': '1',
+      // a /dev/shm of the profile's size, mounted by the entrypoint as root
+      'environment.TALE_SHM_SIZE': '512m',
       'environment.TALE_DROP_UID': '10001',
       'environment.TALE_DROP_GID': '10001',
       'environment.TALE_RUNNERD_TOKEN': 'ab12cd34',
@@ -196,14 +199,9 @@ describe('a session started cold', () => {
       'user.tale.startup-deadline': '1700000005000',
       'user.tale.egress-ip': INCUS_TEST_ADDRESS,
     });
+    // The workspace is the one device: a restricted project admits pool-backed
+    // disks only, so there is no tmpfs device for /dev/shm.
     expect(body.devices).toEqual({
-      shm: {
-        type: 'disk',
-        source: 'tmpfs:',
-        path: '/dev/shm',
-        size: '512MiB',
-        'initial.mode': '1777',
-      },
       workspace: {
         type: 'disk',
         pool: 'tank',
@@ -227,9 +225,11 @@ describe('a session started cold', () => {
           'nic',
         );
         expect(Object.keys(body.devices)).not.toContain('eth0');
-        // A device that is not backed by a pool is only ever a tmpfs.
+        // Every disk is backed by a pool: the default a restricted project
+        // admits, with no host path and no tmpfs.
         for (const device of Object.values(body.devices)) {
-          if (device.pool === undefined) expect(device.source).toBe('tmpfs:');
+          expect(device.type).toBe('disk');
+          expect(device.pool).toBe('tank');
         }
       }
     }
@@ -316,16 +316,59 @@ describe('a session started cold', () => {
       'environment.TALE_DROP_UID': '65534',
       'user.tale.profile': 'default',
     });
-    expect(body.devices.shm?.size).toBe('64MiB');
+    // The image's own /dev/shm is already 64 MiB: nothing to mount.
+    expect(body.config['environment.TALE_SHM_SIZE']).toBeUndefined();
   });
 
-  test('without transparent egress the session boots as its own user', () => {
-    const cfg = incusTestConfig({}, { transparentEgress: false });
+  test("without transparent egress and with the image's /dev/shm the session boots as its own user", () => {
+    const cfg = incusTestConfig(
+      {},
+      {
+        transparentEgress: false,
+        session: {
+          ...TEST_SESSION_CONFIG,
+          agentProfile: { ...TEST_SESSION_CONFIG.agentProfile, shmSize: '64m' },
+        },
+      },
+    );
     const body = buildSessionInstance(cfg, input);
     expect(body.config['oci.uid']).toBe('10001');
     expect(body.config['oci.gid']).toBe('10001');
     expect(body.config['environment.TALE_TRANSPARENT_EGRESS']).toBeUndefined();
+    expect(body.config['environment.TALE_SHM_SIZE']).toBeUndefined();
+    expect(body.config['environment.TALE_DROP_UID']).toBeUndefined();
     expect(body.config['user.tale.egress-ip']).toBe(INCUS_TEST_ADDRESS);
+  });
+
+  test('a bigger /dev/shm is a mount, so the session boots as root and is told whom to become', () => {
+    const cfg = incusTestConfig({}, { transparentEgress: false });
+    const body = buildSessionInstance(cfg, input);
+    expect(body.config).toMatchObject({
+      'oci.uid': '0',
+      'oci.gid': '0',
+      'environment.TALE_SHM_SIZE': '512m',
+      'environment.TALE_DROP_UID': '10001',
+      'environment.TALE_DROP_GID': '10001',
+    });
+    expect(body.config['environment.TALE_TRANSPARENT_EGRESS']).toBeUndefined();
+  });
+
+  test('a /dev/shm size that is not one resizes nothing (boot refuses it)', () => {
+    const cfg = incusTestConfig(
+      {},
+      {
+        session: {
+          ...TEST_SESSION_CONFIG,
+          agentProfile: {
+            ...TEST_SESSION_CONFIG.agentProfile,
+            shmSize: '1.5g',
+          },
+        },
+      },
+    );
+    // Not a size the entrypoint reads: nothing is asked of it. The boot
+    // checks refuse the setting by name.
+    expect(sessionShape(cfg, 'agent').resizeShm).toBe(false);
   });
 
   test('only a session that pins the proxy address records it', () => {
@@ -345,18 +388,12 @@ describe('a session started cold', () => {
     );
   });
 
-  test('another spawner instance is recorded, and the shm device can go or change', () => {
+  test('another spawner instance is recorded', () => {
     const body = buildSessionInstance(
-      incusTestConfig({ shmDevice: false }, { instance: 'device' }),
+      incusTestConfig({}, { instance: 'device' }),
       input,
     );
     expect(body.config['user.tale.sandbox-instance']).toBe('device');
-    expect(body.devices.shm).toBeUndefined();
-    const sized = buildSessionInstance(
-      incusTestConfig({ shmSize: '1GiB' }),
-      input,
-    );
-    expect(sized.devices.shm?.size).toBe('1GiB');
   });
 
   test('refuses ids that are not plain, and an address that is not one', () => {
@@ -517,9 +554,27 @@ describe('the warm pool', () => {
   });
 
   test('a claim of a shape the entrypoint would not drop drops it itself', () => {
-    const cfg = incusTestConfig({}, { transparentEgress: false });
+    // No transparent egress and the image's own /dev/shm: the entrypoint has
+    // nothing to do as root, so the standby script hands it a session user.
+    const cfg = incusTestConfig(
+      {},
+      {
+        transparentEgress: false,
+        session: {
+          ...TEST_SESSION_CONFIG,
+          agentProfile: { ...TEST_SESSION_CONFIG.agentProfile, shmSize: '64m' },
+        },
+      },
+    );
     const claim = buildClaim(cfg, sessionShape(cfg, 'agent'), input);
     expect(claim.file).toContain("export TALE_STANDBY_UID='10001'");
     expect(claim.file).toContain("export TALE_STANDBY_GID='10001'");
+  });
+
+  test('a claim of a shape that boots as root leaves the drop to the entrypoint', () => {
+    // A bigger /dev/shm is a mount the entrypoint makes as root, then it drops.
+    const cfg = incusTestConfig({}, { transparentEgress: false });
+    const claim = buildClaim(cfg, sessionShape(cfg, 'agent'), input);
+    expect(claim.file).not.toContain('TALE_STANDBY_UID');
   });
 });

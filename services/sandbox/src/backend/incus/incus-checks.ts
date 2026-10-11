@@ -33,9 +33,6 @@ const REQUIRED_EXTENSIONS = [
   'storage_volumes_created_at',
 ] as const;
 
-/** The tmpfs /dev/shm device. */
-const TMPFS_EXTENSION = 'container_disk_tmpfs';
-
 export interface IncusSurvey {
   server: IncusServerInfo;
   project: IncusProject;
@@ -126,10 +123,18 @@ export function inspectIncus(
   const warnings: string[] = [];
   const projectName = incus.project;
 
+  // ---- the shared memory --------------------------------------------------
+  // The entrypoint mounts a /dev/shm of the profile's size, in a size syntax
+  // of its own: a number and k, m or g, as Docker reads SANDBOX_AGENT_SHM_SIZE.
+  const shm = sessionShape(cfg, 'agent').limits.shmSize;
+  if (!/^[1-9][0-9]*[kmgKMG]?$/.test(shm)) {
+    errors.push(
+      `SANDBOX_AGENT_SHM_SIZE is ${JSON.stringify(shm)}, which is not a size the session's entrypoint mounts /dev/shm with (a number and k, m or g, such as 512m)`,
+    );
+  }
+
   // ---- the server ---------------------------------------------------------
-  const wanted: string[] = [...REQUIRED_EXTENSIONS];
-  if (incus.shmDevice) wanted.push(TMPFS_EXTENSION);
-  const missing = wanted.filter(
+  const missing = REQUIRED_EXTENSIONS.filter(
     (extension) => !server.apiExtensions.includes(extension),
   );
   if (missing.length > 0) {
@@ -169,22 +174,16 @@ export function inspectIncus(
         `project ${projectName} allows low-level container keys (restricted.containers.lowlevel=allow), which also admits raw.lxc; the backend does not need them`,
       );
     }
-    if (incus.shmDevice) {
-      const disks = project.config['restricted.devices.disk'];
-      const paths = list(project.config['restricted.devices.disk.paths']);
-      if (disks !== 'allow') {
-        errors.push(
-          `project ${projectName} does not allow the tmpfs /dev/shm device. Run: incus project set ${projectName} restricted.devices.disk=allow restricted.devices.disk.paths=tmpfs:  (or set SANDBOX_INCUS_SHM_DEVICE=false and accept the image's 64 MiB /dev/shm, which crashes Chromium)`,
-        );
-      } else if (paths.length === 0) {
-        warnings.push(
-          `project ${projectName} allows disk devices without restricted.devices.disk.paths, so this certificate could mount any host path into an instance. Run: incus project set ${projectName} restricted.devices.disk.paths=tmpfs:`,
-        );
-      } else if (!paths.includes('tmpfs:')) {
-        errors.push(
-          `project ${projectName} restricts disk devices to ${paths.join(', ')}, which does not admit the tmpfs /dev/shm device. Run: incus project set ${projectName} restricted.devices.disk.paths=tmpfs:`,
-        );
-      }
+    // The backend asks for pool-backed disks only (the workspace volume and the
+    // profile's root disk), which is what a restricted project admits by
+    // default. `allow` without a list of paths admits every host path.
+    if (
+      project.config['restricted.devices.disk'] === 'allow' &&
+      list(project.config['restricted.devices.disk.paths']).length === 0
+    ) {
+      warnings.push(
+        `project ${projectName} allows disk devices from any host path (restricted.devices.disk=allow without restricted.devices.disk.paths), so this certificate could mount a host directory into an instance. The backend needs pool-backed disks only, the default. Run: incus project unset ${projectName} restricted.devices.disk`,
+      );
     }
     if (cfg.dockerInContainer) {
       if (project.config['restricted.containers.nesting'] !== 'allow') {

@@ -208,8 +208,6 @@ export class FakeIncus {
     restricted: 'true',
     'restricted.containers.nesting': 'allow',
     'restricted.containers.interception': 'allow',
-    'restricted.devices.disk': 'allow',
-    'restricted.devices.disk.paths': 'tmpfs:',
   };
   profileConfig: IncusConfigMap = {};
   profileDevices: IncusDevices;

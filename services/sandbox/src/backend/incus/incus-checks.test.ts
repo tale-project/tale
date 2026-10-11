@@ -3,6 +3,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { FakeIncus } from './fake-incus.ts';
 import { inspectIncus, type IncusFindings } from './incus-checks.ts';
@@ -82,16 +83,52 @@ describe('the server', () => {
     fake.kernelFeatures = { idmapped_mounts: 'true' };
     expect((await inspect(fake)).warnings).toEqual([]);
   });
+});
 
-  test('is not asked for the tmpfs extension when the shm device is off', async () => {
-    const fake = new FakeIncus();
-    fake.extensions = fake.extensions.filter(
-      (extension) => extension !== 'container_disk_tmpfs',
-    );
-    expect((await inspect(fake)).errors).toHaveLength(1);
-    expect(
-      (await inspect(fake, incusTestConfig({ shmDevice: false }))).errors,
-    ).toEqual([]);
+describe('the shared memory', () => {
+  test('is refused when its size is not one the entrypoint can mount', async () => {
+    for (const bad of ['1.5g', '512 m', '0', 'big']) {
+      const { errors } = await inspect(
+        new FakeIncus(),
+        incusTestConfig(
+          {},
+          {
+            session: {
+              ...TEST_SESSION_CONFIG,
+              agentProfile: {
+                ...TEST_SESSION_CONFIG.agentProfile,
+                shmSize: bad,
+              },
+            },
+          },
+        ),
+      );
+      expect({
+        bad,
+        matching: matching(errors, 'SANDBOX_AGENT_SHM_SIZE').length,
+      }).toEqual({ bad, matching: 1 });
+    }
+  });
+
+  test('is accepted in the sizes Docker reads', async () => {
+    for (const good of ['64m', '512m', '1g', '262144k', '67108864']) {
+      const { errors } = await inspect(
+        new FakeIncus(),
+        incusTestConfig(
+          {},
+          {
+            session: {
+              ...TEST_SESSION_CONFIG,
+              agentProfile: {
+                ...TEST_SESSION_CONFIG.agentProfile,
+                shmSize: good,
+              },
+            },
+          },
+        ),
+      );
+      expect({ good, errors }).toEqual({ good, errors: [] });
+    }
   });
 });
 
@@ -120,35 +157,30 @@ describe('the project', () => {
     expect(matching(warnings, 'not restricted')).toHaveLength(1);
   });
 
-  test('is refused when a restricted project does not allow the shm device', async () => {
+  test('is not asked to allow disk devices: the backend needs pool-backed disks only', async () => {
     const fake = new FakeIncus();
-    delete fake.projectConfig['restricted.devices.disk'];
-    const { errors } = await inspect(fake);
-    expect(matching(errors, 'tmpfs /dev/shm')).toHaveLength(1);
-    expect(errors[0]).toContain('SANDBOX_INCUS_SHM_DEVICE=false');
+    expect(fake.projectConfig['restricted.devices.disk']).toBeUndefined();
+    const { errors, warnings } = await inspect(fake);
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
   });
 
-  test('is refused when the disk paths it allows leave out tmpfs:', async () => {
+  test('is warned about when disk devices are allowed from any host path', async () => {
     const fake = new FakeIncus();
-    fake.projectConfig['restricted.devices.disk.paths'] = '/srv/data';
-    const { errors } = await inspect(fake);
-    expect(matching(errors, '/srv/data')).toHaveLength(1);
-  });
-
-  test('is warned about when disk devices are allowed from anywhere', async () => {
-    const fake = new FakeIncus();
-    delete fake.projectConfig['restricted.devices.disk.paths'];
+    fake.projectConfig['restricted.devices.disk'] = 'allow';
     const { errors, warnings } = await inspect(fake);
     expect(errors).toEqual([]);
     expect(matching(warnings, 'any host path')).toHaveLength(1);
+    expect(warnings[0]).toContain(
+      'incus project unset sandbox-pr restricted.devices.disk',
+    );
   });
 
-  test('is not asked about the shm device when it is off', async () => {
+  test('is not warned about when the disk devices it allows are confined to paths', async () => {
     const fake = new FakeIncus();
-    delete fake.projectConfig['restricted.devices.disk'];
-    expect(
-      (await inspect(fake, incusTestConfig({ shmDevice: false }))).errors,
-    ).toEqual([]);
+    fake.projectConfig['restricted.devices.disk'] = 'allow';
+    fake.projectConfig['restricted.devices.disk.paths'] = '/srv/never';
+    expect((await inspect(fake)).warnings).toEqual([]);
   });
 
   test('is warned about when it allows low-level keys', async () => {

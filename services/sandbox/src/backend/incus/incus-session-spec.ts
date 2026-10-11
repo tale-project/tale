@@ -60,7 +60,7 @@ import {
   STANDBY_COMMAND,
   standbyScriptDigest,
 } from './incus-standby.ts';
-import { toIncusSize } from './incus-units.ts';
+import { incusSizeBytes, toIncusSize } from './incus-units.ts';
 
 /** Where a session's workspace volume is mounted. */
 const WORKSPACE_PATH = '/agent';
@@ -77,6 +77,9 @@ const SESSION_COMMAND = '/docker-entrypoint.sh daemon';
  * which the image installs for exactly that drop.
  */
 const NO_NEW_PRIVS = '/usr/bin/setpriv --no-new-privs --';
+/** The /dev/shm the image's OCI config mounts (the runtime spec's default). */
+const IMAGE_SHM_BYTES = 64 * 1024 * 1024;
+const SHM_SIZE_RE = /^[1-9][0-9]*[kmgKMG]?$/;
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const TOKEN_RE = /^[a-f0-9]{1,128}$/;
@@ -97,8 +100,13 @@ export interface SessionShape {
   limits: SessionAgentProfileConfig;
   /** Transparent egress through redsocks, installed by the entrypoint. */
   transparentEgress: boolean;
+  /** The entrypoint mounts a /dev/shm bigger than the image's 64 MiB. A
+   * restricted project admits pool-backed disks only, so a tmpfs device is not
+   * an option; the entrypoint does it while it is still root. */
+  resizeShm: boolean;
   /** The entrypoint starts as root and drops to uid:gid itself (Docker
-   * inside, or transparent egress, which needs to install iptables rules). */
+   * inside, which runs the inner engine; transparent egress, which installs
+   * iptables rules; a bigger /dev/shm, which is a mount). */
   bootsAsRoot: boolean;
   uid: number;
   gid: number;
@@ -115,12 +123,14 @@ export function sessionShape(
     : DEFAULT_SESSION_PROFILE;
   const transparentEgress =
     cfg.transparentEgress && transparentEgressSupported(cfg.runtimeTier);
+  const resizeShm = (incusSizeBytes(limits.shmSize) ?? 0) > IMAGE_SHM_BYTES;
   return {
     profile,
     dind,
     limits,
     transparentEgress,
-    bootsAsRoot: dind || transparentEgress,
+    resizeShm,
+    bootsAsRoot: dind || transparentEgress || resizeShm,
     uid: limits.uid,
     gid: limits.gid,
   };
@@ -183,12 +193,16 @@ function sharedEnvironment(
       env.TALE_DIND_INNER_POOL_OVERRIDE = parseDindInnerPool(cfg.dindInnerPool);
     }
   }
-  if (shape.transparentEgress) {
-    env.TALE_TRANSPARENT_EGRESS = '1';
-    if (!shape.dind) {
-      env.TALE_DROP_UID = String(shape.uid);
-      env.TALE_DROP_GID = String(shape.gid);
-    }
+  if (shape.transparentEgress) env.TALE_TRANSPARENT_EGRESS = '1';
+  if (shape.resizeShm) {
+    assertSafe('profile.shmSize', shape.limits.shmSize, SHM_SIZE_RE);
+    env.TALE_SHM_SIZE = shape.limits.shmSize;
+  }
+  // Docker inside drops to the profile user itself; any other root start is
+  // told which user to become.
+  if (shape.bootsAsRoot && !shape.dind) {
+    env.TALE_DROP_UID = String(shape.uid);
+    env.TALE_DROP_GID = String(shape.gid);
   }
   return env;
 }
@@ -263,21 +277,6 @@ function baseConfig(
     'oci.dns.nameservers': incusOf(cfg).dns.join(','),
     ...resourceConfig(cfg, shape),
     ...asConfig(sharedEnvironment(cfg, shape)),
-  };
-}
-
-function sharedDevices(cfg: SpawnerConfig, shape: SessionShape): IncusDevices {
-  const incus = incusOf(cfg);
-  if (!incus.shmDevice) return {};
-  return {
-    // Chromium (Playwright) crashes on the 64 MiB /dev/shm the image mounts.
-    shm: {
-      type: 'disk',
-      source: 'tmpfs:',
-      path: '/dev/shm',
-      size: requireSize('shm size', incus.shmSize ?? shape.limits.shmSize),
-      'initial.mode': '1777',
-    },
   };
 }
 
@@ -383,10 +382,7 @@ export function buildSessionInstance(
       }),
       ...sessionLabels(cfg, shape, input),
     },
-    devices: {
-      ...sharedDevices(cfg, shape),
-      ...workspaceDevice(cfg, input.sessionId),
-    },
+    devices: workspaceDevice(cfg, input.sessionId),
     source: { type: 'image', alias: incus.image },
     start: true,
   };
@@ -463,7 +459,7 @@ function standbyStaticSpec(
       uid: 0,
       gid: 0,
     }),
-    devices: sharedDevices(cfg, shape),
+    devices: {},
     image: incus.image,
     script,
   };

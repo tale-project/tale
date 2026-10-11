@@ -287,7 +287,6 @@ export function readIncusConfig(
   }
 
   const source = imageSource(env);
-  const shmSize = size(env, 'SANDBOX_INCUS_SHM_SIZE');
   const config: IncusConfig = {
     endpoint: endpoint(env),
     project: objectName(env, 'SANDBOX_INCUS_PROJECT'),
@@ -301,8 +300,6 @@ export function readIncusConfig(
     serverCertFile: absolutePath(env, 'SANDBOX_INCUS_SERVER_CERT_FILE'),
     poolSize,
     workspaceSize: size(env, 'SANDBOX_INCUS_WORKSPACE_SIZE') ?? '10GiB',
-    shmDevice: flag(env, 'SANDBOX_INCUS_SHM_DEVICE', true),
-    ...(shmSize === undefined ? {} : { shmSize }),
     dns: nameservers(env, ctx),
     dockerConfig: dockerConfig(env),
     allowUnfilteredNetwork,

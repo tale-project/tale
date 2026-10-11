@@ -61,7 +61,6 @@ describe('a minimal setup', () => {
         serverCertFile: '/run/incus/server.crt',
         poolSize: 0,
         workspaceSize: '10GiB',
-        shmDevice: true,
         // The egress proxy's own address: the resolver the sandbox network
         // already serves its nested containers from.
         dns: ['10.20.0.2'],
@@ -194,17 +193,6 @@ describe('sizes', () => {
     );
     expect(refusal({ SANDBOX_INCUS_WORKSPACE_SIZE: '0' })).toContain(
       'SANDBOX_INCUS_WORKSPACE_SIZE',
-    );
-  });
-
-  test('the shm device and its size', () => {
-    expect(read({ SANDBOX_INCUS_SHM_DEVICE: 'false' }).config.shmDevice).toBe(
-      false,
-    );
-    expect(read({ SANDBOX_INCUS_SHM_SIZE: '1g' }).config.shmSize).toBe('1GiB');
-    expect(read().config).not.toHaveProperty('shmSize');
-    expect(refusal({ SANDBOX_INCUS_SHM_DEVICE: 'maybe' })).toContain(
-      'SANDBOX_INCUS_SHM_DEVICE',
     );
   });
 });

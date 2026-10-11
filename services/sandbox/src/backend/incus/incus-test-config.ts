@@ -20,7 +20,6 @@ const INCUS_TEST_DEFAULTS: IncusConfig = {
   serverCertFile: '/run/incus/server.crt',
   poolSize: 0,
   workspaceSize: '10GiB',
-  shmDevice: true,
   dns: [INCUS_TEST_ADDRESS],
   dockerConfig: DEFAULT_INCUS_DOCKER_CONFIG,
   allowUnfilteredNetwork: false,

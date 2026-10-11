@@ -106,3 +106,127 @@ describe('session environment', () => {
     );
   });
 });
+
+// A bigger /dev/shm for the Incus backend, whose project admits no tmpfs disk
+// device: the spawner names the size, the entrypoint mounts it while root.
+describe('the session /dev/shm', () => {
+  interface Outcome {
+    status: number | null;
+    stdout: string;
+    stderr: string;
+    mounts: string;
+  }
+
+  /** The real daemon dispatch, with `mount`, `id`, `setpriv` and `tini` replaced. */
+  function runDaemon(
+    env: Record<string, string>,
+    uid = 0,
+    mountStatus = 0,
+  ): Outcome {
+    const root = mkdtempSync(join(tmpdir(), 'tale-entrypoint-shm-'));
+    try {
+      const bin = join(root, 'bin');
+      mkdirSync(bin);
+      const stub = (name: string, body: string) =>
+        writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+      stub('mount', `echo "$*" >> "${root}/mounts"\nexit ${mountStatus}`);
+      stub('id', `echo ${uid}`);
+      // The drop to the session user: skip its options, run what follows.
+      stub(
+        'setpriv',
+        'while [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"',
+      );
+      stub('tini', 'echo "tini $*"');
+      const script = join(root, 'entrypoint.sh');
+      writeFileSync(
+        script,
+        readFileSync(ENTRYPOINT, 'utf8')
+          .replaceAll('/agent/', `${root}/agent/`)
+          .replace('_MOUNT=/usr/bin/mount', `_MOUNT=${bin}/mount`),
+      );
+      const r = spawnSync('sh', [script, 'daemon'], {
+        encoding: 'utf8',
+        env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, ...env },
+      });
+      let mounts = '';
+      try {
+        mounts = readFileSync(join(root, 'mounts'), 'utf8');
+      } catch (error) {
+        // No mount was made, which is what several cases below expect.
+        mounts = error instanceof Error && 'code' in error ? '' : String(error);
+      }
+      return { status: r.status, stdout: r.stdout, stderr: r.stderr, mounts };
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  test('without a size it mounts nothing and starts runnerd as before', () => {
+    const r = runDaemon({});
+    expect(r.status).toBe(0);
+    expect(r.mounts).toBe('');
+    expect(r.stdout).toBe('tini -g -- node /usr/local/lib/tale/runnerd.mjs\n');
+  });
+
+  test('with a size, as root, it mounts a tmpfs of it and drops to the session user', () => {
+    const r = runDaemon({
+      TALE_SHM_SIZE: '512m',
+      TALE_DROP_UID: '10001',
+      TALE_DROP_GID: '10001',
+    });
+    expect(r.status).toBe(0);
+    expect(r.mounts).toBe(
+      '-t tmpfs -o size=512m,mode=1777,nosuid,nodev,noexec tmpfs /dev/shm\n',
+    );
+    expect(r.stdout).toContain('[entrypoint] /dev/shm is a tmpfs of 512m');
+    expect(r.stdout).toContain(
+      'tini -g -- setpriv --reuid 10001 --regid 10001 --init-groups -- node /usr/local/lib/tale/runnerd.mjs',
+    );
+  });
+
+  test("the drop follows the profile's user, not a default", () => {
+    const r = runDaemon({
+      TALE_SHM_SIZE: '64m',
+      TALE_DROP_UID: '65534',
+      TALE_DROP_GID: '65534',
+    });
+    expect(r.stdout).toContain('setpriv --reuid 65534 --regid 65534');
+  });
+
+  test('a size that is not one is refused with a warning, whatever it holds', () => {
+    for (const bad of [
+      'abc',
+      '0m',
+      '512mm',
+      '12;reboot',
+      '5 12m',
+      '-1m',
+      '1.5g',
+    ]) {
+      const r = runDaemon({ TALE_SHM_SIZE: bad, TALE_DROP_UID: '10001' });
+      expect({ bad, mounts: r.mounts }).toEqual({ bad, mounts: '' });
+      expect(r.stderr).toContain('is not a size');
+      expect(r.status).toBe(0);
+    }
+  });
+
+  test('without root it warns and leaves /dev/shm alone', () => {
+    const r = runDaemon(
+      { TALE_SHM_SIZE: '512m', TALE_DROP_UID: '10001' },
+      1000,
+    );
+    expect(r.mounts).toBe('');
+    expect(r.stderr).toContain('is not root');
+  });
+
+  test('a mount that fails is a warning, not the end of the session', () => {
+    const r = runDaemon(
+      { TALE_SHM_SIZE: '512m', TALE_DROP_UID: '10001' },
+      0,
+      1,
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('could not mount a 512m tmpfs on /dev/shm');
+    expect(r.stdout).toContain('tini -g -- setpriv');
+  });
+});

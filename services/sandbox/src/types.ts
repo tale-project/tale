@@ -207,11 +207,6 @@ export interface IncusConfig {
   poolSize: number;
   /** Quota of a workspace volume, as Incus reads sizes (`10GiB`). */
   workspaceSize: string;
-  /** Give a session a `/dev/shm` tmpfs of its own (Chromium crashes on the
-   * 64 MiB the image mounts). It needs the project to admit tmpfs disks. */
-  shmDevice: boolean;
-  /** Its size, as Incus reads sizes; unset, the session profile's own. */
-  shmSize?: string;
   /** Nameservers handed to a session (default: the egress proxy's address). */
   dns: readonly string[];
   /** Instance config added to a session with Docker inside. */
