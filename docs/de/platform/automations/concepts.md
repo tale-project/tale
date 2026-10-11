@@ -80,6 +80,8 @@ Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktio
 
 **`task.create`** erstellt eine Aufgabe in einem Projekt, in dem die Automatisierung installiert ist, einmal pro Ausführung des Schritts. Siehe [Aufgaben aus einer Automatisierung anlegen](/de/platform/automations/add-tasks).
 
+**`task.list`** listet die Aufgaben eines Projekts auf, die neueste zuerst, eingegrenzt auf Status und einen Erstellungszeitpunkt, damit ein späterer Schritt darüber berichtet. Es liest das Projekt so, wie ein Erstellen dort es darf. Siehe [Aufgaben aus einer Automatisierung anlegen](/de/platform/automations/add-tasks#die-aufgaben-eines-projekts-auflisten).
+
 **`notify.member`** teilt Mitgliedern der Organisation etwas mit — Titel, Text und Link — in ihren Benachrichtigungen und per E-Mail, einmal pro Ausführung des Schritts. Siehe [Mitglieder aus einer Automatisierung benachrichtigen](/de/platform/automations/notify-members).
 
 ### Strukturierte und unstrukturierte Ausgabe

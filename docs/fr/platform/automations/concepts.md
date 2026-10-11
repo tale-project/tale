@@ -80,6 +80,8 @@ Quatre types sont intégrés, et chaque action de connector comme chaque capacit
 
 **`task.create`** crée une tâche dans un projet où l’automatisation est installée, une fois à chaque exécution de l’étape. Voir [Ajouter des tâches depuis une automatisation](/fr/platform/automations/add-tasks).
 
+**`task.list`** liste les tâches d’un projet, la plus récente d’abord, filtrées par statut et par moment de création, pour qu’une étape suivante en rende compte. Elle lit le projet comme une création y est permise. Voir [Ajouter des tâches depuis une automatisation](/fr/platform/automations/add-tasks#lister-les-taches-dun-projet).
+
 **`notify.member`** fait savoir quelque chose à des membres de l’organisation — un titre, un texte et un lien — dans leurs notifications et par e-mail, une fois à chaque exécution de l’étape. Voir [Notifier des membres depuis une automatisation](/fr/platform/automations/notify-members).
 
 ### Sortie structurée et non structurée

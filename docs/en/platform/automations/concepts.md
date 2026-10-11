@@ -80,6 +80,8 @@ Four types are built in, and every connector action and platform native — know
 
 **`task.create`** creates a task in a project the automation is installed in, once each time the step runs. See [Add tasks from an automation](/platform/automations/add-tasks).
 
+**`task.list`** lists a project's tasks, newest first, narrowed to statuses and a creation moment, for a later step to report on. It reads the project as a create there may. See [Add tasks from an automation](/platform/automations/add-tasks#list-a-projects-tasks).
+
 **`notify.member`** tells members of the organization something — a title, words and a link — in their notifications and by email, once each time the step runs. See [Notify members from an automation](/platform/automations/notify-members).
 
 ### Structured and unstructured output
