@@ -2443,6 +2443,58 @@ export const SHOTS: readonly Shot[] = [
         ),
   },
   {
+    // Total tested alone: Discount pinned to a 20 % rate and a wholesale
+    // input, the rest of the draft left out, and Total's Node test tab with
+    // what it received and returned.
+    name: 'automation-step-test',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TESTS.automation}/editor`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'total');
+      await page
+        .getByRole('button', { name: t('automations.stepTest.menu') })
+        .click();
+      await page
+        .getByRole('menuitem', { name: t('automations.stepTest.this') })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('automations.stepTest.title').replace('{node}', 'Total'),
+      });
+      const fill = async (name: string, json: string) => {
+        await dialog.getByRole('textbox', { name }).click();
+        await page.keyboard.press('ControlOrMeta+A');
+        await page.keyboard.insertText(json);
+      };
+      await fill('Discount', '{"rate": 0.2}');
+      await fill(
+        t('automations.detail.runInput.label'),
+        '{"quantity": 1000, "unitPrice": 2}',
+      );
+      await dialog
+        .getByRole('button', { name: t('automations.stepTest.run') })
+        .click();
+      await page
+        .getByRole('tab', {
+          name: t('automations.editor.inspector.tabs.runNodeTest'),
+        })
+        .click();
+    },
+    // The strip says how the test ended once it answered.
+    readyWhen: (page) =>
+      page
+        .getByRole('region', {
+          name: t('automations.try.nodeTest').replace('{node}', 'Total'),
+        })
+        .getByText(
+          new RegExp(
+            escapeRegExp(
+              t('automations.try.succeeded').split('{duration}')[0] ?? '',
+            ),
+          ),
+        ),
+  },
+  {
     // The Test run dialog of a draft with Start from open: the tests to
     // start the input from, and nothing or the required fields.
     name: 'automation-run-start-from',

@@ -234,6 +234,21 @@ The draft's run then lies over the canvas in place of the last run, under an **U
 
 </Frame>
 
+### Test one node, or up to a node {#step-tests}
+
+To try one step without the rest, select its node and open **Test node** beside its name:
+
+- **Test this node** runs the node alone, as the draft has it, on the data you give it. Under **Uses data from**, each node it reads gets its output as JSON: from the run on the canvas when there is one, as you last tested the node, or empty for you to write. **Run input (JSON)** appears when the node reads the run's input, and **Item** when it runs once per item. On the canvas the nodes it reads carry **Pinned data** and the rest **Left out of this test**; the node's **Node test** tab shows what it received and returned. When its condition is false with that data, the strip says the test ran it anyway.
+- **Test up to here** runs the draft up to the node: everything it needs, and nothing after it. It asks for the run input as **Test run** does, and the strip reads **Up to Review**.
+
+Agent nodes are simulated in tests. Like a try, a step test keeps no run; the data you give a node is kept for the session, so testing it again starts from it.
+
+<Frame caption="Total tested alone: Discount pinned to a 20 % rate, the rest of the draft left out, and what Total received and returned.">
+
+![The editor of Order discounts with a Node test: Total strip reading Succeeded in 3 ms. On the canvas, Discount carries Pinned data and succeeded, Total succeeded, and Review and End are dashed and Left out of this test. Beside the canvas, Total's Node test tab shows the resolved input rate 0.2, quantity 1000 and unitPrice 2, and the output gross 2000, discount 400 and total 1600.](/images/platform/automation-step-test.webp)
+
+</Frame>
+
 ### Start from an older version {#older-version}
 
 When **Version** shows an older version than the latest, a band above the canvas says so, such as **You're viewing v2. The latest is v5.** **Show v5** switches to the latest version, and **Compare v2 with v5** shows what changed since.
