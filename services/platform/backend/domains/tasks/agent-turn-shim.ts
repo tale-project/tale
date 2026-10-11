@@ -17,9 +17,9 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
+import { orgAdapterShimHandlers } from '../../lib/org-config.ts';
 import { currentMentionNames } from '../collab/mention-directory.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
-import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {

@@ -8727,6 +8727,7 @@ async function checkProviderCredentials(
               endpointUrl: z.string().nullable(),
               maskedPreview: z.string().nullable(),
               envName: z.string().nullable(),
+              accountId: z.string().nullable(),
               isDefault: z.boolean(),
               status: z.string(),
             })
@@ -8821,6 +8822,100 @@ async function checkProviderCredentials(
       brokerReplaced.ok &&
       rowsById.get(brokerId)?.maskedPreview === null,
     `endpoint=${rowsById.get(credentialId)?.endpointUrl}, envName=${rowsById.get(envCredentialId)?.envName} (resolves ${resolvedRepointed.authMethod === 'env' ? resolvedRepointed.envName : resolvedRepointed.authMethod}), emptyPatch → ${emptyPatch.status} (want 400), disabledDefault → ${disabledDefault.status} (want 400), brokerPreview=${String(rowsById.get(brokerId)?.maskedPreview)} (want null)`,
+  );
+
+  // Exercise the subscription account column through the HTTP writes, list
+  // and reused resolver over real PG, without changing the default fixture.
+  const subscription = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+        providerSlug: 'openai',
+        authMethod: 'subscription-key',
+        name: 'Subscription account',
+        secret: 'itest-subscription-secret',
+        accountId: 'account-initial',
+        isDefault: false,
+      })
+    ).json(),
+  );
+  const subscriptionId = subscription.success
+    ? subscription.data.credentialId
+    : '';
+  const subscriptionListed = await listCredentials();
+  const subscriptionResolved = subscription.success
+    ? await resolveProviderCredential(sql, {
+        organizationId: orgId,
+        providerSlug: 'openai',
+        credentialId: subscriptionId,
+      })
+    : undefined;
+  const accountEdited = await send(
+    'POST',
+    `/api/app/provider-credentials/${subscriptionId}?orgId=${orgId}`,
+    { accountId: 'account-updated' },
+  );
+  const subscriptionEdited = await listCredentials();
+  const subscriptionResolvedAfterEdit = subscription.success
+    ? await resolveProviderCredential(sql, {
+        organizationId: orgId,
+        providerSlug: 'openai',
+        credentialId: subscriptionId,
+      })
+    : undefined;
+  const accountOnEnv = await send(
+    'POST',
+    `/api/app/provider-credentials?orgId=${orgId}`,
+    {
+      providerSlug: 'openai',
+      authMethod: 'env',
+      name: 'Invalid env account',
+      envName: 'TALE_PROVIDER_KEY_ITEST',
+      accountId: 'account-refused',
+      isDefault: false,
+    },
+  );
+  const envAccountError = z
+    .object({ error: z.string() })
+    .safeParse(await accountOnEnv.json().catch(() => null));
+  const accountOnApiKey = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { accountId: 'account-refused' },
+  );
+  const apiKeyAccountError = z
+    .object({ error: z.string() })
+    .safeParse(await accountOnApiKey.json().catch(() => null));
+  const subscriptionDeleted = await send(
+    'DELETE',
+    `/api/app/provider-credentials/${subscriptionId}?orgId=${orgId}`,
+  );
+  record(
+    'provider subscription account IDs round-trip through PG',
+    subscription.success &&
+      subscriptionListed.success &&
+      subscriptionListed.data.credentials.find(
+        (row) => row.id === subscriptionId,
+      )?.accountId === 'account-initial' &&
+      !JSON.stringify(subscriptionListed.data).includes(
+        'itest-subscription-secret',
+      ) &&
+      subscriptionResolved?.authMethod === 'subscription-key' &&
+      subscriptionResolved.accountId === 'account-initial' &&
+      accountEdited.ok &&
+      subscriptionEdited.success &&
+      subscriptionEdited.data.credentials.find(
+        (row) => row.id === subscriptionId,
+      )?.accountId === 'account-updated' &&
+      subscriptionResolvedAfterEdit?.authMethod === 'subscription-key' &&
+      subscriptionResolvedAfterEdit.accountId === 'account-updated' &&
+      accountOnEnv.status === 400 &&
+      envAccountError.success &&
+      envAccountError.data.error === 'CREDENTIAL_ACCOUNT_ID_INVALID' &&
+      accountOnApiKey.status === 400 &&
+      apiKeyAccountError.success &&
+      apiKeyAccountError.data.error === 'CREDENTIAL_ACCOUNT_ID_INVALID' &&
+      subscriptionDeleted.ok,
+    `create=${subscription.success}, edit=${accountEdited.status}, env account → ${accountOnEnv.status} (want 400), API-key account → ${accountOnApiKey.status} (want 400), cleanup=${subscriptionDeleted.status}`,
   );
 }
 

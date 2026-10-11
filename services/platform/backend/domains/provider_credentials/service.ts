@@ -32,7 +32,10 @@ import {
 } from '../../core/provider_credentials/resolve_credential.ts';
 import { toJson } from '../../db/sql.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
-import { resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  orgAdapterShimHandlers,
+  resolveOrgSlug,
+} from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -278,7 +281,10 @@ export async function resolveProviderCredential(
     requireBrokerAccountId?: boolean;
   },
 ): Promise<ResolvedProviderCredential> {
-  const shim = createCtxShim(credentialShimHandlers(sql));
+  const shim = createCtxShim({
+    ...orgAdapterShimHandlers(sql),
+    ...credentialShimHandlers(sql),
+  });
   return resolveProviderCredential04(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused resolver uses the shim's query and mutation handlers (see ctx-shim contract)
     shim as unknown as Parameters<typeof resolveProviderCredential04>[0],
@@ -576,18 +582,15 @@ export async function createCredential(
   let encryptedData: EncryptedSecret | undefined;
   let maskedPreview: string | undefined;
   let envName: string | undefined;
+  if (args.accountId !== undefined && args.authMethod !== 'subscription-key') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_ACCOUNT_ID_INVALID',
+      'An account ID is only valid for a subscription-key credential',
+    );
+  }
   if (args.authMethod === 'env') {
     envName = assertProviderKeyEnvName(args.envName);
   } else {
-    if (
-      args.accountId !== undefined &&
-      args.authMethod !== 'subscription-key'
-    ) {
-      throw new CredentialAdminError(
-        'CREDENTIAL_ACCOUNT_ID_INVALID',
-        'An account ID is only valid for a subscription-key credential',
-      );
-    }
     if (!args.secret || args.secret.trim().length === 0) {
       throw new CredentialAdminError(
         'CREDENTIAL_SECRET_REQUIRED',
