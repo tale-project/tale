@@ -466,6 +466,10 @@ testResults:
     done: '{context}. {summary}'
   coverage: '{total, plural, one {Covers {covered} of # path} other {Covers {covered} of # paths}}'
 
+workbenchDock:
+  expand: Expand panel
+  collapse: Collapse panel
+
 codeEditor:
   roleDescription: code editor
   loading: Loading the editor…

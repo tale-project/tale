@@ -466,6 +466,10 @@ testResults:
     done: '{context}. {summary}'
   coverage: '{total, plural, one {Deckt {covered} von # Pfad ab} other {Deckt {covered} von # Pfaden ab}}'
 
+workbenchDock:
+  expand: Bereich erweitern
+  collapse: Bereich verkleinern
+
 codeEditor:
   roleDescription: Code-Editor
   loading: Editor wird geladen…

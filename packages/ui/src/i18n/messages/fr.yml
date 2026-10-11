@@ -466,6 +466,10 @@ testResults:
     done: '{context}. {summary}'
   coverage: '{covered, plural, one {Couvre # chemin sur {total}} many {Couvre # chemins sur {total}} other {Couvre # chemins sur {total}}}'
 
+workbenchDock:
+  expand: Agrandir le panneau
+  collapse: Réduire le panneau
+
 codeEditor:
   roleDescription: éditeur de code
   loading: Chargement de l'éditeur…

@@ -1,8 +1,5 @@
 'use client';
 
-import { Card } from '@tale/ui/card';
-import { cn } from '@tale/ui/cn';
-import { IconButton } from '@tale/ui/icon-button';
 import {
   IssueList,
   type IssueItem,
@@ -10,15 +7,9 @@ import {
   type IssueListStatus,
 } from '@tale/ui/issue-list';
 import { formatIssueCounts, type IssueCounts } from '@tale/ui/issue-summary';
-import {
-  ResponsiveDialog,
-  ResponsiveDialogContent,
-  ResponsiveDialogDescription,
-  ResponsiveDialogTitle,
-} from '@tale/ui/responsive-dialog';
 import { SegmentedControl } from '@tale/ui/segmented-control';
-import { X } from 'lucide-react';
-import { forwardRef, useId, type KeyboardEvent, type RefObject } from 'react';
+import { WorkbenchDock, WorkbenchSheet } from '@tale/ui/workbench-dock';
+import { forwardRef, type RefObject } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -98,22 +89,14 @@ function ProblemsFilterControl({
 
 const ProblemsList = forwardRef<
   IssueListHandle,
-  Omit<ProblemsContentProps, 'counts' | 'onFilterChange'> & {
-    /** The heading that names the list, when the surface has one. */
-    labelledBy?: string;
-  }
->(function ProblemsList(
-  { items, status, activeId, onActivate, filter, labelledBy },
-  ref,
-) {
+  Omit<ProblemsContentProps, 'counts' | 'onFilterChange'>
+>(function ProblemsList({ items, status, activeId, onActivate, filter }, ref) {
   const { t } = useT('automations');
   return (
     <IssueList
       ref={ref}
       issues={filterItems(items, filter)}
-      {...(labelledBy === undefined
-        ? { 'aria-label': t('problems.title') }
-        : { 'aria-labelledby': labelledBy })}
+      aria-label={t('problems.title')}
       onActivate={onActivate}
       activeId={activeId}
       status={status}
@@ -134,11 +117,8 @@ export interface AutomationProblemsDockProps extends ProblemsContentProps {
 }
 
 /**
- * The Problems panel under the canvas, from `lg` up: it spans the canvas
- * column only, so the inspector beside it keeps its height. A header with
- * the counts, the filter and Close over a list that scrolls on its own;
- * Escape anywhere inside closes it. It rises into place once, without
- * movement under reduced motion.
+ * The Problems panel under the canvas, from `lg` up: the workbench dock
+ * with one panel — the counts, the filter and Close over the list.
  */
 export const AutomationProblemsDock = forwardRef<
   IssueListHandle,
@@ -158,52 +138,33 @@ export const AutomationProblemsDock = forwardRef<
   ref,
 ) {
   const { t } = useT('automations');
-  const titleId = useId();
-  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape') return;
-    // The inspector closes on Escape too; this one is the dock's.
-    event.preventDefault();
-    onClose();
-  };
   return (
-    <section
+    <WorkbenchDock
       id={id}
-      aria-labelledby={titleId}
-      onKeyDown={onKeyDown}
-      className={cn(
-        'border-border bg-background flex min-h-24 shrink flex-col border-t',
-        'animate-in fade-in slide-in-from-bottom-2 duration-[var(--duration-standard)] ease-[var(--ease-out-quint)] motion-reduce:animate-none',
-      )}
-    >
-      <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1">
-        <h2 id={titleId} className="text-foreground text-sm font-medium">
-          {t('problems.title')}
-        </h2>
-        <span className="text-muted-foreground text-xs tabular-nums">
-          <CountsText counts={counts} status={status} />
-        </span>
-        <ProblemsFilterControl value={filter} onChange={onFilterChange} />
-        <span className="flex-1" aria-hidden="true" />
-        <IconButton
-          icon={X}
-          size="sm"
-          variant="ghost"
-          aria-label={t('problems.hide')}
-          onClick={onClose}
-        />
-      </div>
-      <div className="border-border max-h-56 min-h-0 overflow-y-auto border-t">
-        <ProblemsList
-          ref={ref}
-          items={items}
-          status={status}
-          activeId={activeId}
-          onActivate={onActivate}
-          filter={filter}
-          labelledBy={titleId}
-        />
-      </div>
-    </section>
+      activeId="problems"
+      panels={[
+        {
+          id: 'problems',
+          label: t('problems.title'),
+          badge: <CountsText counts={counts} status={status} />,
+          actions: (
+            <ProblemsFilterControl value={filter} onChange={onFilterChange} />
+          ),
+          content: (
+            <ProblemsList
+              ref={ref}
+              items={items}
+              status={status}
+              activeId={activeId}
+              onActivate={onActivate}
+              filter={filter}
+            />
+          ),
+        },
+      ]}
+      closeLabel={t('problems.hide')}
+      onClose={onClose}
+    />
   );
 });
 
@@ -239,45 +200,33 @@ export function AutomationProblemsSheet({
 }: AutomationProblemsSheetProps) {
   const { t } = useT('automations');
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent
-        closeLabel={t('problems.hide')}
-        className="flex max-h-[85dvh] flex-col"
-        preventCloseAutoFocus={handingOn}
-        onOpenAutoFocus={(event) => {
-          // Start on a problem, not on the filter: going to one is what
-          // the sheet is for. With no row on show, the dialog's own focus
-          // stays, so focus never remains behind the sheet.
-          if (filterItems(items, filter).length === 0) return;
-          event.preventDefault();
-          listRef.current?.focus();
-        }}
-      >
-        {/* One column with its own spacing, so the phone's drawer and the
-            tablet's dialog (which spaces its children itself) lay the sheet
-            out alike; only the list scrolls. */}
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <div className="flex flex-col gap-1 pr-8">
-            <ResponsiveDialogTitle className="text-base font-semibold">
-              {t('problems.title')}
-            </ResponsiveDialogTitle>
-            <ResponsiveDialogDescription className="text-muted-foreground text-sm tabular-nums">
-              <CountsText counts={counts} status={status} />
-            </ResponsiveDialogDescription>
-          </div>
-          <ProblemsFilterControl value={filter} onChange={onFilterChange} />
-          <Card padding="none" className="min-h-0 overflow-y-auto">
-            <ProblemsList
-              ref={listRef}
-              items={items}
-              status={status}
-              activeId={activeId}
-              onActivate={onActivate}
-              filter={filter}
-            />
-          </Card>
-        </div>
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
+    <WorkbenchSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('problems.title')}
+      description={<CountsText counts={counts} status={status} />}
+      actions={
+        <ProblemsFilterControl value={filter} onChange={onFilterChange} />
+      }
+      closeLabel={t('problems.hide')}
+      preventCloseAutoFocus={handingOn}
+      onOpenAutoFocus={(event) => {
+        // Start on a problem, not on the filter: going to one is what the
+        // sheet is for. With no row on show, the dialog's own focus stays,
+        // so focus never remains behind the sheet.
+        if (filterItems(items, filter).length === 0) return;
+        event.preventDefault();
+        listRef.current?.focus();
+      }}
+    >
+      <ProblemsList
+        ref={listRef}
+        items={items}
+        status={status}
+        activeId={activeId}
+        onActivate={onActivate}
+        filter={filter}
+      />
+    </WorkbenchSheet>
   );
 }
