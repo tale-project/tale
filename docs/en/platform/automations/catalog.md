@@ -64,7 +64,7 @@ Under **Install into**, choose **Organization** or an existing project. A manife
 
 <Step title="Validate and save">
 
-Choose **Upload package** and resolve any reported document, manifest or skill issues. Validation completes before the upload writes the automation and carried skills. A successful upload creates a draft; uploading the same automation again appends a version and preserves its history.
+Choose **Upload package** and resolve any reported document, manifest or skill issues. When the workflow fails the checks, the dialog says **This package doesn't pass the checks.** and lists each problem as the editor's **Problems** list does: what is wrong, its code and how to fix it. Correct the file and upload it again. Validation completes before the upload writes the automation and carried skills. A successful upload creates a draft; uploading the same automation again appends a version and preserves its history.
 
 </Step>
 

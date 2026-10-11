@@ -64,7 +64,7 @@ Wähle unter **Installieren in** die **Organisation** oder ein bestehendes Proje
 
 <Step title="Prüfen und speichern">
 
-Wähle **Paket hochladen** und behebe gemeldete Fehler im Workflow, Manifest oder Skill. Erst nach erfolgreicher Prüfung werden Automatisierung und mitgelieferte Skills geschrieben. Ein erneuter Import derselben Automatisierung ergänzt eine Entwurfsversion; die bisherige Historie bleibt erhalten.
+Wähle **Paket hochladen** und behebe gemeldete Fehler im Workflow, Manifest oder Skill. Besteht der Workflow die Prüfungen nicht, meldet der Dialog **Dieses Paket besteht die Prüfungen nicht.** und listet jedes Problem so auf wie die Liste **Probleme** im Editor: was falsch ist, den Code und wie du es behebst. Korrigiere die Datei und lade sie erneut hoch. Erst nach erfolgreicher Prüfung werden Automatisierung und mitgelieferte Skills geschrieben. Ein erneuter Import derselben Automatisierung ergänzt eine Entwurfsversion; die bisherige Historie bleibt erhalten.
 
 </Step>
 

@@ -64,7 +64,7 @@ Sous **Installer dans**, sélectionne **Organisation** ou un projet existant. Un
 
 <Step title="Valider et enregistrer">
 
-Choisis **Téléverser le paquet** et corrige les problèmes signalés dans le workflow, le manifeste ou les skills. La validation précède l’écriture de l’automatisation et des skills fournis. Un nouvel import de la même automatisation ajoute une version brouillon et conserve l’historique.
+Choisis **Téléverser le paquet** et corrige les problèmes signalés dans le workflow, le manifeste ou les skills. Si le workflow ne passe pas les vérifications, la boîte de dialogue indique **Ce paquet ne passe pas les vérifications.** et liste chaque problème comme la liste **Problèmes** de l’éditeur : ce qui ne va pas, son code et comment le corriger. Corrige le fichier et téléverse-le à nouveau. La validation précède l’écriture de l’automatisation et des skills fournis. Un nouvel import de la même automatisation ajoute une version brouillon et conserve l’historique.
 
 </Step>
 
