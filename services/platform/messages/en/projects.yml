@@ -429,3 +429,5 @@ sharing:
   noTeamsHint: No teams yet.
   noTeamsCreateLink: Create a team
   teamsLoadError: Couldn't load teams.
+  teamNamesLoadError: Couldn't load team names.
+  teamCount: '{count, plural, one {# team} other {# teams}}'

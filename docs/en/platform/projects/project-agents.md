@@ -41,7 +41,7 @@ An older configuration may name a model without a pinned provider. The dialog re
 
 <Step title="Grant equipment and write instructions">
 
-Under **Skills, connectors & tools**, add the bundles, services and platform operations the work needs. A new agent preselects the document skills `docx`, `pptx`, `xlsx` and `pdf` that are available to the project. They provide instructions for working with Word, PowerPoint, Excel and PDF files. Untick any the agent does not need; editing an existing agent keeps its saved equipment. Skill availability follows the project’s team access, not merely what you personally can see. A missing skill may therefore require a sharing change.
+Under **Skills, connectors & tools**, add the bundles, services and platform operations the work needs. A new agent preselects the document skills `docx`, `pptx`, `xlsx` and `pdf` that are available to the project. They provide instructions for working with Word, PowerPoint, Excel and PDF files. Untick any the agent does not need; editing an existing agent keeps its saved equipment. Skill availability follows the project’s team access, not merely what you personally can see. A missing skill may therefore require a sharing change. After a sharing change, the list updates in every open **New agent** or edit dialog, including other people's sessions, without a reload.
 
 <Frame caption="A new agent's Skills menu with the document skills already switched on; each skill names who created it.">
 
