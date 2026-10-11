@@ -99,7 +99,7 @@ describe('the starters the gallery lists', () => {
       ],
     });
     expect(card?.i18n.de).toMatchObject({
-      name: 'Prüfer benachrichtigen',
+      name: 'Reviewer benachrichtigen',
       details: expect.stringContaining('In Prüfung'),
     });
     // Where an answer goes stays on the server.

@@ -11,12 +11,12 @@ triggers:
     event: task.status_changed
 i18n:
   de:
-    name: Prüfer benachrichtigen
+    name: Reviewer benachrichtigen
     description: Benachrichtigt ein Mitglied, wenn eine Aufgabe eines Projekts in den Status „In Prüfung“ wechselt, mit einem Link dorthin.
   fr:
     name: Prévenir le relecteur
     description: >-
-      Prévient un membre quand une tâche d’un projet passe à « En relecture », avec un lien vers elle.
+      Prévient un membre quand une tâche d’un projet passe à « En revue », avec un lien vers elle.
 template:
   details: >-
     When a task of the project you pick moves to In review, the member you choose gets a
@@ -31,7 +31,7 @@ template:
         Statuswechsel senden nichts.
     fr:
       details: >-
-        Quand une tâche du projet choisi passe à « En relecture », le membre choisi reçoit un message dans Tale avec le titre de la tâche et un lien vers elle — dans la cloche, et par e-mail si ses réglages de notification en envoient un. Les autres changements de statut n’envoient rien.
+        Quand une tâche du projet choisi passe à « En revue », le membre choisi reçoit un message dans Tale avec le titre de la tâche et un lien vers elle — dans la cloche, et par e-mail si ses réglages de notification en envoient un. Les autres changements de statut n’envoient rien.
   fields:
     - id: project
       kind: project
@@ -53,7 +53,7 @@ template:
           pointer: /input/to
       i18n:
         de:
-          label: Prüfer
+          label: Reviewer
           description: Wer benachrichtigt wird, wenn eine Aufgabe zur Prüfung bereit ist.
         fr:
           label: Relecteur
