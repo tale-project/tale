@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
 # Tale Platform Dockerfile
 # Builds the Vite SPA (web tier) and the Postgres backend (api/worker roles)
 # from ONE image — they share their wire contracts, so they must never
@@ -17,12 +17,12 @@ FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1
 # Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
 # sources directly via Node's type stripping (>= 22.18); only the binary is
 # needed — no npm, no corepack.
-FROM node:22.21.1-bookworm-slim AS node-bin
+FROM node:22.21.1-bookworm-slim@sha256:25b3eb23a00590b7499f2a2ce939322727fcce1b15fdd69754fcd09536a3ae2c AS node-bin
 
 # ============================================================================
 # Shared build/install base — no source or installed dependencies
 # ============================================================================
-FROM debian:bookworm-slim AS bun-base
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS bun-base
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
@@ -276,7 +276,7 @@ RUN HUSKY=0 bun install --production \
 # + its Deno JS runtime, the bgutil PO-token plugin), which used to live in
 # the retired Convex image.
 # ============================================================================
-FROM debian:bookworm-slim AS runner
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS runner
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 # Node runs the 0.5 backend roles (api/worker); Bun keeps running server.ts.

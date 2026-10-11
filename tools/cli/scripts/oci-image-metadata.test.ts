@@ -943,3 +943,143 @@ esac
     },
   );
 });
+
+describe('every image the Dockerfiles pull is pinned by digest', () => {
+  const files = [
+    ...services.map((service) => `services/${service}/Dockerfile`),
+    // A scaffolded service starts pinned, and Renovate manages the templates too.
+    'tools/plop/templates/service/docker/Dockerfile.hbs',
+    'tools/plop/templates/service/react/Dockerfile.hbs',
+  ];
+  /**
+   * `image:tag@sha256:…`. A variable in the name part is refused: with a digest
+   * present BuildKit pulls the digest and ignores the tag, so a build argument
+   * could no longer steer the line it appears to steer.
+   */
+  const PINNED = /^[^\s@$]+@sha256:[a-f0-9]{64}$/;
+
+  /**
+   * Every image a Dockerfile pulls from a registry, in order: its `# syntax=`
+   * frontend, each FROM, and each `--from=` of COPY, ADD and a RUN mount. A
+   * stage of its own, a stage number and `scratch` pull nothing.
+   */
+  function pulledImages(text: string): string[] {
+    const images: string[] = [];
+    const stages = new Set<string>();
+    for (const line of text.split(/\r?\n/)) {
+      if (/^\s*$/.test(line)) continue;
+      const directive = /^#\s*syntax\s*=\s*(\S+)/i.exec(line);
+      if (directive) images.push(directive[1]!);
+      // Parser directives sit above the first instruction and nothing else.
+      if (!line.startsWith('#')) break;
+    }
+    const own = (reference: string) =>
+      /^\d+$/.test(reference) || stages.has(reference.toLowerCase());
+    for (const { keyword, args } of instructionsOf(text)) {
+      const words = args.trim().split(/\s+/);
+      if (keyword === 'FROM') {
+        const image = words.find((word) => !word.startsWith('--')) ?? '';
+        if (image.toLowerCase() !== 'scratch' && !own(image))
+          images.push(image);
+        const alias = words.findIndex((word) => word.toUpperCase() === 'AS');
+        if (alias !== -1) stages.add(words[alias + 1]!.toLowerCase());
+      } else if (['COPY', 'ADD', 'RUN'].includes(keyword)) {
+        for (const word of words) {
+          const from =
+            /^--from=(.+)$/i.exec(word)?.[1] ??
+            (word.startsWith('--mount=')
+              ? word
+                  .slice('--mount='.length)
+                  .split(',')
+                  .find((part) => part.startsWith('from='))
+                  ?.slice('from='.length)
+              : undefined);
+          if (from !== undefined && !own(from)) images.push(from);
+        }
+      }
+    }
+    return images;
+  }
+
+  test.each(files)('%s: every image it pulls carries a digest', (file) => {
+    const images = pulledImages(readFileSync(join(repository, file), 'utf8'));
+    expect(images.length).toBeGreaterThan(0);
+    expect(images.filter((image) => !PINNED.test(image))).toEqual([]);
+  });
+
+  test('one reference never carries two digests, which would leave one of them stale', () => {
+    const digests = new Map<string, Set<string>>();
+    for (const file of files)
+      for (const image of pulledImages(
+        readFileSync(join(repository, file), 'utf8'),
+      )) {
+        const [name, digest] = image.split('@') as [string, string];
+        digests.set(name, (digests.get(name) ?? new Set()).add(digest));
+      }
+    expect(
+      [...digests].filter(([, found]) => found.size > 1).map(([name]) => name),
+    ).toEqual([]);
+  });
+
+  test('Renovate pins and keeps current the digest of every Dockerfile image', async () => {
+    const config = JSON.parse(
+      await readFile(join(repository, '.github/renovate.json'), 'utf8'),
+    ) as {
+      packageRules?: { matchManagers?: string[]; pinDigests?: boolean }[];
+    };
+    expect(
+      config.packageRules?.some(
+        (rule) =>
+          rule.matchManagers?.includes('dockerfile') &&
+          rule.pinDigests === true,
+      ),
+    ).toBe(true);
+  });
+
+  describe('the check itself', () => {
+    const digest = `@sha256:${'a'.repeat(64)}`;
+    const sample = [
+      '# syntax=docker/dockerfile:1.7',
+      '',
+      `FROM oven/bun:1.4.2${digest} AS bun-bin`,
+      'FROM debian:bookworm-slim AS base',
+      'FROM --platform=$BUILDPLATFORM base AS deps',
+      'FROM scratch',
+      'COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun',
+      'COPY --from=0 /a /b',
+      'COPY --link --from=ghcr.io/amacneil/dbmate:2 /dbmate /dbmate',
+      'RUN --mount=type=bind,from=alpine:3.20,target=/x true',
+      'FROM docker:${DOCKER_CLI_VERSION}-cli AS docker-cli',
+      '',
+    ].join('\n');
+
+    test('finds every pull, and none of a stage, a stage number or scratch', () => {
+      expect(pulledImages(sample)).toEqual([
+        'docker/dockerfile:1.7',
+        `oven/bun:1.4.2${digest}`,
+        'debian:bookworm-slim',
+        'ghcr.io/amacneil/dbmate:2',
+        'alpine:3.20',
+        'docker:${DOCKER_CLI_VERSION}-cli',
+      ]);
+    });
+
+    test('refuses a tag alone, a variable tag and a short digest, and accepts a digest', () => {
+      const refused = [
+        'debian:bookworm-slim',
+        'docker:${DOCKER_CLI_VERSION}-cli',
+        `docker:${'${V}'}-cli${digest}`,
+        'oven/bun:1.4.2@sha256:abc',
+      ];
+      for (const image of refused)
+        expect(PINNED.test(image), image).toBe(false);
+      expect(PINNED.test(`debian:bookworm-slim${digest}`)).toBe(true);
+    });
+
+    test('reads a CRLF checkout the same way', () => {
+      expect(pulledImages(sample.replaceAll('\n', '\r\n'))).toEqual(
+        pulledImages(sample),
+      );
+    });
+  });
+});

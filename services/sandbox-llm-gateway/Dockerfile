@@ -25,7 +25,7 @@ ARG VERSION=dev
 # served, and billed, an abandoned whole answer to its end, and a prefill a
 # stream was waiting on). Its datasheet-backed request reshaping leaves the
 # per-(org, model) custom records alone; it applies to standard providers.
-FROM maximhq/bifrost:v2.2.4
+FROM maximhq/bifrost:v2.2.4@sha256:5f8215163cea192451f4b2ee5e0b583874ffe9435a5ab733e08c07aaf38ace57
 
 # The base image ships busybox wget but no curl.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \

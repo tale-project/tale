@@ -123,6 +123,16 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   hangs on `mutate`'s `onError`, and on a batch surface without `describeFailure`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
+- **An image is an OCI artifact that says what it is** — the final stage of every
+  `services/*/Dockerfile` declares the whole `org.opencontainers.image.*` set (title, description,
+  `source` exactly `https://github.com/tale-project/tale` because the CLI refuses a deployment
+  whose image says otherwise, url, documentation, vendor, licenses, and `version` from
+  `ARG VERSION` declared after the stage's last `RUN`/`COPY`), and every image a Dockerfile pulls
+  (`FROM`, `COPY --from`, the `# syntax=` frontend) is pinned `image:tag@sha256:…`; Renovate keeps
+  the digests current. Build and Release repeat the labels as manifest annotations and read them
+  back by digest, and a release publishes one OCI image index per service with
+  `docker buildx imagetools create`, never `docker manifest`. The plop service templates scaffold
+  the same, and `tools/cli/scripts/oci-image-metadata.test.ts` holds every part of it.
 - **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
   standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
   `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
@@ -342,6 +352,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
   `runtime-test-helper.ts`). The package publication suite also reads the publisher, root
   `LICENSE`, both published packages’ manifests and READMEs, and `publish-packages.yml`.
+  The image metadata suite reads every service `Dockerfile`, both plop service Dockerfile
+  templates and `.github/renovate.json`.
   Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its

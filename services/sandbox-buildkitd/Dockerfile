@@ -36,7 +36,7 @@ FROM moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd
 # docker-entrypoint.sh. Trivy AVD-DS-0002 (root) + AVD-DS-0026 (no HEALTHCHECK,
 # the spawner owns liveness) are suppressed by path in .trivyignore.yaml — the
 # same single source the other sandbox-tier images use.
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 
 # The buildkit daemon + buildctl + the bundled OCI runtime, copied verbatim from
 # the official image (static Go binaries, so they run on debian unchanged).
