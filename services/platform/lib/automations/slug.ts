@@ -23,3 +23,31 @@ export function automationSlugToParam(name: string): string {
 export function paramToAutomationSlug(param: string): string {
   return param.replaceAll('__', '/');
 }
+
+/**
+ * The name a person types, as an automation's name: Latin letters and
+ * digits in kebab case, accents dropped (`Résumé du jour` →
+ * `resume-du-jour`, `Größe` → `grosse`), at most 64 characters — the name
+ * grammar's single segment. Empty for a name with no Latin letter or digit;
+ * {@link generatedAutomationSlug} stands in then, and the typed name lives
+ * on in the presentation.
+ */
+export function slugFromName(input: string): string {
+  return input
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replaceAll('ß', 'ss')
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/^-+|-+$/g, '');
+}
+
+/** The name an automation gets when its typed name has nothing
+ * {@link slugFromName} keeps (`发票提醒`): one per dialog opening, so the
+ * "Saved as" line stays put while the author types. */
+export function generatedAutomationSlug(): string {
+  return `automation-${crypto.randomUUID().slice(0, 8)}`;
+}

@@ -37,7 +37,11 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
 import { blankAutomationDocument } from '@/lib/automations/blank-document';
-import { automationSlugToParam } from '@/lib/automations/slug';
+import {
+  automationSlugToParam,
+  generatedAutomationSlug,
+  slugFromName,
+} from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_HARNESS,
@@ -73,25 +77,6 @@ const EMPTY_BINDING: SkillsSelection = {
   connectors: [],
   tools: [],
 };
-
-/** Mirrors the store's `NAME_RE` — the automation identity is a kebab slug. */
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64)
-    .replace(/^-+|-+$/g, '');
-}
-
-/** The slug a name outside the Latin script gets — `发票提醒` slugifies to
- * nothing, and the typed name lives in the presentation, not the slug. One
- * per dialog opening, so the "Saved as" line is stable while the author
- * types. */
-function fallbackSlug(): string {
-  return `automation-${crypto.randomUUID().slice(0, 8)}`;
-}
 
 export function BlankAutomationDialog({
   organizationId,
@@ -148,7 +133,7 @@ export function BlankAutomationDialog({
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [secretNames, setSecretNames] = useState<readonly string[]>([]);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
-  const [generatedSlug, setGeneratedSlug] = useState(fallbackSlug);
+  const [generatedSlug, setGeneratedSlug] = useState(generatedAutomationSlug);
 
   // Step 2 — the trigger, in the form the General tab edits it with: a
   // daily 09:00 schedule in the author's zone, created off (the way the
@@ -178,7 +163,7 @@ export function BlankAutomationDialog({
     setBinding(EMPTY_BINDING);
     setSecretNames([]);
     setNameError(undefined);
-    setGeneratedSlug(fallbackSlug());
+    setGeneratedSlug(generatedAutomationSlug());
     setTriggerDraft(defaultTriggerDraft(viewerZone));
     setDeployNow(true);
     setMinted(null);
@@ -237,7 +222,7 @@ export function BlankAutomationDialog({
   // The slug is addressing; the typed name is what people see. A name the
   // slugifier empties (Chinese, emoji) still creates — under a generated
   // slug the "Saved as" line shows before Create.
-  const typedSlug = slugify(name);
+  const typedSlug = slugFromName(name);
   const slug =
     name.trim() === '' ? '' : typedSlug === '' ? generatedSlug : typedSlug;
   const canSubmitStep1 =
