@@ -243,6 +243,11 @@ key is set, so the bridge's own resolver is not consulted. Therefore:
 - `sandbox-llm-gateway`, `backend-api` and `backend-relay` (the session's
   `NO_PROXY` list) must resolve, on the egress proxy's resolver, to addresses
   reachable from the sandbox network (host records).
+- The spawner must reach the sessions: runnerd answers on tcp 8200 at each
+  instance's own address, so run the spawner where the sandbox bridge is
+  routable (on the node, or on a network with a route to it), and let the ACL's
+  ingress rule name the spawner's address. It also needs the node's API
+  (`SANDBOX_INCUS_ENDPOINT`, tcp 8443) and nothing else of the node.
 
 **Image.** Import the runtime image of the Tale version you run as an alias of
 the project, or let the spawner pull it:
