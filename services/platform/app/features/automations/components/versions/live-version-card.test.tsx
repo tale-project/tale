@@ -20,6 +20,10 @@ vi.mock('../../hooks/queries', () => ({
     refetch: vi.fn(),
   }),
 }));
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
+}));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
     members: [{ userId: 'user-noah', displayName: 'Noah Weber' }],
@@ -92,6 +96,13 @@ describe('LiveVersionCard', () => {
       screen.getByText('2 runs of v5 are in progress; they finish on v5.'),
     ).toBeVisible();
     await checkAccessibility(container);
+  });
+
+  it('links what the live version changed against the one it replaced', () => {
+    renderCard();
+    expect(
+      screen.getByRole('link', { name: 'Compare v4 with v5' }),
+    ).toBeVisible();
   });
 
   it('rolls back to the version the live one replaced, naming the live one', async () => {

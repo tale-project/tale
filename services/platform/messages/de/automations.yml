@@ -715,6 +715,8 @@ versions:
     downloadYaml: YAML herunterladen
     history: Versionsverlauf
     downloadFailed: 'v{version} konnte nicht heruntergeladen werden'
+    whatChanged: Was sich geändert hat
+    compareWithLive: Mit der Live-Version vergleichen
 deployments:
   caption: Wann welche Version live ging
   empty: Noch keine Version war live.
@@ -725,6 +727,7 @@ deployments:
     title: 'v{version} ist live'
     since: 'Seit {date}'
     activeRuns: '{count, plural, =0 {Kein Lauf von v{version} ist in Arbeit.} one {# Lauf von v{version} ist in Arbeit und endet auf v{version}.} other {# Läufe von v{version} sind in Arbeit und enden auf v{version}.}}'
+    compare: 'v{from} mit v{to} vergleichen'
   none: Noch keine Version ist live. Trigger und Live-Läufe starten erst, wenn du eine live schaltest.
   kind:
     deploy: 'v{version} live geschaltet'
@@ -772,6 +775,60 @@ restore:
     saved: 'v{next} aus v{version} gespeichert.'
     unchanged: 'v{latest} entspricht bereits v{version}. Es wurde nichts gespeichert.'
     open: 'v{next} öffnen'
+compare:
+  title: 'Änderungen von v{from} zu v{to}'
+  missing: 'Diese Automatisierung hat keine v{version}.'
+  backToVersions: Zurück zu den Versionen
+  moreActions: 'Weitere Aktionen für v{version}'
+  from:
+    label: Vergleichen mit
+    none: Nichts zum Vergleichen
+  option:
+    previous: 'v{version} · die Version davor'
+    live: 'v{version} · live'
+    basedOn: 'v{version} · Grundlage'
+  summary:
+    label: Was sich geändert hat
+    node: '{fields} geändert'
+    references: Liest eine umbenannte Node unter ihrem neuen Namen
+  views:
+    label: Ansicht
+    graph: Grafik
+    changes: Änderungen
+    yaml: YAML
+  graph:
+    ariaLabel: 'Änderungen von {from} zu {to}'
+    side: Zeigen
+  side:
+    changes: Änderungen
+  identical:
+    title: 'Keine Unterschiede zwischen v{from} und v{to}'
+    messageOnly: Nur die Notiz ist anders.
+  firstVersion: 'v{version} ist die erste Version; alles darin ist neu.'
+  panel:
+    label: Änderungen der Node
+    close: Änderungen der Node ausblenden
+    unchanged: Diese Node hat sich nicht geändert.
+  sections:
+    start: 'Start: Laufeingaben'
+    nodes: Nodes
+    end: 'Ende: Ausgabe'
+    tests: Tests
+    package: Paketdaten
+  inputs:
+    schema: Das Eingabeschema
+    nowRequired: Jetzt erforderlich
+    noLongerRequired: Nicht mehr erforderlich
+    type: 'Typ {before} → {after}'
+  package:
+    settings: Einstellungen
+    taskContract: Aufgabenvertrag
+    presentation: Darstellung
+  renamedFrom: 'Vorher {name}'
+  alsoUpdated: '{count, plural, one {Auch in # Node angepasst, die sie liest} other {Auch in # Nodes angepasst, die sie lesen}}'
+  showOnGraph: In der Grafik zeigen
+  footer:
+    notVersioned: Trigger und Projekte gehören zur Automatisierung, nicht zu einer Version.
 upload:
   trigger: Paket hochladen
   title: Paket hochladen

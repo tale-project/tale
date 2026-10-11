@@ -87,3 +87,73 @@ export function editorVersionLink({
         search: { version },
       };
 }
+
+/**
+ * The comparison of one version of an automation with another — the version
+ * before it when `from` is left out — under its project shell when a project
+ * is given.
+ */
+export function compareVersionLink({
+  organizationId,
+  automationSlug,
+  projectId,
+  version,
+  from,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  projectId?: string | undefined;
+  version: number;
+  from?: number | undefined;
+}) {
+  const slug = automationSlugToParam(automationSlug);
+  const search = from === undefined ? {} : { from };
+  return projectId !== undefined
+    ? {
+        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/$version' as const,
+        params: {
+          id: organizationId,
+          projectId,
+          automationSlug: slug,
+          version: String(version),
+        },
+        search,
+      }
+    : {
+        to: '/dashboard/$id/automations/$automationSlug/versions/$version' as const,
+        params: {
+          id: organizationId,
+          automationSlug: slug,
+          version: String(version),
+        },
+        search,
+      };
+}
+
+/** An automation's Versions tab — its deployments with `tab` — under its
+ * project shell when a project is given. */
+export function versionsTabLink({
+  organizationId,
+  automationSlug,
+  projectId,
+  tab,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  projectId?: string | undefined;
+  tab?: 'deployments';
+}) {
+  const slug = automationSlugToParam(automationSlug);
+  const search = tab === undefined ? {} : { tab };
+  return projectId !== undefined
+    ? {
+        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions' as const,
+        params: { id: organizationId, projectId, automationSlug: slug },
+        search,
+      }
+    : {
+        to: '/dashboard/$id/automations/$automationSlug/versions' as const,
+        params: { id: organizationId, automationSlug: slug },
+        search,
+      };
+}

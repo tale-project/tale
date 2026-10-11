@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { automationEditorSearchSchema } from './editor-search';
+import {
+  automationEditorSearchSchema,
+  automationVersionCompareSearchSchema,
+  versionParam,
+} from './editor-search';
 
 /**
  * The Editor tab's link: the version on screen, the view, the open node.
@@ -44,5 +48,32 @@ describe('automationEditorSearchSchema', () => {
     expect(automationEditorSearchSchema.parse({ node: '__gate:x' })).toEqual(
       {},
     );
+  });
+});
+
+describe('a version comparison address', () => {
+  it('reads the compared version as a whole number from 1 on', () => {
+    expect(versionParam('7')).toBe(7);
+    expect(versionParam('0')).toBeNull();
+    expect(versionParam('07')).toBeNull();
+    expect(versionParam('v7')).toBeNull();
+    expect(versionParam('1e3')).toBeNull();
+  });
+
+  it('reads a malformed search value as absent', () => {
+    expect(
+      automationVersionCompareSearchSchema.parse({
+        from: 3,
+        view: 'yaml',
+        node: 'collect',
+      }),
+    ).toEqual({ from: 3, view: 'yaml', node: 'collect' });
+    expect(
+      automationVersionCompareSearchSchema.parse({
+        from: -1,
+        view: 'pictures',
+        node: '',
+      }),
+    ).toEqual({});
   });
 });

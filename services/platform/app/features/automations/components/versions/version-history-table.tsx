@@ -19,6 +19,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import {
   Download,
   GitBranch,
+  GitCompare,
   GitCommitVertical,
   Radio,
   Rocket,
@@ -33,29 +34,13 @@ import { useT } from '@/lib/i18n/client';
 
 import { useAutomationVersionHistory } from '../../hooks/queries';
 import type { DeployVersion } from '../../hooks/use-deploy-version';
-import { editorVersionLink } from '../../lib/detail-paths';
+import { compareVersionLink, editorVersionLink } from '../../lib/detail-paths';
+import { changeFlags } from '../../lib/version-changes';
 import { VersionAuthor } from './version-author';
 import { VersionRowMenu } from './version-row-menu';
 
 export type VersionHistoryRow =
   PageItemOf<'automations/queries:listVersionHistory'>;
-
-type Translate = (key: string, options?: Record<string, unknown>) => string;
-
-/** The parts of a version that changed without a count, in words. */
-function changeFlags(
-  changes: NonNullable<VersionHistoryRow['changes']>,
-  t: Translate,
-): string[] {
-  return [
-    changes.inputs === true && t('versions.flags.inputs'),
-    changes.output === true && t('versions.flags.output'),
-    changes.description === true && t('versions.flags.description'),
-    changes.tests === true && t('versions.flags.tests'),
-    changes.other === true && t('versions.flags.other'),
-    changes.package === true && t('versions.flags.package'),
-  ].filter((flag) => flag !== false);
-}
 
 function testStatusOf(row: VersionHistoryRow): TestStatus {
   if (row.testsPassed === true) return 'passed';
@@ -68,8 +53,9 @@ function testStatusOf(row: VersionHistoryRow): TestStatus {
  * it is live or when it last went live, its message and lineage (based on
  * an older version, a restore of one), who saved it and through what, what
  * it changed against the version before it, and how its tests went. A row
- * opens the version in the editor. Its menu deploys it — or rolls back to
- * it — in one click, restores it as the newest version, or downloads it.
+ * opens what it changed. Its menu compares it with the live version, opens
+ * it in the editor, deploys it — or rolls back to it — in one click,
+ * restores it as the newest version, or downloads it.
  */
 export function VersionHistoryTable({
   organizationId,
@@ -268,6 +254,36 @@ export function VersionHistoryTable({
               label={t('versions.actions.menu', { version })}
               actions={(button) => [
                 {
+                  key: 'changes',
+                  label: t('versions.actions.whatChanged'),
+                  icon: GitCompare,
+                  onClick: () =>
+                    void navigate(
+                      compareVersionLink({
+                        organizationId,
+                        automationSlug,
+                        projectId,
+                        version,
+                      }),
+                    ),
+                },
+                {
+                  key: 'compareLive',
+                  label: t('versions.actions.compareWithLive'),
+                  icon: Radio,
+                  visible: liveVersion !== null && !deployed,
+                  onClick: () =>
+                    void navigate(
+                      compareVersionLink({
+                        organizationId,
+                        automationSlug,
+                        projectId,
+                        version,
+                        from: liveVersion ?? undefined,
+                      }),
+                    ),
+                },
+                {
                   key: 'open',
                   label: t('versions.actions.openInEditor'),
                   icon: SquarePen,
@@ -364,7 +380,7 @@ export function VersionHistoryTable({
         clickableRows
         onRowClick={(row) => {
           void navigate(
-            editorVersionLink({
+            compareVersionLink({
               organizationId,
               automationSlug,
               projectId,

@@ -31,3 +31,25 @@ export type AutomationEditorView = NonNullable<
 export const automationVersionsSearchSchema = z.object({
   tab: z.enum(['versions', 'deployments']).optional().catch(undefined),
 });
+
+/**
+ * A version comparison's search params: `?from=<n>` is the version compared
+ * with (absent: the one before), `?view=` the Graph, the Changes or the YAML,
+ * `?node=<id>` the node whose changes are open on the Graph. A malformed
+ * value reads as absent.
+ */
+export const automationVersionCompareSearchSchema = z.object({
+  from: z.number().int().positive().optional().catch(undefined),
+  view: z.enum(['graph', 'changes', 'yaml']).optional().catch(undefined),
+  node: z.string().min(1).max(200).optional().catch(undefined),
+});
+
+export type VersionCompareView = NonNullable<
+  z.infer<typeof automationVersionCompareSearchSchema>['view']
+>;
+
+/** The version a comparison's address names: a whole number from 1 on,
+ * else none. */
+export function versionParam(raw: string): number | null {
+  return /^[1-9]\d{0,8}$/.test(raw) ? Number(raw) : null;
+}

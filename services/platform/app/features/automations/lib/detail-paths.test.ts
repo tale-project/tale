@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   automationDetailPathname,
   automationSwitchPathname,
+  compareVersionLink,
   editorVersionLink,
+  versionsTabLink,
 } from './detail-paths';
 
 describe('automationDetailPathname', () => {
@@ -95,6 +97,54 @@ describe('editorVersionLink', () => {
         automationSlug: 'ops__digest',
       },
       search: { version: 3 },
+    });
+  });
+});
+
+describe('compareVersionLink and versionsTabLink', () => {
+  it('compares a version with the one before it unless another is named', () => {
+    expect(
+      compareVersionLink({
+        organizationId: 'org-1',
+        automationSlug: 'ops/digest',
+        version: 5,
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/automations/$automationSlug/versions/$version',
+      params: { id: 'org-1', automationSlug: 'ops__digest', version: '5' },
+      search: {},
+    });
+    expect(
+      compareVersionLink({
+        organizationId: 'org-1',
+        automationSlug: 'ops/digest',
+        projectId: 'proj-1',
+        version: 5,
+        from: 2,
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions/$version',
+      params: {
+        id: 'org-1',
+        projectId: 'proj-1',
+        automationSlug: 'ops__digest',
+        version: '5',
+      },
+      search: { from: 2 },
+    });
+  });
+
+  it('opens the Versions tab, on its deployments when asked', () => {
+    expect(
+      versionsTabLink({
+        organizationId: 'org-1',
+        automationSlug: 'ops/digest',
+        tab: 'deployments',
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/automations/$automationSlug/versions',
+      params: { id: 'org-1', automationSlug: 'ops__digest' },
+      search: { tab: 'deployments' },
     });
   });
 });
