@@ -472,7 +472,7 @@ export function createAccountService(
   }
 
   /** Whether an access token's planned refresh has come, or it has none. */
-  function needsRefresh(account: StoredAccount): boolean {
+  function needsRefresh(account: StoredAccount, forceRefresh = false): boolean {
     if (account.status === 'expired') return false;
     const failedAt = refreshFailedAt.get(account.id);
     if (
@@ -483,6 +483,7 @@ export function createAccountService(
     }
     const refreshAt = plannedRefreshMs(account);
     return (
+      forceRefresh ||
       account.status === 'error' ||
       refreshAt === null ||
       refreshAt <= now().getTime()
@@ -560,8 +561,7 @@ export function createAccountService(
     account: StoredAccount,
     forceRefresh = false,
   ): Promise<StoredAccount> {
-    if (!forceRefresh && !needsRefresh(account))
-      return Promise.resolve(account);
+    if (!needsRefresh(account, forceRefresh)) return Promise.resolve(account);
     const inFlight = refreshing.get(account.id);
     if (inFlight) return inFlight;
     if (!forceRefresh && waitsForSpacing(account, now().getTime())) {
@@ -584,7 +584,7 @@ export function createAccountService(
     const account = await store.getAccount(held.id);
     // Removed while the caller held its copy: nothing to refresh, or to keep.
     if (!account) return held;
-    if (!forceRefresh && !needsRefresh(account)) return account;
+    if (!needsRefresh(account, forceRefresh)) return account;
 
     try {
       const exchange = await providerFor(account).refresh(

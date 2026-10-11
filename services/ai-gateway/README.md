@@ -101,7 +101,8 @@ The platform adds `X-Tale-Force-Refresh: 1` when retrying a broker-served
 inference after a vendor 401. The API-key token door then refreshes the stored
 grant before handing the pool back, even when the cached expiry and usage
 reading still look fresh; ordinary handouts keep the normal staggered refresh
-policy.
+policy. Forced handouts retain terminal re-authentication states and the
+retry pause after a transient refresh failure.
 
 ```json
 {
