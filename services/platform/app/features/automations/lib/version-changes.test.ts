@@ -9,6 +9,7 @@ import {
   flowNodeChanges,
   nodeChangeSummary,
   referencesUpdatedBy,
+  renamedGates,
 } from './version-changes';
 
 /** Echoes a key and its values, so the words a helper picks are visible;
@@ -92,6 +93,12 @@ describe('the words of a comparison', () => {
     // Added and removed nodes mark themselves.
     expect(marks.has('archive')).toBe(false);
     expect(marks.has('notify')).toBe(false);
+  });
+
+  it("moves a renamed node's condition with it, by gate id", () => {
+    expect(renamedGates(diff)).toEqual(
+      new Map([['__gate:reply', '__gate:answer']]),
+    );
   });
 
   it('counts the nodes that changed only because they read a renamed node', () => {

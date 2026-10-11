@@ -143,7 +143,14 @@ export function VersionHistoryTable({
                   {t('versions.noMessage')}
                 </Text>
               ) : (
-                <Text as="span" truncate title={message} className="block">
+                // Capped at the cell, so a long message is cut, not spilled
+                // into the next column.
+                <Text
+                  as="span"
+                  truncate
+                  title={message}
+                  className="block max-w-full"
+                >
                   {message}
                 </Text>
               )}

@@ -14,7 +14,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useCanvasFlow } from '../../hooks/use-canvas-flow';
 import type { NodeCatalogView } from '../../lib/node-face';
-import { flowNodeChanges } from '../../lib/version-changes';
+import { flowNodeChanges, renamedGates } from '../../lib/version-changes';
 import type { CompareLabels } from './version-changes';
 
 /** Nobody checks a stored version again here: the graph is its shape. */
@@ -85,14 +85,20 @@ export function VersionGraph({
     () => flowNodeChanges(diff, { t, locale }),
     [diff, t, locale],
   );
+  // A renamed node's condition moves with it: one box, not one removed
+  // and one added.
+  const gates = useMemo(() => renamedGates(diff), [diff]);
   const merged = useMemo(
     () =>
       before === null
         ? null
-        : mergeFlowGraphs(beforeFlow.graph, afterFlow.graph, (id) =>
-            marks.get(id),
+        : mergeFlowGraphs(
+            beforeFlow.graph,
+            afterFlow.graph,
+            (id) => marks.get(id),
+            (id) => gates.get(id),
           ),
-    [before, beforeFlow.graph, afterFlow.graph, marks],
+    [before, beforeFlow.graph, afterFlow.graph, marks, gates],
   );
 
   if (merged === null) {
