@@ -68,6 +68,66 @@ function pushSteps(file: Workflow) {
   );
 }
 
+async function scratch(): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-oci-'));
+  temporary.push(directory);
+  return directory;
+}
+
+/**
+ * The config labels of a pushed platform image: everything Tale declares, its
+ * writer protocol, and what a base image leaves behind (one architecture's
+ * build, which neither a manifest nor an index of both may repeat).
+ */
+function imageLabels(version: string, revision: string) {
+  return {
+    [`${OCI}.created`]: '2026-10-11T00:00:00Z',
+    [`${OCI}.revision`]: revision,
+    [`${OCI}.source`]: 'https://github.com/tale-project/tale',
+    [`${OCI}.version`]: version,
+    [`${OCI}.title`]: 'tale-db',
+    [`${OCI}.description`]: 'Tale DB — ParadeDB, with a comma',
+    [`${OCI}.url`]: 'https://tale.dev',
+    [`${OCI}.documentation`]: 'https://docs.tale.dev',
+    [`${OCI}.vendor`]: 'Tale',
+    [`${OCI}.licenses`]: 'MIT',
+    'io.tale.automation-writer-protocol': '2',
+    [`${OCI}.base.name`]: 'docker.io/library/debian:bookworm-slim',
+    [`${OCI}.base.digest`]: `sha256:${'f'.repeat(64)}`,
+    'com.example.base-image-label': 'not ours to republish',
+  } as Record<string, string>;
+}
+
+/** What Tale repeats on an index or manifest: its own metadata, not the base's. */
+const repeated = (labels: Record<string, string>) =>
+  Object.entries(labels).filter(
+    ([key]) =>
+      METADATA_KEYS.some((name) => key === `${OCI}.${name}`) ||
+      key.startsWith('io.tale.'),
+  );
+
+/**
+ * A step's own script, run the way the runner runs it, with exactly the
+ * environment given: the fixtures resolve each expression the step's `env`
+ * would carry.
+ */
+async function runScript(
+  script: string,
+  cwd: string,
+  env: Record<string, string>,
+) {
+  const child = Bun.spawn(
+    [process.platform === 'darwin' ? '/bin/bash' : 'bash', '-e', '-c', script],
+    { cwd, env, stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [code, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  return { code, output: stdout + stderr };
+}
+
 /**
  * What every Tale image says about itself, apart from its title, description
  * and version. `source` is exact: the CLI refuses an image whose source label
@@ -94,6 +154,14 @@ const DECLARED = [
 const METADATA_KEYS = [
   ...new Set(['created', 'revision', 'source', 'version', ...DECLARED]),
 ];
+/**
+ * What only the Dockerfile says, and the build repeats on the manifest. Source
+ * and version are declared there too, but the workflows give them the values
+ * the build knows, as they do for the labels.
+ */
+const STATIC_KEYS = DECLARED.filter(
+  (key) => key !== 'source' && key !== 'version',
+);
 
 const services = readdirSync(join(repository, 'services'), {
   withFileTypes: true,
@@ -310,6 +378,15 @@ describe('published images are OCI artifacts', () => {
     },
   );
 
+  test.each(['build', 'release'] as const)(
+    '%s.yml names the metadata keys every image and index must carry',
+    async (name) => {
+      expect((await workflow(name)).env?.OCI_METADATA_KEYS).toBe(
+        METADATA_KEYS.join(' '),
+      );
+    },
+  );
+
   test('no workflow assembles an index with docker manifest', async () => {
     const directory = join(repository, '.github/workflows');
     for (const name of await readdir(directory)) {
@@ -330,24 +407,7 @@ describe('the release publishes one annotated OCI image index per service', () =
   const ARM64 = digest('b');
   const INDEX = digest('c');
 
-  const labels = (): Record<string, string> => ({
-    [`${OCI}.created`]: '2026-10-11T00:00:00Z',
-    [`${OCI}.revision`]: REVISION,
-    [`${OCI}.source`]: 'https://github.com/tale-project/tale',
-    [`${OCI}.version`]: VERSION,
-    [`${OCI}.title`]: 'tale-db',
-    [`${OCI}.description`]: 'Tale DB — ParadeDB, with a comma',
-    [`${OCI}.url`]: 'https://tale.dev',
-    [`${OCI}.documentation`]: 'https://docs.tale.dev',
-    [`${OCI}.vendor`]: 'Tale',
-    [`${OCI}.licenses`]: 'MIT',
-    'io.tale.automation-writer-protocol': '2',
-    // What a base image leaves in the config: one architecture's build, not
-    // something the index of both may say.
-    [`${OCI}.base.name`]: 'docker.io/library/debian:bookworm-slim',
-    [`${OCI}.base.digest`]: `sha256:${'f'.repeat(64)}`,
-    'com.example.base-image-label': 'not ours to republish',
-  });
+  const labels = () => imageLabels(VERSION, REVISION);
   const publishedIndex = (overrides: Record<string, unknown> = {}) => ({
     schemaVersion: 2,
     mediaType: 'application/vnd.oci.image.index.v1+json',
@@ -380,8 +440,7 @@ describe('the release publishes one annotated OCI image index per service', () =
       arm64?: string;
     } = {},
   ) {
-    const directory = await mkdtemp(join(tmpdir(), 'tale-oci-index-'));
-    temporary.push(directory);
+    const directory = await scratch();
     await mkdir(join(directory, 'bin'));
     await writeFile(
       join(directory, 'config.json'),
@@ -442,43 +501,24 @@ esac
       'SITES_ONLY',
       'VERSION',
     ]);
-    const child = Bun.spawn(
-      [
-        process.platform === 'darwin' ? '/bin/bash' : 'bash',
-        '-e',
-        '-c',
-        publication.run!,
-      ],
-      {
-        cwd: directory,
-        env: {
-          PATH: `${join(directory, 'bin')}:${process.env.PATH}`,
-          STATE: directory,
-          OCI_METADATA_KEYS: file.env!.OCI_METADATA_KEYS!,
-          SERVICE: 'db',
-          IMAGE,
-          VERSION,
-          SOURCE_SHA: REVISION,
-          SITES_ONLY: String(sitesOnly),
-          GITHUB_SHA: REVISION,
-          GITHUB_STEP_SUMMARY: join(directory, 'summary.md'),
-        },
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
-    );
-    const [code, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
+    const { code, output } = await runScript(publication.run!, directory, {
+      PATH: `${join(directory, 'bin')}:${process.env.PATH}`,
+      STATE: directory,
+      OCI_METADATA_KEYS: file.env!.OCI_METADATA_KEYS!,
+      SERVICE: 'db',
+      IMAGE,
+      VERSION,
+      SOURCE_SHA: REVISION,
+      SITES_ONLY: String(sitesOnly),
+      GITHUB_STEP_SUMMARY: join(directory, 'summary.md'),
+    });
     const calls = (await readFile(join(directory, 'calls'), 'utf8'))
       .split('\n')
       .filter(Boolean)
       .map((line) => line.replace(/\t$/, '').split('\t'));
     return {
       code,
-      output: stdout + stderr,
+      output,
       calls,
       create: calls.find(
         (call) => call.slice(0, 3).join(' ') === 'buildx imagetools create',
@@ -490,12 +530,6 @@ esac
     call.flatMap((argument, index) =>
       argument === flag ? [call[index + 1]!] : [],
     );
-
-  test('the workflow names the metadata keys the index and the images must carry', async () => {
-    expect((await workflow('release')).env?.OCI_METADATA_KEYS).toBe(
-      METADATA_KEYS.join(' '),
-    );
-  });
 
   test('imagetools writes the index, never docker manifest', async () => {
     const run = step(
@@ -528,12 +562,7 @@ esac
       ]);
       // Tale's own metadata and nothing a base image left in the config.
       expect(flagValues(create, '--annotation')).toEqual(
-        Object.entries(labels())
-          .filter(
-            ([key]) =>
-              METADATA_KEYS.some((name) => key === `${OCI}.${name}`) ||
-              key.startsWith('io.tale.'),
-          )
+        repeated(labels())
           .map(([key, value]) => `index:${key}=${value}`)
           .toSorted(),
       );
@@ -608,6 +637,309 @@ esac
       );
       expect(result.code, result.output).not.toBe(0);
       expect(result.output).toContain(`${IMAGE}:latest does not name`);
+    },
+  );
+});
+
+describe('every pushed image repeats its metadata as manifest annotations', () => {
+  const builds: ('build' | 'release')[] = ['build', 'release'];
+  const lines = (text: unknown) =>
+    String(text ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+  const buildSteps = async (name: (typeof builds)[number]) =>
+    (await workflow(name)).jobs.build!.steps!;
+
+  test.each(builds)(
+    '%s.yml annotates every pushed image with what it labels it',
+    async (name) => {
+      const pushes = pushSteps(await workflow(name));
+      expect(pushes.length).toBeGreaterThan(0);
+      for (const { job, entry } of pushes) {
+        const where = `${name}.yml ${job}: ${entry.name}`;
+        const labels = lines(entry.with?.labels);
+        const annotations = lines(entry.with?.annotations);
+        expect(labels.length, where).toBeGreaterThan(0);
+        // Every label the build supplies is repeated, expression for expression.
+        for (const label of labels) expect(annotations, where).toContain(label);
+        for (const key of ['created', 'revision', 'source', 'version'])
+          expect(
+            annotations.some((line) => line.startsWith(`${OCI}.${key}=`)),
+            `${where}: ${key}`,
+          ).toBe(true);
+        // The rest comes from the Dockerfile, through the resolving step.
+        expect(annotations, where).toContain(
+          '${{ steps.annotations.outputs.static }}',
+        );
+      }
+    },
+  );
+
+  test.each(builds)(
+    '%s.yml resolves the annotations before the build and verifies them after every attempt',
+    async (name) => {
+      const steps = await buildSteps(name);
+      const at = (title: string) =>
+        steps.findIndex((entry) => entry.name === title);
+      const pushes = steps.flatMap((entry, index) =>
+        entry.uses?.startsWith('docker/build-push-action@') ? [index] : [],
+      );
+      expect(steps[at('Resolve image annotations')]?.id).toBe('annotations');
+      expect(at('Resolve image annotations')).toBeLessThan(Math.min(...pushes));
+      expect(at('Verify image annotations')).toBeGreaterThan(
+        Math.max(...pushes),
+      );
+    },
+  );
+
+  test('the verification reads the digest of the push that stood', async () => {
+    const build = step(
+      await workflow('build'),
+      'build',
+      'Verify image annotations',
+    );
+    expect(build.env?.DIGEST).toBe('${{ steps.image.outputs.digest }}');
+    const names = (await buildSteps('build')).map((entry) => entry.name);
+    // The receipt the later jobs test names this digest, so it follows the proof.
+    expect(names.indexOf('Verify image annotations')).toBeLessThan(
+      names.indexOf('Record image receipt'),
+    );
+    // A retry's digest replaces the first attempt's when the first failed.
+    expect(
+      step(await workflow('release'), 'build', 'Verify image annotations').env
+        ?.DIGEST,
+    ).toBe(
+      '${{ steps.image_retry.outputs.digest || steps.image.outputs.digest }}',
+    );
+  });
+
+  test.each(['Resolve image annotations', 'Verify image annotations'])(
+    '%s is one script in both workflows',
+    async (title) => {
+      const script = step(await workflow('build'), 'build', title).run;
+      expect(script).toBeDefined();
+      expect(step(await workflow('release'), 'build', title).run).toBe(script);
+    },
+  );
+
+  describe.skipIf(process.platform === 'win32')('the resolving step', () => {
+    const resolveIn = async (
+      name: (typeof builds)[number],
+      cwd: string,
+      service: string,
+    ) => {
+      const output = join(await scratch(), 'output');
+      await writeFile(output, '');
+      const result = await runScript(
+        step(await workflow(name), 'build', 'Resolve image annotations').run!,
+        cwd,
+        { PATH: process.env.PATH!, SERVICE: service, GITHUB_OUTPUT: output },
+      );
+      return { ...result, written: await readFile(output, 'utf8') };
+    };
+
+    test.each(services)(
+      '%s: hands the build what its Dockerfile declares',
+      async (service) => {
+        const declared = labelsOf(finalStage(dockerfile(service)))
+          .filter(({ key }) =>
+            STATIC_KEYS.some((name) => key === `${OCI}.${name}`),
+          )
+          .map(({ key, raw }) => `${key}=${raw.slice(1, -1)}`)
+          .toSorted();
+        expect(declared).toHaveLength(STATIC_KEYS.length);
+        for (const name of builds) {
+          const result = await resolveIn(name, repository, service);
+          expect(result.code, result.output).toBe(0);
+          const [open, ...rest] = result.written.trimEnd().split('\n');
+          expect(open).toBe('static<<OCI_ANNOTATIONS_EOF');
+          expect(rest.at(-1)).toBe('OCI_ANNOTATIONS_EOF');
+          expect(rest.slice(0, -1).toSorted()).toEqual(declared);
+        }
+      },
+    );
+
+    test('fails, saying how many labels it found, when the final stage lacks some', async () => {
+      const directory = await scratch();
+      await mkdir(join(directory, 'services/db'), { recursive: true });
+      // Complete labels in a stage that does not ship, a commented-out one, and
+      // two real ones: the platform image's defect, reduced.
+      await writeFile(
+        join(directory, 'services/db/Dockerfile'),
+        [
+          'FROM scratch AS runner',
+          ...STATIC_KEYS.map((key) => `LABEL ${OCI}.${key}="runner ${key}"`),
+          'FROM scratch',
+          `# LABEL ${OCI}.vendor="Tale"`,
+          `LABEL ${OCI}.title="tale-db" ${OCI}.description="Tale DB"`,
+          '',
+        ].join('\n'),
+      );
+      const result = await resolveIn('build', directory, 'db');
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain(
+        `::error::The final stage of services/db/Dockerfile declares 2 of its OCI labels`,
+      );
+      expect(result.written).toBe('');
+    });
+  });
+
+  describe.skipIf(process.platform === 'win32').each(builds)(
+    '%s.yml verification of the pushed manifest',
+    (name) => {
+      const IMAGE = 'ghcr.io/tale-project/tale/tale-platform';
+      const DIGEST = `sha256:${'d'.repeat(64)}`;
+      const VERSION = '1.2.3';
+      const REVISION = 'e'.repeat(40);
+      const manifestOf = (
+        annotations?: Record<string, string>,
+        mediaType = 'application/vnd.oci.image.manifest.v1+json',
+      ) => ({
+        schemaVersion: 2,
+        mediaType,
+        config: {
+          mediaType: 'application/vnd.oci.image.config.v1+json',
+          digest: `sha256:${'1'.repeat(64)}`,
+          size: 1700,
+        },
+        layers: [],
+        ...(annotations ? { annotations } : {}),
+      });
+
+      /** A registry holding one pushed manifest, behind a stand-in `docker`. */
+      async function verify(
+        options: {
+          config?: Record<string, string>;
+          annotations?: Record<string, string> | null;
+          mediaType?: string;
+          digest?: string;
+          version?: string;
+          revision?: string;
+        } = {},
+      ) {
+        const directory = await scratch();
+        await mkdir(join(directory, 'bin'));
+        const config = options.config ?? imageLabels(VERSION, REVISION);
+        const annotations =
+          options.annotations === null
+            ? undefined
+            : (options.annotations ?? Object.fromEntries(repeated(config)));
+        await writeFile(
+          join(directory, 'manifest.json'),
+          JSON.stringify(manifestOf(annotations, options.mediaType)),
+        );
+        await writeFile(
+          join(directory, 'config.json'),
+          JSON.stringify({
+            architecture: 'arm64',
+            os: 'linux',
+            config: { Labels: config },
+          }),
+        );
+        await writeFile(
+          join(directory, 'bin/docker'),
+          `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\\n' "$*" >> "$STATE/calls"
+case "$*" in
+  'buildx imagetools inspect '*' --raw') cat "$STATE/manifest.json" ;;
+  'buildx imagetools inspect '*' --format {{json .Image}}') cat "$STATE/config.json" ;;
+  *) echo "unexpected docker call: $*" >&2; exit 99 ;;
+esac
+`,
+        );
+        await chmod(join(directory, 'bin/docker'), 0o755);
+        await writeFile(join(directory, 'calls'), '');
+        const file = await workflow(name);
+        const result = await runScript(
+          step(file, 'build', 'Verify image annotations').run!,
+          directory,
+          {
+            PATH: `${join(directory, 'bin')}:${process.env.PATH}`,
+            STATE: directory,
+            OCI_METADATA_KEYS: file.env!.OCI_METADATA_KEYS!,
+            IMAGE,
+            DIGEST: options.digest ?? DIGEST,
+            VERSION: options.version ?? VERSION,
+            REVISION: options.revision ?? REVISION,
+          },
+        );
+        return {
+          ...result,
+          calls: (await readFile(join(directory, 'calls'), 'utf8'))
+            .split('\n')
+            .filter(Boolean),
+        };
+      }
+      const refused = (result: { code: number; output: string }) => {
+        expect(result.code, result.output).not.toBe(0);
+        expect(result.output).toContain('::error::');
+      };
+
+      test('accepts a manifest that repeats its labels, read back by digest', async () => {
+        const result = await verify();
+        expect(result.code, result.output).toBe(0);
+        expect(result.calls).toEqual([
+          `buildx imagetools inspect ${IMAGE}@${DIGEST} --raw`,
+          `buildx imagetools inspect ${IMAGE}@${DIGEST} --format {{json .Image}}`,
+        ]);
+      });
+
+      test.each(METADATA_KEYS)('refuses a manifest without %s', async (key) => {
+        const annotations = Object.fromEntries(
+          repeated(imageLabels(VERSION, REVISION)).filter(
+            ([label]) => label !== `${OCI}.${key}`,
+          ),
+        );
+        refused(await verify({ annotations }));
+      });
+
+      test('refuses a manifest that dropped the annotations, as buildx older than 0.12 does', async () => {
+        refused(await verify({ annotations: null }));
+      });
+
+      test('refuses an annotation that differs from its label', async () => {
+        const config = imageLabels(VERSION, REVISION);
+        refused(
+          await verify({
+            annotations: {
+              ...Object.fromEntries(repeated(config)),
+              [`${OCI}.title`]: 'tale-other',
+            },
+          }),
+        );
+      });
+
+      test("refuses a manifest that leaves out the platform image's writer protocol", async () => {
+        const annotations = Object.fromEntries(
+          repeated(imageLabels(VERSION, REVISION)).filter(
+            ([label]) => label !== 'io.tale.automation-writer-protocol',
+          ),
+        );
+        refused(await verify({ annotations }));
+      });
+
+      test('refuses an image index where a single image was pushed', async () => {
+        refused(
+          await verify({
+            mediaType: 'application/vnd.oci.image.index.v1+json',
+          }),
+        );
+      });
+
+      test.each([
+        ['another version', { version: '9.9.9' }],
+        ['another revision', { revision: 'f'.repeat(40) }],
+      ])('refuses %s than the run built', async (_label, options) => {
+        refused(await verify(options));
+      });
+
+      test('refuses a build that reported no digest, without reading the registry', async () => {
+        const result = await verify({ digest: '' });
+        refused(result);
+        expect(result.calls).toEqual([]);
+      });
     },
   );
 });

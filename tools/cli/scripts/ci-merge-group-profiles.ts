@@ -157,6 +157,13 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
     'b8dfca3f6d6b6d9b4047fa9d2bc9dcdd44102ac728e6cfd342830be2c7b3447d',
     buildMatrices,
   ),
+  // Current Build repeats each pushed image's OCI labels as manifest annotations and
+  // reads them back by digest; two steps join the build job, no job, condition or matrix changes.
+  profile(
+    'Build',
+    '8709a1f2e111711e9fdde69744e631934776c4cfb7a31de56919e7fb8e6c8d4d',
+    buildMatrices,
+  ),
   profile(
     'E2E',
     'f3107852e2afeb469fe123e5b8f4d0cf6cc2962501e18d7558ea4d5231bce48a',
