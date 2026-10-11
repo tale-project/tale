@@ -48,6 +48,7 @@ list:
     title: No automations yet
     description: Choose Create automation to start from a trigger and an agent, or to upload a package.
 createMenu:
+  starter: 'From a starter'
   blank: Blank (trigger + agent)
 blank:
   title: New automation
@@ -85,6 +86,45 @@ blank:
   submitting: Creating…
   initialMessage: Initial version
   kindQuestion: 'When does it run?'
+starters:
+  title: 'Choose a starter'
+  description: 'Ready-made automations: answer a few questions to create yours.'
+  setupDescription: 'Answer its questions to create it.'
+  backToGallery: 'All starters'
+  search: 'Search starters'
+  none: 'This deployment ships no starters.'
+  noMatches: 'No starter matches your search.'
+  needsSetup: 'Needs a connection'
+  loadFailed: 'Couldn''t load the starters: {error}'
+  howItWorks: 'How it works'
+  startsOnEvent: 'Starts on each event: {event}.'
+  startsOnWebhook: 'Starts on each delivery to its webhook address.'
+  startsOnSchedule: 'Starts on the schedule you set below.'
+  startsByHand: 'Starts when someone runs it.'
+  stepLabel: '{connector} · {action}'
+  needsConnection: 'Connect {connectors} before it can run.'
+  startNow: 'Start it now'
+  startNowHint: 'Deploys version 1 and turns its trigger on, so it runs from now on. Off, it is created as a draft you deploy from the editor.'
+  create: 'Create automation'
+  webhookTitle: 'Your webhook address'
+  nameRequired: 'Give it a name.'
+  answerEveryQuestion: 'Answer every question first.'
+  projectPlaceholder: 'Choose a project'
+  projectSearch: 'Search projects'
+  projectEmpty: 'No projects found'
+  memberPlaceholder: 'Choose a member'
+  memberSearch: 'Search members'
+  memberEmpty: 'No members found'
+  credentialPlaceholder: 'The credential''s name'
+  errors:
+    required: 'Answer this question.'
+    tooLong: 'This answer is too long.'
+    unknownProject: 'That project doesn''t exist, or you can''t open it.'
+    unknownMember: 'That person isn''t a member of the organization.'
+    unknownCredential: 'No credential of that name is in service.'
+    schedule: 'This schedule can never start a run.'
+    choice: 'Pick one of the options.'
+    invalid: 'This answer can''t be used.'
 notFound:
   title: Automation not found
   description: It may have been renamed, or it may belong to another

@@ -17,10 +17,11 @@ Search by name or slug. For example, enter `Triage` to compare the shipped triag
 
 Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it on the **Editor** tab to inspect the workflow. **General** holds its trigger and its projects: **Projects** controls which boards can use it; without project bindings, it serves the organization. **Projects** offers only the projects you can open, and saving keeps any binding to a project you cannot see. An automation bound only to such projects does not appear in your list. The **Version** selector beside the tabs shows its saved history; **Runs** shows recent executions.
 
-The **Create automation** menu offers two routes:
+The **Create automation** menu offers three routes:
 
 | Choice | Use it when | What happens next |
 | --- | --- | --- |
+| **From a starter** | A shipped starter does what you need: triage new tasks, tell a reviewer, turn webhook deliveries into tasks, answer questions from your documents, or summarize the inbox. | Answer its few questions. **Start it now** (on by default) deploys version 1 and turns its trigger on. See [Start from a starter](/platform/automations/starters). |
 | **Blank (trigger + agent)** | You want to configure the workflow yourself. | Set the name, model, instructions and equipment, then choose when it runs. **Deploy v1 now** (on by default) puts the first version live at once; otherwise it stays a draft you deploy from the editor. The agent receives what the trigger sends as its input. Creation opens the editor for further changes. |
 | **Upload package** | You already have a workflow file or a reusable pack. | Tale validates the files and saves a draft version. |
 

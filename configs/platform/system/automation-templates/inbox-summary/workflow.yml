@@ -1,5 +1,5 @@
 # On a schedule, the inbox conversations of one mailbox that still wait for
-# an answer are summarised by a language model, one line each, most urgent
+# an answer are summarized by a language model, one line each, most urgent
 # first, and sent to a member as a message in Tale with a link to the inbox.
 # An empty inbox sends nothing. It only reads the inbox.
 version: 1
@@ -28,7 +28,7 @@ nodes:
     when: '{{ nodes.inbox.output.conversations.length > 0 }}'
     model: anthropic/claude-haiku-4-5
     system: >-
-      You summarise a team's inbox conversations that still wait for an answer.
+      You summarize a team's inbox conversations that still wait for an answer.
       Give one short line per conversation: who wrote, what they want and how
       urgent it reads, most urgent first. Write in the language most of the
       conversations are written in, and never invent facts the messages do not
@@ -57,7 +57,7 @@ nodes:
 output:
   waiting: '{{ nodes.inbox.output.conversations.length }}'
 tests:
-  - name: waiting conversations are summarised for the member
+  - name: waiting conversations are summarized for the member
     input:
       trigger: schedule
       firedAt: 1791000000000

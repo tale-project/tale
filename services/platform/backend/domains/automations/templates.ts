@@ -3,6 +3,7 @@ import type {
   TemplateAnswers,
   TemplateField,
 } from '@tale/shared/schemas/automation-template';
+import type { ScheduleRule } from '@tale/shared/schemas/schedule-rule';
 import type { Sql } from 'postgres';
 
 import {
@@ -26,7 +27,7 @@ import {
   listConnectedConnectorSlugs,
 } from '../connector_credentials/service.ts';
 import { resolveModelReplacements } from './model-defaults.ts';
-import { AutomationError } from './store.ts';
+import { AutomationError, assertTriggerValid } from './store.ts';
 
 /**
  * Creating an automation from a shipped starter
@@ -71,7 +72,7 @@ export interface AutomationTemplateCard {
     | { kind: 'webhook' }
     | {
         kind: 'schedule';
-        repeat: Record<string, unknown> | null;
+        repeat: ScheduleRule | null;
         timezone: string | null;
       }
     | null;
@@ -270,6 +271,35 @@ export async function prepareTemplateInstance(
     answers: args.answers,
     ...(args.locale !== undefined && { locale: args.locale }),
   });
+  // The trigger is checked as its save will check it, before anything is
+  // written: a schedule that could never start a run is the schedule
+  // question's to answer again, not an automation left without its trigger.
+  if (instance.trigger !== undefined) {
+    try {
+      assertTriggerValid(instance.trigger);
+    } catch (error) {
+      const asked = template.manifest.template.fields.find(
+        (field) => field.kind === 'schedule',
+      );
+      if (
+        asked === undefined ||
+        !(error instanceof AutomationError) ||
+        error.code !== 'AUTOMATION_TRIGGER_INVALID'
+      ) {
+        throw error;
+      }
+      throw new AutomationError(
+        'TEMPLATE_ANSWERS_INVALID',
+        'Some answers cannot be used.',
+        400,
+        {
+          fields: [
+            { field: asked.id, code: 'invalid', message: error.message },
+          ],
+        },
+      );
+    }
+  }
   const models = [
     ...new Set(llmModelSteps(instance.document).map((step) => step.model)),
   ];

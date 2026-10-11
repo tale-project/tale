@@ -48,6 +48,7 @@ list:
     title: Aucune automatisation pour l’instant
     description: Choisis « Créer une automatisation » pour partir d’un déclencheur et d’un agent, ou pour téléverser un paquet.
 createMenu:
+  starter: 'À partir d’un modèle'
   blank: Vierge (trigger + agent)
 blank:
   title: Nouvelle automatisation
@@ -85,6 +86,45 @@ blank:
   submitting: Création…
   initialMessage: Première version
   kindQuestion: 'Quand s’exécute-t-elle ?'
+starters:
+  title: 'Choisir un modèle'
+  description: 'Des automatisations prêtes à l’emploi : réponds à quelques questions pour créer la tienne.'
+  setupDescription: 'Réponds à ses questions pour la créer.'
+  backToGallery: 'Tous les modèles'
+  search: 'Rechercher des modèles'
+  none: 'Ce déploiement ne fournit aucun modèle.'
+  noMatches: 'Aucun modèle ne correspond à ta recherche.'
+  needsSetup: 'Connexion requise'
+  loadFailed: 'Impossible de charger les modèles : {error}'
+  howItWorks: 'Comment ça marche'
+  startsOnEvent: 'Démarre à chaque événement : {event}.'
+  startsOnWebhook: 'Démarre à chaque envoi vers son adresse webhook.'
+  startsOnSchedule: 'Démarre selon l’horaire que tu définis ci-dessous.'
+  startsByHand: 'Démarre quand quelqu’un la lance.'
+  stepLabel: '{connector} · {action}'
+  needsConnection: 'Connecte {connectors} avant qu’elle puisse tourner.'
+  startNow: 'Démarrer maintenant'
+  startNowHint: 'Met la version 1 en service et active son déclencheur : elle tourne dès maintenant. Décoché, elle est créée comme brouillon que tu mets en service depuis l’éditeur.'
+  create: 'Créer l’automatisation'
+  webhookTitle: 'Ton adresse webhook'
+  nameRequired: 'Donne-lui un nom.'
+  answerEveryQuestion: 'Réponds d’abord à toutes les questions.'
+  projectPlaceholder: 'Choisis un projet'
+  projectSearch: 'Rechercher des projets'
+  projectEmpty: 'Aucun projet trouvé'
+  memberPlaceholder: 'Choisis un membre'
+  memberSearch: 'Rechercher des membres'
+  memberEmpty: 'Aucun membre trouvé'
+  credentialPlaceholder: 'Le nom de l’identifiant'
+  errors:
+    required: 'Réponds à cette question.'
+    tooLong: 'Cette réponse est trop longue.'
+    unknownProject: 'Ce projet n’existe pas, ou tu ne peux pas l’ouvrir.'
+    unknownMember: 'Cette personne n’est pas membre de l’organisation.'
+    unknownCredential: 'Aucun identifiant de ce nom n’est en service.'
+    schedule: 'Cet horaire ne peut jamais lancer d’exécution.'
+    choice: 'Choisis l’une des options.'
+    invalid: 'Cette réponse ne peut pas être utilisée.'
 notFound:
   title: Automatisation introuvable
   description: Elle a peut-être été renommée, ou elle appartient à une autre

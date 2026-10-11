@@ -17,10 +17,11 @@ La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour compa
 
 Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Général** regroupe son déclencheur et ses projets : **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation. **Projets** ne propose que les projets que tu peux ouvrir, et l’enregistrement conserve les associations aux projets que tu ne vois pas. Une automatisation associée uniquement à de tels projets n’apparaît pas dans ta liste. Le sélecteur **Version**, à droite des onglets, présente les versions enregistrées, et **Exécutions**, les derniers lancements.
 
-Le menu **Créer une automatisation** propose deux parcours :
+Le menu **Créer une automatisation** propose trois parcours :
 
 | Choix | À utiliser si… | Suite du parcours |
 | --- | --- | --- |
+| **À partir d’un modèle** | un modèle d’automatisation fourni fait ce dont tu as besoin : trier les nouvelles tâches, prévenir un relecteur, transformer des envois webhook en tâches, répondre aux questions avec tes documents ou résumer la boîte de réception. | Réponds à ses quelques questions. **Démarrer maintenant** (coché par défaut) met la version 1 en service et active son déclencheur. Voir [Partir d’un modèle](/fr/platform/automations/starters). |
 | **Vierge (trigger + agent)** | tu souhaites configurer le workflow toi-même. | Définis le nom, le modèle, les instructions et les équipements, puis choisis quand l’agent s’exécute. **Mettre v1 en service maintenant** (coché par défaut) met la première version en service tout de suite ; sinon elle reste un brouillon que tu mets en service depuis l’éditeur. L’agent reçoit ce qu’envoie le déclencheur comme son entrée. La création ouvre l’éditeur pour la suite des modifications. |
 | **Téléverser un paquet** | tu disposes d’un fichier de workflow ou d’un pack réutilisable. | Tale valide les fichiers et enregistre une version brouillon. |
 

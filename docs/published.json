@@ -152,6 +152,7 @@
     "platform/automations/knowledge-search",
     "platform/automations/metrics",
     "platform/automations/notify-members",
+    "platform/automations/starters",
     "platform/automations/triggers",
     "platform/automations/workflows",
     "platform/chat/agents-in-chat",

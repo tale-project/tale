@@ -17,7 +17,7 @@
 import { z } from 'zod/v4';
 
 import { automationPackManifestSchema } from './automation-pack';
-import { timeZoneSchema } from './automation-trigger';
+import { catchUpSchema, timeZoneSchema } from './automation-trigger';
 import { scheduleRuleSchema } from './schedule-rule';
 
 /** The kinds of question a starter may ask. */
@@ -256,10 +256,17 @@ export type AutomationTemplateManifest = z.infer<
   typeof automationTemplateManifestSchema
 >;
 
-/** An answer to a schedule question: the repeat rule and the zone it reads
- * in, as the schedule picker writes them. */
+/** An answer to a schedule question, as the schedule field writes it: a
+ * repeat rule or a cron expression, the zone it reads in, and what it does
+ * with runs it missed. Whether the schedule can run is the trigger
+ * contract's to say once it is set on the starter's trigger. */
 export const scheduleAnswerSchema = z
-  .object({ repeat: scheduleRuleSchema, timezone: timeZoneSchema })
+  .object({
+    repeat: scheduleRuleSchema.optional(),
+    cron: z.string().max(200).optional(),
+    timezone: timeZoneSchema,
+    catchUp: catchUpSchema.optional(),
+  })
   .strict();
 
 /** The answers to a starter's questions, by question id: text for every

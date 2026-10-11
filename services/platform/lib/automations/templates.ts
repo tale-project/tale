@@ -147,11 +147,21 @@ function instanceTrigger(
   const scheduled =
     declared.kind === 'schedule' && answer !== undefined && parsed.success
       ? (() => {
-          const { cron: _cron, ...rest } = declared;
+          // The answer says the whole schedule: the declared rule, cron and
+          // missed-runs choice give way to it.
+          const {
+            cron: _cron,
+            repeat: _repeat,
+            catchUp: _catchUp,
+            ...rest
+          } = declared;
+          const { repeat, cron, timezone, catchUp } = parsed.data;
           return {
             ...rest,
-            repeat: parsed.data.repeat,
-            timezone: parsed.data.timezone,
+            ...(repeat !== undefined && { repeat }),
+            ...(cron !== undefined && cron.trim() !== '' && { cron }),
+            timezone,
+            ...(catchUp !== undefined && { catchUp }),
           };
         })()
       : declared;
@@ -189,7 +199,8 @@ export function templateAnswerIssues(
         issues.push({
           field: field.id,
           code: 'invalid',
-          message: 'The schedule is not a repeat rule with its time zone.',
+          message:
+            'The schedule is not a repeat rule or a cron expression with its time zone.',
         });
         continue;
       }

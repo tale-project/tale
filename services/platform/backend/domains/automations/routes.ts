@@ -1564,6 +1564,9 @@ const instantiateSchema = z.object({
     .string()
     .regex(/^[a-z]{2}(-[A-Z]{2})?$/)
     .optional(),
+  /** Set the starter's trigger on; it starts runs once a version is
+   * deployed. Off when left out. */
+  enableTrigger: z.boolean().optional(),
 });
 
 /**
@@ -1572,7 +1575,7 @@ const instantiateSchema = z.object({
  * no automation name is taken from authors. Authors list them and create
  * from one: the first version is saved through the editor's save — checked,
  * its tests run — installed in the project the answers name, and the
- * starter's trigger is set, off until a deploy turns it on.
+ * starter's trigger is set: on when the create asks, off otherwise.
  */
 export function createAutomationTemplateRoutes(deps: {
   sql: Sql;
@@ -1661,7 +1664,10 @@ export function createAutomationTemplateRoutes(deps: {
           : await setTrigger(deps.sql, {
               organizationId,
               name: body.data.name,
-              trigger: prepared.trigger,
+              trigger: {
+                ...prepared.trigger,
+                enabled: body.data.enableTrigger === true,
+              },
               actor,
             });
       return c.json(

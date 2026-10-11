@@ -280,6 +280,39 @@ describe('creating from a starter', () => {
     ).toMatchObject({ kind: 'schedule', timezone: 'UTC', enabled: false });
   });
 
+  it('takes a cron expression and the missed-runs choice the schedule field writes', () => {
+    const { trigger } = instantiateTemplate(inbox, {
+      name: 'evening-inbox',
+      answers: {
+        mailbox: 'gmail',
+        recipient: 'usr_ada',
+        schedule: {
+          cron: '30 17 * * 1-5',
+          timezone: 'Europe/Zurich',
+          catchUp: 'skip',
+        },
+      },
+    });
+    // The declared rule gives way: a schedule names a rule or a cron.
+    expect(trigger).toEqual({
+      kind: 'schedule',
+      cron: '30 17 * * 1-5',
+      timezone: 'Europe/Zurich',
+      catchUp: 'skip',
+      enabled: false,
+    });
+    expect(
+      templateAnswerIssues(inbox, {
+        recipient: 'usr_ada',
+        schedule: {
+          repeat: { frequency: 'daily', interval: 1, times: ['17:00'] },
+          cron: '0 17 * * *',
+          timezone: 'Europe/Zurich',
+        },
+      }).map((issue) => [issue.field, issue.code]),
+    ).toEqual([['schedule', 'invalid']]);
+  });
+
   it('names every answer it cannot use', () => {
     expect(
       templateAnswerIssues(inbox, {

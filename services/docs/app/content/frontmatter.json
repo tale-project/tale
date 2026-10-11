@@ -548,6 +548,14 @@
       "description": "Teile Mitgliedern mit dem Schritt notify.member etwas aus einer Automatisierung mit — Titel, Text und Link, in ihren Benachrichtigungen und per E-Mail — und erfahre, wer übersprungen und was abgelehnt wird."
     }
   },
+  "de:platform/automations/starters": {
+    "slug": "platform/automations/starters",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Mit einer Vorlage beginnen",
+      "description": "Lege aus einer Vorlage eine fertige Automatisierung an, indem du ein paar Fragen beantwortest, starte sie sofort und sieh, was jede Vorlage tut."
+    }
+  },
   "de:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "de",
@@ -1740,6 +1748,14 @@
       "description": "Tell members something from an automation with the notify.member step — a title, words and a link, in their notifications and by email — and know who is skipped and what is refused."
     }
   },
+  "en:platform/automations/starters": {
+    "slug": "platform/automations/starters",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Start from a starter",
+      "description": "Create a working automation from a starter by answering a few questions, start it at once, and see what each starter does."
+    }
+  },
   "en:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "en",
@@ -2930,6 +2946,14 @@
     "frontmatter": {
       "title": "Notifier des membres depuis une automatisation",
       "description": "Fais savoir quelque chose à des membres depuis une automatisation avec l’étape notify.member — un titre, un texte et un lien, dans leurs notifications et par e-mail — et sache qui est ignoré et ce qui est refusé."
+    }
+  },
+  "fr:platform/automations/starters": {
+    "slug": "platform/automations/starters",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Partir d’un modèle",
+      "description": "Crée une automatisation prête à l’emploi à partir d’un modèle en répondant à quelques questions, démarre-la tout de suite et vois ce que fait chaque modèle."
     }
   },
   "fr:platform/automations/triggers": {

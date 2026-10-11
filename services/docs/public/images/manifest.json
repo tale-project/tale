@@ -330,6 +330,32 @@
       "height": 1332
     },
     {
+      "file": "images/platform/automation-starter-gallery.webp",
+      "shot": "automation-starter-gallery",
+      "route": "/dashboard/:orgId/automations",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1024,
+      "height": 1260,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-starter-setup.webp",
+      "shot": "automation-starter-setup",
+      "route": "/dashboard/:orgId/automations",
+      "viewport": {
+        "width": 1440,
+        "height": 1100
+      },
+      "dpr": 2,
+      "width": 1024,
+      "height": 1712,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-task-create-run.webp",
       "shot": "automation-task-create-run",
       "route": "/dashboard/:orgId/automations/support-follow-ups/runs",

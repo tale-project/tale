@@ -11,10 +11,10 @@ triggers:
     event: task.created
 i18n:
   de:
-    name: Fragen aus euren Dokumenten beantworten
+    name: Fragen aus deinen Dokumenten beantworten
     description: Beantwortet jede neue Aufgabe eines Projekts, die eine Frage stellt, aus den Dokumenten der Organisation, als Kommentar.
   fr:
-    name: Répondre aux questions avec vos documents
+    name: Répondre aux questions avec tes documents
     description: >-
       Répond à chaque nouvelle tâche d’un projet qui pose une question, à partir des documents de l’organisation, en commentaire.
 template:

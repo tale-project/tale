@@ -17,10 +17,11 @@ Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitg
 
 Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Allgemein** findest du Trigger und Projekte: Unter **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung. **Projekte** bietet nur Projekte an, die du öffnen kannst. Zuordnungen zu Projekten, die du nicht siehst, bleiben beim Speichern erhalten. Eine Automatisierung, die nur solchen Projekten zugeordnet ist, erscheint nicht in deiner Liste. Die Auswahl **Version** rechts neben den Tabs zeigt den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen.
 
-Das Menü **Automatisierung erstellen** bietet zwei Wege:
+Das Menü **Automatisierung erstellen** bietet drei Wege:
 
 | Auswahl | Geeignet, wenn … | Danach |
 | --- | --- | --- |
+| **Aus einer Vorlage** | eine mitgelieferte Vorlage tut, was du brauchst: neue Aufgaben einordnen, einen Reviewer benachrichtigen, Webhook-Lieferungen in Aufgaben verwandeln, Fragen aus deinen Dokumenten beantworten oder den Posteingang zusammenfassen. | Beantworte ihre wenigen Fragen. **Jetzt starten** (standardmäßig an) schaltet Version 1 live und ihren Trigger ein. Siehe [Mit einer Vorlage beginnen](/de/platform/automations/starters). |
 | **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Lege Name, Modell, Anweisungen und Ausstattung fest und wähle dann, wann der Agent läuft. **v1 jetzt live schalten** (standardmäßig an) schaltet die erste Version sofort live; sonst bleibt sie ein Entwurf, den du im Editor live schaltest. Was der Trigger sendet, erhält der Agent als seine Eingabe. Nach dem Erstellen öffnet sich der Editor für weitere Änderungen. |
 | **Paket hochladen** | eine Workflow-Datei oder ein wiederverwendbares Pack vorliegt. | Tale prüft die Dateien und speichert eine Entwurfsversion. |
 

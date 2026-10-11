@@ -143,6 +143,7 @@
           "pages": [
             "platform/automations/concepts",
             "platform/automations/catalog",
+            "platform/automations/starters",
             "platform/automations/builtin",
             "platform/automations/editor",
             "platform/automations/triggers",

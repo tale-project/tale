@@ -209,6 +209,27 @@ describe('creating from a starter', () => {
     });
   });
 
+  it('refuses a schedule its trigger could never run on, against the schedule question', async () => {
+    await expect(
+      prepareTemplateInstance(sql, {
+        ...reviewer,
+        slug: 'inbox-summary',
+        answers: {
+          recipient: 'usr_ada',
+          schedule: { cron: 'every so often', timezone: 'Europe/Zurich' },
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'TEMPLATE_ANSWERS_INVALID',
+      data: {
+        fields: [
+          expect.objectContaining({ field: 'schedule', code: 'invalid' }),
+        ],
+      },
+    });
+    expect(resolveModelReplacements).not.toHaveBeenCalled();
+  });
+
   it('refuses a starter that does not exist', async () => {
     await expect(
       prepareTemplateInstance(sql, { ...reviewer, slug: 'nothing-here' }),
