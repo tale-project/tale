@@ -213,6 +213,9 @@ export interface NodeRunView {
   ms?: number;
   /** How a test or a try stood in for the node, when one did. */
   bench?: BenchMark;
+  /** Run alone on pinned data, the node ran although its condition read
+   * false. */
+  whenWouldSkip?: true;
   /** Effects this node performed, in execution order. */
   effects: Effect[];
 }
@@ -256,6 +259,7 @@ function readTrace(value: unknown): NodeTrace[] {
     if (typeof entry.ms === 'number') trace.ms = entry.ms;
     const bench = benchMarkOf(entry.bench);
     if (bench !== undefined) trace.bench = bench;
+    if (entry.whenWouldSkip === true) trace.whenWouldSkip = true;
     out.push(trace);
   }
   return out;
@@ -405,6 +409,7 @@ export function projectRun(run: RunLike | null | undefined): RunProjection {
     if (entry.note !== undefined) view.note = entry.note;
     if (entry.ms !== undefined) view.ms = entry.ms;
     if (entry.bench !== undefined) view.bench = entry.bench;
+    if (entry.whenWouldSkip === true) view.whenWouldSkip = true;
     byNode.set(entry.node, view);
   }
   // A stop leaves the cursor where the stepper was: that node was reached

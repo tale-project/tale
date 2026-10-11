@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import {
@@ -10,6 +11,7 @@ import {
 } from '@tale/ui/code-editor';
 import type { CodeEditorProviders } from '@tale/ui/code-editor/providers';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { Field } from '@tale/ui/field';
 import {
   FieldIssueMessages,
@@ -26,7 +28,14 @@ import { SectionHeader } from '@tale/ui/section-header';
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { Tabs } from '@tale/ui/tabs';
 import { useCopyButton } from '@tale/ui/use-copy';
-import { AlertTriangle, Check, Copy, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  Copy,
+  FlaskConical,
+  X,
+} from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import type { FlowFacts } from '@/lib/engine/core/analysis/flow';
@@ -517,6 +526,8 @@ export interface NodeInspectorProps {
   runRecord?: RunStepRecord | undefined;
   /** Whose run that is, when not the last run: "Unsaved test". */
   runLabel?: string | undefined;
+  /** Tests this node alone, or the draft up to it. */
+  onTest?: ((scope: 'only' | 'upTo') => void) | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   /** For the agent node's equipment pickers (skills/connectors/tools/secrets
@@ -639,6 +650,7 @@ export interface NodeFieldsProps {
   runView?: NodeRunView | undefined;
   runRecord?: RunStepRecord | undefined;
   runLabel?: string | undefined;
+  onTest?: ((scope: 'only' | 'upTo') => void) | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   organizationId: string;
@@ -766,6 +778,7 @@ export function NodeFields({
   runView,
   runRecord,
   runLabel,
+  onTest,
   readOnly,
   onChange,
   organizationId,
@@ -1188,14 +1201,57 @@ export function NodeFields({
               ? t('editor.unknownType', { type: node.type })
               : catalogLabel(node, faceContext)
           }
-          {...(onDeselect !== undefined && {
+          {...((onDeselect !== undefined || onTest !== undefined) && {
             action: (
-              <IconButton
-                icon={X}
-                size="sm"
-                aria-label={tCommon('aria.close')}
-                onClick={onDeselect}
-              />
+              <div className="flex items-center gap-1">
+                {onTest !== undefined && (
+                  <DropdownMenu
+                    align="end"
+                    trigger={
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        icon={FlaskConical}
+                      >
+                        {t('stepTest.menu')}
+                        <ChevronDown aria-hidden="true" className="size-4" />
+                      </Button>
+                    }
+                    items={() => [
+                      [
+                        // An agent never runs for real in a test.
+                        ...(node.type === 'agent'
+                          ? [
+                              {
+                                type: 'label' as const,
+                                content: t('stepTest.agentNote'),
+                              },
+                            ]
+                          : []),
+                        {
+                          type: 'item' as const,
+                          label: t('stepTest.this'),
+                          onClick: () => onTest('only'),
+                        },
+                        {
+                          type: 'item' as const,
+                          label: t('stepTest.upTo'),
+                          onClick: () => onTest('upTo'),
+                        },
+                      ],
+                    ]}
+                  />
+                )}
+                {onDeselect !== undefined && (
+                  <IconButton
+                    icon={X}
+                    size="sm"
+                    aria-label={tCommon('aria.close')}
+                    onClick={onDeselect}
+                  />
+                )}
+              </div>
             ),
           })}
         />

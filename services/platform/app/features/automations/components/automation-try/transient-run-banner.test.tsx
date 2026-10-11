@@ -56,11 +56,17 @@ describe('TransientRunBanner', () => {
           at: AT,
         }}
         changed="The draft changed since this try."
+        note="Its condition is false with this data; the test ran it anyway."
         onTryAgain={() => {}}
         againLabel="Run"
         onClear={() => {}}
       />,
     );
+    expect(
+      screen.getByText(
+        'Its condition is false with this data; the test ran it anyway.',
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText('The draft changed since this try.'),
     ).toBeInTheDocument();

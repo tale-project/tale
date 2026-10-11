@@ -233,6 +233,31 @@ describe('realRunOf', () => {
     expect(run.spans).toEqual([]);
   });
 
+  it('draws a step a step test left out from the run’s start, with its chip', () => {
+    const run = realRunOf(
+      record({
+        nodes: [
+          step('fetch', { startedAt: 1000, endedAt: 1100 }),
+          step('notify', { status: 'not_run', meta: { bench: 'left-out' } }),
+        ],
+        travels: [],
+      }),
+      graph,
+      {
+        substitute: (recorded) =>
+          recorded.meta.bench === 'left-out'
+            ? { kind: 'left-out', label: 'Left out of this test' }
+            : undefined,
+      },
+    );
+    expect(run.spans.find((span) => span.nodeId === 'notify')).toMatchObject({
+      startedAt: 1000,
+      endedAt: 1000,
+      outcome: 'not-run',
+      substitute: { kind: 'left-out', label: 'Left out of this test' },
+    });
+  });
+
   it('marks a step a test stood in for with the chip its words give', () => {
     const run = realRunOf(
       record({

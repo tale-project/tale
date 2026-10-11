@@ -556,6 +556,7 @@ editor:
       run: Dernière exécution
       runTry: Test non enregistré
       runTest: Dans ce test
+      runNodeTest: Test du nœud
   start:
     title: Début
     description: Ce qui démarre cette automatisation et ce que reçoit chaque exécution.
@@ -1392,3 +1393,22 @@ try:
   again: Réessayer
   clear: Masquer le résultat
   saveAsTest: Enregistrer comme test
+  nodeTest: 'Test du nœud : {node}'
+  upTo: 'Jusqu’à {node}'
+stepTest:
+  menu: Tester le nœud
+  this: Tester ce nœud
+  upTo: Tester jusqu’ici
+  agentNote: Les nœuds d’agent sont simulés dans les tests.
+  title: 'Tester {node}'
+  description: Exécute ce nœud seul, tel que le brouillon l’a, avec les données que tu lui donnes. Rien n’est conservé.
+  usesData: Utilise les données de
+  fromRun: Depuis l’exécution sur le canevas. Modifie-les pour essayer d’autres données.
+  fromRemembered: Comme tu as testé ce nœud la dernière fois.
+  missing: '{node} n’a pas encore de sortie utilisable. Écris ce qu’il renverrait.'
+  item: Élément
+  itemHelp: L’élément de la liste qu’il exécute, compté à partir de 1.
+  run: Tester le nœud
+  upToTitle: 'Tester jusqu’à {node}'
+  upToDescription: Exécute le brouillon jusqu’à ce nœud — ce dont il a besoin, et rien après. Rien n’est conservé.
+  whenWouldSkip: Sa condition est fausse avec ces données ; le test l’a exécuté quand même.

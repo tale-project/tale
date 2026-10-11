@@ -94,7 +94,7 @@ import {
   changeSummaryOf,
 } from '@/lib/engine/core/diff/changes';
 import { ptr } from '@/lib/engine/core/syntax/pointer';
-import type { NodeDef, Automation } from '@/lib/engine/core/types';
+import type { NodeDef, Automation, RunBench } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { savedWarningsSchema } from '@/lib/shared/schemas/automation-issues';
 
@@ -124,14 +124,17 @@ import { useDeployVersion } from '../hooks/use-deploy-version';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { useTimelineWords } from '../hooks/use-timeline-words';
 import { coveredCount, pathCoverage } from '../lib/automation-tests/coverage';
-import {
-  runInputSources,
-  type SourceBench,
-} from '../lib/automation-tests/run-sources';
+import { runInputSources } from '../lib/automation-tests/run-sources';
 import {
   runForTestOfDetail,
   runForTestOfTry,
 } from '../lib/automation-tests/save-as-test';
+import {
+  recalledPins,
+  rememberPins,
+  stepTestNeeds,
+  type StepTestNeeds,
+} from '../lib/automation-tests/step-test';
 import { testsOf } from '../lib/automation-tests/test-draft';
 import { formOwnsPlace, readTestForm } from '../lib/automation-tests/test-form';
 import {
@@ -226,6 +229,7 @@ import {
   type TestSetupMode,
 } from './automation-tests/test-inspector';
 import { testIssueAnchor, testYaml } from './automation-tests/test-yaml-editor';
+import { StepTestDialog } from './automation-try/step-test-dialog';
 import {
   TransientRunBanner,
   type TransientRunState,
@@ -503,6 +507,8 @@ function AutomationEditorScope({
     run: RunForTest;
     runVersion?: number;
   } | null>(null);
+  /** A node being tested alone: what its test needs. */
+  const [stepTest, setStepTest] = useState<StepTestNeeds | null>(null);
   // A run the route names later (a second Save as test) is read too; the
   // route forgets it once taken, so a reload does not ask again.
   const [takenSaveRun, setTakenSaveRun] = useState(saveRunParam);
@@ -1468,7 +1474,9 @@ function AutomationEditorScope({
     overlay === null || overlayRun === null
       ? undefined
       : overlay.kind === 'try'
-        ? t('editor.inspector.tabs.runTry')
+        ? overlay.scope?.kind === 'only'
+          ? t('editor.inspector.tabs.runNodeTest')
+          : t('editor.inspector.tabs.runTry')
         : t('editor.inspector.tabs.runTest');
   /** What Start shows the run on the canvas received. */
   const overlayInput =
@@ -1492,7 +1500,8 @@ function AutomationEditorScope({
   const tryDraft = (
     input: unknown,
     from: 'dialog' | 'banner',
-    bench?: SourceBench,
+    bench?: RunBench,
+    scope?: { kind: 'only' | 'upTo'; node: string },
   ): void => {
     if (rawDocument === null) return;
     const sentHash = documentHash(rawDocument);
@@ -1509,6 +1518,7 @@ function AutomationEditorScope({
       {
         onSuccess: ({ run }) => {
           setRunRequest(null);
+          setStepTest(null);
           setShowLastRun(true);
           setOverlay({
             kind: 'try',
@@ -1516,6 +1526,8 @@ function AutomationEditorScope({
             input,
             documentHash: sentHash,
             at: Date.now(),
+            ...(bench !== undefined && { bench }),
+            ...(scope !== undefined && { scope }),
           });
         },
         onError: (error) => {
@@ -1544,7 +1556,9 @@ function AutomationEditorScope({
       ? undefined
       : overlay.kind === 'try'
         ? () => {
-            if (!tryRun.isPending) tryDraft(overlay.input, 'banner');
+            if (!tryRun.isPending) {
+              tryDraft(overlay.input, 'banner', overlay.bench, overlay.scope);
+            }
           }
         : tests.runDisabledReason === undefined
           ? () => tests.runOne(overlay.index)
@@ -1657,15 +1671,24 @@ function AutomationEditorScope({
     bannerState === null || overlay === null || !showLastRun ? null : (
       <TransientRunBanner
         title={
-          overlay.kind === 'try'
-            ? t('try.unsaved')
-            : t('try.test', { name: tests.rows[overlay.index]?.name ?? '' })
+          overlay.kind === 'test'
+            ? t('try.test', { name: tests.rows[overlay.index]?.name ?? '' })
+            : overlay.scope?.kind === 'only'
+              ? t('try.nodeTest', { node: nodeTitle(overlay.scope.node) })
+              : overlay.scope?.kind === 'upTo'
+                ? t('try.upTo', { node: nodeTitle(overlay.scope.node) })
+                : t('try.unsaved')
         }
+        {...(overlay.kind === 'try' &&
+          overlay.scope?.kind === 'only' &&
+          overlayProjection?.byNode.get(overlay.scope.node)?.whenWouldSkip ===
+            true && { note: t('stepTest.whenWouldSkip') })}
         state={bannerState}
         {...(bannerChanged !== undefined && { changed: bannerChanged })}
         {...(tryAgain !== undefined && { onTryAgain: tryAgain })}
         {...(overlay.kind === 'test' && { againLabel: t('tests.run') })}
         {...(overlay.kind === 'try' &&
+          overlay.scope === undefined &&
           canAuthor && {
             onSaveAsTest: () => setSaving({ run: runForTestOfTry(overlay) }),
           })}
@@ -2105,15 +2128,52 @@ function AutomationEditorScope({
       },
     );
   };
+  /** Where testing a node alone starts: the data it was last tested with
+   * this session, else what the run on the canvas gave each node it reads,
+   * else nothing yet. */
+  const stepTestKey = (nodeId: string): string =>
+    `${organizationId}/${automationSlug}/${nodeId}`;
+  const stepTestStart = (needs: StepTestNeeds) => {
+    const kept = recalledPins(stepTestKey(needs.node.id));
+    const pins = Object.fromEntries(
+      needs.reads.map((id) => {
+        if (kept !== undefined && Object.hasOwn(kept.pins, id)) {
+          return [id, { value: kept.pins[id], from: 'remembered' as const }];
+        }
+        const output = shownProjection.byNode.get(id)?.output;
+        return [
+          id,
+          output === undefined
+            ? { value: null, from: 'none' as const }
+            : { value: output, from: 'run' as const },
+        ];
+      }),
+    );
+    return {
+      pins,
+      input:
+        kept?.input ??
+        overlayInput ??
+        (showLastRun ? lastRun?.input : undefined) ??
+        {},
+      item: kept?.item ?? 1,
+    };
+  };
   /** The run dialog's choice: the draft is tried, the version run. */
   const confirmRun = (
     request: AutomationRunRequest,
     input: unknown,
     target: RunTarget,
-    bench?: SourceBench,
+    bench?: RunBench,
   ): void => {
     if (target === 'draft') {
-      tryDraft(input, 'dialog', bench);
+      const upTo = request.upTo?.node;
+      tryDraft(
+        input,
+        'dialog',
+        upTo === undefined ? bench : { ...bench, upTo },
+        upTo === undefined ? undefined : { kind: 'upTo', node: upTo },
+      );
       return;
     }
     scheduleRun(request, input);
@@ -2556,6 +2616,31 @@ function AutomationEditorScope({
         ? shownProjection.byNode.get(selectedNode.id)
         : undefined,
       runLabel: overlayLabel,
+      ...(canAuthor &&
+        rawDocument !== null &&
+        automation !== null && {
+          onTest: (scope: 'only' | 'upTo') => {
+            setTryRefusal(null);
+            if (scope === 'upTo') {
+              setRunRequest({
+                automationSlug,
+                mode: 'mock',
+                version: meta?.version ?? 1,
+                scopeText: '',
+                draft:
+                  automation.inputs === undefined
+                    ? {}
+                    : { schema: automation.inputs },
+                upTo: {
+                  node: selectedNode.id,
+                  label: nodeTitle(selectedNode.id),
+                },
+              });
+              return;
+            }
+            setStepTest(stepTestNeeds(automation, selectedNode.id));
+          },
+        }),
       onChange: onChangeNode,
       organizationId,
       ...(projectId !== undefined && { projectId }),
@@ -3306,6 +3391,26 @@ function AutomationEditorScope({
           onConfirm={(input, target, bench) =>
             confirmRun(runRequest, input, target, bench)
           }
+        />
+      )}
+
+      {stepTest !== null && (
+        <StepTestDialog
+          needs={stepTest}
+          initial={stepTestStart(stepTest)}
+          pending={tryRun.isPending}
+          error={tryRefusal}
+          onClose={() => {
+            setStepTest(null);
+            setTryRefusal(null);
+          }}
+          onRun={(input, bench, kept) => {
+            rememberPins(stepTestKey(stepTest.node.id), kept);
+            tryDraft(input, 'dialog', bench, {
+              kind: 'only',
+              node: stepTest.node.id,
+            });
+          }}
         />
       )}
 

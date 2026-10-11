@@ -98,7 +98,13 @@ export function realRunOf(
     if (step.parentPath !== undefined || !nodes.has(step.path)) continue;
     const outcome = spanOutcome(step);
     if (outcome === undefined) continue;
-    const startedAt = step.startedAt ?? decidedAt(step);
+    // A step a step test left out never starts: it reads so, with its chip,
+    // from the run's start.
+    const leftOut = step.meta.bench === 'left-out';
+    const startedAt =
+      step.startedAt ??
+      decidedAt(step) ??
+      (leftOut ? view.startedAt : undefined);
     if (startedAt === undefined) continue;
     const reason =
       outcome === 'failed'

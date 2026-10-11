@@ -48,6 +48,8 @@ export interface AutomationRunRequest {
    * of the two runs, the draft first, and checks the draft's input against
    * the draft's own schema. */
   draft?: { schema?: Record<string, unknown> };
+  /** A step test of the draft up to this node: the draft is what runs. */
+  upTo?: { node: string; label: string };
 }
 
 /** What a test run runs: the unsaved draft, tried once and kept nowhere,
@@ -246,14 +248,20 @@ export function AutomationRunDialog({
       open
       onOpenChange={onClose}
       title={
-        request.mode === 'live' ? t('detail.runLiveTitle') : t('detail.runMock')
+        request.upTo !== undefined
+          ? t('stepTest.upToTitle', { node: request.upTo.label })
+          : request.mode === 'live'
+            ? t('detail.runLiveTitle')
+            : t('detail.runMock')
       }
       description={
-        request.mode === 'live'
-          ? t('detail.runLiveBody')
-          : tryingDraft
-            ? t('detail.runInput.mockDescriptionDraft')
-            : t('detail.runInput.mockDescription')
+        request.upTo !== undefined
+          ? t('stepTest.upToDescription')
+          : request.mode === 'live'
+            ? t('detail.runLiveBody')
+            : tryingDraft
+              ? t('detail.runInput.mockDescriptionDraft')
+              : t('detail.runInput.mockDescription')
       }
       confirmText={confirmText}
       disableConfirm={!parsed.valid || reading !== null}
@@ -263,7 +271,7 @@ export function AutomationRunDialog({
       }}
     >
       {error && <Alert variant="destructive" description={error} />}
-      {request.draft !== undefined && (
+      {request.draft !== undefined && request.upTo === undefined && (
         <RadioGroup
           label={t('detail.runTarget.label')}
           value={target}

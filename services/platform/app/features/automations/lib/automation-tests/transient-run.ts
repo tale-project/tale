@@ -12,6 +12,7 @@ import type {
   Effect,
   NodeStatus,
   NodeTrace,
+  RunBench,
   RunError,
 } from '@/lib/engine/core/types';
 
@@ -41,6 +42,11 @@ export type TransientOverlay =
       documentHash: string;
       /** When the answer came, epoch ms. */
       at: number;
+      /** What stood in for nodes, for Try again: a test's stand-ins, a
+       * node test's pinned data. */
+      bench?: RunBench;
+      /** A step test: one node alone, or the draft up to a node. */
+      scope?: { kind: 'only' | 'upTo'; node: string };
     }
   | {
       kind: 'test';
