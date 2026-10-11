@@ -124,13 +124,16 @@ describe('ProductsImportDialog', () => {
       'common.import.rowError row=5 message=currency: is not an ISO 4217 currency code',
     ]);
     expect(alert).toHaveTextContent('common.import.rowErrorsTitle count=2');
+    // A partial import is not a success: the action menu closes the dialog
+    // through `onSuccess`, which would take the list with it (#3827).
     expect(toastMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'products.import.success',
-        variant: 'success',
+        title: 'common.import.partialTitle',
+        description: 'products.import.successDescription success=1 failed=2',
+        variant: 'warning',
       }),
     );
-    expect(onSuccess).toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -142,8 +145,15 @@ describe('ProductsImportDialog', () => {
       rowErrors: [],
     });
     bulkCreate.mockResolvedValue({ success: 1, failed: 0, errors: [] });
-    const { onClose } = await importFile();
+    const { onClose, onSuccess } = await importFile();
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'products.import.success',
+        variant: 'success',
+      }),
+    );
     expect(
       screen.queryByText('common.import.rowErrorsTitle', { exact: false }),
     ).not.toBeInTheDocument();
