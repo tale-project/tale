@@ -186,6 +186,8 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   useAutomationProjects: () => ({ data: [] }),
   useAutomationTriggers: () => ({ data: [] }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+  // Nothing here is allowed to write without approval.
+  useApprovalAllowances: () => ({ data: undefined }),
 }));
 
 vi.mock('../hooks/mutations', async (importOriginal) => ({
