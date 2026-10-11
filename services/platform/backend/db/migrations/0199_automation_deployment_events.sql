@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS app.automation_deployment_events (
 CREATE INDEX IF NOT EXISTS automation_deployment_events_name
   ON app.automation_deployment_events (org_id, name, at_ms DESC, id DESC);
 
--- 1. The deploys the audit log still holds. A row written before a later
+-- 1. The deploys the audit log still holds, read per automation that exists
+--    (the audit log's (org_id, resource_type, resource_id) index, never a
+--    scan of the whole log). A row written before a later
 --    `automation.deleted` of the same name belonged to an automation that no
 --    longer exists ("later" in the order the name lock gave them: the
 --    writing transaction's id, or the time for rows written before the
@@ -93,10 +95,12 @@ SELECT
       THEN a.metadata->>'clientName'
   END,
   a.ts
-FROM app.audit_logs a
-WHERE a.action = 'automation.deployed'
+FROM (SELECT DISTINCT org_id, name FROM app.automations) n
+JOIN app.audit_logs a
+  ON a.org_id = n.org_id
   AND a.resource_type = 'automation'
-  AND a.resource_id IS NOT NULL
+  AND a.resource_id = n.name
+WHERE a.action = 'automation.deployed'
   AND a.new_state->>'deployedVersion' ~ '^[1-9][0-9]{0,8}$'
   AND NOT EXISTS (
     SELECT 1 FROM app.audit_logs d

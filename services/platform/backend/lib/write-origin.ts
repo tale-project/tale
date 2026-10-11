@@ -26,7 +26,8 @@ import type { RequestChannel } from './request-channel.ts';
  *   the origin it hands the writer ({@link requestChannelOf}), so the
  *   channel's stamps and the attribution a version keeps name the same door
  *   and the same key. The app's session doors open none: the audit row of a
- *   definition write names its door from the origin instead.
+ *   definition write made there names the person (actor type `user`), and
+ *   the version or the deployment it records keeps which door it was.
  *
  * The vocabulary is the one the version history publishes
  * (`AUTOMATION_WRITE_VIAS`, `lib/shared/schemas/automation-versions.ts`).
