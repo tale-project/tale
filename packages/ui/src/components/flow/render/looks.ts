@@ -98,7 +98,7 @@ export function flowLooks({
     if (quietRest && !forward) look = 'quiet';
     else if (taken === 'both') look = 'emphasis';
     else if (taken === 'neither') look = 'quiet';
-    else if (taken !== undefined) look = forward ? 'emphasis' : 'base';
+    else if (taken !== undefined) look = 'base';
     else if (state === 'not-taken') look = 'quiet';
     else if (state === 'travelled' || state === 'travelling')
       look =
