@@ -478,6 +478,7 @@ canvas:
     body: 'La v{version} a été enregistrée pendant ta modification. Ton brouillon part de la v{base}.'
     show: 'Afficher la v{version} et abandonner mon brouillon'
     savedBy: Enregistrée par
+    changes: Modifications
     seeChanges: 'Voir ce qui a changé dans la v{version}'
   start:
     manual: À la main, via l’API ou MCP
@@ -871,7 +872,14 @@ upload:
   deployLater: Plus tard
   deployed: '{name} v{version} est en service.'
   warnings: '{count, plural, one {# avertissement de validation} other {# avertissements de validation}}'
+  invalid: 'Ce paquet ne passe pas les vérifications. Corrige ce qui est listé et téléverse-le à nouveau.'
+  deployInvalid: 'La v{version} ne passe pas les vérifications, elle ne peut donc pas être mise en service. Corrige ce qui est listé et téléverse une nouvelle version.'
 runs:
+  versionPill:
+    name: 'v{version}{live, select, true {, en service} other {}}. L’ouvrir dans l’éditeur.'
+    menu: 'v{version}{live, select, true {, en service} other {}} : actions pour cette version'
+    open: 'Ouvrir la v{version} dans l’éditeur'
+    compareWithLive: 'Comparer la v{version} avec la v{live} en service'
   agentLog:
     title: Journal de l'agent
     starting: "L'agent démarre dans le bac à sable…"

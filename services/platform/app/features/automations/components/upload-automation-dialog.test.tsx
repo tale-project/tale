@@ -358,6 +358,35 @@ describe('UploadAutomationDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it('lists the problems of a package the checks refused', async () => {
+    uploadAction.mockRejectedValue({
+      data: {
+        code: 'AUTOMATION_INVALID',
+        message: 'demo is invalid.',
+        errors: [
+          {
+            level: 'error',
+            code: 'REF_UNKNOWN_NODE',
+            nodeId: 'post',
+            message: 'nodes.summary is not a node of this automation',
+          },
+        ],
+        warnings: [],
+      },
+    });
+    const { user } = await openDialogWith([WORKFLOW_FILE()]);
+    await user.click(
+      screen.getByRole('button', { name: 'automations.upload.submit' }),
+    );
+    expect(await screen.findByText('automations.upload.invalid')).toBeVisible();
+    const list = screen.getByRole('list', {
+      name: /automations\.upload\.invalid/,
+    });
+    expect(list).toHaveTextContent('REF_UNKNOWN_NODE');
+    // The refusal's English sentence gives way to the listed problems.
+    expect(screen.queryByText('demo is invalid.')).toBeNull();
+  });
+
   it('closes without deploying via Later', async () => {
     uploadAction.mockResolvedValue({
       ok: true,

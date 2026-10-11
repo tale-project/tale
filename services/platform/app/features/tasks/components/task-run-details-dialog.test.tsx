@@ -49,6 +49,7 @@ vi.mock('@/app/features/automations/hooks/queries', () => ({
     reads.automation(...args);
     return { data: undefined };
   },
+  useAutomationVersions: () => ({ data: [] }),
 }));
 
 beforeEach(() => {
@@ -102,9 +103,14 @@ describe('TaskRunDetailsDialog', () => {
   it('waits for the run before reading the version it actually executed', async () => {
     reads.runData = undefined;
     const { unmount } = renderDialog('developer');
-    await waitFor(() => {
-      expect(reads.run).toHaveBeenCalledWith('org-1', 'run-1');
-    });
+    // The dialog's body loads on first open: under a busy suite the import
+    // alone can outlast the default second.
+    await waitFor(
+      () => {
+        expect(reads.run).toHaveBeenCalledWith('org-1', 'run-1');
+      },
+      { timeout: 5000 },
+    );
     expect(reads.automation).not.toHaveBeenCalled();
     unmount();
 
@@ -132,6 +138,13 @@ describe('TaskRunDetailsDialog', () => {
       'href',
       '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId',
     );
+    // The version the run ran, open in the editor.
+    expect(
+      screen.getByRole('link', { name: 'tasks.runs.versionPill.name' }),
+    ).toHaveAttribute(
+      'href',
+      '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
+    );
   });
 
   it.each(['editor', 'member'] as const)(
@@ -144,6 +157,9 @@ describe('TaskRunDetailsDialog', () => {
       ).toBeInTheDocument();
       expect(
         screen.queryByRole('link', { name: 'tasks.run.openFull' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: 'tasks.runs.versionPill.name' }),
       ).not.toBeInTheDocument();
     },
   );

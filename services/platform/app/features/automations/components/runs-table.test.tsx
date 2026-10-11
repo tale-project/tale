@@ -14,6 +14,9 @@ const navigate = vi.hoisted(() => vi.fn());
 
 vi.mock('../hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/queries')>()),
+  // The automation's own read: v2 is live.
+  useAutomation: () => ({ data: { deployedVersion: 2 } }),
+  useAutomationVersions: () => ({ data: [] }),
   useAutomationRunsPage: (args: unknown) => {
     page.calls.push(args);
     return {
@@ -186,6 +189,20 @@ describe('RunsTable', () => {
     expect(navigate).toHaveBeenCalledWith({
       to: '/dashboard/org-1/automations/triage/runs/run-a',
     });
+  });
+
+  it("links each run's version to it in the editor, the live one marked", async () => {
+    page.results = [run('run-a'), run('run-b', { version: 1 })];
+    const { user } = renderTable();
+    const live = screen.getByRole('link', {
+      name: 'v2, live. Open it in the editor.',
+    });
+    expect(
+      screen.getByRole('link', { name: 'v1. Open it in the editor.' }),
+    ).toBeVisible();
+    // The pill opens the version; the row around it stays put.
+    await user.click(live);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('says when the automation has not run', () => {

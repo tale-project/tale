@@ -243,15 +243,19 @@ async function validateDocument(
     store === undefined ? {} : { store },
   );
   if (errors.length > 0) {
-    refuse(
-      'AUTOMATION_UPLOAD_REJECTED',
-      `the document does not validate: ${errors
+    // The sentence names the first few; the problems themselves ride along,
+    // so the upload dialog lists each one in words, as a refused save does.
+    throw new AppError({
+      code: 'AUTOMATION_UPLOAD_REJECTED',
+      message: `the document does not validate: ${errors
         .slice(0, 5)
         .map(
           (issue) => `${issue.nodeId ?? ''} [${issue.code}] ${issue.message}`,
         )
         .join(' | ')}`,
-    );
+      errors,
+      warnings,
+    });
   }
   return warnings.map(
     (issue) => `${issue.nodeId ?? ''} [${issue.code}] ${issue.message}`,

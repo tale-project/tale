@@ -81,6 +81,7 @@ compare:
     output: '{count, plural, one {Sortie : # champ diffère.} other {Sortie : # champs diffèrent.}}'
     effects: 'Écritures : A {a}, B {b}.'
     nothing: 'Même version, même entrée, même chemin : seules les durées diffèrent.'
+    seeVersions: 'Voir ce qui a changé entre la v{a} et la v{b}'
   table:
     label: Étapes dans A et B
     step: Étape

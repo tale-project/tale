@@ -275,6 +275,12 @@ function handleError<E extends OrgEnv>(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate the reads
       const record = data as Record<string, unknown>;
       const code = typeof record.code === 'string' ? record.code : 'REFUSED';
+      // A document the checks refused carries its problems: they ride
+      // beside the sentence (`data`), as a refused save's do.
+      const issues = {
+        ...(Array.isArray(record.errors) && { errors: record.errors }),
+        ...(Array.isArray(record.warnings) && { warnings: record.warnings }),
+      };
       return c.json(
         {
           error: code,
@@ -282,6 +288,7 @@ function handleError<E extends OrgEnv>(
             typeof record.message === 'string'
               ? record.message
               : 'The request was refused.',
+          ...(Object.keys(issues).length > 0 && { data: issues }),
         },
         (AUDIENCE_REFUSAL_CODES.has(code)
           ? SKILL_ERROR_STATUS[code]

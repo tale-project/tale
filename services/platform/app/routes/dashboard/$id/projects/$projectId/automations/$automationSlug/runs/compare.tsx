@@ -27,6 +27,7 @@ function ProjectCompareRunsPage() {
         automationSlug: paramToAutomationSlug(automationSlug),
         projectId,
       })}/runs`}
+      projectId={projectId}
       {...(a !== undefined && { a })}
       {...(b !== undefined && { b })}
       onSwap={() => {

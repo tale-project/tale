@@ -86,6 +86,7 @@ import {
   type CanvasRun,
   type RunCanvasView,
 } from './automation-canvas';
+import { RunVersionMenu } from './automation-version-pill';
 import { EffectList } from './effect-list';
 import { IssueImportContinuation } from './issue-import-continuation';
 import { IssueImportResult } from './issue-import-result';
@@ -571,9 +572,13 @@ function RunDetailBody({
         <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
           {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
         </Badge>
-        <span className="text-sm">
-          {t('versions.versionLabel', { version: run.version })}
-        </span>
+        <RunVersionMenu
+          organizationId={organizationId}
+          automationSlug={automationSlug}
+          projectId={run.projectId}
+          version={run.version}
+          deployedVersion={versionQuery.data?.deployedVersion}
+        />
         <Text as="span" variant="muted" className="text-xs">
           {starterLabel(run)}
         </Text>

@@ -34,6 +34,8 @@ function runsPage() {
 vi.mock('../hooks/queries', () => ({
   useAutomationRunsPage: () => runsPage(),
   useAutomationVersions: () => query,
+  // The automation's own read, for the live version the runs' pills mark.
+  useAutomation: () => ({ data: undefined }),
 }));
 
 vi.mock('@tanstack/react-router', () => ({

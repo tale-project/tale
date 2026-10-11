@@ -5,6 +5,8 @@ import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
 import { ContentArea } from '@tale/ui/content-area';
 import { DataDiff } from '@tale/ui/data-diff';
+import { mergeFlowGraphs } from '@tale/ui/flow/diff';
+import type { FlowRow } from '@tale/ui/flow/types';
 import { IconButton } from '@tale/ui/icon-button';
 import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -12,25 +14,30 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, GitCompare, Hand } from 'lucide-react';
 import { useMemo } from 'react';
 
 import type { RunDiff } from '@/app/lib/backend/contract/automations';
+import type { Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import {
   useAutomation,
+  useAutomationAtVersion,
   useAutomationRun,
   useNodeTypeCatalog,
   useRunCompare,
 } from '../hooks/queries';
+import { useCanvasFlow } from '../hooks/use-canvas-flow';
+import { compareVersionLink } from '../lib/detail-paths';
 import { readDocument } from '../lib/document';
 import { automationErrorCode } from '../lib/errors';
 import { nodeCatalogView, nodeTitle } from '../lib/node-face';
 import { compareSummary } from '../lib/run-compare';
 import { readRunStatus, runOnCanvas, shortRunId } from '../lib/run-view';
 import { AutomationCanvas } from './automation-canvas';
+import { AutomationVersionPill } from './automation-version-pill';
 import { RunBadge } from './run-status-badge';
 
 type NodeDiff = RunDiff['nodes'][number];
@@ -42,6 +49,21 @@ const MISSING: ReadonlySet<string> = new Set([
   'RUN_NOT_FOUND',
   'RUN_COMPARE_MISMATCH',
 ]);
+
+/** Nobody checks a stored version again here: the graph is its shape. */
+const NO_CHECK = { status: 'off', analysis: null, types: null } as const;
+
+/** A document with no steps: what a version stands for while it loads. */
+const NO_DOCUMENT: Automation = { name: '', nodes: [] };
+
+/** Where the comparison's automation lives: its versions link from here. */
+interface ComparePlace {
+  organizationId: string;
+  automationSlug?: string | undefined;
+  projectId?: string | undefined;
+  /** The live version, so a run of it says so. */
+  deployedVersion?: number | undefined;
+}
 
 /** Steps the table lists: the version's own, not Start and End. */
 const RESERVED: ReadonlySet<string> = new Set(['__start', '__end']);
@@ -69,10 +91,12 @@ function RunCard({
   letter,
   run,
   runsPath,
+  place,
 }: {
   letter: 'A' | 'B';
   run: RunDiff['a'];
   runsPath: string;
+  place: ComparePlace;
 }) {
   const { t } = useT('automationRuns');
   const { t: tAutomations } = useT('automations');
@@ -88,9 +112,19 @@ function RunCard({
         <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
           {tAutomations(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
         </Badge>
-        <Text as="span" className="text-sm">
-          {tAutomations('versions.versionLabel', { version: run.version })}
-        </Text>
+        {place.automationSlug === undefined ? (
+          <Text as="span" className="text-sm">
+            {tAutomations('versions.versionLabel', { version: run.version })}
+          </Text>
+        ) : (
+          <AutomationVersionPill
+            organizationId={place.organizationId}
+            automationSlug={place.automationSlug}
+            projectId={place.projectId}
+            version={run.version}
+            deployedVersion={place.deployedVersion}
+          />
+        )}
       </div>
       <Text as="span" variant="muted" className="text-xs">
         {formatDate(new Date(run.startedAt), 'long')}
@@ -112,6 +146,8 @@ export interface RunComparePageProps {
   automationSlug?: string;
   /** The automation's runs, where each run's page hangs. */
   runsPath: string;
+  /** The project the page is opened in: versions open inside it. */
+  projectId?: string;
   a?: string;
   b?: string;
   onSwap: () => void;
@@ -120,9 +156,10 @@ export interface RunComparePageProps {
 type RunRead = NonNullable<ReturnType<typeof useAutomationRun>['data']>;
 
 /**
- * Both runs on the chart of B's version: each step's strip says how A and
- * how B left it, a step where they part is marked, and a step A's version
- * lacks is drawn dashed.
+ * Both runs on one chart: each step's strip says how A and how B left it,
+ * and a step where they part is marked. Runs of one version share its
+ * chart; runs of two versions are drawn on both versions' steps together,
+ * and a step one run's version lacks is drawn dashed for that run.
  */
 function RunCompareCanvas({
   organizationId,
@@ -138,15 +175,26 @@ function RunCompareCanvas({
   runB: RunRead;
 }) {
   const { t } = useT('automationRuns');
+  const { t: tAutomations } = useT('automations');
   const versionQuery = useAutomation(
     organizationId,
     automationSlug,
     diff.b.version,
   );
+  // A's version: the same read as B's when both ran one version.
+  const versionAQuery = useAutomation(
+    organizationId,
+    automationSlug,
+    diff.a.version,
+  );
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const automation = useMemo(
     () => readDocument(versionQuery.data?.document),
     [versionQuery.data?.document],
+  );
+  const automationA = useMemo(
+    () => readDocument(versionAQuery.data?.document),
+    [versionAQuery.data?.document],
   );
   const catalog = useMemo(
     () =>
@@ -156,15 +204,79 @@ function RunCompareCanvas({
       ),
     [catalogQuery.data?.nodeTypes, catalogQuery.data?.connectors],
   );
+  const manualOnly = useMemo<readonly FlowRow[]>(
+    () => [
+      {
+        id: 'trigger:manual',
+        icon: Hand,
+        label: tAutomations('canvas.start.manual'),
+      },
+    ],
+    [tAutomations],
+  );
+  // Two versions: each one's chart, then their union. One version needs
+  // neither — the canvas draws it from its document.
+  const twoVersions =
+    !diff.version.same && automationA !== null && automation !== null;
+  const flowA = useCanvasFlow({
+    automation: twoVersions ? automationA : NO_DOCUMENT,
+    catalog,
+    triggers: manualOnly,
+    check: NO_CHECK,
+  });
+  const flowB = useCanvasFlow({
+    automation: twoVersions ? automation : NO_DOCUMENT,
+    catalog,
+    triggers: manualOnly,
+    check: NO_CHECK,
+  });
+  const union = useMemo(
+    () =>
+      twoVersions
+        ? mergeFlowGraphs(flowA.graph, flowB.graph, () => undefined).graph
+        : undefined,
+    [twoVersions, flowA.graph, flowB.graph],
+  );
   const compare = useMemo(() => {
     if (automation === null) return undefined;
-    const ids = automation.nodes.map((node) => node.id);
+    if (union === undefined) {
+      const ids = automation.nodes.map((node) => node.id);
+      return {
+        a: runOnCanvas(runA, ids),
+        b: runOnCanvas(runB, ids),
+        absentInA: diff.version.added,
+      };
+    }
+    // Every run on its own version's steps; a step of the union one
+    // version lacks is absent for the run of that version.
+    const inA = new Set(flowA.graph.nodes.map((node) => node.id));
+    const inB = new Set(flowB.graph.nodes.map((node) => node.id));
     return {
-      a: runOnCanvas(runA, ids),
-      b: runOnCanvas(runB, ids),
-      absentInA: diff.version.added,
+      a: runOnCanvas(
+        runA,
+        (automationA ?? NO_DOCUMENT).nodes.map((node) => node.id),
+      ),
+      b: runOnCanvas(
+        runB,
+        automation.nodes.map((node) => node.id),
+      ),
+      absentInA: union.nodes
+        .filter((node) => !inA.has(node.id))
+        .map((node) => node.id),
+      absentInB: union.nodes
+        .filter((node) => !inB.has(node.id))
+        .map((node) => node.id),
     };
-  }, [automation, runA, runB, diff.version.added]);
+  }, [
+    automation,
+    automationA,
+    union,
+    flowA.graph,
+    flowB.graph,
+    runA,
+    runB,
+    diff.version.added,
+  ]);
   if (automation === null || compare === undefined) return null;
   return (
     <section className="flex flex-col gap-2">
@@ -172,6 +284,7 @@ function RunCompareCanvas({
       <div className="h-[28rem]">
         <AutomationCanvas
           automation={automation}
+          {...(union !== undefined && { graph: union })}
           layoutKey={`compare:${diff.a.id}:${diff.b.id}`}
           catalog={catalog}
           // Nothing opens from here: the steps table below says the rest.
@@ -193,6 +306,7 @@ export function RunComparePage({
   organizationId,
   automationSlug,
   runsPath,
+  projectId,
   a,
   b,
   onSwap,
@@ -205,6 +319,21 @@ export function RunComparePage({
     sameRun ? undefined : b,
   );
   const diff = compare.data;
+  // B's version, which the chart reads too: it names the live version, so
+  // a run of it says so.
+  const versionB = useAutomationAtVersion(
+    organizationId,
+    automationSlug ?? '',
+    automationSlug === undefined || diff === undefined || diff === null
+      ? undefined
+      : diff.b.version,
+  );
+  const place: ComparePlace = {
+    organizationId,
+    automationSlug,
+    projectId,
+    deployedVersion: versionB.data?.deployedVersion,
+  };
   // The two runs' input and output, for the diffs a reader can open.
   const runA = useAutomationRun(organizationId, sameRun ? undefined : a);
   const runB = useAutomationRun(organizationId, sameRun ? undefined : b);
@@ -234,7 +363,12 @@ export function RunComparePage({
         {diff !== undefined && (
           <div className="@container flex flex-col gap-4">
             <div className="flex flex-col items-stretch gap-2 @3xl:flex-row @3xl:items-center">
-              <RunCard letter="A" run={diff.a} runsPath={runsPath} />
+              <RunCard
+                letter="A"
+                run={diff.a}
+                runsPath={runsPath}
+                place={place}
+              />
               <IconButton
                 icon={ArrowLeftRight}
                 variant="ghost"
@@ -243,7 +377,12 @@ export function RunComparePage({
                 className="self-center"
                 onClick={onSwap}
               />
-              <RunCard letter="B" run={diff.b} runsPath={runsPath} />
+              <RunCard
+                letter="B"
+                run={diff.b}
+                runsPath={runsPath}
+                place={place}
+              />
             </div>
             <section className="flex flex-col gap-2">
               <SectionHeader
@@ -256,6 +395,26 @@ export function RunComparePage({
                   <li key={line}>{line}</li>
                 ))}
               </ul>
+              {/* Two versions ran: what one changed against the other is
+                the comparison of the versions themselves. */}
+              {!diff.version.same && automationSlug !== undefined && (
+                <Link
+                  {...compareVersionLink({
+                    organizationId,
+                    automationSlug,
+                    projectId,
+                    version: diff.b.version,
+                    from: diff.a.version,
+                  })}
+                  className="text-foreground inline-flex min-h-6 items-center gap-1.5 self-start text-sm font-medium underline underline-offset-2"
+                >
+                  <GitCompare className="size-4 shrink-0" aria-hidden="true" />
+                  {t('compare.differs.seeVersions', {
+                    a: String(diff.a.version),
+                    b: String(diff.b.version),
+                  })}
+                </Link>
+              )}
             </section>
             {(['output', 'input'] as const).map((side) => {
               const before = runA.data?.[side];

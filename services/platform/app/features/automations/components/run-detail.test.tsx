@@ -85,6 +85,7 @@ vi.mock('../hooks/queries', async (importOriginal) => {
     }),
     useRunPendingAsk: () => ({ data: null }),
     useAutomationRuns: () => ({ data: [] }),
+    useAutomationVersions: () => ({ data: [] }),
     useRunRecord: () => ({ data: state.record }),
     useRunNode: () => ({ data: undefined }),
     useReplayPlan: () => ({
@@ -762,6 +763,21 @@ describe('RunDetail native run state', () => {
  * `user:<id>` door and `repeat:<node>` park used to print verbatim
  * (2026-09-26 evaluation, D-01 and D-08).
  */
+describe('RunDetail version', () => {
+  it("offers the run's version in the editor and the version history from the header", async () => {
+    const { user } = renderRun();
+    await user.click(
+      screen.getByRole('button', { name: 'v1: actions for this version' }),
+    );
+    expect(
+      screen.getByRole('menuitem', { name: 'Open v1 in the editor' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('menuitem', { name: 'Version history' }),
+    ).toBeVisible();
+  });
+});
+
 describe('RunDetail starter and reason', () => {
   it('names the reader as the starter, never the raw door', () => {
     renderRun();

@@ -150,23 +150,29 @@ export function VersionList({
                   >
                     {message}
                   </span>
+                  {/* The lineage sits at the end of the title line, so the
+                    row keeps its two lines; a long message gives way. */}
+                  {restored !== null && (
+                    <Badge
+                      variant="slate"
+                      icon={RotateCcw}
+                      className="shrink-0 self-center py-0.5"
+                    >
+                      {t('versions.restores', { version: restored })}
+                    </Badge>
+                  )}
+                  {branched && (
+                    <Badge
+                      variant="slate"
+                      icon={GitBranch}
+                      className="shrink-0 self-center py-0.5"
+                    >
+                      {t('versions.basedOn', {
+                        version: entry.basedOnVersion,
+                      })}
+                    </Badge>
+                  )}
                 </span>
-                {(restored !== null || branched) && (
-                  <span className="flex flex-wrap gap-1">
-                    {restored !== null && (
-                      <Badge variant="slate" icon={RotateCcw}>
-                        {t('versions.restores', { version: restored })}
-                      </Badge>
-                    )}
-                    {branched && (
-                      <Badge variant="slate" icon={GitBranch}>
-                        {t('versions.basedOn', {
-                          version: entry.basedOnVersion,
-                        })}
-                      </Badge>
-                    )}
-                  </span>
-                )}
                 <span className="flex w-full min-w-0 items-center gap-2">
                   {/* Who saved it and how, then when: one line, cut at its
                     end when long, so a row stays two lines tall. */}
