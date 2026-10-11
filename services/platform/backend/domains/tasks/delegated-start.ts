@@ -225,6 +225,8 @@ export async function automatedStartWindow(
   const history = await tx<
     (Pick<AutoRetryRunFacts, 'agentId' | 'status'> & {
       startedAt: number;
+      launchedAt: number | null;
+      settledAt: number | null;
       automated: boolean;
       failureCode: string | null;
       apiErrorStatus: number | null;
@@ -240,6 +242,8 @@ export async function automatedStartWindow(
         AND seq < (SELECT seq FROM oldest_recent)
     )
     SELECT started_at_ms::float8 AS "startedAt",
+           launched_at_ms::float8 AS "launchedAt",
+           settled_at_ms::float8 AS "settledAt",
            started_via IS NOT NULL AS automated,
            agent_id AS "agentId", status, failure_code AS "failureCode",
            api_error_status AS "apiErrorStatus"
@@ -249,20 +253,15 @@ export async function automatedStartWindow(
                           (SELECT seq FROM oldest_recent))
     ORDER BY seq DESC
   `;
-  const waits = freeCooldownWaits(
-    history.map((run) => ({
-      ...run,
-      failureCode: run.failureCode ?? undefined,
-      apiErrorStatus: run.apiErrorStatus ?? undefined,
-    })),
-  );
-  const rotations = freeCredentialRotations(
-    history.map((run) => ({
-      ...run,
-      failureCode: run.failureCode ?? undefined,
-      apiErrorStatus: run.apiErrorStatus ?? undefined,
-    })),
-  );
+  const facts = history.map((run) => ({
+    ...run,
+    launchedAt: run.launchedAt ?? undefined,
+    settledAt: run.settledAt ?? undefined,
+    failureCode: run.failureCode ?? undefined,
+    apiErrorStatus: run.apiErrorStatus ?? undefined,
+  }));
+  const waits = freeCooldownWaits(facts);
+  const rotations = freeCredentialRotations(facts);
   const recent = history.filter(
     (run, index) =>
       run.automated &&

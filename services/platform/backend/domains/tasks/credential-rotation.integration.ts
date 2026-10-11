@@ -8,7 +8,10 @@ import type { Sql } from 'postgres';
 
 import { resolveAutoRetryBudget } from '../../core/tasks/task_auto_retry.ts';
 import { failAgentRunFromTurn, kickAgentRun } from './agent-runs.ts';
-import { admitAutomatedStart } from './delegated-start.ts';
+import {
+  admitAutomatedStart,
+  automatedStartWindow,
+} from './delegated-start.ts';
 import { loadTaskRetryHistory, resolveTaskKickStartArgs } from './kick-plan.ts';
 
 export async function checkCredentialRotationRetry(
@@ -155,6 +158,40 @@ export async function checkCredentialRotationRetry(
       !thirdBudget.retry &&
       thirdExcluded.join(',') === 'account-a,account-b,account-c,account-f',
     `second=${JSON.stringify(secondBudget)} (want retry), third=${JSON.stringify(thirdBudget)} (want no retry), excluded=${thirdExcluded.join(',')} (want account-a,account-b,account-c,account-f)`,
+  );
+
+  // Two actual automated starts remain in the hour. The third rotation
+  // spends the last circuit slot until its own execution proves progress.
+  await sql`
+    UPDATE app.project_agent_runs SET
+      trigger = CASE WHEN trigger = 'manual' THEN 'delegated' ELSE trigger END,
+      started_via = 'agent', started_via_run_id = 'itest-manager-run',
+      started_via_agent_id = ${agentId}
+    WHERE task_id = ${taskId}
+  `;
+  await sql`
+    UPDATE app.project_agent_runs SET started_at_ms = ${now - 3_600_001}
+    WHERE task_id = ${taskId} AND exec_id = 'exec-rot-1'
+  `;
+  const circuitTask = { id: taskId, organizationId: orgId };
+  const beforeProgress = await automatedStartWindow(sql, circuitTask);
+  await sql`
+    UPDATE app.project_agent_runs SET
+      started_at_ms = ${now - 16 * 60_000},
+      launched_at_ms = ${now - 16 * 60_000}, settled_at_ms = ${now}
+    WHERE task_id = ${taskId} AND exec_id = 'exec-rot-6'
+  `;
+  const afterProgress = await automatedStartWindow(sql, circuitTask);
+  const progressBudget = resolveAutoRetryBudget(
+    await loadTaskRetryHistory(sql, taskId),
+  );
+  record(
+    'credential rotation: real execution progress resets both retry and automated-start rotation budgets',
+    !beforeProgress.admitted &&
+      afterProgress.admitted &&
+      progressBudget.retry &&
+      progressBudget.attempt === 0,
+    `before=${JSON.stringify(beforeProgress)} (want paused), after=${JSON.stringify(afterProgress)} (want admitted), retry=${JSON.stringify(progressBudget)} (want retry, attempt 0)`,
   );
 }
 
