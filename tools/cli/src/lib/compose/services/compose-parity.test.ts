@@ -854,12 +854,12 @@ function resolveRelease(source: string, sitesOnly: boolean) {
     mkdirSync(cadenceBin);
     writeFileSync(
       resolve(cadenceBin, 'gh'),
-      '#!/usr/bin/env bash\nprintf \'\\n\'\n',
+      "#!/usr/bin/env bash\nprintf '\\n'\n",
       { mode: 0o755 },
     );
     writeFileSync(
       resolve(cadenceBin, 'date'),
-      '#!/usr/bin/env bash\nprintf \'2026-10-11\\n\'\n',
+      "#!/usr/bin/env bash\nprintf '2026-10-11\\n'\n",
       { mode: 0o755 },
     );
     const result = spawnSync('bash', ['-euo', 'pipefail', '-c', script], {
