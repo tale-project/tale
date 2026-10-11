@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 190 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 201 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -8,7 +8,8 @@ one **deployed** (live) version, a trigger bound to the name, project
 bindings, and a record of every run (mock or live). Tested here: the org list
 with its create menu (blank or upload a pack), the detail page's tabs —
 **Editor** (canvas + node inspector), **General** (trigger + project
-bindings), the **Version** history and **Runs** — the run-detail page (status, effects,
+bindings), **Runs** and **Versions** (what is live, every version and
+deployment, one-click deploy and rollback, restore) — the run-detail page (status, effects,
 agent log, approval/ask cards), and the metrics redirect. The Inbox that deployed email-sync packs open has its own
 plan: [conversations.md](conversations.md).
 
@@ -30,7 +31,7 @@ the two runs as `?a={runId}&b={runId}`.
 | Automation detail (alias) | `/dashboard/{org}/automations/{slug}` → forwards to `…/{slug}/editor`                                                                        |
 | Editor tab (default)      | `/dashboard/{org}/automations/{slug}/editor` — `?version={n}` pins a stored version on the canvas                                            |
 | General tab               | `/dashboard/{org}/automations/{slug}/general`                                                                                                |
-| Legacy version history link              | `/dashboard/{org}/automations/{slug}/versions`                                                                                               |
+| Versions tab              | `/dashboard/{org}/automations/{slug}/versions` — `?tab=deployments` shows the deployments                                                  |
 | Runs tab                  | `/dashboard/{org}/automations/{slug}/runs`                                                                                                   |
 | Run detail                | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                                                           |
 | Compare runs              | `/dashboard/{org}/automations/{slug}/runs/compare?a={runId}&b={runId}`                                                                       |
@@ -442,12 +443,14 @@ output:
       `/dashboard/{org}/automations/{slug}/general` carries the trigger and the
       project bindings (AUTO-F51);
       the **Version** button at the right opens history with messages, dates,
-      test results and the **Live** badge, newest first; there is no Versions tab.
-      The old `/dashboard/{org}/automations/{slug}/versions` link redirects to
-      the editor with history open. **Runs** (`automations.navigation.runs`) →
-      `/dashboard/{org}/automations/{slug}/runs`; the active tab carries the
+      test results and the **Live** badge, newest first. **Runs**
+      (`automations.navigation.runs`) →
+      `/dashboard/{org}/automations/{slug}/runs`; **Versions**
+      (`automations.navigation.versions`) →
+      `/dashboard/{org}/automations/{slug}/versions` (AUTO-F139), with no
+      **Version** button beside it; the active tab carries the
       underline and `aria-current="page"`; the action cluster (Deploy
-      / Test run / Run live / Discard / Save) shows on the Editor tab only; Version remains on every tab, and
+      / Test run / Run live / Discard / Save) shows on the Editor tab only; Version remains on every other tab, and
       **General** shows **Discard** / **Save** alone; the
       breadcrumb switcher opens the same tab on the sibling automation (a run
       page switches to the sibling's Runs list); the project-scoped detail
@@ -1394,6 +1397,53 @@ output:
       title (`New tasks`) with a line per task and the automation's name, and
       it opens the project's tasks. Run it for a project with no new task →
       the run succeeds and nothing is sent.
+- [ ] `AUTO-F139` · **Open Versions on an automation with four versions, one
+      of them live** → the card says `automations.deployments.live.title`
+      (v{n} is live), since when, who deployed it and through what (in the
+      app; with the client through MCP for an agent's deploy) and how many of
+      its runs are in progress. The list shows every version newest first:
+      the **Live** badge on the live one and `automations.versions.lastLive`
+      on one that was live before, its message (or **No message**), who saved
+      it and through what, its changes against the one before (**First
+      version** on v1) and its tests word.
+- [ ] `AUTO-F140` · **On the card, click Roll back to v{n}** → the button
+      keeps focus and shows it is working; the toast says v{n} is live and
+      that runs already started keep their version, with **Undo**; the card
+      and the **Live** badge move to v{n}. Click **Undo** → the replaced
+      version is live again (`automations.deploy.toast.liveAgain`), with no
+      second Undo. A live run started before the rollback finishes on its own
+      version.
+- [ ] `AUTO-F141` · **Open Versions in two sessions; deploy another version
+      in the second, then roll back from the first before it refreshes** →
+      the first is refused: the toast `automations.deploy.stale.title` names
+      who made which version live and when, nothing changed, and **Show
+      deployments** switches to the Deployments view.
+- [ ] `AUTO-F142` · **Deploy a version whose tests failed (or that no
+      longer passes the checks) from its row menu** → no toast; a dialog
+      `automations.deploy.refused.title` says why, lists the problems for a
+      failed check, and **Open v{n} in the editor** opens it.
+- [ ] `AUTO-F143` · **Choose Restore as new version on an older version,
+      keep the message, Restore** → the dialog said which version it saves
+      and that the ones between stay; the toast says v{next} was saved from
+      it, with **Open v{next}**; the new row reads **Restores v{n}**; the live
+      version did not change. Restore the latest's twin → info toast, nothing
+      saved. With **Make v{next} live right away** ticked → the new version
+      goes live too.
+- [ ] `AUTO-F144` · **Open the restore dialog, save another version from a
+      second session, then Restore** → the dialog names who saved which
+      version and offers `automations.restore.staleConfirm`; confirming saves
+      on top of it.
+- [ ] `AUTO-F145` · **Open the Deployments view** → URL `…/versions?tab=deployments`;
+      each row says when, what (Deployed / Rolled back to / was live), the
+      version it replaced (— for the first) and who; a version live before the
+      history began carries `automations.deployments.recordedHint`. Its menu
+      puts a version live again; the live one offers no deploy.
+- [ ] `AUTO-F146` · **Choose Download YAML in a version's row menu** → a
+      file `{slug}-v{n}.yml` downloads with the Source view's text of that
+      version.
+- [ ] `AUTO-F147` · **In the automation list, select a row's version count,
+      then Version history in its row menu** → both open its Versions tab,
+      inside the project shell for a row bound to one project.
 
 ## Boundary & error tests
 
@@ -1547,6 +1597,11 @@ output:
       empty response still shows `automations.runs.empty` or
       `automations.versions.empty`. Repeat in EN/DE/FR and check the control's
       visible focus and wrapping in the narrow layout.
+- [ ] `AUTO-B24` · **Versions read failures** — Fail the version history
+      read, then the deployments read, then the live card's read → each
+      shows an announced error with **Try again** in its place, never an
+      empty list or "No version is live yet."; retrying with Enter reloads
+      only that part.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -1691,6 +1746,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       control (`automations.starters.backToGallery`) returns to the gallery.
       At 375 px the dialog is a sheet whose Create button stays in view, with
       no sideways scroll.
+- [ ] `AUTO-A21` · **Versions by keyboard and on a phone** → Tab reaches the
+      card's button, the Versions/Deployments switch (arrow keys switch) and
+      each row's menu (`automations.versions.actions.menu`); the restore
+      dialog traps focus and returns it to the menu's button on close; toasts
+      are announced. At 390 px the card's button sits under its text at full
+      width and the tables scroll sideways inside their frame, not the page.
 
 ## Performance
 
