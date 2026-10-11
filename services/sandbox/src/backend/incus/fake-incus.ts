@@ -97,8 +97,10 @@ export interface FailureRule {
 const DEFAULT_EXTENSIONS = [
   'instance_oci',
   'instance_oci_entrypoint',
+  'oci_network_config',
   'instance_create_start',
   'container_disk_tmpfs',
+  'storage_initial_owner',
   'storage_volumes_created_at',
 ];
 

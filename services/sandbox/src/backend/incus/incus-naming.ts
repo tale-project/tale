@@ -18,6 +18,7 @@ import type { IncusConfigMap } from './incus-api.ts';
 const INSTANCE_PREFIX = 'tale-sbx-ses-';
 const POOL_PREFIX = 'tale-sbx-pool-';
 const VOLUME_PREFIX = 'tale-ses-ws-';
+const WARMUP_PREFIX = 'tale-sbx-warm-';
 /** 96 bits of the id's hash: names cannot collide in practice. */
 const HASH_LENGTH = 24;
 
@@ -36,6 +37,17 @@ export function incusInstanceName(sessionId: string): string {
 /** A standby instance of the warm pool; `suffix` is random hex. */
 export function incusPoolInstanceName(suffix: string): string {
   return `${POOL_PREFIX}${suffix}`;
+}
+
+/** The throwaway instance that makes Incus unpack the runtime image into
+ * the pool before the first session needs it; `suffix` is random hex. */
+export function incusWarmupInstanceName(suffix: string): string {
+  return `${WARMUP_PREFIX}${suffix}`;
+}
+
+/** Is this a warm-up instance (which may be debris of a crashed warm-up)? */
+export function isWarmupInstanceName(name: string): boolean {
+  return name.startsWith(WARMUP_PREFIX);
 }
 
 /** The custom volume holding a session's /agent. */

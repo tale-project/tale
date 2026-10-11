@@ -82,6 +82,18 @@ export class IncusRuntime {
     return { client, pool };
   }
 
+  /** Stop the pool's upkeep (shutdown). The standbys stay: a replacement
+   * spawner takes over those that still match. */
+  async close(): Promise<void> {
+    const connecting = this.connecting;
+    if (connecting === undefined) return;
+    try {
+      (await connecting).pool.stop();
+    } catch (error) {
+      console.warn('[sandbox.incus] stopping the warm pool failed:', error);
+    }
+  }
+
   /** The driver of the storage pool the workspaces live on (`zfs`, ...). */
   storageDriver(): Promise<string> {
     this.driver ??= this.connect()
