@@ -14,3 +14,6 @@ entries:
   # `t(FLOW_NODE_STATE[state].labelKey)` in components/flow/node-status.tsx —
   # the state is the key, chosen from the typed `FlowNodeState` union.
   - 'flow.state'
+  # `t(TEST_STATUS[status].labelKey)` in components/feedback/test-results.tsx —
+  # the status is the key, chosen from the typed `TestStatus` union.
+  - 'testResults.status'

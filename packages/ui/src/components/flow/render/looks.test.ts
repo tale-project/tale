@@ -63,6 +63,29 @@ describe('flowLooks', () => {
     expect(edges.size).toBe(0);
   });
 
+  it('carries what stood in for a node into its look', () => {
+    const graph = triageFlowGraph();
+    const { nodes } = flowLooks({
+      graph,
+      run: flowStateFromOverlay(graph, {
+        finished: true,
+        nodes: {
+          issues: {
+            state: 'not-run',
+            substitute: { kind: 'left-out', label: 'Left out of this test' },
+          },
+        },
+      }),
+      primary: null,
+      incident: null,
+    });
+    expect(nodes.get('issues')?.substitute).toEqual({
+      kind: 'left-out',
+      label: 'Left out of this test',
+    });
+    expect(nodes.get('open_issues')?.substitute).toBeUndefined();
+  });
+
   it('steps back from everything outside a highlight, and rings what is in it', () => {
     const graph = branchFlowGraph();
     const { nodes, edges } = flowLooks({

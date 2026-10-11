@@ -18,6 +18,7 @@ import {
   branchRun,
   branchRunOverlay,
   branchRunOverlayB,
+  branchTestOverlay,
   reviewPullRequestsFlowGraph,
   syntheticFlowGraph,
   triageFailedRun,
@@ -145,6 +146,19 @@ export const RunOverlay: Story = {
     <Selectable
       graph={branchFlowGraph()}
       overlay={branchRunOverlay()}
+      height={900}
+    />
+  ),
+};
+
+/** A test's run: what stood in for each box's real work on its foot —
+ *  simulated and pinned outputs, a simulated failure, a write held back,
+ *  and a box the test leaves out (dashed). */
+export const StandIns: Story = {
+  render: () => (
+    <Selectable
+      graph={branchFlowGraph()}
+      overlay={branchTestOverlay()}
       height={900}
     />
   ),

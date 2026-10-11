@@ -964,6 +964,52 @@ export function branchRunOverlay(): FlowRunOverlay {
 }
 
 /**
+ * A test's run of the branch fixture, with every kind of stand-in: outputs
+ * simulated and pinned, a simulated failure, a write a preview held back,
+ * and a node the test leaves out.
+ */
+export function branchTestOverlay(): FlowRunOverlay {
+  const skipped = 'Skipped: the condition is false';
+  return {
+    finished: true,
+    nodes: {
+      __start: { state: 'succeeded', detail: 'Test · Big order' },
+      fetch: {
+        state: 'succeeded',
+        detail: '2 ms',
+        substitute: { kind: 'simulated', label: 'Simulated output' },
+      },
+      enrich: {
+        state: 'succeeded',
+        detail: '1 ms',
+        substitute: { kind: 'held', label: 'Not sent — preview' },
+      },
+      classify: {
+        state: 'succeeded',
+        detail: '3 ms',
+        substitute: { kind: 'pinned', label: 'Pinned output' },
+      },
+      '__gate:urgent': { state: 'succeeded', decision: false },
+      urgent: { state: 'skipped', reason: skipped },
+      '__gate:normal': { state: 'succeeded', decision: true },
+      normal: { state: 'succeeded', detail: '4 ms' },
+      low: { state: 'skipped', reason: skipped },
+      merge: { state: 'succeeded', detail: '1 ms' },
+      notify: {
+        state: 'failed',
+        reason: 'The mail server refused the message',
+        substitute: { kind: 'failure', label: 'Simulated failure' },
+      },
+      poll: {
+        state: 'not-run',
+        substitute: { kind: 'left-out', label: 'Left out of this test' },
+      },
+      __end: { state: 'failed', detail: 'Failed at Notify' },
+    },
+  };
+}
+
+/**
  * Another run of the branch fixture, to compare with `branchRunOverlay`:
  * Urgent's condition said Yes this time, so Urgent ran and Normal's
  * condition was never asked; Notify sent its message.

@@ -143,6 +143,39 @@ describe('describeFlowGraph', () => {
     expect(said.explanations.has('fetch')).toBe(false);
   });
 
+  it('says what stood in for a node in its description and List lines, never on its strip', () => {
+    const graph = triageFlowGraph();
+    const run = flowStateFromOverlay(graph, {
+      finished: true,
+      nodes: {
+        issues: {
+          state: 'succeeded',
+          detail: '1.2 s',
+          substitute: { kind: 'simulated', label: 'Simulated output' },
+        },
+      },
+    });
+    const said = describeFlowGraph(graph, {
+      t,
+      tIssues: t,
+      list: flowListFormat('en'),
+      run,
+    });
+    // The chip on the strip shows it; the strip's words stay the run's.
+    expect(said.strips.get('issues')).toBe('state.succeeded · 1.2 s');
+    expect(said.descriptions.get('issues')).toMatch(
+      /^node\.position\(index=\d+, count=\d+\)\. Simulated output\. state\.succeeded · 1\.2 s\./,
+    );
+    expect(said.lines.get('issues')?.slice(0, 2)).toEqual([
+      'Simulated output',
+      'state.succeeded · 1.2 s',
+    ]);
+    // The name keeps its state word alone.
+    expect(said.names.get('issues')).toBe(
+      'node.rowWithDetail(label=Issues, detail=state.succeeded)',
+    );
+  });
+
   it('says how a node went in each of two runs compared, and where they differ', () => {
     const graph = branchFlowGraph();
     const said = describeFlowGraph(graph, {

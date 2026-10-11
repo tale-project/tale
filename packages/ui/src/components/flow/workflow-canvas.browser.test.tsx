@@ -10,7 +10,7 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { resetFlowElkForTests } from './layout/elk-client';
 import { layoutFlowGraph } from './layout/layout-flow-graph';
-import { flowNodeSize } from './layout/sizes';
+import { flowNodeSize, measureFlowText } from './layout/sizes';
 import { flowEdgePaths } from './render/routed-edge';
 import {
   branchFlowGraph,
@@ -227,6 +227,87 @@ describe('WorkflowCanvas', () => {
     expect(header?.textContent).toContain(
       'For each item of issues of Open issues',
     );
+  });
+
+  it('keeps every box at its size with what stood in for it on its foot, in words', async () => {
+    const graph = branchFlowGraph();
+    const kinds = [
+      ['simulated', 'Simulated output', 'succeeded'],
+      ['pinned', 'Pinned output', 'succeeded'],
+      ['failure', 'Simulated failure', 'failed'],
+      ['held', 'Not sent — preview', 'succeeded'],
+      ['left-out', 'Left out of this test', 'not-run'],
+    ] as const;
+    const steps = graph.nodes.filter((node) => node.kind === 'step');
+    expect(steps.length).toBeGreaterThanOrEqual(kinds.length);
+    const nodes = Object.fromEntries(
+      kinds.map(([kind, label, state], index) => [
+        steps[index]?.id ?? '',
+        {
+          state,
+          detail:
+            'a very long detail that has to give way to the chip on a narrow strip',
+          substitute: { kind, label },
+        },
+      ]),
+    );
+    const { container } = await renderLaidOut(graph, {
+      overlay: { finished: true, nodes },
+    });
+    const boxes = renderedBoxes(container);
+    for (const node of graph.nodes) {
+      const box = boxes.get(node.id);
+      const size = flowNodeSize(node, measureFlowText);
+      expect(
+        Math.abs((box?.width ?? 0) - size.width),
+        `${node.id} width`,
+      ).toBeLessThan(1);
+      expect(
+        Math.abs((box?.height ?? 0) - size.height),
+        `${node.id} height`,
+      ).toBeLessThan(1);
+    }
+    kinds.forEach(([kind, label], index) => {
+      const id = steps[index]?.id ?? '';
+      const button = container.querySelector<HTMLElement>(
+        `[data-flow-node="${CSS.escape(id)}"]`,
+      );
+      const chip = button?.querySelector<HTMLElement>(
+        '[data-slot="flow-node-substitute"]',
+      );
+      // Words always, inside the box, on the strip's one line.
+      expect(chip, kind).toHaveTextContent(label);
+      expect(chip?.querySelector('svg'), kind).not.toBeNull();
+      const strip = button?.querySelector('[data-slot="flow-node-strip"]');
+      const chipBox = chip?.getBoundingClientRect();
+      const stripBox = strip?.getBoundingClientRect();
+      expect(chipBox?.right ?? Infinity).toBeLessThanOrEqual(
+        stripBox?.right ?? 0,
+      );
+      expect(chipBox?.height ?? 0).toBeLessThanOrEqual(stripBox?.height ?? 0);
+      expect(button).toHaveAttribute('data-flow-substitute', kind);
+      expect(button?.getAttribute('aria-describedby')).toBeTruthy();
+      const description = document.getElementById(
+        button?.getAttribute('aria-describedby') ?? '',
+      );
+      expect(description?.textContent, kind).toContain(label);
+    });
+    const style = (index: number) => {
+      const id = steps[index]?.id ?? '';
+      const button = container.querySelector<HTMLElement>(
+        `[data-flow-node="${CSS.escape(id)}"]`,
+      );
+      return button === null ? null : getComputedStyle(button);
+    };
+    // Left out: dashed, as a node that does not run. A simulated failure
+    // keeps the failed frame; the others keep a solid border.
+    expect(style(4)?.borderTopStyle).toBe('dashed');
+    expect(style(0)?.borderTopStyle).toBe('solid');
+    expect(
+      container.querySelector(
+        `[data-flow-node="${CSS.escape(steps[2]?.id ?? '')}"]`,
+      ),
+    ).toHaveAttribute('data-flow-state', 'failed');
   });
 
   it('keeps Start and End at their size with a notice at their foot and a shape still being worked out', async () => {

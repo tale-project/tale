@@ -399,6 +399,7 @@
     "./table-date-cell": "./src/components/data-display/table-date-cell.tsx",
     "./tabs": "./src/components/navigation/tabs.tsx",
     "./tailwind-preset": "./tailwind-preset.ts",
+    "./test-results": "./src/components/feedback/test-results.tsx",
     "./testing/filters": "./src/testing/filters.ts",
     "./testing/flow": "./src/testing/flow.ts",
     "./text": "./src/components/typography/text.tsx",
@@ -463,6 +464,7 @@
     "./wizard/wizard": "./src/components/wizard/wizard.tsx",
     "./wizard/wizard-footer": "./src/components/wizard/wizard-footer.tsx",
     "./wizard/wizard-progress": "./src/components/wizard/wizard-progress.tsx",
+    "./workbench-dock": "./src/components/editor/workbench-dock.tsx",
     "./zoom-pan-viewer": "./src/components/data-display/zoom-pan-viewer.tsx"
   },
   "scripts": {

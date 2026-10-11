@@ -12,10 +12,12 @@ export type {
   FlowFrameState,
   FlowNodeRunInfo,
   FlowNodeSpan,
+  FlowNodeSubstitute,
   FlowPlayback,
   FlowPlaybackSpeed,
   FlowPlaybackTimeline,
   FlowRunOverlay,
+  FlowSubstituteKind,
   FlowTimelineMark,
 } from './types';
 export { FLOW_PLAYBACK_SPEEDS } from './types';
