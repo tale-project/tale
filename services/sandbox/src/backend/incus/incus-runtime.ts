@@ -36,6 +36,8 @@ export class IncusRuntime {
   readonly sleep: (ms: number) => Promise<void>;
   readonly attemptId: () => string;
   private connecting: Promise<IncusConnection> | undefined;
+  /** The connection, once it has been made. */
+  private connected: IncusConnection | undefined;
   private driver: Promise<string> | undefined;
 
   constructor(
@@ -54,11 +56,17 @@ export class IncusRuntime {
    * read (and refused, in words, when they cannot work) here, so the host
    * backend's init is where a bad setup first speaks. */
   connect(): Promise<IncusConnection> {
-    this.connecting ??= this.open().catch((error: unknown) => {
-      // A fixed file is read again by the next try.
-      this.connecting = undefined;
-      throw error;
-    });
+    this.connecting ??= this.open().then(
+      (connection) => {
+        this.connected = connection;
+        return connection;
+      },
+      (error: unknown) => {
+        // A fixed file is read again by the next try.
+        this.connecting = undefined;
+        throw error;
+      },
+    );
     return this.connecting;
   }
 
@@ -82,16 +90,11 @@ export class IncusRuntime {
     return { client, pool };
   }
 
-  /** Stop the pool's upkeep (shutdown). The standbys stay: a replacement
-   * spawner takes over those that still match. */
-  async close(): Promise<void> {
-    const connecting = this.connecting;
-    if (connecting === undefined) return;
-    try {
-      (await connecting).pool.stop();
-    } catch (error) {
-      console.warn('[sandbox.incus] stopping the warm pool failed:', error);
-    }
+  /** Stop the pool's upkeep, at once (a drain, a shutdown). The standbys stay:
+   * the spawner that keeps the pool next takes over those that still match.
+   * Nothing to stop before the connection is made. */
+  stopPool(): void {
+    this.connected?.pool.stop();
   }
 
   /** The driver of the storage pool the workspaces live on (`zfs`, ...). */

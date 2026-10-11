@@ -44,6 +44,9 @@ export class ControlRoutes {
     // Read the session subsystem WITHOUT constructing it: a status probe must
     // never trigger backend init. `null` = not constructed yet.
     private readonly peekSessions: () => SessionPeek | null,
+    // Told once, when the spawner enters drain mode: the host backend stops
+    // the background work its replacement takes over (the Incus warm pool).
+    private readonly onDrain: () => void = () => undefined,
   ) {}
 
   get isDraining(): boolean {
@@ -84,6 +87,12 @@ export class ControlRoutes {
     if (!this.draining) {
       this.draining = true;
       this.startedAt = Date.now();
+      try {
+        this.onDrain();
+      } catch (error) {
+        // The drain stands whatever the callback does: sessions are refused.
+        console.warn('[sandbox] the drain hook failed:', error);
+      }
     }
     console.log('[sandbox] entered drain mode — refusing new sessions');
     return jsonResponse({ draining: true }, 200);

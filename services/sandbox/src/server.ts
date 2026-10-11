@@ -187,7 +187,11 @@ const auth = createRequestAuth(cfg.sandboxToken, cfg.maxRequestBodyBytes);
 // sandbox tier is a SINGLE container that deploys roll in-place via a
 // serialized drain — see control-routes.ts. The status probe peeks at the
 // session subsystem without constructing it.
-const controlRoutes = new ControlRoutes(auth, () => sessionRoutes);
+const controlRoutes = new ControlRoutes(
+  auth,
+  () => sessionRoutes,
+  () => backend.beginDrain?.(),
+);
 const capacity = new CapacityReader(cfg, () =>
   getSessionRoutes().pendingCreates(),
 );

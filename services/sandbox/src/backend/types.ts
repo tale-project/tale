@@ -70,6 +70,11 @@ export interface HostBackend {
   init(): Promise<void>;
   /** Graceful-shutdown hook (DockerBackend releases the host-session lock). */
   shutdown(): Promise<void>;
+  /** The spawner entered drain mode (`POST /v1/drain`): it refuses new sessions
+   * and its replacement takes over. Stop background work that must belong to
+   * the replacement alone (the Incus warm pool); work for sessions already
+   * admitted carries on. Called once. */
+  beginDrain?(): void;
 
   /** Liveness probe backing GET /health. */
   health(): Promise<HealthResult>;

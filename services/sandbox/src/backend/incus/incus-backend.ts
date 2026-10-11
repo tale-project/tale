@@ -117,7 +117,14 @@ export class IncusBackend implements HostBackend {
   }
 
   async shutdown(): Promise<void> {
-    await this.runtime.close();
+    this.runtime.stopPool();
+  }
+
+  /** A draining spawner leaves the warm pool to its replacement: two spawners
+   * each filling the pool to its target would pass the session capacity
+   * between them. Creates this spawner already admitted still claim from it. */
+  beginDrain(): void {
+    this.runtime.stopPool();
   }
 
   async health(): Promise<HealthResult> {

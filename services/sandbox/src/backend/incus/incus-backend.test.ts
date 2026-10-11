@@ -411,13 +411,41 @@ describe('sweepOrphans', () => {
   });
 });
 
-describe('shutdown', () => {
-  test('is quiet before anything connected, and after', async () => {
+describe('shutdown and drain', () => {
+  test('are quiet before anything connected, and after', async () => {
     const f = hostFixture();
     await f.host.shutdown();
+    f.host.beginDrain();
     expect(f.fake.requests).toEqual([]);
     await f.host.init();
     await f.host.shutdown();
+  });
+
+  test('a draining spawner leaves the warm pool to its replacement', async () => {
+    const f = hostFixture({ incus: { poolSize: 2 }, maxSessions: 8 });
+    await f.host.init();
+    const { pool } = await f.runtime.connect();
+    await pool.reconcile();
+    const standbys = () =>
+      [...f.fake.instances.values()].filter((i) => i.config[LABEL.pool]);
+    expect(standbys()).toHaveLength(2);
+
+    f.host.beginDrain();
+    // A standby is lost; the draining spawner does not make another.
+    const [first] = standbys();
+    if (first === undefined) throw new Error('no standby');
+    f.fake.instances.delete(first.name);
+    const report = await pool.reconcile();
+    expect(report).toMatchObject({ created: 0, removed: 0 });
+    expect(standbys()).toHaveLength(1);
+  });
+
+  test('a shutdown stops the pool the same way', async () => {
+    const f = hostFixture({ incus: { poolSize: 1 }, maxSessions: 8 });
+    await f.host.init();
+    const { pool } = await f.runtime.connect();
+    await f.host.shutdown();
+    expect(await pool.reconcile()).toMatchObject({ created: 0, removed: 0 });
   });
 });
 
