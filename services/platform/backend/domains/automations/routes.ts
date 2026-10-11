@@ -9,7 +9,13 @@ import { z } from 'zod';
 import { registerConnector } from '../../../lib/connectors/registry.ts';
 import { dispatch } from '../../../lib/engine/api/dispatch.ts';
 import { nodeTypes } from '../../../lib/engine/core/slots.ts';
+import type { Automation } from '../../../lib/engine/core/types.ts';
+import { validate } from '../../../lib/engine/core/validate/index.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import {
+  BENCH_LIMITS,
+  runBenchSchema,
+} from '../../../lib/shared/schemas/automation-tests.ts';
 import type { NodeTypeCatalog } from '../../../lib/shared/schemas/node-type-catalog.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
@@ -29,6 +35,11 @@ import {
   invalidBodyResponse,
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
+import {
+  checkOrganizationRateLimit,
+  RateLimitExceededError,
+} from '../../lib/rate-limit.ts';
 import { appOrigin, type WriteOrigin } from '../../lib/write-origin.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
@@ -42,6 +53,7 @@ import {
   readApprovalAllowanceRows,
   setApprovalAllowances,
 } from './approval-allowances.ts';
+import { admitBenchRun, runTestsByHand, tryRun } from './bench.ts';
 import {
   deploymentEventWire,
   listDeploymentEvents,
@@ -77,6 +89,7 @@ import {
 import {
   AutomationError,
   answerAsk,
+  recordTestVerdict,
   automationTombstone,
   beginRun,
   cancelRun,
@@ -108,6 +121,7 @@ import { uploadAutomationPg } from './upload.ts';
 import {
   listVersionHistory,
   readRestoreSource,
+  readTestReport,
   restoreSaveArgs,
   versionHistoryWire,
 } from './versions.ts';
@@ -136,6 +150,61 @@ function describeInDoubt(attempt: InDoubtAttempt) {
  * writes and live runs need the admin/developer role; mock runs and reads
  * are member surfaces, mirroring the 0.4 gates.
  */
+
+/** The largest draft a run that is never stored takes, as UTF-8 JSON. */
+const BENCH_DOCUMENT_BYTES_MAX = 1_048_576;
+
+/** A try: the draft or a saved version, the input it runs with, and what
+ * stands in for some of its nodes (a test's or a step test's stand-ins). */
+const trySchema = z
+  .object({
+    document: z.unknown().optional(),
+    version: z.number().int().min(1).optional(),
+    input: z.unknown().optional(),
+    bench: runBenchSchema.optional(),
+  })
+  .strict();
+
+/** Tests run by hand: those of the draft or of a saved version, all of
+ * them or those named by their place, with each run's detail by default. */
+const runTestsSchema = z
+  .object({
+    document: z.unknown().optional(),
+    version: z.number().int().min(1).optional(),
+    tests: z.array(z.number().int().min(0).max(49)).max(50).optional(),
+    detail: z.boolean().optional(),
+  })
+  .strict();
+
+function jsonBytes(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value) ?? '').length;
+}
+
+/** The part of a bench request past what a door takes; null when it fits. */
+function oversizedPart(body: {
+  document?: unknown;
+  bench?: { mocks?: Record<string, unknown> } | undefined;
+}): { field: string; limitBytes: number } | null {
+  if (
+    body.document !== undefined &&
+    jsonBytes(body.document) > BENCH_DOCUMENT_BYTES_MAX
+  ) {
+    return { field: 'document', limitBytes: BENCH_DOCUMENT_BYTES_MAX };
+  }
+  if (body.bench === undefined) return null;
+  if (jsonBytes(body.bench) > BENCH_LIMITS.benchBytes) {
+    return { field: 'bench', limitBytes: BENCH_LIMITS.benchBytes };
+  }
+  for (const [node, mock] of Object.entries(body.bench.mocks ?? {})) {
+    if (jsonBytes(mock) > BENCH_LIMITS.mockBytes) {
+      return {
+        field: `bench.mocks.${node}`,
+        limitBytes: BENCH_LIMITS.mockBytes,
+      };
+    }
+  }
+  return null;
+}
 
 const saveSchema = z.object({
   document: z.unknown(),
@@ -1180,6 +1249,9 @@ export function createAutomationRoutes(deps: {
                 ...(options?.testsPassed !== undefined
                   ? { testsPassed: options.testsPassed }
                   : {}),
+                ...(options?.testReport !== undefined
+                  ? { testReport: options.testReport }
+                  : {}),
                 ...(body.data.taskContract !== undefined
                   ? { taskContract: body.data.taskContract }
                   : {}),
@@ -1260,6 +1332,259 @@ export function createAutomationRoutes(deps: {
         { store },
       );
       return authoringRefusal(c, result) ?? c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Runs that are never stored — a try of a draft or a saved version, the
+  // tests run by hand — execute in this process: charged to the
+  // organization's bench budget (a suite by its tests), held to a few at a
+  // time per process, and stopped when the caller leaves.
+  const admitBench = async (
+    c: Context<OrgEnv>,
+    executions: number,
+  ): Promise<(() => void) | Response> => {
+    try {
+      await checkOrganizationRateLimit(
+        deps.sql,
+        'automation:bench',
+        c.get('orgId'),
+        Math.max(1, executions),
+      );
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return rateLimitedResponse(c, error);
+      }
+      throw error;
+    }
+    const release = admitBenchRun();
+    return (
+      release ??
+      rateLimitedResponse(
+        c,
+        new RateLimitExceededError(
+          'Every bench run of this server is busy.',
+          2_000,
+        ),
+      )
+    );
+  };
+
+  /** The document a bench request runs: its draft, or the saved version it
+   * names — one of the two. */
+  const benchDocument = async (
+    c: Context<OrgEnv>,
+    name: string,
+    body: { document?: unknown; version?: number | undefined },
+    store: ReturnType<typeof pgAutomationStore>,
+  ): Promise<{ document: unknown; version?: number } | Response> => {
+    if ((body.document === undefined) === (body.version === undefined)) {
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'document',
+          message: 'give the draft or a saved version — one of the two',
+        },
+      ]);
+    }
+    if (body.version === undefined) return { document: body.document };
+    const stored = await store.get(name, body.version);
+    if (stored === null) {
+      throw new AutomationError(
+        'AUTOMATION_VERSION_UNKNOWN',
+        `"${name}" has no version ${body.version}.`,
+        404,
+      );
+    }
+    return { document: stored.automation, version: body.version };
+  };
+
+  /** A document the checks refuse: its problems, as a refused save's. */
+  const invalidDocument = (
+    c: Context<OrgEnv>,
+    issues: Awaited<ReturnType<typeof validate>>,
+  ): Response =>
+    c.json(
+      {
+        error: 'AUTOMATION_INVALID',
+        code: 'AUTOMATION_INVALID',
+        message: 'The automation does not pass the checks.',
+        data: { errors: issues.errors, warnings: issues.warnings },
+      },
+      400,
+    );
+
+  const tooLarge = (
+    c: Context<OrgEnv>,
+    part: { field: string; limitBytes: number },
+  ): Response =>
+    c.json(
+      {
+        error: 'PAYLOAD_TOO_LARGE',
+        code: 'PAYLOAD_TOO_LARGE',
+        message: `${part.field} is larger than ${part.limitBytes} bytes.`,
+        data: part,
+      },
+      413,
+    );
+
+  // Run the draft or a saved version once, in mock mode, with the input and
+  // stand-ins given; nothing is stored. The editor's try and step tests.
+  app.post('/:name{.+}/try', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = trySchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    const oversized = oversizedPart(body.data);
+    if (oversized !== null) return tooLarge(c, oversized);
+    try {
+      assembleAutomationAuthoringHost();
+      const store = pgAutomationStore(deps.sql, {
+        organizationId: c.get('orgId'),
+        origin: editorOrigin(c),
+      });
+      const target = await benchDocument(
+        c,
+        nameFrom(c, 'try'),
+        body.data,
+        store,
+      );
+      if (target instanceof Response) return target;
+      const issues = await validate(target.document, { store });
+      if (issues.errors.length > 0) return invalidDocument(c, issues);
+      const admitted = await admitBench(c, 1);
+      if (admitted instanceof Response) return admitted;
+      try {
+        const run = await tryRun({
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
+          document: target.document as Automation,
+          store,
+          signal: c.req.raw.signal,
+          ...(target.version !== undefined && { version: target.version }),
+          ...(body.data.input !== undefined && { input: body.data.input }),
+          ...(body.data.bench !== undefined && { bench: body.data.bench }),
+        });
+        // A bench the run could not take — a stand-in for a node the
+        // document lacks, say — is the request's fault, not the run's.
+        const refusal = run.validation?.errors.find((issue) =>
+          issue.code.startsWith('BENCH_'),
+        );
+        if (run.status === 'invalid' && refusal !== undefined) {
+          return c.json(
+            {
+              error: 'BENCH_INVALID',
+              code: 'BENCH_INVALID',
+              message: refusal.message,
+              data: { issue: refusal },
+            },
+            400,
+          );
+        }
+        return c.json({ run, warnings: issues.warnings });
+      } finally {
+        admitted();
+      }
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Run the tests of the draft or of a saved version by hand — all of them
+  // or those named by their place — and answer each with its run. The
+  // whole suite of a saved version is its new verdict, recorded as made by
+  // hand, by whom.
+  app.post('/:name{.+}/run-tests', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = runTestsSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    const oversized = oversizedPart(body.data);
+    if (oversized !== null) return tooLarge(c, oversized);
+    try {
+      assembleAutomationAuthoringHost();
+      const organizationId = c.get('orgId');
+      const origin = editorOrigin(c);
+      const store = pgAutomationStore(deps.sql, { organizationId, origin });
+      const name = nameFrom(c, 'run-tests');
+      const target = await benchDocument(c, name, body.data, store);
+      if (target instanceof Response) return target;
+      const issues = await validate(target.document, { store });
+      if (issues.errors.length > 0) return invalidDocument(c, issues);
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
+      const document = target.document as Automation;
+      const count = body.data.tests?.length ?? document.tests?.length ?? 0;
+      if (count === 0) {
+        return c.json({ report: { passed: 0, failed: 0, results: [] } });
+      }
+      const admitted = await admitBench(c, count);
+      if (admitted instanceof Response) return admitted;
+      try {
+        const report = await runTestsByHand({
+          document,
+          store,
+          detail: body.data.detail ?? true,
+          signal: c.req.raw.signal,
+          ...(target.version !== undefined && { version: target.version }),
+          ...(body.data.tests !== undefined && { select: body.data.tests }),
+        });
+        // Only a saved version's whole suite, run to its end, is a verdict.
+        if (
+          target.version === undefined ||
+          body.data.tests !== undefined ||
+          report.notRun !== undefined
+        ) {
+          return c.json({ report });
+        }
+        const checkedAt = Date.now();
+        const testsPassed = report.failed === 0;
+        await recordTestVerdict(deps.sql, {
+          organizationId,
+          name,
+          version: target.version,
+          testsPassed,
+          check: { report, via: 'manual', by: origin.actor },
+          at: checkedAt,
+        });
+        return c.json({
+          report,
+          recorded: { version: target.version, testsPassed, checkedAt },
+        });
+      } finally {
+        admitted();
+      }
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // What a saved version's tests found the last time they ran: the verdict,
+  // when, which act made it and who, and the report — none when the
+  // verdict has no report of its own.
+  app.get('/:name{.+}/test-report', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const version = Number(c.req.query('version'));
+    if (!Number.isInteger(version) || version < 1) {
+      return invalidBodyIssuesResponse(c, [
+        { path: 'version', message: 'a saved version number is required' },
+      ]);
+    }
+    try {
+      const name = nameFrom(c, 'test-report');
+      const found = await readTestReport(
+        deps.sql,
+        c.get('orgId'),
+        name,
+        version,
+      );
+      if (found === undefined) {
+        throw new AutomationError(
+          'AUTOMATION_VERSION_UNKNOWN',
+          `"${name}" has no version ${version}.`,
+          404,
+        );
+      }
+      return c.json(found);
     } catch (error) {
       return handleError(c, error);
     }
@@ -1366,6 +1691,9 @@ export function createAutomationRoutes(deps: {
                 document: automation,
                 ...(options?.testsPassed !== undefined
                   ? { testsPassed: options.testsPassed }
+                  : {}),
+                ...(options?.testReport !== undefined
+                  ? { testReport: options.testReport }
                   : {}),
               }).then(
                 (answer) => {
@@ -1894,6 +2222,9 @@ export function createAutomationTemplateRoutes(deps: {
                 ...(message !== undefined ? { message } : {}),
                 ...(options?.testsPassed !== undefined
                   ? { testsPassed: options.testsPassed }
+                  : {}),
+                ...(options?.testReport !== undefined
+                  ? { testReport: options.testReport }
                   : {}),
                 ...(prepared.projectId !== undefined
                   ? { projectId: prepared.projectId }

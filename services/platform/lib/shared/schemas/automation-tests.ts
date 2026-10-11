@@ -325,6 +325,8 @@ const testResultSchema = z.object({
     .optional(),
   unusedMocks: z.array(z.string()).optional(),
   run: testRunDetailSchema.optional(),
+  /** The run was too large for the answer and was left out. */
+  detailOmitted: z.literal(true).optional(),
 });
 
 /** What a run of an automation's tests answers. */
@@ -511,6 +513,37 @@ export const storedTestReportSchema = z.union([
 ]);
 
 export type StoredTestReport = z.infer<typeof storedTestReportSchema>;
+
+// -------------------------------------------------------- the app's answers
+
+/** A try of a draft or a saved version: the run, and the checks' warnings. */
+export const tryAnswerSchema = z.object({
+  run: transientRunSchema,
+  warnings: z.array(issueSchema),
+});
+
+/** Tests run by hand: the report, and the verdict it recorded when it ran a
+ * saved version's whole suite. */
+export const runTestsAnswerSchema = z.object({
+  report: testReportSchema,
+  recorded: z
+    .object({
+      version: z.number().int().min(1),
+      testsPassed: z.boolean(),
+      checkedAt: z.number(),
+    })
+    .optional(),
+});
+
+/** A saved version's latest test check: the verdict, when, which act made
+ * it and who, and the report — null when the verdict has none of its own. */
+export const versionTestReportSchema = z.object({
+  report: storedTestReportSchema.nullable(),
+  testsPassed: z.boolean().nullable(),
+  testsCheckedAt: z.number().nullable(),
+  via: z.enum(['save', 'deploy', 'manual']).nullable(),
+  by: z.string().nullable(),
+});
 
 function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
