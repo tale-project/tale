@@ -115,6 +115,39 @@ describe('POST /upload — refusal statuses', () => {
   });
 });
 
+describe('POST /upload — a document the checks refused', () => {
+  it('carries the problems beside the sentence, as a refused save does', async () => {
+    const issue = {
+      level: 'error',
+      code: 'REF_UNKNOWN_NODE',
+      nodeId: 'summarize',
+      message: 'node "summarize" references nodes.missing',
+    };
+    uploadAutomationPg.mockRejectedValueOnce(
+      new AppError({
+        code: 'AUTOMATION_UPLOAD_REJECTED',
+        message: 'the document does not validate',
+        errors: [issue],
+        warnings: [],
+      }),
+    );
+    const res = await createAutomationRoutes({
+      sql: {} as never,
+      auth: {} as never,
+    }).request('/upload?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ storageId: 's3:acme/staged.zip' }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'AUTOMATION_UPLOAD_REJECTED',
+      message: 'the document does not validate',
+      data: { errors: [issue], warnings: [] },
+    });
+  });
+});
+
 describe('POST /upload — a carried organization-wide skill it may not publish', () => {
   it('hands the refusal to the denied-publish audit as the uploader, through the package door', async () => {
     const res = await uploadRefusedWith('SKILL_PUBLISH_FORBIDDEN');
