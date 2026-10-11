@@ -41,6 +41,7 @@ import {
   DEMO_NOTIFY,
   DEMO_TASK_CREATE,
   DEMO_TASK_DIGEST,
+  DEMO_TESTS,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
   DEMO_MEMBERS,
@@ -2296,6 +2297,36 @@ export const SHOTS: readonly Shot[] = [
         name: t('automations.detail.saveDialog.title'),
       }),
     viewport: { width: 1440, height: 1000 },
+  },
+  {
+    // The editor's Tests tab under the canvas after Run all: the small
+    // order's test passed, the big order's failed, and its result beside
+    // the canvas says where the output differs from what it expects.
+    name: 'automation-tests',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TESTS.automation}/editor?panel=tests`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      const dock = page.getByRole('region', {
+        name: t('automations.tests.title'),
+        exact: true,
+      });
+      await dock
+        .getByRole('button', { name: t('automations.tests.runAll') })
+        .click();
+      // The row's name opens with its status ("Failed: …") once the run
+      // has answered.
+      const failed = dock.getByRole('button', {
+        name: new RegExp(
+          `^${escapeRegExp(t('testResults.status.failed'))}: ${escapeRegExp(DEMO_TESTS.failing)}`,
+        ),
+      });
+      await failed.click({ timeout: 30_000 });
+    },
+    readyWhen: (page) =>
+      page.getByRole('group', {
+        name: t('automations.tests.result.diffLabel'),
+      }),
   },
   {
     // A test run of v1 and one of v2 of the weekly digest compared: what

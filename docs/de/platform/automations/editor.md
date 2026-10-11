@@ -20,7 +20,7 @@ Auf dem Smartphone startet eine geöffnete Automatisierung mit kompakter Navigat
 
 <Frame caption="Auf dem Smartphone nimmt der Canvas die Höhe des Bildschirms ein, und seine Laufaktionen stehen in einer Leiste am unteren Rand.">
 
-![Der Editor von Triage the Gmail inbox auf dem Smartphone: kompakte Navigation mit Editor, General und Runs, der Canvas mit Start, Inbox und Due und eine Leiste am unteren Rand des Canvas mit Deploy v1, Test run und No problems.](/images/platform/automation-editor-canvas-mobile.webp)
+![Der Editor von Triage the Gmail inbox auf dem Smartphone: kompakte Navigation mit Editor, General und Runs, der Canvas mit Start, Inbox und Due und eine Leiste am unteren Rand des Canvas mit Deploy v1, Test run, Change model, No problems und Tests.](/images/platform/automation-editor-canvas-mobile.webp)
 
 </Frame>
 
@@ -156,7 +156,7 @@ Wähle **Ende**, um zu sehen, was ein Lauf zurückgibt. **Wie ein Lauf endet** n
 
 ## Den Quelltext lesen
 
-Wähle im Ansichtsschalter **Quelltext**, um das ganze Dokument als YAML zu lesen: eingefärbt, mit Zeilennummern, Einklappen und Suche (⌘F oder Strg+F). Jedes Problem, das die Prüfung gefunden hat, ist in der Zeile unterstrichen, die es betrifft. So hat auch ein Problem in einem Teil ohne eigenes Feld, etwa in einem Test oder im Namen, einen Ort, an dem du es liest. Der Quelltext ist schreibgeschützt: **YAML kopieren** kopiert ihn, und **YAML herunterladen** speichert ihn als Datei, die nach Automatisierung und Version benannt ist, etwa `gmail-triage-inbox-v3.yml`; solange du ungespeicherte Änderungen hast, kommt `-draft` dazu. Um das Dokument zu ändern, nutze die Felder oder deinen Coding-Agent.
+Wähle im Ansichtsschalter **Quelltext**, um das ganze Dokument als YAML zu lesen: eingefärbt, mit Zeilennummern, Einklappen und Suche (⌘F oder Strg+F). Jedes Problem, das die Prüfung gefunden hat, ist in der Zeile unterstrichen, die es betrifft. So hat auch ein Problem in einem Teil ohne eigenes Feld, etwa im Namen, einen Ort, an dem du es liest. Der Quelltext ist schreibgeschützt: **YAML kopieren** kopiert ihn, und **YAML herunterladen** speichert ihn als Datei, die nach Automatisierung und Version benannt ist, etwa `gmail-triage-inbox-v3.yml`; solange du ungespeicherte Änderungen hast, kommt `-draft` dazu. Um das Dokument zu ändern, nutze die Felder oder deinen Coding-Agent.
 
 <Frame caption="Quelltext: das ganze Dokument als eingefärbtes YAML, zum Kopieren oder Herunterladen.">
 
@@ -170,17 +170,17 @@ Größere Änderungen, etwa neue Nodes oder ein umgebauter Ablauf, kommen von ei
 
 ## Probleme finden und beheben
 
-Während du bearbeitest, prüft Tale den Entwurf so, wie es auch jedes Speichern prüft. Kurz nachdem du aufhörst zu tippen, zeigt die Schaltfläche **Probleme** neben **Speichern**, was die Prüfung gefunden hat: ein rotes Fehlersymbol und ein gelbes Warnsymbol, jeweils mit ihrer Anzahl, oder **Keine Probleme**. Auf dem Smartphone sitzt die Schaltfläche in der Leiste über dem Canvas. Ein Fehler ist etwas, woran ein Lauf scheitern würde, etwa eine Referenz auf eine Node, die es nicht gibt. Eine Warnung ist etwas, das schiefgehen kann, etwa das Lesen der Ausgabe einer Node, die manchmal übersprungen wird. Eine Node, eine Bedingung, Start oder Ende mit Problemen zeigt dieselben Zahlen auf ihrem Kasten, und ein Feld mit einem Problem erklärt es direkt darunter.
+Während du bearbeitest, prüft Tale den Entwurf so, wie es auch jedes Speichern prüft. Kurz nachdem du aufhörst zu tippen, zeigt die Schaltfläche **Probleme** neben **Tests**, was die Prüfung gefunden hat: ein rotes Fehlersymbol und ein gelbes Warnsymbol, jeweils mit ihrer Anzahl, oder **Keine Probleme**. Auf dem Smartphone sitzt die Schaltfläche in der Leiste über dem Canvas. Ein Fehler ist etwas, woran ein Lauf scheitern würde, etwa eine Referenz auf eine Node, die es nicht gibt. Eine Warnung ist etwas, das schiefgehen kann, etwa das Lesen der Ausgabe einer Node, die manchmal übersprungen wird. Eine Node, eine Bedingung, Start oder Ende mit Problemen zeigt dieselben Zahlen auf ihrem Kasten, und ein Feld mit einem Problem erklärt es direkt darunter.
 
 Klicke auf **Probleme**, um sie aufzulisten. Auf einem breiten Bildschirm öffnet sich die Liste unter dem Canvas, auf schmaleren Bildschirmen in einem eigenen Bereich. Jeder Eintrag sagt, was falsch ist, wo, warum und wie du es behebst. **Technische Details** zeigt die Meldung der Engine selbst, und der Code neben dem Titel hilft dir bei der Suche oder im Support. **Alle**, **Fehler** und **Warnungen** filtern die Liste, Esc schließt sie.
 
 <Frame caption="Eine Referenz auf eine Node, die es nicht gibt: Das Feld markiert sie, Speichern wartet, und Probleme sagt, warum und wie du sie behebst.">
 
-![Der Editor mit einem Fehler: Der Prompt von Triage endet mit einem Template, das nodes.nope.output liest, rot unterstrichen und mit dem Grund unter dem Feld; die Kopfzeile zeigt 1 Fehler neben dem deaktivierten Save, und Problems unter dem Canvas listet Reference to an unknown node bei triage › Prompt mit dem Code REF_UNKNOWN_NODE, dem Grund, warum das Lesen scheitert, und der Behebung.](/images/platform/automation-editor-problems.webp)
+![Der Editor mit einem Fehler: Der Prompt von Triage endet mit einem Template, das nodes.nope.output liest, rot unterstrichen und mit dem Grund unter dem Feld; die Kopfzeile zeigt 1 Fehler und Tests neben dem deaktivierten Save, und Problems unter dem Canvas, neben dem Tab Tests, listet Reference to an unknown node bei triage › Prompt mit dem Code REF_UNKNOWN_NODE, dem Grund, warum das Lesen scheitert, und der Behebung.](/images/platform/automation-editor-problems.webp)
 
 </Frame>
 
-Wähle einen Eintrag oder drücke darauf die Eingabetaste, um dorthin zu gelangen: Die Node öffnet sich, ihr Feld erhält den Fokus, und die Stelle, die das Problem verursacht, ist markiert. Ein Problem ohne eigenes Feld, etwa ein Modell, das deine Organisation nicht bereitstellt, steht unter **Probleme in dieser Node** oben in den Feldern der Node. Ein Problem in den Eingaben öffnet **Start**, eines in der Ausgabe öffnet **Ende**, und eines in einem anderen Teil des Dokuments, etwa in einem Test oder im Namen, öffnet **Quelltext** an dieser Zeile. Ein Problem in einer Node, die dein Entwurf nicht mehr hat, sagt „Ändere das mit deinem Coding-Agent.“
+Wähle einen Eintrag oder drücke darauf die Eingabetaste, um dorthin zu gelangen: Die Node öffnet sich, ihr Feld erhält den Fokus, und die Stelle, die das Problem verursacht, ist markiert. Ein Problem ohne eigenes Feld, etwa ein Modell, das deine Organisation nicht bereitstellt, steht unter **Probleme in dieser Node** oben in den Feldern der Node. Ein Problem in den Eingaben öffnet **Start**, eines in der Ausgabe öffnet **Ende**, eines in einem Test öffnet diesen Test unter **Tests**, die Stelle in seinem YAML markiert, und eines in einem anderen Teil des Dokuments, etwa im Namen, öffnet **Quelltext** an dieser Zeile. Ein Problem in einer Node, die dein Entwurf nicht mehr hat, sagt „Ändere das mit deinem Coding-Agent.“
 
 Solange Fehler bestehen, ist **Speichern** deaktiviert und nennt den Grund, zum Beispiel „Behebe 1 Fehler, um zu speichern“. Auf dem Smartphone steht **Speichern** unter den Feldern einer Node; dort öffnet **Probleme anzeigen** neben diesem Grund die Liste. Warnungen verhindern weder das Speichern noch das Bereitstellen. Kann Tale den Entwurf nicht prüfen, etwa weil die Verbindung abgebrochen ist, zeigt die Schaltfläche **Prüfung fehlgeschlagen**, und du kannst trotzdem speichern: Jedes Speichern wird auf dem Server erneut geprüft. Wird ein Speichern oder Bereitstellen wegen Fehlern abgelehnt, öffnet sich die Liste mit den Problemen des Servers und beginnt beim ersten Fehler.
 
@@ -205,6 +205,8 @@ Braucht ein Workflow `owner` und `repo`, könnte seine Eingabe so aussehen:
 Maßgeblich ist das tatsächliche Schema des Workflows. Ein Zahlenfeld braucht eine JSON-Zahl, keinen Text in Anführungszeichen. Prüfe auch den Projektumfang, wenn ein Projektwähler angeboten wird.
 
 **Testlauf** führt die gewählte gespeicherte Version mit deterministischen Mocks aus. Er sendet keine E-Mails und ändert keine externen Datensätze. Ein Entwurf lässt sich vor der Bereitstellung testen. Ein erfolgreicher Mock prüft keine echten Zugangsdaten oder externen Dienste.
+
+Damit dieselben Fälle bei jedem Speichern und vor jedem Live-Schalten geprüft werden, schreibst du sie als Tests: [Eine Automatisierung testen](/de/platform/automations/testing) zeigt, wie.
 
 <Frame caption="Hat der Workflow Eingaben, gib JSON an und prüfe sein Schema vor dem Teststart.">
 

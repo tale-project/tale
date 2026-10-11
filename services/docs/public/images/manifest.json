@@ -108,7 +108,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/automation-editor-code.webp",
@@ -385,6 +386,19 @@
       "file": "images/platform/automation-task-list-run.webp",
       "shot": "automation-task-list-run",
       "route": "/dashboard/:orgId/automations/daily-task-digest/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-tests.webp",
+      "shot": "automation-tests",
+      "route": "/dashboard/:orgId/automations/order-discounts/editor?panel=tests",
       "viewport": {
         "width": 1440,
         "height": 900

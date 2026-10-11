@@ -556,6 +556,14 @@
       "description": "Lege aus einer Vorlage eine fertige Automatisierung an, indem du ein paar Fragen beantwortest, starte sie sofort und sieh, was jede Vorlage tut."
     }
   },
+  "de:platform/automations/testing": {
+    "slug": "platform/automations/testing",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Eine Automatisierung testen",
+      "description": "Schreib Tests für eine Automatisierung im Editor, führ sie auf deinem Entwurf oder einer gespeicherten Version aus und lies, was ein fehlgeschlagener Test gefunden hat."
+    }
+  },
   "de:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "de",
@@ -1764,6 +1772,14 @@
       "description": "Create a working automation from a starter by answering a few questions, start it at once, and see what each starter does."
     }
   },
+  "en:platform/automations/testing": {
+    "slug": "platform/automations/testing",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Test an automation",
+      "description": "Write tests for an automation in the editor, run them on your draft or a saved version, and read what a failing test found."
+    }
+  },
   "en:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "en",
@@ -2970,6 +2986,14 @@
     "frontmatter": {
       "title": "Partir d’un modèle",
       "description": "Crée une automatisation prête à l’emploi à partir d’un modèle en répondant à quelques questions, démarre-la tout de suite et vois ce que fait chaque modèle."
+    }
+  },
+  "fr:platform/automations/testing": {
+    "slug": "platform/automations/testing",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Tester une automatisation",
+      "description": "Écris des tests pour une automatisation dans l’éditeur, exécute-les sur ton brouillon ou sur une version enregistrée, et lis ce qu’un test en échec a trouvé."
     }
   },
   "fr:platform/automations/triggers": {

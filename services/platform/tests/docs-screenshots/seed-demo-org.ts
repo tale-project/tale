@@ -42,6 +42,7 @@ import {
   DEMO_NOTIFY,
   DEMO_TASK_CREATE,
   DEMO_TASK_DIGEST,
+  DEMO_TESTS,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
   DEMO_EMBEDDING_MODEL,
@@ -2098,6 +2099,24 @@ async function ensureVersionHistory(page: Page, orgId: string): Promise<void> {
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/**
+ * The testing page's demo (`DEMO_TESTS`): saved once through the app API
+ * with its two tests, as an author's save would — the save runs them, so
+ * the version keeps the check of its save. Idempotent.
+ */
+async function ensureTestsDemo(page: Page, orgId: string): Promise<void> {
+  const { automation, name, document } = DEMO_TESTS;
+  await page.goto(`/dashboard/${orgId}/automations`);
+  const stored = await appApi(page, orgId, `/automations/${automation}`);
+  if (stored.status === 200) return;
+  await appApiOk(page, orgId, `/automations/${automation}/save`, {
+    document,
+    message: 'Volume discount for big orders',
+    presentation: { name },
+    create: true,
+  });
+}
+
 /** A demo automation the docs show a live run of. */
 interface LiveRunDemo {
   readonly automation: string;
@@ -2682,6 +2701,7 @@ export async function seedDemoOrg(
   );
   await step('HTTP automation', () => ensureHttpAutomation(page, orgId));
   await step('version history', () => ensureVersionHistory(page, orgId));
+  await step('tests demo', () => ensureTestsDemo(page, orgId));
   await step('knowledge search run', () =>
     ensureLiveRun(page, orgId, projects, {
       ...DEMO_KNOWLEDGE_SEARCH,
