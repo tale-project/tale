@@ -39,6 +39,16 @@ import { ConnectorError } from '../errors';
  * completing — abandoning a card is an automation's call to make — so it
  * stays.
  */
+/** Every board status, which a listing may narrow to. */
+export const TASK_LIST_STATUSES = [
+  'backlog',
+  'todo',
+  'in_progress',
+  'in_review',
+  'done',
+  'cancelled',
+] as const;
+
 const AUTOMATION_TASK_STATUSES = [
   'backlog',
   'todo',
@@ -115,6 +125,29 @@ export type WorkflowTaskCreateAnswer =
       refusal: { kind: 'project' | 'assignee'; detail: string };
     };
 
+/** One task as `task.list` answers it. */
+export interface WorkflowTaskListed {
+  taskId: string;
+  number: number | null;
+  title: string;
+  status: string;
+  priority: string | null;
+  /** A member, an agent of the project, or an automation; `name` is the
+   * member's name or email, or the agent's name, when they can be read. */
+  assignee: { type: string; id: string; name: string | null } | null;
+  /** The due day, `2026-10-17`. */
+  dueDate: string | null;
+  /** When the task was created, as an ISO date and time. */
+  createdAt: string;
+  url: string;
+}
+
+export type WorkflowTaskListAnswer =
+  | { ok: true; tasks: WorkflowTaskListed[]; hasMore: boolean }
+  /** The run may not read the project: its automation is not installed
+   * there, the run is pinned to another project, or the project is gone. */
+  | { ok: false; refusal: { kind: 'project'; detail: string } };
+
 /** What the rim needs from the platform's task domain. */
 export interface WorkflowTaskStore {
   /** Create one task as an automation run's step: in a project the run may
@@ -170,6 +203,17 @@ export interface WorkflowTaskStore {
     organizationId: string;
     taskId: string;
   }): Promise<WorkflowTaskView | null>;
+  /** A project's tasks, newest first, archived ones left out — read as the
+   * run's automation and its starter may read the project. */
+  list(args: {
+    organizationId: string;
+    caller: ConnectorCaller;
+    projectId: string;
+    statuses?: readonly (typeof TASK_LIST_STATUSES)[number][];
+    /** Epoch milliseconds: only tasks created at or after it. */
+    createdSince?: number;
+    limit: number;
+  }): Promise<WorkflowTaskListAnswer>;
   updateStatus(args: {
     organizationId: string;
     taskId: string;
@@ -418,16 +462,46 @@ const createInput = z
   })
   .strict();
 
-/** A refusal that knows its cause in the run record's words. */
-class TaskCreateRefusal extends ConnectorError {
+/** A moment as `task.list` takes it in text: a day (its start, in UTC)
+ * or an ISO date and time; null for anything else. */
+function momentMs(value: string): number | null {
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+const listInput = z
+  .object({
+    projectId: z.string().min(1),
+    status: z.array(z.enum(TASK_LIST_STATUSES)).min(1).max(6).optional(),
+    createdSince: z
+      .union([
+        z.number().int().nonnegative(),
+        z
+          .string()
+          .min(1)
+          .max(40)
+          .refine((value) => momentMs(value) !== null, {
+            message:
+              'is epoch milliseconds, a date such as 2026-10-17, or an ISO date and time',
+          }),
+      ])
+      .optional(),
+    limit: z.number().int().min(1).max(200).optional(),
+  })
+  .strict();
+
+/** A refusal of a task step that knows its cause in the run record's
+ * words. */
+class TaskStepRefusal extends ConnectorError {
   readonly failure: FailureCause;
 
-  constructor(message: string, failure: FailureCause, hint: string) {
-    super('LIVE_BODY_FAILED', message, {
-      connector: 'task',
-      action: 'create',
-      hint,
-    });
+  constructor(
+    action: string,
+    message: string,
+    failure: FailureCause,
+    hint: string,
+  ) {
+    super('LIVE_BODY_FAILED', message, { connector: 'task', action, hint });
     this.failure = failure;
   }
 }
@@ -703,7 +777,8 @@ export function platformTaskNatives(
     if (answer.ok) return answer.task;
     const { kind, detail } = answer.refusal;
     if (kind === 'project') {
-      throw new TaskCreateRefusal(
+      throw new TaskStepRefusal(
+        'create',
         `task.create cannot create a task in project "${rest.projectId}": ${detail}`,
         {
           reason: 'TASK_PROJECT_NOT_BOUND',
@@ -712,7 +787,8 @@ export function platformTaskNatives(
         'install the automation in the project, or run it in a project it is installed in',
       );
     }
-    throw new TaskCreateRefusal(
+    throw new TaskStepRefusal(
+      'create',
       `task.create cannot assign the task to "${rest.assignee ?? ''}": ${detail}`,
       {
         reason: 'TASK_ASSIGNEE_UNKNOWN',
@@ -733,6 +809,32 @@ export function platformTaskNatives(
       );
     }
     return ctx.caller;
+  };
+  const list: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = listInput.safeParse(input);
+    if (!parsed.success) refuse('list', parsed.error);
+    const { projectId, status, createdSince, limit } = parsed.data;
+    const since =
+      createdSince === undefined
+        ? undefined
+        : typeof createdSince === 'number'
+          ? createdSince
+          : (momentMs(createdSince) ?? undefined);
+    const answer = await store.list({
+      organizationId: ctx.organizationId,
+      caller: workflowCaller('list', ctx),
+      projectId,
+      ...(status !== undefined && { statuses: status }),
+      ...(since !== undefined && { createdSince: since }),
+      limit: limit ?? 50,
+    });
+    if (answer.ok) return { tasks: answer.tasks, hasMore: answer.hasMore };
+    throw new TaskStepRefusal(
+      'list',
+      `task.list cannot read project "${projectId}": ${answer.refusal.detail}`,
+      { reason: 'TASK_PROJECT_NOT_BOUND', params: { projectId } },
+      'install the automation in the project, or run it in a project it is installed in',
+    );
   };
   const getImportCursor: NativeConnectorImpl = async (input, ctx) => {
     const parsed = importCursorKeyInput.safeParse(input);
@@ -762,6 +864,7 @@ export function platformTaskNatives(
     'task.upsert_issues': upsertIssues,
     'task.list_external_issues': listExternal,
     'task.get': get,
+    'task.list': list,
     'task.update_status': updateStatus,
     'task.comment': comment,
     'task.list_comments': listComments,

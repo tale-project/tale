@@ -95,6 +95,7 @@ import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.
 import { checkAutomationMessages } from './domains/connectors/notify.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
+import { checkTaskListStep } from './domains/connectors/task-list.integration.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
@@ -65062,6 +65063,7 @@ async function main(): Promise<void> {
         'checkApprovalAllowances',
         () => checkApprovalAllowances(sql, authCtx, record),
       ],
+      ['checkTaskListStep', () => checkTaskListStep(sql, authCtx, record)],
       [
         'checkAutomationTemplates',
         () => checkAutomationTemplates(sql, baseUrl, authCtx, record),
