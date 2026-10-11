@@ -19,8 +19,10 @@ export type SandboxDeploymentLimits =
 export const sandboxCapacitySchema = z.object({
   status: z.literal('available'),
   observedAt: z.number().int().nonnegative(),
-  backend: z.enum(['docker', 'kubernetes']),
-  scope: z.enum(['host', 'namespace']),
+  backend: z.enum(['docker', 'kubernetes', 'incus']),
+  /** What the session counts cover: the Docker host, a Kubernetes namespace
+   * or an Incus project. */
+  scope: z.enum(['host', 'namespace', 'project']),
   sessions: z.object({
     running: count,
     starting: count,

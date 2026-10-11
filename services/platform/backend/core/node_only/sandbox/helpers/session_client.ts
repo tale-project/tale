@@ -1149,7 +1149,7 @@ export async function sessionDestroyWorkspace(
 }
 
 const workspaceInventorySchema = z.object({
-  backend: z.enum(['docker', 'kubernetes']),
+  backend: z.enum(['docker', 'kubernetes', 'incus']),
   workspaces: z.array(
     z.object({
       sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),

@@ -174,6 +174,23 @@ describe('sandbox capacity client', () => {
     );
   });
 
+  it('accepts the project-scoped observation of an Incus spawner', async () => {
+    const incus = {
+      ...snapshot,
+      backend: 'incus',
+      scope: 'project',
+      resources: {
+        cpu: { totalCores: null, usedCores: null },
+        memory: { totalBytes: null, usedBytes: null },
+      },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json(incus)),
+    );
+    expect(await sandboxCapacity('org-a')).toEqual(incus);
+  });
+
   it('rejects failed and invalid observations rather than defaulting counts to zero', async () => {
     vi.stubGlobal(
       'fetch',

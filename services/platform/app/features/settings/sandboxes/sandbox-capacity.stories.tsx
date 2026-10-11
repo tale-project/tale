@@ -85,6 +85,20 @@ export const Kubernetes: Story = {
   },
 };
 
+export const Incus: Story = {
+  args: {
+    capacity: {
+      ...snapshot,
+      backend: 'incus',
+      scope: 'project',
+      resources: {
+        cpu: { totalCores: null, usedCores: null },
+        memory: { totalBytes: null, usedBytes: null },
+      },
+    },
+  },
+};
+
 export const Loading: Story = {
   args: { capacity: undefined, isLoading: true, isRefreshing: true },
 };

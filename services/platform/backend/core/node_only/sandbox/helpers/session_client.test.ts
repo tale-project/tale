@@ -1891,6 +1891,34 @@ describe('sandboxWorkspaceInventory', () => {
     caller.abort();
     expect(signals[0]?.aborted).toBe(true);
   });
+
+  test('reads the inventory of an Incus project', async () => {
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          backend: 'incus',
+          workspaces: [
+            {
+              sessionId: 'sess_one',
+              touchedAtMs: 1_700_000_000_000,
+              active: false,
+              pinned: false,
+              organizationId: 'org_one',
+            },
+          ],
+          organizations: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    await expect(sandboxWorkspaceInventory()).resolves.toMatchObject({
+      backend: 'incus',
+      workspaces: [{ sessionId: 'sess_one', organizationId: 'org_one' }],
+    });
+  });
 });
 
 describe('sessions on connected devices', () => {
