@@ -29,6 +29,7 @@ type Step = {
 };
 type Workflow = {
   on: Record<string, { paths?: string[] }>;
+  concurrency?: { group: string; 'cancel-in-progress': boolean };
   jobs: Record<
     string,
     {
@@ -532,8 +533,17 @@ test.skipIf(process.platform === 'win32')(
   },
 );
 
+test('release admission shares one non-cancelling mutex across all version refs', async () => {
+  const { concurrency } = await workflow('release');
+  // A literal group is independent of the triggering ref, version and run.
+  // Otherwise concurrent tags can both read the last published cohort before
+  // either publishes, defeating the daily admission check.
+  expect(concurrency?.group).toMatch(/^[a-z0-9][a-z0-9-]*$/);
+  expect(concurrency?.['cancel-in-progress']).toBe(false);
+});
+
 test.skipIf(process.platform === 'win32')(
-  'release blocks a second full cohort on the same UTC day but permits a same-tag recovery',
+  'release limits full cohorts per UTC day and fails closed on unreadable history',
   async () => {
     const file = await workflow('release');
     const prepare = step(file, 'prepare', 'Resolve version').run!;
@@ -568,6 +578,21 @@ test.skipIf(process.platform === 'win32')(
       INPUT_VERSION: 'v0.5.85',
     });
     expect(recovery.code, recovery.stderr).toBe(0);
+    await writeFile(
+      join(directory, 'date'),
+      "#!/usr/bin/env bash\nprintf '2026-10-12\\n'\n",
+      { mode: 0o755 },
+    );
+    const nextDay = await execute(prepare, baseEnv);
+    expect(nextDay.code, nextDay.stderr).toBe(0);
+    await writeFile(join(directory, 'gh'), '#!/usr/bin/env bash\nexit 1\n', {
+      mode: 0o755,
+    });
+    const unreadable = await execute(prepare, baseEnv);
+    expect(unreadable.code).toBe(1);
+    expect(unreadable.outputs.version).toBeUndefined();
+    const sites = await execute(prepare, { ...baseEnv, SITES_ONLY: 'true' });
+    expect(sites.code, sites.stderr).toBe(0);
   },
 );
 

@@ -18,9 +18,10 @@ on:
         type: boolean
         default: false
 
+# Share admission across tags: a later run must see the previous publication.
 # Releases must not cancel mid-flight (partial manifests would break deploys).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: tale-release
   cancel-in-progress: false
 
 env:

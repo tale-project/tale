@@ -234,6 +234,13 @@ when Release fails after Prepare.
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
 
+Release admits at most one new full cohort per UTC calendar day. Every tag shares one
+workflow concurrency group, so admission waits for an earlier run to finish publishing.
+Running cohorts are never cancelled by a newer tag. GitHub keeps only one pending run;
+if a pending tag is superseded, dispatch its immutable tag again when it is eligible.
+Recovery of the latest published tag remains allowed, and unreadable release history
+refuses a full release. A `sites_only` dispatch keeps its existing publication scope.
+
 `publish-packages.yml` also validates notes at the ref its dispatch runs on, not by looking up
 `tag_version`'s tag. Dispatch it on the matching immutable tag when retrying that version's
 snapshot. A dispatch from a newer branch could validate notes added after a refused tag and
