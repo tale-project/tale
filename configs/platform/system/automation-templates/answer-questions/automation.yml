@@ -1,0 +1,47 @@
+name: Answer questions from your documents
+description: Answers each new task of a project that asks a question, from the organization's documents, as a comment.
+icon: book-open
+scope: project
+requires:
+  connectors:
+    - task
+    - knowledge
+triggers:
+  - kind: event
+    event: task.created
+i18n:
+  de:
+    name: Fragen aus euren Dokumenten beantworten
+    description: Beantwortet jede neue Aufgabe eines Projekts, die eine Frage stellt, aus den Dokumenten der Organisation, als Kommentar.
+  fr:
+    name: Répondre aux questions avec vos documents
+    description: >-
+      Répond à chaque nouvelle tâche d’un projet qui pose une question, à partir des documents de l’organisation, en commentaire.
+template:
+  details: >-
+    When a task is created in the project you pick and its title ends with a question mark, the
+    automation searches the organization's documents for it and comments an answer drawn only
+    from what it found, naming its sources — or says plainly that the documents do not answer
+    it. Other new tasks are left alone.
+  i18n:
+    de:
+      details: >-
+        Wird im gewählten Projekt eine Aufgabe erstellt, deren Titel mit einem Fragezeichen endet,
+        durchsucht die Automatisierung die Dokumente der Organisation danach und kommentiert eine
+        Antwort, die nur auf dem Gefundenen beruht, mit den Quellen — oder sagt klar, dass die
+        Dokumente die Frage nicht beantworten. Andere neue Aufgaben bleiben unberührt.
+    fr:
+      details: >-
+        Quand une tâche est créée dans le projet choisi et que son titre se termine par un point d’interrogation, l’automatisation cherche dans les documents de l’organisation et commente une réponse tirée uniquement de ce qu’elle a trouvé, en citant ses sources — ou dit clairement que les documents n’y répondent pas. Les autres nouvelles tâches ne sont pas touchées.
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose questions are answered.
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, dessen Fragen beantwortet werden.
+        fr:
+          label: Projet
+          description: Le projet dont les questions reçoivent une réponse.

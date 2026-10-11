@@ -1,0 +1,90 @@
+# On a schedule, the inbox conversations of one mailbox that still wait for
+# an answer are summarised by a language model, one line each, most urgent
+# first, and sent to a member as a message in Tale with a link to the inbox.
+# An empty inbox sends nothing. It only reads the inbox.
+version: 1
+name: inbox-summary
+description: Send a member a summary of the inbox conversations waiting for an answer.
+inputs:
+  type: object
+  properties:
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md).
+    trigger:
+      type: string
+      description: Which trigger started the run; a schedule sends "schedule".
+    firedAt:
+      type: number
+      description: Epoch-ms occurrence the schedule fired for.
+nodes:
+  - id: inbox
+    type: conversation.list_untriaged
+    input:
+      connectorSlug: gmail
+      limit: 25
+
+  - id: summary
+    type: llm
+    when: '{{ nodes.inbox.output.conversations.length > 0 }}'
+    model: anthropic/claude-haiku-4-5
+    system: >-
+      You summarise a team's inbox conversations that still wait for an answer.
+      Give one short line per conversation: who wrote, what they want and how
+      urgent it reads, most urgent first. Write in the language most of the
+      conversations are written in, and never invent facts the messages do not
+      state.
+    prompt: |
+      Conversations waiting for an answer:
+      {{ JSON.stringify(nodes.inbox.output.conversations.map((conversation) => ({ from: conversation.contact.name, subject: conversation.subject, unread: conversation.unreadCount, lastMessage: conversation.lastInboundText })), null, 2) }}
+    outputSchema:
+      type: object
+      properties:
+        summary:
+          type: string
+          description: One line per conversation, most urgent first.
+      required:
+        - summary
+
+  - id: notify
+    type: notify.member
+    when: '{{ nodes.inbox.output.conversations.length > 0 }}'
+    input:
+      to:
+        - run-starter
+      title: Inbox summary
+      message: '{{ nodes.summary.output.summary }}'
+      link: /conversations
+output:
+  waiting: '{{ nodes.inbox.output.conversations.length }}'
+tests:
+  - name: waiting conversations are summarised for the member
+    input:
+      trigger: schedule
+      firedAt: 1791000000000
+    mocks:
+      summary:
+        summary: Mock Sender asks for an answer about the mock subject.
+    expect:
+      output:
+        waiting: 1
+      # The recipient and the title are the creator's answers.
+      effects:
+        - connector: notify.member
+          node: notify
+          inputIncludes:
+            message: Mock Sender asks for an answer about the mock subject.
+            link: /conversations
+  - name: an empty inbox sends nothing
+    input:
+      trigger: schedule
+      firedAt: 1791000000000
+    mocks:
+      inbox:
+        conversations: []
+    expect:
+      output:
+        waiting: 0
+      effects:
+        - connector: notify.member
+          node: notify
+          absent: true

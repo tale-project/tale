@@ -1,0 +1,91 @@
+# When a task of the project the automation is installed in moves to In
+# review, the reviewer is told in Tale — the bell, and an email when their
+# preferences send one — with the task's title and a link to it. Any other
+# status change starts a run that sends nothing.
+version: 1
+name: notify-reviewer
+description: Tell a reviewer when a task moves to In review.
+inputs:
+  type: object
+  properties:
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md): an event sends its name and
+    # what it carries under payload.
+    trigger:
+      type: string
+      description: Which trigger started the run; a platform event sends "event".
+    event:
+      type: string
+      description: The event that started the run.
+    payload:
+      type: object
+      description: What the event carries.
+      properties:
+        taskId:
+          type: string
+          description: The task the event is about.
+        projectId:
+          type: string
+          description: The task's project.
+        toStatus:
+          type: string
+          description: The status the task moved to.
+      required:
+        - taskId
+  required:
+    - payload
+nodes:
+  - id: task
+    type: task.get
+    when: "{{ input.payload.toStatus === 'in_review' }}"
+    input:
+      taskId: '{{ input.payload.taskId }}'
+
+  - id: notify
+    type: notify.member
+    when: "{{ input.payload.toStatus === 'in_review' }}"
+    input:
+      to:
+        - run-starter
+      title: '{{ nodes.task.output.title }}'
+      message: This task is ready for your review.
+      link: '/tasks/{{ input.payload.taskId }}'
+output:
+  notified: "{{ input.payload.toStatus === 'in_review' }}"
+tests:
+  - name: a task moved to In review tells the reviewer, with a link to it
+    input:
+      trigger: event
+      event: task.status_changed
+      payload:
+        taskId: tsk_1
+        projectId: prj_1
+        fromStatus: in_progress
+        toStatus: in_review
+    expect:
+      output:
+        notified: true
+      # Whom it tells and the words are the creator's answers; what holds for
+      # every answer is the task's title and the link to it.
+      effects:
+        - connector: notify.member
+          node: notify
+          inputIncludes:
+            title: Document batch — 2026Q1
+            link: /tasks/tsk_1
+  - name: any other move tells nobody
+    input:
+      trigger: event
+      event: task.status_changed
+      payload:
+        taskId: tsk_1
+        projectId: prj_1
+        fromStatus: todo
+        toStatus: in_progress
+    expect:
+      output:
+        notified: false
+      effects:
+        - connector: notify.member
+          node: notify
+          absent: true

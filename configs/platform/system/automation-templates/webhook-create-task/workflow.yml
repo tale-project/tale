@@ -1,0 +1,55 @@
+# Each delivery to the automation's webhook address creates one task in the
+# project it is installed in: the delivery's "title" names the task and its
+# "description" adds the text. A delivery without a title does not fit the
+# inputs, so it is refused at the door and starts no run.
+version: 1
+name: webhook-create-task
+description: Create a task from each webhook delivery.
+inputs:
+  type: object
+  properties:
+    trigger:
+      type: string
+      description: Which trigger started the run; a webhook sends "webhook".
+    payload:
+      type: object
+      description: The delivery's JSON body.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: The task's title.
+        description:
+          type: string
+          description: The task's text, in Markdown.
+      required:
+        - title
+  required:
+    - payload
+nodes:
+  - id: create
+    type: task.create
+    input:
+      projectId: the-project
+      title: '{{ input.payload.title }}'
+      description: "{{ input.payload.description ?? '' }}"
+output: '{{ nodes.create.output }}'
+tests:
+  - name: a delivery creates a task titled from it
+    input:
+      trigger: webhook
+      payload:
+        title: Server down
+        description: Disk full on web-1.
+    # The project is the creator's answer; the task's words are the
+    # delivery's whatever it is.
+    expect:
+      outputIncludes:
+        taskId: tsk_mock_1
+        title: Server down
+      effects:
+        - connector: task.create
+          node: create
+          inputIncludes:
+            title: Server down
+            description: Disk full on web-1.

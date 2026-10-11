@@ -7,6 +7,7 @@ import {
   pointerFromAjv,
   pointerTokens,
   ptr,
+  replaceAtPointer,
   resolvePointer,
 } from './pointer';
 
@@ -45,5 +46,20 @@ describe('JSON Pointers (RFC 6901)', () => {
     expect(parentPointer('/nodes/2/input')).toBe('/nodes/2');
     expect(parentPointer('/nodes')).toBe('');
     expect(parentPointer('')).toBeNull();
+  });
+
+  it('replaces only a value the document already holds', () => {
+    const doc = { nodes: [{ input: { to: ['someone'], 'a/b': 1 } }] };
+    expect(replaceAtPointer(doc, '/nodes/0/input/to', ['u1'])).toBe(true);
+    expect(replaceAtPointer(doc, '/nodes/0/input/a~1b', 2)).toBe(true);
+    expect(replaceAtPointer(doc, '/nodes/0/input/to/0', 'u2')).toBe(true);
+    expect(doc).toEqual({ nodes: [{ input: { to: ['u2'], 'a/b': 2 } }] });
+    // A pointer never grows the document.
+    expect(replaceAtPointer(doc, '/nodes/0/input/title', 'x')).toBe(false);
+    expect(replaceAtPointer(doc, '/nodes/1/input', {})).toBe(false);
+    expect(replaceAtPointer(doc, '/nodes/0/input/to/1', 'x')).toBe(false);
+    expect(replaceAtPointer(doc, '/nodes/0/input/to/-', 'x')).toBe(false);
+    expect(replaceAtPointer(doc, '', {})).toBe(false);
+    expect(doc).toEqual({ nodes: [{ input: { to: ['u2'], 'a/b': 2 } }] });
   });
 });

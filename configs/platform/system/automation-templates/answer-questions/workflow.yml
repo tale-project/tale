@@ -1,0 +1,131 @@
+# A new task whose title ends with a question mark is answered from the
+# organization's documents: the knowledge search finds the passages, a
+# language model answers from them alone and names its sources, and the
+# answer is commented on the task. Any other new task starts a run that does
+# nothing; the search's embedding spend is charged to the automation.
+version: 1
+name: answer-questions
+description: Answer new tasks that ask a question from the organization's documents.
+inputs:
+  type: object
+  properties:
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md): an event sends its name and
+    # what it carries under payload.
+    trigger:
+      type: string
+      description: Which trigger started the run; a platform event sends "event".
+    event:
+      type: string
+      description: The event that started the run.
+    payload:
+      type: object
+      description: What the event carries.
+      properties:
+        taskId:
+          type: string
+          description: The task the event is about.
+        projectId:
+          type: string
+          description: The task's project.
+      required:
+        - taskId
+  required:
+    - payload
+nodes:
+  - id: task
+    type: task.get
+    input:
+      taskId: '{{ input.payload.taskId }}'
+
+  - id: question
+    type: transform
+    input:
+      title: '{{ nodes.task.output.title }}'
+      description: "{{ nodes.task.output.descriptionText ?? '' }}"
+    code: |
+      const title = String(input.title ?? '').trim();
+      const description = String(input.description ?? '').trim();
+      return {
+        asks: title.endsWith('?'),
+        query: `${title} ${description}`.trim().slice(0, 500),
+      };
+
+  - id: search
+    type: knowledge.search
+    when: '{{ nodes.question.output.asks }}'
+    input:
+      query: '{{ nodes.question.output.query }}'
+      limit: 5
+
+  - id: answer
+    type: llm
+    when: '{{ nodes.question.output.asks }}'
+    model: anthropic/claude-haiku-4-5
+    system: >-
+      You answer a team's question from passages found in its documents. Use
+      only what the passages say; when they do not answer the question, say so
+      plainly. Name the documents or pages you drew on. Write in the language
+      the question is written in, in a few short sentences.
+    prompt: |
+      Question: {{ nodes.task.output.title }}
+      {{ nodes.task.output.descriptionText ?? '' }}
+
+      Passages:
+      {{ JSON.stringify(nodes.search.output.hits.map((hit) => ({ title: hit.title, url: hit.url ?? null, text: hit.text })), null, 2) }}
+    outputSchema:
+      type: object
+      properties:
+        answer:
+          type: string
+          description: The answer to comment, with the sources it drew on.
+      required:
+        - answer
+
+  - id: comment
+    type: task.comment
+    when: '{{ nodes.question.output.asks }}'
+    input:
+      taskId: '{{ input.payload.taskId }}'
+      body: '{{ nodes.answer.output.answer }}'
+output:
+  answered: '{{ nodes.question.output.asks }}'
+tests:
+  - name: a task asking a question gets an answer from the documents
+    input:
+      trigger: event
+      event: task.created
+      payload:
+        taskId: tsk_1
+        projectId: prj_1
+    mocks:
+      task:
+        taskId: tsk_1
+        title: How long is our refund window?
+        status: todo
+        projectId: prj_1
+      answer:
+        answer: 30 days from delivery, says the Refund policy.
+    expect:
+      output:
+        answered: true
+      effects:
+        - connector: task.comment
+          node: comment
+          input:
+            taskId: tsk_1
+            body: 30 days from delivery, says the Refund policy.
+  - name: a task that asks nothing is left alone
+    input:
+      trigger: event
+      event: task.created
+      payload:
+        taskId: tsk_1
+        projectId: prj_1
+    expect:
+      output:
+        answered: false
+      effects:
+        - connector: task.comment
+          node: comment
+          absent: true

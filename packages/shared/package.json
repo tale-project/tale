@@ -44,6 +44,7 @@
     "./http/range": "./src/http/range.ts",
     "./schemas/automation-pack": "./src/schemas/automation-pack.ts",
     "./schemas/automation-settings": "./src/schemas/automation-settings.ts",
+    "./schemas/automation-template": "./src/schemas/automation-template.ts",
     "./schemas/task-contract": "./src/schemas/task-contract.ts",
     "./schemas/task-external-issue": "./src/schemas/task-external-issue.ts",
     "./schemas/task-external-status": "./src/schemas/task-external-status.ts",
