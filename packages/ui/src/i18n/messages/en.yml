@@ -460,6 +460,7 @@ testResults:
   button: Tests
   buttonLabel: 'Tests: {summary}'
   buttonLabelRunning: 'Tests: {summary}. Running…'
+  buttonLabelStarting: '{count, plural, one {Tests: running # test…} other {Tests: running # tests…}}'
   buttonLabelFailed: "Tests: couldn't run"
   announce:
     running: '{count, plural, one {Running # test…} other {Running # tests…}}'

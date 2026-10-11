@@ -460,6 +460,7 @@ testResults:
   button: Tests
   buttonLabel: 'Tests: {summary}'
   buttonLabelRunning: 'Tests: {summary}. Tests werden ausgeführt…'
+  buttonLabelStarting: '{count, plural, one {Tests: # Test wird ausgeführt…} other {Tests: # Tests werden ausgeführt…}}'
   buttonLabelFailed: 'Tests: konnten nicht laufen'
   announce:
     running: '{count, plural, one {# Test wird ausgeführt…} other {# Tests werden ausgeführt…}}'

@@ -167,6 +167,13 @@ describe('TestCountButton', () => {
     ).toHaveTextContent('Tests21');
   });
 
+  it('says a run that starts before any result is in', () => {
+    render(<TestCountButton counts={{ ...NONE, total: 3 }} status="running" />);
+    expect(
+      screen.getByRole('button', { name: 'Tests: running 3 tests…' }),
+    ).toHaveTextContent(/^Tests$/);
+  });
+
   it('says a run that failed', () => {
     render(
       <TestCountButton

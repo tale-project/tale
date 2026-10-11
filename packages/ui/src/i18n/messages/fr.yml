@@ -460,6 +460,7 @@ testResults:
   button: Tests
   buttonLabel: 'Tests : {summary}'
   buttonLabelRunning: 'Tests : {summary}. Exécution en cours…'
+  buttonLabelStarting: '{count, plural, one {Tests : exécution de # test…} many {Tests : exécution de # tests…} other {Tests : exécution de # tests…}}'
   buttonLabelFailed: 'Tests : exécution impossible'
   announce:
     running: '{count, plural, one {Exécution de # test…} many {Exécution de # tests…} other {Exécution de # tests…}}'

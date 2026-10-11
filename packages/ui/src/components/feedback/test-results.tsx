@@ -669,10 +669,20 @@ export const TestCountButton = forwardRef<
   const failed = countOf(counts.failed);
   const error = countOf(counts.error);
 
+  // Results of the run so far, of any kind; the rest wait or run.
+  const settled =
+    passed + failed + error + countOf(counts.notRun) + countOf(counts.stale);
+  const total = countOf(counts.total);
+
   let name: string;
   if (status === 'failed') name = t('buttonLabelFailed');
-  else if (status === 'running') name = t('buttonLabelRunning', { summary });
-  else name = t('buttonLabel', { summary });
+  // With no result in yet, a starting run says so ("Tests: running 3
+  // tests…") rather than a bare count of tests.
+  else if (status === 'running' && settled === 0 && total > 0) {
+    name = t('buttonLabelStarting', { count: total });
+  } else if (status === 'running') {
+    name = t('buttonLabelRunning', { summary });
+  } else name = t('buttonLabel', { summary });
 
   let glyph: ReactNode;
   if (status === 'running') {
