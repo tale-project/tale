@@ -1130,6 +1130,57 @@ tests:
   badges:
     simulates: '{count, plural, one {Simuliert # Node} other {Simuliert # Nodes}}'
     failures: '{count, plural, one {Simuliert # Fehler} other {Simuliert # Fehler}}'
+  fields:
+    name: Name
+    description: Beschreibung
+    input: Eingabe
+    inputHint: Was der Lauf erhält, als JSON.
+    mocks: Simulierte Ausgaben
+    mocksHint: Tale ermittelt weiterhin, was die Node erhalten würde, und hält fest, was sie senden würde – und verwendet dann diese Ausgabe, statt den Aufruf auszuführen.
+    mocksList: Läuft einmal pro Element, gib also einen Eintrag pro Element an.
+    mocksAdd: Ausgabe einer Node simulieren
+    useLastRun: Ausgabe des letzten Laufs verwenden
+    remove: '{node} entfernen'
+    removeAction: '{action} entfernen'
+    failures: Simulierte Fehler
+    failuresHint: Die Node schlägt mit dieser Meldung fehl, statt aufzurufen; was danach passiert, bestimmt ihre Fehlerbehandlung.
+    failureMessage: '{node} schlägt fehl mit'
+    failureDefault: simulierter Fehler
+    failuresAdd: Fehler simulieren
+    expect: Erwartungen
+    outputModeLabel: Wie die Ausgabe geprüft wird
+    outputMode:
+      equals: Entspricht
+      includes: Enthält
+      none: Nicht geprüft
+    outputWhileFailing: Ein Lauf, der fehlschlagen muss, hat keine Ausgabe zum Prüfen.
+    expectOutput: Ausgabe
+    useLastResult: Ausgabe des letzten Ergebnisses verwenden
+    expectNodes: Nodes
+    nodesAdd: Zustand einer Node erwarten
+    expectActions: Aktionen
+    actionsAdd: Aktion erwarten
+    action:
+      label: Aktion
+      node: Von Node
+      anyNode: Beliebige Node
+      happensLabel: Ob die Aktion stattfindet
+      happens: Findet statt
+      absent: Findet nicht statt
+      inputLabel: Wie die Eingabe der Aktion geprüft wird
+      inputMode:
+        none: Eingabe nicht geprüft
+        equals: Eingabe entspricht
+        includes: Eingabe enthält
+      input: Eingabe der Aktion
+    mustFail: Der Lauf muss fehlschlagen
+    mustFailHint: Der Test besteht dann nur, wenn der Lauf fehlschlägt, und hat keine Ausgabe zum Prüfen.
+    failAt: Schlägt fehl bei
+    failMessage: Fehlermeldung enthält
+  nodeState:
+    ran: Läuft
+    skipped: Wird übersprungen
+    failed: Schlägt fehl, der Lauf geht weiter
   inspector:
     position: 'Test {number} von {total}'
     setup: Einrichtung
@@ -1137,6 +1188,7 @@ tests:
     noResult: Führe den Test aus, um sein Ergebnis zu sehen.
     yaml: Test als YAML
     yamlHint: Deine Änderungen gehen beim Tippen in den Entwurf ein. Solange sich der Text nicht lesen lässt, behält der Test seine letzte lesbare Fassung.
+    editYaml: Als YAML bearbeiten
   result:
     passed: 'Der Test ist in {ms} ms bestanden.'
     stale: Die Automatisierung oder dieser Test hat sich seit diesem Ergebnis geändert. Führe den Test erneut aus, um zu sehen, wo er steht.

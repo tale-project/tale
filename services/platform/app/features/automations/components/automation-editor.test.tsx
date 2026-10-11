@@ -2682,26 +2682,18 @@ describe('Start, End and the Source view', () => {
     });
     await waitFor(() => expect(output).toHaveFocus());
 
-    // A test's problem opens that test in the Tests panel, at its place in
-    // the test's YAML.
+    // A test's problem opens that test in the Tests panel, on the form's
+    // control for the place.
     await goTo(/Tests › 1 › name/);
     expect(onSearchChange).toHaveBeenCalledWith({ panel: 'tests' });
     expect(onSearchChange).toHaveBeenCalledWith({ test: 0 });
     expect(screen.getByRole('region', { name: 'Tests' })).toBeVisible();
-    const yaml = await within(openInspector()).findByRole<HTMLTextAreaElement>(
+    const name = await within(openInspector()).findByRole<HTMLInputElement>(
       'textbox',
-      { name: 'Test as YAML' },
+      { name: 'Name' },
     );
-    await waitFor(() => expect(yaml).toHaveFocus());
-    expect(yaml.value.slice(yaml.selectionStart, yaml.selectionEnd)).toBe(
-      'smoke',
-    );
-    // The test's own problem is marked in its YAML.
-    expect(
-      JSON.parse(yaml.dataset.diagnostics ?? '[]').map(
-        (mark: { id: string }) => mark.id,
-      ),
-    ).toHaveLength(1);
+    await waitFor(() => expect(name).toHaveFocus());
+    expect(name.value).toBe('smoke');
 
     // The Source view still marks every problem at the place it names.
     await user.click(
@@ -2717,6 +2709,34 @@ describe('Start, End and the Source view', () => {
         (mark: { id: string }) => mark.id,
       ),
     ).toHaveLength(3);
+  });
+
+  it('opens a key the test form does not show in the test as YAML', async () => {
+    state.document = documentWithInputs;
+    validationMock.errors = withIssueIds([
+      {
+        level: 'warning',
+        code: 'TESTS_UNKNOWN_FIELD',
+        message: 'unknown test field',
+        at: { pointer: '/tests/0/expct', subject: 'key' },
+      },
+    ]);
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: /^Problems/ }));
+    await user.click(
+      within(screen.getByRole('region', { name: 'Problems' })).getByRole(
+        'button',
+        { name: /Tests › 1 › expct/ },
+      ),
+    );
+    const yaml = await within(openInspector()).findByRole<HTMLTextAreaElement>(
+      'textbox',
+      { name: 'Test as YAML' },
+    );
+    await waitFor(() => expect(yaml).toHaveFocus());
+    expect(
+      within(openInspector()).getByRole('switch', { name: 'Edit as YAML' }),
+    ).toBeChecked();
   });
 
   it('shows the whole document as read-only YAML in the Source view', async () => {
@@ -2896,10 +2916,10 @@ describe('AutomationEditor tests', () => {
     expect(onSearchChange).toHaveBeenCalledWith({ test: 0 });
     const inspected = openInspector();
     expect(within(inspected).getByText('Test 1 of 1')).toBeVisible();
-    // Not run yet: the inspector opens on its setup.
+    // Not run yet: the inspector opens on its setup, as a form.
     expect(
-      within(inspected).getByRole('textbox', { name: 'Test as YAML' }),
-    ).toBeVisible();
+      within(inspected).getByRole('textbox', { name: 'Name' }),
+    ).toHaveValue('smoke');
 
     // The Problems button takes the same dock to its own tab.
     await user.click(
@@ -2949,11 +2969,10 @@ describe('AutomationEditor tests', () => {
         { name: 'Add test' },
       ),
     );
-    const yaml = await within(openInspector()).findByRole<HTMLTextAreaElement>(
-      'textbox',
-      { name: 'Test as YAML' },
-    );
-    expect(yaml.value).toContain('name: New test');
+    const name = await within(openInspector()).findByRole('textbox', {
+      name: 'Name',
+    });
+    expect(name).toHaveValue('New test');
     expect(within(openInspector()).getByText('Test 2 of 2')).toBeVisible();
     // The new test is part of the draft: there is something to save.
     expect(saveButton()).toBeEnabled();

@@ -20,10 +20,16 @@ Jede Zeile ist ein Test, in der Reihenfolge des Dokuments: sein Status, sein Nam
 ## Einen Test hinzufügen
 
 1. Wähle im Tab **Tests** die Option **Test hinzufügen**. Neben dem Canvas öffnet sich ein Test namens **Neuer Test**, mit einem Platzhalter für jedes Feld, das die Eingabe des Laufs verlangt.
-2. Schreib den Test unter **Einrichtung** als YAML. Deine Änderungen gehen beim Tippen in den Entwurf ein; solange sich der Text nicht lesen lässt, behält der Test seine letzte lesbare Fassung.
+2. Füll den Test unter **Einrichtung** aus: **Name**, die **Eingabe**, die der Lauf als JSON erhält, unter **Simulierte Ausgaben** und **Simulierte Fehler** die Schritte, für die der Test einspringt, und unter **Erwartungen**, was der Lauf tun muss. Deine Änderungen gehen beim Tippen in den Entwurf ein.
 3. Speichere den Entwurf, um den Test zu behalten. Beim Speichern laufen alle Tests, und die Version behält das Ergebnis.
 
-Ein Test hat einen `name`, die `input`, die der Lauf erhält, und `expect`, was der Lauf tun muss:
+<Frame caption="Die Einrichtung eines Tests: die Eingabe des Laufs als JSON, die simulierten Schritte und was der Test vom Lauf erwartet.">
+
+![Der Tab Setup des Tests Big order gets 10% off neben dem Canvas von Order discounts: Name, eine leere Description, ein Input mit quantity 120 und unitPrice 20, Simulated outputs und Simulated failures mit je einer Auswahl und Expectations, wo die Ausgabe mit Includes geprüft wird.](/images/platform/automation-test-setup.webp)
+
+</Frame>
+
+**Als YAML bearbeiten** zeigt denselben Test als Text, für einen Teil, für den das Formular kein Feld hat; solange sich der Text nicht lesen lässt, behält der Test seine letzte lesbare Fassung. In YAML hat ein Test einen `name`, die `input`, die der Lauf erhält, und `expect`, was der Lauf tun muss:
 
 ```yaml
 name: Big order gets 10% off

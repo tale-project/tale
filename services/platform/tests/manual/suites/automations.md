@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 228 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 231 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1573,6 +1573,19 @@ output:
       focus moves to the next row and a screen reader hears
       `automations.tests.deleted`; Discard brings the test back with its
       result.
+- [ ] `AUTO-F170` · **Change a test through its Setup form** → Name,
+      Description and Input (with `automations.trigger.fixedInput.fillMissing`
+      while the run input requires more), a picker each under
+      `automations.tests.fields.mocks` and `automations.tests.fields.failures`
+      (code steps listed last), and under `automations.tests.fields.expect`
+      the output's comparison (Equals / Includes / Not checked), node states,
+      actions and `automations.tests.fields.mustFail`; every change lands in
+      the draft at once, and `automations.tests.inspector.editYaml` shows the
+      same test with every key the form doesn't show still there.
+- [ ] `AUTO-F171` · **Go to a problem in a test's name, input or simulated
+      output** → the test opens on Setup as a form with that field focused
+      (and the place selected inside a JSON field); a key the form doesn't
+      show opens the YAML instead, as `AUTO-F168` checks.
 
 ## Boundary & error tests
 
@@ -1910,6 +1923,11 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       list opens in a sheet; opening a test replaces it with the test's own
       sheet, whose close returns focus to the Tests button, and nothing
       scrolls the page sideways.
+- [ ] `AUTO-A26` · **The test form by keyboard** → Tab walks the switch to
+      YAML, Name, Description, Input and each picker in reading order; a
+      picker opens with Enter or Space and adds the row, whose Remove follows
+      it; the comparison switch moves with the arrow keys; every field shows
+      its problems under it and focus stays visible.
 - [ ] `AUTO-A23` · **The old-version band and the save review by keyboard and
       on a phone** → Tab reaches the band's two actions in reading order and
       the save dialog's **Review changes**, which opens with Enter or Space;

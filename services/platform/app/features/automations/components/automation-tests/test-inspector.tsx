@@ -2,11 +2,13 @@
 
 import { Button } from '@tale/ui/button';
 import type { CodeEditorDiagnosticsStatus } from '@tale/ui/code-editor';
+import { Switch } from '@tale/ui/switch';
 import { Tabs } from '@tale/ui/tabs';
 import { TestStatusIcon, useTestStatusLabel } from '@tale/ui/test-results';
 import { Play } from 'lucide-react';
 import { useId } from 'react';
 
+import type { Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import type { AutomationTests } from '../../hooks/use-automation-tests';
@@ -15,10 +17,14 @@ import type { AutomationIssueView } from '../../lib/issues';
 import { DocumentInspectorHeader } from '../document-inspector-parts';
 import { InspectorFrame } from '../node-inspector';
 import { TestResultView } from './test-result-view';
+import { TestSetupForm } from './test-setup-form';
 import { TestYamlEditor } from './test-yaml-editor';
 
 /** The inspector's two tabs: the test as written, and its latest result. */
 export type TestInspectorTab = 'setup' | 'result';
+
+/** How Setup shows the test: as a form, or as its YAML. */
+export type TestSetupMode = 'form' | 'yaml';
 
 function isTestInspectorTab(value: string): value is TestInspectorTab {
   return value === 'setup' || value === 'result';
@@ -35,6 +41,12 @@ export interface TestFieldsProps {
   readOnly: boolean;
   tab: TestInspectorTab;
   onTabChange: (tab: TestInspectorTab) => void;
+  setupMode: TestSetupMode;
+  onSetupModeChange: (mode: TestSetupMode) => void;
+  /** The automation the test runs, as the canvas reads it. */
+  doc: Automation;
+  /** A node's output in the run laid over the canvas. */
+  lastRunOutputOf?: (nodeId: string) => unknown;
   text: Pick<TestTextContext, 'nodeLabel' | 'effectLabel'>;
   onSelectNode: (nodeId: string) => void;
   onDeselect?: () => void;
@@ -56,6 +68,10 @@ export function TestFields({
   readOnly,
   tab,
   onTabChange,
+  setupMode,
+  onSetupModeChange,
+  doc,
+  lastRunOutputOf,
   text,
   onSelectNode,
   onDeselect,
@@ -68,6 +84,9 @@ export function TestFields({
   const shownTab: TestInspectorTab =
     tab === 'result' && !hasResult ? 'setup' : tab;
   const test = tests.tests[index];
+  // What the test's latest run returned, to expect it.
+  const lastResultOutput =
+    row.outcome.kind === 'run' ? row.outcome.result.run?.output : undefined;
   return (
     <div className="flex flex-col gap-3">
       <DocumentInspectorHeader
@@ -121,15 +140,40 @@ export function TestFields({
             label: t('tests.inspector.setup'),
             content: (
               <div className="flex flex-col gap-3 pt-3">
-                <TestYamlEditor
-                  index={index}
-                  test={test}
-                  settled={settledTest}
-                  issues={issues}
-                  diagnosticsStatus={diagnosticsStatus}
-                  readOnly={readOnly}
-                  onCommit={(next) => tests.replace(index, next)}
+                <Switch
+                  label={t('tests.inspector.editYaml')}
+                  checked={setupMode === 'yaml'}
+                  onCheckedChange={(on) =>
+                    onSetupModeChange(on ? 'yaml' : 'form')
+                  }
                 />
+                {setupMode === 'yaml' ? (
+                  <TestYamlEditor
+                    index={index}
+                    test={test}
+                    settled={settledTest}
+                    issues={issues}
+                    diagnosticsStatus={diagnosticsStatus}
+                    readOnly={readOnly}
+                    onCommit={(next) => tests.replace(index, next)}
+                  />
+                ) : (
+                  <TestSetupForm
+                    index={index}
+                    test={test}
+                    settledTest={settledTest}
+                    doc={doc}
+                    issues={issues}
+                    diagnosticsStatus={diagnosticsStatus}
+                    readOnly={readOnly}
+                    onChange={(next) => tests.replace(index, next)}
+                    {...(lastRunOutputOf !== undefined && { lastRunOutputOf })}
+                    {...(lastResultOutput !== undefined && {
+                      lastResultOutput,
+                    })}
+                    effectLabel={text.effectLabel ?? ((id: string) => id)}
+                  />
+                )}
               </div>
             ),
           },

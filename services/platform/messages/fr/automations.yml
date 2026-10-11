@@ -1132,6 +1132,57 @@ tests:
   badges:
     simulates: '{count, plural, one {Simule # nœud} other {Simule # nœuds}}'
     failures: '{count, plural, one {Simule # échec} other {Simule # échecs}}'
+  fields:
+    name: Nom
+    description: Description
+    input: Entrée
+    inputHint: Ce que reçoit l’exécution, en JSON.
+    mocks: Sorties simulées
+    mocksHint: Tale calcule toujours ce que le nœud recevrait et note ce qu’il enverrait, puis utilise cette sortie au lieu de l’appeler.
+    mocksList: 'S’exécute une fois par élément : indique une entrée par élément.'
+    mocksAdd: Simuler la sortie d’un nœud
+    useLastRun: Utiliser la sortie de la dernière exécution
+    remove: 'Retirer {node}'
+    removeAction: 'Retirer {action}'
+    failures: Échecs simulés
+    failuresHint: Le nœud échoue avec ce message au lieu d’appeler ; la suite dépend de sa gestion des erreurs.
+    failureMessage: '{node} échoue avec'
+    failureDefault: échec simulé
+    failuresAdd: Simuler un échec
+    expect: Attentes
+    outputModeLabel: Comment la sortie est vérifiée
+    outputMode:
+      equals: Égale
+      includes: Contient
+      none: Non vérifiée
+    outputWhileFailing: Une exécution qui doit échouer n’a pas de sortie à vérifier.
+    expectOutput: Sortie
+    useLastResult: Utiliser la sortie du dernier résultat
+    expectNodes: Nœuds
+    nodesAdd: Attendre l’état d’un nœud
+    expectActions: Actions
+    actionsAdd: Attendre une action
+    action:
+      label: Action
+      node: Du nœud
+      anyNode: N’importe quel nœud
+      happensLabel: Si l’action a lieu
+      happens: A lieu
+      absent: N’a pas lieu
+      inputLabel: Comment l’entrée de l’action est vérifiée
+      inputMode:
+        none: Entrée non vérifiée
+        equals: Entrée égale
+        includes: Entrée contient
+      input: Entrée de l’action
+    mustFail: L’exécution doit échouer
+    mustFailHint: Le test ne réussit alors que si l’exécution échoue, et n’a pas de sortie à vérifier.
+    failAt: Échoue à
+    failMessage: Le message d’erreur contient
+  nodeState:
+    ran: S’exécute
+    skipped: Est ignoré
+    failed: Échoue, l’exécution continue
   inspector:
     position: 'Test {number} sur {total}'
     setup: Configuration
@@ -1139,6 +1190,7 @@ tests:
     noResult: Exécute le test pour voir son résultat.
     yaml: Test en YAML
     yamlHint: Tes modifications passent dans le brouillon au fil de la saisie. Tant que le texte ne se lit pas, le test garde sa dernière version lisible.
+    editYaml: Modifier en YAML
   result:
     passed: 'Le test a réussi en {ms} ms.'
     stale: L’automatisation ou ce test a changé depuis ce résultat. Exécute de nouveau le test pour voir où il en est.

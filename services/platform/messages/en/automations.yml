@@ -1121,6 +1121,57 @@ tests:
   badges:
     simulates: '{count, plural, one {Simulates # node} other {Simulates # nodes}}'
     failures: '{count, plural, one {Simulates # failure} other {Simulates # failures}}'
+  fields:
+    name: Name
+    description: Description
+    input: Input
+    inputHint: What the run receives, as JSON.
+    mocks: Simulated outputs
+    mocksHint: Tale still works out what the node would receive and records what it would send, then uses this output instead of calling.
+    mocksList: Runs once per item, so give one entry per item.
+    mocksAdd: Simulate a node's output
+    useLastRun: Use the last run's output
+    remove: 'Remove {node}'
+    removeAction: 'Remove {action}'
+    failures: Simulated failures
+    failuresHint: The node fails with this message instead of calling; what happens next is up to its error handling.
+    failureMessage: '{node} fails with'
+    failureDefault: simulated failure
+    failuresAdd: Simulate a failure
+    expect: Expectations
+    outputModeLabel: How the output is checked
+    outputMode:
+      equals: Equals
+      includes: Includes
+      none: Not checked
+    outputWhileFailing: A run that must fail has no output to check.
+    expectOutput: Output
+    useLastResult: Use the last result's output
+    expectNodes: Nodes
+    nodesAdd: Expect a node's state
+    expectActions: Actions
+    actionsAdd: Expect an action
+    action:
+      label: Action
+      node: From node
+      anyNode: Any node
+      happensLabel: Whether the action happens
+      happens: Happens
+      absent: Doesn't happen
+      inputLabel: How the action's input is checked
+      inputMode:
+        none: Input not checked
+        equals: Input equals
+        includes: Input includes
+      input: Input of the action
+    mustFail: The run must fail
+    mustFailHint: The test then passes only when the run fails, and has no output to check.
+    failAt: Fails at
+    failMessage: Error message contains
+  nodeState:
+    ran: Runs
+    skipped: Is skipped
+    failed: Fails, the run goes on
   inspector:
     position: 'Test {number} of {total}'
     setup: Setup
@@ -1128,6 +1179,7 @@ tests:
     noResult: Run the test to see its result.
     yaml: Test as YAML
     yamlHint: Your changes go into the draft as you type. While the text does not parse, the test keeps its last version that did.
+    editYaml: Edit as YAML
   result:
     passed: 'The test passed in {ms} ms.'
     stale: The automation or this test changed since this result. Run the test again to see where it stands.
