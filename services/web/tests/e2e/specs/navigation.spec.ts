@@ -77,11 +77,13 @@ for (const locale of ['en', 'de', 'fr'] as const) {
   );
   const prefix = locale === 'en' ? '' : `/${locale}`;
 
-  test(`${locale} desktop navigation exposes overview and comparisons with bounded disclosures`, async ({
+  test(`${locale} desktop navigation exposes overview and resources with bounded disclosures`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     for (const width of [1024, 1440]) {
+      // Avoid reopening a menu through fine-pointer hover intent after resize.
+      await page.mouse.move(0, 0);
       await page.setViewportSize({ width, height: 900 });
       await gotoClientPage(page, `${prefix}/platform/projects`);
       const header = page.locator('header');
@@ -97,12 +99,12 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         'href',
         `https://docs.tale.dev${prefix}/get-started/quickstart`,
       );
-      const compare = header.getByRole('link', {
-        name: t('nav.resource.compare.label'),
-        exact: true,
-      });
-      await expect(compare).toHaveAttribute('href', `${prefix}/compare`);
-      await expect(compare).toBeVisible();
+      await expect(
+        header.getByRole('link', {
+          name: t('nav.resource.compare.label'),
+          exact: true,
+        }),
+      ).toHaveCount(0);
       for (const menuKey of ['platform', 'resources'] as const) {
         const trigger = header.getByRole('button', {
           name: t(`nav.${menuKey}`),
@@ -157,7 +159,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
               name: t('nav.resource.compare.label'),
               exact: false,
             }),
-          ).toHaveCount(0);
+          ).toHaveAttribute('href', `${prefix}/compare`);
         }
       }
       await expect(
@@ -173,6 +175,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         }),
       ).toHaveAttribute('href', `https://docs.tale.dev${prefix || '/'}`);
       await page.keyboard.press('Escape');
+      await page.mouse.move(0, 0);
     }
   });
 

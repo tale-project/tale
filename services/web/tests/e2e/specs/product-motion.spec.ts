@@ -1,5 +1,4 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
-import { createI18n } from '@tale/e2e/i18n';
 
 import {
   PRODUCT_SCREENSHOTS,
@@ -10,11 +9,6 @@ import { PRODUCT_MOTION } from '../../../app/generated/product-motion';
 import type { MotionCapture } from '../../../lib/media/product-motion-provenance';
 import { gotoClientPage } from '../helpers/client-page';
 
-const catalogs = {
-  en: createI18n(new URL('../../../messages/en.yml', import.meta.url)),
-  de: createI18n(new URL('../../../messages/de.yml', import.meta.url)),
-  fr: createI18n(new URL('../../../messages/fr.yml', import.meta.url)),
-};
 const locales = ['en', 'de', 'fr'] as const;
 const pages = Object.keys(PRODUCT_SCREENSHOTS) as ProductScreenshotPage[];
 const mediaRequest = /\/marketing\/product-motion\/[^?]+\.(?:webm|mp4)(?:\?|$)/;
@@ -320,7 +314,6 @@ test.describe('real product hero playback', () => {
       test(`${locale} uses only its responsive product clips at ${width}px`, async ({
         page,
       }) => {
-        const { t } = catalogs[locale];
         await page.setViewportSize({ width, height: 1000 });
         for (const id of pages) {
           const variant = width < 640 ? 'mobile' : 'desktop';
@@ -348,18 +341,8 @@ test.describe('real product hero playback', () => {
                   new URL(element.currentSrc).pathname,
               ),
             ).toBe(asset.webm);
-            await expect(
-              figure.getByRole('button', {
-                name: t('demo.pages.pauseMotion'),
-                exact: true,
-              }),
-            ).toBeVisible();
-            await expect(
-              figure.getByRole('link', {
-                name: t('demo.pages.viewLabel'),
-                exact: true,
-              }),
-            ).toHaveAttribute('target', '_blank');
+            await expect(figure.getByRole('button')).toHaveCount(0);
+            await expect(figure.getByRole('link')).toHaveCount(0);
             expect(requests.length).toBeGreaterThan(0);
             expect(
               requests.every((url) => new URL(url).pathname === asset.webm),
@@ -388,36 +371,6 @@ test.describe('real product hero playback', () => {
       });
     }
   }
-
-  test('keyboard pause survives leaving and reentering the viewport', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await gotoClientPage(page, pagePath('agents'));
-    const figure = figureOn(page, 'agents');
-    await figure.scrollIntoViewIfNeeded();
-    await expectPlaying(figure);
-    const pause = figure.getByRole('button', {
-      name: catalogs.en.t('demo.pages.pauseMotion'),
-      exact: true,
-    });
-    await pause.focus();
-    await page.keyboard.press('Space');
-    const play = figure.getByRole('button', {
-      name: catalogs.en.t('demo.pages.playMotion'),
-      exact: true,
-    });
-    await expect(play).toBeFocused();
-    await expectPaused(videoIn(figure), page);
-    await page.locator('footer').scrollIntoViewIfNeeded();
-    await expectReadablePoster(figure);
-    await figure.scrollIntoViewIfNeeded();
-    await expectPaused(videoIn(figure), page);
-    await expect(play).toBeVisible();
-    await play.focus();
-    await page.keyboard.press('Enter');
-    await expectPlaying(figure);
-  });
 
   test('offscreen heroes make no initial media request and pause when scrolled away', async ({
     page,
@@ -455,9 +408,7 @@ test.describe('real product hero playback', () => {
     await expectReadablePoster(figure);
   });
 
-  test('visibility changes pause actual media without losing an explicit user pause', async ({
-    page,
-  }) => {
+  test('visibility changes pause actual media', async ({ page }) => {
     await gotoClientPage(page, pagePath('agents'));
     const figure = figureOn(page, 'agents');
     await figure.scrollIntoViewIfNeeded();
@@ -483,32 +434,9 @@ test.describe('real product hero playback', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
     await expectPlaying(figure);
-    await figure
-      .getByRole('button', {
-        name: catalogs.en.t('demo.pages.pauseMotion'),
-        exact: true,
-      })
-      .click();
-    await page.evaluate(() => {
-      Object.defineProperty(document, 'visibilityState', {
-        configurable: true,
-        value: 'hidden',
-      });
-      Object.defineProperty(document, 'hidden', {
-        configurable: true,
-        value: true,
-      });
-      document.dispatchEvent(new Event('visibilitychange'));
-      Reflect.deleteProperty(document, 'visibilityState');
-      Reflect.deleteProperty(document, 'hidden');
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    await expectPaused(videoIn(figure), page);
   });
 
-  test('failed codecs leave a readable image and its original-resolution link', async ({
-    page,
-  }) => {
+  test('failed codecs leave a readable image', async ({ page }) => {
     await page.route(mediaRequest, (route) => route.abort('failed'));
     await gotoClientPage(page, pagePath('agents'));
     const figure = figureOn(page, 'agents');
@@ -516,13 +444,7 @@ test.describe('real product hero playback', () => {
     await expect(figure).toHaveAttribute('data-product-motion-state', 'error');
     await expect(videoIn(figure)).toHaveCount(0);
     await expectReadablePoster(figure);
-    const original = figure.getByRole('link', {
-      name: catalogs.en.t('demo.pages.viewLabel'),
-      exact: true,
-    });
-    await expect(original).toHaveAttribute('href', /\.webp$/);
-    await original.focus();
-    await expect(original).toBeFocused();
+    await expect(figure.getByRole('link')).toHaveCount(0);
   });
 
   test('a failed WebM source still decodes and plays the real MP4 fallback', async ({
@@ -540,12 +462,7 @@ test.describe('real product hero playback', () => {
       (element: HTMLVideoElement) => element.currentSrc,
     );
     expect(new URL(src).pathname).toBe(PRODUCT_MOTION.agents?.en?.desktop.mp4);
-    await expect(
-      figure.getByRole('button', {
-        name: catalogs.en.t('demo.pages.pauseMotion'),
-        exact: true,
-      }),
-    ).toBeVisible();
+    await expect(figure.getByRole('button')).toHaveCount(0);
   });
 
   test('a delayed first frame keeps the static picture and stable media geometry', async ({
@@ -651,41 +568,8 @@ test.describe('real product hero playback', () => {
       const decoded = await videoIn(figure).boundingBox();
       expect(decoded?.width).toBeCloseTo(poster?.width ?? 0, 0);
       expect(decoded?.height).toBeCloseTo(poster?.height ?? 0, 0);
-      await figure
-        .getByRole('button', {
-          name: catalogs.en.t('demo.pages.pauseMotion'),
-          exact: true,
-        })
-        .click();
-      await expectPaused(videoIn(figure), page);
-      const requestsAfterPause: string[] = [];
-      const trackPaused = (request: { url(): string }) => {
-        if (mediaRequest.test(request.url()))
-          requestsAfterPause.push(request.url());
-      };
-      page.on('request', trackPaused);
       await page.setViewportSize({ width: 1440, height: 1000 });
       await figure.scrollIntoViewIfNeeded();
-      await expectReadablePoster(figure);
-      await expect(figure).toHaveAttribute(
-        'data-product-motion-state',
-        'paused',
-      );
-      await expect(videoIn(figure)).toHaveCount(0);
-      expect(
-        await figure
-          .locator('picture img')
-          .evaluate((image: HTMLImageElement) => image.currentSrc),
-      ).toContain(PRODUCT_MOTION.agents?.en?.desktop.posterId);
-      const resume = figure.getByRole('button', {
-        name: catalogs.en.t('demo.pages.playMotion'),
-        exact: true,
-      });
-      await expect(resume).toBeVisible();
-      await settleFrames(page, 12);
-      expect(requestsAfterPause).toEqual([]);
-      page.off('request', trackPaused);
-      await resume.click();
       await expectPlaying(figure);
       await expect(videoIn(figure)).toHaveAttribute(
         'data-product-motion-variant',
@@ -852,7 +736,7 @@ test.describe('prerendered motion fallback', () => {
 
   for (const locale of locales) {
     for (const width of [320, 1440]) {
-      test(`${locale} retains responsive product images and inspection links without JavaScript at ${width}px`, async ({
+      test(`${locale} retains responsive product images without JavaScript at ${width}px`, async ({
         page,
       }) => {
         const requests: string[] = [];
@@ -882,12 +766,7 @@ test.describe('prerendered motion fallback', () => {
         expect(
           Math.abs(picture.width / picture.height - asset.width / asset.height),
         ).toBeLessThan(0.01);
-        await expect(
-          figure.getByRole('link', {
-            name: catalogs[locale].t('demo.pages.viewLabel'),
-            exact: true,
-          }),
-        ).toHaveAttribute('href', /\.webp$/);
+        await expect(figure.getByRole('link')).toHaveCount(0);
         await expect(videoIn(figure)).toHaveCount(0);
         expect(requests).toEqual([]);
       });

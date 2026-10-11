@@ -16,13 +16,13 @@ Taskade et Tale relient tous deux les projets au travail des agents. C'est une c
 | --- | --- | --- |
 | Espace de travail | Projets partagés avec tâches attribuées, discussions et livrables à valider. | Projets avec agents personnalisés, connaissances, outils et actions de projet. |
 | Coordination des agents | Des agents de coordination équipés délèguent les tâches prêtes dans les limites configurées du projet. | Équipes d’agents spécialisés avec contexte partagé et coordination de l’exécution. |
-| Runtime et déploiement | Runtimes configurables, sandboxes persistantes et option de déploiement sous licence MIT ; les abonnements dépendent du runtime. | Évaluer la configuration des projets et agents selon le fonctionnement requis par ton équipe. |
+| Runtime et déploiement | Runtimes configurables, sandboxes persistantes et option de déploiement open source ; les abonnements dépendent du runtime. | Évaluer la configuration des projets et agents selon le fonctionnement requis par ton équipe. |
 
 ## Comparer deux approches des équipes d'agents
 
 Taskade documente des agents personnalisés avec connaissances, outils, actions sur les projets et interfaces partageables. Son guide multi-agent décrit des équipes spécialisées, un contexte commun et plusieurs modes de coordination. La collaboration entre agents est déjà au cœur du produit. Voir les [agents personnalisés](https://www.taskade.com/learn/agents/custom-agents) et les [équipes multi-agents](https://www.taskade.com/learn/agents/multi-agents).
 
-Tale organise personnes et agents autour de tâches attribuées, avec discussions et livrables à examiner. Les agents travaillent dans des sandboxes persistantes. Tu configures consignes, outils, modèle et environnement compatible ; un agent responsable peut déléguer les tâches prêtes selon les règles prévues. Tale propose aussi le code sous licence MIT et le choix du déploiement. Consulte les [agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents).
+Tale organise personnes et agents autour de tâches attribuées, avec discussions et livrables à examiner. Les agents travaillent dans des sandboxes persistantes. Tu configures consignes, outils, modèle et environnement compatible ; un agent responsable peut déléguer les tâches prêtes selon les règles prévues. Tale propose aussi du code open source et le choix du déploiement. Consulte les [agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents).
 
 ## Tester un projet dont les responsabilités évoluent
 

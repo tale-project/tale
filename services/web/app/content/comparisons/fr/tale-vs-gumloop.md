@@ -16,13 +16,13 @@ Les agents partagés, le travail en arrière-plan et les contrôles d'équipe ne
 | --- | --- | --- |
 | Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Agents partagés dans le produit ainsi que via Slack, Teams et Gmail |
 | Coordination | Agents de projet et délégation par gestionnaire selon la capacité configurée | Sous-agents en arrière-plan, évaluations et contrôles administratifs |
-| Configuration | Community Edition sous MIT et environnements pris en charge pour exploiter et adapter l’espace | Le déploiement VPC fait partie des options documentées |
+| Configuration | Community Edition open source et environnements pris en charge pour exploiter et adapter l’espace | Le déploiement VPC fait partie des options documentées |
 
 ## Reconnaître les points communs
 
 Gumloop documente les agents partagés, la collaboration via Slack, Teams et Gmail, les sous-agents en arrière-plan, les évaluations et les contrôles administratifs. L'offre comprend aussi un déploiement en VPC. Le choix dépasse donc une opposition entre automatisation hébergée et collaboration privée. [Découvrir Gumloop](https://www.gumloop.com/).
 
-Tale rassemble tâches, discussions, fichiers de travail et livrables dans des projets. Tu configures les agents, leur accordes des outils et peux confier la délégation des tâches prêtes à un agent responsable. Les sandboxes persistantes conservent le travail entre exécutions, avec un parallélisme limité par la capacité configurée. L'édition communautaire MIT et les environnements compatibles comptent si ton équipe veut exploiter et adapter elle-même l'espace. Consulte la [configuration des agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents).
+Tale rassemble tâches, discussions, fichiers de travail et livrables dans des projets. Tu configures les agents, leur accordes des outils et peux confier la délégation des tâches prêtes à un agent responsable. Les sandboxes persistantes conservent le travail entre exécutions, avec un parallélisme limité par la capacité configurée. L'édition communautaire open source et les environnements compatibles comptent si ton équipe veut exploiter et adapter elle-même l'espace. Consulte la [configuration des agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents).
 
 ## Tester un lancement avec plusieurs équipes
 

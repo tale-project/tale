@@ -62,7 +62,7 @@ export function AutomationRun({
         label={scene.label}
         title={t('demos.automation.windowTitle')}
         activeNav="automations"
-        className="mx-auto min-h-216 max-w-4xl @xs/demo:min-h-192 @sm/demo:min-h-184 @4xl/demo:aspect-[16/9] @4xl/demo:min-h-136"
+        className="mx-auto min-h-184 max-w-4xl @xs/demo:min-h-168 @sm/demo:min-h-160 @3xl/demo:aspect-[16/9] @3xl/demo:min-h-128"
       >
         <div className="demo-surface flex h-full flex-col gap-3 p-3 @4xl/demo:gap-4 @4xl/demo:p-4">
           {/* Canvas — dotted surface like xyflow Background. */}

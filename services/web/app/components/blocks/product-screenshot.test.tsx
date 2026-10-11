@@ -92,7 +92,7 @@ async function runningVideo(container: HTMLElement) {
 }
 
 describe('captured product motion', () => {
-  it('renders a complete responsive image and full-size link without server media sources', () => {
+  it('renders a complete responsive image without server media sources', () => {
     const html = renderToStaticMarkup(<ProductScreenshot page="agents" />);
     const document = new DOMParser().parseFromString(html, 'text/html');
     expect(document.querySelector('picture img')?.getAttribute('alt')).toBe(
@@ -101,9 +101,7 @@ describe('captured product motion', () => {
     expect(document.querySelector('picture source[media]')).not.toBeNull();
     expect(document.querySelector('video')).toBeNull();
     expect(document.querySelector('button')).toBeNull();
-    expect(document.querySelector('a')?.getAttribute('href')).toContain(
-      'project-agents-models-en-2880.webp',
-    );
+    expect(document.querySelector('a')).toBeNull();
   });
 
   it.each(['reduced', 'offscreen', 'unsupported'] as const)(
@@ -118,16 +116,13 @@ describe('captured product motion', () => {
       await waitFor(() => expect(screen.getByRole('img')).toBeDefined());
       expect(container.querySelector('video')).toBeNull();
       expect(play).not.toHaveBeenCalled();
-      expect(
-        screen
-          .getByRole('link', { name: 'pages.viewLabel' })
-          .getAttribute('href'),
-      ).toContain('project-agents-models-en-2880.webp');
+      expect(screen.queryByRole('button')).toBeNull();
+      expect(screen.queryByRole('link')).toBeNull();
     },
   );
 
   it.each(['en', 'de', 'fr', 'de-CH'])(
-    'uses the localized phone clip and keeps its control outside the image frame in %s',
+    'uses the localized phone clip without extra demo controls in %s',
     async (locale) => {
       preferences.locale = locale;
       preferences.mobile = true;
@@ -140,28 +135,9 @@ describe('captured product motion', () => {
       expect(video.muted).toBe(true);
       expect(video.loop).toBe(true);
       expect(video.preload).toBe('none');
-      expect(
-        screen.getByRole('button', { name: 'pages.pauseMotion' }).closest('a'),
-      ).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
     },
   );
-
-  it('keeps a deliberate pause through leaving and returning to the viewport', async () => {
-    const { container, rerender } = render(<ProductScreenshot page="agents" />);
-    await runningVideo(container);
-    fireEvent.click(screen.getByRole('button', { name: 'pages.pauseMotion' }));
-    const plays = play.mock.calls.length;
-    preferences.inView = false;
-    rerender(<ProductScreenshot page="agents" />);
-    preferences.inView = true;
-    rerender(<ProductScreenshot page="agents" />);
-    expect(play).toHaveBeenCalledTimes(plays);
-    expect(
-      screen.getByRole('button', { name: 'pages.playMotion' }),
-    ).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'pages.playMotion' }));
-    await waitFor(() => expect(play).toHaveBeenCalledTimes(plays + 1));
-  });
 
   it('loads the selected viewport source and waits for its own decoded frame after every resize', async () => {
     const { container, rerender } = render(<ProductScreenshot page="agents" />);
@@ -195,23 +171,6 @@ describe('captured product motion', () => {
     expect(returnedDesktop.classList.contains('visible')).toBe(true);
   });
 
-  it('keeps the user pause when the viewport selects a different recording', async () => {
-    const { container, rerender } = render(<ProductScreenshot page="agents" />);
-    await runningVideo(container);
-    fireEvent.click(screen.getByRole('button', { name: 'pages.pauseMotion' }));
-    const plays = play.mock.calls.length;
-    preferences.mobile = true;
-    rerender(<ProductScreenshot page="agents" />);
-    expect(container.querySelector('video')).toBeNull();
-    expect(play).toHaveBeenCalledTimes(plays);
-    fireEvent.click(screen.getByRole('button', { name: 'pages.playMotion' }));
-    const mobile = await runningVideo(container);
-    expect(mobile.querySelector('source')?.getAttribute('src')).toContain(
-      'agents-mobile.webm',
-    );
-    expect(play).toHaveBeenCalledTimes(plays + 1);
-  });
-
   it('pauses when the document is hidden or reduced motion changes after playback', async () => {
     const { container, rerender } = render(<ProductScreenshot page="agents" />);
     await runningVideo(container);
@@ -232,57 +191,7 @@ describe('captured product motion', () => {
     expect(screen.getByRole('img')).toBeDefined();
   });
 
-  it.each(['NotAllowedError', 'AbortError'])(
-    'keeps the media and explicit Play action after a recoverable %s',
-    async (name) => {
-      let rejectPlay: ((reason: DOMException) => void) | undefined;
-      play.mockImplementationOnce(
-        () =>
-          new Promise<void>((_resolve, reject) => {
-            rejectPlay = reject;
-          }),
-      );
-      const { container } = render(<ProductScreenshot page="agents" />);
-      const video = await runningVideo(container);
-      const sources = Array.from(video.querySelectorAll('source'));
-      const sourcePaths = sources.map((source) => source.getAttribute('src'));
-      expect(sources).toHaveLength(2);
-      expect(rejectPlay).toBeDefined();
-      rejectPlay?.(new DOMException('Playback needs a user retry', name));
-      await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: 'pages.playMotion' }),
-        ).toBeDefined(),
-      );
-      expect(screen.getByRole('img')).toBeDefined();
-      expect(container.querySelector('video')).toBe(video);
-      expect(
-        container.querySelector('figure')?.dataset.productMotionState,
-      ).toBe('paused');
-      expect(video.querySelectorAll('source')[0]).toBe(sources[0]);
-      expect(video.querySelectorAll('source')[1]).toBe(sources[1]);
-      const attempts = play.mock.calls.length;
-      fireEvent.click(screen.getByRole('button', { name: 'pages.playMotion' }));
-      await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: 'pages.pauseMotion' }),
-        ).toBeDefined(),
-      );
-      expect(play).toHaveBeenCalledTimes(attempts + 1);
-      expect(play.mock.contexts.at(-1)).toBe(video);
-      expect(container.querySelector('video')).toBe(video);
-      expect(video.querySelectorAll('source')[0]).toBe(sources[0]);
-      expect(video.querySelectorAll('source')[1]).toBe(sources[1]);
-      expect(sources.map((source) => source.getAttribute('src'))).toEqual(
-        sourcePaths,
-      );
-      expect(
-        container.querySelector('figure')?.dataset.productMotionState,
-      ).toBe('playing');
-    },
-  );
-
-  it('removes failed media and preserves the responsive image and original inspection link', async () => {
+  it('removes failed media and preserves the responsive image', async () => {
     const { container } = render(<ProductScreenshot page="agents" />);
     const video = await runningVideo(container);
     fireEvent.error(video);
@@ -292,11 +201,7 @@ describe('captured product motion', () => {
     );
     expect(screen.getByRole('img')).toBeDefined();
     expect(screen.queryByRole('button')).toBeNull();
-    expect(
-      screen
-        .getByRole('link', { name: 'pages.viewLabel' })
-        .getAttribute('href'),
-    ).toContain('project-agents-models-en-2880.webp');
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('lets the native player try the next codec when a source reports a network error', async () => {
@@ -305,9 +210,7 @@ describe('captured product motion', () => {
     fireEvent.error(video.querySelector('source')!);
     expect(container.querySelector('video')).toBe(video);
     expect(video.querySelectorAll('source')).toHaveLength(2);
-    expect(
-      screen.getByRole('button', { name: 'pages.pauseMotion' }),
-    ).toBeDefined();
+    expect(screen.queryByRole('button')).toBeNull();
     fireEvent.loadedData(video);
     expect(video.classList.contains('visible')).toBe(true);
   });
@@ -324,7 +227,7 @@ describe('captured product motion', () => {
       'error',
     );
     expect(screen.getByRole('img')).toBeDefined();
-    expect(screen.getByRole('link', { name: 'pages.viewLabel' })).toBeDefined();
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('returns to the image when the only supported codec fails', async () => {

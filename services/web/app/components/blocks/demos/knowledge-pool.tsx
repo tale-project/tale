@@ -85,7 +85,7 @@ export function KnowledgePool({
         label={scene.label}
         title={t('demos.knowledge.windowTitle')}
         activeNav="knowledge"
-        className="mx-auto min-h-144 max-w-4xl @2xl/demo:aspect-[16/10] @2xl/demo:min-h-120"
+        className="mx-auto min-h-128 max-w-4xl @2xl/demo:aspect-[16/10] @2xl/demo:min-h-112"
       >
         <div className="demo-surface flex h-full flex-col gap-3 p-3 @2xl/demo:gap-4 @2xl/demo:p-4">
           <DemoToolbar

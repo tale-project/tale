@@ -17,7 +17,7 @@ import {
   buildPlatformNavItems,
   buildResourcesNavItems,
 } from '@/app/content/nav-items';
-import { COMPARISON_NAV_ITEM, type NavMenuId } from '@/app/content/nav-menus';
+import type { NavMenuId } from '@/app/content/nav-menus';
 import { getPlatformIcon, getPlatformPage } from '@/app/content/platform-pages';
 import { HEADER_PRIMARY_CTA } from '@/app/content/site-ctas';
 import { getStartedUrl } from '@/lib/docs-url';
@@ -84,16 +84,6 @@ export function SiteHeader() {
         overview={platformOverview}
         items={platformItems}
       />
-      {COMPARISON_NAV_ITEM ? (
-        <MarketingLink
-          to={COMPARISON_NAV_ITEM.path}
-          tone="nav"
-          active
-          className="min-h-11"
-        >
-          {t(COMPARISON_NAV_ITEM.labelKey)}
-        </MarketingLink>
-      ) : null}
       <MarketingLink to="/pricing" tone="nav" active className="min-h-11">
         {t('pricing')}
       </MarketingLink>
@@ -137,17 +127,7 @@ export function SiteHeader() {
       }
       mobileNav={
         <div className="[&_a[aria-current=page]]:bg-surface-site-inset [&_a]:hover:bg-surface-site-inset/70 flex flex-col gap-5">
-          <div className="border-border-base grid grid-cols-2 gap-1 border-b pb-3">
-            {COMPARISON_NAV_ITEM ? (
-              <MarketingLink
-                to={COMPARISON_NAV_ITEM.path}
-                tone="navMobile"
-                active
-                className="rounded-lg px-2 text-base"
-              >
-                {t(COMPARISON_NAV_ITEM.labelKey)}
-              </MarketingLink>
-            ) : null}
+          <div className="border-border-base flex gap-1 border-b pb-3">
             <MarketingLink
               to="/pricing"
               tone="navMobile"

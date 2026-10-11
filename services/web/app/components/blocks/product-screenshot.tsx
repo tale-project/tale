@@ -1,9 +1,7 @@
 import { useReducedMotion } from '@tale/marketing-ui/entrance';
-import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useInView } from 'framer-motion';
-import { Expand, Pause, Play } from 'lucide-react';
 import {
   useEffect,
   useId,
@@ -38,7 +36,7 @@ function sourceSet(variants: ImageManifestEntry['variants']['webp']): string {
 }
 
 /** Media sources are absent until the first visible, motion-permitted client
- * render. Visibility pauses playback without erasing the user's own choice. */
+ * render. Visibility pauses playback while the localized poster remains. */
 function useProductMotion(
   variant: ProductMotionVariant | undefined,
   figureRef: RefObject<HTMLElement | null>,
@@ -65,11 +63,10 @@ function useProductMotion(
     null,
   );
   const [failedKey, setFailedKey] = useState('');
-  const [manualPause, setManualPause] = useState(false);
   const eligible =
     supported && visible && inView && !reduceMotion && Boolean(variant);
   const failed = Boolean(key) && failedKey === key;
-  const shouldPlay = eligible && !manualPause && !failed;
+  const shouldPlay = eligible && !failed;
   const activated = Boolean(key) && activeRequest === request && !failed;
   const showFrame = activated && decodedRequest === request && eligible;
 
@@ -98,18 +95,11 @@ function useProductMotion(
       return undefined;
     }
     let cancelled = false;
-    void video.play().catch((error: unknown) => {
+    void video.play().catch(() => {
       if (cancelled) return;
-      // Autoplay policy and browser power-saving interruptions can be
-      // retried with the user's Play button without discarding the media.
-      if (
-        error instanceof DOMException &&
-        (error.name === 'NotAllowedError' || error.name === 'AbortError')
-      ) {
-        setManualPause(true);
-      } else {
-        setFailedKey(key);
-      }
+      // Autoplay policy and browser power-saving interruptions leave the
+      // localized poster visible without exposing extra demo controls.
+      setFailedKey(key);
     });
     return () => {
       cancelled = true;
@@ -121,21 +111,16 @@ function useProductMotion(
     ? 'error'
     : !eligible
       ? 'poster'
-      : manualPause
-        ? 'paused'
-        : playingRequest === request
-          ? 'playing'
-          : activated
-            ? 'loading'
-            : 'poster';
+      : playingRequest === request
+        ? 'playing'
+        : activated
+          ? 'loading'
+          : 'poster';
   return {
     videoRef,
     activated,
     showFrame,
-    manualPause,
     state,
-    hasControls: Boolean(variant) && supported && !reduceMotion && !failed,
-    togglePause: () => setManualPause((paused) => !paused),
     onLoadedData: (event: SyntheticEvent<HTMLVideoElement>) => {
       if (event.currentTarget === videoRef.current) setDecodedRequest(request);
     },
@@ -199,7 +184,6 @@ export function ProductScreenshot({ page }: { page: ProductScreenshotPage }) {
   const playback = useProductMotion(variant, figureRef);
   if (!original || !desktop || !mobile)
     throw new Error(`Missing optimized product capture: ${id}`);
-  const full = Object.values(original.variants.webp).at(-1);
   const display = Object.values(desktop.variants.webp).at(-1);
   const sizes =
     page === 'home'
@@ -212,7 +196,7 @@ export function ProductScreenshot({ page }: { page: ProductScreenshotPage }) {
       data-product-screenshot={page}
       data-product-motion-state={playback.state}
       data-demo-domain={page === 'home' || page === 'hub' ? 'projects' : page}
-      className="w-full min-w-0"
+      className="mx-auto w-full max-w-6xl min-w-0"
     >
       <Card
         padding="none"
@@ -281,40 +265,8 @@ export function ProductScreenshot({ page }: { page: ProductScreenshotPage }) {
           </video>
         ) : null}
       </Card>
-      <figcaption className="text-fg-muted mt-4 flex flex-wrap items-start justify-between gap-3 text-xs leading-relaxed">
-        <span className="max-w-2xl">
-          {t(`pages.${page}.caption`)}
-          <span className="text-fg-subtle mt-1 block">
-            {t('pages.interfaceLanguage')}
-          </span>
-        </span>
-        <span className="flex flex-wrap items-center gap-2">
-          {playback.hasControls ? (
-            <Button
-              data-product-motion-control
-              type="button"
-              variant="ghost"
-              size="sm"
-              icon={playback.manualPause ? Play : Pause}
-              aria-controls={playback.activated ? videoId : undefined}
-              className="min-h-11 px-2"
-              onClick={playback.togglePause}
-            >
-              {t(
-                playback.manualPause ? 'pages.playMotion' : 'pages.pauseMotion',
-              )}
-            </Button>
-          ) : null}
-          <a
-            href={full}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-fg-base focus-visible:outline-fg-base inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            <Expand aria-hidden className="size-3.5" />
-            {t('pages.viewLabel')}
-          </a>
-        </span>
+      <figcaption className="text-fg-muted mt-4 text-xs leading-relaxed">
+        {t(`pages.${page}.caption`)}
       </figcaption>
     </figure>
   );

@@ -34,7 +34,7 @@ Bewerte die App und die Arbeit darum getrennt. Können Beteiligte eine Änderung
 
 ## Entscheide nach der laufenden Verantwortung
 
-Prüfe Lovable, wenn gemeinsame App-Entwicklung und verwaltete Veröffentlichung im Zentrum stehen. Prüfe Tale, wenn du Aufgaben unterschiedlicher Art mit Menschen und Agenten in einem gemeinsamen Arbeitsbereich organisieren willst, auch rund um eine App. Tale bietet MIT-Quellcode und freie Wahl des Betriebsmodells. Für die App-Entwicklung brauchst du weiterhin eine eingerichtete Laufzeit, passende Zugriffe und einen konkreten Hosting-Plan.
+Prüfe Lovable, wenn gemeinsame App-Entwicklung und verwaltete Veröffentlichung im Zentrum stehen. Prüfe Tale, wenn du Aufgaben unterschiedlicher Art mit Menschen und Agenten in einem gemeinsamen Arbeitsbereich organisieren willst, auch rund um eine App. Tale bietet Open-Source-Code und freie Wahl des Betriebsmodells. Für die App-Entwicklung brauchst du weiterhin eine eingerichtete Laufzeit, passende Zugriffe und einen konkreten Hosting-Plan.
 
 [Besprich euren Arbeitsablauf mit Tale](https://tale.dev/de/request-demo).
 

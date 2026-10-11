@@ -34,7 +34,7 @@ Utilise les mêmes catégories, exemples et critères d’acceptation dans les d
 
 ## Choisis selon les responsabilités à venir
 
-Évalue Lovable si la création collective d’applications et leur publication gérée sont au cœur du besoin. Évalue Tale si tu veux organiser des tâches variées avec des personnes et des agents, y compris le travail autour d’une application. Tale propose son code sous licence MIT et plusieurs modes de déploiement. Développer une app exige toujours un environnement d’exécution configuré, les accès nécessaires et un hébergement prévu.
+Évalue Lovable si la création collective d’applications et leur publication gérée sont au cœur du besoin. Évalue Tale si tu veux organiser des tâches variées avec des personnes et des agents, y compris le travail autour d’une application. Tale propose du code open source et plusieurs modes de déploiement. Développer une app exige toujours un environnement d’exécution configuré, les accès nécessaires et un hébergement prévu.
 
 [Présente ton projet à Tale](https://tale.dev/fr/request-demo).
 

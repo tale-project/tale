@@ -8,7 +8,7 @@ seo:
   pricing:
     title: Was kostet Tale? — Community & Enterprise
     description: 'Tale Enterprise: CHF 12 (EUR 14) pro User/Monat, zwei Monate
-      gratis bei Jahresabrechnung. Community ist unter MIT kostenlos selbst
+      gratis bei Jahresabrechnung. Community ist als Open Source kostenlos selbst
       gehostet.'
   contact:
     title: Kontakt zum Tale-Team — Vertrieb, Support, Demos
@@ -16,9 +16,9 @@ seo:
       Projektabläufe, Bereitstellung, Preise oder eine geführte Demo."
   about:
     title: Wer steht hinter Tale? — Über die Ruler GmbH
-    description: "Ruler GmbH aus Spiez baut Tale: einen MIT-lizenzierten
-      Projektarbeitsbereich, in dem Teams KI-Agenten koordinieren und ihre
-      Arbeit prüfen."
+    description: "Ruler GmbH aus Spiez baut Tale: einen
+      Open-Source-Projektarbeitsbereich, in dem Teams KI-Agenten koordinieren und
+      ihre Arbeit prüfen."
   requestDemo:
     title: Tale-Demo anfragen — geführter Rundgang
     description:
@@ -169,7 +169,7 @@ home:
     ctaSecondary: Tale selbst hosten
     eyebrow: Open-Source-Arbeitsbereich für Projekte
     proof: Gemeinsame Aufgaben · Aufgaben delegieren · Parallele
-      Sandbox-Arbeit · MIT-Lizenz
+      Sandbox-Arbeit · Open Source
   demos:
     hero:
       label:
@@ -435,7 +435,7 @@ home:
       openSource:
         title: Vollständig Open Source
         description:
-          Der gesamte Code ist öffentlich, unter MIT-Lizenz. Lies ihn,
+          Der gesamte Code ist öffentlich und Open Source. Lies ihn,
           auditier ihn, ändere, was du brauchst — ohne jemanden zu fragen.
   connectors:
     title: Angedockt an die Tools, die du schon nutzt
@@ -443,7 +443,7 @@ home:
       ein und gib Agenten und Workflows den nötigen Zugriff für ihre Aufgaben.
   agents:
     title: Deine Agenten, deine Wahl
-    subtitle: Nutze deine bevorzugte Laufzeit mit eigenen Zugangsdaten oder per API abgerechneten Modellen.
+    subtitle: Nutze deine bevorzugte Laufzeit mit deinem eigenen Abo oder per API abgerechneten Modellen.
   faq:
     eyebrow: FAQ
     title: Häufig gestellte Fragen
@@ -459,7 +459,7 @@ home:
     openSource:
       q: Ist Tale Open Source?
       a:
-        Ja. Tale ist MIT-lizenziert, und der volle Funktionsumfang steckt in der
+        Ja. Tale ist Open Source, und der volle Funktionsumfang steckt in der
         kostenlosen Community-Edition — Enterprise ergänzt Support und Services,
         keine Funktionen.
     onPrem:
@@ -517,12 +517,12 @@ home:
 complianceTrust:
   certifications:
     iso27001: Ruler GmbH · ISO 27001
-    mit: MIT-lizenziert
+    mit: Open Source
     openSource: Open Source
 pricing:
   title: Was kostet Tale?
   description: Tale Enterprise kostet CHF 12 (EUR 14) pro User/Monat, bei
-    Jahresabrechnung zwei Monate gratis. Die MIT-lizenzierte Community-Edition
+    Jahresabrechnung zwei Monate gratis. Die Open-Source-Community-Edition
     ist kostenlos selbst gehostet.
   note: Alle Produkt-Features sind in Community und Enterprise enthalten.
     Zusätzliche Cloud-KI-Modellnutzung wird zu den Preisen deines Anbieters
@@ -552,7 +552,7 @@ pricing:
       GitHub.
     cta: Loslegen
     feature1: Selbst gehostet
-    feature2: MIT-Lizenz
+    feature2: Open Source
     feature3: Community-gepflegt (GitHub)
     feature4: Community-Support (GitHub)
   enterprise:
@@ -851,7 +851,7 @@ about:
       value: Ruler GmbH · ISO 27001
     license:
       label: Lizenz
-      value: MIT — vollständig Open Source
+      value: Open Source
   story:
     heading: Unsere Geschichte
     p1: Die Ruler GmbH wurde 2020 von Yannick Monney in Spiez im Kanton Bern
@@ -878,7 +878,7 @@ about:
         Aufgaben und prüfe die Ergebnisse.
     openSource:
       title: Open Source, ohne Sternchen
-      body: Der gesamte Code ist öffentlich auf GitHub, unter MIT-Lizenz. Die
+      body: Der gesamte Code ist öffentlich auf GitHub und Open Source. Die
         kostenlose Community-Edition hat denselben Funktionsumfang; Enterprise
         ergänzt Support und Services für CHF 12 (EUR 14) pro User/Monat.
     deployment:
@@ -908,7 +908,7 @@ about:
     edge:
       title: Ein Vorsprung, der dir bleibt
       body: Behalte Projektkontext, Workflows und Review-Verlauf deines Teams
-        zusammen, wenn weitere Agenten hinzukommen. Der MIT-lizenzierte Code
+        zusammen, wenn weitere Agenten hinzukommen. Der Open-Source-Code
         sowie die Wahl von Laufzeiten und Betriebsform lassen dich Tale an die
         Arbeit deines Unternehmens anpassen.
     tailored:
@@ -930,7 +930,7 @@ about:
         verpflichtet ist.
     transparency:
       title: Transparent von Grund auf
-      body: Eine öffentliche Codebasis unter MIT-Lizenz und ein Unternehmen,
+      body: Eine öffentliche Open-Source-Codebasis und ein Unternehmen,
         das du im Schweizer Handelsregister nachschlagen kannst. Was wir
         ausliefern, kannst du lesen.
     control:
@@ -1591,7 +1591,7 @@ platformHub:
           grenzen Arbeit, Dateien und Agenten nach Team ab.
       - q: Ist Tale Open Source?
         a:
-          Ja. Community ist MIT-lizenziert und kostenlos selbst gehostet. Enterprise
+          Ja. Community ist Open Source und kostenlos selbst gehostet. Enterprise
           ergänzt Support und Services auf derselben Codebasis.
       - q: Wo fange ich an?
         a:
@@ -1938,7 +1938,7 @@ pricingPage:
           und Monat.
       - q: Ist Community kostenlos?
         a:
-          Ja. Die Community-Edition kannst du unter der MIT-Lizenz kostenlos selbst
+          Ja. Die Community-Edition kannst du kostenlos als Open Source selbst
           hosten.
       - q: Kann ich Hardware mit Software kaufen?
         a:
@@ -1993,65 +1993,8 @@ contentPages:
   nextDescription: Bring eine konkrete Aufgabe und die Werkzeuge mit, die dein Team bereits nutzt.
   allUseCases: Alle Anwendungsfälle
 
-pageIllustrations:
-  about:
-    label: "Das Unternehmen hinter Tale: Die Schweizer Ruler GmbH entwickelt den MIT-lizenzierten Arbeitsbereich und bietet ISO-27001-zertifizierte Enterprise- und Beratungsleistungen."
-    team: "Ein unabhängiges Team in der Schweiz"
-    product: "Ein gemeinsamer Arbeitsbereich für Menschen und KI-Agenten"
-    shared: "Zusammen arbeiten"
-    open: "Open Source"
-    services: "Enterprise & Beratung"
-  contact:
-    label: "Besprich dein Projekt oder deine Frage mit dem Tale-Team, auch zu Bereitstellung und Support."
-    heading: "Beginne ein Gespräch"
-    question: "Deine Frage"
-    context: "Dein Projekt, deine Vorgaben und Ziele"
-    deployment: "Bereitstellung"
-    support: "Support"
-    team: "Das Tale-Team"
-    discuss: "Besprecht gemeinsam den nächsten Schritt"
-  demo:
-    label: "Eine Tale-Demo führt von deinem Auftrag über die Arbeit von Team und Agenten zu Ergebnissen und Prüfung."
-    heading: "Deine Aufgabe in Tale"
-    brief: "Bring einen konkreten Auftrag mit"
-    context: "Eine Aufgabe, die dein Team lösen möchte"
-    team: "Dein Team"
-    agent: "Projektagent"
-    review: "Prüfe das Ergebnis"
-    result: "Sieh dir die Dateien an und besprich, wie die Arbeit in deinen Ablauf passt."
-    deliverable: "Dateien & Ergebnisse"
-  pricing:
-    label: "Community und Enterprise bieten dieselben Produktfunktionen. Community ist kostenlos selbst hostbar; Enterprise ergänzt Support und Services. Hosting und Modellnutzung kosten zusätzlich."
-    product: "Ein vollständiges Produkt"
-    features: "Dieselben Funktionen in beiden Editionen"
-    community: "Kostenlos selbst hosten unter MIT"
-    enterprise: "Support und Services für dein Team"
-    hosting: "Hosting"
-    models: "Modellnutzung"
-  hardware:
-    label: "Hardware für lokale Inferenz reicht von einzelnen Knoten über mehrere Knoten bis zu Racks, vor Ort oder im Rechenzentrum."
-    heading: "Infrastruktur für deine Modelle"
-    unit1: "Einzelner Knoten"
-    unit2: "Mehrere Knoten"
-    unit3: "Rack"
-    inference: "Lokale Modellinferenz"
-    location: "Vor Ort oder im Rechenzentrum"
-  changelog:
-    label: "Tale-Releases verbinden Änderungen am Quellcode, Prüfung und veröffentlichte Versionshinweise."
-    heading: "Vom Quellcode zum Release"
-    build: "Änderungen am Quellcode"
-    buildDetail: "Funktionen, Korrekturen und Verbesserungen"
-    check: "Prüfung"
-    checkDetail: "Tests und Release-Prüfungen"
-    release: "Veröffentlichter Release"
-    releaseDetail: "Versionshinweise und Upgrade-Anleitung"
-
 demo:
   pages:
-    playMotion: "Demo abspielen"
-    pauseMotion: "Demo pausieren"
-    viewLabel: "Vollbild ansehen"
-    interfaceLanguage: "Beispielarbeitsbereich · Im Produkt aufgenommen"
     home:
       label: "Die Aufgabenansicht von Tale zum Prüfen eines Launch-Briefings und zum Besprechen des nächsten Schritts."
       caption: "Die Aufgabe, ihr Kontext und die nächste Entscheidung an einem Ort."

@@ -77,7 +77,7 @@ export const Faq: Story = {
       items={[
         {
           question: 'Is Community free?',
-          answer: 'Yes. Self-host under the MIT license.',
+          answer: 'Yes. Self-host the open-source Community edition.',
         },
         {
           question: 'Does Enterprise add features?',
