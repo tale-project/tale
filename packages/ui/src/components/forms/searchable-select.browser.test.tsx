@@ -50,8 +50,8 @@ describe('SearchableSelect viewport containment (real layout)', () => {
   for (const triggerWidth of [32, 600]) {
     it(`keeps a long footer and a ${triggerWidth}px trigger inside a narrow viewport`, async () => {
       await page.viewport(375, 812);
-      const { user } = renderPicker(triggerWidth);
-      await user.click(screen.getByRole('button', { name: 'Review' }));
+      renderPicker(triggerWidth);
+      await page.getByRole('button', { name: 'Review' }).click();
       const panel = await screen.findByRole('dialog', { name: 'Reviewer' });
       await expect
         .poll(() => panel.getBoundingClientRect().right)
@@ -67,7 +67,7 @@ describe('SearchableSelect viewport containment (real layout)', () => {
       expect(input.getBoundingClientRect().right).toBeLessThanOrEqual(
         panel.getBoundingClientRect().right,
       );
-      await user.keyboard('{Escape}');
+      await userEvent.keyboard('{Escape}');
       await expect
         .poll(() => document.activeElement)
         .toBe(screen.getByRole('button', { name: 'Review' }));
@@ -76,15 +76,15 @@ describe('SearchableSelect viewport containment (real layout)', () => {
 
   it('preserves a desktop field width and keyboard selection', async () => {
     await page.viewport(1280, 800);
-    const { user, onValueChange } = renderPicker(420);
+    const { onValueChange } = renderPicker(420);
     const trigger = screen.getByRole('button', { name: 'Review' });
-    await user.click(trigger);
+    await page.getByRole('button', { name: 'Review' }).click();
     const panel = await screen.findByRole('dialog', { name: 'Reviewer' });
     expect(panel.getBoundingClientRect().width).toBeGreaterThanOrEqual(
       trigger.getBoundingClientRect().width,
     );
     expect(screen.getByRole('combobox')).toHaveFocus();
-    await user.keyboard('{ArrowDown}{Enter}');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
     expect(onValueChange).toHaveBeenCalledExactlyOnceWith('person');
     await expect.poll(() => document.activeElement).toBe(trigger);
   });
@@ -93,7 +93,7 @@ describe('SearchableSelect viewport containment (real layout)', () => {
     it(`keeps the search, last option and localized footer reachable in a short ${variant} picker`, async () => {
       await page.viewport(375, 430);
       const onValueChange = vi.fn();
-      const { user } = render(
+      render(
         <div style={{ padding: '200px 16px 0' }}>
           <SearchableSelect
             aria-label="Reviewer"
@@ -117,7 +117,7 @@ describe('SearchableSelect viewport containment (real layout)', () => {
         </div>,
       );
       const trigger = screen.getByRole('button', { name: 'Review' });
-      await user.click(trigger);
+      await page.getByRole('button', { name: 'Review' }).click();
       const panel = await screen.findByRole('dialog', { name: 'Reviewer' });
       await expect
         .poll(() => panel.getBoundingClientRect().top)
@@ -137,7 +137,11 @@ describe('SearchableSelect viewport containment (real layout)', () => {
       expect(footer.getBoundingClientRect().top).toBeGreaterThanOrEqual(
         panel.getBoundingClientRect().top,
       );
-      await user.keyboard('{End}');
+      await page
+        .getByRole('option', { name: 'Reviewer 2', exact: true })
+        .hover();
+      await userEvent.keyboard('{End}');
+      await expect.poll(() => activeOption()?.textContent).toBe('Reviewer 20');
       const last = screen.getByRole('option', { name: 'Reviewer 20' });
       await expect
         .poll(() => last.getBoundingClientRect().bottom)
@@ -145,7 +149,13 @@ describe('SearchableSelect viewport containment (real layout)', () => {
       expect(last.getBoundingClientRect().top).toBeGreaterThanOrEqual(
         panel.getBoundingClientRect().top,
       );
-      await user.keyboard('{Enter}');
+      await page
+        .getByRole('option', { name: 'Reviewer 18', exact: true })
+        .hover();
+      await expect.poll(() => activeOption()?.textContent).toBe('Reviewer 18');
+      await userEvent.keyboard('{End}');
+      await expect.poll(() => activeOption()?.textContent).toBe('Reviewer 20');
+      await userEvent.keyboard('{Enter}');
       expect(onValueChange).toHaveBeenCalledExactlyOnceWith('19');
       await expect.poll(() => document.activeElement).toBe(trigger);
     });

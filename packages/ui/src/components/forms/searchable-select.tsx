@@ -666,7 +666,7 @@ function SearchableSelectBase({
                     isSelected={option.selected ?? value === option.value}
                     isHighlighted={highlightedIndex === index}
                     onSelect={handleSelect}
-                    onMouseEnter={setHighlightedIndex}
+                    onHighlight={setHighlightedIndex}
                     showRadio={showRadio}
                     descriptionMode={descriptionMode}
                     action={optionAction?.(option)}
@@ -775,7 +775,7 @@ function SearchableSelectOptionItem({
   isSelected,
   isHighlighted,
   onSelect,
-  onMouseEnter,
+  onHighlight,
   showRadio,
   descriptionMode = 'inline',
   action,
@@ -791,7 +791,7 @@ function SearchableSelectOptionItem({
   isSelected: boolean;
   isHighlighted: boolean;
   onSelect: (value: string) => void;
-  onMouseEnter: (index: number) => void;
+  onHighlight: (index: number) => void;
   showRadio?: boolean;
   descriptionMode?: 'inline' | 'tooltip';
   action?: ReactNode;
@@ -846,7 +846,13 @@ function SearchableSelectOptionItem({
       aria-disabled={option.disabled || undefined}
       data-highlighted={isHighlighted || undefined}
       onClick={() => !option.disabled && onSelect(option.value)}
-      onMouseEnter={() => onMouseEnter(index)}
+      // Scrolling can move a row under a stationary mouse and fire enter.
+      // Only pointer movement should replace the keyboard's highlight.
+      onPointerMove={(event) => {
+        if (event.pointerType === 'mouse' && !option.disabled) {
+          onHighlight(index);
+        }
+      }}
       className={cn(
         OPTION_ROW_CLASSES,
         isSwitcher ? 'rounded-none px-3 py-2' : OPTION_ROW_INSET,
@@ -931,8 +937,7 @@ function SearchableSelectOptionItem({
   if (!tooltipContent) return row;
 
   // In tooltip mode the description is hidden from the row and surfaced on
-  // hover (or keyboard highlight, which fires onMouseEnter via this row's
-  // own pointer events as the listbox scrolls a focused option into view).
+  // hover.
   // `side="right"` keeps the popover from overlapping the next row's label;
   // `align="start"` anchors it to the row top so long descriptions don't
   // float into the row above.
