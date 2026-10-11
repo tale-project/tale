@@ -18,6 +18,7 @@ import { createRecorder } from '../../../lib/engine/core/record/recorder.ts';
 import type { NodeRunRecord } from '../../../lib/engine/core/record/types.ts';
 import { recordBudget } from '../../../lib/engine/core/record/value.ts';
 import { jsonParam } from '../../db/sql.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import { eraseSubjectAutomationRuns } from '../erasure/service.ts';
 import {
   readOpenNodeRuns,
@@ -72,9 +73,14 @@ export async function checkAutomationNodeRuns(
         },
       ],
     },
-    actor: userId,
+    origin: appOrigin(userId),
   });
-  await deploy(sql, { organizationId: orgId, name, version: 1, actor: userId });
+  await deploy(sql, {
+    organizationId: orgId,
+    name,
+    version: 1,
+    origin: appOrigin(userId),
+  });
 
   const rowsOf = (runId: string) => sql<Row[]>`
     SELECT path, status, attempt, claim_epoch AS "claimEpoch", output
@@ -395,13 +401,13 @@ export async function checkAutomationNodeRuns(
       name: otherName,
       nodes: [{ id: 'one', type: 'transform', input: {}, code: 'return 1;' }],
     },
-    actor: userId,
+    origin: appOrigin(userId),
   });
   await deploy(sql, {
     organizationId: orgId,
     name: otherName,
     version: 1,
-    actor: userId,
+    origin: appOrigin(userId),
   });
   const other = await beginRun(sql, {
     organizationId: orgId,

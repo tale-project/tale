@@ -1567,6 +1567,7 @@ dataSubjectRequests:
     automationRuns: Automatisierungsläufe
     agentRuns: Agentenläufe
     automationAllowances: Freigaben für Automatisierungen
+    automationAuthorship: Versionen und Deploys von Automatisierungen
     reviewDecisions: Prüfentscheidungen
     mentions: Erwähnungen in Aufgabentexten
     authState: Anmelde- und Zwei-Faktor-Versuche

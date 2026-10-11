@@ -207,7 +207,8 @@ export interface DeploymentEntry {
   deployedAt: number;
   /** The person who deployed it. */
   deployedBy: string;
-  /** The door, when the host recorded it (`mcp`); null otherwise. */
+  /** The door it came through — `app`, `upload`, `mcp`, `rest`, `managed`
+   * or `system` — when the host recorded it; null otherwise. */
   via: string | null;
 }
 

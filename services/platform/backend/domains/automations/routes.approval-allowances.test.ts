@@ -122,7 +122,7 @@ describe('the writes an automation may make without approval, at the app door [A
       expect.objectContaining({
         organizationId: 'o1',
         allowed: ['slack.send_message'],
-        actor: 'u1',
+        origin: { actor: 'u1', via: 'app' },
         grantedBy: 'u1',
       }),
     );

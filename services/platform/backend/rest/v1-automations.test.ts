@@ -8,7 +8,6 @@ import { describe, expect, it, vi } from 'vitest';
 // double answers no audit-chain query.
 vi.mock('../domains/automations/audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 import type { RestEnv } from './shared.ts';

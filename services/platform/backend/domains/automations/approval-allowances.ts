@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { resolveApprovalDecision } from '../../core/approvals/policy.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { auditDefinitionWrite } from './audit.ts';
 import {
   AutomationError,
@@ -123,8 +124,8 @@ export async function setApprovalAllowances(
     organizationId: string;
     automation: string;
     allowed: readonly string[];
-    /** Who grants: a user id (or an actor string naming one). */
-    actor: string;
+    /** Who grants, and through which door (`write-origin.ts`). */
+    origin: WriteOrigin;
     /** The person's user id, recorded as the granter. */
     grantedBy: string;
   },
@@ -179,7 +180,7 @@ export async function setApprovalAllowances(
       `;
       await auditDefinitionWrite(tx, {
         organizationId: args.organizationId,
-        actor: args.actor,
+        origin: args.origin,
         action: 'automation.approval_allowance.granted',
         name: args.automation,
         newState: { type },
@@ -196,7 +197,7 @@ export async function setApprovalAllowances(
       `;
       await auditDefinitionWrite(tx, {
         organizationId: args.organizationId,
-        actor: args.actor,
+        origin: args.origin,
         action: 'automation.approval_allowance.revoked',
         name: args.automation,
         previousState: { type },

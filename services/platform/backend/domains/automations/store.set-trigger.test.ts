@@ -19,10 +19,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // `audit.test.ts`); this double answers no audit-chain query.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 import { hashWebhookToken } from '../../core/automations/webhook_token.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import { AutomationError, setTrigger, type TriggerInput } from './store.ts';
 
 interface Statement {
@@ -150,7 +150,7 @@ const args = (trigger: Parameters<typeof setTrigger>[1]['trigger']) => ({
   organizationId: 'org_1',
   name: 'ops/greet',
   trigger,
-  actor: 'user_1',
+  origin: appOrigin('user_1'),
 });
 
 describe('setTrigger', () => {

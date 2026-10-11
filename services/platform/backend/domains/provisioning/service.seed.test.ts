@@ -37,6 +37,7 @@ vi.mock('../projects/service.ts', () => ({
 }));
 vi.mock('../tasks/service.ts', () => ({ createTask: h.createTask }));
 
+import { PROVISIONING_ORIGIN } from '../../lib/write-origin.ts';
 import { seedDefaultAutomationPacks, seedStarterContent } from './service.ts';
 
 interface Organization {
@@ -114,7 +115,7 @@ describe('seedDefaultAutomationPacks', () => {
       expect.objectContaining({
         organizationId: 'org-1',
         name: 'ops/daily',
-        actor: 'system:provisioning',
+        origin: PROVISIONING_ORIGIN,
       }),
       expect.objectContaining({ name: 'ops/weekly' }),
     ]);
@@ -174,13 +175,13 @@ describe('seedDefaultAutomationPacks', () => {
           timezone: 'UTC',
           enabled: false,
         },
-        actor: 'system:provisioning',
+        origin: PROVISIONING_ORIGIN,
       },
       {
         organizationId: 'org-1',
         name: 'ops/hook',
         trigger: { kind: 'webhook', enabled: true },
-        actor: 'system:provisioning',
+        origin: PROVISIONING_ORIGIN,
       },
     ]);
   });

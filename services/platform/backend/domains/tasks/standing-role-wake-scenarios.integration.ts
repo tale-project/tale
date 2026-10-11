@@ -31,6 +31,7 @@ import {
   lockProjectWork,
   projectWorkQueueKey,
 } from '../../lib/project-work-lock.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import { loadRestProject } from '../../rest/shared.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import {
@@ -232,7 +233,7 @@ export async function checkStandingRoleWakeScenarios(
         enabled: true,
         ...(wakeOnSlotFreed === undefined ? {} : { wakeOnSlotFreed }),
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
   const setup = async (
     label: string,
@@ -288,10 +289,15 @@ export async function checkStandingRoleWakeScenarios(
         ],
         output: '{{ nodes.start.output }}',
       },
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: project,
     });
-    await deploy(sql, { organizationId: org, name, version: 1, actor: userId });
+    await deploy(sql, {
+      organizationId: org,
+      name,
+      version: 1,
+      origin: appOrigin(userId),
+    });
     const s: Scenario = {
       label,
       orgId: org,
@@ -549,7 +555,7 @@ export async function checkStandingRoleWakeScenarios(
             organizationId: auth.organizationId,
             name,
             projectId: project.id,
-            actor: auth.userId,
+            origin: appOrigin(auth.userId),
           });
         }),
       )
@@ -922,7 +928,7 @@ export async function checkStandingRoleWakeScenarios(
           enabled: true,
           wakeOnSlotFreed: true,
         },
-        actor: userId,
+        origin: appOrigin(userId),
         managed: {
           projectId: s.project,
           expectedHash: managedConfigurationHash(current),
@@ -1657,7 +1663,7 @@ export async function checkStandingRoleWakeScenarios(
         organizationId: orgId,
         name: otherName,
         document: { version: 1, name: otherName, nodes: [] },
-        actor: userId,
+        origin: appOrigin(userId),
         projectId: x.project,
       });
       await setTrigger(sql, {
@@ -1669,7 +1675,7 @@ export async function checkStandingRoleWakeScenarios(
           timezone: 'UTC',
           enabled: true,
         },
-        actor: userId,
+        origin: appOrigin(userId),
       });
       cleanup.push(
         () =>
@@ -1694,7 +1700,7 @@ export async function checkStandingRoleWakeScenarios(
             enabled: true,
             wakeOnSlotFreed: true,
           },
-          actor: userId,
+          origin: appOrigin(userId),
         }).then(
           () => 'saved' as const,
           (error: unknown) => error,
@@ -1755,7 +1761,7 @@ export async function checkStandingRoleWakeScenarios(
           organizationId: orgId,
           name,
           projectId: contested,
-          actor: userId,
+          origin: appOrigin(userId),
         }).then(
           (result) =>
             result.bound ? ('bound' as const) : ('unchanged' as const),
@@ -1781,7 +1787,7 @@ export async function checkStandingRoleWakeScenarios(
         organizationId: orgId,
         name: y.name,
         projectIds: [y.project, x.project],
-        actor: userId,
+        origin: appOrigin(userId),
       }).then(
         () => 'saved' as const,
         (error: unknown) => error,
@@ -1828,7 +1834,7 @@ export async function checkStandingRoleWakeScenarios(
         organizationId: orgId,
         name: xName,
         document: { version: 1, name: xName, nodes: [] },
-        actor: userId,
+        origin: appOrigin(userId),
         projectId: xHome,
       });
       cleanup.push(
@@ -1883,7 +1889,7 @@ export async function checkStandingRoleWakeScenarios(
           enabled: true,
           wakeOnSlotFreed: true,
         },
-        actor: userId,
+        origin: appOrigin(userId),
       }).then(
         () => 'saved' as const,
         (error: unknown) => error,
@@ -1932,7 +1938,7 @@ export async function checkStandingRoleWakeScenarios(
           enabled: true,
           wakeOnSlotFreed: false,
         },
-        actor: userId,
+        origin: appOrigin(userId),
       });
       let holding = (): void => undefined;
       const held = new Promise<void>((resolve) => {
@@ -1993,7 +1999,7 @@ export async function checkStandingRoleWakeScenarios(
         organizationId: orgId,
         name: zName,
         document: { version: 1, name: zName, nodes: [] },
-        actor: userId,
+        origin: appOrigin(userId),
       });
       cleanup.push(
         () =>
@@ -2017,7 +2023,7 @@ export async function checkStandingRoleWakeScenarios(
           enabled: true,
           wakeOnSlotFreed: true,
         },
-        actor: userId,
+        origin: appOrigin(userId),
       }).then(
         () => 'saved' as const,
         (error: unknown) => error,
@@ -2330,7 +2336,7 @@ export async function checkStandingRoleWakeScenarios(
           organizationId: orgId,
           name,
           projectIds,
-          actor: userId,
+          origin: appOrigin(userId),
         }).then(
           () => 'saved' as const,
           (error: unknown) => error,
@@ -2434,7 +2440,7 @@ export async function checkStandingRoleWakeScenarios(
       const target = await extraProject('Wake w27 added project');
       const editor = pgAutomationStore(sql, {
         organizationId: orgId,
-        actor: `user:${userId}`,
+        origin: appOrigin(`user:${userId}`),
       });
       const change = editor.setAutomationProjects?.bind(editor);
       if (change === undefined)
@@ -2639,7 +2645,7 @@ export async function checkStandingRoleWakeScenarios(
         organizationId: orgId,
         name: quiet.name,
         projectIds: [lo, hi],
-        actor: userId,
+        origin: appOrigin(userId),
       })
         .then(
           () => 'saved' as const,

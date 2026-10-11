@@ -1608,6 +1608,7 @@ dataSubjectRequests:
     automationRuns: "Exécutions d'automatisation"
     agentRuns: "Exécutions d'agents"
     automationAllowances: Autorisations d’écriture des automatisations
+    automationAuthorship: Versions et déploiements d’automatisations
     reviewDecisions: Décisions de relecture
     mentions: Mentions dans le texte des tâches
     authState: Tentatives de connexion et de double authentification

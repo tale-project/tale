@@ -21,6 +21,7 @@ vi.mock('../projects/service.ts', async (original) => ({
   listProjects: vi.fn(),
 }));
 
+import { appOrigin, mcpOrigin } from '../../lib/write-origin.ts';
 import { ORG_FACTS_BUDGET_MS, pgAutomationStore } from './dispatch-store.ts';
 
 const QUERY: OrgFactsQuery = {
@@ -61,7 +62,7 @@ describe('pgAutomationStore.orgFacts', () => {
     );
     const store = pgAutomationStore(sqlAs('member'), {
       organizationId: 'org_acme',
-      actor: 'api-key:user_mia',
+      origin: mcpOrigin({ userId: 'user_mia' }),
       visibleOnly: true,
     });
     const facts = await store.orgFacts?.(QUERY);
@@ -87,7 +88,7 @@ describe('pgAutomationStore.orgFacts', () => {
     );
     const store = pgAutomationStore(sqlAs('developer'), {
       organizationId: 'org_acme',
-      actor: 'user_noah',
+      origin: appOrigin('user_noah'),
     });
     expect(await store.orgFacts?.(QUERY)).toEqual({
       viewer: { role: 'developer', readable: null },
@@ -101,7 +102,7 @@ describe('pgAutomationStore.orgFacts', () => {
       readOrgFacts.mockReturnValue(new Promise(() => {}));
       const store = pgAutomationStore(sqlAs('admin'), {
         organizationId: 'org_acme',
-        actor: 'user_ada',
+        origin: appOrigin('user_ada'),
       });
       const answer = store.orgFacts?.(QUERY);
       await vi.advanceTimersByTimeAsync(ORG_FACTS_BUDGET_MS);

@@ -16,7 +16,7 @@ import {
   type PgStoreScope,
 } from '../automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../chat/capabilities.ts';
-import type { McpCaller } from './caller.ts';
+import { callerOrigin, type McpCaller } from './caller.ts';
 import { mcpDocs } from './docs.ts';
 import { dispatchPlatformTool } from './platform-tools.ts';
 import type { McpHost } from './tools.ts';
@@ -36,15 +36,9 @@ function assembleEngineHost(): void {
  * projects they cannot read is "not found".
  */
 export function engineScope(caller: McpCaller): PgStoreScope {
-  const { apiKeyId } = caller.credential;
   return {
     organizationId: caller.organizationId,
-    actor: `api-key:${caller.userId}`,
-    ...(apiKeyId !== undefined ? { apiKeyId } : {}),
-    via: 'mcp',
-    ...(caller.clientName !== undefined
-      ? { clientName: caller.clientName }
-      : {}),
+    origin: callerOrigin(caller),
     visibleOnly: true,
   };
 }

@@ -19,9 +19,9 @@ import { describe, expect, it, vi } from 'vitest';
 // actual audit/name locks here while this fake handles binding statements.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import {
   AutomationError,
   bindProjectInTx,
@@ -88,7 +88,11 @@ const inserts = (statements: Statement[]) =>
     row.text.startsWith('INSERT INTO app.automation_project_bindings'),
   );
 
-const base = { organizationId: 'org-1', name: 'ops/manager', actor: 'user-1' };
+const base = {
+  organizationId: 'org-1',
+  name: 'ops/manager',
+  origin: appOrigin('user-1'),
+};
 
 describe('binding doors and the database-kept wake claim (#4540) [AUTO-R29]', () => {
   it('setAutomationProjects takes the name lock, then its claim keys for every asked-for project, before any binding write', async () => {
@@ -169,7 +173,7 @@ describe('binding doors and the database-kept wake claim (#4540) [AUTO-R29]', ()
       organizationId: 'org-1',
       name: 'ops/manager',
       document: { version: 1, name: 'ops/manager', nodes: [] },
-      actor: 'user-1',
+      origin: appOrigin('user-1'),
       projectId: 'p-1',
       create: true,
     }).catch((error: unknown) => error);

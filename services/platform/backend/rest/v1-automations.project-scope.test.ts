@@ -509,9 +509,13 @@ describe('installs made with an API key name the key [AUTO-R28]', () => {
       expect(seen).toEqual([
         { via: 'api-key', requestId: 'req-9', apiKeyId: 'key-7' },
       ]);
+      // Recorded as the key holder over the REST API, with the key the
+      // channel names.
       expect(writer).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ actor: 'api-key:user-1' }),
+        expect.objectContaining({
+          origin: { actor: 'api-key:user-1', via: 'rest', apiKeyId: 'key-7' },
+        }),
       );
     },
   );

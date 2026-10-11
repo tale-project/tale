@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import { dispatch } from '../../../lib/engine/api/dispatch';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host';
+import type { WriteOrigin } from '../../lib/write-origin';
 import { pgAutomationStore } from './dispatch-store';
 import {
   managedConfigurationHash,
@@ -149,7 +150,9 @@ export async function readManagedAutomation(
 export async function writeManagedAutomation(
   sql: Sql,
   organizationId: string,
-  actor: string,
+  /** Who applies the configuration — the managed door
+   * (`appOrigin(userId, 'managed')`). */
+  origin: WriteOrigin,
   body: z.infer<typeof managedAutomationWriteSchema>,
 ) {
   const resource: ManagedPlatformResource = body.resource;
@@ -160,7 +163,7 @@ export async function writeManagedAutomation(
     );
   const { name, projectId } = resource.config;
   assertAutomationName(name);
-  const scope = { organizationId, actor };
+  const scope = { organizationId, origin };
   if (resource.kind === 'automation-schedule') {
     if (!body.definitionSha256)
       throw new AutomationError(
@@ -215,7 +218,6 @@ export async function writeManagedAutomation(
               ...scope,
               ...resource.config,
               document,
-              origin: { via: 'managed' },
               ...(message === undefined ? {} : { message }),
               ...(options?.testsPassed === undefined
                 ? {}

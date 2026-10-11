@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { deleteAutomationCascade, saveVersion } from '../automations/store.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { createProject } from '../projects/service.ts';
@@ -50,7 +51,7 @@ export async function checkTaskListStep(
         nodes: [{ id: 'noop', type: 'transform', code: 'return null;' }],
         output: '{{ nodes.noop.output }}',
       },
-      actor: userId,
+      origin: appOrigin(userId),
       projectId: home,
     });
     const make = (
@@ -158,7 +159,7 @@ export async function checkTaskListStep(
     await deleteAutomationCascade(sql, {
       organizationId: orgId,
       name: automation,
-      actor: userId,
+      origin: appOrigin(userId),
     }).catch((error: unknown) => {
       console.warn(
         '[itest] cleanup of the task.list automation:',

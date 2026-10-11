@@ -15,6 +15,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mintCursorFor } from '../../core/lib/signed_cursor.ts';
+import { mcpOrigin } from '../../lib/write-origin.ts';
 import {
   assertWritable,
   listProjects,
@@ -23,7 +24,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
-import { listDeployments } from './audit.ts';
+import { recentDeployments } from './deployments.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import {
   bindingProjectIds,
@@ -60,7 +61,9 @@ vi.mock('./store.ts', async (original) => ({
 vi.mock('./ask-answer.ts', () => ({ answerRunAskAs: vi.fn() }));
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(),
-  listDeployments: vi.fn(),
+}));
+vi.mock('./deployments.ts', () => ({
+  recentDeployments: vi.fn(),
 }));
 vi.mock('../projects/service.ts', async (original) => ({
   ...(await original<typeof import('../projects/service.ts')>()),
@@ -71,6 +74,12 @@ vi.mock('../projects/service.ts', async (original) => ({
 
 const ORG = 'org-1';
 const NAME = 'hr/onboarding';
+/** The coding agent's door the store records on every write it makes. */
+const ORIGIN = mcpOrigin({
+  userId: 'user-1',
+  apiKeyId: 'key-1',
+  clientName: 'Claude Code',
+});
 
 /** p-1 is readable and writable; p-ro readable, not writable; p-hidden is
  * a project the caller cannot read. */
@@ -125,10 +134,7 @@ function store(
   }) as unknown as Sql;
   return pgAutomationStore(sql, {
     organizationId: options.organizationId ?? ORG,
-    actor: 'api-key:user-1',
-    apiKeyId: 'key-1',
-    via: 'mcp',
-    clientName: 'Claude Code',
+    origin: ORIGIN,
     ...(options.visibleOnly === false ? {} : { visibleOnly: true }),
   });
 }
@@ -155,7 +161,7 @@ beforeEach(() => {
   vi.mocked(deployedVersion).mockResolvedValue(6);
   vi.mocked(listTriggers).mockResolvedValue([]);
   vi.mocked(listVersions).mockResolvedValue([]);
-  vi.mocked(listDeployments).mockResolvedValue([]);
+  vi.mocked(recentDeployments).mockResolvedValue([]);
 });
 
 describe('reads follow what the app would show the person [MCP-R9]', () => {
@@ -271,13 +277,12 @@ describe('save', () => {
       organizationId: ORG,
       name: NAME,
       document: doc,
-      actor: 'api-key:user-1',
       message: 'why',
       baseVersion: 7,
       create: true,
       metadataMode: 'carry',
       presentation: null,
-      origin: { via: 'mcp', apiKeyId: 'key-1', clientName: 'Claude Code' },
+      origin: ORIGIN,
       authorize: expect.any(Function),
     });
   });
@@ -337,6 +342,8 @@ describe('deploy and delete', () => {
       name: NAME,
       version: 7,
       previousVersion: 6,
+      kind: 'deploy',
+      deploymentId: 'deployment-1',
       trigger: null,
     });
     await store().deploy(NAME, 7, {
@@ -347,7 +354,7 @@ describe('deploy and delete', () => {
       organizationId: ORG,
       name: NAME,
       version: 7,
-      actor: 'api-key:user-1',
+      origin: ORIGIN,
       testsPassed: true,
       expectedDeployedVersion: 6,
     });
@@ -368,7 +375,7 @@ describe('deploy and delete', () => {
     expect(deleteAutomationCascade).toHaveBeenCalledWith(expect.anything(), {
       organizationId: ORG,
       name: NAME,
-      actor: 'api-key:user-1',
+      origin: ORIGIN,
       expectedLatestVersion: 7,
     });
   });
@@ -419,7 +426,7 @@ describe('setAutomationProjects', () => {
       organizationId: ORG,
       name: NAME,
       projectId: 'p-1',
-      actor: 'api-key:user-1',
+      origin: ORIGIN,
     });
   });
 });
@@ -602,7 +609,7 @@ describe("another organization's automations, projects and runs stay out of reac
       async (_sql, org, _name, version) =>
         org === ORG ? versionOf(version ?? 7) : null,
     );
-    vi.mocked(listDeployments).mockImplementation(async (_sql, org) =>
+    vi.mocked(recentDeployments).mockImplementation(async (_sql, org) =>
       org === ORG
         ? [
             {
@@ -632,7 +639,7 @@ describe("another organization's automations, projects and runs stay out of reac
       NAME,
       undefined,
     );
-    expect(listDeployments).toHaveBeenCalledWith(
+    expect(recentDeployments).toHaveBeenCalledWith(
       expect.anything(),
       'org-2',
       NAME,

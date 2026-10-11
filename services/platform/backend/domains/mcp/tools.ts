@@ -21,9 +21,10 @@ import { MCP_TOOLS, type McpToolSpec } from '../../../lib/mcp/tools';
 import { defineAbilityFor } from '../../../lib/permissions/ability';
 import { reportError } from '../../error-reporting';
 import { runInRequestChannel } from '../../lib/request-channel';
+import { requestChannelOf } from '../../lib/write-origin';
 import { houseIssueMessage } from '../../rest/shared';
 import type { McpCallOutcome } from './activity';
-import type { McpCaller } from './caller';
+import { callerOrigin, type McpCaller } from './caller';
 import { refusalFromThrown } from './refusals';
 
 /** The whole inventory, in the advertised order. */
@@ -374,21 +375,20 @@ export async function callTool(
     }
   }
   const args: Record<string, unknown> = parsed.data;
-  const { apiKeyId } = caller.credential;
-  const { clientName } = caller;
+  // Every audit row the call writes, however deep in a domain, names the
+  // door, the tool, the key and the client (`request-channel.ts`) — opened
+  // from the origin the engine store records on what the call changes, so
+  // both name the same key and client (`write-origin.ts`).
+  const channel = requestChannelOf(callerOrigin(caller), {
+    requestId: context.requestId,
+    tool: tool.name,
+  });
+  const call = () => context.host[tool.kind](caller, tool.name, args);
   try {
-    // Every audit row the call writes, however deep in a domain, names the
-    // door, the tool, the key and the client (`request-channel.ts`).
-    const value: unknown = await runInRequestChannel(
-      {
-        via: 'mcp',
-        requestId: context.requestId,
-        tool: tool.name,
-        ...(apiKeyId === undefined ? {} : { apiKeyId }),
-        ...(clientName === undefined ? {} : { clientName }),
-      },
-      () => context.host[tool.kind](caller, tool.name, args),
-    );
+    const value: unknown =
+      channel === undefined
+        ? await call()
+        : await runInRequestChannel(channel, call);
     return { kind: 'answer', answer: answer(tool, value) };
   } catch (error) {
     const refusal = refusalFromThrown(error);

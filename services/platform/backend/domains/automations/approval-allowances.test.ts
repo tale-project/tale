@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import {
   listApprovalAllowances,
   readApprovalAllowanceRows,
@@ -64,7 +65,7 @@ const sql = {
 const ask = {
   organizationId: 'org-1',
   automation: 'morning-digest',
-  actor: 'user:user-ada',
+  origin: appOrigin('user-ada'),
   grantedBy: 'user-ada',
 };
 

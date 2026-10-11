@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { createProject } from '../projects/service.ts';
 import { deleteAutomationCascade } from './store.ts';
 
@@ -191,7 +192,7 @@ export async function checkAutomationTemplates(
       await deleteAutomationCascade(sql, {
         organizationId: orgId,
         name: automation,
-        actor: userId,
+        origin: appOrigin(userId),
       }).catch((error: unknown) => {
         console.warn(
           `[itest] cleanup of ${automation}:`,

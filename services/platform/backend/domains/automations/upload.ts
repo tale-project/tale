@@ -16,6 +16,7 @@ import {
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
 import { auditSkillWrite } from '../skills/audit.ts';
 import { assertSkillTeamsAssignable } from '../skills/errors.ts';
@@ -51,7 +52,7 @@ function uploadValidationStore(
   const store: StoreAdapter = {
     ...pgAutomationStore(sql, {
       organizationId: auth.organizationId,
-      actor: auth.userId,
+      origin: appOrigin(auth.userId, 'upload'),
     }),
   };
   delete store.orgFacts;
@@ -79,6 +80,9 @@ export async function uploadAutomationPg(
       return null;
     }
   };
+  // What the upload saves and installs is the uploader's, through the upload
+  // door (`write-origin.ts`).
+  const origin = appOrigin(auth.userId, 'upload');
   // The one key `verifyStagedZip` admitted by consuming the caller's intent.
   // `readStagedZip` / `cleanupStagedZip` act on that key alone — never on a
   // bare client ref (the impl calls cleanup in `finally`, refusal included).
@@ -110,8 +114,7 @@ export async function uploadAutomationPg(
           organizationId: auth.organizationId,
           name: nameOfDocument(saveArgs.automation),
           document: saveArgs.automation,
-          actor: auth.userId,
-          origin: { via: 'upload' },
+          origin,
           message: saveArgs.message,
           ...(saveArgs.projectId !== undefined
             ? { projectId: saveArgs.projectId }
@@ -131,7 +134,7 @@ export async function uploadAutomationPg(
           organizationId: auth.organizationId,
           name: automationName,
           projectId,
-          actor: auth.userId,
+          origin,
         });
       },
       verifyStagedZip: async (storageId) => {

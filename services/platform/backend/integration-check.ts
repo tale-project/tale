@@ -75,6 +75,7 @@ import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkApprovalAllowances } from './domains/automations/approval-allowances.integration.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkDeploymentHistory } from './domains/automations/deployment-history.integration.ts';
 import { checkEventScopeAndIsolation } from './domains/automations/event-scope.integration.ts';
 import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
 import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
@@ -85,6 +86,7 @@ import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-gith
 import { checkAutomationTemplates } from './domains/automations/templates.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
+import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
@@ -222,6 +224,7 @@ import {
   installClientErrorEnvelope,
 } from './lib/http-hygiene.ts';
 import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
+import { appOrigin } from './lib/write-origin.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 import { checkOrgSlugRefusals } from './rest/org-slug-refusals.integration.ts';
 
@@ -12923,13 +12926,13 @@ async function checkAutomations(
       organizationId: orgId,
       name: 'ops/files',
       document: invalidConnectorDocument,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     await legacyStore.deploy(sql, {
       organizationId: orgId,
       name: 'ops/files',
       version: 2,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     const badRun = z.object({ runId: z.string() }).safeParse(
       await (
@@ -14674,7 +14677,7 @@ async function checkAutomationTriggerDelivery(
         organizationId: orgId,
         name,
         trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
-        actor: 'itest',
+        origin: appOrigin('itest'),
       }),
     ),
   );
@@ -14869,7 +14872,7 @@ async function checkAutomationTriggerDelivery(
     organizationId: orgId,
     name,
     trigger: { kind: 'schedule', cron: `${minute} * * * *`, timezone: 'UTC' },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
   const hour = 60 * 60_000;
   const latestAt = (() => {
@@ -14938,7 +14941,7 @@ async function checkAutomationTriggerDelivery(
       timezone: 'Europe/Zurich',
       startDate: '2026-01-01',
     },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
   await sql`
     UPDATE app.automation_triggers
@@ -15068,7 +15071,7 @@ async function checkAutomationTriggerDelivery(
       timezone: 'UTC',
       input: { fence: 'fixed' },
     },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
   await backdateStamp();
   await triggersModule.scanScheduledTriggers(sql);
@@ -15104,7 +15107,7 @@ async function checkAutomationTriggerDelivery(
     organizationId: orgId,
     name,
     trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
-    actor: 'itest',
+    origin: appOrigin('itest'),
   });
 
   // ---- #2: webhook redelivery is idempotent — a vendor's delivery id, or a
@@ -42982,13 +42985,13 @@ async function checkAutomationAgentNode(
       organizationId: orgId,
       name: 'ops/parent-agentic',
       document: parentAgentDocument,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     await legacyStore.deploy(sql, {
       organizationId: orgId,
       name: 'ops/parent-agentic',
       version: 1,
-      actor: 'itest:legacy',
+      origin: appOrigin('itest:legacy'),
     });
     const spentBefore = { ...gatewayCalls };
     const subAgentRun = await startLiveAndSettle('ops/parent-agentic');
@@ -65064,6 +65067,11 @@ async function main(): Promise<void> {
         () => checkApprovalAllowances(sql, authCtx, record),
       ],
       ['checkTaskListStep', () => checkTaskListStep(sql, authCtx, record)],
+      [
+        'checkDeploymentHistory',
+        () => checkDeploymentHistory(sql, authCtx, record),
+      ],
+      ['checkVersionHistory', () => checkVersionHistory(sql, authCtx, record)],
       [
         'checkAutomationTemplates',
         () => checkAutomationTemplates(sql, baseUrl, authCtx, record),

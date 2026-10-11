@@ -6,6 +6,7 @@ import {
   assertAutomationNameCreatable,
   AutomationError,
   RESERVED_AUTOMATION_SEGMENTS,
+  RESERVED_TRAILING_PATHS,
 } from './store.ts';
 
 /**
@@ -24,6 +25,27 @@ function fixedRouteSegments(): string[] {
       /app\.(?:get|post|put|patch|delete)\(\s*'\/([^/'\s:{]+)/g,
     ),
   ].map((match) => match[1] ?? '');
+}
+
+/** The suffix routes of `routes.ts` (`/:name{.+}/<suffix>`) whose method
+ * also has a bare `/:name{.+}` route: those match first, so a name ending
+ * in the suffix would answer as another automation. */
+function collidingSuffixes(): string[] {
+  const source = readFileSync(new URL('./routes.ts', import.meta.url), 'utf8');
+  const routes = [
+    ...source.matchAll(
+      /app\.(get|post|put|patch|delete)\(\s*'\/:name\{\.\+\}(\/[^']*)?'/g,
+    ),
+  ].map((match) => ({
+    method: match[1] ?? '',
+    suffix: (match[2] ?? '').replace(/^\//, ''),
+  }));
+  const bare = new Set(
+    routes.filter((route) => route.suffix === '').map((route) => route.method),
+  );
+  return routes
+    .filter((route) => route.suffix !== '' && bare.has(route.method))
+    .map((route) => route.suffix);
 }
 
 /** Every fixed page beside `$automationSlug` in the app's automations tree. */
@@ -69,6 +91,44 @@ describe('reserved automation name segments', () => {
       expect(RESERVED_AUTOMATION_SEGMENTS).toContain(page);
     }
   });
+});
+
+describe('reserved trailing paths [AUTO-R49]', () => {
+  it('cover every suffix route that shares a method with the bare /:name route', () => {
+    const suffixes = collidingSuffixes();
+    // A guard against the scan going blind: these suffix routes exist.
+    expect(suffixes).toEqual(expect.arrayContaining(['versions', 'trigger']));
+    for (const suffix of new Set(suffixes)) {
+      expect(RESERVED_TRAILING_PATHS).toContain(suffix);
+    }
+  });
+
+  it.each([
+    ['ops/versions', 'versions'],
+    ['ops/trigger', 'trigger'],
+    ['reports/trigger/runs', 'trigger/runs'],
+    ['billing/deployments', 'deployments'],
+  ])('refuses %j, naming %j', (name, word) => {
+    let caught: unknown;
+    try {
+      assertAutomationNameCreatable(name);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(AutomationError);
+    if (caught instanceof AutomationError) {
+      expect(caught.code).toBe('AUTOMATION_NAME_RESERVED');
+      expect(caught.status).toBe(400);
+      expect(caught.message).toContain(`"${word}" at its end`);
+    }
+  });
+
+  it.each(['versions', 'ops/version-history', 'ops/triggers-digest'])(
+    'lets %j through — only a whole path at the end is reserved',
+    (name) => {
+      expect(assertAutomationNameCreatable(name)).toBe(name);
+    },
+  );
 });
 
 describe('assertAutomationNameCreatable', () => {

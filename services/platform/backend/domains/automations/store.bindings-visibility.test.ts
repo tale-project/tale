@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { setAutomationProjects } from './store.ts';
 
 interface Statement {
@@ -66,7 +67,7 @@ function deletion(statements: Statement[]) {
 const base = {
   organizationId: 'org-1',
   name: 'ops/sync',
-  actor: 'user-1',
+  origin: appOrigin('user-1'),
 };
 
 beforeEach(() => vi.clearAllMocks());

@@ -18,13 +18,13 @@ import { describe, expect, it, vi } from 'vitest';
 // `audit.test.ts`); this double answers no audit-chain query.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(async () => undefined),
 }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { deploy, recordTestVerdict, setTestsVerdict } from './store.ts';
 
 interface Statement {
@@ -57,6 +57,10 @@ function fakeStore(testsPassed: boolean | null): {
         },
       ]);
     }
+    // The deployment history's new event.
+    if (text.includes('RETURNING id')) {
+      return Promise.resolve([{ id: 'deployment-1' }]);
+    }
     return Promise.resolve([]);
   };
   const sql = Object.assign(tx, {
@@ -71,7 +75,7 @@ const args = {
   organizationId: 'org_1',
   name: 'ops/greet',
   version: 1,
-  actor: 'u',
+  origin: appOrigin('u'),
 };
 const stamp = (statements: Statement[]) =>
   statements.find((s) =>

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from 'postgres';
 
 import { toJson } from '../../db/sql.ts';
+import { appOrigin } from '../../lib/write-origin.ts';
 import { findOrCreateContactByEmail } from '../contacts/service.ts';
 import {
   bindProject,
@@ -88,27 +89,27 @@ export async function checkEventScopeAndIsolation(
         nodes: [{ id: 'noop', type: 'transform', code: 'return null;' }],
         output: '{{ nodes.noop.output }}',
       },
-      actor: userId,
+      origin: appOrigin(userId),
     });
     await deploy(sql, {
       organizationId: orgId,
       name,
       version: 1,
-      actor: userId,
+      origin: appOrigin(userId),
     });
     for (const projectId of options.projectIds ?? []) {
       await bindProject(sql, {
         organizationId: orgId,
         name,
         projectId,
-        actor: userId,
+        origin: appOrigin(userId),
       });
     }
     await setTrigger(sql, {
       organizationId: orgId,
       name,
       trigger: { kind: 'event', event },
-      actor: userId,
+      origin: appOrigin(userId),
     });
   };
 
@@ -312,7 +313,7 @@ export async function checkEventScopeAndIsolation(
     );
   } finally {
     for (const name of Object.values(names)) {
-      await deleteTrigger(sql, orgId, name, 'itest');
+      await deleteTrigger(sql, orgId, name, appOrigin('itest'));
     }
     if (raisingRunId !== null) {
       const runId = raisingRunId;

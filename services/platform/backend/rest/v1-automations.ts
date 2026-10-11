@@ -70,6 +70,11 @@ import { getProjectAuthContext } from '../domains/projects/service.ts';
 import { requestIdOf } from '../error-reporting.ts';
 import { runInRequestChannel } from '../lib/request-channel.ts';
 import {
+  requestChannelOf,
+  restOrigin,
+  type WriteOrigin,
+} from '../lib/write-origin.ts';
+import {
   actedBy,
   actorBodySchema,
   refusedForActor,
@@ -334,31 +339,28 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const automationNotFound = (c: Context<RestEnv>) =>
     notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
 
-  /** Who a definition write made with an API key is: the key holder
-   * through the key's door, `api-key:<userId>` — the actor a coding agent's
-   * same write over MCP records, so the audit row reads "API", never a
-   * click in the app. */
-  const keyActor = (c: Context<RestEnv>): string =>
-    `api-key:${c.get('userId')}`;
+  /** Who a definition write made with an API key is, and through which
+   * door: the key holder through the key, `api-key:<userId>` — the actor a
+   * coding agent's same write over MCP records, so the audit row reads
+   * "API", never a click in the app — over the REST API, with the key's id
+   * (`write-origin.ts`). */
+  const keyOrigin = (c: Context<RestEnv>): WriteOrigin =>
+    restOrigin({ userId: c.get('userId'), apiKeyId: restApiKeyId(c) });
 
   /** Run a definition write so every audit row it writes names the key
    * that made it and the request (`via: 'api-key'`, `apiKeyId`,
    * `requestId` — `lib/request-channel.ts`): an admin reading the row of a
-   * delete made with a leaked key knows which key to revoke. */
+   * delete made with a leaked key knows which key to revoke. The channel is
+   * opened from the origin the write records. */
   const asKeyWrite = <T>(
     c: Context<RestEnv>,
-    write: () => Promise<T>,
+    write: (origin: WriteOrigin) => Promise<T>,
   ): Promise<T> => {
-    const apiKeyId = restApiKeyId(c);
-    const requestId = requestIdOf(c);
-    return runInRequestChannel(
-      {
-        via: 'api-key',
-        ...(requestId === undefined ? {} : { requestId }),
-        ...(apiKeyId === undefined ? {} : { apiKeyId }),
-      },
-      write,
-    );
+    const origin = keyOrigin(c);
+    const channel = requestChannelOf(origin, { requestId: requestIdOf(c) });
+    return channel === undefined
+      ? write(origin)
+      : runInRequestChannel(channel, () => write(origin));
   };
 
   /** Whether the automation is installed only in projects the key holder
@@ -407,11 +409,11 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
-      await asKeyWrite(c, () =>
+      await asKeyWrite(c, (origin) =>
         deleteAutomationCascade(deps.sql, {
           organizationId: c.get('organizationId'),
           name,
-          actor: keyActor(c),
+          origin,
         }),
       );
       return c.body(null, 204);
@@ -477,12 +479,12 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
       const organizationId = c.get('organizationId');
-      const result = await asKeyWrite(c, () =>
+      const result = await asKeyWrite(c, (origin) =>
         setTrigger(deps.sql, {
           organizationId,
           name,
           trigger: body,
-          actor: keyActor(c),
+          origin,
         }),
       );
       const deployed =
@@ -502,8 +504,8 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
-      await asKeyWrite(c, () =>
-        deleteTrigger(deps.sql, c.get('organizationId'), name, keyActor(c)),
+      await asKeyWrite(c, (origin) =>
+        deleteTrigger(deps.sql, c.get('organizationId'), name, origin),
       );
       return c.body(null, 204);
     } catch (error) {
@@ -539,7 +541,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       const auth = await restProjectAuth(deps.sql, c);
-      const result = await asKeyWrite(c, () =>
+      const result = await asKeyWrite(c, (origin) =>
         transactSerializable(deps.sql, async (tx) => {
           const project = await loadRestProject(
             tx,
@@ -553,7 +555,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             organizationId: auth.organizationId,
             name,
             projectId: project.id,
-            actor: keyActor(c),
+            origin,
           });
         }),
       );
@@ -581,7 +583,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       const auth = await restProjectAuth(deps.sql, c);
-      const result = await asKeyWrite(c, () =>
+      const result = await asKeyWrite(c, (origin) =>
         transactSerializable(deps.sql, async (tx) => {
           const project = await loadRestProject(
             tx,
@@ -595,7 +597,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             organizationId: auth.organizationId,
             name,
             projectId: project.id,
-            actor: keyActor(c),
+            origin,
           });
         }),
       );

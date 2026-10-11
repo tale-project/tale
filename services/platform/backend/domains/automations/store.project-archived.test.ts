@@ -15,12 +15,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // `audit.test.ts`); this double answers no audit-chain query.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { beginRun, setAutomationProjects } from './store.ts';
 
 function fakeStore(options: { archivedAt: number | null; bound?: boolean }) {
@@ -61,7 +61,7 @@ describe('setAutomationProjects', () => {
         organizationId: 'org-1',
         name: 'ops/greet',
         projectIds: ['p-1'],
-        actor: 'user-1',
+        origin: appOrigin('user-1'),
       }),
     ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
     expect(fake.writes).toEqual([]);
@@ -73,7 +73,7 @@ describe('setAutomationProjects', () => {
       organizationId: 'org-1',
       name: 'ops/greet',
       projectIds: ['p-1'],
-      actor: 'user-1',
+      origin: appOrigin('user-1'),
     });
     expect(fake.writes).toContain(
       'INSERT INTO app.automation_project_bindings',

@@ -29,6 +29,7 @@ import {
   invalidBodyResponse,
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { appOrigin, type WriteOrigin } from '../../lib/write-origin.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
   getProjectAuthContext,
@@ -437,6 +438,13 @@ export function createAutomationRoutes(deps: {
     isAdminOrDeveloperRole(c.get('orgMember').role)
       ? null
       : c.json({ error: 'admin or developer role required' }, 403);
+
+  /** The signed-in person changing an automation in the editor — the
+   * origin every definition write of the app's own routes records
+   * (`write-origin.ts`); the upload and the managed configuration doors
+   * name theirs. */
+  const editorOrigin = (c: Context<OrgEnv>): WriteOrigin =>
+    appOrigin(c.get('sessionBundle').user.id);
 
   // Runs, bindings and project-scoped listings follow the project's read
   // rule, like the REST and engine doors: a member outside a team-restricted
@@ -1080,7 +1088,7 @@ export function createAutomationRoutes(deps: {
       const result = await writeManagedAutomation(
         deps.sql,
         c.get('orgId'),
-        c.get('sessionBundle').user.id,
+        appOrigin(c.get('sessionBundle').user.id, 'managed'),
         body.data,
       );
       return authoringRefusal(c, result) ?? c.json(result);
@@ -1103,7 +1111,7 @@ export function createAutomationRoutes(deps: {
       assembleAutomationAuthoringHost();
       const scope = {
         organizationId: c.get('orgId'),
-        actor: c.get('sessionBundle').user.id,
+        origin: editorOrigin(c),
       };
       const store = pgAutomationStore(deps.sql, scope);
       let storeError: unknown;
@@ -1121,7 +1129,6 @@ export function createAutomationRoutes(deps: {
                 ...scope,
                 name: nameFrom(c, 'save'),
                 document: automation,
-                origin: { via: 'app' },
                 ...(message !== undefined ? { message } : {}),
                 ...(options?.testsPassed !== undefined
                   ? { testsPassed: options.testsPassed }
@@ -1177,7 +1184,7 @@ export function createAutomationRoutes(deps: {
       assembleAutomationAuthoringHost();
       const store = pgAutomationStore(deps.sql, {
         organizationId: c.get('orgId'),
-        actor: c.get('sessionBundle').user.id,
+        origin: editorOrigin(c),
       });
       const result = await dispatch(
         'validate_automation',
@@ -1204,7 +1211,7 @@ export function createAutomationRoutes(deps: {
       assembleAutomationAuthoringHost();
       const store = pgAutomationStore(deps.sql, {
         organizationId: c.get('orgId'),
-        actor: c.get('sessionBundle').user.id,
+        origin: editorOrigin(c),
       });
       let storeError: unknown;
       const result = await dispatch(
@@ -1255,7 +1262,7 @@ export function createAutomationRoutes(deps: {
           organizationId: c.get('orgId'),
           name: nameFrom(c, 'trigger'),
           trigger: body.data,
-          actor: c.get('sessionBundle').user.id,
+          origin: editorOrigin(c),
         }),
       );
     } catch (error) {
@@ -1271,7 +1278,7 @@ export function createAutomationRoutes(deps: {
         deps.sql,
         c.get('orgId'),
         nameFrom(c, 'trigger'),
-        c.get('sessionBundle').user.id,
+        editorOrigin(c),
       ),
     });
   });
@@ -1288,7 +1295,7 @@ export function createAutomationRoutes(deps: {
         organizationId: c.get('orgId'),
         name: nameFrom(c, 'projects'),
         projectIds: body.data.projectIds,
-        actor: c.get('sessionBundle').user.id,
+        origin: editorOrigin(c),
         // The editor saves the bindings it was shown; bindings to projects
         // outside the author's view survive the save.
         visibleProjectIds: await readableProjectIds(
@@ -1441,7 +1448,7 @@ export function createAutomationRoutes(deps: {
           organizationId: c.get('orgId'),
           automation: nameFrom(c, 'approval-allowances'),
           allowed: body.data.allowed,
-          actor: userId,
+          origin: editorOrigin(c),
           grantedBy: userId,
         }),
       );
@@ -1457,7 +1464,7 @@ export function createAutomationRoutes(deps: {
       await deleteAutomationCascade(deps.sql, {
         organizationId: c.get('orgId'),
         name: nameFrom(c, ''),
-        actor: c.get('sessionBundle').user.id,
+        origin: editorOrigin(c),
       });
     } catch (error) {
       // The active-run guard refuses with a coded 409 the dialog surfaces.
@@ -1622,7 +1629,7 @@ export function createAutomationTemplateRoutes(deps: {
         ),
       });
       assembleAutomationAuthoringHost();
-      const scope = { organizationId, actor };
+      const scope = { organizationId, origin: appOrigin(actor) };
       const store = pgAutomationStore(deps.sql, scope);
       let storeError: unknown;
       const result = await dispatch(
@@ -1636,7 +1643,6 @@ export function createAutomationTemplateRoutes(deps: {
                 ...scope,
                 name: body.data.name,
                 document: automation,
-                origin: { via: 'app' },
                 create: true,
                 presentation: prepared.presentation,
                 ...(message !== undefined ? { message } : {}),
@@ -1668,7 +1674,7 @@ export function createAutomationTemplateRoutes(deps: {
                 ...prepared.trigger,
                 enabled: body.data.enableTrigger === true,
               },
-              actor,
+              origin: scope.origin,
             });
       return c.json(
         {

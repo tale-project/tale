@@ -3,6 +3,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { appOrigin } from '../../lib/write-origin.ts';
 import { listProjects, type ProjectRow } from '../projects/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import {
@@ -97,7 +98,7 @@ function store(
   }) as unknown as Sql;
   return pgAutomationStore(sql, {
     organizationId: 'org-1',
-    actor: options.actor ?? 'api-key:user-1',
+    origin: appOrigin(options.actor ?? 'api-key:user-1'),
     ...(options.scopeProjectId !== undefined
       ? { projectId: options.scopeProjectId }
       : {}),
