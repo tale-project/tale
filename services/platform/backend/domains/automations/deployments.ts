@@ -215,19 +215,24 @@ export async function recordDeploymentInTx(
   },
 ): Promise<{ id: string; kind: 'deploy' | 'rollback' }> {
   const { organizationId, name, pointer } = args;
-  if (pointer !== null) {
-    const newest = await newestEvent(tx, organizationId, name);
-    if (!covers(newest, pointer)) {
-      await tx`
-        INSERT INTO app.automation_deployment_events (
-          org_id, name, version, previous_version, kind, actor, via, at_ms
-        ) VALUES (
-          ${organizationId}, ${name}, ${pointer.version}, NULL, 'recorded',
-          ${pointer.deployedBy}, ${pointerVia(pointer)}, ${pointer.deployedAtMs}
-        )
-      `;
-    }
+  // Each event of a name is later than the one before, by at least a
+  // millisecond, so newest first is the order they happened in even when
+  // two deploys land within one millisecond (or a clock steps back).
+  const newest = await newestEvent(tx, organizationId, name);
+  let after = newest?.at ?? Number.NEGATIVE_INFINITY;
+  if (pointer !== null && !covers(newest, pointer)) {
+    const recordedAt = Math.max(pointer.deployedAtMs, after + 1);
+    await tx`
+      INSERT INTO app.automation_deployment_events (
+        org_id, name, version, previous_version, kind, actor, via, at_ms
+      ) VALUES (
+        ${organizationId}, ${name}, ${pointer.version}, NULL, 'recorded',
+        ${pointer.deployedBy}, ${pointerVia(pointer)}, ${recordedAt}
+      )
+    `;
+    after = recordedAt;
   }
+  const atMs = Math.max(args.atMs, after + 1);
   const previous = pointer?.version ?? null;
   const kind =
     previous !== null && args.version < previous ? 'rollback' : 'deploy';
@@ -239,7 +244,7 @@ export async function recordDeploymentInTx(
       ${organizationId}, ${name}, ${args.version}, ${previous}, ${kind},
       ${args.origin.actor}, ${args.origin.via},
       ${args.origin.apiKeyId ?? null}, ${args.origin.clientName ?? null},
-      ${args.atMs}
+      ${atMs}
     )
     RETURNING id
   `;

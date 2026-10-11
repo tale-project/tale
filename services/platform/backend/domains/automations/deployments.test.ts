@@ -169,6 +169,24 @@ describe('recordDeploymentInTx [AUTO-R46]', () => {
     expect(deployed?.values.slice(2, 5)).toEqual([8, 7, 'deploy']);
   });
 
+  it('keeps each event later than the one before, even within one millisecond', async () => {
+    // v7 went live at 5 000, and the rollback lands in the same millisecond.
+    const { sql, statements } = fake({
+      events: [event({ id: 'event-7', version: 7, atMs: 5_000 })],
+    });
+    await recordDeploymentInTx(sql, {
+      organizationId: ORG,
+      name: NAME,
+      version: 6,
+      pointer: { version: 7, deployedBy: 'user_ben', deployedAtMs: 5_000 },
+      origin: appOrigin('user_ada'),
+      atMs: 5_000,
+    });
+    const [only, ...more] = inserts(statements);
+    expect(more).toEqual([]);
+    expect(only?.values.at(-1)).toBe(5_001);
+  });
+
   it('records the platform’s own pointer with its door', async () => {
     const { sql, statements } = fake({});
     await recordDeploymentInTx(sql, {
