@@ -73,6 +73,7 @@ import {
 import { markAutoRetryRetired } from './kick-plan.ts';
 import { laneBarrier } from './lane-barrier.ts';
 import { agentUpdateTaskStatusTrusted } from './service.ts';
+import { observeWakeOccurrence } from './standing-role-wake.integration.ts';
 
 const WAIT_MS = 30_000;
 const MINUTE_MS = 60_000;
@@ -403,19 +404,25 @@ export async function checkStandingRoleWakeScenarios(
     `;
     return rows[0] ?? null;
   };
-  /** Fire the pending wake and let its occurrence land. */
-  const fire = async (s: Scenario): Promise<WakeState | null> => {
-    await backdate(s);
-    await fireDueProjectWakes(sql);
-    const state = await wake(s);
-    await occurrenceOver(state?.firedRunId ?? null);
-    return state;
-  };
   /** One scan, firing nothing new unless the row is eligible. */
   const scan = async (s: Scenario): Promise<WakeState | null> => {
     await backdate(s);
     await fireDueProjectWakes(sql);
     return wake(s);
+  };
+  /** Fire the pending wake and let its occurrence land. */
+  const fire = async (
+    s: Scenario,
+    firstScan = () => scan(s),
+  ): Promise<WakeState | null> => {
+    const state = await observeWakeOccurrence({
+      read: () => wake(s),
+      scan: () => scan(s),
+      firstScan,
+      timeoutMs: WAIT_MS,
+    });
+    await occurrenceOver(state.firedRunId);
+    return state;
   };
   /** An occurrence of T started as the cron path starts one (the scan's
    * `beginRunInTx` + `stampFired`), landed. */
@@ -1045,7 +1052,7 @@ export async function checkStandingRoleWakeScenarios(
     await scenario('W12', async () => {
       const s = await setup('w12');
       await releaseOnce(s);
-      await fire(s);
+      const first = await fire(s);
       const [m] = await managerRuns(s);
       const failedAt = Date.now();
       if (m !== undefined) {
@@ -1057,8 +1064,23 @@ export async function checkStandingRoleWakeScenarios(
         });
       }
       const forGood = await wake(s);
-      await clearWait(s);
-      await fire(s);
+      // Keep the first retry scan busy exactly as another project writer
+      // can. The backoff is cleared only while the work key is held, so
+      // neither the background tick nor this scan can fire in between.
+      const next = await fire(s, () =>
+        sql.begin(async (tx) => {
+          await lockProjectWork(tx, s.project);
+          await clearWait(s);
+          return scan(s);
+        }),
+      );
+      record(
+        'standing-role wake: the fixture observes a fresh occurrence after a busy retry scan (W12)',
+        next?.firedRunId !== null &&
+          next?.firedRunId !== undefined &&
+          next.firedRunId !== first?.firedRunId,
+        `first=${show(first)} next=${show(next)} (want a new occurrence after the work key is released)`,
+      );
       const [m2] = await managerRuns(s);
       if (m2 !== undefined) {
         await failAgentRunFromTurn(sql, {

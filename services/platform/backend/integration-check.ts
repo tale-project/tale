@@ -54061,6 +54061,19 @@ async function checkAuditSurface(
   );
 
   // --- Chain verify: intact -> tamper -> firstBrokenAt -> restore --------
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const writeVerifyProbe = (tx: TransactionSql) =>
+    createAuditLog(tx, {
+      organizationId: orgId,
+      actorId: 'itest',
+      actorType: 'system',
+      action: 'itest.verify_probe',
+      category: 'admin',
+      resourceType: 'itest',
+      status: 'success',
+    });
+  await sql.begin(writeVerifyProbe);
   const intact = z
     .object({
       valid: z.boolean(),
@@ -54076,16 +54089,23 @@ async function checkAuditSurface(
         })
       ).json(),
     );
-  const victimRows = await sql<{ id: string; action: string }[]>`
-    SELECT id, action FROM app.audit_logs
-    WHERE org_id = ${orgId}
-    ORDER BY ts DESC LIMIT 1
-  `;
-  const victim = victimRows[0];
-  await sql`
-    UPDATE app.audit_logs SET action = 'tampered.by.itest'
-    WHERE id = ${victim?.id ?? ''}
-  `;
+  const victim = await sql.begin(async (tx) => {
+    // A writer can append after the intact walk. Keeping that row
+    // uncommitted until selection makes the sealer race reproducible.
+    await writeVerifyProbe(tx);
+    const rows = await tx<{ id: string; action: string }[]>`
+      SELECT id, action FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'itest.verify_probe'
+        AND integrity_hash IS NOT NULL
+      ORDER BY ts DESC, id DESC LIMIT 1
+    `;
+    const row = rows[0];
+    await tx`
+      UPDATE app.audit_logs SET action = 'tampered.by.itest'
+      WHERE id = ${row?.id ?? ''}
+    `;
+    return row;
+  });
   const broken = z
     .object({
       valid: z.boolean(),
@@ -54141,8 +54161,6 @@ async function checkAuditSurface(
     `;
     headReached = status[0]?.headReached ?? false;
   }
-  const { createAuditLog, sealAuditChainNow } =
-    await import('./domains/audit_logs/service.ts');
   await sql.begin((tx) =>
     createAuditLog(tx, {
       organizationId: orgId,

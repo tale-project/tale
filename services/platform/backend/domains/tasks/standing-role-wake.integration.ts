@@ -45,6 +45,43 @@ interface WakeState {
   outcome: string | null;
 }
 
+/** Observe the intended occurrence after a scan that may skip a busy
+ * project. A first snapshot can still name the previous completed run. */
+export async function observeWakeOccurrence<T extends WakeState>(args: {
+  read: () => Promise<T | null>;
+  scan: () => Promise<T | null>;
+  firstScan?: () => Promise<T | null>;
+  timeoutMs: number;
+}): Promise<T> {
+  const previous = await args.read();
+  const alreadyFired =
+    previous?.firedRunId !== null &&
+    previous?.firedRunId !== undefined &&
+    previous.firedSeq === previous.signalSeq &&
+    (previous.outcome === 'fired' ||
+      previous.outcome === 'admitted' ||
+      (previous.outcome === 'not_admitted' &&
+        previous.notBefore !== null &&
+        previous.notBefore > Date.now()));
+  let state = await (args.firstScan ?? args.scan)();
+  const observed = () =>
+    state?.firedRunId !== null &&
+    state?.firedRunId !== undefined &&
+    (state.firedRunId !== previous?.firedRunId || alreadyFired);
+  if (!observed()) {
+    await waitFor(async () => {
+      state = await args.scan();
+      return observed();
+    }, args.timeoutMs);
+  }
+  if (state === null || !observed()) {
+    throw new Error(
+      `itest: wake did not publish its occurrence: ${JSON.stringify(state)}`,
+    );
+  }
+  return state;
+}
+
 export async function checkStandingRoleWake(
   sql: Sql,
   ctx: LaneCtx,
@@ -136,10 +173,16 @@ export async function checkStandingRoleWake(
   };
   /** Fire the pending wake and wait for its occurrence to land. */
   const fireWake = async (): Promise<WakeState | null> => {
-    await backdate();
-    await fireDueProjectWakes(sql);
-    const fired = await wake();
-    const occurrence = fired?.firedRunId ?? null;
+    const fired = await observeWakeOccurrence({
+      read: wake,
+      scan: async () => {
+        await backdate();
+        await fireDueProjectWakes(sql);
+        return wake();
+      },
+      timeoutMs: WAIT_MS,
+    });
+    const occurrence = fired.firedRunId;
     if (occurrence !== null) {
       await waitFor(async () => {
         const rows = await sql<{ status: string }[]>`
