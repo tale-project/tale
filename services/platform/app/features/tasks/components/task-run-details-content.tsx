@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { ArrowUpRight } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { AutomationVersionPill } from '@/app/features/automations/components/automation-version-pill';
 import { RunStepTimeline } from '@/app/features/automations/components/run-step-timeline';
 import {
   useAutomation,
@@ -100,19 +101,29 @@ function TaskRunTimeline({
       {/* The dialog is the quick look; the run page is the audit — an
                 automation page, so only for those who may use Automations. */}
       {canUseAutomations && (
-        <Link
-          to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
-          params={{
-            id: organizationId,
-            projectId,
-            automationSlug: automationSlugToParam(automationSlug),
-            runId,
-          }}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
-        >
-          {t('run.openFull')}
-          <ArrowUpRight className="size-3.5" aria-hidden />
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* The version the run ran, open in the editor. */}
+          <AutomationVersionPill
+            organizationId={organizationId}
+            automationSlug={automationSlug}
+            projectId={projectId}
+            version={run.version}
+            deployedVersion={versionQuery.data?.deployedVersion}
+          />
+          <Link
+            to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
+            params={{
+              id: organizationId,
+              projectId,
+              automationSlug: automationSlugToParam(automationSlug),
+              runId,
+            }}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {t('run.openFull')}
+            <ArrowUpRight className="size-3.5" aria-hidden />
+          </Link>
+        </div>
       )}
     </>
   );

@@ -478,6 +478,7 @@ canvas:
     body: 'v{version} wurde gespeichert, während du bearbeitet hast. Dein Entwurf basiert auf v{base}.'
     show: 'v{version} zeigen und Entwurf verwerfen'
     savedBy: Gespeichert von
+    changes: Änderungen
     seeChanges: 'Ansehen, was sich in v{version} geändert hat'
   start:
     manual: Von Hand, über die API oder MCP
@@ -870,7 +871,14 @@ upload:
   deployLater: Später
   deployed: '{name} v{version} ist live.'
   warnings: '{count, plural, one {# Validierungswarnung} other {# Validierungswarnungen}}'
+  invalid: 'Dieses Paket besteht die Prüfungen nicht. Behebe, was aufgelistet ist, und lade es erneut hoch.'
+  deployInvalid: 'v{version} besteht die Prüfungen nicht und kann daher nicht live gehen. Behebe, was aufgelistet ist, und lade eine neue Version hoch.'
 runs:
+  versionPill:
+    name: 'v{version}{live, select, true {, live} other {}}. Im Editor öffnen.'
+    menu: 'v{version}{live, select, true {, live} other {}}: Aktionen für diese Version'
+    open: 'v{version} im Editor öffnen'
+    compareWithLive: 'v{version} mit der Live-Version v{live} vergleichen'
   agentLog:
     title: Agenten-Log
     starting: Der Agent startet in der Sandbox…

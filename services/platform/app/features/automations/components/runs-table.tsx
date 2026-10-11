@@ -17,11 +17,12 @@ import { useMemo, useState } from 'react';
 import type { PageItemOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRunsPage } from '../hooks/queries';
+import { useAutomation, useAutomationRunsPage } from '../hooks/queries';
 import { useRunStarterLabel } from '../hooks/use-run-starter-label';
 import { automationDetailPathname } from '../lib/detail-paths';
 import { isRunFailureCode, runFailureText } from '../lib/run-failure';
 import { readRunStatus, runReasonKey } from '../lib/run-view';
+import { AutomationVersionPill } from './automation-version-pill';
 import { RunBadge } from './run-status-badge';
 
 type RunRow = PageItemOf<'automations/queries:listRunsPaginated'>;
@@ -74,6 +75,10 @@ export function RunsTable({
     statuses,
     ...(mode !== undefined && { mode }),
   });
+  // The live version, for the pill of the runs that ran it: the
+  // automation's own read, which the page around the table holds already.
+  const deployedVersion = useAutomation(organizationId, automationSlug).data
+    ?.deployedVersion;
   const runsPath = `${automationDetailPathname({
     organizationId,
     automationSlug,
@@ -133,10 +138,16 @@ export function RunsTable({
       {
         id: 'version',
         header: t('list.columns.version'),
-        cell: ({ row }) =>
-          tAutomations('versions.versionLabel', {
-            version: row.original.version,
-          }),
+        cell: ({ row }) => (
+          <AutomationVersionPill
+            organizationId={organizationId}
+            automationSlug={automationSlug}
+            projectId={projectId}
+            version={row.original.version}
+            deployedVersion={deployedVersion}
+          />
+        ),
+        meta: { skeleton: { type: 'badge' as const } },
         size: 90,
       },
       {
@@ -166,7 +177,15 @@ export function RunsTable({
         size: 200,
       },
     ];
-  }, [t, tAutomations, starterLabel]);
+  }, [
+    t,
+    tAutomations,
+    starterLabel,
+    organizationId,
+    automationSlug,
+    projectId,
+    deployedVersion,
+  ]);
 
   const selected = Object.keys(rowSelection).filter((id) => rowSelection[id]);
   const filtered = statuses.length > 0 || mode !== undefined;

@@ -19,6 +19,29 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
 }));
+// The canvas lays out in a real browser; here it says what it was handed:
+// the steps it draws, and the ones each run's version lacks.
+vi.mock('./automation-canvas', () => ({
+  AutomationCanvas: ({
+    automation,
+    graph,
+    compare,
+  }: {
+    automation: { nodes: Array<{ id: string }> };
+    graph?: { nodes: Array<{ id: string; kind: string }> };
+    compare?: { absentInA?: readonly string[]; absentInB?: readonly string[] };
+  }) => (
+    <div
+      data-testid="compare-canvas"
+      data-steps={(graph === undefined
+        ? automation.nodes.map((step) => step.id)
+        : graph.nodes.filter((box) => box.kind === 'step').map((box) => box.id)
+      ).join(',')}
+      data-absent-a={(compare?.absentInA ?? []).join(',')}
+      data-absent-b={(compare?.absentInB ?? []).join(',')}
+    />
+  ),
+}));
 
 const ORG = 'org-1';
 
@@ -112,6 +135,34 @@ const RUNS: Record<string, Record<string, unknown>> = {
   },
 };
 
+/** The automation's versions the canvas reads, by number. */
+const VERSIONS: Record<string, Record<string, unknown>> = {
+  '3': {
+    name: 'triage',
+    version: 3,
+    deployedVersion: 4,
+    document: {
+      name: 'triage',
+      nodes: [
+        { id: 'issues', type: 'transform', code: "return 'i';" },
+        { id: 'notify', type: 'transform', code: "return 'n';" },
+      ],
+    },
+  },
+  '4': {
+    name: 'triage',
+    version: 4,
+    deployedVersion: 4,
+    document: {
+      name: 'triage',
+      nodes: [
+        { id: 'issues', type: 'transform', code: "return 'i';" },
+        { id: 'score', type: 'transform', code: "return 's';" },
+      ],
+    },
+  },
+};
+
 let answer: () => Response;
 
 beforeEach(() => {
@@ -129,6 +180,11 @@ beforeEach(() => {
     }
     const run = RUNS[url.pathname];
     if (run !== undefined) return Response.json({ run });
+    const version = url.searchParams.get('version');
+    if (url.pathname === '/api/app/automations/triage' && version !== null) {
+      const stored = VERSIONS[version];
+      if (stored !== undefined) return Response.json(stored);
+    }
     return Response.json({ error: 'NOT_FOUND' }, { status: 404 });
   });
 });
@@ -138,7 +194,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderPage(props: { a?: string; b?: string } = {}) {
+function renderPage(
+  props: { a?: string; b?: string; automationSlug?: string } = {},
+) {
   const onSwap = vi.fn();
   const view = render(
     <QueryClientProvider
@@ -203,6 +261,57 @@ describe('RunComparePage', () => {
     const { container } = renderPage();
     await screen.findByText('Input: 1 field differs.');
     await checkAccessibility(container);
+  });
+
+  it("draws runs of two versions on both versions' steps, and leads to what changed between them", async () => {
+    answer = () =>
+      Response.json({
+        diff: {
+          ...DIFF,
+          a: { ...DIFF.a, version: 3 },
+          b: { ...DIFF.b, version: 4 },
+          version: {
+            same: false,
+            changed: [],
+            added: ['score'],
+            removed: ['notify'],
+          },
+          nodes: [
+            node('__start', 'ok', 'ok'),
+            node('issues', 'ok', 'ok'),
+            node('score', undefined, 'failed', { differs: 'missing' }),
+            node('notify', 'ok', undefined, { differs: 'missing' }),
+            node('__end', 'ok', undefined),
+          ],
+          firstDivergence: { path: 'score', why: 'missing' },
+        },
+      });
+    renderPage({ automationSlug: 'triage' });
+    expect(
+      await screen.findByRole('link', {
+        name: 'See what changed between v3 and v4',
+      }),
+    ).toBeVisible();
+    // Each run's card links its version.
+    expect(
+      screen.getByRole('link', { name: 'v3. Open it in the editor.' }),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole('link', {
+        name: 'v4, live. Open it in the editor.',
+      }),
+    ).toBeVisible();
+    // The chart holds both versions' steps; each run's version lacks one.
+    const canvas = await screen.findByTestId('compare-canvas');
+    await vi.waitFor(() =>
+      expect(canvas.dataset.steps?.split(',').sort()).toEqual([
+        'issues',
+        'notify',
+        'score',
+      ]),
+    );
+    expect(canvas.dataset.absentA).toBe('score');
+    expect(canvas.dataset.absentB).toBe('notify');
   });
 
   it('asks for two different runs', () => {

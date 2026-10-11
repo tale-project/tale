@@ -5,6 +5,8 @@ import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Field } from '@tale/ui/field';
 import { FileUpload } from '@tale/ui/file-upload';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { IssueList } from '@tale/ui/issue-list';
 import { Row, Stack } from '@tale/ui/layout';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
@@ -20,7 +22,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { configKeys } from '@/app/hooks/config-query-keys';
@@ -28,14 +30,57 @@ import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 import type { ArgsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
+import type { WireAutomationIssue } from '@/lib/shared/schemas/automation-issues';
 
 import { useDeployAutomation } from '../hooks/mutations';
-import { automationErrorMessage } from '../lib/errors';
+import { automationErrorIssues, automationErrorMessage } from '../lib/errors';
 import {
   type DeployedTrigger,
   TriggerDeployNotice,
   triggerOffAfterDeploy,
 } from './trigger-deploy-notice';
+import { refusalIssueItems } from './versions/deploy-refused-dialog';
+
+/** A refusal in words, and the problems the checks listed when they
+ * refused it. */
+interface Refusal {
+  text: string;
+  issues: readonly WireAutomationIssue[];
+}
+
+/** A refusal that is only a sentence. */
+function refusalText(text: string): Refusal {
+  return { text, issues: [] };
+}
+
+/** A refused upload or deploy: the problems the checks listed, under the
+ * given sentence, or else the refusal's own words. */
+function refusalOf(error: unknown, invalid: string): Refusal {
+  const issues = automationErrorIssues(error);
+  const listed =
+    issues === undefined ? [] : [...issues.errors, ...issues.warnings];
+  return listed.length > 0
+    ? { text: invalid, issues: listed }
+    : refusalText(automationErrorMessage(error));
+}
+
+/** The problems of a refusal, as the editor's Problems list words them. */
+function RefusalIssues({
+  issues,
+  label,
+}: {
+  issues: readonly WireAutomationIssue[];
+  label: string;
+}) {
+  const { t } = useT('automations');
+  const { locale } = useLocale();
+  const items = useMemo(
+    () => refusalIssueItems(issues, { locale, t }),
+    [issues, locale, t],
+  );
+  if (items.length === 0) return null;
+  return <IssueList issues={items} density="compact" aria-label={label} />;
+}
 
 /** The org sentinel of the destination picker — not a project id. */
 const ORG_TARGET = '__org__';
@@ -84,10 +129,10 @@ export function UploadAutomationDialog({
   const [target, setTarget] = useState(projectId ?? ORG_TARGET);
   const [pending, setPending] = useState(false);
   const [phase, setPhase] = useState<'uploading' | 'validating'>('validating');
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [skillConflicts, setSkillConflicts] = useState<string[] | null>(null);
   const [uploaded, setUploaded] = useState<UploadedVersion | null>(null);
-  const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
+  const [deployRefusal, setDeployRefusal] = useState<Refusal | null>(null);
   /** Deployed, with its trigger left off: the dialog stays to offer
    * turning it on. */
   const [triggerOff, setTriggerOff] = useState<DeployedTrigger | null>(null);
@@ -211,7 +256,12 @@ export function UploadAutomationDialog({
           reset();
         },
         onError: (error) => {
-          setDeployRefusal(automationErrorMessage(error));
+          setDeployRefusal(
+            refusalOf(
+              error,
+              t('upload.deployInvalid', { version: uploaded.version }),
+            ),
+          );
         },
       },
     );
@@ -220,7 +270,7 @@ export function UploadAutomationDialog({
   /** The zip lane: presign → POST the blob → bind the intent → validate. */
   const submitZip = async (file: File, overwriteSkills?: string[]) => {
     if (file.size > MAX_ZIP_BYTES) {
-      setRefusal(t('upload.zipTooLarge'));
+      setRefusal(refusalText(t('upload.zipTooLarge')));
       return;
     }
     setPhase('uploading');
@@ -277,7 +327,7 @@ export function UploadAutomationDialog({
   const run = async (overwriteSkills?: string[]) => {
     if (pending || files.length === 0) return;
     if (mixedZipSelection) {
-      setRefusal(t('upload.zipOnly'));
+      setRefusal(refusalText(t('upload.zipOnly')));
       return;
     }
     setPending(true);
@@ -291,7 +341,7 @@ export function UploadAutomationDialog({
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        setRefusal(automationErrorMessage(error));
+        setRefusal(refusalOf(error, t('upload.invalid')));
       }
     } finally {
       setPending(false);
@@ -393,12 +443,18 @@ export function UploadAutomationDialog({
       ) : uploaded !== null ? (
         <Stack gap={4}>
           {deployRefusal !== null && (
-            <Alert
-              variant="destructive"
-              icon={XCircle}
-              title={t('versions.deployRefused')}
-              description={deployRefusal}
-            />
+            <>
+              <Alert
+                variant="destructive"
+                icon={XCircle}
+                title={t('versions.deployRefused')}
+                description={deployRefusal.text}
+              />
+              <RefusalIssues
+                issues={deployRefusal.issues}
+                label={t('versions.deployRefused')}
+              />
+            </>
           )}
           <Text as="p" variant="muted" className="text-sm">
             {t('upload.successHint')}
@@ -422,7 +478,13 @@ export function UploadAutomationDialog({
       ) : (
         <Stack gap={4}>
           {refusal !== null && (
-            <Alert variant="destructive" description={refusal} />
+            <>
+              <Alert variant="destructive" description={refusal.text} />
+              <RefusalIssues
+                issues={refusal.issues}
+                label={t('upload.invalid')}
+              />
+            </>
           )}
 
           {skillConflicts !== null && (

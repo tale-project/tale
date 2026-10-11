@@ -81,6 +81,7 @@ compare:
     output: '{count, plural, one {Output: # field differs.} other {Output: # fields differ.}}'
     effects: 'Writes: A made {a}, B made {b}.'
     nothing: Same version, same input, same path — only the timing differs.
+    seeVersions: 'See what changed between v{a} and v{b}'
   table:
     label: Steps in A and B
     step: Step

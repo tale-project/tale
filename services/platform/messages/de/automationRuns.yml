@@ -81,6 +81,7 @@ compare:
     output: '{count, plural, one {Ausgabe: # Feld unterscheidet sich.} other {Ausgabe: # Felder unterscheiden sich.}}'
     effects: 'Schreibvorgänge: A {a}, B {b}.'
     nothing: Gleiche Version, gleiche Eingabe, gleicher Pfad – nur die Zeiten unterscheiden sich.
+    seeVersions: 'Ansehen, was sich zwischen v{a} und v{b} geändert hat'
   table:
     label: Schritte in A und B
     step: Schritt

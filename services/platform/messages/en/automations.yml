@@ -475,6 +475,7 @@ canvas:
     body: 'v{version} was saved while you were editing. Your draft is based on v{base}.'
     show: 'Show v{version} and discard my draft'
     savedBy: Saved by
+    changes: Changes
     seeChanges: 'See what changed in v{version}'
   start:
     manual: By hand, the API or MCP
@@ -861,7 +862,14 @@ upload:
   deployLater: Later
   deployed: '{name} v{version} is live.'
   warnings: '{count, plural, one {# validation warning} other {# validation warnings}}'
+  invalid: "This package doesn't pass the checks. Fix what's listed and upload it again."
+  deployInvalid: "v{version} doesn't pass the checks, so it can't go live. Fix what's listed and upload a new version."
 runs:
+  versionPill:
+    name: 'v{version}{live, select, true {, live} other {}}. Open it in the editor.'
+    menu: 'v{version}{live, select, true {, live} other {}}: actions for this version'
+    open: 'Open v{version} in the editor'
+    compareWithLive: 'Compare v{version} with live v{live}'
   agentLog:
     title: Agent log
     starting: The agent is starting up in the sandbox…

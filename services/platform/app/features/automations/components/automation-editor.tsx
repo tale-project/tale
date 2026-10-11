@@ -2029,17 +2029,19 @@ function AutomationEditorScope({
                       </span>
                     )}
                     {newerChanges !== null && (
-                      <ChangeSummary
-                        className="mt-1"
-                        aria-label={t('compare.summary.label')}
-                        counts={{
-                          added: newerChanges.nodes.added,
-                          removed: newerChanges.nodes.removed,
-                          changed: newerChanges.nodes.changed,
-                          renamed: newerChanges.nodes.renamed ?? 0,
-                        }}
-                        flags={changeFlags(newerChanges, t)}
-                      />
+                      <span className="mt-1 flex flex-wrap items-center gap-x-1.5">
+                        <span>{t('canvas.newerVersion.changes')}</span>
+                        <ChangeSummary
+                          aria-label={t('compare.summary.label')}
+                          counts={{
+                            added: newerChanges.nodes.added,
+                            removed: newerChanges.nodes.removed,
+                            changed: newerChanges.nodes.changed,
+                            renamed: newerChanges.nodes.renamed ?? 0,
+                          }}
+                          flags={changeFlags(newerChanges, t)}
+                        />
+                      </span>
                     )}
                   </>
                 }

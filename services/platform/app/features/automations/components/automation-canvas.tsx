@@ -15,7 +15,7 @@ import {
   flowTimelineRows,
   type FlowTimelineRow,
 } from '@tale/ui/flow/run-timeline';
-import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
+import type { FlowGraph, FlowLayout, FlowRow } from '@tale/ui/flow/types';
 import {
   WorkflowCanvas,
   type FlowView,
@@ -98,11 +98,19 @@ export interface CanvasCompare {
   b: CanvasRun;
   /** Steps of the document drawn (B's version) that A's version lacks. */
   absentInA?: readonly string[];
+  /** Steps of the drawn graph that B's version lacks: on the union of two
+   * versions, the ones only A's had. */
+  absentInB?: readonly string[];
 }
 
 export interface AutomationCanvasProps {
   /** The document on screen. */
   automation: Automation;
+  /** A graph drawn instead of the document's own: the union of two
+   *  versions, when the runs of a comparison ran different ones. Its
+   *  possible paths would belong to one version only, so they are left
+   *  out. */
+  graph?: FlowGraph;
   /** What the canvas is a picture of: the automation and the version on
    *  screen. The same key with a changed document glides to its new
    *  layout; a new key is another picture. */
@@ -187,6 +195,7 @@ const NO_CHECK: NonNullable<AutomationCanvasProps['check']> = {
  */
 export function AutomationCanvas({
   automation,
+  graph: graphProp,
   layoutKey,
   catalog,
   modelLabel,
@@ -239,7 +248,9 @@ export function AutomationCanvas({
     ...(startNotice !== undefined && { startNotice }),
     pinnedPath: pinnedId,
   });
-  const { graph, paths, hasCycle } = flow;
+  const graph = graphProp ?? flow.graph;
+  const paths = graphProp === undefined ? flow.paths : null;
+  const { hasCycle } = flow;
 
   // A path that is no longer there (the document changed, another
   // picture) is no longer shown.
@@ -292,7 +303,10 @@ export function AutomationCanvas({
       overlayOf(compare.b),
       {
         labels: { a: 'A', b: 'B' },
-        absent: { a: [...(compare.absentInA ?? [])] },
+        absent: {
+          a: [...(compare.absentInA ?? [])],
+          b: [...(compare.absentInB ?? [])],
+        },
       },
     );
   }, [compare, graph, t]);
