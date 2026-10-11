@@ -2547,15 +2547,15 @@ export async function seedDemoOrg(
     }),
   );
   // The pull-request review pack may post its review without a person.
-  await step('approval allowance', () =>
-    appApiOk(
+  await step('approval allowance', async () => {
+    await appApiOk(
       page,
       orgId,
       `/automations/${DEMO_APPROVAL_ALLOWANCE.automation}/approval-allowances`,
       { allowed: [DEMO_APPROVAL_ALLOWANCE.type] },
       'PUT',
-    ),
-  );
+    );
+  });
   // Last of the runs, so its message tops the owner's bell.
   await step('notify run', () =>
     ensureLiveRun(page, orgId, projects, {
