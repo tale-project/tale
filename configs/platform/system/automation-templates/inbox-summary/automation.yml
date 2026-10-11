@@ -1,4 +1,4 @@
-name: Summarise the inbox
+name: Summarize the inbox
 description: Sends a member a summary of the inbox conversations still waiting for an answer, on a schedule.
 icon: inbox
 requires:
@@ -30,7 +30,7 @@ i18n:
 template:
   details: >-
     On the schedule you set, the automation reads the inbox conversations of the mailbox you
-    pick that still wait for an answer, and a language model summarises them in one line each,
+    pick that still wait for an answer, and a language model summarizes them in one line each,
     most urgent first. The member you choose gets the summary as a message in Tale, with a link
     to the inbox. An empty inbox sends nothing.
   i18n:
@@ -48,7 +48,7 @@ template:
     - id: mailbox
       kind: choice
       label: Mailbox
-      description: The connected mailbox whose conversations are summarised.
+      description: The connected mailbox whose conversations are summarized.
       default: gmail
       options:
         - value: gmail

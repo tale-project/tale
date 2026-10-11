@@ -64,10 +64,10 @@ const WEBHOOK: StarterCard = {
 
 const INBOX: StarterCard = {
   slug: 'inbox-summary',
-  name: 'Summarise the inbox',
+  name: 'Summarize the inbox',
   description: 'Sends a member a summary of the inbox.',
   icon: 'inbox',
-  details: 'On the schedule you set, the inbox is summarised.',
+  details: 'On the schedule you set, the inbox is summarized.',
   i18n: {},
   scope: 'org',
   fields: [
@@ -204,7 +204,7 @@ describe('StarterGalleryDialog', { timeout: 30_000 }, () => {
     // A starter whose connector is not set up says so on its row.
     expect(
       within(
-        screen.getByRole('button', { name: /Summarise the inbox/ }),
+        screen.getByRole('button', { name: /Summarize the inbox/ }),
       ).getByText('Needs a connection'),
     ).toBeVisible();
 
@@ -377,10 +377,10 @@ describe('StarterGalleryDialog', { timeout: 30_000 }, () => {
   });
 
   it('sends a scheduled starter its schedule in your zone and its choice', async () => {
-    create.mockResolvedValue({ name: 'summarise-the-inbox', version: 1 });
+    create.mockResolvedValue({ name: 'summarize-the-inbox', version: 1 });
     const { user } = renderGallery();
     await user.click(
-      screen.getByRole('button', { name: /Summarise the inbox/ }),
+      screen.getByRole('button', { name: /Summarize the inbox/ }),
     );
     expect(screen.getByText(/Connect gmail before it can run/)).toBeVisible();
     await user.click(screen.getByRole('button', { name: /^Send to/ }));
