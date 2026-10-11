@@ -2,6 +2,7 @@ import type { TestResultListHandle } from '@tale/ui/test-results';
 import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { TransientRecord } from '@/lib/engine/core/record/transient';
 import { render, screen, within } from '@/tests/utils/render';
 
 import type {
@@ -69,6 +70,7 @@ function renderPanel(
     canEdit?: boolean;
     addFrom?: AddTestSources;
     coverage?: { covered: number; total: number; onShowPaths?: () => void };
+    onShowRun?: (index: number) => void;
   } = {},
 ) {
   const onOpen = vi.fn();
@@ -92,13 +94,64 @@ function renderPanel(
         listRef={createRef<TestResultListHandle>()}
         {...(props.addFrom !== undefined && { addFrom: props.addFrom })}
         {...(props.coverage !== undefined && { coverage: props.coverage })}
+        {...(props.onShowRun !== undefined && { onShowRun: props.onShowRun })}
       />
     </>,
   );
   return { ...view, onOpen, onAdd, onDeleted };
 }
 
+/** A run's record as a test's result keeps it: only that it is kept
+ * matters to the panel. */
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a record built by hand, with none of the steps the panel never reads
+const RECORD = {
+  view: { nodes: [] },
+  details: [],
+} as unknown as TransientRecord;
+
 describe('the Tests panel', () => {
+  it('lays a test’s run over the canvas from its row, when its result keeps the steps', async () => {
+    const onShowRun = vi.fn();
+    const tests = controller({
+      rows: [
+        row({ index: 0, name: 'doubles seven', status: 'passed' }),
+        row({
+          index: 1,
+          name: 'triples seven',
+          status: 'failed',
+          outcome: {
+            kind: 'run',
+            stale: false,
+            at: 1,
+            result: {
+              name: 'triples seven',
+              index: 1,
+              pass: false,
+              ms: 4,
+              failures: [],
+              run: { status: 'success', record: RECORD },
+            },
+          },
+        }),
+      ],
+    });
+    const { user } = renderPanel(tests, { onShowRun });
+    await user.click(
+      screen.getByRole('button', { name: 'More for doubles seven' }),
+    );
+    expect(
+      screen.queryByRole('menuitem', { name: 'Show on the canvas' }),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(
+      screen.getByRole('button', { name: 'More for triples seven' }),
+    );
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Show on the canvas' }),
+    );
+    expect(onShowRun).toHaveBeenCalledWith(1);
+  });
+
   it('lists each test with its status, its first failure and what it simulates', () => {
     renderPanel(controller());
     const list = screen.getByRole('list', { name: 'Tests of this automation' });

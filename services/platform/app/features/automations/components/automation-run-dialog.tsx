@@ -6,6 +6,7 @@ import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Field } from '@tale/ui/field';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { RadioGroup } from '@tale/ui/radio-group';
 import { SchemaTree, schemaKindLabel } from '@tale/ui/schema-tree';
 import { Text } from '@tale/ui/text';
 import { useId, useMemo, useState } from 'react';
@@ -31,7 +32,15 @@ export interface AutomationRunRequest {
   schema?: Record<string, unknown>;
   projectId?: string;
   scopeText: string;
+  /** The draft differs from the version on screen: the dialog asks which
+   * of the two runs, the draft first, and checks the draft's input against
+   * the draft's own schema. */
+  draft?: { schema?: Record<string, unknown> };
 }
+
+/** What a test run runs: the unsaved draft, tried once and kept nowhere,
+ * or the saved version, whose run is kept with the others. */
+export type RunTarget = 'draft' | 'version';
 
 const NO_PROJECTS: readonly IssueImportProject[] = [];
 
@@ -50,7 +59,7 @@ export function AutomationRunDialog({
   pending?: boolean;
   error?: string | null;
   onClose: () => void;
-  onConfirm: (input: unknown) => void;
+  onConfirm: (input: unknown, target: RunTarget) => void;
 }) {
   const { t } = useT('automations');
   const { t: tSchema } = useT('schemaTree');
@@ -59,6 +68,12 @@ export function AutomationRunDialog({
   const [text, setText] = useState(() =>
     JSON.stringify(request.initialInput ?? {}, null, 2),
   );
+  const [target, setTarget] = useState<RunTarget>(
+    request.draft === undefined ? 'version' : 'draft',
+  );
+  const tryingDraft = target === 'draft';
+  // The input the chosen document takes: the draft may declare another.
+  const schema = tryingDraft ? request.draft?.schema : request.schema;
   const source = guidedIssueSource(request.automationSlug, request.schema);
   const [values, setValues] = useState<Record<string, unknown>>(() => ({
     ...(request.projectId !== undefined && { projectId: request.projectId }),
@@ -66,15 +81,15 @@ export function AutomationRunDialog({
     ...(source === 'glitchtip' && { query: 'is:unresolved' }),
     ...request.initialInput,
   }));
-  const { check } = useJsonInputDraft(request.schema);
+  const { check } = useJsonInputDraft(schema);
   // The fields the schema declares, offered where a key of the input is
   // typed, each with its kind.
   const providers = useMemo(
     () =>
-      runInputProviders(request.schema, (field) =>
+      runInputProviders(schema, (field) =>
         schemaKindLabel(tSchema, field, locale),
       ),
-    [request.schema, tSchema, locale],
+    [schema, tSchema, locale],
   );
   const parsed = useMemo(() => {
     let input: unknown = values;
@@ -116,17 +131,43 @@ export function AutomationRunDialog({
       description={
         request.mode === 'live'
           ? t('detail.runLiveBody')
-          : t('detail.runInput.mockDescription')
+          : tryingDraft
+            ? t('detail.runInput.mockDescriptionDraft')
+            : t('detail.runInput.mockDescription')
       }
       confirmText={confirmText}
       disableConfirm={!parsed.valid}
       isLoading={pending}
       onConfirm={() => {
-        if (parsed.valid) onConfirm(parsed.input);
+        if (parsed.valid) onConfirm(parsed.input, target);
       }}
     >
       {error && <Alert variant="destructive" description={error} />}
-      {source === null && (
+      {request.draft !== undefined && (
+        <RadioGroup
+          label={t('detail.runTarget.label')}
+          value={target}
+          onValueChange={(next) => {
+            setTarget(next === 'version' ? 'version' : 'draft');
+          }}
+          disabled={pending}
+          options={[
+            {
+              value: 'draft',
+              label: t('detail.runTarget.draft'),
+              description: t('detail.runTarget.draftHelp'),
+            },
+            {
+              value: 'version',
+              label: t('detail.runTarget.version', {
+                version: request.version,
+              }),
+              description: t('detail.runTarget.versionHelp'),
+            },
+          ]}
+        />
+      )}
+      {source === null && !tryingDraft && (
         <Text as="p" variant="muted" className="text-sm">
           {request.scopeText}
         </Text>
@@ -153,17 +194,20 @@ export function AutomationRunDialog({
           )}
         </>
       ) : (
-        // The input is typed when the version declares one, or when the
-        // caller hands a sample to edit (a trigger's Run now).
-        (request.schema !== undefined ||
-          request.initialInput !== undefined) && (
+        // The input is typed when the document that runs declares one, or
+        // when the caller hands a sample to edit (a trigger's Run now).
+        (schema !== undefined || request.initialInput !== undefined) && (
           <div className="mt-4 space-y-3">
             <Field
               label={t('detail.runInput.label')}
               htmlFor={inputId}
-              description={t('detail.runInput.description', {
-                version: request.version,
-              })}
+              description={
+                tryingDraft
+                  ? t('detail.runInput.descriptionDraft')
+                  : t('detail.runInput.description', {
+                      version: request.version,
+                    })
+              }
               error={parsed.valid ? undefined : parsed.error}
             >
               <CodeEditor
@@ -177,16 +221,16 @@ export function AutomationRunDialog({
                 // Mod-Enter starts the run, as the dialog's button does —
                 // once the input is one the run takes.
                 onSubmit={() => {
-                  if (parsed.valid && !pending) onConfirm(parsed.input);
+                  if (parsed.valid && !pending) onConfirm(parsed.input, target);
                 }}
                 submitLabel={confirmText}
                 describeDiagnostics={false}
               />
             </Field>
-            {request.schema !== undefined && (
+            {schema !== undefined && (
               <CollapsibleDetails summary={t('detail.runInput.schema')}>
                 <SchemaTree
-                  schema={request.schema}
+                  schema={schema}
                   density="comfortable"
                   aria-label={t('detail.runInput.schema')}
                   className="mt-2"

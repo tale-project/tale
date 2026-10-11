@@ -152,6 +152,10 @@ export function flowSpanStateAt(
     .reverse()
     .find((span) => span.decision !== undefined);
   if (decided?.decision !== undefined) info.decision = decided.decision;
+  const standIn = started.find(
+    (span) => span.substitute !== undefined,
+  )?.substitute;
+  if (standIn !== undefined) info.substitute = standIn;
   // The node's own span knows how many items or passes there are, even
   // before every one was recorded (or when not all were kept).
   const total = spans.find(

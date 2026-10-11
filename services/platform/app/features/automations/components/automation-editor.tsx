@@ -98,7 +98,11 @@ import { useT } from '@/lib/i18n/client';
 import { savedWarningsSchema } from '@/lib/shared/schemas/automation-issues';
 
 import { mergeNodeTypes } from '../hooks/backend';
-import { useSaveAutomation, useStartAutomationRun } from '../hooks/mutations';
+import {
+  useSaveAutomation,
+  useStartAutomationRun,
+  useTryAutomation,
+} from '../hooks/mutations';
 import {
   useApprovalAllowances,
   useAutomation,
@@ -110,15 +114,25 @@ import {
 } from '../hooks/queries';
 import { testRowId, useAutomationTests } from '../hooks/use-automation-tests';
 import {
+  documentHash,
   useAutomationValidation,
   useInvalidateAutomationValidation,
   VALIDATION_DEBOUNCE_MS,
 } from '../hooks/use-automation-validation';
 import { useDeployVersion } from '../hooks/use-deploy-version';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
+import { useTimelineWords } from '../hooks/use-timeline-words';
 import { coveredCount, pathCoverage } from '../lib/automation-tests/coverage';
 import { testsOf } from '../lib/automation-tests/test-draft';
-import { formOwnsPlace } from '../lib/automation-tests/test-form';
+import { formOwnsPlace, readTestForm } from '../lib/automation-tests/test-form';
+import {
+  testRunOf,
+  transientStatus,
+  transientTrace,
+  type TransientOverlay,
+  type TransientRunLike,
+  type TransientStatus,
+} from '../lib/automation-tests/transient-run';
 import {
   automationDetailPathname,
   compareVersionLink,
@@ -157,7 +171,13 @@ import {
   withIssueIds,
   type AutomationIssue,
 } from '../lib/issues';
-import { effectTitle, nodeCatalogView, nodeTitle } from '../lib/node-face';
+import {
+  actionTitle,
+  connectorName,
+  effectTitle,
+  nodeCatalogView,
+  nodeTitle,
+} from '../lib/node-face';
 import { pathClauses } from '../lib/paths';
 import {
   cursorNodeStatus,
@@ -185,6 +205,7 @@ import {
 import {
   AutomationRunDialog,
   type AutomationRunRequest,
+  type RunTarget,
 } from './automation-run-dialog';
 import { AutomationSourceView } from './automation-source-view';
 import { AutomationTestsSheet } from './automation-tests/automation-tests-panel';
@@ -195,6 +216,10 @@ import {
   type TestSetupMode,
 } from './automation-tests/test-inspector';
 import { testIssueAnchor, testYaml } from './automation-tests/test-yaml-editor';
+import {
+  TransientRunBanner,
+  type TransientRunState,
+} from './automation-try/transient-run-banner';
 import { AutomationVersionPicker } from './automation-version-picker';
 import { CodingAgentButton } from './coding-agent-entry';
 import { EndFields, EndInspector } from './end-inspector';
@@ -440,6 +465,11 @@ function AutomationEditorScope({
   } | null>(null);
   const deployNoticeRef = useRef<HTMLDivElement>(null);
   const [showLastRun, setShowLastRun] = useState(true);
+  /** A run that was never stored, laid over the canvas in place of the
+   * last run: a try of the draft, or a test's latest run. */
+  const [overlay, setOverlay] = useState<TransientOverlay | null>(null);
+  /** Why a try of the draft was refused, said in the run dialog. */
+  const [tryRefusal, setTryRefusal] = useState<string | null>(null);
   const [runRequest, setRunRequest] = useState<AutomationRunRequest | null>(
     null,
   );
@@ -488,6 +518,7 @@ function AutomationEditorScope({
   const { projects } = useProjects(organizationId);
   const save = useSaveAutomation();
   const startRun = useStartAutomationRun();
+  const tryRun = useTryAutomation();
 
   // The projects a run may target: the automation's own bindings, resolved to
   // names. A run scope only needs choosing when there are two or more — one
@@ -757,7 +788,7 @@ function AutomationEditorScope({
     )?.item.cause;
     return typeof cause === 'string' ? cause : null;
   }, [issueViews]);
-  const canvasRun = useMemo<CanvasRun | undefined>(
+  const lastCanvasRun = useMemo<CanvasRun | undefined>(
     () =>
       showLastRun && lastRun && runStatusByNode !== undefined
         ? {
@@ -769,6 +800,13 @@ function AutomationEditorScope({
     [showLastRun, lastRun, runStatusByNode, lastRunProjection],
   );
   const layoutKey = `${automationSlug}:${version ?? 'latest'}`;
+  // A try or a test's run belongs to the document it ran: another version
+  // or automation on screen takes it off the canvas.
+  const [overlayKey, setOverlayKey] = useState(layoutKey);
+  if (overlayKey !== layoutKey) {
+    setOverlayKey(layoutKey);
+    setOverlay(null);
+  }
 
   /** A box picked on the canvas: a node, Start or End opens its inspector,
    * a condition opens its node at the condition's field. */
@@ -1304,6 +1342,263 @@ function AutomationEditorScope({
     selectedTest !== null && selectedTest < tests.tests.length
       ? selectedTest
       : null;
+
+  // ── A run that was never stored, over the canvas ──────────────────────
+  /** The run laid over the canvas in place of the last one, while it has
+   * steps to show: a try's, or a test's latest run. */
+  const overlayRun = useMemo<TransientRunLike | null>(() => {
+    if (overlay === null) return null;
+    if (overlay.kind === 'try') return overlay.run;
+    const outcome = tests.rows[overlay.index]?.outcome;
+    return outcome === undefined ? null : testRunOf(outcome);
+  }, [overlay, tests.rows]);
+  const overlayProjection = useMemo(
+    () =>
+      overlayRun === null
+        ? null
+        : projectRun({
+            status: transientStatus(overlayRun),
+            trace: transientTrace(overlayRun),
+            effects: overlayRun.effects ?? [],
+          }),
+    [overlayRun],
+  );
+  const failureLabels = useMemo(
+    () => ({
+      connectorLabel: (slug: string) => connectorName(slug, catalog, locale),
+      actionLabel: (type: string) => actionTitle(type, catalog, locale),
+    }),
+    [catalog, locale],
+  );
+  const timelineWords = useTimelineWords(failureLabels);
+  const canvasRun = useMemo<CanvasRun | undefined>(() => {
+    if (!showLastRun || overlayRun === null || overlayProjection === null) {
+      return lastCanvasRun;
+    }
+    return {
+      statusByNode: nodeStatusMap(
+        overlayProjection,
+        (automation?.nodes ?? []).map((node) => node.id),
+      ),
+      projection: overlayProjection,
+      status: transientStatus(overlayRun),
+      ...(overlayRun.record !== undefined && {
+        record: overlayRun.record.view,
+        words: timelineWords,
+      }),
+    };
+  }, [
+    showLastRun,
+    overlayRun,
+    overlayProjection,
+    lastCanvasRun,
+    automation?.nodes,
+    timelineWords,
+  ]);
+  /** Where the inspector reads what the run on the canvas did. */
+  const shownProjection = overlayProjection ?? lastRunProjection;
+  const overlayOutcome =
+    overlay?.kind === 'test' ? tests.rows[overlay.index]?.outcome : undefined;
+  /** Whose run the inspector's run tab shows, when not the last run. */
+  const overlayLabel =
+    overlay === null || overlayRun === null
+      ? undefined
+      : overlay.kind === 'try'
+        ? t('editor.inspector.tabs.runTry')
+        : t('editor.inspector.tabs.runTest');
+  /** What Start shows the run on the canvas received. */
+  const overlayInput =
+    overlay === null
+      ? undefined
+      : overlay.kind === 'try'
+        ? overlay.input
+        : readTestForm(tests.tests[overlay.index]).input;
+  // A try is judged against the draft as it is now: one changed since
+  // says so, and Try again runs the draft as it is.
+  const draftHash = useMemo(
+    () =>
+      overlay?.kind === 'try' && rawDocument !== null
+        ? documentHash(rawDocument)
+        : null,
+    [overlay?.kind, rawDocument],
+  );
+  /** Runs the draft as it is now, once and kept nowhere, and lays its run
+   * over the canvas with the banner. A refusal is said where the try
+   * started: in the run dialog, or above the canvas for Try again. */
+  const tryDraft = (input: unknown, from: 'dialog' | 'banner'): void => {
+    if (rawDocument === null) return;
+    const sentHash = documentHash(rawDocument);
+    if (from === 'dialog') setTryRefusal(null);
+    else setRefusal(null);
+    tryRun.mutate(
+      {
+        organizationId,
+        name: automationSlug,
+        document: rawDocument,
+        ...(input !== undefined && { input }),
+      },
+      {
+        onSuccess: ({ run }) => {
+          setRunRequest(null);
+          setShowLastRun(true);
+          setOverlay({
+            kind: 'try',
+            run,
+            input,
+            documentHash: sentHash,
+            at: Date.now(),
+          });
+        },
+        onError: (error) => {
+          const message = automationErrorMessage(error);
+          if (from === 'dialog') setTryRefusal(message);
+          else setRefusal(message);
+        },
+      },
+    );
+  };
+  /** Lays a test's latest run over the canvas; on a phone the sheets
+   * close, so the canvas shows it. */
+  const showTestRun = (index: number): void => {
+    setOverlay({ kind: 'test', index });
+    setShowLastRun(true);
+    if (isWorkbenchCompact) {
+      setTestsOpen(false);
+      setSelectedTest(null);
+    }
+  };
+  /** Runs the shown run again: the draft as it is now, with the same
+   * input, or the test. A try still going is not started twice — the
+   * banner holds its button, and the key does nothing until it answers. */
+  const tryAgain =
+    overlay === null || overlayRun === null
+      ? undefined
+      : overlay.kind === 'try'
+        ? () => {
+            if (!tryRun.isPending) tryDraft(overlay.input, 'banner');
+          }
+        : tests.runDisabledReason === undefined
+          ? () => tests.runOne(overlay.index)
+          : undefined;
+  // Mod-Shift-Enter tries again while the canvas or the inspector beside it
+  // has focus — the latest Try again, read when the key is pressed.
+  const workbenchRef = useRef<HTMLDivElement>(null);
+  const tryAgainRef = useRef(tryAgain);
+  useEffect(() => {
+    tryAgainRef.current = tryAgain;
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Enter' || !event.shiftKey) return;
+      if (!event.metaKey && !event.ctrlKey) return;
+      const again = tryAgainRef.current;
+      const area = workbenchRef.current;
+      if (again === undefined || area === null) return;
+      if (!(event.target instanceof Node) || !area.contains(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      again();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+  /** How the shown run ended, in words. */
+  const overlayWords = (run: TransientRunLike, ms: number): string => {
+    if (run.stoppedBy === 'time_limit') {
+      return t('try.timeLimit', {
+        seconds: Math.max(1, Math.round(ms / 1000)),
+      });
+    }
+    if (run.stoppedBy !== undefined) return t('try.stopped');
+    if (run.status === 'invalid') return t('try.invalid');
+    if (run.status === 'error') {
+      const node = run.error?.nodeId?.split('/')[0];
+      return node === undefined || node === ''
+        ? t('try.failed')
+        : t('canvas.end.failedAt', { node: nodeTitle(node) });
+    }
+    return t('try.succeeded', {
+      duration: t('tests.duration', { ms: Math.round(ms) }),
+    });
+  };
+  // A test laid over the canvas says how the test came out, not only how
+  // its run ended: a test can fail with a run that succeeded, and pass
+  // with one that failed where it must.
+  const testVerdict: { status: TransientStatus; words: string } | null =
+    overlay?.kind !== 'test' || overlayOutcome?.kind !== 'run'
+      ? null
+      : overlayOutcome.result.pass
+        ? {
+            status: 'success',
+            words: t('try.passed', {
+              duration: t('tests.duration', {
+                ms: Math.round(overlayOutcome.result.ms),
+              }),
+            }),
+          }
+        : {
+            status:
+              tests.rows[overlay.index]?.status === 'error'
+                ? 'cancelled'
+                : 'failed',
+            words: tests.rows[overlay.index]?.reason ?? t('try.failed'),
+          };
+  const bannerState: TransientRunState | null =
+    overlay === null || overlayRun === null
+      ? null
+      : (overlay.kind === 'try' && tryRun.isPending) ||
+          (overlay.kind === 'test' && tests.running.has(overlay.index))
+        ? {
+            kind: 'running',
+            words:
+              overlay.kind === 'try' ? t('try.running') : t('try.runningTest'),
+          }
+        : overlay.kind === 'try'
+          ? {
+              kind: 'done',
+              status: transientStatus(overlayRun),
+              words: overlayWords(overlayRun, overlay.run.ms),
+              at: overlay.at,
+            }
+          : {
+              kind: 'done',
+              ...(testVerdict ?? {
+                status: transientStatus(overlayRun),
+                words: overlayWords(overlayRun, 0),
+              }),
+              at:
+                overlayOutcome !== undefined && overlayOutcome.kind !== 'none'
+                  ? overlayOutcome.at
+                  : 0,
+            };
+  const bannerChanged =
+    overlay === null
+      ? undefined
+      : overlay.kind === 'try'
+        ? draftHash !== null && draftHash !== overlay.documentHash
+          ? t('try.changed')
+          : undefined
+        : overlayOutcome !== undefined &&
+            overlayOutcome.kind !== 'none' &&
+            overlayOutcome.stale
+          ? t('tests.result.stale')
+          : undefined;
+  const transientBanner =
+    bannerState === null || overlay === null || !showLastRun ? null : (
+      <TransientRunBanner
+        title={
+          overlay.kind === 'try'
+            ? t('try.unsaved')
+            : t('try.test', { name: tests.rows[overlay.index]?.name ?? '' })
+        }
+        state={bannerState}
+        {...(bannerChanged !== undefined && { changed: bannerChanged })}
+        {...(tryAgain !== undefined && { onTryAgain: tryAgain })}
+        {...(overlay.kind === 'test' && { againLabel: t('tests.run') })}
+        onClear={() => setOverlay(null)}
+      />
+    );
   const [testsNews, setTestsNews] = useState({ text: '', key: 0 });
   /** The Tests sheet is closing onto a test's own sheet. */
   const [testsHandingOn, setTestsHandingOn] = useState(false);
@@ -1442,6 +1737,7 @@ function AutomationEditorScope({
         key: previous.key + 1,
       }));
     },
+    onShowRun: showTestRun,
     listRef: testsListRef,
   };
   /** The open test's inspector: its YAML with the problems the check found
@@ -1467,6 +1763,7 @@ function AutomationEditorScope({
       setSelectedTest(null);
       selectOnCanvas(nodeId);
     },
+    onShowRun: () => showTestRun(index),
     onDeselect: () => {
       setSelectedTest(null);
       if (dockPanel === 'tests') testsListRef.current?.focus(testRowId(index));
@@ -1689,10 +1986,29 @@ function AutomationEditorScope({
         }),
       },
       {
-        onSuccess: () => setRunRequest(null),
+        onSuccess: () => {
+          setRunRequest(null);
+          // The run it started lies over the canvas once it is listed.
+          setOverlay(null);
+        },
         onError: (error) => setRefusal(automationErrorMessage(error)),
       },
     );
+  };
+  /** The run dialog's choice: the draft is tried, the version run. */
+  const confirmRun = (
+    request: AutomationRunRequest,
+    input: unknown,
+    target: RunTarget,
+  ): void => {
+    if (target === 'draft') {
+      tryDraft(
+        request.draft?.schema === undefined ? undefined : input,
+        'dialog',
+      );
+      return;
+    }
+    scheduleRun(request, input);
   };
 
   const lookingVersion = meta?.version;
@@ -1970,9 +2286,22 @@ function AutomationEditorScope({
               projectId: effectiveRunProjectId,
             }),
             scopeText: liveRunScopeText,
+            // Unsaved changes: the dialog asks whether the draft or the
+            // version runs.
+            ...(isDirty &&
+              canAuthor && {
+                draft:
+                  automation?.inputs === undefined
+                    ? {}
+                    : { schema: automation.inputs },
+              }),
           };
-          if (request.schema === undefined) scheduleRun(request);
-          else setRunRequest(request);
+          if (request.schema === undefined && request.draft === undefined) {
+            scheduleRun(request);
+          } else {
+            setTryRefusal(null);
+            setRunRequest(request);
+          }
         }}
       >
         {t('detail.runMock')}
@@ -2081,9 +2410,11 @@ function AutomationEditorScope({
           ...(projectId !== undefined && { projectId }),
         })}/general`,
         onChange: onChangeDocument,
-        ...(shownRunDetail !== undefined && {
-          run: { input: shownRunDetail.input },
-        }),
+        ...(overlayLabel !== undefined
+          ? { run: { input: overlayInput, label: overlayLabel } }
+          : shownRunDetail !== undefined && {
+              run: { input: shownRunDetail.input },
+            }),
       };
       return place === 'panel' ? (
         <StartInspector id={inspectorId} variant="panel" {...props} />
@@ -2095,9 +2426,11 @@ function AutomationEditorScope({
       const props = {
         ...shared,
         onChange: onChangeDocument,
-        ...(shownRunDetail !== undefined && {
-          run: { output: shownRunDetail.output },
-        }),
+        ...(overlayLabel !== undefined
+          ? { run: { output: overlayRun?.output, label: overlayLabel } }
+          : shownRunDetail !== undefined && {
+              run: { output: shownRunDetail.output },
+            }),
       };
       return place === 'panel' ? (
         <EndInspector id={inspectorId} variant="panel" {...props} />
@@ -2112,8 +2445,9 @@ function AutomationEditorScope({
       nodeType: nodeTypes.find((def) => def.type === selectedNode.type),
       catalogUnavailable: catalogQuery.isError,
       runView: showLastRun
-        ? lastRunProjection.byNode.get(selectedNode.id)
+        ? shownProjection.byNode.get(selectedNode.id)
         : undefined,
+      runLabel: overlayLabel,
       onChange: onChangeNode,
       organizationId,
       ...(projectId !== undefined && { projectId }),
@@ -2418,6 +2752,7 @@ function AutomationEditorScope({
         )}
 
         <div
+          ref={workbenchRef}
           className={cn(
             AUTOMATION_EDITOR_WORKBENCH_GRID,
             (inspected !== null || shownTest !== null) &&
@@ -2441,69 +2776,74 @@ function AutomationEditorScope({
               />
             ) : (
               canvasDocument !== null && (
-                <AutomationCanvas
-                  automation={canvasDocument}
-                  {...(tests.tests.length > 0 && { pathCoverage: coverage })}
-                  pathsOpen={pathsOpen}
-                  onPathsOpenChange={setPathsOpen}
-                  layoutKey={layoutKey}
-                  catalog={catalog}
-                  modelLabel={modelLabel}
-                  allowedWrites={allowedWrites}
-                  triggers={triggerRowsShown}
-                  check={canvasCheck}
-                  startNotice={startNotice}
-                  issueCounts={countsByNode}
-                  selectedId={selectedId}
-                  onSelect={selectOnCanvas}
-                  revealId={selectedId}
-                  inspectorId={inspectorId}
-                  {...(canvasRun !== undefined && { run: canvasRun })}
-                  {...(canvasChange !== undefined && { changed: canvasChange })}
-                  framed={false}
-                  view={canvasView}
-                  onViewChange={(next) =>
-                    changeView(next === 'list' ? 'list' : 'canvas')
-                  }
-                  topStart={viewSwitch}
-                  topEnd={
-                    <>
-                      {lastRun ? (
-                        <Button
-                          variant="secondary"
-                          size="icon-sm"
-                          aria-pressed={showLastRun}
-                          title={
-                            showLastRun
-                              ? t('detail.hideLastRun')
-                              : t('detail.showLastRun')
-                          }
-                          tooltipSide="bottom"
-                          onClick={() => {
-                            setShowLastRun((shown) => !shown);
-                          }}
-                        >
-                          {showLastRun ? (
-                            <EyeOff className="size-4" aria-hidden="true" />
-                          ) : (
-                            <Eye className="size-4" aria-hidden="true" />
-                          )}
-                        </Button>
-                      ) : null}
-                      {codingAgentButton}
-                    </>
-                  }
-                  {...(isMobile && { toolbar: canvasToolbarActions })}
-                  {...(canAuthor && {
-                    emptyAction: (
-                      <CodingAgentButton
-                        organizationId={organizationId}
-                        automationSlug={automationSlug}
-                        variant="primary"
-                      />
-                    ),
-                  })}
-                />
+                <>
+                  {transientBanner}
+                  <AutomationCanvas
+                    automation={canvasDocument}
+                    {...(tests.tests.length > 0 && { pathCoverage: coverage })}
+                    pathsOpen={pathsOpen}
+                    onPathsOpenChange={setPathsOpen}
+                    layoutKey={layoutKey}
+                    catalog={catalog}
+                    modelLabel={modelLabel}
+                    allowedWrites={allowedWrites}
+                    triggers={triggerRowsShown}
+                    check={canvasCheck}
+                    startNotice={startNotice}
+                    issueCounts={countsByNode}
+                    selectedId={selectedId}
+                    onSelect={selectOnCanvas}
+                    revealId={selectedId}
+                    inspectorId={inspectorId}
+                    {...(canvasRun !== undefined && { run: canvasRun })}
+                    {...(canvasChange !== undefined && {
+                      changed: canvasChange,
+                    })}
+                    framed={false}
+                    view={canvasView}
+                    onViewChange={(next) =>
+                      changeView(next === 'list' ? 'list' : 'canvas')
+                    }
+                    topStart={viewSwitch}
+                    topEnd={
+                      <>
+                        {lastRun !== undefined || overlayRun !== null ? (
+                          <Button
+                            variant="secondary"
+                            size="icon-sm"
+                            aria-pressed={showLastRun}
+                            title={
+                              showLastRun
+                                ? t('detail.hideLastRun')
+                                : t('detail.showLastRun')
+                            }
+                            tooltipSide="bottom"
+                            onClick={() => {
+                              setShowLastRun((shown) => !shown);
+                            }}
+                          >
+                            {showLastRun ? (
+                              <EyeOff className="size-4" aria-hidden="true" />
+                            ) : (
+                              <Eye className="size-4" aria-hidden="true" />
+                            )}
+                          </Button>
+                        ) : null}
+                        {codingAgentButton}
+                      </>
+                    }
+                    {...(isMobile && { toolbar: canvasToolbarActions })}
+                    {...(canAuthor && {
+                      emptyAction: (
+                        <CodingAgentButton
+                          organizationId={organizationId}
+                          automationSlug={automationSlug}
+                          variant="primary"
+                        />
+                      ),
+                    })}
+                  />
+                </>
               )
             )}
             {/* Under the canvas, spanning its column only, so the inspector
@@ -2841,13 +3181,14 @@ function AutomationEditorScope({
         <AutomationRunDialog
           request={runRequest}
           projects={projects}
-          pending={startRun.isPending}
-          error={refusal}
+          pending={startRun.isPending || tryRun.isPending}
+          error={tryRefusal ?? refusal}
           onClose={() => {
             setRunRequest(null);
             setRefusal(null);
+            setTryRefusal(null);
           }}
-          onConfirm={(input) => scheduleRun(runRequest, input)}
+          onConfirm={(input, target) => confirmRun(runRequest, input, target)}
         />
       )}
 

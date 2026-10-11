@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationRunDialog } from './automation-run-dialog';
 
@@ -63,18 +63,22 @@ it('keeps a continuation for batch-size edits but resets it when the source chan
   await user.click(screen.getByRole('button', { name: 'Test run' }));
   expect(onConfirm).toHaveBeenLastCalledWith(
     expect.objectContaining({ cursor: 'next-page', limit: 20 }),
+    'version',
   );
   await user.type(
     screen.getByRole('textbox', { name: /GitHub repository/ }),
     '-new',
   );
   await user.click(screen.getByRole('button', { name: 'Test run' }));
-  expect(onConfirm).toHaveBeenLastCalledWith({
-    projectId: 'project-1',
-    owner: 'example',
-    repo: 'app-new',
-    limit: 20,
-  });
+  expect(onConfirm).toHaveBeenLastCalledWith(
+    {
+      projectId: 'project-1',
+      owner: 'example',
+      repo: 'app-new',
+      limit: 20,
+    },
+    'version',
+  );
   await user.click(screen.getByRole('button', { name: /Tale project/ }));
   expect(
     screen.queryByRole('option', { name: 'Other' }),
@@ -141,13 +145,20 @@ it.each(['github', 'glitchtip'] as const)(
     await user.clear(limit);
     await user.type(limit, '25');
     await user.click(screen.getByRole('button', { name: 'Test run' }));
-    expect(onConfirm).toHaveBeenCalledWith({
-      projectId: 'project-1',
-      limit: 25,
-      ...(source === 'github'
-        ? { owner: 'example', repo: 'app' }
-        : { organization: 'example', project: 'app', query: 'is:unresolved' }),
-    });
+    expect(onConfirm).toHaveBeenCalledWith(
+      {
+        projectId: 'project-1',
+        limit: 25,
+        ...(source === 'github'
+          ? { owner: 'example', repo: 'app' }
+          : {
+              organization: 'example',
+              project: 'app',
+              query: 'is:unresolved',
+            }),
+      },
+      'version',
+    );
   },
 );
 
@@ -284,7 +295,7 @@ it('takes the run input in the code editor and starts the run on Mod-Enter', asy
   await user.clear(input);
   await user.type(input, '{{"owner": "acme"}');
   await user.keyboard('{Control>}{Enter}{/Control}');
-  expect(onConfirm).toHaveBeenCalledWith({ owner: 'acme' });
+  expect(onConfirm).toHaveBeenCalledWith({ owner: 'acme' }, 'version');
 });
 
 it('shows the input schema as a tree of its fields', async () => {
@@ -308,4 +319,71 @@ it('shows the input schema as a tree of its fields', async () => {
   const tree = screen.getByRole('list', { name: 'Input schema' });
   expect(tree).toHaveTextContent('owner');
   expect(tree).toHaveTextContent('required');
+});
+
+it('asks whether the draft or the saved version runs, and checks each against its own input', async () => {
+  const onConfirm = vi.fn();
+  const quantity = { type: 'integer' };
+  const { user } = render(
+    <AutomationRunDialog
+      request={{
+        mode: 'mock',
+        version: 3,
+        schema: {
+          type: 'object',
+          properties: { quantity },
+          required: ['quantity'],
+        },
+        draft: {
+          schema: {
+            type: 'object',
+            properties: { quantity, unitPrice: { type: 'number' } },
+            required: ['quantity', 'unitPrice'],
+          },
+        },
+        initialInput: { quantity: 5 },
+        scopeText: 'This run operates organization-wide, across every project.',
+      }}
+      onClose={() => {}}
+      onConfirm={onConfirm}
+    />,
+  );
+  const group = screen.getByRole('radiogroup', { name: 'What runs' });
+  expect(
+    within(group).getByRole('radio', { name: /This draft \(not saved\)/ }),
+  ).toBeChecked();
+  // A try keeps no run, so it has no project scope to explain; and the
+  // draft asks for a unit price the version does not.
+  expect(screen.queryByText(/organization-wide/)).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/does not match the schema.*unitPrice/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Test run' })).toBeDisabled();
+
+  await user.click(within(group).getByRole('radio', { name: /Version 3/ }));
+  expect(screen.getByText(/organization-wide/)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Test run' }));
+  expect(onConfirm).toHaveBeenLastCalledWith({ quantity: 5 }, 'version');
+});
+
+it('tries the draft with the input it takes', async () => {
+  const onConfirm = vi.fn();
+  const { user } = render(
+    <AutomationRunDialog
+      request={{
+        mode: 'mock',
+        version: 3,
+        draft: {},
+        scopeText: '',
+      }}
+      onClose={() => {}}
+      onConfirm={onConfirm}
+    />,
+  );
+  // The draft declares no input: there is nothing to type, only to run.
+  expect(
+    screen.queryByRole('textbox', { name: /Run input/ }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Test run' }));
+  expect(onConfirm).toHaveBeenLastCalledWith({}, 'draft');
 });

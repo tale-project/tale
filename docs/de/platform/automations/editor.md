@@ -108,7 +108,7 @@ Danach folgen drei Tabs:
 
 - **Felder** enthält, was du ändern kannst. Ein `transform` hat **Code**, ein `llm` **Prompt**, **System-Prompt**, **Modell** und **Ausgabeschema**, ein `agent` zusätzlich Agent-Laufzeit und Ausstattung. **Eingabe** enthält die JSON-Werte und Referenzen, die die Node erhält.
 - **Struktur** zeigt, was die Node erhält und zurückgibt, woher Tale diese Struktur kennt und welche Nodes ihre Ausgabe lesen. Wähle eine lesende Node, um sie zu öffnen. **Als TypeScript zeigen** zeigt dieselbe Struktur als Typ.
-- **Letzter Lauf** zeigt **Aufgelöste Eingabe**, **Ausgabe** und Effekte der Node in dem Lauf, den der Canvas zeigt. Der Tab erscheint, solange der Canvas einen Lauf zeigt.
+- **Letzter Lauf** zeigt **Aufgelöste Eingabe**, **Ausgabe** und Effekte der Node in dem Lauf, den der Canvas zeigt. Der Tab erscheint, solange der Canvas einen Lauf zeigt, und heißt **Ungespeicherter Test** bei einem [Versuch mit dem Entwurf](#try-the-draft) und **In diesem Test** beim Lauf eines Tests.
 
 <Frame caption="Der Tab Struktur: was Triage zurückgibt, woher diese Struktur stammt und welche Nodes sie lesen.">
 
@@ -211,6 +211,18 @@ Damit dieselben Fälle bei jedem Speichern und vor jedem Live-Schalten geprüft 
 <Frame caption="Hat der Workflow Eingaben, gib JSON an und prüfe sein Schema vor dem Teststart.">
 
 ![Der Testlauf-Dialog zeigt JSON-Werte für owner und repo im Code-Editor und das aufgeklappte Eingabeschema als Liste von Feldern.](/images/platform/automation-run-input.webp)
+
+</Frame>
+
+### Den Entwurf ausprobieren {#try-the-draft}
+
+Mit ungespeicherten Änderungen fragt **Testlauf** zuerst **Was läuft**. **Dieser Entwurf (nicht gespeichert)** führt deine Änderungen einmal mit denselben Mocks aus, ohne sie zu speichern: Der Lauf wird nirgends behalten und erscheint nicht unter **Läufe**. Die andere Wahl, etwa **Version 3**, führt wie oben die gespeicherte Version aus, die du gerade siehst. Die Eingabe wird gegen das Eingabeschema dessen geprüft, was du wählst.
+
+Der Lauf des Entwurfs liegt danach anstelle des letzten Laufs auf dem Canvas, unter einem Streifen **Ungespeicherter Test**, der sagt, wie er endete und wann, etwa **Erfolgreich in 12 ms** oder **Fehlgeschlagen bei Score**. Er lässt sich wie ein aufgezeichneter Lauf Schritt für Schritt abspielen. Wähle eine Node, um auf ihrem Tab **Ungespeicherter Test** zu sehen, was sie erhalten und zurückgegeben hat. Sobald du den Entwurf änderst, sagt der Streifen **Der Entwurf hat sich seit diesem Versuch geändert.** **Erneut ausprobieren** führt den Entwurf so aus, wie er jetzt ist, mit derselben Eingabe; ⌘⇧Enter (Strg+Umschalt+Enter) tut dasselbe, solange der Canvas oder der Inspektor den Fokus hat. **Ergebnis ausblenden** zeigt wieder den letzten Lauf. Ein Versuch stoppt nach 20 Sekunden.
+
+<Frame caption="Ein Versuch mit dem Entwurf der Bestellrabatte: Der Streifen sagt, wie er endete, und Review, das nur eine Bestellung ab tausend Stück erreicht, zeigt im Tab Ungespeicherter Test, was es erhalten hat.">
+
+![Der Editor von Order discounts mit einem Streifen Unsaved test über dem Canvas, der Succeeded in 13 ms zeigt, mit Try again und einer Schaltfläche, die das Ergebnis ausblendet. Auf dem Canvas sind Discount, Total und Review erfolgreich, die Bedingung von Review, quantity of the run input is at least 1,000, steht auf Yes, und die Wiedergabeleiste steht am Ende des Laufs. Neben dem Canvas zeigt der Tab Unsaved test von Review die aufgelöste Eingabe total 22800 und die Ausgabe note Wholesale order of 22800: sales confirms the price.](/images/platform/automation-try-draft.webp)
 
 </Frame>
 

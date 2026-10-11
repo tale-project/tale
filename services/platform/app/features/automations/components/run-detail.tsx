@@ -29,7 +29,6 @@ import { failureDetail } from '@/app/lib/backend/adapters';
 import type { RecordedStep } from '@/app/lib/backend/contract/automations';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
-import type { WaitRecord } from '@/lib/engine/core/record/types';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -46,6 +45,7 @@ import {
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { useRunStarterLabel } from '../hooks/use-run-starter-label';
+import { useTimelineWords } from '../hooks/use-timeline-words';
 import { automationDetailPathname } from '../lib/detail-paths';
 import { readDocument } from '../lib/document';
 import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
@@ -57,13 +57,12 @@ import {
   nodeCatalogView,
   nodeTitle,
 } from '../lib/node-face';
-import { stepFailureText } from '../lib/run-failure';
 import {
   type RunSearch,
   type RunSearchChange,
   runSearchSelection,
 } from '../lib/run-search';
-import type { RunUnitRef, TimelineWords } from '../lib/run-timeline';
+import type { RunUnitRef } from '../lib/run-timeline';
 import {
   cursorNodeStatus,
   isRunFinished,
@@ -168,7 +167,6 @@ function RunDetailBody({
   onFocusLost,
 }: RunDetailProps & { onFocusLost: () => void }) {
   const { t } = useT('automations');
-  const { t: tRuns } = useT('automationRuns');
   const { formatDate } = useFormatDate();
   const inspectorId = useId();
   const effectsHeadingId = useId();
@@ -381,45 +379,7 @@ function RunDetailBody({
   );
   // What the playback says about a step that failed or produced nothing,
   // and about a wait.
-  const timelineWords = useMemo<TimelineWords>(() => {
-    const waits: Readonly<Record<WaitRecord['kind'], string>> = {
-      approval: tRuns('playback.wait.approval'),
-      ask: tRuns('playback.wait.ask'),
-      room: tRuns('playback.wait.room'),
-      repeat: tRuns('playback.wait.repeat'),
-      in_doubt: tRuns('playback.wait.in_doubt'),
-    };
-    return {
-      failed: (step) =>
-        step.failure === undefined
-          ? undefined
-          : stepFailureText(step.failure, {
-              t: tRuns,
-              locale,
-              ...failureLabels,
-            }).title,
-      skipped: (step) => {
-        const via = step.skip?.via?.[0];
-        switch (step.skip?.reason) {
-          case 'when':
-            return tRuns('playback.reason.when');
-          case 'else':
-            return via === undefined
-              ? tRuns('playback.reason.when')
-              : tRuns('playback.reason.else', { partner: nodeTitle(via) });
-          case 'upstream':
-            return via === undefined
-              ? undefined
-              : tRuns('playback.reason.upstream', { via: nodeTitle(via) });
-          case 'error':
-            return tRuns('playback.reason.error');
-          default:
-            return undefined;
-        }
-      },
-      wait: (wait) => waits[wait.kind],
-    };
-  }, [tRuns, locale, failureLabels]);
+  const timelineWords = useTimelineWords(failureLabels);
   const canvasRun = useMemo<CanvasRun | null>(
     () =>
       run === null

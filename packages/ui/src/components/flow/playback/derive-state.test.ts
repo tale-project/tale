@@ -241,6 +241,27 @@ describe('what a span says, and when', () => {
     expect(flowSpanStateAt(spans.slice(1), 30, false)?.state).toBe('failed');
   });
 
+  it('carries what stood in for a node once its span has started', () => {
+    const spans = [
+      {
+        nodeId: 'fetch',
+        start: 100,
+        end: 300,
+        outcome: 'succeeded',
+        substitute: { kind: 'simulated', label: 'Simulated output' },
+      },
+    ] as const;
+    expect(flowSpanStateAt(spans, 50, false)).toBeNull();
+    expect(flowSpanStateAt(spans, 150, false)).toMatchObject({
+      state: 'running',
+      substitute: { kind: 'simulated', label: 'Simulated output' },
+    });
+    expect(flowSpanStateAt(spans, 300, false)?.substitute).toEqual({
+      kind: 'simulated',
+      label: 'Simulated output',
+    });
+  });
+
   it('passes an overlay’s explanation through', () => {
     const frame = flowStateFromOverlay(triageFlowGraph(), {
       finished: true,

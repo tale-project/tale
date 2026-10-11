@@ -52,6 +52,8 @@ A test or a preview does not always do a node's real work. Give the node's run i
 
 Choose **A preview** in the example to see a held-back write. Write the label in the reader's language, such as "Simulated output" or "Not sent — preview"; the package adds no words of its own to the chip.
 
+A replayed run carries the chip too: give the node's own span (one with neither `item` nor `pass`) the same `substitute`, and the node shows it from the moment its span starts.
+
 ## Replay a run
 
 <Demo name="flow/playback" />

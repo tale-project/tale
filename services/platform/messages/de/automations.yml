@@ -183,6 +183,14 @@ detail:
     invalidJson: Gib die Eingabe für den Lauf als gültiges JSON ein.
     invalid: 'Die Eingabe entspricht nicht dem Schema. Prüfe diese Felder: {paths}.'
     mockDescription: Teste die gespeicherte Version mit simulierten Antworten. Es werden keine externen Aktionen ausgeführt.
+    mockDescriptionDraft: Probiere deinen ungespeicherten Entwurf mit simulierten Antworten aus. Es werden keine externen Aktionen ausgeführt, und nichts wird gespeichert.
+    descriptionDraft: Eingabe für deinen Entwurf. Die Automatisierung bleibt unverändert.
+  runTarget:
+    label: Was läuft
+    draft: Dieser Entwurf (nicht gespeichert)
+    draftHelp: Führt deine ungespeicherten Änderungen einmal aus und zeigt das Ergebnis auf dem Canvas.
+    version: 'Version {version}'
+    versionHelp: Führt die gespeicherte Version aus und behält den Lauf unter Läufe.
   runScope:
     label: Projektbereich
     orgWide: Organisationsweit
@@ -494,6 +502,11 @@ canvas:
     noFields: Keine Eingabefelder
     fromTrigger: vom Trigger
     description: '{triggers}. Eingabe: {fields}.'
+  standIn:
+    mocked: Simulierte Ausgabe
+    pinned: Vorgegebene Daten
+    failed: Simulierter Fehler
+    leftOut: In diesem Test ausgelassen
   end:
     returnsNode: 'Die Ausgabe von {node}'
     returnsNothing: Nichts – diese Automatisierung hat keine Ausgabe
@@ -526,6 +539,8 @@ editor:
       fields: Felder
       shape: Struktur
       run: Letzter Lauf
+      runTry: Ungespeicherter Test
+      runTest: In diesem Test
   start:
     title: Start
     description: Was diese Automatisierung startet und was jeder Lauf erhält.
@@ -1110,6 +1125,7 @@ tests:
   copyName: '{name} (Kopie)'
   duplicate: Duplizieren
   delete: Löschen
+  showOnCanvas: Auf dem Canvas zeigen
   rowActions: 'Mehr zu {name}'
   deleted: 'Test {name} gelöscht.'
   unnamed: 'Test {number}'
@@ -1311,3 +1327,17 @@ codingAgent:
   nameLabel: Name dieser Automatisierung
   setUp: MCP einrichten
   learnMore: So verbindest du einen Coding-Agent
+try:
+  unsaved: Ungespeicherter Test
+  test: 'Test: {name}'
+  running: Entwurf wird ausprobiert…
+  runningTest: Test läuft…
+  succeeded: 'Erfolgreich in {duration}'
+  passed: 'Bestanden in {duration}'
+  failed: Fehlgeschlagen
+  invalid: Konnte nicht laufen
+  timeLimit: 'Nach {seconds} s gestoppt – ein Versuch hat ein Zeitlimit.'
+  stopped: Gestoppt
+  changed: Der Entwurf hat sich seit diesem Versuch geändert.
+  again: Erneut ausprobieren
+  clear: Ergebnis ausblenden

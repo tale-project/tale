@@ -109,6 +109,18 @@ describe('projectRun', () => {
     expect(projection.byNode.size).toBe(0);
     expect(projection.effects).toEqual([]);
   });
+
+  it('keeps how a test stood in for a step, and no mark it does not know', () => {
+    const projection = projectRun({
+      status: 'success',
+      trace: [
+        { node: 'fetch', type: 'http.get', status: 'ok', bench: 'mocked' },
+        { node: 'score', type: 'llm', status: 'ok', bench: 'guessed' },
+      ],
+    });
+    expect(projection.byNode.get('fetch')?.bench).toBe('mocked');
+    expect(projection.byNode.get('score')).not.toHaveProperty('bench');
+  });
 });
 
 /**

@@ -2384,6 +2384,65 @@ export const SHOTS: readonly Shot[] = [
         .first(),
   },
   {
+    // A try of the draft over the canvas. Adding a blank test makes a
+    // draft; Test run tries it with a wholesale order, so the Unsaved test
+    // strip says how it ended and Review — which only an order of a
+    // thousand or more reaches — shows on its own tab what it got.
+    name: 'automation-try-draft',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TESTS.automation}/editor?panel=tests`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      const dock = page.getByRole('region', {
+        name: t('automations.tests.title'),
+        exact: true,
+      });
+      await dock
+        .getByRole('button', { name: t('automations.tests.add') })
+        .first()
+        .click();
+      await page
+        .getByRole('menuitem', { name: t('automations.tests.addFrom.blank') })
+        .click();
+      await page
+        .getByRole('button', { name: t('automations.detail.runMock') })
+        .filter({ visible: true })
+        .first()
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('automations.detail.runMock'),
+      });
+      await dialog
+        .getByRole('textbox', { name: t('automations.detail.runInput.label') })
+        .click();
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.type('{"quantity": 1200, "unitPrice": 20}');
+      await dialog
+        .getByRole('button', { name: t('automations.detail.runMock') })
+        .click();
+      await page
+        .getByRole('region', { name: t('automations.try.unsaved') })
+        .waitFor({ timeout: 30_000 });
+      await openAutomationNode(page, 'review');
+      await page
+        .getByRole('tab', {
+          name: t('automations.editor.inspector.tabs.runTry'),
+        })
+        .click();
+    },
+    // The strip has its words once the try answered.
+    readyWhen: (page) =>
+      page
+        .getByRole('region', { name: t('automations.try.unsaved') })
+        .getByText(
+          new RegExp(
+            escapeRegExp(
+              t('automations.try.succeeded').split('{duration}')[0] ?? '',
+            ),
+          ),
+        ),
+  },
+  {
     // A test run of v1 and one of v2 of the weekly digest compared: what
     // differs, with the way to the versions' comparison, and both runs on
     // the steps of both versions — Summarize, which v1 lacks, dashed for A.

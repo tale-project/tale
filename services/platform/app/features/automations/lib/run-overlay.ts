@@ -11,9 +11,15 @@
  */
 
 import type { FlowNodeState } from '@tale/ui/flow/node-status';
-import type { FlowNodeRunInfo, FlowRunOverlay } from '@tale/ui/flow/playback';
+import type {
+  FlowNodeRunInfo,
+  FlowNodeSubstitute,
+  FlowRunOverlay,
+  FlowSubstituteKind,
+} from '@tale/ui/flow/playback';
 import type { FlowGraph } from '@tale/ui/flow/types';
 
+import type { BenchMark } from '@/lib/engine/core/types';
 import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
 import type { ConditionTranslate } from './condition-text';
@@ -43,6 +49,26 @@ export interface RunOverlayInput {
   t: ConditionTranslate;
   /** Start's words: who or what started the run. */
   startedBy?: string;
+}
+
+/** The chip a step carries when a test or a try stood in for it. */
+const SUBSTITUTES: Readonly<
+  Record<BenchMark, { kind: FlowSubstituteKind; labelKey: string }>
+> = {
+  mocked: { kind: 'simulated', labelKey: 'canvas.standIn.mocked' },
+  pinned: { kind: 'pinned', labelKey: 'canvas.standIn.pinned' },
+  failed: { kind: 'failure', labelKey: 'canvas.standIn.failed' },
+  'left-out': { kind: 'left-out', labelKey: 'canvas.standIn.leftOut' },
+};
+
+/** The chip of a step a test or a try stood in for, in the reader's
+ * words. */
+export function substituteOf(
+  mark: BenchMark,
+  t: ConditionTranslate,
+): FlowNodeSubstitute {
+  const substitute = SUBSTITUTES[mark];
+  return { kind: substitute.kind, label: t(substitute.labelKey) };
 }
 
 /** The first line of an error: the strip has room for one. */
@@ -80,6 +106,8 @@ export function runOverlay({
     if (nodeStatus === 'interrupted') {
       info.reason = t('runs.nodeStatus.interrupted');
     }
+    if (view?.bench !== undefined)
+      info.substitute = substituteOf(view.bench, t);
     nodes[id] = info;
   }
 

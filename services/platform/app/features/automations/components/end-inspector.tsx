@@ -37,8 +37,9 @@ export interface EndFieldsProps {
   /** The problems "go to" brings to End: the output's. */
   issues?: readonly AutomationIssueView[];
   context: InspectorContext;
-  /** The output of the run laid over the canvas, when one is. */
-  run?: { output: unknown };
+  /** The output of the run laid over the canvas, when one is, and whose
+   * run it is when not the last one ("Unsaved test"). */
+  run?: { output: unknown; label?: string };
   onDeselect?: () => void;
   defaultTab?: InspectorTab;
 }
@@ -189,6 +190,7 @@ export function EndFields({
             </div>
           ),
         })}
+        {...(run?.label !== undefined && { runLabel: run.label })}
         {...(run !== undefined && {
           run: (
             <div className="flex flex-col gap-1">

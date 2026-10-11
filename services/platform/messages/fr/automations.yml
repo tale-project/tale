@@ -183,6 +183,14 @@ detail:
     invalidJson: Saisis les données de l’exécution au format JSON valide.
     invalid: 'Les données ne respectent pas le schéma. Vérifie ces champs : {paths}.'
     mockDescription: Teste la version enregistrée avec des réponses simulées. Aucune action externe n’est exécutée.
+    mockDescriptionDraft: Essaie ton brouillon non enregistré avec des réponses simulées. Aucune action externe n’est exécutée, et rien n’est conservé.
+    descriptionDraft: Données pour ton brouillon. Elles ne modifient pas l’automatisation.
+  runTarget:
+    label: Ce qui s’exécute
+    draft: Ce brouillon (non enregistré)
+    draftHelp: Exécute une fois tes modifications non enregistrées et affiche le résultat sur le canevas.
+    version: 'Version {version}'
+    versionHelp: Exécute la version enregistrée et conserve l’exécution sous Exécutions.
   runScope:
     label: Portée du projet
     orgWide: Toute l’organisation
@@ -494,6 +502,11 @@ canvas:
     noFields: Aucun champ d’entrée
     fromTrigger: du déclencheur
     description: '{triggers}. Entrée : {fields}.'
+  standIn:
+    mocked: Sortie simulée
+    pinned: Données fixées
+    failed: Échec simulé
+    leftOut: Exclu de ce test
   end:
     returnsNode: 'La sortie de {node}'
     returnsNothing: Rien — cette automatisation n’a pas de sortie
@@ -525,6 +538,8 @@ editor:
       fields: Champs
       shape: Structure
       run: Dernière exécution
+      runTry: Test non enregistré
+      runTest: Dans ce test
   start:
     title: Début
     description: Ce qui démarre cette automatisation et ce que reçoit chaque exécution.
@@ -1112,6 +1127,7 @@ tests:
   copyName: '{name} (copie)'
   duplicate: Dupliquer
   delete: Supprimer
+  showOnCanvas: Afficher sur le canevas
   rowActions: 'Plus pour {name}'
   deleted: 'Test {name} supprimé.'
   unnamed: 'Test {number}'
@@ -1313,3 +1329,17 @@ codingAgent:
   nameLabel: Nom de cette automatisation
   setUp: Configurer MCP
   learnMore: Connecter un agent de code
+try:
+  unsaved: Test non enregistré
+  test: 'Test : {name}'
+  running: Essai du brouillon…
+  runningTest: Exécution du test…
+  succeeded: 'Réussi en {duration}'
+  passed: 'Réussi en {duration}'
+  failed: Échec
+  invalid: N’a pas pu s’exécuter
+  timeLimit: 'Arrêté après {seconds} s — un essai a une durée limitée.'
+  stopped: Arrêté
+  changed: Le brouillon a changé depuis cet essai.
+  again: Réessayer
+  clear: Masquer le résultat

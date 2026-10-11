@@ -130,6 +130,9 @@ export interface FlowNodeSpan {
    * every item was recorded.
    */
   total?: number;
+  /** On a node's own span: what stood in for its work. The node carries
+   *  the chip ({@link FlowNodeRunInfo.substitute}) once the span starts. */
+  substitute?: FlowNodeSubstitute;
 }
 
 /** A value moving along a line: it leaves the source at `start` and

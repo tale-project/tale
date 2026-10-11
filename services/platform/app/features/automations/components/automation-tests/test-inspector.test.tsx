@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { TransientRecord } from '@/lib/engine/core/record/transient';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type {
@@ -104,6 +105,7 @@ function renderFields(
     tab?: TestInspectorTab;
     replace?: Replace;
     setupMode?: TestSetupMode;
+    onShowRun?: () => void;
   } = {},
 ) {
   const onTabChange = vi.fn();
@@ -126,12 +128,48 @@ function renderFields(
       doc={DOC}
       text={{}}
       onSelectNode={onSelectNode}
+      {...(options.onShowRun !== undefined && { onShowRun: options.onShowRun })}
     />,
   );
   return { ...view, tests, onTabChange, onSelectNode, onSetupModeChange };
 }
 
+/** A run's record as a test's result keeps it: only that it is kept
+ * matters to the inspector. */
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a record built by hand, with none of the steps the inspector never reads
+const RECORD = {
+  view: { nodes: [] },
+  details: [],
+} as unknown as TransientRecord;
+
 describe('the test inspector', () => {
+  it('lays the test’s run over the canvas when its result keeps the steps', async () => {
+    const onShowRun = vi.fn();
+    const { unmount } = renderFields(FAILED, { onShowRun });
+    // This result keeps no steps: there is nothing to lay over the canvas.
+    expect(
+      screen.queryByRole('button', { name: 'Show on the canvas' }),
+    ).not.toBeInTheDocument();
+    unmount();
+    const outcome = FAILED.outcome;
+    if (outcome.kind !== 'run') throw new Error('a run outcome');
+    const kept: TestRow = {
+      ...FAILED,
+      outcome: {
+        ...outcome,
+        result: {
+          ...outcome.result,
+          run: { status: 'success', record: RECORD },
+        },
+      },
+    };
+    const { user } = renderFields(kept, { onShowRun });
+    await user.click(
+      screen.getByRole('button', { name: 'Show on the canvas' }),
+    );
+    expect(onShowRun).toHaveBeenCalledTimes(1);
+  });
+
   it('names the test, its place and status, and runs it alone', async () => {
     const { user, tests } = renderFields(FAILED);
     expect(screen.getByText('triples seven')).toBeVisible();

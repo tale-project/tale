@@ -463,9 +463,13 @@ export function AutomationCanvas({
       />
     ) : undefined,
   };
-  // A run recorded step by step plays back; one recorded before records
-  // were kept shows where each step ended.
-  const record = run?.record?.source === 'record' ? run.record : undefined;
+  // A run recorded step by step plays back — a stored run, or a try or a
+  // test that was never stored; one recorded before records were kept
+  // shows where each step ended.
+  const record =
+    run?.record?.source === 'record' || run?.record?.source === 'transient'
+      ? run.record
+      : undefined;
 
   return (
     <>
@@ -578,12 +582,16 @@ function RunCanvas({
   const { setT } = clock;
   // The chart opens on the moment a link names, or on the run's end — once
   // the record is there, whether it was from the start or landed later; a
-  // live run follows its end by itself.
-  const positioned = useRef(false);
+  // live run follows its end by itself. Another run in its place (the
+  // editor's next try, a test run again) opens on its own end the same way.
+  const positionedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (record === undefined || positioned.current) return;
-    positioned.current = true;
-    if (moment !== undefined)
+    if (record === undefined) return;
+    const identity = `${record.runId}:${record.startedAt}`;
+    if (positionedFor.current === identity) return;
+    const first = positionedFor.current === null;
+    positionedFor.current = identity;
+    if (first && moment !== undefined)
       setT(timeline.fromReal(record.startedAt + moment));
     else if (!live) setT(timeline.duration);
   }, [record, live, moment, timeline, setT]);

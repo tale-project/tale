@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Copy,
   EllipsisVertical,
+  Eye,
   FlaskConical,
   Play,
   Plus,
@@ -34,6 +35,7 @@ import {
   type AutomationTests,
   type TestRow,
 } from '../../hooks/use-automation-tests';
+import { testRunOf } from '../../lib/automation-tests/transient-run';
 
 /** A test's chips: text, never a control (they sit inside the row). */
 function Chips({ labels }: { labels: readonly string[] }) {
@@ -76,6 +78,8 @@ export interface TestsPanelProps {
   coverage?: { covered: number; total: number; onShowPaths?: () => void };
   /** Says a deleted test is gone (the editor's live region). */
   onDeleted?: (name: string) => void;
+  /** Lays a test's latest run over the canvas. */
+  onShowRun?: (index: number) => void;
   /** The list's handle: the panel's opener focuses its current row. */
   listRef: RefObject<TestResultListHandle | null>;
 }
@@ -223,6 +227,7 @@ export function TestsPanelContent({
   addFrom,
   coverage,
   onDeleted,
+  onShowRun,
   listRef,
 }: TestsPanelProps) {
   const { t } = useT('automations');
@@ -304,6 +309,16 @@ export function TestsPanelContent({
               disabled: tests.runDisabledReason !== undefined,
               onClick: () => tests.runOne(row.index),
             },
+            ...(onShowRun !== undefined && testRunOf(row.outcome) !== null
+              ? [
+                  {
+                    type: 'item' as const,
+                    label: t('tests.showOnCanvas'),
+                    icon: Eye,
+                    onClick: () => onShowRun(row.index),
+                  },
+                ]
+              : []),
             {
               type: 'item',
               label: t('tests.duplicate'),
