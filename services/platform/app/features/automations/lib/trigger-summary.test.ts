@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { i18n } from '@/tests/utils/i18n-all-languages';
 
-import { triggerLines, triggerRows } from './trigger-summary';
+import { triggerLines, triggerRows, triggerStateOf } from './trigger-summary';
 
 /**
  * What starts an automation, as its Start node says it: each binding with
@@ -143,5 +143,40 @@ describe('triggerLines', () => {
       'Alle 5 Minuten · UTC',
       'Von Hand, über die API oder MCP',
     ]);
+  });
+});
+
+describe('triggerStateOf', () => {
+  // One rule for Start's line and the automations list's Trigger column.
+  it('reads a binding as on, waiting for a live version, paused or off', () => {
+    const states = [true, false].flatMap((deployed) =>
+      [
+        { enabled: true, lastSkipReason: null },
+        { enabled: false, lastSkipReason: 'paused_after_failures' },
+        { enabled: false, lastSkipReason: 'not_deployed' },
+        { enabled: false, lastSkipReason: null },
+      ].map((binding) => triggerStateOf(binding, deployed)),
+    );
+    expect(states).toEqual([
+      'on',
+      'paused',
+      'off',
+      'off',
+      'notLive',
+      'paused',
+      'off',
+      'off',
+    ]);
+  });
+
+  it('reads a live binding that still carries the pause stamp as on', () => {
+    // Paused is off AND stamped: an older image re-enabled a paused schedule
+    // without clearing the stamp, and that schedule runs.
+    expect(
+      triggerStateOf(
+        { enabled: true, lastSkipReason: 'paused_after_failures' },
+        true,
+      ),
+    ).toBe('on');
   });
 });

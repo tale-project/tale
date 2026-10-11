@@ -1312,6 +1312,12 @@ export interface AutomationAppListing {
   taskContract?: unknown;
   settings?: unknown;
   presentation?: unknown;
+  /** What starts it on its own, as the list's Trigger column reads it: the
+   * bound trigger's kind, whether it is switched on, and why it last started
+   * nothing — a schedule its failures paused is off and stamped
+   * `paused_after_failures`. Null when nothing is bound: it runs only by
+   * hand, through the API or MCP. */
+  trigger: Pick<TriggerListing, 'kind' | 'enabled' | 'lastSkipReason'> | null;
 }
 
 export async function listAutomationsForApp(
@@ -1356,6 +1362,19 @@ export async function listAutomationsForApp(
     list.push(binding.projectId);
     byName.set(binding.automationName, list);
   }
+  // The one trigger read, as `listAutomations` makes it: each row says
+  // whether its binding is on, off or paused from the binding itself, so
+  // the list never has to guess it or read each automation's trigger.
+  const triggerByName = new Map(
+    (await listTriggers(sql, organizationId)).map((trigger) => [
+      trigger.name,
+      {
+        kind: trigger.kind,
+        enabled: trigger.enabled,
+        lastSkipReason: trigger.lastSkipReason,
+      },
+    ]),
+  );
   return rows.flatMap((row) => {
     const projectIds = byName.get(row.name) ?? [];
     // Scope: a project's automations / org-level only / everything.
@@ -1384,6 +1403,7 @@ export async function listAutomationsForApp(
         ...(row.presentation !== null
           ? { presentation: row.presentation }
           : {}),
+        trigger: triggerByName.get(row.name) ?? null,
       },
     ];
   });
