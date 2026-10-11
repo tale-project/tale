@@ -28,7 +28,8 @@ vi.mock('../../core/knowledge/crawl_action.ts', () => ({
   scanDueWebsitesImpl: vi.fn(async () => null),
   persistRobotsRules: vi.fn(async () => undefined),
 }));
-vi.mock('../../lib/org-config.ts', () => ({
+vi.mock('../../lib/org-config.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/org-config.ts')>()),
   resolveOrgSlug: vi.fn(async () => 'acme'),
 }));
 vi.mock('./scan-queue.ts', () => ({
