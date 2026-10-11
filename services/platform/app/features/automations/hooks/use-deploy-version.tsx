@@ -58,6 +58,11 @@ export interface UseDeployVersionOptions {
    * so and offers to turn it on — or null when the trigger is on or there
    * is none. */
   onTriggerOff?: (trigger: DeployedTrigger | null) => void;
+  /** A refusal the page says its own way — the editor lists a version's
+   * problems in its Problems panel. Answers whether it did; the hook then
+   * says nothing more. A deploy someone else overtook is always the
+   * hook's to say. */
+  onRefused?: (error: unknown, version: number) => boolean;
 }
 
 export interface DeployVersion {
@@ -94,6 +99,7 @@ export function useDeployVersion({
   automationSlug,
   onShowDeployments,
   onTriggerOff,
+  onRefused,
 }: UseDeployVersionOptions): DeployVersion {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -194,6 +200,7 @@ export function useDeployVersion({
             });
             return;
           }
+          if (onRefused?.(error, version) === true) return;
           const code = automationErrorCode(error);
           if (
             code === 'AUTOMATION_TESTS_FAILING' ||

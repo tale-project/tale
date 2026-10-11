@@ -4,12 +4,14 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
+import { ChangeSummary } from '@tale/ui/change-list';
 import { cn } from '@tale/ui/cn';
 import {
   preloadCodeEditor,
   type CodeEditorDiagnosticsStatus,
 } from '@tale/ui/code-editor';
 import { locateYamlPointer } from '@tale/ui/code-editor/locate';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Dialog } from '@tale/ui/dialog/dialog';
@@ -46,6 +48,7 @@ import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { useToast } from '@tale/ui/use-toast';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeftRight,
   CheckCircle2,
@@ -55,6 +58,7 @@ import {
   Play,
   Rocket,
   SearchX,
+  Undo2,
   Zap,
 } from 'lucide-react';
 import {
@@ -77,18 +81,17 @@ import { readStateOf } from '@/app/lib/backend/read-state';
 import { llmModelSteps } from '@/lib/automations/model-defaults';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { diffAutomationDocuments } from '@/lib/engine/core/diff/automation';
-import { changedNodeIds } from '@/lib/engine/core/diff/changes';
+import {
+  changedNodeIds,
+  changeSummaryOf,
+} from '@/lib/engine/core/diff/changes';
 import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { savedWarningsSchema } from '@/lib/shared/schemas/automation-issues';
 
 import { mergeNodeTypes } from '../hooks/backend';
-import {
-  useDeployAutomation,
-  useSaveAutomation,
-  useStartAutomationRun,
-} from '../hooks/mutations';
+import { useSaveAutomation, useStartAutomationRun } from '../hooks/mutations';
 import {
   useApprovalAllowances,
   useAutomation,
@@ -103,8 +106,13 @@ import {
   useInvalidateAutomationValidation,
   VALIDATION_DEBOUNCE_MS,
 } from '../hooks/use-automation-validation';
+import { useDeployVersion } from '../hooks/use-deploy-version';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
-import { automationDetailPathname } from '../lib/detail-paths';
+import {
+  automationDetailPathname,
+  compareVersionLink,
+  versionsTabLink,
+} from '../lib/detail-paths';
 import { DOCUMENT_DIRTY_KEY } from '../lib/dirty-keys';
 import { readDocument } from '../lib/document';
 import {
@@ -120,8 +128,10 @@ import {
   automationErrorIssues,
   automationErrorLatestVersion,
   automationErrorMessage,
+  automationVersionStale,
   isMissingAutomationRead,
   type AutomationErrorIssues,
+  type StaleChange,
 } from '../lib/errors';
 import { END_ID, START_ID, flowGraphTarget } from '../lib/flow-ids';
 import { fieldsWithIssueControl } from '../lib/inspector-fields';
@@ -141,6 +151,7 @@ import {
   readRunStatus,
 } from '../lib/run-view';
 import { triggerLines, triggerRows } from '../lib/trigger-summary';
+import { changeFlags } from '../lib/version-changes';
 import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
@@ -174,8 +185,13 @@ import { StartFields, StartInspector } from './start-inspector';
 import {
   type DeployedTrigger,
   TriggerDeployNotice,
-  triggerOffAfterDeploy,
 } from './trigger-deploy-notice';
+import { DeployRefusedDialog } from './versions/deploy-refused-dialog';
+import { useAuthorText, VersionAuthor } from './versions/version-author';
+import {
+  useVersionChangeSections,
+  VersionChanges,
+} from './versions/version-changes';
 
 /** The run-scope Select's "organization-wide" choice. A Radix Select item
  * cannot carry an empty value, so the org-wide option needs a real sentinel
@@ -252,6 +268,13 @@ export function AutomationEditor(props: AutomationEditorProps) {
       />
     </IssueFocusProvider>
   );
+}
+
+/** A refusal for errors, with its list, for the document on screen. */
+function refusalIssues(error: unknown): AutomationErrorIssues | undefined {
+  return automationErrorCode(error) === 'AUTOMATION_INVALID'
+    ? automationErrorIssues(error)
+    : undefined;
 }
 
 /** The problems a refused save or deploy listed, for the document it refused. */
@@ -341,15 +364,27 @@ function AutomationEditorScope({
    * `../lib/draft-document`) — what the check, a save and the Source view
    * read. The canvas and the inspector read its narrowed view. */
   const [draft, setDraft] = useState<RawDocument | null>(null);
-  /** The version the draft was built on — pinned on its first edit, sent
-   * with the save so the store can refuse a draft another tab overtook. */
+  /** The latest version when the draft started — pinned on its first edit,
+   * sent with the save so the store refuses a draft another tab overtook. */
   const draftBaseRef = useRef<number | undefined>(undefined);
   /** The same base, for the notice that a newer version landed under the
    * draft. */
   const [draftBase, setDraftBase] = useState<number | undefined>(undefined);
+  /** The version the draft was built from — the one on screen at its first
+   * edit, an older one too: the save records it, and editing an old
+   * version saves a new one based on it rather than refusing. */
+  const draftBasedOnRef = useRef<number | undefined>(undefined);
+  const [draftBasedOn, setDraftBasedOn] = useState<number | undefined>(
+    undefined,
+  );
   /** The document the draft started from: the canvas keeps drawing it until
    * the first pause in the edits. */
   const [draftOrigin, setDraftOrigin] = useState<Automation | null>(null);
+  /** The same document as stored, every key kept: the save review compares
+   * the draft with it, even after a newer version replaced it on the read. */
+  const [draftOriginRaw, setDraftOriginRaw] = useState<RawDocument | null>(
+    null,
+  );
   /** The version this tab saved last: following it to the latest is no
    * news to its author. */
   const savedHereRef = useRef<number | undefined>(undefined);
@@ -359,6 +394,8 @@ function AutomationEditorScope({
    * top of what landed. Never resolved silently either way. */
   const [staleSave, setStaleSave] = useState<{
     latestVersion: number | null;
+    /** Who saved the newer version, when and how, as the refusal says. */
+    stale: StaleChange | null;
     message: string;
   } | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
@@ -423,7 +460,6 @@ function AutomationEditorScope({
   const { projects } = useProjects(organizationId);
   const save = useSaveAutomation();
   const startRun = useStartAutomationRun();
-  const deploy = useDeployAutomation();
 
   // The projects a run may target: the automation's own bindings, resolved to
   // names. A run scope only needs choosing when there are two or more — one
@@ -595,11 +631,40 @@ function AutomationEditorScope({
   const triggersQuery = useAutomationTriggers(organizationId, automationSlug);
   const harnesses = useProjectHarnesses(organizationId);
   const { formatDate } = useFormatDate();
+  const authorText = useAuthorText(organizationId);
+  const navigate = useNavigate();
   const { schedule: scheduleText } = useRecurrenceFormat();
   const catalog = useMemo(
     () => nodeCatalogView(nodeTypes, catalogQuery.data?.connectors ?? []),
     [nodeTypes, catalogQuery.data?.connectors],
   );
+  // The save dialog's review, worked out only while it is open: what the
+  // draft changes in the version it started from, even once a newer version
+  // has replaced that one on the read.
+  const reviewBaseRaw = draftOriginRaw ?? storedRaw;
+  const reviewDiff = useMemo(
+    () =>
+      saveDialogOpen && draft !== null && reviewBaseRaw !== null
+        ? diffAutomationDocuments(reviewBaseRaw, draft)
+        : null,
+    [saveDialogOpen, draft, reviewBaseRaw],
+  );
+  const reviewBase = useMemo(
+    () => (draftOriginRaw === null ? stored : readDocument(draftOriginRaw)),
+    [draftOriginRaw, stored],
+  );
+  const reviewSections = useVersionChangeSections({
+    diff: reviewDiff,
+    before: reviewBase,
+    after: automation,
+    labels: {
+      before: t('versions.versionLabel', {
+        version: draftBasedOn ?? automationQuery.data?.version ?? 0,
+      }),
+      after: t('detail.saveDialog.draftLabel'),
+    },
+    catalog,
+  });
   const modelNames = useMemo(
     () =>
       new Map(
@@ -971,6 +1036,48 @@ function AutomationEditorScope({
     },
     [validation.errors],
   );
+  // The editor's Deploy: one click against the live version on screen, with
+  // Undo; a version that fails the checks lists its problems in Problems.
+  const deployer = useDeployVersion({
+    organizationId,
+    automationSlug,
+    onShowDeployments: () => {
+      void navigate(
+        versionsTabLink({
+          organizationId,
+          automationSlug,
+          projectId,
+          tab: 'deployments',
+        }),
+      );
+    },
+    onTriggerOff: (off) => {
+      // A trigger that is off starts nothing this version runs; the notice
+      // offers to turn it on.
+      setDeployNotice(
+        off === null ? null : { name: automationSlug, trigger: off },
+      );
+    },
+    onRefused: (error) => {
+      // The version on screen no longer passes the check: its problems land
+      // in Problems, and the alert points there. With a draft on screen they
+      // would describe another document, so the alert says so instead.
+      const refused = draft === null ? refusalIssues(error) : undefined;
+      const hash = validation.currentHash;
+      if (refused !== undefined && hash !== null) {
+        // The alert says the deploy was refused (it is read out); the
+        // announcer adds only the counts.
+        showRefusal(refused, hash);
+        setDeployRefusal(t('problems.refusedDeploy'));
+        return true;
+      }
+      if (automationErrorCode(error) === 'AUTOMATION_INVALID') {
+        setDeployRefusal(t('problems.refusedDeployDraft'));
+        return true;
+      }
+      return false;
+    },
+  });
   const toggleProblems = (): void => {
     if (problemsOpen) {
       setProblemsOpen(false);
@@ -1054,14 +1161,19 @@ function AutomationEditorScope({
     (edit: (raw: RawDocument) => RawDocument) => {
       if (!automation || rawDocument === null) return;
       if (draft === null) {
-        draftBaseRef.current = automationQuery.data?.version;
-        setDraftBase(automationQuery.data?.version);
+        const shown = automationQuery.data;
+        const latest = shown?.latestVersion ?? shown?.version;
+        draftBaseRef.current = latest;
+        setDraftBase(latest);
+        draftBasedOnRef.current = shown?.version;
+        setDraftBasedOn(shown?.version);
         setDraftOrigin(automation);
+        setDraftOriginRaw(rawDocument);
         draftEpochRef.current += 1;
       }
       setDraft(edit(rawDocument));
     },
-    [automation, rawDocument, draft, automationQuery.data?.version],
+    [automation, rawDocument, draft, automationQuery.data],
   );
   const onChangeNode = useCallback(
     (patch: Partial<NodeDef>) => {
@@ -1141,7 +1253,9 @@ function AutomationEditorScope({
     draftEpochRef.current += 1;
     setDraft(null);
     setDraftBase(undefined);
+    setDraftBasedOn(undefined);
     setDraftOrigin(null);
+    setDraftOriginRaw(null);
   }, []);
 
   // Save waits while the check stands on errors — the draft's own, or,
@@ -1285,6 +1399,38 @@ function AutomationEditorScope({
   const lookingVersion = meta?.version;
   const lookingIsLive =
     lookingVersion !== undefined && lookingVersion === meta?.deployedVersion;
+  // Deploying an older version than the live one rolls back to it.
+  const rollsBack =
+    lookingVersion !== undefined &&
+    meta?.deployedVersion !== undefined &&
+    lookingVersion < meta.deployedVersion;
+  // A version older than the latest is on screen: saving builds the next
+  // version from it.
+  const latestVersion = meta?.latestVersion;
+  const viewingOld =
+    lookingVersion !== undefined &&
+    latestVersion !== undefined &&
+    lookingVersion < latestVersion;
+  // The newest version there is: the latest when the draft started, or one
+  // saved since — a save that goes through lands on top of it.
+  const newestVersion = Math.max(
+    draftBase ?? 0,
+    latestVersion ?? lookingVersion ?? 0,
+  );
+  // The draft is built from an older version than the newest: the versions
+  // saved since are not in it.
+  const basedOnOlder =
+    draftBasedOn !== undefined && draftBasedOn < newestVersion;
+  // What the version that landed under the draft changed against the one
+  // before it, as its saved summary says.
+  const newerChanges =
+    newerVersion !== null &&
+    meta?.changes !== undefined &&
+    meta.changes !== null &&
+    meta.changes.first !== true &&
+    meta.changes.identical !== true
+      ? meta.changes
+      : null;
   const selectedNode =
     automation.nodes.find((node) => node.id === selectedId) ?? null;
   const selectedNodeIndex = automation.nodes.findIndex(
@@ -1325,6 +1471,9 @@ function AutomationEditorScope({
       // Projects panel, never moved by saving a version).
       ...(projectId !== undefined && { projectId }),
       ...(baseVersion !== undefined && { baseVersion }),
+      ...(draftBasedOnRef.current !== undefined && {
+        basedOnVersion: draftBasedOnRef.current,
+      }),
     });
     if (draftEpochRef.current !== submittedEpoch) return;
     setSaveDialogOpen(false);
@@ -1347,17 +1496,16 @@ function AutomationEditorScope({
     }
     draftBaseRef.current = saved.version;
     setDraftBase(saved.version);
+    draftBasedOnRef.current = saved.version;
+    setDraftBasedOn(saved.version);
+    // Edits made while the save ran go on from the version it saved.
+    setDraftOriginRaw(submitted);
     savedHereRef.current = saved.version;
     setDraft((current) => (current === submitted ? null : current));
     setSaveMessage('');
     // The save appended a version; show it, whichever one was on screen.
     onSelectVersion(undefined);
   };
-  /** A refusal for errors, with its list, for the document on screen. */
-  const refusalIssues = (error: unknown): AutomationErrorIssues | undefined =>
-    automationErrorCode(error) === 'AUTOMATION_INVALID'
-      ? automationErrorIssues(error)
-      : undefined;
   const confirmSave = async (): Promise<void> => {
     const pending = pendingSaveRef.current;
     const submittedHash = validation.currentHash;
@@ -1384,6 +1532,7 @@ function AutomationEditorScope({
         // sentence and the author decides — reload, or save on top.
         setStaleSave({
           latestVersion: automationErrorLatestVersion(error) ?? null,
+          stale: automationVersionStale(error) ?? null,
           message: automationErrorMessage(error),
         });
         pending?.reject(new EditorSaveCancelledError());
@@ -1448,61 +1597,30 @@ function AutomationEditorScope({
             size="sm"
             // Busy, not disabled: a disabled button drops its focus, and
             // the focus is what the notice of the deploy takes over.
-            icon={deploy.isPending ? Loader2 : Rocket}
+            icon={
+              deployer.pendingVersion !== null
+                ? Loader2
+                : rollsBack
+                  ? Undo2
+                  : Rocket
+            }
             iconClassName={
-              deploy.isPending
+              deployer.pendingVersion !== null
                 ? 'animate-spin motion-reduce:animate-none'
                 : undefined
             }
-            aria-busy={deploy.isPending || undefined}
-            aria-disabled={deploy.isPending || undefined}
+            aria-busy={deployer.pendingVersion !== null || undefined}
+            aria-disabled={deployer.pendingVersion !== null || undefined}
             onClick={() => {
-              if (deploy.isPending) return;
+              if (deployer.pendingVersion !== null) return;
               setDeployRefusal(null);
               setDeployNotice(null);
-              deploy.mutate(
-                {
-                  organizationId,
-                  name: automationSlug,
-                  version: lookingVersion,
-                },
-                {
-                  onSuccess: (result) => {
-                    // A trigger that is off starts nothing this version
-                    // runs; the notice offers to turn it on.
-                    const off = triggerOffAfterDeploy(result.trigger);
-                    setDeployNotice(
-                      off === null
-                        ? null
-                        : { name: automationSlug, trigger: off },
-                    );
-                  },
-                  onError: (error) => {
-                    // The version on screen no longer passes the check: its
-                    // problems land in Problems, and the alert points there.
-                    // With a draft on screen they would describe another
-                    // document, so the alert keeps the server's sentence.
-                    const refused =
-                      draft === null ? refusalIssues(error) : undefined;
-                    const hash = validation.currentHash;
-                    if (refused !== undefined && hash !== null) {
-                      // The alert says the deploy was refused (it is read
-                      // out); the announcer adds only the counts.
-                      showRefusal(refused, hash);
-                      setDeployRefusal(t('problems.refusedDeploy'));
-                      return;
-                    }
-                    setDeployRefusal(
-                      automationErrorCode(error) === 'AUTOMATION_INVALID'
-                        ? t('problems.refusedDeployDraft')
-                        : automationErrorMessage(error),
-                    );
-                  },
-                },
-              );
+              deployer.deploy(lookingVersion, meta?.deployedVersion ?? null);
             }}
           >
-            {t('detail.deployVersion', { version: lookingVersion })}
+            {rollsBack
+              ? t('deploy.rollBack', { version: lookingVersion })
+              : t('detail.deployVersion', { version: lookingVersion })}
           </Button>
         </span>
       )}
@@ -1739,6 +1857,49 @@ function AutomationEditorScope({
     </div>
   );
 
+  // Who saved the version that overtook the draft, when, and what the draft
+  // is based on — in words; the store's own sentence only for an
+  // automation that has no version any more.
+  const staleDescription = (() => {
+    if (staleSave === null) return null;
+    const latest = staleSave.latestVersion;
+    if (latest === null) return staleSave.message;
+    const stale = staleSave.stale;
+    const base = draftBasedOn ?? draftBase;
+    const words =
+      stale === null || stale.by === null || stale.at === null
+        ? t('detail.staleVersion.changed', { latest, base })
+        : t('detail.staleVersion.body', {
+            ...authorText({
+              actor: stale.by,
+              via: stale.via,
+              clientName: stale.client,
+            }).subject,
+            latest,
+            time: formatDate(new Date(stale.at), 'time'),
+            base,
+          });
+    return (
+      <>
+        {words}{' '}
+        <Link
+          {...compareVersionLink({
+            organizationId,
+            automationSlug,
+            projectId,
+            version: latest,
+            from: draftBase,
+          })}
+          target="_blank"
+          rel="noopener"
+          className="underline underline-offset-2"
+        >
+          {t('detail.staleVersion.seeChanges', { latest })}
+        </Link>
+      </>
+    );
+  })();
+
   return (
     <>
       <AutomationVersionPicker
@@ -1791,30 +1952,125 @@ function AutomationEditorScope({
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.
             The alerts keep the page inset, in a band above the workbench. */}
-        {(refusal !== null ||
+        {(viewingOld ||
+          refusal !== null ||
           deployRefusal !== null ||
           deployedReadError ||
           shownDeployNotice !== null ||
           newerVersion !== null) && (
           <div className="border-border flex flex-col gap-3 border-b p-4">
+            {viewingOld && (
+              <Alert
+                variant="info"
+                title={t('editor.oldVersion.title', {
+                  version: lookingVersion,
+                  latest: latestVersion,
+                })}
+                {...(draft !== null && {
+                  description: t('editor.oldVersion.draft', {
+                    next: latestVersion + 1,
+                    version: lookingVersion,
+                  }),
+                })}
+              >
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => requestVersionSwitch(latestVersion)}
+                  >
+                    {t('editor.oldVersion.showLatest', {
+                      latest: latestVersion,
+                    })}
+                  </Button>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link
+                      {...compareVersionLink({
+                        organizationId,
+                        automationSlug,
+                        projectId,
+                        version: latestVersion,
+                        from: lookingVersion,
+                      })}
+                    >
+                      {t('editor.oldVersion.compare', {
+                        version: lookingVersion,
+                        latest: latestVersion,
+                      })}
+                    </Link>
+                  </Button>
+                </div>
+              </Alert>
+            )}
             {newerVersion !== null && draftBase !== undefined && (
               <Alert
                 variant="info"
                 title={t('canvas.newerVersion.title')}
-                description={t('canvas.newerVersion.body', {
-                  version: newerVersion,
-                  base: draftBase,
-                })}
+                description={
+                  <>
+                    {t('canvas.newerVersion.body', {
+                      version: newerVersion,
+                      base: draftBase,
+                    })}
+                    {meta !== undefined && meta !== null && (
+                      <span className="mt-1 flex flex-wrap items-center gap-x-1.5">
+                        <span>{t('canvas.newerVersion.savedBy')}</span>
+                        <VersionAuthor
+                          organizationId={organizationId}
+                          layout="inline"
+                          facts={{
+                            actor: meta.createdBy,
+                            via: meta.createdVia ?? null,
+                            viaInferred: meta.viaInferred === true,
+                            clientName: meta.clientName ?? null,
+                          }}
+                        />
+                      </span>
+                    )}
+                    {newerChanges !== null && (
+                      <ChangeSummary
+                        className="mt-1"
+                        aria-label={t('compare.summary.label')}
+                        counts={{
+                          added: newerChanges.nodes.added,
+                          removed: newerChanges.nodes.removed,
+                          changed: newerChanges.nodes.changed,
+                          renamed: newerChanges.nodes.renamed ?? 0,
+                        }}
+                        flags={changeFlags(newerChanges, t)}
+                      />
+                    )}
+                  </>
+                }
               >
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="mt-2"
-                  onClick={discardDraft}
-                >
-                  {t('canvas.newerVersion.show', { version: newerVersion })}
-                </Button>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={discardDraft}
+                  >
+                    {t('canvas.newerVersion.show', { version: newerVersion })}
+                  </Button>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link
+                      {...compareVersionLink({
+                        organizationId,
+                        automationSlug,
+                        projectId,
+                        version: newerVersion,
+                        from: draftBase,
+                      })}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      {t('canvas.newerVersion.seeChanges', {
+                        version: newerVersion,
+                      })}
+                    </Link>
+                  </Button>
+                </div>
               </Alert>
             )}
             {deployedReadError && (
@@ -2103,6 +2359,65 @@ function AutomationEditorScope({
           </>
         }
       >
+        <div className="mb-4 flex flex-col gap-3">
+          <Text variant="muted">
+            {t('detail.saveDialog.creates', {
+              next: newestVersion + 1,
+              base: basedOnOlder ? draftBasedOn : 'none',
+            })}
+          </Text>
+          {basedOnOlder && (
+            <Alert
+              variant="warning"
+              description={
+                <>
+                  {t('detail.saveDialog.notIncluded', {
+                    from: (draftBasedOn ?? 0) + 1,
+                    to: newestVersion,
+                    count: newestVersion - (draftBasedOn ?? 0),
+                  })}{' '}
+                  <Link
+                    {...compareVersionLink({
+                      organizationId,
+                      automationSlug,
+                      projectId,
+                      version: newestVersion,
+                      from: draftBasedOn,
+                    })}
+                    target="_blank"
+                    rel="noopener"
+                    className="underline underline-offset-2"
+                  >
+                    {t('editor.oldVersion.compare', {
+                      version: draftBasedOn,
+                      latest: newestVersion,
+                    })}
+                  </Link>
+                </>
+              }
+            />
+          )}
+          {reviewDiff !== null && (
+            <CollapsibleDetails
+              variant="compact"
+              summary={t('detail.saveDialog.review')}
+            >
+              <div className="flex flex-col gap-3 pt-2">
+                <ChangeSummary
+                  aria-label={t('compare.summary.label')}
+                  counts={{
+                    added: reviewDiff.counts.added,
+                    removed: reviewDiff.counts.removed,
+                    changed: reviewDiff.counts.changed,
+                    renamed: reviewDiff.counts.renamed,
+                  }}
+                  flags={changeFlags(changeSummaryOf(reviewDiff), t)}
+                />
+                <VersionChanges sections={reviewSections} note={false} />
+              </div>
+            </CollapsibleDetails>
+          )}
+        </div>
         <Field
           label={t('detail.saveMessageLabel')}
           htmlFor={saveMessageId}
@@ -2166,9 +2481,7 @@ function AutomationEditorScope({
           if (!open) setStaleSave(null);
         }}
         title={t('detail.staleVersion.title')}
-        description={t('detail.staleVersion.description', {
-          message: staleSave?.message ?? '',
-        })}
+        description={staleDescription}
         confirmText={t('detail.staleVersion.saveAnyway')}
         variant="warning"
         onConfirm={() => {
@@ -2179,6 +2492,14 @@ function AutomationEditorScope({
           {t('detail.staleVersion.reload')}
         </Button>
       </ConfirmDialog>
+      <DeployRefusedDialog
+        organizationId={organizationId}
+        automationSlug={automationSlug}
+        projectId={projectId}
+        refusal={deployer.refusal}
+        onClose={deployer.closeRefusal}
+        openInEditor={false}
+      />
     </>
   );
 }

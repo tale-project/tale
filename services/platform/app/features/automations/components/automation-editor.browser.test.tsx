@@ -190,6 +190,14 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   useApprovalAllowances: () => ({ data: undefined }),
 }));
 
+// Who saved a version, who deployed one: the member directory answers from
+// here, not from a server.
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({ members: [], isLoading: false }),
+}));
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
+}));
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/mutations')>()),
   useSaveAutomation: () => ({ mutateAsync: saved, isPending: false }),

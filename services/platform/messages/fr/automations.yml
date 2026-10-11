@@ -152,13 +152,19 @@ detail:
   saveDialog:
     title: Enregistrer une nouvelle version
     description: Enregistre une nouvelle version. Les exécutions en cours continuent d’utiliser la version déployée.
+    creates: 'Enregistrée comme v{next}{base, select, none {} other {, à partir de la v{base}}}.'
+    review: Vérifier les modifications
+    notIncluded: '{count, plural, one {Les modifications de la v{from} ne sont pas dans ce brouillon.} other {Les modifications des v{from} à v{to} ne sont pas dans ce brouillon.}}'
+    draftLabel: Ton brouillon
   switchVersion:
     title: Afficher une autre version ?
     description: Changer de version supprime les modifications non enregistrées.
     confirm: Abandonner et changer
   staleVersion:
     title: Cette automatisation a changé pendant ta modification
-    description: "{message}"
+    body: '{who, select, you {Tu as enregistré la v{latest} à {time} pendant ta modification.} other {{author} a enregistré la v{latest} à {time} pendant ta modification.}} Tes modifications partent de la v{base}.'
+    changed: 'La v{latest} a été enregistrée pendant ta modification. Tes modifications partent de la v{base}.'
+    seeChanges: 'Voir ce qui a changé dans la v{latest}'
     reload: Abandonner mes modifications et recharger
     saveAnyway: Enregistrer quand même
   showLastRun: Afficher la dernière exécution
@@ -471,6 +477,8 @@ canvas:
     title: Une version plus récente a été enregistrée
     body: 'La v{version} a été enregistrée pendant ta modification. Ton brouillon part de la v{base}.'
     show: 'Afficher la v{version} et abandonner mon brouillon'
+    savedBy: Enregistrée par
+    seeChanges: 'Voir ce qui a changé dans la v{version}'
   start:
     manual: À la main, via l’API ou MCP
     manualOnly: Seulement à la main, via l’API ou MCP — aucun déclencheur
@@ -497,6 +505,11 @@ canvas:
     someEmpty: Certaines exécutions renvoient des valeurs vides
     failedAt: 'Échec à {node}'
 editor:
+  oldVersion:
+    title: 'Tu consultes la v{version}. La plus récente est la v{latest}.'
+    draft: 'L’enregistrement crée la v{next} à partir de la v{version}.'
+    showLatest: 'Afficher la v{latest}'
+    compare: 'Comparer la v{version} avec la v{latest}'
   unknownType: 'Type de nœud inconnu : {type}'
   catalogUnavailable:
     Le catalogue des types de nœuds n’a pas pu être chargé, donc seuls
@@ -715,6 +728,7 @@ versions:
     restore: Restaurer comme nouvelle version
     downloadYaml: Télécharger le YAML
     history: Historique des versions
+    allVersions: Toutes les versions et modifications
     downloadFailed: 'La v{version} n’a pas pu être téléchargée'
     whatChanged: Ce qui a changé
     compareWithLive: Comparer avec la version en service

@@ -511,6 +511,40 @@ describe('version history adapters [AUTO-R47]', () => {
     });
   });
 
+  it('lists every version parsed like a page of the history', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        versions: [
+          {
+            version: 2,
+            createdBy: 'api-key:u1',
+            createdAt: 2_000,
+            createdVia: 'mcp',
+            clientName: 'Claude Code',
+            restoredFromVersion: 1,
+          },
+          { version: 1, createdBy: 'u1', createdAt: 1_000 },
+        ],
+        nextBefore: null,
+      }),
+    );
+    const read = automationReadAdapters['automations/queries:listVersions']?.(
+      { organizationId: 'org-1', name: 'ops/greet' },
+      {},
+    );
+    const versions = (await read?.queryFn()) as Array<Record<string, unknown>>;
+    expect(versions.map((row) => row.version)).toEqual([2, 1]);
+    // Who saved it and how reads through; what a server leaves out is
+    // unknown, never absent.
+    expect(versions[0]).toMatchObject({
+      createdVia: 'mcp',
+      clientName: 'Claude Code',
+      restoredFromVersion: 1,
+      message: null,
+    });
+    expect(versions[1]).toMatchObject({ createdVia: null, message: null });
+  });
+
   it('restores a version through its door', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')

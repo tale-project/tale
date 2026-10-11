@@ -6,7 +6,18 @@ import { render, screen, fireEvent } from '@/tests/utils/render';
 import { VersionList } from './version-list';
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
+vi.mock('@tanstack/react-router', async () => ({
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
+  useNavigate: () => navigate,
+}));
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({
+    members: [{ userId: 'a', displayName: 'Ada Lovelace' }],
+  }),
+}));
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
+}));
 
 const versions = [
   {
@@ -20,8 +31,12 @@ const versions = [
     version: 2,
     message: 'add the digest step',
     testsPassed: false,
-    createdBy: 'user:a',
+    createdBy: 'api-key:a',
     createdAt: 1_700_000_100_000,
+    createdVia: 'mcp' as const,
+    clientName: 'Claude Code',
+    basedOnVersion: 1,
+    restoredFromVersion: 1,
   },
 ];
 
@@ -46,6 +61,16 @@ function renderList({
 }
 
 describe('VersionList', () => {
+  it('says who saved each version and how, what it restores, and links the whole history', () => {
+    renderList();
+    expect(screen.getAllByText('Ada Lovelace')).toHaveLength(2);
+    expect(screen.getByText('with Claude Code through MCP')).toBeVisible();
+    expect(screen.getByText('Restores v1')).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: 'All versions and changes' }),
+    ).toBeVisible();
+  });
+
   it('marks the version that is live and does not offer deploy on the row', () => {
     renderList();
     expect(screen.getByRole('img', { name: 'Live' })).toBeVisible();

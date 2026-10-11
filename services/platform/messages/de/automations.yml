@@ -152,13 +152,19 @@ detail:
   saveDialog:
     title: Neue Version speichern
     description: Speichert eine neue Version. Läufe, die gerade aktiv sind, nutzen weiter die deployte Version.
+    creates: 'Wird als v{next} gespeichert{base, select, none {} other {, basierend auf v{base}}}.'
+    review: Änderungen prüfen
+    notIncluded: '{count, plural, one {Änderungen aus v{from} sind nicht in diesem Entwurf.} other {Änderungen aus v{from} bis v{to} sind nicht in diesem Entwurf.}}'
+    draftLabel: Dein Entwurf
   switchVersion:
     title: Andere Version anzeigen?
     description: Beim Versionswechsel gehen nicht gespeicherte Änderungen verloren.
     confirm: Verwerfen und wechseln
   staleVersion:
     title: Diese Automatisierung hat sich während deiner Bearbeitung geändert
-    description: "{message}"
+    body: '{who, select, you {Du hast um {time} v{latest} gespeichert, während du bearbeitet hast.} other {{author} hat um {time} v{latest} gespeichert, während du bearbeitet hast.}} Deine Änderungen basieren auf v{base}.'
+    changed: 'v{latest} wurde gespeichert, während du bearbeitet hast. Deine Änderungen basieren auf v{base}.'
+    seeChanges: 'Ansehen, was sich in v{latest} geändert hat'
     reload: Meine Änderungen verwerfen und neu laden
     saveAnyway: Trotzdem speichern
   showLastRun: Letzten Lauf einblenden
@@ -471,6 +477,8 @@ canvas:
     title: Eine neuere Version wurde gespeichert
     body: 'v{version} wurde gespeichert, während du bearbeitet hast. Dein Entwurf basiert auf v{base}.'
     show: 'v{version} zeigen und Entwurf verwerfen'
+    savedBy: Gespeichert von
+    seeChanges: 'Ansehen, was sich in v{version} geändert hat'
   start:
     manual: Von Hand, über die API oder MCP
     manualOnly: Nur von Hand, über die API oder MCP – kein Trigger
@@ -497,6 +505,11 @@ canvas:
     someEmpty: Manche Läufe geben leere Werte zurück
     failedAt: 'Fehlgeschlagen bei {node}'
 editor:
+  oldVersion:
+    title: 'Du siehst v{version}. Die neueste ist v{latest}.'
+    draft: 'Beim Speichern entsteht v{next} aus v{version}.'
+    showLatest: 'v{latest} anzeigen'
+    compare: 'v{version} mit v{latest} vergleichen'
   unknownType: 'Unbekannter Node-Typ: {type}'
   catalogUnavailable:
     Der Katalog der Node-Typen konnte nicht geladen werden, deshalb
@@ -714,6 +727,7 @@ versions:
     restore: Als neue Version wiederherstellen
     downloadYaml: YAML herunterladen
     history: Versionsverlauf
+    allVersions: Alle Versionen und Änderungen
     downloadFailed: 'v{version} konnte nicht heruntergeladen werden'
     whatChanged: Was sich geändert hat
     compareWithLive: Mit der Live-Version vergleichen

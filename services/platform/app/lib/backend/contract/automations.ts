@@ -743,16 +743,12 @@ export interface AutomationsContract {
       continueCursor: string;
     };
   };
+  /** Every version of an automation, newest first, as the history lists
+   * it: who saved it and how, its lineage, changes and tests. */
   'automations/queries:listVersions': {
     kind: 'query';
     args: { organizationId: string; name: string };
-    returns: Array<{
-      createdBy: string;
-      createdAt: number;
-      testsPassed?: boolean;
-      message?: string;
-      version: number;
-    }>;
+    returns: VersionHistory['versions'];
   };
   'automations/serving_preview:previewUnpinnedAgentServing': {
     kind: 'action';

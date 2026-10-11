@@ -28,7 +28,6 @@ import { backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 type GetAutomationResult = ReturnsOf<'automations/queries:getAutomation'>;
-type ListVersionsResult = ReturnsOf<'automations/queries:listVersions'>;
 type ListTriggersResult = ReturnsOf<'automations/queries:listTriggers'>;
 type AutomationApprovalAllowanceRow =
   ReturnsOf<'automations/queries:listApprovalAllowances'>['actions'][number];
@@ -160,11 +159,15 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
     if (orgId === undefined || typeof name !== 'string') return null;
     return {
       queryKey: backendKey(orgId, 'automation', 'versions', name),
-      queryFn: () =>
-        backendFetch<{ versions: ListVersionsResult }>(
-          `/automations/${namePath(name)}/versions`,
-          { orgId },
-        ).then((body) => body.versions),
+      // Every version at once (the route pages through them all), parsed
+      // at the boundary like a page of the history.
+      queryFn: async () =>
+        versionHistorySchema.parse(
+          await backendFetch<unknown>(
+            `/automations/${namePath(name)}/versions`,
+            { orgId },
+          ),
+        ).versions,
     };
   },
   'automations/queries:listTriggers': (args, ctx) => {

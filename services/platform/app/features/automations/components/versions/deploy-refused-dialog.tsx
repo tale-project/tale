@@ -41,7 +41,8 @@ export function refusalIssueItems(
 /**
  * Says why a version cannot go live: it no longer passes today's checks —
  * with the problems they found — or its tests fail. **Open vN in the
- * editor** is where either is fixed; the version itself never changes.
+ * editor** is where either is fixed; the version itself never changes. The
+ * editor leaves that link out: the version is already on its screen.
  */
 export function DeployRefusedDialog({
   organizationId,
@@ -49,12 +50,14 @@ export function DeployRefusedDialog({
   projectId,
   refusal,
   onClose,
+  openInEditor = true,
 }: {
   organizationId: string;
   automationSlug: string;
   projectId?: string | undefined;
   refusal: DeployRefusal | null;
   onClose: () => void;
+  openInEditor?: boolean;
 }) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -81,21 +84,26 @@ export function DeployRefusedDialog({
       })}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button
+            variant={openInEditor ? 'secondary' : 'primary'}
+            onClick={onClose}
+          >
             {tCommon('actions.close')}
           </Button>
-          <Button asChild>
-            <Link
-              {...editorVersionLink({
-                organizationId,
-                automationSlug,
-                projectId,
-                version,
-              })}
-            >
-              {t('deploy.refused.openInEditor', { version })}
-            </Link>
-          </Button>
+          {openInEditor && (
+            <Button asChild>
+              <Link
+                {...editorVersionLink({
+                  organizationId,
+                  automationSlug,
+                  projectId,
+                  version,
+                })}
+              >
+                {t('deploy.refused.openInEditor', { version })}
+              </Link>
+            </Button>
+          )}
         </>
       }
     >
