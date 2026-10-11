@@ -264,9 +264,13 @@ export const scheduleAnswerSchema = z
 
 /** The answers to a starter's questions, by question id: text for every
  * kind but `schedule`. */
-export const templateAnswersSchema = z.record(
-  z.string().regex(/^[a-z][a-zA-Z0-9]{0,39}$/),
-  z.union([z.string().max(MAX_TEMPLATE_TEXT_ANSWER), scheduleAnswerSchema]),
-);
+export const templateAnswersSchema = z
+  .record(
+    z.string().regex(/^[a-z][a-zA-Z0-9]{0,39}$/),
+    z.union([z.string().max(MAX_TEMPLATE_TEXT_ANSWER), scheduleAnswerSchema]),
+  )
+  .refine((answers) => Object.keys(answers).length <= MAX_TEMPLATE_FIELDS, {
+    message: `at most ${MAX_TEMPLATE_FIELDS} answers`,
+  });
 
 export type TemplateAnswers = z.infer<typeof templateAnswersSchema>;
