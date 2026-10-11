@@ -60,9 +60,12 @@ interface AutomationDetailShellProps {
  * project-scoped one: the `PageLayout` scroll shell, the
  * `Automations / <name>` breadcrumb — `<project> / Automations / <name>` on
  * the project-scoped route — with the name doubling as the sibling
- * switcher, and the tab strip — **Editor**, **General**, **Runs** — exactly the composition a project detail carries. The strip's
- * trailing slot is where the open tab puts its verbs and the Save/Discard
- * cluster, so the header row keeps only the name and the Live badge.
+ * switcher, and the tab strip — **Editor**, **General**, **Runs**,
+ * **Versions** — exactly the composition a project detail carries. The
+ * strip's trailing slot is where the open tab puts its verbs and the
+ * Save/Discard cluster, so the header row keeps only the name and the Live
+ * badge; every tab but Versions — which is the history itself — keeps the
+ * version picker there.
  *
  * `ActiveEditorProvider` is the registry the editor's Save/Discard cluster
  * reads; this shell renders no cluster of its own, so the page keeps exactly
@@ -74,7 +77,7 @@ interface AutomationDetailShellProps {
  * the trail — and the mobile back control — still lead to the list) with no
  * tabs to open. A DELETED automation is not unknown: its run history stays
  * until retention removes it, so the Runs pages still render — under a
- * banner naming the deletion date — while Editor, which has
+ * banner naming the deletion date — while Editor and Versions, which have
  * nothing left to show, stay visible but disabled.
  */
 export function AutomationDetailShell(props: AutomationDetailShellProps) {
@@ -114,6 +117,8 @@ function AutomationDetailFrame({
   const onEditor = pathname === `${root}/editor`;
   const onRuns =
     pathname === `${root}/runs` || pathname.startsWith(`${root}/runs/`);
+  const onVersions =
+    pathname === `${root}/versions` || pathname.startsWith(`${root}/versions/`);
 
   const tabs = useMemo<TabNavigationItem[]>(() => {
     const deleted = deletedAt !== undefined;
@@ -138,6 +143,14 @@ function AutomationDetailFrame({
         label: t('navigation.runs'),
         href: `${root}/runs`,
         matchMode: 'startsWith',
+      },
+      {
+        // Every version, what is live, and when each went live — gone with
+        // a deleted automation, like its editor.
+        label: t('navigation.versions'),
+        href: `${root}/versions`,
+        matchMode: 'startsWith',
+        disabled: deleted,
       },
     ];
   }, [t, root, deletedAt]);
@@ -187,7 +200,7 @@ function AutomationDetailFrame({
               standalone={false}
               ariaLabel={tCommon('aria.automationsNavigation')}
               trailing={
-                deletedAt !== undefined ? undefined : onEditor ? (
+                deletedAt !== undefined || onVersions ? undefined : onEditor ? (
                   <div
                     ref={setVersionPickerTarget}
                     className="flex w-auto shrink-0 items-center"

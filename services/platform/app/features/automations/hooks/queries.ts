@@ -91,6 +91,43 @@ export function useAutomationVersions(organizationId: string, name: string) {
   });
 }
 
+/** One automation's version history, newest first, a page at a time: who
+ * saved each version and through what, what it changed, its tests, and
+ * whether it is or was live. */
+export function useAutomationVersionHistory(
+  organizationId: string,
+  name: string,
+) {
+  return useCachedPaginatedQuery(
+    'automations/queries:listVersionHistory',
+    { organizationId, name },
+    { initialNumItems: DEFAULT_LIST_PAGE_SIZE },
+  );
+}
+
+/** What is live now — since when, by whom, with how many of its runs still
+ * going — and the deploy that put it live, which says what it replaced. */
+export function useAutomationLiveDeployment(
+  organizationId: string,
+  name: string,
+) {
+  return useBackendQuery('automations/queries:listDeployments', {
+    organizationId,
+    name,
+    limit: 1,
+  });
+}
+
+/** Every time a version of the automation went live, newest first, a page
+ * at a time. */
+export function useAutomationDeployments(organizationId: string, name: string) {
+  return useCachedPaginatedQuery(
+    'automations/queries:listDeploymentsPaginated',
+    { organizationId, name },
+    { initialNumItems: DEFAULT_LIST_PAGE_SIZE },
+  );
+}
+
 /** Recent runs, newest first — of one automation, or of the whole
  * organization when `name` is omitted; `projectId` narrows to one project's
  * run log. */

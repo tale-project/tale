@@ -28,6 +28,7 @@ navigation:
   editor: Editor
   general: General
   runs: Runs
+  versions: Versions
 switcher:
   title: Switch automation
   searchPlaceholder: Search automations
@@ -655,6 +656,113 @@ versions:
   testsPassed: Tests passed
   testsFailed: Tests failed
   noMessage: No message
+  caption: Versions of this automation
+  description: Every saved version, the one that is live, and when each went live. A run keeps the version it started with.
+  tabs:
+    label: History
+    versions: Versions
+    deployments: Deployments
+  columns:
+    version: Version
+    message: Message
+    savedBy: Saved by
+    saved: Saved
+    changes: Changes
+    tests: Tests
+  entity:
+    one: version
+    other: versions
+  lastLive: 'Last went live {date}'
+  basedOn: 'Based on v{version}'
+  restores: 'Restores v{version}'
+  firstVersion: First version
+  changesNotKept: Not recorded
+  testsNone: No result
+  flags:
+    inputs: Inputs
+    output: Output
+    description: Description
+    tests: Tests
+    other: Other settings
+    package: Package data
+  via:
+    app: in the app
+    upload: from an uploaded package
+    mcp: through MCP
+    rest: through the API
+    managed: from managed configuration
+    system: by Tale
+  author:
+    caption: '{client, select, none {{via}} other {with {client} {via}}}'
+    you: You
+    tale: Tale
+    former: A former member
+    unknown: Not recorded
+    someone: Someone
+  actions:
+    menu: 'Actions for v{version}'
+    openInEditor: Open in editor
+    restore: Restore as new version
+    downloadYaml: Download YAML
+    history: Version history
+    downloadFailed: 'v{version} could not be downloaded'
+deployments:
+  caption: When each version went live
+  empty: No version has gone live yet.
+  entity:
+    one: deployment
+    other: deployments
+  live:
+    title: 'v{version} is live'
+    since: 'Since {date}'
+    activeRuns: '{count, plural, =0 {No runs of v{version} are in progress.} one {# run of v{version} is in progress; it finishes on v{version}.} other {# runs of v{version} are in progress; they finish on v{version}.}}'
+  none: No version is live yet. Triggers and live runs start only after you deploy one.
+  kind:
+    deploy: 'Deployed v{version}'
+    rollback: 'Rolled back to v{version}'
+    recorded: 'v{version} was live'
+  recordedHint: Recorded before the history started.
+  columns:
+    when: When
+    what: What
+    replaced: Replaced
+    by: By
+  actions:
+    menu: 'Actions for the deployment of v{version}'
+deploy:
+  rollBack: 'Roll back to v{version}'
+  toast:
+    live: 'v{version} is live.'
+    liveAgain: 'v{version} is live again.'
+    keep: Runs already started keep the version they started with.
+    undo: Undo
+    undoAltText: 'Undo: put v{version} live again'
+  refused:
+    title: "v{version} can't go live"
+    invalid: "v{version} doesn't pass today's checks. Open it, fix what's listed and save a new version."
+    testsFailing: "The tests of v{version} fail, so it can't go live."
+    openInEditor: 'Open v{version} in the editor'
+  stale:
+    title: 'v{version} did not go live'
+    body: '{who, select, you {You made v{current} live at {time}.} other {{author} made v{current} live at {time}.}} Nothing was changed. Check the deployments, then choose again.'
+    changed: The live version changed while this page was open. Nothing was changed. Check the deployments, then choose again.
+    showDeployments: Show deployments
+  failed: 'v{version} could not go live'
+restore:
+  title: 'Restore v{version} as a new version?'
+  body: 'Tale saves a copy of v{version} as v{next}. {count, plural, one {v{from} stays in the history.} other {v{from} to v{to} stay in the history.}}'
+  liveStays: "The live version doesn't change."
+  defaultMessage: 'Restore v{version}'
+  deployNow: 'Make v{next} live right away'
+  confirm: Restore
+  stale: '{who, select, you {You saved v{latest} while this was open.} other {{author} saved v{latest} while this was open.}} Restore on top of v{latest}?'
+  staleConfirm: 'Restore on top of v{latest}'
+  invalid: "v{version} doesn't pass today's checks, so it can't be restored as it is. Open it, fix what's listed and save a new version."
+  failed: 'v{version} could not be restored'
+  toast:
+    saved: 'v{next} saved from v{version}.'
+    unchanged: 'v{latest} already matches v{version}. Nothing was saved.'
+    open: 'Open v{next}'
 upload:
   trigger: Upload package
   title: Upload package

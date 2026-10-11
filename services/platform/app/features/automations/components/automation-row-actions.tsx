@@ -6,7 +6,7 @@ import {
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
 import { toast } from '@tale/ui/use-toast';
-import { Trash2 } from 'lucide-react';
+import { History, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -18,17 +18,21 @@ interface AutomationRowActionsProps {
   organizationId: string;
   name: string;
   displayName: string;
+  /** Opens the automation's Versions tab. */
+  onOpenVersions: () => void;
 }
 
 /**
- * The list-row overflow: delete, with the confirm that used to sit on the
- * editor. Opening the canvas is the row itself; destroying the automation is
- * a catalog act, so it lives here rather than beside Save / Test run.
+ * The list-row overflow: the version history, and delete, with the confirm
+ * that used to sit on the editor. Opening the canvas is the row itself;
+ * destroying the automation is a catalog act, so it lives here rather than
+ * beside Save / Test run.
  */
 export function AutomationRowActions({
   organizationId,
   name,
   displayName,
+  onOpenVersions,
 }: AutomationRowActionsProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -38,14 +42,21 @@ export function AutomationRowActions({
   const actions = useMemo(
     () => [
       {
+        key: 'versions',
+        label: t('versions.actions.history'),
+        icon: History,
+        onClick: onOpenVersions,
+      },
+      {
         key: 'delete',
         label: tCommon('actions.delete'),
         icon: Trash2,
         destructive: true,
+        separator: true,
         onClick: () => dialogs.open.delete(),
       },
     ],
-    [tCommon, dialogs.open],
+    [t, tCommon, dialogs.open, onOpenVersions],
   );
 
   return (

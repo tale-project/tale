@@ -38,6 +38,15 @@ export function useDeployAutomation() {
   });
 }
 
+/** Save an older version's content as the newest version — never a deploy.
+ * Refused when it no longer passes the checks, or when a version was saved
+ * since the latest the caller read; both are the dialog's to say. */
+export function useRestoreAutomationVersion() {
+  return useBackendMutation('automations/mutations:restoreAutomationVersion', {
+    errorToast: false,
+  });
+}
+
 /** Resolve a run's write-approval card: approve lets the parked node act on
  * the next stepper poll; reject fails it. */
 export function useResolveRunApproval() {

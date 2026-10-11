@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { automationListTarget } from './list-target';
+import { automationListTarget, automationVersionsTarget } from './list-target';
 
 describe('automationListTarget', () => {
   it('sends an org-level row to the org automation route', () => {
@@ -61,6 +61,35 @@ describe('automationListTarget', () => {
     ).toEqual({
       to: '/dashboard/$id/automations/$automationSlug/editor',
       params: { id: 'org-1', automationSlug: 'desk__prepare-return' },
+    });
+  });
+});
+
+describe('automationVersionsTarget', () => {
+  it('opens the Versions tab in the shell the row opens in', () => {
+    expect(
+      automationVersionsTarget({
+        organizationId: 'org-1',
+        name: 'org/digest',
+        boundProjectIds: [],
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/automations/$automationSlug/versions',
+      params: { id: 'org-1', automationSlug: 'org__digest' },
+    });
+    expect(
+      automationVersionsTarget({
+        organizationId: 'org-1',
+        name: 'desk/prepare-return',
+        boundProjectIds: ['proj_1'],
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions',
+      params: {
+        id: 'org-1',
+        projectId: 'proj_1',
+        automationSlug: 'desk__prepare-return',
+      },
     });
   });
 });

@@ -29,6 +29,9 @@ automationConfiguration:
 automationRuns:
   title: Automatisierungsausführungen
   description: Automatisierungsausführungsverlauf anzeigen.
+automationVersions:
+  title: Automatisierungsversionen
+  description: Sieh jede Version der Automatisierung, was live ist und wann welche Version live ging.
 documents:
   title: Dokumente
   description: deine Wissensdatenbank-Dokumente verwalten.

@@ -34,3 +34,16 @@ export function sourceFileName(
   const versioned = version === undefined ? base : `${base}-v${version}`;
   return `${versioned}${isDraft ? '-draft' : ''}.yml`;
 }
+
+/** Saves the text as a YAML file under `name`. */
+export function downloadYaml(text: string, name: string): void {
+  const blob = new Blob([text], { type: 'application/yaml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

@@ -16,6 +16,7 @@ vi.mock('@tale/ui/use-toast', () => ({
 }));
 
 const mutateAsync = vi.hoisted(() => vi.fn());
+const openVersions = vi.fn();
 
 vi.mock('../hooks/mutations', () => ({
   useDeleteAutomation: () => ({ mutateAsync, isPending: false }),
@@ -41,12 +42,33 @@ describe('AutomationRowActions', () => {
     vi.mocked(toast).mockClear();
   });
 
+  it('opens the version history from the row menu', async () => {
+    const { user } = render(
+      <AutomationRowActions
+        organizationId="org-1"
+        name="org/digest"
+        displayName="Digest"
+        onOpenVersions={openVersions}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.openMenu' }),
+    );
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: 'automations.versions.actions.history',
+      }),
+    );
+    expect(openVersions).toHaveBeenCalledTimes(1);
+  });
+
   it('opens the delete confirm from the row menu', async () => {
     const { user } = render(
       <AutomationRowActions
         organizationId="org-1"
         name="org/digest"
         displayName="Digest"
+        onOpenVersions={openVersions}
       />,
     );
 
@@ -63,6 +85,7 @@ describe('AutomationRowActions', () => {
         organizationId="org-1"
         name="org/digest"
         displayName="Digest"
+        onOpenVersions={openVersions}
       />,
     );
 
@@ -100,6 +123,7 @@ describe('AutomationRowActions', () => {
         organizationId="org-1"
         name="org/digest"
         displayName="Digest"
+        onOpenVersions={openVersions}
       />,
     );
 

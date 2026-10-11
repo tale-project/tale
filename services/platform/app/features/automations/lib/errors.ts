@@ -4,6 +4,10 @@ import {
   refusalIssuesSchema,
   type WireAutomationIssue,
 } from '@/lib/shared/schemas/automation-issues';
+import {
+  type AutomationWriteVia,
+  isAutomationWriteVia,
+} from '@/lib/shared/schemas/automation-versions';
 
 /**
  * Author-facing message for a refused automation write.
@@ -159,6 +163,71 @@ export function automationErrorLatestVersion(
 ): number | null | undefined {
   const latest = errorData(error)?.latestVersion;
   return typeof latest === 'number' || latest === null ? latest : undefined;
+}
+
+/**
+ * Who changed an automation while a caller acted on what it had read: the
+ * version live now, or the latest version, who put it there, when, through
+ * which door and client — as far as the refusal says.
+ */
+export interface StaleChange {
+  /** The version live now (a deploy) or the latest one (a save or a
+   * restore); null when there is none any more. */
+  version: number | null;
+  by: string | null;
+  at: number | null;
+  via: AutomationWriteVia | null;
+  client: string | null;
+}
+
+function staleChange(
+  version: unknown,
+  by: unknown,
+  at: unknown,
+  via: unknown,
+  client: unknown,
+): StaleChange {
+  return {
+    version: typeof version === 'number' ? version : null,
+    by: typeof by === 'string' && by !== '' ? by : null,
+    at: typeof at === 'number' ? at : null,
+    via: typeof via === 'string' && isAutomationWriteVia(via) ? via : null,
+    client: typeof client === 'string' && client !== '' ? client : null,
+  };
+}
+
+/** What a deploy that expected another live version
+ * (`AUTOMATION_DEPLOYMENT_STALE`) found live; undefined for any other
+ * refusal. */
+export function automationDeploymentStale(
+  error: unknown,
+): StaleChange | undefined {
+  const data = errorData(error);
+  if (data?.code !== 'AUTOMATION_DEPLOYMENT_STALE') return undefined;
+  return staleChange(
+    data.deployedVersion,
+    data.deployedBy,
+    data.deployedAt,
+    data.deployedVia,
+    data.deployedClient,
+  );
+}
+
+/** The version a save or a restore that started from an older latest
+ * (`AUTOMATION_VERSION_STALE`) found saved since; undefined for any other
+ * refusal. */
+export function automationVersionStale(
+  error: unknown,
+): StaleChange | undefined {
+  const data = errorData(error);
+  if (data?.code !== 'AUTOMATION_VERSION_STALE') return undefined;
+  return staleChange(
+    data.latestVersion,
+    data.latestCreatedBy,
+    data.latestCreatedAt,
+    data.latestVia,
+    data.latestClient,
+  );
 }
 
 /**

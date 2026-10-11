@@ -123,36 +123,6 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
-  // A page of the version history: the rows parsed at the boundary, so a
-  // field the server leaves out reads as unknown (null) rather than absent.
-  'automations/queries:listVersionHistory': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    const name = args.name;
-    const limit = args.limit;
-    if (
-      orgId === undefined ||
-      typeof name !== 'string' ||
-      typeof limit !== 'number'
-    ) {
-      return null;
-    }
-    const before = typeof args.before === 'number' ? args.before : undefined;
-    const query = new URLSearchParams({ limit: String(limit) });
-    if (before !== undefined) query.set('before', String(before));
-    return {
-      queryKey: backendKey(orgId, 'automation', 'versions', name, {
-        limit,
-        before: before ?? null,
-      }),
-      queryFn: async () =>
-        versionHistorySchema.parse(
-          await backendFetch<unknown>(
-            `/automations/${namePath(name)}/versions?${query.toString()}`,
-            { orgId },
-          ),
-        ),
-    };
-  },
   'automations/queries:listDeployments': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const name = args.name;
@@ -655,7 +625,71 @@ function runPageCursor(next: unknown): string {
   return typeof at === 'number' && typeof id === 'string' ? `${at}|${id}` : '';
 }
 
+/** The most rows one page of a history reads (the server's own cap). */
+const HISTORY_PAGE_MAX = 200;
+
+function historyPageLimit(numItems: number): string {
+  return String(Math.min(Math.max(numItems, 1), HISTORY_PAGE_MAX));
+}
+
 export const automationPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  // The version history a page at a time, the rows parsed at the boundary,
+  // so a field the server leaves out reads as unknown (null) rather than
+  // absent. A page continues before the oldest version it answered.
+  'automations/queries:listVersionHistory': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'automation', 'versions', name, 'history'),
+      fetchPage: async (cursor, numItems) => {
+        const query = new URLSearchParams({
+          limit: historyPageLimit(numItems),
+        });
+        if (cursor !== null && cursor !== '') query.set('before', cursor);
+        const history = versionHistorySchema.parse(
+          await backendFetch<unknown>(
+            `/automations/${namePath(name)}/versions?${query.toString()}`,
+            { orgId },
+          ),
+        );
+        return {
+          page: history.versions,
+          isDone: history.nextBefore === null,
+          continueCursor:
+            history.nextBefore === null ? '' : String(history.nextBefore),
+        };
+      },
+    };
+  },
+  // Every deploy a page at a time; a page continues before the deploy it
+  // ended on (`<at>:<id>`, the order the history keeps).
+  'automations/queries:listDeploymentsPaginated': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'automation', 'deployments', name, 'history'),
+      fetchPage: async (cursor, numItems) => {
+        const query = new URLSearchParams({
+          limit: historyPageLimit(numItems),
+        });
+        if (cursor !== null && cursor !== '') query.set('before', cursor);
+        const history = deploymentHistorySchema.parse(
+          await backendFetch<unknown>(
+            `/automations/${namePath(name)}/deployments?${query.toString()}`,
+            { orgId },
+          ),
+        );
+        const next = history.nextBefore;
+        return {
+          page: history.deployments,
+          isDone: next === null,
+          continueCursor: next === null ? '' : `${String(next.at)}:${next.id}`,
+        };
+      },
+    };
+  },
   // One automation's runs, newest first, narrowed as the Runs table asks;
   // keyed under the run entity, so a run's hint refreshes the list.
   'automations/queries:listRunsPaginated': (args, ctx) => {

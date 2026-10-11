@@ -1,0 +1,205 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { render, screen, waitFor } from '@/tests/utils/render';
+
+import { AutomationVersionsTab } from './automation-versions-tab';
+
+const ensure = vi.hoisted(() => vi.fn());
+const download = vi.hoisted(() => vi.fn());
+
+function version(n: number, over: Record<string, unknown> = {}) {
+  return {
+    version: n,
+    message: `Change ${n}`,
+    createdBy: 'user-me',
+    createdAt: 1_791_000_000_000 + n,
+    createdVia: 'app',
+    viaInferred: false,
+    clientName: null,
+    basedOnVersion: n === 1 ? null : n - 1,
+    restoredFromVersion: null,
+    changes: { nodes: { added: 0, removed: 0, changed: 1 } },
+    testsPassed: true,
+    testsCheckedAt: null,
+    tests: null,
+    deployed: n === 2,
+    lastDeployedAt: n === 2 ? 1_791_000_000_100 : null,
+    ...over,
+  };
+}
+
+const paginated = (results: unknown[]) => ({
+  results,
+  status: 'Exhausted',
+  isLoading: false,
+  loadMore: vi.fn(),
+  error: null,
+  retry: vi.fn(),
+  isRetrying: false,
+  unavailable: false,
+  errorCount: 0,
+});
+
+vi.mock('../hooks/queries', () => ({
+  useAutomation: () => ({
+    data: {
+      name: 'ops/digest',
+      version: 3,
+      latestVersion: 3,
+      deployedVersion: 2,
+    },
+  }),
+  useAutomationLiveDeployment: () => ({
+    isPending: false,
+    isError: false,
+    data: {
+      live: {
+        version: 2,
+        deployedAt: 1_791_000_000_100,
+        deployedBy: 'user-me',
+        via: 'app',
+        clientName: null,
+        activeRuns: 0,
+      },
+      deployments: [
+        {
+          id: 'e-2',
+          version: 2,
+          previousVersion: 1,
+          kind: 'deploy',
+          synthesized: false,
+          deployedAt: 1_791_000_000_100,
+          deployedBy: 'user-me',
+          via: 'app',
+          clientName: null,
+        },
+      ],
+      nextBefore: null,
+    },
+  }),
+  useAutomationVersionHistory: () =>
+    paginated([version(3), version(2), version(1)]),
+  useAutomationDeployments: () =>
+    paginated([
+      {
+        id: 'e-2',
+        version: 2,
+        previousVersion: 1,
+        kind: 'deploy',
+        synthesized: false,
+        deployedAt: 1_791_000_000_100,
+        deployedBy: 'user-me',
+        via: 'app',
+        clientName: null,
+      },
+    ]),
+}));
+vi.mock('../hooks/mutations', () => ({
+  useDeployAutomation: () => ({ mutateAsync: vi.fn() }),
+  useRestoreAutomationVersion: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+}));
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: () => true }),
+}));
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({}),
+}));
+vi.mock('@/app/lib/backend/prefetch', () => ({
+  ensureAdaptedQueryData: ensure,
+}));
+vi.mock('../lib/yaml-source', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/yaml-source')>()),
+  downloadYaml: download,
+}));
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
+  useNavigate: () => vi.fn(),
+}));
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({ members: [] }),
+}));
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
+}));
+
+const onViewChange = vi.fn();
+
+function renderTab(view: 'versions' | 'deployments' = 'versions') {
+  return render(
+    <AutomationVersionsTab
+      organizationId="org-1"
+      automationSlug="ops/digest"
+      view={view}
+      onViewChange={onViewChange}
+    />,
+  );
+}
+
+beforeEach(() => {
+  ensure.mockReset();
+  download.mockReset();
+  onViewChange.mockReset();
+});
+
+describe('AutomationVersionsTab', () => {
+  it('shows what is live above the versions, and switches to the deployments', async () => {
+    const { user } = renderTab();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Versions' }),
+    ).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'v2 is live' })).toBeVisible();
+    expect(
+      screen.getByRole('table', { name: 'Versions of this automation' }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('radio', { name: 'Deployments' }));
+    expect(onViewChange).toHaveBeenCalledWith('deployments');
+  });
+
+  it('lists when each version went live on the Deployments view', () => {
+    renderTab('deployments');
+    expect(
+      screen.getByRole('table', { name: 'When each version went live' }),
+    ).toBeVisible();
+    expect(screen.getByRole('row', { name: /Deployed v2/ })).toBeVisible();
+  });
+
+  it('downloads a version as the YAML the Source view shows', async () => {
+    ensure.mockResolvedValueOnce({
+      name: 'ops/digest',
+      version: 1,
+      document: { version: 1, name: 'ops/digest', nodes: [] },
+    });
+    const { user } = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Actions for v1' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Download YAML' }));
+    await waitFor(() => expect(download).toHaveBeenCalled());
+    expect(ensure).toHaveBeenCalledWith(
+      {},
+      'automations/queries:getAutomation',
+      { organizationId: 'org-1', name: 'ops/digest', version: 1 },
+    );
+    expect(download.mock.calls[0]?.[0]).toContain('name: ops/digest');
+    expect(download.mock.calls[0]?.[1]).toBe('ops__digest-v1.yml');
+  });
+
+  it('opens the restore of an older version on top of the latest', async () => {
+    const { user } = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Actions for v1' }));
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Restore as new version' }),
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Restore v1 as a new version?' }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Tale saves a copy of v1 as v4\. v2 to v3 stay/),
+    ).toBeVisible();
+  });
+});

@@ -67,3 +67,47 @@ export function automationListTarget({
     params: { id: organizationId, automationSlug },
   };
 }
+
+/**
+ * Where a list row's version count opens: the automation's Versions tab, in
+ * the same shell as the row itself (see {@link automationListTarget}).
+ */
+export function automationVersionsTarget({
+  organizationId,
+  name,
+  listProjectId,
+  boundProjectIds,
+}: {
+  organizationId: string;
+  name: string;
+  listProjectId?: string;
+  boundProjectIds: readonly string[];
+}):
+  | {
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions';
+      params: {
+        id: string;
+        projectId: string;
+        automationSlug: string;
+      };
+    }
+  | {
+      to: '/dashboard/$id/automations/$automationSlug/versions';
+      params: { id: string; automationSlug: string };
+    } {
+  const editor = automationListTarget({
+    organizationId,
+    name,
+    ...(listProjectId !== undefined && { listProjectId }),
+    boundProjectIds,
+  });
+  return 'projectId' in editor.params
+    ? {
+        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions',
+        params: editor.params,
+      }
+    : {
+        to: '/dashboard/$id/automations/$automationSlug/versions',
+        params: editor.params,
+      };
+}
