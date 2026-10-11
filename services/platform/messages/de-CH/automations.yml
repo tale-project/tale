@@ -23,8 +23,17 @@ trigger:
     input:
       tooLarge: 'Die feste Eingabe ist grösser als 16 KiB.'
 blank:
+  deployFailed: 'Die Automatisierung wurde angelegt, aber v1 liess sich nicht live schalten: {error}. Schalte sie im Editor live.'
   triggerFailed: "Die Automatisierung wurde angelegt, aber ihr Trigger liess sich
     nicht setzen: {error}. Setze ihn über die Trigger-Karte."
+starters:
+  loadFailed: 'Die Vorlagen liessen sich nicht laden: {error}'
+tests:
+  fromRun:
+    simulate:
+      tooLarge: 'Zu gross, um ihn in der Automatisierung zu behalten ({size}).'
+    warnings:
+      tooLarge: '{part, select, input {Die Eingabe} output {Die Ausgabe} other {Der Test}} ist gross ({size}).'
 settings:
   loadFailed: Einstellungen konnten nicht geladen werden — schliesse den Dialog
     und versuch es nochmal.
