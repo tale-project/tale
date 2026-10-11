@@ -227,8 +227,17 @@ function StarterPicker({
     () => templates.data?.templates ?? [],
     [templates.data],
   );
+  // In the order of their names as the reader reads them.
   const shown = useMemo(
-    () => cards.filter((card) => starterMatches(card, query, locale)),
+    () =>
+      cards
+        .filter((card) => starterMatches(card, query, locale))
+        .sort((left, right) =>
+          starterWords(left, locale).name.localeCompare(
+            starterWords(right, locale).name,
+            locale,
+          ),
+        ),
     [cards, query, locale],
   );
 
