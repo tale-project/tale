@@ -472,6 +472,17 @@ default means deleting the override and fixing what surfaces:
   pages behind `?cursor=` + `?limit=` on each, with the family flipped to `keyset` in
   `services/platform/scripts/openapi/spec.ts` so the envelope-family guard in
   `scripts/openapi/spec.test.ts` holds the new shape.
+- **Automation history before its record began** — versions saved before
+  `0198_automation_version_lineage.sql` (2026-10-11) carry a door inferred from who acted
+  (`viaInferred: true`, no client) and no change summary, so the Versions tab reads **Not recorded**
+  under Changes; deploys before `0199_automation_deployment_events.sql` survive as one
+  **v4 was live** row. A version saved over MCP names the client by the name it gave itself in
+  `initialize` — self-reported until OAuth clients identify it (P6). Triggers and project bindings
+  belong to the automation, not a version: their history is the audit log, which only admins read.
+  Versions are kept until the automation is deleted; there is no retention category for them.
+  Paying it down means a backfill writing `change_summary` from consecutive stored documents (the
+  engine's diff is pure), client identity from OAuth, and a governance category
+  (`automationVersions`) with its sweep that never prunes a live or protected version.
 - **An identical zip upload rewrites the bundle** — `POST /api/app/skills/upload` (the app's
   bundle upload) stages and swaps every file and snapshots the superseded `SKILL.md` into the
   history trail even when the zip is byte-identical to the stored bundle, so `updatedAt` moves and
