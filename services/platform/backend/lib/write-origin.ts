@@ -2,6 +2,7 @@ import { parseRunStarter } from '../../lib/shared/run-starter.ts';
 import {
   AUTOMATION_WRITE_VIAS,
   type AutomationWriteVia,
+  isAutomationWriteVia,
 } from '../../lib/shared/schemas/automation-versions.ts';
 import type { RequestChannel } from './request-channel.ts';
 
@@ -55,17 +56,13 @@ export interface WriteOrigin {
   readonly clientName?: string;
 }
 
-const VIAS: ReadonlySet<string> = new Set(WRITE_VIAS);
-
-function isWriteVia(raw: string): raw is WriteVia {
-  return VIAS.has(raw);
-}
-
 /** A door as stored (`created_via`, a deployment's `via`): one of the six,
  * else not known — a row written before doors were recorded, or a door a
  * newer release added. */
 export function parseWriteVia(raw: string | null | undefined): WriteVia | null {
-  return raw !== null && raw !== undefined && isWriteVia(raw) ? raw : null;
+  return raw !== null && raw !== undefined && isAutomationWriteVia(raw)
+    ? raw
+    : null;
 }
 
 /** A person's write in the app: the editor (`app`), a package they upload
