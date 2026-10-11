@@ -73,6 +73,7 @@ const APP_ROUTE_DOMAINS: ReadonlySet<string> = new Set([
   'api-keys',
   'approvals',
   'audit-logs',
+  'automation-templates',
   'automations',
   'branding',
   'changelog',
