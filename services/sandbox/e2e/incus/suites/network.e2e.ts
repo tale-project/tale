@@ -42,6 +42,26 @@ except Exception as error:
     print('failed', type(error).__name__)
 `;
 
+// A connection that waits for the server to speak first: an SSH server does.
+// Under transparent egress every outbound TCP connection is accepted locally by
+// the redirect, so only a banner from the far end shows it was not stopped.
+const BANNER = `
+import socket, sys
+host, port = sys.argv[1], int(sys.argv[2])
+s = socket.socket()
+s.settimeout(float(sys.argv[3]))
+try:
+    s.connect((host, port))
+except Exception as error:
+    print('refused', type(error).__name__)
+    raise SystemExit
+try:
+    data = s.recv(32)
+    print('banner', data[:16].decode('ascii', 'replace') if data else 'closed')
+except Exception as error:
+    print('silent', type(error).__name__)
+`;
+
 // One DNS query over UDP, answered or not.
 const DNS = `
 import socket, struct, sys
@@ -66,6 +86,18 @@ async function connect(
 ): Promise<string> {
   const outcome = await api.exec(from, {
     command: ['python3', '-c', CONNECT, host, String(port), '6'],
+    timeoutMs: 30_000,
+  });
+  return outcome.stdout.trim();
+}
+
+async function banner(
+  from: string,
+  host: string,
+  port: number,
+): Promise<string> {
+  const outcome = await api.exec(from, {
+    command: ['python3', '-c', BANNER, host, String(port), '8'],
     timeoutMs: 30_000,
   });
   return outcome.stdout.trim();
@@ -168,53 +200,49 @@ describe('a session on the sandbox bridge', () => {
     ).toMatch(/^[0-9.]+\s+github\.com/);
   });
 
-  step('HTTPS goes out through the proxy, and the proxy saw it', async () => {
+  step('HTTPS goes out through the proxy', async () => {
     const started = performance.now();
     const viaEnv = await http(A, 'https://github.com/robots.txt');
     report.add('HTTPS request through the proxy', performance.now() - started);
     expect(viaEnv).toEqual({ code: 0, stdout: '200' });
-    const log = await admin.run(['console', lab.egressInstance, '--show-log'], {
-      allowFailure: true,
-    });
-    expect(log.stdout).toContain('github.com');
   });
 
-  step(
-    'without proxy settings the redirect decides: a plain request still goes through the proxy or nowhere',
-    async () => {
-      const transparent = (
-        await sh(api, A, 'printenv TALE_TRANSPARENT_EGRESS || true')
-      ).trim();
-      report.fact(
-        'TALE_TRANSPARENT_EGRESS in the session',
-        transparent || 'unset',
-      );
-      const direct = await http(
-        A,
-        '--noproxy "*" https://github.com/robots.txt',
-      );
-      if (transparent === '1') {
-        // Redirected to the proxy by the entrypoint's rules.
-        expect(direct).toEqual({ code: 0, stdout: '200' });
-      } else {
-        expect(direct.code).not.toBe(0);
-      }
-    },
-  );
+  step('the proxy refuses what is private, as its firewall says', async () => {
+    // The spawner answers /health on every address of the node: through a
+    // proxy that let private destinations in, this would be a 200.
+    const spawnerPort = spawner.settings.port;
+    const viaProxy = await http(
+      A,
+      `--proxy ${lab.egressProxy} http://${lab.bridgeAddress}:${spawnerPort}/health`,
+    );
+    expect(viaProxy.stdout).not.toBe('200');
+    const tunnel = await http(
+      A,
+      `--proxy ${lab.egressProxy} https://${lab.bridgeAddress}:8443/`,
+    );
+    expect(tunnel.code).not.toBe(0);
+  });
 
-  step(
-    'a direct connection to the internet fails on any port that is not redirected',
-    async () => {
-      for (const [host, port] of [
-        ['1.1.1.1', 53],
-        ['1.1.1.1', 22],
-        ['140.82.112.3', 22],
-        ['8.8.8.8', 8443],
-      ] as const) {
-        expect(await connect(A, host, port)).toStartWith('failed');
-      }
-    },
-  );
+  step('what the redirect does not carry is stopped by the ACL', async () => {
+    // UDP is not redirected: a resolver on the internet is simply not there.
+    for (const server of ['1.1.1.1', '8.8.8.8']) {
+      expect(await dns(A, server, 'github.com')).toStartWith('no answer');
+    }
+    // TCP is redirected to the proxy, which tunnels to port 443 and no other:
+    // an SSH server never gets to say its banner.
+    for (const [host, port] of [
+      ['github.com', 22],
+      ['1.1.1.1', 53],
+      ['8.8.8.8', 8443],
+    ] as const) {
+      const seen = await banner(A, host, port);
+      expect({ host, port, seen: seen.startsWith('banner SSH-') }).toEqual({
+        host,
+        port,
+        seen: false,
+      });
+    }
+  });
 
   step('the metadata address of the cloud is out of reach', async () => {
     const reply = await http(

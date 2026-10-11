@@ -86,6 +86,9 @@ export class Report {
       join(this.dir, `${this.suite}.json`),
       `${JSON.stringify({ suite: this.suite, facts: this.facts, timings: this.timings }, null, 2)}\n`,
     );
+    // Into the log as well as the job summary: the log is what a failed run
+    // leaves to read.
+    console.log(this.markdown());
     if (this.summaryFile !== undefined && this.summaryFile !== '') {
       appendFileSync(this.summaryFile, this.markdown());
     }

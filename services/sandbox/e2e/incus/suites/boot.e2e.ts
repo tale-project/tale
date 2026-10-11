@@ -281,8 +281,20 @@ describe('boot refusals against the real node', () => {
         certificate: readFileSync(lab.clientCertFile, 'utf8'),
       });
       expect([403, 404]).toContain(trust.status);
+      // Lists are filtered, not refused: the default project holds the egress
+      // proxy, and the restricted certificate must not see it.
       const other = await asSpawner('GET', '/1.0/instances?project=default');
-      expect([403, 404]).toContain(other.status);
+      if (other.status === 200) {
+        expect(other.text).not.toContain(lab.egressInstance);
+        expect(field(other.json, 'metadata')).toEqual([]);
+      } else {
+        expect([403, 404]).toContain(other.status);
+      }
+      const foreign = await asSpawner(
+        'GET',
+        `/1.0/instances/${lab.egressInstance}?project=default`,
+      );
+      expect([403, 404]).toContain(foreign.status);
       const network = await asSpawner('PATCH', `/1.0/networks/${lab.network}`, {
         config: { 'ipv4.nat': 'false' },
       });

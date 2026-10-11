@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,7 +32,9 @@ describe('Report', () => {
       'cold create',
       'exec',
     ]);
+    const log = spyOn(console, 'log').mockImplementation(() => {});
     report.flush();
+    log.mockRestore();
 
     const markdown = readFileSync(summary, 'utf8');
     expect(markdown).toContain('### lifecycle');
@@ -53,7 +55,9 @@ describe('Report', () => {
     const dir = mkdtempSync(join(tmpdir(), 'incus-e2e-report-'));
     const report = new Report('quiet', dir, undefined);
     report.add('step', 10);
+    const log = spyOn(console, 'log').mockImplementation(() => {});
     expect(() => report.flush()).not.toThrow();
+    log.mockRestore();
     expect(report.markdown()).toContain('| step | 10 ms |');
   });
 });

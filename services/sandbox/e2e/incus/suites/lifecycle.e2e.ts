@@ -148,26 +148,42 @@ describe('a session on a real Incus node', () => {
       [],
     );
     expect(config['limits.memory.swap']).toBeUndefined();
-    // The workspace and the shared-memory tmpfs are devices of the instance;
-    // the root disk and the NIC belong to the profile.
-    expect(instance.devices.workspace).toMatchObject({
-      type: 'disk',
-      pool: lab.pool,
-      source: incusWorkspaceVolumeName(S1),
-      path: '/agent',
+    // The workspace is the one device of the instance; the root disk and the
+    // NIC belong to the profile. (There is no tmpfs device for /dev/shm: a
+    // restricted project admits pool-backed disks only.)
+    expect(instance.devices).toEqual({
+      workspace: {
+        type: 'disk',
+        pool: lab.pool,
+        source: incusWorkspaceVolumeName(S1),
+        path: '/agent',
+      },
     });
-    expect(instance.devices.shm).toMatchObject({
-      type: 'disk',
-      source: 'tmpfs:',
-      path: '/dev/shm',
-    });
-    expect(instance.devices.eth0).toBeUndefined();
     expect(instance.profiles).toContain(lab.profile);
     // One address, on the sandbox bridge.
     expect(instance.addresses).toHaveLength(1);
     expect(instance.addresses[0]?.startsWith('10.20.0.')).toBe(true);
     report.fact('session address', instance.addresses[0] ?? '?');
   });
+
+  step(
+    "/dev/shm is the profile's size, mounted by the entrypoint",
+    async () => {
+      const { instanceName } = created1();
+      const shm = await sh(
+        api,
+        S1,
+        'df -m /dev/shm | tail -n 1; grep " /dev/shm " /proc/mounts',
+      );
+      report.fact('/dev/shm in a session', shm.trim().replaceAll('\n', ' | '));
+      // 512m, the agent profile's SANDBOX_AGENT_SHM_SIZE, not the image's 64 MiB.
+      expect(shm).toMatch(/\s512\s/);
+      expect(shm).toMatch(/ \/dev\/shm tmpfs rw,nosuid,nodev,noexec/);
+      expect(await admin.consoleLog(instanceName)).toContain(
+        '/dev/shm is a tmpfs of 512m',
+      );
+    },
+  );
 
   step('the workspace volume has its quota, shift and owner', async () => {
     const volume = await sessionVolume(S1);
@@ -208,9 +224,13 @@ describe('a session on a real Incus node', () => {
     const withEnv = await api.exec(S1, {
       command: ['/bin/sh', '-c', 'echo "$E2E_VALUE"; pwd'],
       env: { E2E_VALUE: 'from the request' },
-      cwd: '/tmp',
+      cwd: '/agent/workspace',
     });
-    expect(withEnv.stdout).toBe('from the request\n/tmp\n');
+    expect(withEnv.result?.status).toBe('completed');
+    expect(withEnv.stdout).toBe('from the request\n/agent/workspace\n');
+    // A working directory outside the workspace is refused, not run.
+    const outside = await api.exec(S1, { shell: 'pwd', cwd: '/tmp' });
+    expect(outside.result?.errorCode).toBe('INVALID_CWD');
 
     const echoed = await api.exec(S1, { command: ['cat'], stdin: 'to stdin' });
     expect(echoed.result?.status).toBe('completed');
@@ -261,9 +281,20 @@ describe('a session on a real Incus node', () => {
       const reply = await api.call('GET', `/v1/sessions/${S1}/exec/${execId}`);
       return field(reply.json, 'state') === 'running' || undefined;
     });
-    expectStatus(await api.cancelExec(S1, execId), 200, 'cancel');
+    const cancelled = await api.cancelExec(S1, execId);
+    expectStatus(cancelled, 200, 'cancel');
+    expect(field(cancelled.json, 'killed')).toBe(true);
+    // The cancel ends the stream that carried the exec (the platform reads the
+    // cancel's own answer), and the process with it.
     const outcome = await running;
-    expect(outcome.result?.status).toBe('cancelled');
+    expect(outcome.reply.status).toBe(200);
+    await until('the exec to have exited', async () => {
+      const reply = await api.call('GET', `/v1/sessions/${S1}/exec/${execId}`);
+      return field(reply.json, 'state') !== 'running' || undefined;
+    });
+    expect(
+      (await sh(api, S1, 'ps -eo comm= | grep -cx sleep || true')).trim(),
+    ).toBe('0');
   });
 
   step('files are staged, listed, read back and deleted', async () => {
@@ -302,8 +333,10 @@ describe('a session on a real Incus node', () => {
     expect((await api.readFile(S1, 'e2e/missing.txt')).reply.status).toBe(404);
   });
 
-  step('a file of a few megabytes goes in and out intact', async () => {
-    const big = Buffer.alloc(6 * 1024 * 1024);
+  step('a file near the inline limit goes in and out intact', async () => {
+    // Inline staging is capped by the request body (SANDBOX max request body,
+    // 256 KiB with the base64 and the JSON around it); bigger files come by URL.
+    const big = Buffer.alloc(150 * 1024);
     for (let i = 0; i < big.length; i += 1) big[i] = (i * 31 + 7) & 0xff;
     const started = performance.now();
     expectStatus(
@@ -318,8 +351,13 @@ describe('a session on a real Incus node', () => {
     const read = await api.readFile(S1, 'e2e/big.bin');
     const readMs = performance.now() - readStarted;
     expect(Buffer.from(read.bytes ?? new Uint8Array()).equals(big)).toBe(true);
-    report.add('stage a 6 MiB file', staged);
-    report.add('read a 6 MiB file back', readMs);
+    report.add('stage a 150 KiB file', staged);
+    report.add('read a 150 KiB file back', readMs);
+    expect(
+      (
+        await sh(api, S1, 'sha256sum < /agent/e2e/big.bin | cut -d" " -f1')
+      ).trim(),
+    ).toBe(new Bun.CryptoHasher('sha256').update(big).digest('hex'));
   });
 
   step('env set and unset reach the next exec', async () => {
@@ -385,14 +423,23 @@ describe('a session on a real Incus node', () => {
   });
 
   step('the workspace quota stops a write past it', async () => {
-    const result = await api.exec(S1, {
-      shell:
-        'dd if=/dev/urandom of=/agent/e2e/quota.bin bs=1M count=700 2>&1 | tail -n 2; echo "rc=$?"; df -m /agent | tail -n 1',
-      timeoutMs: 120_000,
-    });
-    const text = result.stdout;
-    expect(text.toLowerCase()).toMatch(/no space left|quota exceeded/);
-    await sh(api, S1, 'rm -f /agent/e2e/quota.bin');
+    try {
+      const result = await api.exec(S1, {
+        shell:
+          'dd if=/dev/urandom of=/agent/e2e/quota.bin bs=1M count=700 2>&1; echo "rc=$?"; df -m /agent | tail -n 1',
+        timeoutMs: 120_000,
+      });
+      const text = result.stdout.toLowerCase();
+      report.fact(
+        'the write past the quota',
+        text.trim().replaceAll('\n', ' | ').slice(-300),
+      );
+      expect(text).toMatch(/no space left|quota exceeded/);
+      expect(text).toMatch(/rc=1/);
+    } finally {
+      // A full workspace takes the session's own journal with it.
+      await sh(api, S1, 'rm -f /agent/e2e/quota.bin');
+    }
     // Room again: a small write works.
     expect(
       await sh(
