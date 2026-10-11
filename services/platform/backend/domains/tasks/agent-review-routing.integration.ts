@@ -747,6 +747,27 @@ export async function checkAgentTaskReviewRouting(
     await sql`UPDATE app.tasks SET external_system = 'crm', external_id = 'a-native' WHERE id = ${fresh.taskId}`;
     await sql`UPDATE app.tasks SET external_system = 'crm', external_id = 'b-human' WHERE id = ${human.taskId}`;
     const nativeBefore = await state(fresh.taskId);
+    const humanBefore = await loadTaskOrThrow(sql, human.taskId, ctx.orgId);
+    const humanReviewBefore = await state(human.taskId);
+    const humanReviewUnchanged = async () => {
+      const task = await loadTaskOrThrow(sql, human.taskId, ctx.orgId);
+      const current = await state(human.taskId);
+      const beforeReviewer = humanReviewBefore.pendingReview?.reviewer;
+      const currentReviewer = current.pendingReview?.reviewer;
+      return (
+        humanBefore.status === 'in_review' &&
+        task.status === 'in_review' &&
+        task.completedAt === null &&
+        task.externalClosedAt === null &&
+        task.rank === humanBefore.rank &&
+        task.statusChangedAt === humanBefore.statusChangedAt &&
+        beforeReviewer?.kind === 'user' &&
+        currentReviewer?.kind === 'user' &&
+        currentReviewer.userId === beforeReviewer.userId &&
+        current.pendingReview?.approvalId ===
+          humanReviewBefore.pendingReview?.approvalId
+      );
+    };
     const issues = [
       {
         externalSystem: 'crm',
@@ -774,7 +795,7 @@ export async function checkAgentTaskReviewRouting(
     const nativeClosed = await loadTaskOrThrow(sql, fresh.taskId, ctx.orgId);
     const afterClose = await state(fresh.taskId);
     record(
-      'review routing: defensive legacy store batch preserves native review and completes other items',
+      'review routing: defensive legacy store batch preserves local reviews and creates other items',
       batchError === null &&
         batch.length === 3 &&
         nativeClosed.status === 'in_review' &&
@@ -782,8 +803,7 @@ export async function checkAgentTaskReviewRouting(
         nativeClosed.externalClosedAt !== null &&
         afterClose.pendingReview?.approvalId ===
           nativeBefore.pendingReview?.approvalId &&
-        (await loadTaskOrThrow(sql, human.taskId, ctx.orgId)).status ===
-          'done' &&
+        (await humanReviewUnchanged()) &&
         batch[2]?.created,
       `batch=${batch.length}, refusal=${batchError}, native=${nativeClosed.status}`,
     );
@@ -800,7 +820,8 @@ export async function checkAgentTaskReviewRouting(
       `refusal=${retryError}`,
     );
     const firstIssue = issues[0];
-    if (firstIssue === undefined)
+    const humanIssue = issues[1];
+    if (firstIssue === undefined || humanIssue === undefined)
       throw new Error('Missing custom source fixture');
     const reopening = { ...firstIssue, externalState: 'open' as const };
     const reopenError = await refusal(() =>
@@ -818,6 +839,18 @@ export async function checkAgentTaskReviewRouting(
         (await state(fresh.taskId)).pendingReview?.approvalId ===
           nativeBefore.pendingReview?.approvalId,
       `refusal=${reopenError}, native=${reopened.status}`,
+    );
+    const humanReopening = { ...humanIssue, externalState: 'open' as const };
+    const humanReopenError = await refusal(() =>
+      store.upsertIssues({
+        ...batchScope,
+        issues: [humanReopening],
+      }),
+    );
+    record(
+      'review routing: custom source close and reopen retain human review ownership and stamps',
+      humanReopenError === null && (await humanReviewUnchanged()),
+      `refusal=${humanReopenError}`,
     );
     // Unlike the strict workflow-native upsert schema, the public custom
     // source intake still exposes externalState. Exercise that real door.

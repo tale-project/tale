@@ -1281,3 +1281,5 @@ is missing). One file per suite keeps parallel changes from appending to the
 same lines at the end of one register. A box that survives its automation is
 manual effort spent twice; `bun run lint:manual` rejects a box ID there that no
 suite defines, and a file there that names no suite.
+
+| [tasks](../suites/tasks.md) | Legacy custom-source close/reopen preserves a human-owned In review task, its pending reviewer and approval, rank, status clock and completion/close stamps. Captured agent reviews retain their gate while recording the source fact; mirror-owned lifecycle controls still reopen their own parks. | ✅ unit + real PostgreSQL | `backend/domains/tasks/external-ref.test.ts` (mirror controls and human/agent ownership), `backend/domains/tasks/agent-review-routing.integration.ts` (`checkAgentTaskReviewRouting`: native batch, human close/reopen and authenticated REST agent close/reopen) |
