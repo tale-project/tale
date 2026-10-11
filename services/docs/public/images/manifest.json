@@ -396,6 +396,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-test-coverage.webp",
+      "shot": "automation-test-coverage",
+      "route": "/dashboard/:orgId/automations/order-discounts/editor?panel=tests",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-test-setup.webp",
       "shot": "automation-test-setup",
       "route": "/dashboard/:orgId/automations/order-discounts/editor?panel=tests&test=1",

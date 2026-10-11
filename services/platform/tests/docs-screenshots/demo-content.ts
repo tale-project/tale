@@ -633,8 +633,10 @@ output: '{{ nodes.digest.output }}'
  * The testing page's demo: a small automation that works out an order's
  * volume discount, with two tests. The small order's passes; the big
  * order's expects 10 % off where the code gives 5 %, so the Tests panel
- * shows one test failing with what it expected and what it got.
- * Transforms only — it answers the same on every stack.
+ * shows one test failing with what it expected and what it got. Review
+ * runs only for an order of a thousand or more, which neither test places,
+ * so the tests cover one of its two paths. Transforms only — it answers
+ * the same on every stack.
  */
 export const DEMO_TESTS = {
   automation: 'order-discounts',
@@ -668,6 +670,13 @@ export const DEMO_TESTS = {
           rate: '{{ nodes.discount.output.rate }}',
         },
         code: 'const gross = input.quantity * input.unitPrice;\nreturn { gross, discount: gross * input.rate, total: gross * (1 - input.rate) };',
+      },
+      {
+        id: 'review',
+        type: 'transform',
+        when: '{{ input.quantity >= 1000 }}',
+        input: { total: '{{ nodes.total.output.total }}' },
+        code: "return { note: 'Wholesale order of ' + input.total + ': sales confirms the price' };",
       },
     ],
     output: '{{ nodes.total.output }}',

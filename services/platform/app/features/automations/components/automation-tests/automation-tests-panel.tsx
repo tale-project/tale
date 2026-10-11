@@ -7,18 +7,22 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { IconButton } from '@tale/ui/icon-button';
 import {
   formatTestCounts,
+  TestCoverage,
   TestResultList,
   type TestResultItem,
   type TestResultListHandle,
 } from '@tale/ui/test-results';
 import { WorkbenchSheet } from '@tale/ui/workbench-dock';
 import {
+  ChevronDown,
   Copy,
   EllipsisVertical,
   FlaskConical,
   Play,
   Plus,
+  Route,
   Trash2,
+  Zap,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -65,10 +69,107 @@ export interface TestsPanelProps {
   onOpen: (index: number) => void;
   /** Adds a blank test and opens it. */
   onAdd: () => void;
+  /** Other tests to start from: the trigger's input, an untested path. */
+  addFrom?: AddTestSources;
+  /** How many of the possible paths the tests go down; none while it
+   * cannot be said (one path, too many to list, no test ran). */
+  coverage?: { covered: number; total: number; onShowPaths?: () => void };
   /** Says a deleted test is gone (the editor's live region). */
   onDeleted?: (name: string) => void;
   /** The list's handle: the panel's opener focuses its current row. */
   listRef: RefObject<TestResultListHandle | null>;
+}
+
+/** Where a new test can start from, beside a blank one. */
+export interface AddTestSources {
+  /** The input the bound trigger hands a run. */
+  trigger?: () => void;
+  /** The possible paths no test goes down yet, each a test for it. */
+  paths?: ReadonlyArray<{ id: string; label: string; onSelect: () => void }>;
+}
+
+/** Add test: a blank test, or one from the trigger's input or for a path
+ * no test goes down — a menu when there is more than a blank one. */
+function AddTestControl({
+  onAdd,
+  addFrom,
+  variant,
+}: {
+  onAdd: () => void;
+  addFrom?: AddTestSources;
+  variant: 'primary' | 'secondary';
+}) {
+  const { t } = useT('automations');
+  const paths = addFrom?.paths;
+  if (addFrom?.trigger === undefined && paths === undefined) {
+    return (
+      <Button
+        type="button"
+        size="sm"
+        variant={variant}
+        icon={Plus}
+        onClick={onAdd}
+      >
+        {t('tests.add')}
+      </Button>
+    );
+  }
+  return (
+    <DropdownMenu
+      align="end"
+      trigger={
+        <Button type="button" size="sm" variant={variant} icon={Plus}>
+          {t('tests.add')}
+          <ChevronDown aria-hidden="true" className="size-4" />
+        </Button>
+      }
+      items={() => [
+        [
+          {
+            type: 'item',
+            label: t('tests.addFrom.blank'),
+            icon: Plus,
+            onClick: onAdd,
+          },
+          ...(addFrom?.trigger === undefined
+            ? []
+            : [
+                {
+                  type: 'item' as const,
+                  label: t('tests.addFrom.trigger'),
+                  icon: Zap,
+                  onClick: addFrom.trigger,
+                },
+              ]),
+          ...(paths === undefined
+            ? []
+            : paths.length === 0
+              ? [
+                  {
+                    type: 'item' as const,
+                    label: t('tests.addFrom.allTested'),
+                    icon: Route,
+                    disabled: true,
+                  },
+                ]
+              : [
+                  {
+                    type: 'sub' as const,
+                    label: t('tests.addFrom.path'),
+                    icon: Route,
+                    items: [
+                      paths.map((path) => ({
+                        type: 'item' as const,
+                        label: path.label,
+                        onClick: path.onSelect,
+                      })),
+                    ],
+                  },
+                ]),
+        ],
+      ]}
+    />
+  );
 }
 
 /** Run all and Add test, in the panel's header. */
@@ -76,7 +177,8 @@ export function TestsPanelActions({
   tests,
   canEdit,
   onAdd,
-}: Pick<TestsPanelProps, 'tests' | 'canEdit' | 'onAdd'>) {
+  addFrom,
+}: Pick<TestsPanelProps, 'tests' | 'canEdit' | 'onAdd' | 'addFrom'>) {
   const { t } = useT('automations');
   if (!canEdit) return null;
   return (
@@ -96,15 +198,11 @@ export function TestsPanelActions({
           {t('tests.runAll')}
         </Button>
       )}
-      <Button
-        type="button"
-        size="sm"
+      <AddTestControl
+        onAdd={onAdd}
+        {...(addFrom !== undefined && { addFrom })}
         variant="secondary"
-        icon={Plus}
-        onClick={onAdd}
-      >
-        {t('tests.add')}
-      </Button>
+      />
     </div>
   );
 }
@@ -122,6 +220,8 @@ export function TestsPanelContent({
   activeIndex,
   onOpen,
   onAdd,
+  addFrom,
+  coverage,
   onDeleted,
   listRef,
 }: TestsPanelProps) {
@@ -169,9 +269,11 @@ export function TestsPanelContent({
         description={t('tests.empty.body')}
         {...(canEdit && {
           action: (
-            <Button type="button" size="sm" icon={Plus} onClick={onAdd}>
-              {t('tests.add')}
-            </Button>
+            <AddTestControl
+              onAdd={onAdd}
+              {...(addFrom !== undefined && { addFrom })}
+              variant="primary"
+            />
           ),
         })}
       />
@@ -232,7 +334,18 @@ export function TestsPanelContent({
 
   return (
     <div className="flex flex-col">
-      <p className="text-muted-foreground px-3 pt-2 text-xs">{tests.source}</p>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 pt-2">
+        <p className="text-muted-foreground text-xs">{tests.source}</p>
+        {coverage !== undefined && (
+          <TestCoverage
+            covered={coverage.covered}
+            total={coverage.total}
+            {...(coverage.onShowPaths !== undefined && {
+              onActivate: coverage.onShowPaths,
+            })}
+          />
+        )}
+      </div>
       {tests.failure !== null && (
         <div className="px-3 pt-2">
           <Alert
@@ -301,6 +414,7 @@ export function AutomationTestsSheet({
           tests={panel.tests}
           canEdit={panel.canEdit}
           onAdd={panel.onAdd}
+          {...(panel.addFrom !== undefined && { addFrom: panel.addFrom })}
         />
       }
       closeLabel={t('tests.hide')}

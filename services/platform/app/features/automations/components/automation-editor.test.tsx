@@ -2969,6 +2969,11 @@ describe('AutomationEditor tests', () => {
         { name: 'Add test' },
       ),
     );
+    // With a trigger bound, Add test offers its input beside a blank test.
+    expect(
+      screen.getByRole('menuitem', { name: "From the trigger's input" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('menuitem', { name: 'Blank test' }));
     const name = await within(openInspector()).findByRole('textbox', {
       name: 'Name',
     });
@@ -2976,6 +2981,33 @@ describe('AutomationEditor tests', () => {
     expect(within(openInspector()).getByText('Test 2 of 2')).toBeVisible();
     // The new test is part of the draft: there is something to save.
     expect(saveButton()).toBeEnabled();
+  });
+
+  it("adds a test from the trigger's input, at the moment tests use", async () => {
+    state.document = withTests;
+    const { user } = renderPage({ organizationId: 'org-tests-trigger' });
+    await user.click(testsButton());
+    await user.click(
+      within(screen.getByRole('region', { name: 'Tests' })).getByRole(
+        'button',
+        { name: 'Add test' },
+      ),
+    );
+    await user.click(
+      screen.getByRole('menuitem', { name: "From the trigger's input" }),
+    );
+    expect(
+      await within(openInspector()).findByRole('textbox', { name: 'Name' }),
+    ).toHaveValue('From the trigger');
+    // The weekday schedule fires at the sample moment every test uses.
+    const input = within(openInspector()).getByRole<HTMLTextAreaElement>(
+      'textbox',
+      { name: 'Input' },
+    );
+    expect(JSON.parse(input.value)).toMatchObject({
+      trigger: 'schedule',
+      firedAt: Date.UTC(2026, 0, 5, 9, 0),
+    });
   });
 
   it('opens a link to a test on that test, in the Tests tab', () => {

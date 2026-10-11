@@ -19,7 +19,7 @@ Jede Zeile ist ein Test, in der Reihenfolge des Dokuments: sein Status, sein Nam
 
 ## Einen Test hinzufügen
 
-1. Wähle im Tab **Tests** die Option **Test hinzufügen**. Neben dem Canvas öffnet sich ein Test namens **Neuer Test**, mit einem Platzhalter für jedes Feld, das die Eingabe des Laufs verlangt.
+1. Wähle im Tab **Tests** die Option **Test hinzufügen** und, falls sich ein Menü öffnet, **Leerer Test**. Neben dem Canvas öffnet sich ein Test namens **Neuer Test**, mit einem Platzhalter für jedes Feld, das die Eingabe des Laufs verlangt.
 2. Füll den Test unter **Einrichtung** aus: **Name**, die **Eingabe**, die der Lauf als JSON erhält, unter **Simulierte Ausgaben** und **Simulierte Fehler** die Schritte, für die der Test einspringt, und unter **Erwartungen**, was der Lauf tun muss. Deine Änderungen gehen beim Tippen in den Entwurf ein.
 3. Speichere den Entwurf, um den Test zu behalten. Beim Speichern laufen alle Tests, und die Version behält das Ergebnis.
 
@@ -49,6 +49,20 @@ expect:
 - `mocks` gibt einem Schritt eine Ausgabe, die er verwendet, statt seinen Dienst oder sein Modell aufzurufen, und `failures` lässt einen Schritt mit der angegebenen Meldung fehlschlagen.
 
 Ohne `expect` besteht ein Test, wenn der Lauf erfolgreich ist. Im Menü einer Zeile kopierst du einen Test mit **Duplizieren** oder entfernst ihn mit **Löschen**; **Verwerfen** holt einen gelöschten Test zurück, solange du nicht gespeichert hast.
+
+### Vom Trigger oder einem Pfad ausgehen
+
+Gibt es mehr, wovon ein Test ausgehen kann, öffnet **Test hinzufügen** ein Menü. **Leerer Test** fügt den oben beschriebenen Test hinzu. **Aus der Eingabe des Triggers** beginnt mit der Eingabe, die der gebundene Trigger einem Lauf übergibt: ein Zeitplan, der zu einem festen Zeitpunkt auslöst, die Beispielzustellung eines Webhooks oder das Beispiel eines Ereignisses – so erhält der Test bei jedem Lauf dieselbe Eingabe. **Für einen ungetesteten Pfad** listet die möglichen Pfade, die noch kein Test nimmt, in den Worten der [Pfadliste](/de/platform/automations/editor#paths); hat jeder Pfad einen, steht dort stattdessen **Jeder Pfad hat einen Test**. Der neue Test simuliert jeden Fehler, den der Pfad braucht, und erwartet den Zustand jedes Schritts darauf; seine Beschreibung sagt, welche Bedingungen die Eingabe wahr oder falsch machen muss.
+
+### Sehen, was die Tests abdecken
+
+Sobald Tests gelaufen sind, sagt die Zeile über der Liste, wie viele der möglichen Pfade der Automatisierung sie nehmen, etwa **Deckt 1 von 2 Pfaden ab**. Wähle sie, um die Pfadliste zu öffnen; dort steht bei jedem Pfad **Getestet von** mit den Tests, die ihn nehmen, oder **Nicht getestet**. Ein Test deckt den Pfad ab, den sein Lauf tatsächlich genommen hat – das ist nicht immer der, für den er geschrieben wurde.
+
+<Frame caption="Alle ausführen bei den Bestellrabatten: Beide Tests überspringen den Schritt Review, also hat der Pfad, auf dem er läuft, noch keinen Test.">
+
+![Der Editor von Order discounts nach Run all, mit Possible paths neben dem Canvas: Path 1, in dem Review läuft, ist Not tested, und Path 2, in dem Review übersprungen wird, ist Tested by Small order pays full price and Big order gets 10% off. Unter dem Canvas zeigt der Tab Tests Covers 1 of 2 paths.](/images/platform/automation-test-coverage.webp)
+
+</Frame>
 
 ## Die Tests ausführen
 

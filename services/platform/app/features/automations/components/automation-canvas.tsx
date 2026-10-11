@@ -174,6 +174,13 @@ export interface AutomationCanvasProps {
   emptyAction?: ReactNode;
   /** Each layout once it is on the page (tests measure it). */
   onLayout?: (layout: FlowLayout) => void;
+  /** Which tests go down each path, by the engine's path id, when the
+   * automation has tests: each row of the Paths list says so. */
+  pathCoverage?: ReadonlyMap<string, readonly string[]>;
+  /** The Paths list's open state, when the host opens it too (from the
+   * tests' coverage); the canvas keeps its own otherwise. */
+  pathsOpen?: boolean;
+  onPathsOpenChange?: (open: boolean) => void;
 }
 
 const NO_CHECK: NonNullable<AutomationCanvasProps['check']> = {
@@ -224,6 +231,9 @@ export function AutomationCanvas({
   toolbar,
   emptyAction,
   onLayout,
+  pathCoverage,
+  pathsOpen: pathsOpenProp,
+  onPathsOpenChange,
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
   const compact = useMediaQuery(AUTOMATION_WORKBENCH_COMPACT_QUERY);
@@ -234,7 +244,13 @@ export function AutomationCanvas({
     ],
     [t],
   );
-  const [pathsOpen, setPathsOpen] = useState(false);
+  const [ownPathsOpen, setOwnPathsOpen] = useState(false);
+  const pathsOpen = pathsOpenProp ?? ownPathsOpen;
+  const setPathsOpen = (next: boolean | ((open: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(pathsOpen) : next;
+    setOwnPathsOpen(value);
+    onPathsOpenChange?.(value);
+  };
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
 
@@ -247,6 +263,7 @@ export function AutomationCanvas({
     check,
     ...(startNotice !== undefined && { startNotice }),
     pinnedPath: pinnedId,
+    ...(pathCoverage !== undefined && { coverage: pathCoverage }),
   });
   const graph = graphProp ?? flow.graph;
   const paths = graphProp === undefined ? flow.paths : null;

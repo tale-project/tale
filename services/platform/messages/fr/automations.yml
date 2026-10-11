@@ -1132,6 +1132,16 @@ tests:
   badges:
     simulates: '{count, plural, one {Simule # nœud} other {Simule # nœuds}}'
     failures: '{count, plural, one {Simule # échec} other {Simule # échecs}}'
+  addFrom:
+    blank: Test vide
+    trigger: À partir de l’entrée du déclencheur
+    triggerName: À partir du déclencheur
+    path: Pour un chemin non testé
+    allTested: Chaque chemin a un test
+    pathName: 'Suit le chemin {number}'
+    pathItem: '{path} : {clauses}'
+  pathNeed:
+    when: '{value, select, true {Rends vraie la condition de {node}, pour qu’il s’exécute.} other {Rends fausse la condition de {node}, pour qu’il soit ignoré.}}'
   fields:
     name: Nom
     description: Description
@@ -1271,6 +1281,8 @@ paths:
     skipped: '{node} est ignoré'
     fails: '{node} échoue, l’exécution continue'
     succeeds: '{node} réussit'
+    tested: 'Testé par {names}'
+    untested: Non testé
   more: '{count, plural, one {# autre chemin n’est pas listé} other {# autres chemins ne sont pas listés}}'
   truncated: Cette automatisation a {count} conditions, trop pour lister chaque chemin. Chaque nœud indique quand même quand il s’exécute.
   halts:

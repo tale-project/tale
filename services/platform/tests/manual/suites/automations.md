@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 231 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 233 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1586,6 +1586,21 @@ output:
       output** → the test opens on Setup as a form with that field focused
       (and the place selected inside a JSON field); a key the form doesn't
       show opens the YAML instead, as `AUTO-F168` checks.
+- [ ] `AUTO-F172` · **On an automation with a bound trigger and a condition,
+      open Add test** → a menu offers `automations.tests.addFrom.blank`,
+      `automations.tests.addFrom.trigger` and
+      `automations.tests.addFrom.path`, whose submenu lists each path no test
+      goes down yet in the Paths list's words; picking a path adds a test
+      named after it, simulating the failures the path needs, expecting each
+      step's state on it, and saying in its description which condition the
+      input must make true or false. Once every path has a test the menu
+      reads `automations.tests.addFrom.allTested`, greyed out.
+- [ ] `AUTO-F173` · **Run all, then select the coverage line** → the line
+      above the list reads how many of the possible paths the tests go down
+      (`testResults.coverage`); selecting it opens the canvas's Possible
+      paths, each path ending in `automations.paths.clause.tested` with the
+      tests' names or `automations.paths.clause.untested`. Editing a test
+      drops its path until it runs again.
 
 ## Boundary & error tests
 

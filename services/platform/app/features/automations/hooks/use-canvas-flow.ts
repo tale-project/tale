@@ -33,6 +33,8 @@ export interface CanvasFlowInput {
   startNotice?: string | null;
   /** The pinned path's row: End then says what it leaves empty. */
   pinnedPath?: string | null;
+  /** Which tests go down each path, when the automation has tests. */
+  coverage?: ReadonlyMap<string, readonly string[]>;
 }
 
 export interface CanvasFlow extends AutomationFlowGraph {
@@ -57,6 +59,7 @@ export function useCanvasFlow({
   check,
   startNotice,
   pinnedPath,
+  coverage,
 }: CanvasFlowInput): CanvasFlow {
   const { t } = useT('automations');
   const { t: tSchema } = useT('schemaTree');
@@ -116,8 +119,9 @@ export function useCanvasFlow({
       locale,
       elseOf: (id) => byId.get(id)?.elseOf,
       ...(check.analysis !== null && { halts: check.analysis.paths.halts }),
+      ...(coverage !== undefined && { coverage }),
     });
-  }, [flow, base, automation.nodes, t, locale, check.analysis]);
+  }, [flow, base, automation.nodes, t, locale, check.analysis, coverage]);
   const ranOnPath = useMemo(
     () =>
       pinnedPath === undefined || pinnedPath === null

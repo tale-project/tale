@@ -19,7 +19,7 @@ Chaque ligne est un test, dans l’ordre du document : son statut, son nom et, 
 
 ## Ajouter un test
 
-1. Dans l’onglet **Tests**, sélectionne **Ajouter un test**. Un test nommé **Nouveau test** s’ouvre à côté du canevas, avec un espace réservé pour chaque champ que l’entrée de l’exécution exige.
+1. Dans l’onglet **Tests**, sélectionne **Ajouter un test**, puis **Test vide** si un menu s’ouvre. Un test nommé **Nouveau test** s’ouvre à côté du canevas, avec un espace réservé pour chaque champ que l’entrée de l’exécution exige.
 2. Dans **Configuration**, remplis le test : son **Nom**, l’**Entrée** que reçoit l’exécution en JSON, les **Sorties simulées** et les **Échecs simulés** qui remplacent des étapes, et sous **Attentes** ce que l’exécution doit faire. Tes modifications passent dans le brouillon au fil de la saisie.
 3. Enregistre le brouillon pour garder le test. L’enregistrement exécute tous les tests et consigne le résultat avec la version.
 
@@ -49,6 +49,20 @@ expect:
 - `mocks` donne à une étape une sortie à utiliser au lieu d’appeler son service ou son modèle, et `failures` fait échouer une étape avec le message indiqué.
 
 Sans `expect`, un test réussit quand l’exécution réussit. Le menu d’une ligne copie aussi un test avec **Dupliquer** ou le retire avec **Supprimer** ; **Abandonner** fait revenir un test supprimé tant que tu n’as pas enregistré.
+
+### Partir du déclencheur ou d’un chemin
+
+Quand l’automatisation offre plus d’un point de départ, **Ajouter un test** ouvre un menu. **Test vide** ajoute le test décrit plus haut. **À partir de l’entrée du déclencheur** commence avec l’entrée que le déclencheur lié donne à une exécution : une planification qui se déclenche à un moment fixe, la livraison d’exemple d’un webhook ou l’exemple d’un événement, si bien que le test reçoit la même entrée à chaque exécution. **Pour un chemin non testé** liste les chemins possibles qu’aucun test ne suit encore, dans les mots de la [liste des chemins](/fr/platform/automations/editor#paths) ; une fois que chaque chemin en a un, le menu indique **Chaque chemin a un test** à la place. Le nouveau test simule chaque échec dont le chemin a besoin et attend l’état de chaque étape sur ce chemin ; sa description dit quelles conditions l’entrée doit rendre vraies ou fausses.
+
+### Voir ce que les tests couvrent
+
+Une fois des tests exécutés, la ligne au-dessus de la liste indique combien des chemins possibles de l’automatisation ils suivent, par exemple **Couvre 1 chemin sur 2**. Sélectionne-la pour ouvrir la liste des chemins, où chaque chemin indique **Testé par** avec les tests qui le suivent, ou **Non testé**. Un test couvre le chemin que son exécution a réellement pris, qui n’est pas toujours celui pour lequel il a été écrit.
+
+<Frame caption="Tout exécuter sur les remises de commande : les deux tests sautent l’étape Review, donc le chemin où elle s’exécute n’a pas encore de test.">
+
+![L’éditeur d’Order discounts après Run all, avec Possible paths ouvert à côté du canevas : Path 1, où Review s’exécute, est Not tested, et Path 2, où Review est ignorée, est Tested by Small order pays full price and Big order gets 10% off. Sous le canevas, l’onglet Tests indique Covers 1 of 2 paths.](/images/platform/automation-test-coverage.webp)
+
+</Frame>
 
 ## Exécuter les tests
 

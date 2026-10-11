@@ -1121,6 +1121,16 @@ tests:
   badges:
     simulates: '{count, plural, one {Simulates # node} other {Simulates # nodes}}'
     failures: '{count, plural, one {Simulates # failure} other {Simulates # failures}}'
+  addFrom:
+    blank: Blank test
+    trigger: From the trigger's input
+    triggerName: From the trigger
+    path: For an untested path
+    allTested: Every path has a test
+    pathName: 'Takes path {number}'
+    pathItem: '{path}: {clauses}'
+  pathNeed:
+    when: "{value, select, true {Make the condition of {node} true, so it runs.} other {Make the condition of {node} false, so it is skipped.}}"
   fields:
     name: Name
     description: Description
@@ -1260,6 +1270,8 @@ paths:
     skipped: '{node} is skipped'
     fails: '{node} fails, the run goes on'
     succeeds: '{node} succeeds'
+    tested: 'Tested by {names}'
+    untested: Not tested
   more: "{count, plural, one {# more path isn't listed} other {# more paths aren't listed}}"
   truncated: This automation has {count} conditions, too many to list every path. Each node still says when it runs.
   halts:

@@ -84,6 +84,8 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { llmModelSteps } from '@/lib/automations/model-defaults';
+import { testForPath } from '@/lib/automations/tests/path-test';
+import { triggerTestInput } from '@/lib/automations/tests/samples';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { diffAutomationDocuments } from '@/lib/engine/core/diff/automation';
 import {
@@ -114,6 +116,7 @@ import {
 } from '../hooks/use-automation-validation';
 import { useDeployVersion } from '../hooks/use-deploy-version';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
+import { coveredCount, pathCoverage } from '../lib/automation-tests/coverage';
 import { testsOf } from '../lib/automation-tests/test-draft';
 import { formOwnsPlace } from '../lib/automation-tests/test-form';
 import {
@@ -155,6 +158,7 @@ import {
   type AutomationIssue,
 } from '../lib/issues';
 import { effectTitle, nodeCatalogView, nodeTitle } from '../lib/node-face';
+import { pathClauses } from '../lib/paths';
 import {
   cursorNodeStatus,
   nodeStatusMap,
@@ -1317,8 +1321,8 @@ function AutomationEditorScope({
     // A test with a result opens on it; one without, on its setup.
     setTestTab(tests.rows[index]?.outcome.kind === 'none' ? 'setup' : 'result');
   };
-  const addTest = (): void => {
-    const index = tests.add();
+  const addTest = (from?: Readonly<Record<string, unknown>>): void => {
+    const index = tests.add(from);
     if (index === null) return;
     handTestsOn();
     setSelectedId(null);
@@ -1342,12 +1346,96 @@ function AutomationEditorScope({
     setTestsOpen(false);
     (shown === 'tests' ? testsButtonRef : problemsButtonRef).current?.focus();
   };
+  // Which paths the tests go down: the Tests panel counts them, and the
+  // Paths list says it per path.
+  const coverage = useMemo(() => pathCoverage(tests.rows), [tests.rows]);
+  const listed =
+    flowFacts !== null && !flowFacts.truncated && flowFacts.paths.length > 1
+      ? { facts: flowFacts, paths: flowFacts.paths }
+      : null;
+  const listedPaths = listed?.paths ?? null;
+  const [pathsOpen, setPathsOpen] = useState(false);
+  const boundTrigger = triggersQuery.data?.[0];
+  const triggerInput =
+    boundTrigger === undefined
+      ? null
+      : triggerTestInput({
+          kind: boundTrigger.kind,
+          event: boundTrigger.event ?? null,
+          input: boundTrigger.input ?? null,
+        });
+  const addFrom = {
+    ...(triggerInput !== null && {
+      trigger: () =>
+        addTest({
+          name: t('tests.addFrom.triggerName'),
+          input: triggerInput,
+          expect: {},
+        }),
+    }),
+    ...(listed !== null &&
+      automation !== null && {
+        paths: listed.paths.flatMap((path, at) => {
+          if (coverage.has(path.id)) return [];
+          const number = at + 1;
+          const clauses = pathClauses(listed.facts, path, t).map(
+            (clause) => clause.label,
+          );
+          return [
+            {
+              id: path.id,
+              label:
+                clauses.length === 0
+                  ? t('paths.row', { index: number })
+                  : t('tests.addFrom.pathItem', {
+                      path: t('paths.row', { index: number }),
+                      clauses: new Intl.ListFormat(locale, {
+                        type: 'conjunction',
+                      }).format(clauses),
+                    }),
+              onSelect: () => {
+                const made = testForPath({
+                  document: { nodes: automation.nodes },
+                  pathId: path.id,
+                  name: t('tests.addFrom.pathName', { number }),
+                  ...(validationTypes !== null && {
+                    outputShapes: Object.fromEntries(
+                      Object.entries(validationTypes.nodes).map(
+                        ([id, info]) => [id, info.output],
+                      ),
+                    ),
+                  }),
+                  describe: (need) =>
+                    need.kind === 'when'
+                      ? t('tests.pathNeed.when', {
+                          node: nodeTitle(need.node),
+                          value: need.value ? 'true' : 'false',
+                        })
+                      : null,
+                  failureMessage: t('tests.fields.failureDefault'),
+                });
+                if (made !== null) addTest({ ...made.test });
+              },
+            },
+          ];
+        }),
+      }),
+  };
   const testsPanel = {
     tests,
     canEdit: canAuthor,
     activeIndex: shownTest,
     onOpen: openTest,
-    onAdd: addTest,
+    onAdd: () => addTest(),
+    addFrom,
+    ...(listedPaths !== null &&
+      tests.tests.length > 0 && {
+        coverage: {
+          covered: coveredCount(coverage, listedPaths),
+          total: listedPaths.length,
+          onShowPaths: () => setPathsOpen(true),
+        },
+      }),
     onDeleted: (name: string) => {
       setTestsNews((previous) => ({
         text: t('tests.deleted', { name }),
@@ -2355,6 +2443,9 @@ function AutomationEditorScope({
               canvasDocument !== null && (
                 <AutomationCanvas
                   automation={canvasDocument}
+                  {...(tests.tests.length > 0 && { pathCoverage: coverage })}
+                  pathsOpen={pathsOpen}
+                  onPathsOpenChange={setPathsOpen}
                   layoutKey={layoutKey}
                   catalog={catalog}
                   modelLabel={modelLabel}

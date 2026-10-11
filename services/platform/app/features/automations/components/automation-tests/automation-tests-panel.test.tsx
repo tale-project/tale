@@ -8,7 +8,11 @@ import type {
   AutomationTests,
   TestRow,
 } from '../../hooks/use-automation-tests';
-import { TestsPanelActions, TestsPanelContent } from './automation-tests-panel';
+import {
+  TestsPanelActions,
+  TestsPanelContent,
+  type AddTestSources,
+} from './automation-tests-panel';
 
 function row(overrides: Partial<TestRow> & { index: number }): TestRow {
   return {
@@ -61,7 +65,11 @@ function controller(overrides: Partial<AutomationTests> = {}): AutomationTests {
 
 function renderPanel(
   tests: AutomationTests,
-  props: { canEdit?: boolean } = {},
+  props: {
+    canEdit?: boolean;
+    addFrom?: AddTestSources;
+    coverage?: { covered: number; total: number; onShowPaths?: () => void };
+  } = {},
 ) {
   const onOpen = vi.fn();
   const onAdd = vi.fn();
@@ -72,6 +80,7 @@ function renderPanel(
         tests={tests}
         canEdit={props.canEdit ?? true}
         onAdd={onAdd}
+        {...(props.addFrom !== undefined && { addFrom: props.addFrom })}
       />
       <TestsPanelContent
         tests={tests}
@@ -81,6 +90,8 @@ function renderPanel(
         onAdd={onAdd}
         onDeleted={onDeleted}
         listRef={createRef<TestResultListHandle>()}
+        {...(props.addFrom !== undefined && { addFrom: props.addFrom })}
+        {...(props.coverage !== undefined && { coverage: props.coverage })}
       />
     </>,
   );
@@ -176,6 +187,63 @@ describe('the Tests panel', () => {
     expect(screen.getByText('The connection to Tale was lost.')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(tests.retry).toHaveBeenCalledOnce();
+  });
+
+  it('adds a blank test, one from the trigger, or one for an untested path', async () => {
+    const trigger = vi.fn();
+    const path = vi.fn();
+    const { user, onAdd } = renderPanel(controller(), {
+      addFrom: {
+        trigger,
+        paths: [
+          {
+            id: 'when:triage=0',
+            label: 'Path 3: Triage is skipped',
+            onSelect: path,
+          },
+        ],
+      },
+    });
+    const add = () => screen.getByRole('button', { name: 'Add test' });
+    await user.click(add());
+    await user.click(screen.getByRole('menuitem', { name: 'Blank test' }));
+    expect(onAdd).toHaveBeenCalledOnce();
+    await user.click(add());
+    await user.click(
+      screen.getByRole('menuitem', { name: "From the trigger's input" }),
+    );
+    expect(trigger).toHaveBeenCalledOnce();
+    // The paths are a submenu: open it from the keyboard, as a pointer
+    // leaving its trigger in a test closes it again.
+    await user.click(add());
+    screen.getByRole('menuitem', { name: 'For an untested path' }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(
+      await screen.findByRole('menuitem', {
+        name: 'Path 3: Triage is skipped',
+      }),
+    ).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(path).toHaveBeenCalledOnce();
+  });
+
+  it('says when every path has a test', async () => {
+    const { user } = renderPanel(controller(), { addFrom: { paths: [] } });
+    await user.click(screen.getByRole('button', { name: 'Add test' }));
+    expect(
+      screen.getByRole('menuitem', { name: 'Every path has a test' }),
+    ).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('counts the paths the tests go down, and opens the Paths list', async () => {
+    const onShowPaths = vi.fn();
+    const { user } = renderPanel(controller(), {
+      coverage: { covered: 2, total: 3, onShowPaths },
+    });
+    await user.click(
+      screen.getByRole('button', { name: /Covers 2 of 3 paths/ }),
+    );
+    expect(onShowPaths).toHaveBeenCalledOnce();
   });
 
   it('invites the first test when there is none', async () => {

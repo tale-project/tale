@@ -86,6 +86,7 @@ export function AutomationDock({
               tests={tests.tests}
               canEdit={tests.canEdit}
               onAdd={tests.onAdd}
+              {...(tests.addFrom !== undefined && { addFrom: tests.addFrom })}
             />
           ),
           content: <TestsPanelContent {...tests} />,

@@ -103,6 +103,49 @@ export interface PathsContext {
   elseOf: (nodeId: string) => string | undefined;
   /** What can make each halting node fail, when the server said. */
   halts?: ReadonlyArray<{ nodeId: string; reasons: readonly string[] }>;
+  /** Which tests go down each path, by the engine's path id, when the
+   * automation has tests: each row then says it is tested, or not. */
+  coverage?: ReadonlyMap<string, readonly string[]>;
+}
+
+/**
+ * What a path asks of the conditions and tolerated failures it goes
+ * through, in the words of its row: "Triage runs", "Propose fails".
+ */
+export function pathClauses(
+  flow: FlowFacts,
+  path: PathOutcome,
+  t: ConditionTranslate,
+): FlowPathClause[] {
+  const atomOrder = new Map(flow.atoms.map((atom, index) => [atom.id, index]));
+  const atomsById = new Map(flow.atoms.map((atom) => [atom.id, atom]));
+  return Object.entries(path.assignment)
+    .sort(([a], [b]) => (atomOrder.get(a) ?? 0) - (atomOrder.get(b) ?? 0))
+    .flatMap(([atomId, value]): FlowPathClause[] => {
+      const atom = atomsById.get(atomId);
+      if (atom === undefined) return [];
+      const node = nodeTitle(atom.nodeId);
+      if (atom.kind === 'when') {
+        return [
+          {
+            id: atomId,
+            label: value
+              ? t('paths.clause.runs', { node })
+              : t('paths.clause.skipped', { node }),
+            tone: value ? 'positive' : 'negative',
+          },
+        ];
+      }
+      return [
+        {
+          id: atomId,
+          label: value
+            ? t('paths.clause.fails', { node })
+            : t('paths.clause.succeeds', { node }),
+          tone: value ? 'error' : 'neutral',
+        },
+      ];
+    });
 }
 
 /** The nodes and conditions a path goes through, and how each condition
@@ -148,10 +191,8 @@ export function automationPaths(
   const byId = new Map(
     flow.paths.map((path, index) => [pathId(index), { path, index }]),
   );
-  const atomOrder = new Map(flow.atoms.map((atom, index) => [atom.id, index]));
-  const atomsById = new Map(flow.atoms.map((atom) => [atom.id, atom]));
-
   const rows = new Map<string, PathRowInfo>();
+  const listFormat = new Intl.ListFormat(ctx.locale, { type: 'conjunction' });
   const pathRows: FlowPathListRow[] = [];
   const listed =
     flow.paths.length > 1 ? flow.paths.slice(0, MAX_LISTED_PATHS) : [];
@@ -159,33 +200,19 @@ export function automationPaths(
     const id = pathId(index);
     const info = { index: index + 1, ran: path.ran.length, total };
     rows.set(id, info);
-    const clauses = Object.entries(path.assignment)
-      .sort(([a], [b]) => (atomOrder.get(a) ?? 0) - (atomOrder.get(b) ?? 0))
-      .flatMap(([atomId, value]): FlowPathClause[] => {
-        const atom = atomsById.get(atomId);
-        if (atom === undefined) return [];
-        const node = nodeTitle(atom.nodeId);
-        if (atom.kind === 'when') {
-          return [
-            {
-              id: atomId,
-              label: value
-                ? t('paths.clause.runs', { node })
-                : t('paths.clause.skipped', { node }),
-              tone: value ? 'positive' : 'negative',
-            },
-          ];
-        }
-        return [
-          {
-            id: atomId,
-            label: value
-              ? t('paths.clause.fails', { node })
-              : t('paths.clause.succeeds', { node }),
-            tone: value ? 'error' : 'neutral',
-          },
-        ];
+    const clauses = pathClauses(flow, path, t);
+    // With tests, each path says which go down it, or that none does.
+    if (ctx.coverage !== undefined) {
+      const tested = ctx.coverage.get(path.id) ?? [];
+      clauses.push({
+        id: `tests:${id}`,
+        label:
+          tested.length > 0
+            ? t('paths.clause.tested', { names: listFormat.format(tested) })
+            : t('paths.clause.untested'),
+        tone: tested.length > 0 ? 'positive' : 'neutral',
       });
+    }
     pathRows.push({
       id,
       title: t('paths.row', { index: info.index }),
