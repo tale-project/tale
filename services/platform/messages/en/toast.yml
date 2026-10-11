@@ -25,6 +25,7 @@ error:
     title: Couldn't update organization
   brandingUpdateFailed:
     title: Couldn't update branding
+    changedElsewhere: The branding changed in another session. Discard your draft to load it, then make your change again.
   imageUploadFailed: Couldn't upload image
   logoTooSmall: The logo must be at least {min}×{min} pixels.
   imageTooLarge: Image is too large. Maximum size is 2 MB.

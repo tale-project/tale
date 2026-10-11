@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 129 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 133 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1249,6 +1249,19 @@ run.
   released** (`sandboxes.status.quotaReleased`) and the **Allocated** count
   of **Agent workers** drops by one, while Worker 2 still reads **Quota
   allocated** (`sandboxes.status.quotaInUse`).
+- [ ] `SET-B37` · **A stale branding Save never overwrites another window**
+  — On a throwaway organization with a saved accent color, open
+  `/dashboard/{org}/settings/branding` in two windows, A and B. In A change
+  **Accent color** (`settings.branding.accentColor`) without saving; in B save
+  another color, then upload a light favicon. In A → **Save** → One toast says
+  the branding changed in another session
+  (`toast.error.brandingUpdateFailed.changedElsewhere`); A's color stays in the
+  field and **Save** stays enabled; reloading B still shows B's color and
+  favicon, and **Audit logs** gains no **Branding updated** row for A. **Discard**
+  (`common.actions.discard`) in A loads B's color; changing it again and saving
+  goes through. Repeat with B's **Reset** (`common.actions.reset`) confirmed
+  while A holds an unsaved color → A's **Save** is refused the same way and the
+  reset stays after a reload.
 
 ## Accessibility (WCAG 2.1 AA)
 

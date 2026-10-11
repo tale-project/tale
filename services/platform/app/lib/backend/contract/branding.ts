@@ -7,11 +7,20 @@
  * actually serve them.
  */
 
+/**
+ * The branding versions an image write moved between: the `hash` it left and
+ * the `previousHash` it found (`null` when there was no branding file).
+ */
+export interface BrandingWriteVersions {
+  hash: string;
+  previousHash: string | null;
+}
+
 export interface BrandingContract {
   'branding/file_actions:deleteImage': {
     kind: 'action';
     args: { organizationId: string; type: string };
-    returns: null;
+    returns: BrandingWriteVersions;
   };
   'branding/file_actions:readBranding': {
     kind: 'action';
@@ -38,6 +47,9 @@ export interface BrandingContract {
         faviconDarkFilename?: string;
       };
       organizationId: string;
+      /** The branding version the save was made from; a save whose version
+       * is no longer current is refused (`CONFIG_VERSION_CONFLICT`). */
+      expectedHash?: string;
     };
     returns: { hash: string };
   };
@@ -48,8 +60,11 @@ export interface BrandingContract {
       type: string;
       mimeType: string;
       base64: string;
+      /** As for `saveBranding`: the image is stored only while the branding
+       * is still this version. */
+      expectedHash?: string;
     };
-    returns: { filename: string };
+    returns: { filename: string } & BrandingWriteVersions;
   };
   'branding/file_actions:snapshotToHistory': {
     kind: 'action';

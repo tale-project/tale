@@ -25,6 +25,7 @@ error:
     title: Impossible de mettre à jour l'organisation
   brandingUpdateFailed:
     title: Impossible de mettre à jour l'image de marque
+    changedElsewhere: L'image de marque a changé dans une autre session. Abandonne tes modifications pour la charger, puis refais-les.
   imageUploadFailed: Échec du téléversement de l'image
   logoTooSmall: Le logo doit faire au moins {min}×{min} pixels.
   imageTooLarge: L'image est trop volumineuse. La taille maximale est de 2 Mo.
