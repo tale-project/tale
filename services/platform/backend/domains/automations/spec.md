@@ -3,7 +3,7 @@
 > **Prefix** `AUTO-` · **Suite** [`automations`](../../../tests/manual/suites/automations.md) · **Docs** [`automations/concepts`](../../../../../docs/en/platform/automations/concepts.md)
 
 The rules an automation is held to between the editor and a finished run: who can change one
-and run it live, what a saved version and a deployment guarantee, what a check for problems
+and run it live, what a saved version and a deployment guarantee, what creating from a starter does, what a check for problems
 reports, what a test replaces and when it fails, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
 to another and what a resumed run never repeats, what a run records of each step, whose
@@ -124,6 +124,35 @@ A change made with an API key, through the REST API or a coding agent, is record
 - **Example**: Ada's key "ci" deletes `billing/dunning` through the REST API → the row reads
   "Automation deleted" by Ada, actor type API, with the key's id and the request id, so an
   admin knows which key to revoke.
+
+## Creating from a starter
+
+A starter is a working automation the platform ships with a few questions: the project it
+serves, whom it tells, when it runs. Creating from one answers them; the answers replace values
+in the starter's document, so what is saved is the starter's checked document with the answers
+in it.
+
+### AUTO-R44 · A starter creates version 1, installed where the answers say, its trigger off
+
+Creating from a starter saves version 1 under the name the person gives, through the same
+checks as any save: the document is checked and its tests run. The automation is installed in
+the project the answers name, a model the organization does not serve is replaced by one it
+does (the version says which), and the starter's trigger is set, switched off until a deploy
+turns it on. A name another automation has is refused (`AUTOMATION_NAME_TAKEN`) and adds no
+version to it.
+
+- **Example**: Ada creates "Tell the reviewer" for the project Website, naming Ben as the
+  reviewer → version 1 tells Ben, it is installed in Website, and its trigger on a task's
+  status change is off until Ada deploys it.
+
+### AUTO-R45 · An answer the organization cannot take refuses the whole create
+
+A project the person cannot open, someone who is not a member of the organization, a credential
+not in service, a value the question does not offer, or a required question left blank refuses
+the create (`TEMPLATE_ANSWERS_INVALID`), naming each question and why; nothing is written.
+
+- **Example**: Noah names a former colleague as the reviewer → refused, the reviewer question
+  says there is no such member, and no automation is created.
 
 ## Checking a version for problems
 

@@ -1,0 +1,45 @@
+name: Triage new tasks
+description: Comments a suggested priority and first step on each new task of a project.
+icon: list-checks
+scope: project
+requires:
+  connectors:
+    - task
+triggers:
+  - kind: event
+    event: task.created
+i18n:
+  de:
+    name: Neue Aufgaben einordnen
+    description: Kommentiert jede neue Aufgabe eines Projekts mit einer vorgeschlagenen Priorität und einem ersten Schritt.
+  fr:
+    name: Trier les nouvelles tâches
+    description: >-
+      Commente chaque nouvelle tâche d’un projet avec une priorité suggérée et une première étape.
+template:
+  details: >-
+    Each time a task is created in the project you pick, a language model reads its title and
+    description and comments on the task: how soon it needs attention, why, and the first
+    concrete step. It writes in the task's language and changes nothing else on the task.
+  i18n:
+    de:
+      details: >-
+        Jedes Mal, wenn im gewählten Projekt eine Aufgabe erstellt wird, liest ein Sprachmodell
+        Titel und Beschreibung und kommentiert die Aufgabe: wie dringend sie ist, warum, und den
+        ersten konkreten Schritt. Es schreibt in der Sprache der Aufgabe und ändert sonst nichts
+        an ihr.
+    fr:
+      details: >-
+        Chaque fois qu’une tâche est créée dans le projet choisi, un modèle de langage lit son titre et sa description et commente la tâche : son urgence, pourquoi, et la première étape concrète. Il écrit dans la langue de la tâche et ne change rien d’autre.
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose new tasks are triaged.
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, dessen neue Aufgaben eingeordnet werden.
+        fr:
+          label: Projet
+          description: Le projet dont les nouvelles tâches sont triées.

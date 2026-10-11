@@ -171,7 +171,7 @@ export function notifyNatives(
         if (classified === null) {
           throw new ConnectorError(
             'INPUT_INVALID',
-            `notify.member input is invalid: link: "${input.link}" is neither a page of this organization (a path starting /dashboard/${ctx.organizationId}/) nor an https address`,
+            `notify.member input is invalid: link: "${input.link}" is neither a page of this organization (a path such as /tasks/<task id>) nor an https address`,
             { connector: 'notify', action: 'member' },
           );
         }

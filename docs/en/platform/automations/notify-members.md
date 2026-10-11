@@ -23,7 +23,7 @@ nodes:
 | `to`      | Up to 20 members, by email or user id, or `run-starter` for the person who started the run.                                                                                               |
 | `title`   | What the message is about, in one line of at most 120 characters. It heads the notification and is the email's subject.                                                                   |
 | `message` | The words below the title, as plain text, at most 2,000 characters.                                                                                                                       |
-| `link`    | A page of your organization, as its path starting with `/dashboard/`, or an `https://` address. A page opens in Tale; an address opens in a new tab, and the notification names its site. |
+| `link`    | A page of your organization, as its path — `/tasks/<task id>`, `/conversations` — or an `https://` address. A page opens in Tale; an address opens in a new tab, and the notification names its site. |
 
 A blank `message` or `link` — a template that found nothing — is left out.
 

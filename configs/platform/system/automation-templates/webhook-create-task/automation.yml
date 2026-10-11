@@ -1,0 +1,48 @@
+name: Create tasks from a webhook
+description: Creates a task in a project for each delivery another system sends to the automation's webhook address.
+icon: webhook
+scope: project
+requires:
+  connectors:
+    - task
+triggers:
+  - kind: webhook
+i18n:
+  de:
+    name: Aufgaben per Webhook erstellen
+    description: Erstellt in einem Projekt eine Aufgabe für jede Lieferung, die ein anderes System an die Webhook-Adresse der Automatisierung sendet.
+  fr:
+    name: Créer des tâches par webhook
+    description: >-
+      Crée une tâche dans un projet pour chaque envoi qu’un autre système fait à l’adresse webhook de l’automatisation.
+template:
+  details: >-
+    Another system — a form, a monitoring alert, a shop — sends JSON to the webhook address the
+    automation's General tab shows, and a task is created in the project you pick: "title" names
+    it and "description" adds its text. A delivery without a title is refused and creates
+    nothing.
+  i18n:
+    de:
+      details: >-
+        Ein anderes System — ein Formular, ein Monitoring-Alarm, ein Shop — sendet JSON an die
+        Webhook-Adresse, die der Tab „Allgemein“ der Automatisierung zeigt, und im gewählten
+        Projekt entsteht eine Aufgabe: „title“ gibt ihr den Namen, „description“ den Text. Eine
+        Lieferung ohne Titel wird abgelehnt und erstellt nichts.
+    fr:
+      details: >-
+        Un autre système — un formulaire, une alerte de supervision, une boutique — envoie du JSON à l’adresse webhook qu’affiche l’onglet « Général » de l’automatisation, et une tâche est créée dans le projet choisi : « title » lui donne son nom et « description » son texte. Un envoi sans titre est refusé et ne crée rien.
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project the tasks are created in.
+      writes:
+        - node: create
+          pointer: /input/projectId
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, in dem die Aufgaben entstehen.
+        fr:
+          label: Projet
+          description: Le projet où les tâches sont créées.

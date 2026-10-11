@@ -1,0 +1,78 @@
+name: Tell the reviewer
+description: Tells a member when a task of a project moves to In review, with a link to it.
+icon: bell-ring
+scope: project
+requires:
+  connectors:
+    - task
+    - notify
+triggers:
+  - kind: event
+    event: task.status_changed
+i18n:
+  de:
+    name: Reviewer benachrichtigen
+    description: Benachrichtigt ein Mitglied, wenn eine Aufgabe eines Projekts in den Status „In Prüfung“ wechselt, mit einem Link dorthin.
+  fr:
+    name: Prévenir le relecteur
+    description: >-
+      Prévient un membre quand une tâche d’un projet passe à « En revue », avec un lien vers elle.
+template:
+  details: >-
+    When a task of the project you pick moves to In review, the member you choose gets a
+    message in Tale with the task's title and a link to it — in the bell, and by email when
+    their notification settings send one. Other status changes send nothing.
+  i18n:
+    de:
+      details: >-
+        Wechselt eine Aufgabe des gewählten Projekts in den Status „In Prüfung“, bekommt das
+        gewählte Mitglied in Tale eine Nachricht mit dem Titel der Aufgabe und einem Link dorthin —
+        in der Glocke und per E-Mail, wenn seine Benachrichtigungseinstellungen eine senden. Andere
+        Statuswechsel senden nichts.
+    fr:
+      details: >-
+        Quand une tâche du projet choisi passe à « En revue », le membre choisi reçoit un message dans Tale avec le titre de la tâche et un lien vers elle — dans la cloche, et par e-mail si ses réglages de notification en envoient un. Les autres changements de statut n’envoient rien.
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose tasks are watched.
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, dessen Aufgaben beobachtet werden.
+        fr:
+          label: Projet
+          description: Le projet dont les tâches sont suivies.
+    - id: reviewer
+      kind: member
+      label: Reviewer
+      description: Who is told when a task is ready for review.
+      writes:
+        - node: notify
+          pointer: /input/to
+      i18n:
+        de:
+          label: Reviewer
+          description: Wer benachrichtigt wird, wenn eine Aufgabe zur Prüfung bereit ist.
+        fr:
+          label: Relecteur
+          description: Qui est prévenu quand une tâche est prête à relire.
+    - id: message
+      kind: text
+      label: Message
+      description: The words under the task's title in the message.
+      default: This task is ready for your review.
+      maxLength: 500
+      writes:
+        - node: notify
+          pointer: /input/message
+      i18n:
+        de:
+          label: Nachricht
+          description: Der Text unter dem Titel der Aufgabe in der Nachricht.
+          default: Diese Aufgabe ist bereit für deine Prüfung.
+        fr:
+          label: Message
+          description: Le texte sous le titre de la tâche dans le message.
+          default: Cette tâche est prête pour ta relecture.

@@ -29,6 +29,7 @@ import {
   automationPackManifestSchema,
   type AutomationPackManifest,
 } from '@tale/shared/schemas/automation-pack';
+import type { z } from 'zod/v4';
 
 import type { Automation } from '../engine/core/types';
 import { parseYamlOrThrow } from '../shared/config/yaml';
@@ -48,13 +49,17 @@ const MAX_PACK_DEPTH = 4;
 /** One pack file may not exceed this — a pack is configuration. */
 const MAX_PACK_BYTES = 256 * 1024;
 
-export interface AutomationPack {
+/** A pack-format directory: its manifest, read with the schema its
+ * catalog uses, and its document. */
+export interface PackDirectory<M> {
   /** `/`-separated path of kebab segments — the directory it lives in. */
   readonly slug: string;
   readonly dir: string;
-  readonly manifest: AutomationPackManifest;
+  readonly manifest: M;
   readonly automation: Automation;
 }
+
+export type AutomationPack = PackDirectory<AutomationPackManifest>;
 
 export interface LoadPacksOptions {
   /** Absolute path of the `custom/` catalog directory (the one containing
@@ -125,12 +130,16 @@ function asAutomationDocument(value: unknown, file: string): Automation {
   return value as unknown as Automation;
 }
 
-/** Read one pack directory. `slug` is its path below `automations/`. */
-function loadAutomationPack(dir: string, slug: string): AutomationPack {
+/** Read one pack-format directory. `slug` is its path below the catalog;
+ * `kind` names it in an error ("pack", "starter"). */
+function readPackDirectory<M>(
+  dir: string,
+  slug: string,
+  schema: z.ZodType<M>,
+  kind: string,
+): PackDirectory<M> {
   const manifestFile = path.join(dir, AUTOMATION_MANIFEST_FILE);
-  const parsed = automationPackManifestSchema.safeParse(
-    readYamlFile(manifestFile),
-  );
+  const parsed = schema.safeParse(readYamlFile(manifestFile));
   if (!parsed.success) {
     throw new Error(
       `[automations] manifest ${manifestFile} is invalid: ${zodErrorMessage('it', parsed.error)}`,
@@ -139,7 +148,7 @@ function loadAutomationPack(dir: string, slug: string): AutomationPack {
   const automationFile = path.join(dir, AUTOMATION_WORKFLOW_FILE);
   if (!isFile(automationFile)) {
     throw new Error(
-      `[automations] pack "${slug}" has no ${AUTOMATION_WORKFLOW_FILE} beside its manifest`,
+      `[automations] ${kind} "${slug}" has no ${AUTOMATION_WORKFLOW_FILE} beside its manifest`,
     );
   }
   return {
@@ -154,23 +163,28 @@ function loadAutomationPack(dir: string, slug: string): AutomationPack {
 }
 
 /**
- * Every shipped pack, sorted by slug. A directory holding a manifest IS a
- * pack; any other directory is walked into, so packs group into folders
- * (`github/…`) exactly the way their slugs read.
+ * Every pack-format directory below `root`, sorted by slug. A directory
+ * holding a manifest IS one; any other directory is walked into, so they
+ * group into folders (`github/…`) exactly the way their slugs read, down to
+ * `maxDepth` segments. A missing `root` holds none.
  */
-export function loadAutomationPacks(
-  options: LoadPacksOptions = {},
-): AutomationPack[] {
-  const root = resolveAutomationsDir(options);
-  const packs: AutomationPack[] = [];
+export function readPackDirectories<M>(
+  root: string,
+  schema: z.ZodType<M>,
+  options: { kind: string; maxDepth?: number },
+): PackDirectory<M>[] {
+  const maxDepth = options.maxDepth ?? MAX_PACK_DEPTH;
+  const found: PackDirectory<M>[] = [];
 
   const walk = (dir: string, segments: readonly string[]): void => {
-    if (segments.length > MAX_PACK_DEPTH) return;
+    if (segments.length > maxDepth) return;
     if (
       segments.length > 0 &&
       isFile(path.join(dir, AUTOMATION_MANIFEST_FILE))
     ) {
-      packs.push(loadAutomationPack(dir, segments.join('/')));
+      found.push(
+        readPackDirectory(dir, segments.join('/'), schema, options.kind),
+      );
       return;
     }
     for (const entry of readdirSync(dir).sort()) {
@@ -180,5 +194,16 @@ export function loadAutomationPacks(
   };
 
   if (isDirectory(root)) walk(root, []);
-  return packs.sort((a, b) => a.slug.localeCompare(b.slug));
+  return found.sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+/** Every shipped pack, sorted by slug. */
+export function loadAutomationPacks(
+  options: LoadPacksOptions = {},
+): AutomationPack[] {
+  return readPackDirectories(
+    resolveAutomationsDir(options),
+    automationPackManifestSchema,
+    { kind: 'pack' },
+  );
 }

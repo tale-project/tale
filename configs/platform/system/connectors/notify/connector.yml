@@ -35,7 +35,8 @@ actions:
       started has none, and is listed as skipped). Someone who is not a
       member fails the step; someone who switched off messages from
       automations is skipped and listed. The link is a page of the
-      organization (a path starting /dashboard/) or an https address. At most
+      organization (a path such as /tasks/<task id> or /conversations) or an
+      https address. At most
       20 members per call and 100 messages per run. One delivery per
       execution of the step: a retry sends nothing twice.
     effects: write
@@ -72,7 +73,7 @@ actions:
           {
             type: string,
             maxLength: 2000,
-            description: 'A page of the organization (a path starting /dashboard/) or an https address to open; left out when blank.',
+            description: 'A page of the organization (a path such as /tasks/<task id>) or an https address to open; left out when blank.',
           }
     output: '{ delivered: Array<{ to: string, userId: string }>, skipped: Array<{ to: string, userId?: string, reason: "preference" | "no_starter" }> }'
     mock: |

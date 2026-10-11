@@ -69,3 +69,33 @@ export function resolvePointer(
   }
   return { found: true, value: cur };
 }
+
+/**
+ * Replace the value a pointer names inside `doc`, in place, and answer
+ * whether it did. The member or element must already be there: a pointer
+ * never grows the document, so a value only ever lands where the document
+ * already held one.
+ */
+export function replaceAtPointer(
+  doc: unknown,
+  pointer: string,
+  value: unknown,
+): boolean {
+  const parent = parentPointer(pointer);
+  if (parent === null) return false;
+  const holder = resolvePointer(doc, parent);
+  const last = pointerTokens(pointer).at(-1);
+  if (!holder.found || last === undefined) return false;
+  if (Array.isArray(holder.value)) {
+    if (!/^(?:0|[1-9]\d*)$/.test(last)) return false;
+    const at = Number(last);
+    if (at >= holder.value.length) return false;
+    holder.value[at] = value;
+    return true;
+  }
+  if (isRecord(holder.value) && Object.hasOwn(holder.value, last)) {
+    holder.value[last] = value;
+    return true;
+  }
+  return false;
+}

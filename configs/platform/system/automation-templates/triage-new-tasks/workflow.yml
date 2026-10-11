@@ -1,0 +1,100 @@
+# Each new task of the project the automation is installed in gets a comment
+# from a language model: how soon it needs attention, why, and the first
+# concrete step. It only comments — the task's fields stay as their author
+# left them — and the event its own comment raises never starts it again.
+version: 1
+name: triage-new-tasks
+description: Comment a suggested priority and first step on each new task.
+inputs:
+  type: object
+  properties:
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md): an event sends its name and
+    # what it carries under payload.
+    trigger:
+      type: string
+      description: Which trigger started the run; a platform event sends "event".
+    event:
+      type: string
+      description: The event that started the run.
+    payload:
+      type: object
+      description: What the event carries.
+      properties:
+        taskId:
+          type: string
+          description: The task the event is about.
+        projectId:
+          type: string
+          description: The task's project.
+      required:
+        - taskId
+  required:
+    - payload
+nodes:
+  - id: task
+    type: task.get
+    input:
+      taskId: '{{ input.payload.taskId }}'
+
+  - id: triage
+    type: llm
+    model: anthropic/claude-haiku-4-5
+    system: >-
+      You triage new tasks for a team. Judge how soon a task needs attention and
+      name the first concrete step someone could take today. Write in the
+      language the task is written in, in two short sentences, and never invent
+      facts the task does not state.
+    prompt: |
+      Title: {{ nodes.task.output.title }}
+
+      Description:
+      {{ nodes.task.output.descriptionText ?? 'none' }}
+    outputSchema:
+      type: object
+      properties:
+        priority:
+          type: string
+          enum:
+            - urgent
+            - high
+            - medium
+            - low
+          description: How soon the task needs attention.
+        comment:
+          type: string
+          description: The comment to post — the suggested priority and why, then the first step.
+      required:
+        - priority
+        - comment
+
+  - id: comment
+    type: task.comment
+    input:
+      taskId: '{{ input.payload.taskId }}'
+      body: '{{ nodes.triage.output.comment }}'
+output:
+  taskId: '{{ input.payload.taskId }}'
+  priority: '{{ nodes.triage.output.priority }}'
+tests:
+  - name: a new task gets a comment with a priority and a first step
+    input:
+      trigger: event
+      event: task.created
+      payload:
+        taskId: tsk_1
+        projectId: prj_1
+    mocks:
+      triage:
+        priority: high
+        comment: 'High: customers cannot sign in. First, reproduce it on staging.'
+    expect:
+      output:
+        taskId: tsk_1
+        priority: high
+      effects:
+        - connector: task.comment
+          node: comment
+          input:
+            taskId: tsk_1
+            body: 'High: customers cannot sign in. First, reproduce it on staging.'

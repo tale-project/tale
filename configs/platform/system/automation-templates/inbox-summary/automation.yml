@@ -1,0 +1,112 @@
+name: Summarise the inbox
+description: Sends a member a summary of the inbox conversations still waiting for an answer, on a schedule.
+icon: inbox
+requires:
+  connectors:
+    - conversation
+    - notify
+triggers:
+  - kind: schedule
+    repeat:
+      frequency: weekly
+      interval: 1
+      weekdays:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+      times:
+        - '08:00'
+    timezone: UTC
+i18n:
+  de:
+    name: Posteingang zusammenfassen
+    description: Schickt einem Mitglied nach Zeitplan eine Zusammenfassung der Posteingangs-Unterhaltungen, die noch auf eine Antwort warten.
+  fr:
+    name: Résumer la boîte de réception
+    description: >-
+      Envoie à un membre, selon un horaire, un résumé des conversations de la boîte de réception qui attendent encore une réponse.
+template:
+  details: >-
+    On the schedule you set, the automation reads the inbox conversations of the mailbox you
+    pick that still wait for an answer, and a language model summarises them in one line each,
+    most urgent first. The member you choose gets the summary as a message in Tale, with a link
+    to the inbox. An empty inbox sends nothing.
+  i18n:
+    de:
+      details: >-
+        Nach dem gewählten Zeitplan liest die Automatisierung die Unterhaltungen des gewählten
+        Postfachs, die noch auf eine Antwort warten, und ein Sprachmodell fasst sie in je einer
+        Zeile zusammen, die dringendste zuerst. Das gewählte Mitglied bekommt die Zusammenfassung
+        als Nachricht in Tale, mit einem Link zum Posteingang. Ein leerer Posteingang sendet
+        nichts.
+    fr:
+      details: >-
+        Selon l’horaire choisi, l’automatisation lit les conversations de la boîte choisie qui attendent encore une réponse, et un modèle de langage les résume en une ligne chacune, la plus urgente d’abord. Le membre choisi reçoit le résumé comme message dans Tale, avec un lien vers la boîte de réception. Une boîte vide n’envoie rien.
+  fields:
+    - id: mailbox
+      kind: choice
+      label: Mailbox
+      description: The connected mailbox whose conversations are summarised.
+      default: gmail
+      options:
+        - value: gmail
+          label: Gmail
+        - value: outlook
+          label: Outlook
+        - value: imap-smtp
+          label: IMAP/SMTP
+      writes:
+        - node: inbox
+          pointer: /input/connectorSlug
+      i18n:
+        de:
+          label: Postfach
+          description: Das verbundene Postfach, dessen Unterhaltungen zusammengefasst werden.
+        fr:
+          label: Boîte mail
+          description: La boîte mail connectée dont les conversations sont résumées.
+    - id: recipient
+      kind: member
+      label: Send to
+      description: Who gets the summary.
+      writes:
+        - node: notify
+          pointer: /input/to
+      i18n:
+        de:
+          label: Senden an
+          description: Wer die Zusammenfassung bekommt.
+        fr:
+          label: Envoyer à
+          description: Qui reçoit le résumé.
+    - id: schedule
+      kind: schedule
+      label: When
+      description: When the summary is sent.
+      i18n:
+        de:
+          label: Wann
+          description: Wann die Zusammenfassung gesendet wird.
+        fr:
+          label: Quand
+          description: Quand le résumé est envoyé.
+    - id: title
+      kind: text
+      label: Message title
+      description: The title of the message the summary arrives in.
+      default: Inbox summary
+      maxLength: 200
+      writes:
+        - node: notify
+          pointer: /input/title
+      i18n:
+        de:
+          label: Titel der Nachricht
+          description: Der Titel der Nachricht, in der die Zusammenfassung ankommt.
+          default: Zusammenfassung des Posteingangs
+        fr:
+          label: Titre du message
+          description: Le titre du message qui apporte le résumé.
+          default: Résumé de la boîte de réception
