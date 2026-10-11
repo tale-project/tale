@@ -19,7 +19,7 @@ Each row is one test, in the order the document lists them: its status, its name
 
 ## Add a test
 
-1. In the **Tests** tab, select **Add test**. A test named **New test** opens beside the canvas, with a placeholder for each field the run input requires.
+1. In the **Tests** tab, select **Add test**, and **Blank test** if it opens a menu. A test named **New test** opens beside the canvas, with a placeholder for each field the run input requires.
 2. In **Setup**, fill in the test: its **Name**, the **Input** the run receives as JSON, the **Simulated outputs** and **Simulated failures** that stand in for steps, and under **Expectations** what the run must do. Your changes go into the draft as you type.
 3. Save the draft to keep the test. Saving runs every test and records the result with the version.
 
@@ -49,6 +49,20 @@ expect:
 - `mocks` gives a step an output to use instead of calling its service or model, and `failures` makes a step fail with the given message.
 
 Without `expect`, a test passes when the run succeeds. A row's menu also copies a test with **Duplicate** or removes it with **Delete**; **Discard** brings back a deleted test until you save.
+
+### Start from the trigger or a path
+
+When the automation has more to start from, **Add test** opens a menu. **Blank test** adds the test described above. **From the trigger's input** starts with the input the bound trigger hands a run: a schedule firing at a fixed moment, a webhook's sample delivery or an event's example, so the test gets the same input every time it runs. **For an untested path** lists the possible paths no test goes down yet, as the [Paths list](/platform/automations/editor#paths) words them; once every path has one, the menu says **Every path has a test** instead. The new test simulates each failure the path needs and expects each step's state on it; its description says which conditions the input must make true or false.
+
+### See what the tests cover
+
+Once tests have run, the line above the list says how many of the automation's possible paths they go down, such as **Covers 1 of 2 paths**. Select it to open the Paths list, where each path reads **Tested by** with the tests that go down it, or **Not tested**. A test covers the path its run actually took, which is not always the one it was written for.
+
+<Frame caption="Run all on the order discounts: both tests skip Review, so the path where it runs has no test yet.">
+
+![The editor of Order discounts after Run all, with Possible paths open beside the canvas: Path 1, where Review runs, is Not tested, and Path 2, where Review is skipped, is Tested by Small order pays full price and Big order gets 10% off. Under the canvas, the Tests tab reads Covers 1 of 2 paths.](/images/platform/automation-test-coverage.webp)
+
+</Frame>
 
 ## Run the tests
 

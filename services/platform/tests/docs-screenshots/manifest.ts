@@ -2344,6 +2344,46 @@ export const SHOTS: readonly Shot[] = [
     viewport: { width: 1440, height: 1100 },
   },
   {
+    // The order discounts' tests after Run all, with the possible paths
+    // open on the canvas: both orders go down the path that skips Review,
+    // which only an order of a thousand or more reaches, so the line above
+    // the tests reads one of two paths covered and the other path untested.
+    name: 'automation-test-coverage',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TESTS.automation}/editor?panel=tests`,
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      const dock = page.getByRole('region', {
+        name: t('automations.tests.title'),
+        exact: true,
+      });
+      await dock
+        .getByRole('button', { name: t('automations.tests.runAll') })
+        .click();
+      await dock
+        .getByRole('button', {
+          name: new RegExp(
+            `^${escapeRegExp(t('testResults.status.failed'))}: ${escapeRegExp(DEMO_TESTS.failing)}`,
+          ),
+        })
+        .waitFor({ timeout: 30_000 });
+      await page
+        .getByRole('button', {
+          name: pluralPattern(t('automations.paths.button')),
+        })
+        .click();
+    },
+    // A path reads which tests go down it once their results are in.
+    readyWhen: (page) =>
+      page
+        .getByText(
+          new RegExp(
+            `^${escapeRegExp(t('automations.paths.clause.tested').split('{names}')[0] ?? '')}`,
+          ),
+        )
+        .first(),
+  },
+  {
     // A test run of v1 and one of v2 of the weekly digest compared: what
     // differs, with the way to the versions' comparison, and both runs on
     // the steps of both versions — Summarize, which v1 lacks, dashed for A.
