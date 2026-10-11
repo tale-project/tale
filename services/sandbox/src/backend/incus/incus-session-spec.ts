@@ -294,7 +294,7 @@ function assertInput(input: SessionInstanceInput): void {
 }
 
 /** The `user.*` keys that make the instance a session. */
-export function sessionLabels(
+function sessionLabels(
   cfg: SpawnerConfig,
   shape: SessionShape,
   input: SessionInstanceInput,

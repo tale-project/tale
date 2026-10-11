@@ -5,6 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
 
+import type { IncusClient } from './backend/incus/incus-client.ts';
 import type { K8sClient } from './backend/kubernetes/k8s-client.ts';
 import {
   type CpuCounters,
@@ -181,6 +182,8 @@ interface CapacityDependencies {
   read?: (path: string) => Promise<string>;
   kernelRelease?: () => string;
   client?: K8sClient;
+  /** The Incus API client, instead of the one the config's runtime makes. */
+  incus?: IncusClient;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -203,6 +206,7 @@ export class CapacityReader {
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
   private client: K8sClient | undefined;
+  private readonly incus: IncusClient | undefined;
 
   constructor(
     private readonly cfg: SpawnerConfig,
@@ -217,6 +221,7 @@ export class CapacityReader {
       deps.sleep ??
       ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.client = deps.client;
+    this.incus = deps.incus;
   }
 
   async forOrganization(organizationId: string): Promise<SandboxCapacity> {
@@ -333,6 +338,8 @@ export class CapacityReader {
       };
     }
 
+    if (this.cfg.backend === 'incus') return this.observeIncus();
+
     const [inventory, resources] = await Promise.allSettled([
       this.docker(
         [
@@ -356,6 +363,46 @@ export class CapacityReader {
         resources.status === 'fulfilled'
           ? resources.value
           : unavailableResources(),
+    };
+  }
+
+  /** The sessions of an Incus project, from the labels on its instances. A
+   * restricted client certificate does not see the node's CPU and memory, so
+   * those stay unknown rather than being guessed. A listing that fails throws:
+   * it must never read as an empty project. */
+  private async observeIncus(): Promise<InfrastructureSnapshot> {
+    // The Incus modules are loaded only where they are used.
+    const [{ getIncusRuntime }, naming, lifecycle] = await Promise.all([
+      import('./backend/incus/incus-runtime.ts'),
+      import('./backend/incus/incus-naming.ts'),
+      import('./backend/incus/incus-lifecycle.ts'),
+    ]);
+    const client =
+      this.incus ?? (await getIncusRuntime(this.cfg).connect()).client;
+    const sessions: RuntimeObservation[] = [];
+    for (const instance of await client.listInstances()) {
+      if (!naming.isSessionInstance(instance.config, this.cfg.instance)) {
+        continue;
+      }
+      // Only an instance that has ended stops counting; one on its way up or
+      // down still holds its slot.
+      const state: RuntimeState = lifecycle.hasEnded(instance)
+        ? 'stopped'
+        : lifecycle.isRunning(instance)
+          ? 'running'
+          : 'starting';
+      sessions.push(
+        observation(
+          naming.label(instance.config, naming.LABEL.session),
+          naming.label(instance.config, naming.LABEL.organization),
+          state,
+        ),
+      );
+    }
+    return {
+      observedAt: this.now(),
+      sessions,
+      resources: unavailableResources(),
     };
   }
 

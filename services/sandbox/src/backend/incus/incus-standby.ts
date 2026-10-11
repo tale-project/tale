@@ -20,7 +20,7 @@
 // forking, so an idle standby costs next to nothing.
 
 export const STANDBY_SCRIPT_PATH = '/usr/local/lib/tale/standby.sh';
-export const STANDBY_DIR = '/run/tale-standby';
+const STANDBY_DIR = '/run/tale-standby';
 export const STANDBY_READY_FILE = `${STANDBY_DIR}/ready`;
 export const STANDBY_CLAIM_FILE = `${STANDBY_DIR}/claim.env`;
 /** The last line of a complete claim file. */
