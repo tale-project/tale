@@ -222,7 +222,7 @@ Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wi
 
 ## Versionen und Live-Schaltungen {#versions}
 
-**Versionen** zeigt, was live läuft und wie die Automatisierung dorthin kam. Die Karte oben nennt die Live-Version, seit wann sie live ist, wer sie live geschaltet hat und wie, etwa **in der App** oder **mit Claude Code über MCP**, und wie viele ihrer Läufe noch in Arbeit sind. Diese Läufe enden auf der Version, mit der sie gestartet sind, egal was danach live geht. Ist noch keine Version live, bietet die Karte an, die neueste live zu schalten.
+**Versionen** zeigt, was live läuft und wie die Automatisierung dorthin kam. Die Karte oben nennt die Live-Version, seit wann sie live ist, wer sie live geschaltet hat und wie, etwa **in der App** oder **mit Claude Code über MCP**, und wie viele ihrer Läufe noch in Arbeit sind. Diese Läufe enden auf der Version, mit der sie gestartet sind, egal was danach live geht. **v1 mit v2 vergleichen** zeigt, was die Live-Version gegenüber der ersetzten geändert hat. Ist noch keine Version live, bietet die Karte an, die neueste live zu schalten.
 
 Die Liste **Versionen** unter der Karte zeigt jede gespeicherte Version, die neueste zuerst:
 
@@ -232,9 +232,9 @@ Die Liste **Versionen** unter der Karte zeigt jede gespeicherte Version, die neu
 - **Änderungen** zählt die Nodes, die die Version gegenüber der vorherigen hinzugefügt, entfernt und geändert hat, und nennt weitere geänderte Teile, etwa **Ausgabe** oder **Tests**. Die erste Version trägt **Erste Version**; Versionen von vor dieser Zusammenfassung zeigen **Nicht erfasst**.
 - **Tests** sagt, ob die Tests der Version beim Speichern **Bestanden** haben oder **Fehlgeschlagen** sind. **Kein Ergebnis** bedeutet, dass kein Ergebnis festgehalten wurde, etwa weil die Version keine Tests hat.
 
-Wähle eine Zeile, um diese Version im **Editor** zu öffnen. Ihr Menü bietet außerdem **YAML herunterladen**: Es speichert die Version als Datei mit dem Namen der Automatisierung und der Version, etwa `weekly-digest-v3.yml`.
+Wähle eine Zeile, um zu sehen, was diese Version geändert hat, wie [Zwei Versionen vergleichen](#compare) beschreibt. Ihr Menü bietet außerdem **Mit der Live-Version vergleichen**, **Im Editor öffnen** und **YAML herunterladen**: Letzteres speichert die Version als Datei mit dem Namen der Automatisierung und der Version, etwa `weekly-digest-v3.yml`.
 
-Wähle über der Liste **Live-Schaltungen**, um jede Live-Schaltung zu sehen: wann, welche Version, ob es eine Rückkehr war, welche Version sie ersetzt hat und wer sie live geschaltet hat. Eine Version, die schon live war, bevor Tale diesen Verlauf führte, erscheint als **v4 war live** mit dem Hinweis **Erfasst, bevor der Verlauf begann.**
+Wähle über der Liste **Live-Schaltungen**, um jede Live-Schaltung zu sehen: wann, welche Version, ob es eine Rückkehr war, welche Version sie ersetzt hat und wer sie live geschaltet hat. Eine Version, die schon live war, bevor Tale diesen Verlauf führte, erscheint als **v4 war live** mit dem Hinweis **Erfasst, bevor der Verlauf begann.** Wähle eine Zeile, um zu sehen, was diese Live-Schaltung gegenüber der ersetzten Version geändert hat.
 
 Auch die Automatisierungsliste führt hierher: Wähle die Versionsanzahl einer Zeile oder **Versionsverlauf** in ihrem Zeilenmenü.
 
@@ -251,6 +251,18 @@ Tale vergleicht die Live-Version auf deinem Bildschirm mit der, die beim Klick l
 Um eine ältere Version als neueste zurückzuholen, wähle in ihrem Zeilenmenü **Als neue Version wiederherstellen**. Tale speichert eine Kopie davon auf der neuesten Version, und die Versionen dazwischen bleiben im Verlauf. Die **Notiz zur Version** lautet zunächst **v3 wiederhergestellt**; du kannst sie ändern. Die Live-Version bleibt, wie sie ist, außer du wählst auch **v5 sofort live schalten**.
 
 Nach **Wiederherstellen** bestätigt ein Hinweis die neue Version, und **v5 öffnen** zeigt sie im Editor. Entspricht die neueste Version bereits der wiederhergestellten, wird nichts gespeichert. Speichert jemand eine Version, während der Dialog offen ist, nennt der Dialog, wer es war, und bietet an, auf dieser Version aufbauend wiederherzustellen.
+
+### Zwei Versionen vergleichen {#compare}
+
+Die Seite einer Version zeigt, was sie geändert hat. Ihr Kopf nennt die Version, ihre Notiz, wer sie gespeichert hat und wie, und bietet **Im Editor öffnen**, die Schaltfläche, die die Version live schaltet oder zu ihr zurückkehrt, und in ihrem Menü **Als neue Version wiederherstellen** und **YAML herunterladen**. Unter **Vergleichen mit** wählst du die Version, mit der du vergleichst; die Version davor, die Live-Version und die Version, auf der sie aufbaut, stehen zuerst. Die Chips daneben zählen die neuen, entfernten, geänderten und umbenannten Nodes und nennen weitere geänderte Teile, etwa **Eingaben** oder **Tests**.
+
+Wähle, wie du die Änderungen liest:
+
+- **Grafik** zeichnet beide Versionen in eine Grafik. Ein neuer Kasten hat einen grünen Rahmen und **Neu**, ein entfernter ist rot und durchgestrichen, ein geänderter gelb mit den Änderungen in seiner Fußzeile, und ein umbenannter nennt seinen alten Namen, etwa **Vorher Post**. Eine Linie, die nur eine Version zieht, trägt ein Plus oder ein Minus. Der Umschalter über der Grafik zeigt die eigene Grafik jeder Version, mit den Änderungen hervorgehoben. Wähle einen Kasten, um seine Änderungen neben der Grafik zu sehen: Start zeigt die geänderten Eingaben, Ende die Ausgabe.
+- **Änderungen** listet jede Änderung nach ihrem Ort: **Start: Laufeingaben**, **Nodes**, **Ende: Ausgabe**, **Tests** und **Paketdaten**. Öffne eine Zeile, um ihre Felder vorher und nachher zu sehen; Code, Prompts und Bedingungen werden Zeile für Zeile verglichen. **In der Grafik zeigen** wählt den Kasten, zu dem eine Änderung gehört.
+- **YAML** vergleicht den Quelltext beider Versionen Zeile für Zeile, untereinander oder nebeneinander.
+
+Auf dem Smartphone öffnet die Seite mit **Änderungen**. Zwei Versionen mit gleichem Inhalt melden **Keine Unterschiede zwischen v3 und v5**, und die Seite sagt dazu, wenn sich nur ihre Notizen unterscheiden. Die erste Version wird mit nichts verglichen: Alles darin ist neu. Trigger und Projekte gehören zur Automatisierung, nicht zu einer Version; ein Vergleich zeigt sie daher nie.
 
 ## Ein Ergebnis untersuchen
 

@@ -222,7 +222,7 @@ A trigger also runs the deployed version. Set it up only when you are ready for 
 
 ## Versions and deployments {#versions}
 
-**Versions** shows what runs live and how the automation got there. Its top card names the live version, when it went live, who deployed it and how, such as **in the app** or **with Claude Code through MCP**, and how many of its runs are still in progress. Those runs finish on the version they started with, whatever goes live next. When no version is live yet, the card offers to deploy the latest one.
+**Versions** shows what runs live and how the automation got there. Its top card names the live version, when it went live, who deployed it and how, such as **in the app** or **with Claude Code through MCP**, and how many of its runs are still in progress. Those runs finish on the version they started with, whatever goes live next. **Compare v1 with v2** shows what the live version changed against the one it replaced. When no version is live yet, the card offers to deploy the latest one.
 
 The **Versions** list below the card shows every saved version, newest first:
 
@@ -232,9 +232,9 @@ The **Versions** list below the card shows every saved version, newest first:
 - **Changes** counts the nodes the version added, removed and changed compared with the version before it, and names other parts that changed, such as **Output** or **Tests**. **First version** marks the first one; versions saved before Tale kept this summary show **Not recorded**.
 - **Tests** says whether the version’s tests **Passed** or **Failed** when it was saved. **No result** means no verdict was kept, for example because the version has no tests.
 
-Select a row to open that version in **Editor**. Its menu also offers **Download YAML**, which saves the version as a file named after the automation and version, such as `weekly-digest-v3.yml`.
+Select a row to see what that version changed, as [Compare two versions](#compare) describes. Its menu also offers **Compare with live**, **Open in editor** and **Download YAML**, which saves the version as a file named after the automation and version, such as `weekly-digest-v3.yml`.
 
-Choose **Deployments** above the list to see every time a version went live: when, which version, whether it was a rollback, which version it replaced and who deployed it. A version that was live before Tale kept this history reads **v4 was live** and is marked **Recorded before the history started.**
+Choose **Deployments** above the list to see every time a version went live: when, which version, whether it was a rollback, which version it replaced and who deployed it. A version that was live before Tale kept this history reads **v4 was live** and is marked **Recorded before the history started.** Select a row to see what that deploy changed against the version it replaced.
 
 The automation list leads here as well: select a row’s version count, or choose **Version history** in its row menu.
 
@@ -251,6 +251,18 @@ Tale compares the live version on your screen with the one live when you click. 
 To bring an older version back as the newest, choose **Restore as new version** in its row menu. Tale saves a copy of it on top of the latest version, and the versions in between stay in the history. The **Version message** starts as **Restore v3**; you can change it. The live version stays as it is unless you also tick **Make v5 live right away**.
 
 After **Restore**, a notice confirms the new version, and **Open v5** shows it in the editor. If the latest version already matches the one you restore, nothing is saved. If someone saves a version while the dialog is open, the dialog says who and offers to restore on top of that version instead.
+
+### Compare two versions {#compare}
+
+A version's page shows what it changed. Its header names the version, its message, who saved it and how, and offers **Open in editor**, the version's deploy or rollback button, and in its menu **Restore as new version** and **Download YAML**. **Compare with** chooses the version to compare it with; the version before it, the live version and the version it was based on come first. The chips beside it count the nodes added, removed, changed and renamed, and name the other parts that changed, such as **Inputs** or **Tests**.
+
+Choose how to read the changes:
+
+- **Graph** draws both versions on one chart. An added box has a green frame and **Added**, a removed one is red and struck through, a changed one is amber with what changed at its foot, and a renamed one says its old name, such as **Was Post**. A line only one version draws carries a plus or a minus. The switch above the chart shows either version's own chart with the changes brought forward. Select a box to see its changes beside the chart: Start shows the inputs that changed, End the output.
+- **Changes** lists every change by where it is: **Start: run inputs**, **Nodes**, **End: output**, **Tests** and **Package data**. Open a row to see its fields before and after; code, prompts and conditions are compared line by line. **Show on the graph** selects the box a change belongs to.
+- **YAML** compares the two versions' source line by line, unified or side by side.
+
+On a phone, the page opens on **Changes**. Two versions with the same content say **No differences between v3 and v5**, and the page adds when only their messages differ. The first version is compared with nothing: everything in it is new. Triggers and projects belong to the automation, not to a version, so a comparison never shows them.
 
 ## Diagnose a result
 
