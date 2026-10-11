@@ -12,6 +12,7 @@ import type {
   TriggerView,
   TriggerWrite,
 } from '@tale/shared/schemas/automation-trigger';
+import type { z } from 'zod';
 
 import type { AutomationTemplateCard } from '@/backend/domains/automations/templates';
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
@@ -39,6 +40,12 @@ export type {
 } from '@/lib/engine/core/record/read';
 export type { ReplayKind, ReplayPlan } from '@/lib/engine/core/record/replay';
 
+import type { RunBench } from '@/lib/engine/core/types';
+import type {
+  runTestsAnswerSchema,
+  tryAnswerSchema,
+  versionTestReportSchema,
+} from '@/lib/shared/schemas/automation-tests';
 import type {
   DeploymentHistory,
   VersionHistory,
@@ -285,6 +292,37 @@ export interface AutomationsContract {
       warnings?: unknown[];
     };
   };
+  /** Run the draft or a saved version once, in mock mode, with an input
+   * and what stands in for some nodes; nothing is stored. Charged to the
+   * organization's bench budget (429 when spent). */
+  'automations/mutations:tryAutomation': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      name: string;
+      /** The draft; or `version`, one of the two. */
+      document?: unknown;
+      version?: number;
+      input?: unknown;
+      bench?: RunBench;
+    };
+    returns: z.infer<typeof tryAnswerSchema>;
+  };
+  /** Run the tests of the draft or of a saved version by hand, all or those
+   * named by their place. A saved version's whole suite is recorded as its
+   * verdict, made by hand (`recorded`). */
+  'automations/mutations:runAutomationTests': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      name: string;
+      document?: unknown;
+      version?: number;
+      tests?: number[];
+      detail?: boolean;
+    };
+    returns: z.infer<typeof runTestsAnswerSchema>;
+  };
   'automations/mutations:saveAutomation': {
     kind: 'mutation';
     args: {
@@ -409,6 +447,12 @@ export interface AutomationsContract {
       restoredFromVersion?: number | null;
       changes?: VersionHistory['versions'][number]['changes'];
     };
+  };
+  /** A saved version's latest test check and the report it came from. */
+  'automations/queries:getAutomationTestReport': {
+    kind: 'query';
+    args: { organizationId: string; name: string; version: number };
+    returns: z.infer<typeof versionTestReportSchema>;
   };
   'automations/queries:getLiveRunForTask': {
     kind: 'query';

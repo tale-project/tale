@@ -617,3 +617,120 @@ describe('version history adapters [AUTO-R47]', () => {
     });
   });
 });
+
+describe('bench adapters [AUTO-R50]', () => {
+  const RUN = {
+    status: 'success',
+    output: 14,
+    trace: [{ node: 'double', type: 'transform', status: 'ok', output: 14 }],
+    effects: [],
+    ms: 1.2,
+    documentHash: 'abc123',
+  };
+
+  it('tries a draft, or a saved version, through its door', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(async () =>
+        jsonResponse(200, { run: RUN, warnings: [] }),
+      );
+    const tryIt =
+      automationWriteAdapters['automations/mutations:tryAutomation'];
+    const answer = await tryIt?.run(
+      {
+        organizationId: 'org-1',
+        name: 'ops/double',
+        document: { version: 1, name: 'ops/double', nodes: [] },
+        input: { n: 7 },
+        bench: { mocks: { fetch: [] } },
+      },
+      {},
+    );
+    expect(answer).toMatchObject({ run: { output: 14 } });
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/double/try?orgId=org-1',
+    );
+    expect(jsonBody(fetchSpy.mock.calls[0]?.[1])).toEqual({
+      document: { version: 1, name: 'ops/double', nodes: [] },
+      input: { n: 7 },
+      bench: { mocks: { fetch: [] } },
+    });
+    await tryIt?.run(
+      { organizationId: 'org-1', name: 'ops/double', version: 3 },
+      {},
+    );
+    expect(jsonBody(fetchSpy.mock.calls[1]?.[1])).toEqual({ version: 3 });
+  });
+
+  it('refuses a try answer in a shape it does not read', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, { run: { status: 'maybe' }, warnings: [] }),
+    );
+    await expect(
+      automationWriteAdapters['automations/mutations:tryAutomation']?.run(
+        { organizationId: 'org-1', name: 'ops/double', version: 3 },
+        {},
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('runs tests by hand and refreshes the version reads when it records a verdict', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        report: {
+          passed: 1,
+          failed: 0,
+          results: [{ name: 'doubles', index: 0, pass: true, ms: 1 }],
+        },
+        recorded: { version: 3, testsPassed: true, checkedAt: 5 },
+      }),
+    );
+    const run =
+      automationWriteAdapters['automations/mutations:runAutomationTests'];
+    const answer = await run?.run(
+      { organizationId: 'org-1', name: 'ops/double', version: 3, tests: [0] },
+      {},
+    );
+    expect(answer).toMatchObject({ recorded: { testsPassed: true } });
+    expect(jsonBody(fetchSpy.mock.calls[0]?.[1])).toEqual({
+      version: 3,
+      tests: [0],
+    });
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    run?.invalidate?.(
+      client,
+      { organizationId: 'org-1', name: 'ops/double' },
+      {},
+    );
+    expect(invalidate).toHaveBeenCalled();
+  });
+
+  it("reads a version's last test check under the automation's keys", async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        report: null,
+        testsPassed: false,
+        testsCheckedAt: 5,
+        via: 'deploy',
+        by: 'user-1',
+      }),
+    );
+    const read =
+      automationReadAdapters['automations/queries:getAutomationTestReport'];
+    const query = read?.(
+      { organizationId: 'org-1', name: 'ops/double', version: 3 },
+      {},
+    );
+    expect(query?.queryKey).toEqual(
+      backendKey('org-1', 'automation', 'test_report', 'ops/double', '3'),
+    );
+    expect(await query?.queryFn()).toMatchObject({ via: 'deploy' });
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/double/test-report?version=3&orgId=org-1',
+    );
+    expect(
+      read?.({ organizationId: 'org-1', name: 'ops/double' }, {}),
+    ).toBeNull();
+  });
+});

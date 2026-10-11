@@ -9,6 +9,11 @@
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import {
+  runTestsAnswerSchema,
+  tryAnswerSchema,
+  versionTestReportSchema,
+} from '@/lib/shared/schemas/automation-tests';
+import {
   deploymentHistorySchema,
   versionHistorySchema,
 } from '@/lib/shared/schemas/automation-versions';
@@ -57,6 +62,16 @@ type DeleteAutomationResult =
   ReturnsOf<'automations/mutations:deleteAutomation'>;
 type UploadAutomationResult =
   ReturnsOf<'automations/upload_action:uploadAutomation'>;
+
+/** The document a bench call runs: the draft it carries, or the saved
+ * version it names. */
+function benchTarget(
+  args: Record<string, unknown>,
+): { document: unknown } | { version: number } | Record<string, never> {
+  if (typeof args.version === 'number') return { version: args.version };
+  if (args.document !== undefined) return { document: args.document };
+  return {};
+}
 
 function orgOf(
   args: Record<string, unknown>,
@@ -119,6 +134,34 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<GetAutomationResult>(
           `/automations/${namePath(name)}${version === undefined ? '' : `?version=${version}`}`,
           { orgId },
+        ),
+    };
+  },
+  'automations/queries:getAutomationTestReport': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    const version = args.version;
+    if (
+      orgId === undefined ||
+      typeof name !== 'string' ||
+      typeof version !== 'number'
+    ) {
+      return null;
+    }
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation',
+        'test_report',
+        name,
+        String(version),
+      ),
+      queryFn: async () =>
+        versionTestReportSchema.parse(
+          await backendFetch<unknown>(
+            `/automations/${namePath(name)}/test-report?version=${version}`,
+            { orgId },
+          ),
         ),
     };
   },
@@ -800,6 +843,44 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
               : {}),
           },
         },
+      ),
+    invalidate: invalidateAutomations,
+  },
+  // A try stores nothing, so it invalidates nothing.
+  'automations/mutations:tryAutomation': {
+    run: async (args, ctx) =>
+      tryAnswerSchema.parse(
+        await backendFetch<unknown>(
+          `/automations/${namePath(stringArg(args, 'name'))}/try`,
+          {
+            orgId: requireOrg(args, ctx),
+            body: {
+              ...benchTarget(args),
+              ...(args.input !== undefined ? { input: args.input } : {}),
+              ...(args.bench !== undefined ? { bench: args.bench } : {}),
+            },
+          },
+        ),
+      ),
+  },
+  // A saved version's whole suite records its verdict: the version reads
+  // and lists hear of it.
+  'automations/mutations:runAutomationTests': {
+    run: async (args, ctx) =>
+      runTestsAnswerSchema.parse(
+        await backendFetch<unknown>(
+          `/automations/${namePath(stringArg(args, 'name'))}/run-tests`,
+          {
+            orgId: requireOrg(args, ctx),
+            body: {
+              ...benchTarget(args),
+              ...(Array.isArray(args.tests) ? { tests: args.tests } : {}),
+              ...(typeof args.detail === 'boolean'
+                ? { detail: args.detail }
+                : {}),
+            },
+          },
+        ),
       ),
     invalidate: invalidateAutomations,
   },

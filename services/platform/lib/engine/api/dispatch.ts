@@ -52,7 +52,7 @@ import {
 import { METHODS } from './methods';
 import { isCodedRefusal, structuredRefusal } from './refusal';
 import { ACTIVE_RUN_STATUSES } from './run-statuses';
-import { runAutomationTests } from './tests';
+import { runAutomationTests, type TestReport } from './tests';
 
 export { METHODS, type Method } from './methods';
 
@@ -225,6 +225,8 @@ export interface VersionMetadata {
 export interface SaveOptions {
   /** The save's own tests verdict, when the document carries tests. */
   testsPassed?: boolean;
+  /** The report that verdict came from, for a host that keeps it. */
+  testReport?: TestReport;
   /** The version the edit started from: another version saved since
    * refuses the save (`AUTOMATION_VERSION_STALE`). */
   baseVersion?: number;
@@ -337,6 +339,8 @@ export interface DispatchStore extends StoreAdapter {
     version: number,
     options?: {
       testsPassed?: boolean;
+      /** The report the gate's verdict came from. */
+      testReport?: TestReport;
       expectedDeployedVersion?: number | null;
     },
   ): Promise<{
@@ -353,6 +357,9 @@ export interface DispatchStore extends StoreAdapter {
     name: string,
     version: number,
     testsPassed: boolean,
+    /** The report the verdict came from, and whether the deploy gate or
+     * someone running the tests made it. */
+    check?: { report?: TestReport; via: 'deploy' | 'manual' },
   ): Promise<void>;
   /** Record a trigger binding. A host that revokes something by doing so (a
    * live webhook URL replaced by another kind) says so in the outcome; a
@@ -1345,6 +1352,7 @@ export async function dispatch(
             name,
             stored.version,
             report.failed === 0,
+            { report, via: 'manual' },
           );
         }
         return { name, version: stored.version, ...report };
@@ -1383,9 +1391,11 @@ export async function dispatch(
       // until a deploy gate, which persisted nothing either. A document
       // without tests records no verdict.
       let testsPassed: boolean | undefined;
+      let testReport: TestReport | undefined;
       if (automation.tests && automation.tests.length > 0) {
         const report = await runAutomationTests(automation, { store });
         testsPassed = 'failed' in report && report.failed === 0;
+        if ('failed' in report) testReport = report;
       }
       const baseVersion =
         p.baseVersion === undefined
@@ -1399,6 +1409,7 @@ export async function dispatch(
       try {
         const saved = await store.save(automation, asString(p.message), {
           ...(testsPassed !== undefined && { testsPassed }),
+          ...(testReport !== undefined && { testReport }),
           ...(baseVersion.value !== undefined && {
             baseVersion: baseVersion.value,
           }),
@@ -1520,6 +1531,7 @@ export async function dispatch(
         };
       }
       let testsPassed: boolean | undefined;
+      let testReport: TestReport | undefined;
       if (automation.tests && automation.tests.length > 0) {
         const report = await runAutomationTests(automation, { store });
         if ('failed' in report && report.failed > 0) {
@@ -1527,7 +1539,10 @@ export async function dispatch(
           // used to keep `null` after the gate said no, so a client could
           // not tell a version without tests apart from one whose tests
           // fail.
-          await store.recordTestVerdict?.(name, version, false);
+          await store.recordTestVerdict?.(name, version, false, {
+            report,
+            via: 'deploy',
+          });
           return {
             error: 'deploy gate: the automation has failing tests',
             code: 'AUTOMATION_TESTS_FAILING',
@@ -1536,10 +1551,12 @@ export async function dispatch(
           };
         }
         testsPassed = true;
+        if ('failed' in report) testReport = report;
       }
       try {
         const deployed = await store.deploy(name, version, {
           ...(testsPassed !== undefined && { testsPassed }),
+          ...(testReport !== undefined && { testReport }),
           ...(expected !== undefined && {
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a whole number or null, checked above
             expectedDeployedVersion: expected as number | null,

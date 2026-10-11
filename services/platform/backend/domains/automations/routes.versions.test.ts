@@ -250,6 +250,7 @@ describe('deploying at the app door [AUTO-R46]', () => {
     expect(await result.json()).toEqual(answer);
     expect(io.deploy).toHaveBeenCalledWith('double', 2, {
       testsPassed: true,
+      testReport: expect.objectContaining({ passed: 1, failed: 0 }),
       expectedDeployedVersion: 3,
     });
   });
@@ -258,6 +259,7 @@ describe('deploying at the app door [AUTO-R46]', () => {
     await post('/double/deploy', { version: 2, expectedDeployedVersion: null });
     expect(io.deploy).toHaveBeenCalledWith('double', 2, {
       testsPassed: true,
+      testReport: expect.objectContaining({ passed: 1, failed: 0 }),
       expectedDeployedVersion: null,
     });
   });

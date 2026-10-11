@@ -222,6 +222,9 @@ export async function writeManagedAutomation(
               ...(options?.testsPassed === undefined
                 ? {}
                 : { testsPassed: options.testsPassed }),
+              ...(options?.testReport === undefined
+                ? {}
+                : { testReport: options.testReport }),
               managed: { projectId, expectedHash: body.expectedHash },
             }).catch((error: unknown) => {
               storeError = error;
@@ -264,6 +267,9 @@ export async function writeManagedAutomation(
             ...(options?.testsPassed === undefined
               ? {}
               : { testsPassed: options.testsPassed }),
+            ...(options?.testReport === undefined
+              ? {}
+              : { testReport: options.testReport }),
             managed: {
               projectId,
               expectedHash: body.expectedHash,

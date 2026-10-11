@@ -47,6 +47,15 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 120,
   },
+  // An organization's runs that are never stored — tries of a draft, tests
+  // run by hand — counted per execution (a suite charges its tests). They
+  // run in the API process, which also caps how many run at once.
+  'automation:bench': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 240,
+  },
   'external:onedrive-list': {
     kind: 'token bucket',
     rate: 100,

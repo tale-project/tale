@@ -160,6 +160,9 @@ export interface TestResult {
   unusedMocks?: string[];
   /** With `detail`: what the run produced. */
   run?: TestRunDetail;
+  /** The run was too large for the answer it was asked in and was left
+   * out: run the test alone to see its steps. */
+  detailOmitted?: true;
 }
 
 export interface TestReport {
