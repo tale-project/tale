@@ -1098,6 +1098,74 @@ problems:
     warnings: Warnungen
   emptyFiltered: '{filter, select, errors {Keine Fehler} warnings {Keine Warnungen} other {Keine Probleme}}'
   fieldPart: '{part}: {message}'
+tests:
+  title: Tests
+  hide: Tests ausblenden
+  listLabel: Tests dieser Automatisierung
+  runAll: Alle ausführen
+  run: Ausführen
+  runOne: '{name} ausführen'
+  add: Test hinzufügen
+  newName: Neuer Test
+  copyName: '{name} (Kopie)'
+  duplicate: Duplizieren
+  delete: Löschen
+  rowActions: 'Mehr zu {name}'
+  deleted: 'Test {name} gelöscht.'
+  unnamed: 'Test {number}'
+  empty:
+    title: Noch keine Tests
+    body: Ein Test führt diese Automatisierung mit einer Eingabe deiner Wahl aus und prüft, was herauskommt. Tests laufen beim Speichern und vor jedem Live-Schalten erneut.
+  source:
+    notRun: Noch nicht ausgeführt
+    draft: Auf deinem Entwurf ausgeführt
+    checked: '{via, select, save {Geprüft beim Speichern von Version {version}} deploy {Geprüft beim Live-Schalten von Version {version}} other {Von Hand geprüft}} · {date}'
+  runFailed: Die Tests konnten nicht ausgeführt werden.
+  invalid: '{count, plural, one {Die Tests laufen, sobald die Automatisierung ihre Prüfungen besteht. Unter Probleme findest du das # Problem, das du beheben musst.} other {Die Tests laufen, sobald die Automatisierung ihre Prüfungen besteht. Unter Probleme findest du die # Probleme, die du beheben musst.}}'
+  rateLimited: '{seconds, plural, one {Gerade liefen viele Tests. Versuche es in # Sekunde erneut.} other {Gerade liefen viele Tests. Versuche es in # Sekunden erneut.}}'
+  retry: Erneut versuchen
+  busy: Die Tests laufen.
+  notRunInTime: Die Zeit für die Tests war um, bevor dieser lief.
+  duration: '{ms} ms'
+  badges:
+    simulates: '{count, plural, one {Simuliert # Node} other {Simuliert # Nodes}}'
+    failures: '{count, plural, one {Simuliert # Fehler} other {Simuliert # Fehler}}'
+  inspector:
+    position: 'Test {number} von {total}'
+    setup: Einrichtung
+    result: Ergebnis
+    noResult: Führe den Test aus, um sein Ergebnis zu sehen.
+    yaml: Test als YAML
+    yamlHint: Deine Änderungen gehen beim Tippen in den Entwurf ein. Solange sich der Text nicht lesen lässt, behält der Test seine letzte lesbare Fassung.
+  result:
+    passed: 'Der Test ist in {ms} ms bestanden.'
+    stale: Die Automatisierung oder dieser Test hat sich seit diesem Ergebnis geändert. Führe den Test erneut aus, um zu sehen, wo er steht.
+    fromReport: Dieses Ergebnis stammt aus der letzten Prüfung der Version, die keine Schritte aufbewahrt.
+    omitted: Der Lauf dieses Tests ist zu umfangreich, um ihn hier zu zeigen. Führe den Test einzeln aus, um ihn zu sehen.
+    expected: Erwartet
+    got: Erhalten
+    diffLabel: Erwartete und tatsächliche Ausgabe
+    more: '{count, plural, one {# weitere Abweichung} other {# weitere Abweichungen}}'
+    happened: 'Stattdessen ist passiert: {actions}'
+    nothingHappened: Im Lauf ist keine solche Aktion passiert.
+    simulated: 'Simuliert: {nodes}'
+    unused: 'Nicht verwendet: {nodes}. Der Lauf hat sie übersprungen.'
+    showNode: '{node} zeigen'
+    technical: Technische Details
+  failure:
+    output: '{count, plural, one {Die Ausgabe weicht an # Stelle von der Erwartung des Tests ab.} other {Die Ausgabe weicht an # Stellen von der Erwartung des Tests ab.}}'
+    outputIncludes: '{count, plural, one {# geprüftes Feld fehlt oder ist anders.} other {# geprüfte Felder fehlen oder sind anders.}}'
+    effect_missing: '{node, select, none {Der Test erwartet {action}, aber das ist nicht passiert.} other {Der Test erwartet {action} durch {node}, aber das ist nicht passiert.}}'
+    effect_present: 'Der Test erwartet, dass {action} nicht stattfindet, aber {node} hat es ausgeführt.'
+    node_state: 'Der Test erwartet, dass {node} {expected, select, ran {läuft} skipped {übersprungen wird} other {fehlschlägt und der Lauf weitergeht}}, aber sie {actual, select, ran {ist gelaufen} skipped {wurde übersprungen} failed {ist fehlgeschlagen} other {ist nicht gelaufen}}.'
+    run_failed: '{node, select, none {Der Lauf ist fehlgeschlagen: {reason}.} other {Der Lauf ist bei {node} fehlgeschlagen: {reason}.}}'
+    run_failedPlain: '{node, select, none {Der Lauf ist fehlgeschlagen.} other {Der Lauf ist bei {node} fehlgeschlagen.}}'
+    run_succeeded: '{node, select, none {Der Test erwartet, dass der Lauf fehlschlägt, aber er war erfolgreich.} other {Der Test erwartet, dass der Lauf bei {node} fehlschlägt, aber er war erfolgreich.}}'
+    failed_elsewhere: '{actual, select, none {Der Test erwartet einen Fehlschlag bei {expected}, aber der Lauf ist an anderer Stelle fehlgeschlagen.} other {Der Test erwartet einen Fehlschlag bei {expected}, aber der Lauf ist bei {actual} fehlgeschlagen.}}'
+    failure_message: '{node, select, none {Der Lauf ist fehlgeschlagen, aber mit einem anderen Fehler, als der Test erwartet.} other {Der Lauf ist bei {node} fehlgeschlagen, aber mit einem anderen Fehler, als der Test erwartet.}}'
+    refused: '{count, plural, one {Der Test konnte nicht laufen: Die Automatisierung hat # Problem, das zuerst behoben werden muss.} other {Der Test konnte nicht laufen: Die Automatisierung hat # Probleme, die zuerst behoben werden müssen.}}'
+    timeout: '{seconds, plural, one {Der Test hat länger als # Sekunde gedauert und wurde gestoppt.} other {Der Test hat länger als # Sekunden gedauert und wurde gestoppt.}}'
+    unknown: Der Test ist nicht bestanden.
 condition:
   group: '({parts})'
   gt: '{a} größer als {b} ist'

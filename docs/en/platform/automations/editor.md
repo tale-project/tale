@@ -20,7 +20,7 @@ On a phone, opening an automation starts with compact navigation. The editor can
 
 <Frame caption="On a phone, the canvas takes the height of the screen, and its run controls sit in a toolbar at its foot.">
 
-![The editor of Triage the Gmail inbox on a phone: compact navigation with Editor, General and Runs, the canvas with Start, Inbox and Due, and a toolbar at the foot of the canvas with Deploy v1, Test run and No problems.](/images/platform/automation-editor-canvas-mobile.webp)
+![The editor of Triage the Gmail inbox on a phone: compact navigation with Editor, General and Runs, the canvas with Start, Inbox and Due, and a toolbar at the foot of the canvas with Deploy v1, Test run, Change model, No problems and Tests.](/images/platform/automation-editor-canvas-mobile.webp)
 
 </Frame>
 
@@ -156,7 +156,7 @@ Select **End** to see what a run returns. **How a run ends** lists the three out
 
 ## Read the source
 
-Choose **Source** in the view switch to read the whole document as YAML, highlighted, with line numbers, folding and search (⌘F or Ctrl+F). Every problem the check found is underlined at the line it concerns, so a problem in a part without a field of its own, such as a test or the name, has a place to be read. The source is read-only: **Copy YAML** copies it, and **Download YAML** saves it as a file named after the automation and version, such as `gmail-triage-inbox-v3.yml`, with `-draft` added while you have unsaved changes. To change the document, use the fields or your coding agent.
+Choose **Source** in the view switch to read the whole document as YAML, highlighted, with line numbers, folding and search (⌘F or Ctrl+F). Every problem the check found is underlined at the line it concerns, so a problem in a part without a field of its own, such as the name, has a place to be read. The source is read-only: **Copy YAML** copies it, and **Download YAML** saves it as a file named after the automation and version, such as `gmail-triage-inbox-v3.yml`, with `-draft` added while you have unsaved changes. To change the document, use the fields or your coding agent.
 
 <Frame caption="Source: the whole document as highlighted YAML, to copy or download.">
 
@@ -170,17 +170,17 @@ Larger changes, such as adding nodes or reworking the flow, come from a coding a
 
 ## Find and fix problems
 
-While you edit, Tale checks the draft the same way it checks a save. A moment after you stop typing, the **Problems** button beside **Save** shows what the check found: a red error icon and an amber warning icon, each with its count, or **No problems**. On a phone, the button sits in the toolbar over the canvas. An error is something a run would fail on, such as a reference to a node that does not exist. A warning is something that might go wrong, such as reading the output of a node that is sometimes skipped. A node, a condition, Start or End with problems shows the same counts on its box, and a field with a problem explains it under the field.
+While you edit, Tale checks the draft the same way it checks a save. A moment after you stop typing, the **Problems** button beside **Tests** shows what the check found: a red error icon and an amber warning icon, each with its count, or **No problems**. On a phone, the button sits in the toolbar over the canvas. An error is something a run would fail on, such as a reference to a node that does not exist. A warning is something that might go wrong, such as reading the output of a node that is sometimes skipped. A node, a condition, Start or End with problems shows the same counts on its box, and a field with a problem explains it under the field.
 
 Click **Problems** to list them. On a wide screen the list opens under the canvas; on narrower screens it opens in a panel. Each entry says what is wrong, where it is, why, and how to fix it. **Technical details** shows the engine's own message, and the code beside the title helps when you search or ask for support. **All**, **Errors** and **Warnings** filter the list, and Escape closes it.
 
 <Frame caption="A reference to a node that doesn’t exist: the field marks it, Save waits, and Problems says why and how to fix it.">
 
-![The editor with one error: the Prompt of Triage ends in a template reading nodes.nope.output, underlined in red, with the reason under the field; the header shows 1 error beside a disabled Save, and Problems under the canvas lists Reference to an unknown node at triage › Prompt, its code REF_UNKNOWN_NODE, why the read fails and how to fix it.](/images/platform/automation-editor-problems.webp)
+![The editor with one error: the Prompt of Triage ends in a template reading nodes.nope.output, underlined in red, with the reason under the field; the header shows 1 error and Tests beside a disabled Save, and Problems under the canvas, beside the Tests tab, lists Reference to an unknown node at triage › Prompt, its code REF_UNKNOWN_NODE, why the read fails and how to fix it.](/images/platform/automation-editor-problems.webp)
 
 </Frame>
 
-Select an entry, or press Enter on it, to go there: the node opens, its field takes focus, and the part that causes the problem is selected. A problem with no field of its own, such as a model the organization does not serve, is listed under **Problems in this node** at the top of the node's fields. A problem in the inputs opens **Start**, one in the output opens **End**, and one in any other part of the document, such as a test or the name, opens **Source** at that line. A problem in a node that your draft no longer has says "Change this with your coding agent."
+Select an entry, or press Enter on it, to go there: the node opens, its field takes focus, and the part that causes the problem is selected. A problem with no field of its own, such as a model the organization does not serve, is listed under **Problems in this node** at the top of the node's fields. A problem in the inputs opens **Start**, one in the output opens **End**, one in a test opens that test under **Tests** with the place selected in its YAML, and one in any other part of the document, such as the name, opens **Source** at that line. A problem in a node that your draft no longer has says "Change this with your coding agent."
 
 While errors remain, **Save** is disabled and says why, for example "Fix 1 error to save". On a phone, where **Save** sits under a node's fields, **Show problems** beside that reason opens the list. Warnings never block saving or deploying. If Tale can't check the draft, for example because the connection dropped, the button shows **Couldn't check** and you can still save: every save is checked again on the server. When a save or a deploy is refused because of errors, the list opens with the server's problems, starting at the first error.
 
@@ -205,6 +205,8 @@ For a workflow requiring `owner` and `repo`, an input might be:
 Use the workflow's actual schema. A field typed as a number must receive a JSON number, not a quoted string. Where a project selector is offered, check the scope before starting.
 
 **Test run** uses the selected saved version with deterministic mocks. It does not send mail or change external records. A draft can be tested before it is deployed; a successful mock does not verify live credentials or outside services.
+
+To check the same cases on every save and before every deploy, write them as tests: [Test an automation](/platform/automations/testing) shows how.
 
 <Frame caption="For an input-driven workflow, supply JSON and inspect its schema before starting the test.">
 

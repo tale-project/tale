@@ -27,6 +27,7 @@ const {
   startRun,
   deploy,
   setTriggerMutation,
+  runTestsMutation,
   toastSpy,
   refetch,
   validationMock,
@@ -92,6 +93,8 @@ const {
   deploy: { mutateAsync: vi.fn(), isPending: false },
   /** Turning on the trigger a deploy found off. */
   setTriggerMutation: { mutateAsync: vi.fn(), isPending: false },
+  /** Running the document's tests by hand from the Tests panel. */
+  runTestsMutation: { mutateAsync: vi.fn(), isPending: false },
   toastSpy: vi.fn(),
   refetch: vi.fn(),
   /** What the draft check answers. Arrays are set whole per test, so their
@@ -296,6 +299,8 @@ vi.mock('../hooks/queries', async (importOriginal) => {
       data: { actions: projectsData.allowances, canGrant: true },
     }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+    // No version has a kept test report unless a test says so.
+    useAutomationTestReport: () => ({ data: undefined }),
     // The stored trigger the deploy notice turns on: a weekday schedule.
     useAutomationTriggers: () => ({
       data: [
@@ -342,6 +347,7 @@ vi.mock('../hooks/mutations', () => ({
   useStartAutomationRun: () => startRun,
   useDeployAutomation: () => deploy,
   useSetAutomationTrigger: () => setTriggerMutation,
+  useRunAutomationTests: () => runTestsMutation,
 }));
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -2676,16 +2682,36 @@ describe('Start, End and the Source view', () => {
     });
     await waitFor(() => expect(output).toHaveFocus());
 
+    // A test's problem opens that test in the Tests panel, at its place in
+    // the test's YAML.
     await goTo(/Tests › 1 › name/);
-    expect(onSearchChange).toHaveBeenLastCalledWith({ view: 'source' });
-    const source = await screen.findByRole<HTMLTextAreaElement>('textbox', {
-      name: 'Source of this automation (YAML)',
-    });
-    await waitFor(() => expect(source).toHaveFocus());
-    expect(source.value.slice(source.selectionStart, source.selectionEnd)).toBe(
+    expect(onSearchChange).toHaveBeenCalledWith({ panel: 'tests' });
+    expect(onSearchChange).toHaveBeenCalledWith({ test: 0 });
+    expect(screen.getByRole('region', { name: 'Tests' })).toBeVisible();
+    const yaml = await within(openInspector()).findByRole<HTMLTextAreaElement>(
+      'textbox',
+      { name: 'Test as YAML' },
+    );
+    await waitFor(() => expect(yaml).toHaveFocus());
+    expect(yaml.value.slice(yaml.selectionStart, yaml.selectionEnd)).toBe(
       'smoke',
     );
-    // Every problem is marked in the source, at the place it names.
+    // The test's own problem is marked in its YAML.
+    expect(
+      JSON.parse(yaml.dataset.diagnostics ?? '[]').map(
+        (mark: { id: string }) => mark.id,
+      ),
+    ).toHaveLength(1);
+
+    // The Source view still marks every problem at the place it names.
+    await user.click(
+      within(screen.getByTestId('canvas-top-start')).getByRole('radio', {
+        name: 'Source',
+      }),
+    );
+    const source = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Source of this automation (YAML)',
+    });
     expect(
       JSON.parse(source.dataset.diagnostics ?? '[]').map(
         (mark: { id: string }) => mark.id,
@@ -2841,5 +2867,109 @@ describe('AutomationEditor save review', () => {
     expect(
       screen.getByRole('link', { name: 'See what changed in v4' }),
     ).toBeVisible();
+  });
+});
+
+describe('AutomationEditor tests', () => {
+  const withTests = {
+    name: 'billing/dunning',
+    nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
+    tests: [{ name: 'smoke', input: {}, expect: { output: 'ok' } }],
+  };
+  const testsButton = () => screen.getByRole('button', { name: /^Tests/ });
+
+  it('opens the Tests tab beside Problems, and a test from its row', async () => {
+    state.document = withTests;
+    const onSearchChange = vi.fn();
+    const { user } = renderPage({ onSearchChange });
+    expect(testsButton()).toHaveAccessibleName('Tests: 1 not run yet');
+    await user.click(testsButton());
+    expect(testsButton()).toHaveAttribute('aria-expanded', 'true');
+    const dock = screen.getByRole('region', { name: 'Tests' });
+    expect(testsButton()).toHaveAttribute('aria-controls', dock.id);
+    expect(within(dock).getByRole('tab', { name: /^Problems/ })).toBeVisible();
+    expect(onSearchChange).toHaveBeenCalledWith({ panel: 'tests' });
+
+    await user.click(
+      within(dock).getByRole('button', { name: /^Not run yet: smoke/ }),
+    );
+    expect(onSearchChange).toHaveBeenCalledWith({ test: 0 });
+    const inspected = openInspector();
+    expect(within(inspected).getByText('Test 1 of 1')).toBeVisible();
+    // Not run yet: the inspector opens on its setup.
+    expect(
+      within(inspected).getByRole('textbox', { name: 'Test as YAML' }),
+    ).toBeVisible();
+
+    // The Problems button takes the same dock to its own tab.
+    await user.click(
+      screen.getByRole('button', { name: /^(Problems|No problems)/ }),
+    );
+    expect(screen.getByRole('region', { name: 'Problems' })).toBeVisible();
+    expect(onSearchChange).toHaveBeenCalledWith({ panel: 'problems' });
+    await user.click(screen.getByRole('button', { name: 'Hide problems' }));
+    expect(screen.queryByRole('region', { name: 'Problems' })).toBeNull();
+    expect(onSearchChange).toHaveBeenLastCalledWith({ panel: null });
+  });
+
+  it("runs the saved version's tests on that version and counts what they found", async () => {
+    state.document = withTests;
+    runTestsMutation.mutateAsync.mockResolvedValueOnce({
+      report: {
+        passed: 1,
+        failed: 0,
+        results: [{ name: 'smoke', index: 0, pass: true, ms: 5 }],
+      },
+      recorded: { version: 3, testsPassed: true, checkedAt: 1 },
+    });
+    // An automation of its own: the page keeps results per automation.
+    const { user } = renderPage({ organizationId: 'org-tests-run' });
+    await user.click(testsButton());
+    await user.click(screen.getByRole('button', { name: 'Run all' }));
+    expect(runTestsMutation.mutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org-tests-run',
+      name: 'billing/dunning',
+      version: 3,
+    });
+    await waitFor(() =>
+      expect(testsButton()).toHaveAccessibleName('Tests: 1 passed'),
+    );
+    expect(
+      within(screen.getByRole('region', { name: 'Tests' })).getByText('5 ms'),
+    ).toBeVisible();
+  });
+
+  it('adds a blank test to the draft and opens it on its setup', async () => {
+    state.document = withTests;
+    const { user } = renderPage();
+    await user.click(testsButton());
+    await user.click(
+      within(screen.getByRole('region', { name: 'Tests' })).getByRole(
+        'button',
+        { name: 'Add test' },
+      ),
+    );
+    const yaml = await within(openInspector()).findByRole<HTMLTextAreaElement>(
+      'textbox',
+      { name: 'Test as YAML' },
+    );
+    expect(yaml.value).toContain('name: New test');
+    expect(within(openInspector()).getByText('Test 2 of 2')).toBeVisible();
+    // The new test is part of the draft: there is something to save.
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it('opens a link to a test on that test, in the Tests tab', () => {
+    state.document = withTests;
+    renderPage({ panel: 'tests', test: 0 });
+    expect(screen.getByRole('region', { name: 'Tests' })).toBeVisible();
+    expect(within(openInspector()).getByText('Test 1 of 1')).toBeVisible();
+  });
+
+  it('shows a member no Tests button', () => {
+    state.document = withTests;
+    validationMock.canAuthor = false;
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Tests/ })).toBeNull();
   });
 });

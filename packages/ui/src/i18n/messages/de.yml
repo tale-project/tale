@@ -636,6 +636,18 @@ dataDiff:
     typeChanged: '{path} wurde von {beforeKind} zu {afterKind} geändert: {after}'
     reordered: '{path}: dieselben Elemente in anderer Reihenfolge'
     unknown: '{path}: nicht verglichen, weil ein Teil nicht gespeichert wurde'
+  expect:
+    row:
+      added: '{path}: nicht erwartet, erhalten {after}'
+      removed: '{path}: erwartet {before}, fehlt'
+      changed: '{path}: erwartet {before}, erhalten {after}'
+      typeChanged: '{path}: erwartet {beforeKind}, erhalten {afterKind}: {after}'
+      reordered: '{path}: die erwarteten Elemente in anderer Reihenfolge'
+    count:
+      added: '{count, plural, one {# unerwartet} other {# unerwartet}}'
+      removed: '{count, plural, one {# fehlt} other {# fehlen}}'
+      changed: '{count, plural, one {# abweichend} other {# abweichend}}'
+      typeChanged: '{count, plural, one {# mit anderem Typ} other {# mit anderem Typ}}'
   shape:
     added: '{path} kam hinzu ({kind})'
     removed: '{path} ist verschwunden'
@@ -654,6 +666,7 @@ dataDiff:
   hideValue: Wert ausblenden
   unchanged: '{count, plural, one {# unverändertes Feld} other {# unveränderte Felder}}'
   more: '{count, plural, one {# weitere Änderung} other {# weitere Änderungen}}'
+  notChecked: '{count, plural, one {# weiteres Feld wird nicht geprüft} other {# weitere Felder werden nicht geprüft}}'
 
 codeDiff:
   added: Hinzugefügt

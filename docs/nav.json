@@ -146,6 +146,7 @@
             "platform/automations/starters",
             "platform/automations/builtin",
             "platform/automations/editor",
+            "platform/automations/testing",
             "platform/automations/triggers",
             "platform/automations/http",
             "platform/automations/knowledge-search",

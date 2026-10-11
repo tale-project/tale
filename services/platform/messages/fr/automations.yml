@@ -1100,6 +1100,74 @@ problems:
     warnings: Avertissements
   emptyFiltered: '{filter, select, errors {Aucune erreur} warnings {Aucun avertissement} other {Aucun problème}}'
   fieldPart: '{part} : {message}'
+tests:
+  title: Tests
+  hide: Masquer les tests
+  listLabel: Tests de cette automatisation
+  runAll: Tout exécuter
+  run: Exécuter
+  runOne: 'Exécuter {name}'
+  add: Ajouter un test
+  newName: Nouveau test
+  copyName: '{name} (copie)'
+  duplicate: Dupliquer
+  delete: Supprimer
+  rowActions: 'Plus pour {name}'
+  deleted: 'Test {name} supprimé.'
+  unnamed: 'Test {number}'
+  empty:
+    title: Aucun test pour l’instant
+    body: Un test exécute cette automatisation avec une entrée de ton choix et vérifie ce qui en ressort. Les tests s’exécutent à l’enregistrement, puis à nouveau avant chaque déploiement.
+  source:
+    notRun: Pas encore exécuté
+    draft: Exécuté sur ton brouillon
+    checked: '{via, select, save {Vérifié à l’enregistrement de la version {version}} deploy {Vérifié au déploiement de la version {version}} other {Vérifié manuellement}} · {date}'
+  runFailed: Impossible d’exécuter les tests.
+  invalid: '{count, plural, one {Les tests s’exécutent dès que l’automatisation passe ses vérifications. Problèmes indique le # problème à corriger.} other {Les tests s’exécutent dès que l’automatisation passe ses vérifications. Problèmes indique les # problèmes à corriger.}}'
+  rateLimited: '{seconds, plural, one {Beaucoup de tests viennent de s’exécuter. Réessaie dans # seconde.} other {Beaucoup de tests viennent de s’exécuter. Réessaie dans # secondes.}}'
+  retry: Réessayer
+  busy: Les tests sont en cours d’exécution.
+  notRunInTime: Le temps imparti aux tests était écoulé avant celui-ci.
+  duration: '{ms} ms'
+  badges:
+    simulates: '{count, plural, one {Simule # nœud} other {Simule # nœuds}}'
+    failures: '{count, plural, one {Simule # échec} other {Simule # échecs}}'
+  inspector:
+    position: 'Test {number} sur {total}'
+    setup: Configuration
+    result: Résultat
+    noResult: Exécute le test pour voir son résultat.
+    yaml: Test en YAML
+    yamlHint: Tes modifications passent dans le brouillon au fil de la saisie. Tant que le texte ne se lit pas, le test garde sa dernière version lisible.
+  result:
+    passed: 'Le test a réussi en {ms} ms.'
+    stale: L’automatisation ou ce test a changé depuis ce résultat. Exécute de nouveau le test pour voir où il en est.
+    fromReport: Ce résultat vient de la dernière vérification de la version, qui ne conserve pas les étapes.
+    omitted: L’exécution de ce test est trop volumineuse pour s’afficher ici. Exécute le test seul pour la voir.
+    expected: Attendu
+    got: Obtenu
+    diffLabel: Sortie attendue et sortie obtenue
+    more: '{count, plural, one {# autre différence} other {# autres différences}}'
+    happened: 'Ce qui s’est passé à la place : {actions}'
+    nothingHappened: Aucune action de ce type n’a eu lieu pendant l’exécution.
+    simulated: 'Simulés : {nodes}'
+    unused: 'Non utilisés : {nodes}. L’exécution les a ignorés.'
+    showNode: 'Afficher {node}'
+    technical: Détails techniques
+  failure:
+    output: '{count, plural, one {La sortie diffère de ce que le test attend à # endroit.} other {La sortie diffère de ce que le test attend à # endroits.}}'
+    outputIncludes: '{count, plural, one {# champ vérifié manque ou diffère.} other {# champs vérifiés manquent ou diffèrent.}}'
+    effect_missing: '{node, select, none {Le test attend {action}, mais cela n’a pas eu lieu.} other {Le test attend {action} par {node}, mais cela n’a pas eu lieu.}}'
+    effect_present: 'Le test attend que {action} n’ait pas lieu, mais {node} l’a fait.'
+    node_state: 'Le test attend que {node} {expected, select, ran {s’exécute} skipped {soit ignoré} other {échoue et que l’exécution continue}}, mais il {actual, select, ran {s’est exécuté} skipped {a été ignoré} failed {a échoué} other {ne s’est pas exécuté}}.'
+    run_failed: '{node, select, none {L’exécution a échoué : {reason}.} other {L’exécution a échoué à {node} : {reason}.}}'
+    run_failedPlain: '{node, select, none {L’exécution a échoué.} other {L’exécution a échoué à {node}.}}'
+    run_succeeded: '{node, select, none {Le test attend que l’exécution échoue, mais elle a réussi.} other {Le test attend que l’exécution échoue à {node}, mais elle a réussi.}}'
+    failed_elsewhere: '{actual, select, none {Le test attend un échec à {expected}, mais l’exécution a échoué ailleurs.} other {Le test attend un échec à {expected}, mais l’exécution a échoué à {actual}.}}'
+    failure_message: '{node, select, none {L’exécution a échoué, mais avec une autre erreur que celle attendue par le test.} other {L’exécution a échoué à {node}, mais avec une autre erreur que celle attendue par le test.}}'
+    refused: '{count, plural, one {Le test n’a pas pu s’exécuter : l’automatisation a # problème à corriger d’abord.} other {Le test n’a pas pu s’exécuter : l’automatisation a # problèmes à corriger d’abord.}}'
+    timeout: '{seconds, plural, one {Le test a duré plus de # seconde et a été arrêté.} other {Le test a duré plus de # secondes et a été arrêté.}}'
+    unknown: Le test n’a pas réussi.
 condition:
   group: '({parts})'
   gt: '{a} est supérieur à {b}'

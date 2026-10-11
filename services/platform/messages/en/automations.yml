@@ -1089,6 +1089,74 @@ problems:
     warnings: Warnings
   emptyFiltered: '{filter, select, errors {No errors} warnings {No warnings} other {No problems}}'
   fieldPart: '{part}: {message}'
+tests:
+  title: Tests
+  hide: Hide tests
+  listLabel: Tests of this automation
+  runAll: Run all
+  run: Run
+  runOne: 'Run {name}'
+  add: Add test
+  newName: New test
+  copyName: '{name} (copy)'
+  duplicate: Duplicate
+  delete: Delete
+  rowActions: 'More for {name}'
+  deleted: 'Deleted the test {name}.'
+  unnamed: 'Test {number}'
+  empty:
+    title: No tests yet
+    body: A test runs this automation with an input you choose and checks what comes out. Tests run when you save and again before every deploy.
+  source:
+    notRun: Not run yet
+    draft: Run on your draft
+    checked: '{via, select, save {Checked when version {version} was saved} deploy {Checked when version {version} was deployed} other {Checked by hand}} · {date}'
+  runFailed: "Couldn't run the tests."
+  invalid: "{count, plural, one {The tests run once the automation passes its checks. Problems lists the # problem to fix.} other {The tests run once the automation passes its checks. Problems lists the # problems to fix.}}"
+  rateLimited: '{seconds, plural, one {Many tests ran just now. Try again in # second.} other {Many tests ran just now. Try again in # seconds.}}'
+  retry: Try again
+  busy: The tests are running.
+  notRunInTime: The tests ran out of time before this one.
+  duration: '{ms} ms'
+  badges:
+    simulates: '{count, plural, one {Simulates # node} other {Simulates # nodes}}'
+    failures: '{count, plural, one {Simulates # failure} other {Simulates # failures}}'
+  inspector:
+    position: 'Test {number} of {total}'
+    setup: Setup
+    result: Result
+    noResult: Run the test to see its result.
+    yaml: Test as YAML
+    yamlHint: Your changes go into the draft as you type. While the text does not parse, the test keeps its last version that did.
+  result:
+    passed: 'The test passed in {ms} ms.'
+    stale: The automation or this test changed since this result. Run the test again to see where it stands.
+    fromReport: This result comes from the version's last check, which keeps no steps.
+    omitted: This test's run was too large to show here. Run the test alone to see it.
+    expected: Expected
+    got: Got
+    diffLabel: Expected and actual output
+    more: '{count, plural, one {# more difference} other {# more differences}}'
+    happened: 'What happened instead: {actions}'
+    nothingHappened: No such action happened in the run.
+    simulated: 'Simulated: {nodes}'
+    unused: 'Not used: {nodes}. The run skipped them.'
+    showNode: 'Show {node}'
+    technical: Technical details
+  failure:
+    output: '{count, plural, one {The output differs from what the test expects in # place.} other {The output differs from what the test expects in # places.}}'
+    outputIncludes: '{count, plural, one {# field the test checks is missing or different.} other {# fields the test checks are missing or different.}}'
+    effect_missing: "{node, select, none {The test expects {action}, but it didn't happen.} other {The test expects {action} from {node}, but it didn't happen.}}"
+    effect_present: 'The test expects {action} not to happen, but {node} did it.'
+    node_state: "The test expects {node} to {expected, select, ran {run} skipped {be skipped} other {fail and let the run go on}}, but it {actual, select, ran {ran} skipped {was skipped} failed {failed} other {didn't run}}."
+    run_failed: '{node, select, none {The run failed: {reason}.} other {The run failed at {node}: {reason}.}}'
+    run_failedPlain: '{node, select, none {The run failed.} other {The run failed at {node}.}}'
+    run_succeeded: '{node, select, none {The test expects the run to fail, but it succeeded.} other {The test expects the run to fail at {node}, but it succeeded.}}'
+    failed_elsewhere: '{actual, select, none {The test expects the run to fail at {expected}, but it failed elsewhere.} other {The test expects the run to fail at {expected}, but it failed at {actual}.}}'
+    failure_message: '{node, select, none {The run failed, but with a different error than the test expects.} other {The run failed at {node}, but with a different error than the test expects.}}'
+    refused: "{count, plural, one {The test couldn't run: the automation has # problem to fix first.} other {The test couldn't run: the automation has # problems to fix first.}}"
+    timeout: '{seconds, plural, one {The test took longer than # second and was stopped.} other {The test took longer than # seconds and was stopped.}}'
+    unknown: "The test didn't pass."
 condition:
   group: '({parts})'
   gt: '{a} is greater than {b}'

@@ -41,6 +41,11 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { Select } from '@tale/ui/select';
+import {
+  TestCountButton,
+  TestRunAnnouncer,
+  type TestResultListHandle,
+} from '@tale/ui/test-results';
 import { Text } from '@tale/ui/text';
 import { useFocusHandoff } from '@tale/ui/use-focus-handoff';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -101,6 +106,7 @@ import {
   useAutomationTriggers,
   useNodeTypeCatalog,
 } from '../hooks/queries';
+import { testRowId, useAutomationTests } from '../hooks/use-automation-tests';
 import {
   useAutomationValidation,
   useInvalidateAutomationValidation,
@@ -108,6 +114,7 @@ import {
 } from '../hooks/use-automation-validation';
 import { useDeployVersion } from '../hooks/use-deploy-version';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
+import { testsOf } from '../lib/automation-tests/test-draft';
 import {
   automationDetailPathname,
   compareVersionLink,
@@ -122,7 +129,11 @@ import {
   type DocumentPatch,
   type RawDocument,
 } from '../lib/draft-document';
-import type { AutomationEditorView } from '../lib/editor-search';
+import type {
+  AutomationEditorPanel,
+  AutomationEditorSearchChange,
+  AutomationEditorView,
+} from '../lib/editor-search';
 import {
   automationErrorCode,
   automationErrorIssues,
@@ -142,7 +153,7 @@ import {
   withIssueIds,
   type AutomationIssue,
 } from '../lib/issues';
-import { nodeCatalogView, nodeTitle } from '../lib/node-face';
+import { effectTitle, nodeCatalogView, nodeTitle } from '../lib/node-face';
 import {
   cursorNodeStatus,
   nodeStatusMap,
@@ -160,9 +171,9 @@ import {
 } from '../lib/workbench';
 import { SOURCE_ISSUE_ANCHOR, yamlSource } from '../lib/yaml-source';
 import { AutomationCanvas, type CanvasRun } from './automation-canvas';
+import { AutomationDock } from './automation-dock';
 import { AutomationEditorActions } from './automation-editor-actions';
 import {
-  AutomationProblemsDock,
   AutomationProblemsSheet,
   type ProblemsFilter,
 } from './automation-problems';
@@ -171,6 +182,13 @@ import {
   type AutomationRunRequest,
 } from './automation-run-dialog';
 import { AutomationSourceView } from './automation-source-view';
+import { AutomationTestsSheet } from './automation-tests/automation-tests-panel';
+import {
+  TestFields,
+  TestInspector,
+  type TestInspectorTab,
+} from './automation-tests/test-inspector';
+import { testIssueAnchor, testYaml } from './automation-tests/test-yaml-editor';
 import { AutomationVersionPicker } from './automation-version-picker';
 import { CodingAgentButton } from './coding-agent-entry';
 import { EndFields, EndInspector } from './end-inspector';
@@ -218,12 +236,14 @@ interface AutomationEditorProps {
   view?: AutomationEditorView;
   /** The route's `?node=`: the node (or Start, or End) to open on load. */
   node?: string;
-  /** The reader switched the view or opened a node (`null`: closed it); the
-   * route keeps it in the URL without a history entry. */
-  onSearchChange?: (change: {
-    view?: AutomationEditorView;
-    node?: string | null;
-  }) => void;
+  /** The route's `?panel=`: the panel under the canvas to open on load. */
+  panel?: AutomationEditorPanel;
+  /** The route's `?test=`: the test to open on load, by its place. */
+  test?: number;
+  /** The reader switched the view, opened a node, a panel or a test
+   * (`null`: closed it); the route keeps it in the URL without a history
+   * entry. */
+  onSearchChange?: (change: AutomationEditorSearchChange) => void;
 }
 
 /**
@@ -321,6 +341,8 @@ function AutomationEditorScope({
   onSelectVersion,
   view: viewParam,
   node: nodeParam,
+  panel: panelParam,
+  test: testParam,
   onSearchChange,
 }: AutomationEditorProps) {
   const { t } = useT('automations');
@@ -936,7 +958,27 @@ function AutomationEditorScope({
       }
     });
   }, [issueViews, selectedId]);
-  const [problemsOpen, setProblemsOpen] = useState(false);
+  const [problemsOpen, setProblemsOpen] = useState(panelParam === 'problems');
+  /** The Tests panel is the dock's other tab: one of the two shows. */
+  const [testsOpen, setTestsOpen] = useState(
+    panelParam === 'tests' ||
+      (panelParam === undefined && testParam !== undefined),
+  );
+  useEffect(() => {
+    if (problemsOpen) setTestsOpen(false);
+  }, [problemsOpen]);
+  const dockPanel: AutomationEditorPanel | null = problemsOpen
+    ? 'problems'
+    : testsOpen
+      ? 'tests'
+      : null;
+  // The open panel follows into the URL (`?panel=`), replacing the entry.
+  const writtenPanelRef = useRef<AutomationEditorPanel | null>(dockPanel);
+  useEffect(() => {
+    if (writtenPanelRef.current === dockPanel) return;
+    writtenPanelRef.current = dockPanel;
+    onSearchChange?.({ panel: dockPanel });
+  }, [dockPanel, onSearchChange]);
   const [modelSwapOpen, setModelSwapOpen] = useState(false);
   /** Which problems the panel shows; every open and every refusal starts
    * on all of them, so no filter hides what the reader came for. */
@@ -958,7 +1000,28 @@ function AutomationEditorScope({
   const [saveClosesOnProblems, setSaveClosesOnProblems] = useState(false);
   const problemsButtonRef = useRef<HTMLButtonElement>(null);
   const problemsListRef = useRef<IssueListHandle>(null);
+  const testsButtonRef = useRef<HTMLButtonElement>(null);
+  const testsListRef = useRef<TestResultListHandle>(null);
   const problemsDockId = useId();
+  /** The test open in the inspector, by its place; a `?test=` link opens
+   * it on load. A test and a box are never open together. */
+  const [selectedTest, setSelectedTest] = useState<number | null>(
+    testParam ?? null,
+  );
+  const [testTab, setTestTab] = useState<TestInspectorTab>('setup');
+  useEffect(() => {
+    if (selectedId !== null) setSelectedTest(null);
+  }, [selectedId]);
+  // On a phone a test opens in a sheet of its own, never over the list's.
+  useEffect(() => {
+    if (isWorkbenchCompact && selectedTest !== null) setTestsOpen(false);
+  }, [isWorkbenchCompact, selectedTest]);
+  const writtenTestRef = useRef<number | null>(selectedTest);
+  useEffect(() => {
+    if (writtenTestRef.current === selectedTest) return;
+    writtenTestRef.current = selectedTest;
+    onSearchChange?.({ test: selectedTest });
+  }, [selectedTest, onSearchChange]);
   /** One sentence when a draft's check changes the counts, and one per
    * refusal. A check runs at every pause in typing; the same counts again
    * are no news, so they are not said again. */
@@ -1090,10 +1153,6 @@ function AutomationEditorScope({
     // once. The sheet does that itself as it opens; the dock is no dialog.
     if (!isWorkbenchCompact) setFocusProblems('current');
   };
-  const closeProblems = (): void => {
-    setProblemsOpen(false);
-    problemsButtonRef.current?.focus();
-  };
   /** From the phone's node sheet, where Save waits on problems the canvas
    * toolbar's button lists: close the node, open the list on its errors. */
   const showProblemsFromNode = (): void => {
@@ -1117,6 +1176,35 @@ function AutomationEditorScope({
       setProblemsOpen(false);
     }
     switch (navigation.kind) {
+      case 'test': {
+        const index = navigation.testIndex;
+        setProblemsOpen(false);
+        // On a phone the test's own sheet takes over; the list's would
+        // only stand behind it.
+        if (!isWorkbenchCompact || index === null) setTestsOpen(true);
+        const test = index === null ? undefined : testsOf(rawDocument)[index];
+        if (index === null || test === undefined) return;
+        setSelectedId(null);
+        setSelectedTest(index);
+        setTestTab('setup');
+        // The range in the test's YAML on screen: the text the request's
+        // offsets index into.
+        const located = locateYamlPointer(
+          testYaml(test),
+          navigation.pointer.slice(testIssueAnchor(index).length),
+          {
+            ...(navigation.range !== undefined && { range: navigation.range }),
+            ...(navigation.subject !== undefined && {
+              subject: navigation.subject,
+            }),
+          },
+        );
+        requestIssueFocus(
+          testIssueAnchor(index),
+          located === null ? undefined : [located.from, located.to],
+        );
+        return;
+      }
       case 'source': {
         changeView('source');
         // The range in the YAML the Source view shows: the text on screen
@@ -1175,6 +1263,113 @@ function AutomationEditorScope({
     },
     [automation, rawDocument, draft, automationQuery.data],
   );
+  // ── Tests ─────────────────────────────────────────────────────────────
+  // The document's tests with their latest results, under the canvas in the
+  // dock's Tests tab; one opens in the inspector.
+  const testText = useMemo(
+    () => ({
+      effectLabel: (connector: string) =>
+        effectTitle(connector, { t, catalog, locale }),
+    }),
+    [t, catalog, locale],
+  );
+  const tests = useAutomationTests({
+    organizationId,
+    automationSlug,
+    draft,
+    storedRaw,
+    version: automationQuery.data?.version,
+    enabled: canAuthor,
+    editDraft,
+    text: testText,
+  });
+  /** The open test, while the document on screen still has it. */
+  const shownTest =
+    selectedTest !== null && selectedTest < tests.tests.length
+      ? selectedTest
+      : null;
+  const [testsNews, setTestsNews] = useState({ text: '', key: 0 });
+  /** The Tests sheet is closing onto a test's own sheet. */
+  const [testsHandingOn, setTestsHandingOn] = useState(false);
+  /** On a phone, a test's sheet takes over from the list's: one sheet at
+   * a time, focus handed on. */
+  const handTestsOn = (): void => {
+    if (!isWorkbenchCompact) return;
+    setTestsHandingOn(true);
+    setTestsOpen(false);
+  };
+  const openTest = (index: number): void => {
+    handTestsOn();
+    setSelectedId(null);
+    setSelectedTest(index);
+    // A test with a result opens on it; one without, on its setup.
+    setTestTab(tests.rows[index]?.outcome.kind === 'none' ? 'setup' : 'result');
+  };
+  const addTest = (): void => {
+    const index = tests.add();
+    if (index === null) return;
+    handTestsOn();
+    setSelectedId(null);
+    setSelectedTest(index);
+    setTestTab('setup');
+  };
+  const toggleTests = (): void => {
+    if (testsOpen && !problemsOpen) {
+      setTestsOpen(false);
+      return;
+    }
+    setProblemsOpen(false);
+    setTestsHandingOn(false);
+    setTestsOpen(true);
+  };
+  /** Hides the dock, whichever tab shows, and hands focus back to the
+   * button of the panel it showed. */
+  const closeDock = (): void => {
+    const shown = dockPanel;
+    setProblemsOpen(false);
+    setTestsOpen(false);
+    (shown === 'tests' ? testsButtonRef : problemsButtonRef).current?.focus();
+  };
+  const testsPanel = {
+    tests,
+    canEdit: canAuthor,
+    activeIndex: shownTest,
+    onOpen: openTest,
+    onAdd: addTest,
+    onDeleted: (name: string) => {
+      setTestsNews((previous) => ({
+        text: t('tests.deleted', { name }),
+        key: previous.key + 1,
+      }));
+    },
+    listRef: testsListRef,
+  };
+  /** The open test's inspector: its YAML with the problems the check found
+   * in it, and its latest result. Closing it returns to its row. */
+  const testFields = (index: number) => ({
+    tests,
+    index,
+    settledTest: testsOf(settledDocument ?? rawDocument)[index],
+    issues: issueViews.filter(
+      ({ navigation }) =>
+        navigation.kind === 'test' && navigation.testIndex === index,
+    ),
+    diagnosticsStatus,
+    readOnly: !canAuthor,
+    tab: testTab,
+    onTabChange: setTestTab,
+    text: testText,
+    onSelectNode: (nodeId: string) => {
+      setSelectedTest(null);
+      selectOnCanvas(nodeId);
+    },
+    onDeselect: () => {
+      setSelectedTest(null);
+      if (dockPanel === 'tests') testsListRef.current?.focus(testRowId(index));
+      else testsButtonRef.current?.focus();
+    },
+  });
+
   const onChangeNode = useCallback(
     (patch: Partial<NodeDef>) => {
       if (selectedId === null) return;
@@ -1746,6 +1941,17 @@ function AutomationEditorScope({
           onClick={toggleProblems}
         />
       )}
+      {canAuthor && (
+        <TestCountButton
+          ref={testsButtonRef}
+          counts={tests.counts}
+          status={tests.status}
+          expanded={dockPanel === 'tests'}
+          {...(dockPanel === 'tests' &&
+            !isWorkbenchCompact && { controls: problemsDockId })}
+          onClick={toggleTests}
+        />
+      )}
     </>
   );
 
@@ -2110,7 +2316,8 @@ function AutomationEditorScope({
         <div
           className={cn(
             AUTOMATION_EDITOR_WORKBENCH_GRID,
-            inspected !== null && AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
+            (inspected !== null || shownTest !== null) &&
+              AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
           )}
         >
           <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
@@ -2195,18 +2402,26 @@ function AutomationEditorScope({
             {/* Under the canvas, spanning its column only, so the inspector
                 beside it keeps its full height. Below `lg` the list opens
                 in a sheet instead (further down). */}
-            {canAuthor && problemsOpen && !isWorkbenchCompact && (
-              <AutomationProblemsDock
-                ref={problemsListRef}
+            {canAuthor && dockPanel !== null && !isWorkbenchCompact && (
+              <AutomationDock
                 id={problemsDockId}
-                items={issueItems}
-                counts={issueCounts}
-                status={issueStatus === 'idle' ? 'ready' : issueStatus}
-                activeId={activeIssueId}
-                onActivate={goToIssue}
-                filter={problemsFilter}
-                onFilterChange={setProblemsFilter}
-                onClose={closeProblems}
+                active={dockPanel}
+                onActiveChange={(next) => {
+                  setProblemsOpen(next === 'problems');
+                  setTestsOpen(next === 'tests');
+                }}
+                onClose={closeDock}
+                problems={{
+                  listRef: problemsListRef,
+                  items: issueItems,
+                  counts: issueCounts,
+                  status: issueStatus === 'idle' ? 'ready' : issueStatus,
+                  activeId: activeIssueId,
+                  onActivate: goToIssue,
+                  filter: problemsFilter,
+                  onFilterChange: setProblemsFilter,
+                }}
+                tests={testsPanel}
               />
             )}
           </div>
@@ -2218,6 +2433,9 @@ function AutomationEditorScope({
           {inspectorContext !== null &&
             !isWorkbenchCompact &&
             inspector(inspectorContext, 'panel')}
+          {shownTest !== null && !isWorkbenchCompact && (
+            <TestInspector id={inspectorId} {...testFields(shownTest)} />
+          )}
         </div>
       </div>
 
@@ -2237,6 +2455,53 @@ function AutomationEditorScope({
           listRef={problemsListRef}
           handingOn={handingOn}
         />
+      )}
+      {canAuthor && isWorkbenchCompact && (
+        <AutomationTestsSheet
+          open={dockPanel === 'tests'}
+          onOpenChange={(open) => {
+            if (!open) setTestsOpen(false);
+          }}
+          handingOn={testsHandingOn}
+          {...testsPanel}
+        />
+      )}
+      {isWorkbenchCompact && (
+        <ResponsiveDialog
+          open={shownTest !== null}
+          onOpenChange={(open) => {
+            if (open) return;
+            setSelectedTest(null);
+            // Opened from the list's sheet, which is gone by now: the reader
+            // returns to the Tests button.
+            requestAnimationFrame(() => testsButtonRef.current?.focus());
+          }}
+        >
+          <ResponsiveDialogContent
+            // The test's own header has Close, as a node's sheet does.
+            hideClose
+            className="flex max-h-[85dvh] flex-col"
+            preventCloseAutoFocus
+          >
+            {shownTest !== null && (
+              <>
+                <ResponsiveDialogTitle className="sr-only">
+                  {tests.rows[shownTest]?.name}
+                </ResponsiveDialogTitle>
+                <ResponsiveDialogDescription className="sr-only">
+                  {t('tests.inspector.position', {
+                    number: shownTest + 1,
+                    total: tests.tests.length,
+                  })}
+                </ResponsiveDialogDescription>
+                <TestFields
+                  headingId={inspectorId}
+                  {...testFields(shownTest)}
+                />
+              </>
+            )}
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
       )}
       {/* What changed on the canvas while the reader looked: a version
           saved elsewhere, a node it no longer has. */}
@@ -2261,6 +2526,26 @@ function AutomationEditorScope({
           })}
         />
       )}
+      {canAuthor && (
+        <TestRunAnnouncer
+          counts={tests.counts}
+          status={tests.status}
+          announceKey={tests.announceKey}
+        />
+      )}
+      {/* What a change to the tests did that the list cannot show: a
+          deleted test. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-slot="tests-announcer"
+      >
+        {testsNews.text === '' ? null : (
+          <span key={testsNews.key}>{testsNews.text}</span>
+        )}
+      </div>
 
       {/* The compact counterpart of the side panel above: a picked node's
           fields in a sheet over the canvas instead of pushed below it. Kept

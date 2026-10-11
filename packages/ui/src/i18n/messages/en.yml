@@ -636,6 +636,18 @@ dataDiff:
     typeChanged: '{path} changed from {beforeKind} to {afterKind}: {after}'
     reordered: '{path}: the same items in a different order'
     unknown: "{path}: not compared, part of it wasn't kept"
+  expect:
+    row:
+      added: '{path}: not expected, got {after}'
+      removed: '{path}: expected {before}, missing'
+      changed: '{path}: expected {before}, got {after}'
+      typeChanged: '{path}: expected {beforeKind}, got {afterKind}: {after}'
+      reordered: '{path}: the expected items, in another order'
+    count:
+      added: '{count, plural, one {# unexpected} other {# unexpected}}'
+      removed: '{count, plural, one {# missing} other {# missing}}'
+      changed: '{count, plural, one {# different} other {# different}}'
+      typeChanged: '{count, plural, one {# of another type} other {# of another type}}'
   shape:
     added: '{path} appeared ({kind})'
     removed: '{path} disappeared'
@@ -654,6 +666,7 @@ dataDiff:
   hideValue: Hide value
   unchanged: '{count, plural, one {# unchanged field} other {# unchanged fields}}'
   more: '{count, plural, one {# more change} other {# more changes}}'
+  notChecked: '{count, plural, one {# other field is not checked} other {# other fields are not checked}}'
 
 codeDiff:
   added: Added

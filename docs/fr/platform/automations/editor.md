@@ -20,7 +20,7 @@ Sur téléphone, la navigation est compacte à l’ouverture d’une automatisat
 
 <Frame caption="Sur téléphone, le canevas prend la hauteur de l’écran et ses commandes d’exécution se trouvent dans une barre en bas.">
 
-![L’éditeur de Triage the Gmail inbox sur téléphone : navigation compacte avec Editor, General et Runs, le canevas avec Start, Inbox et Due, et une barre au bas du canevas avec Deploy v1, Test run et No problems.](/images/platform/automation-editor-canvas-mobile.webp)
+![L’éditeur de Triage the Gmail inbox sur téléphone : navigation compacte avec Editor, General et Runs, le canevas avec Start, Inbox et Due, et une barre au bas du canevas avec Deploy v1, Test run, Change model, No problems et Tests.](/images/platform/automation-editor-canvas-mobile.webp)
 
 </Frame>
 
@@ -156,7 +156,7 @@ Sélectionne **Fin** pour voir ce que renvoie une exécution. **Comment une exé
 
 ## Lire la source
 
-Choisis **Source** dans le sélecteur de vue pour lire tout le document en YAML, coloré, avec numéros de ligne, repli et recherche (⌘F ou Ctrl+F). Chaque problème trouvé par la vérification est souligné sur la ligne qu’il concerne : un problème dans une partie sans champ propre, comme un test ou le nom, a ainsi un endroit où le lire. La source est en lecture seule : **Copier le YAML** la copie, et **Télécharger le YAML** l’enregistre dans un fichier nommé d’après l’automatisation et la version, par exemple `gmail-triage-inbox-v3.yml`, avec `-draft` en plus tant que tu as des modifications non enregistrées. Pour modifier le document, utilise les champs ou ton agent de code.
+Choisis **Source** dans le sélecteur de vue pour lire tout le document en YAML, coloré, avec numéros de ligne, repli et recherche (⌘F ou Ctrl+F). Chaque problème trouvé par la vérification est souligné sur la ligne qu’il concerne : un problème dans une partie sans champ propre, comme le nom, a ainsi un endroit où le lire. La source est en lecture seule : **Copier le YAML** la copie, et **Télécharger le YAML** l’enregistre dans un fichier nommé d’après l’automatisation et la version, par exemple `gmail-triage-inbox-v3.yml`, avec `-draft` en plus tant que tu as des modifications non enregistrées. Pour modifier le document, utilise les champs ou ton agent de code.
 
 <Frame caption="Source : tout le document en YAML coloré, à copier ou à télécharger.">
 
@@ -170,17 +170,17 @@ Les changements plus importants, comme ajouter des nœuds ou remanier le flux, p
 
 ## Trouver et corriger les problèmes
 
-Pendant que tu modifies, Tale vérifie le brouillon comme il vérifie chaque enregistrement. Un instant après ta dernière frappe, le bouton **Problèmes** à côté d’**Enregistrer** montre ce que la vérification a trouvé : une icône d’erreur rouge et une icône d’avertissement orange, chacune avec son nombre, ou **Aucun problème**. Sur un téléphone, le bouton se trouve dans la barre au-dessus du canevas. Une erreur fait échouer une exécution, par exemple une référence à un nœud qui n’existe pas. Un avertissement signale un risque, par exemple la lecture de la sortie d’un nœud parfois ignoré. Un nœud, une condition, Début ou Fin qui a des problèmes affiche les mêmes nombres sur son bloc, et un champ concerné explique le problème juste en dessous.
+Pendant que tu modifies, Tale vérifie le brouillon comme il vérifie chaque enregistrement. Un instant après ta dernière frappe, le bouton **Problèmes** à côté de **Tests** montre ce que la vérification a trouvé : une icône d’erreur rouge et une icône d’avertissement orange, chacune avec son nombre, ou **Aucun problème**. Sur un téléphone, le bouton se trouve dans la barre au-dessus du canevas. Une erreur fait échouer une exécution, par exemple une référence à un nœud qui n’existe pas. Un avertissement signale un risque, par exemple la lecture de la sortie d’un nœud parfois ignoré. Un nœud, une condition, Début ou Fin qui a des problèmes affiche les mêmes nombres sur son bloc, et un champ concerné explique le problème juste en dessous.
 
 Clique sur **Problèmes** pour les lister. Sur un écran large, la liste s’ouvre sous le canevas ; sur un écran plus étroit, dans un panneau. Chaque entrée indique ce qui ne va pas, où, pourquoi et comment le corriger. **Détails techniques** affiche le message du moteur lui-même, et le code à côté du titre t’aide pour une recherche ou une demande d’assistance. **Tous**, **Erreurs** et **Avertissements** filtrent la liste ; Échap la ferme.
 
 <Frame caption="Une référence à un nœud qui n’existe pas : le champ la signale, Enregistrer attend, et Problèmes dit pourquoi et comment la corriger.">
 
-![L’éditeur avec une erreur : le Prompt de Triage se termine par un template qui lit nodes.nope.output, souligné en rouge, avec la raison sous le champ ; l’en-tête affiche 1 erreur à côté de Save désactivé, et Problems sous le canevas liste Reference to an unknown node à triage › Prompt, son code REF_UNKNOWN_NODE, pourquoi la lecture échoue et comment la corriger.](/images/platform/automation-editor-problems.webp)
+![L’éditeur avec une erreur : le Prompt de Triage se termine par un template qui lit nodes.nope.output, souligné en rouge, avec la raison sous le champ ; l’en-tête affiche 1 erreur et Tests à côté de Save désactivé, et Problems sous le canevas, à côté de l’onglet Tests, liste Reference to an unknown node à triage › Prompt, son code REF_UNKNOWN_NODE, pourquoi la lecture échoue et comment la corriger.](/images/platform/automation-editor-problems.webp)
 
 </Frame>
 
-Sélectionne une entrée, ou appuie sur Entrée dessus, pour t’y rendre : le nœud s’ouvre, son champ reçoit le focus et la partie en cause est sélectionnée. Un problème sans champ à lui, par exemple un modèle que ton organisation ne sert pas, figure sous **Problèmes de ce nœud** en haut des champs du nœud. Un problème dans les entrées ouvre **Début**, un problème dans la sortie ouvre **Fin**, et un problème dans une autre partie du document, comme un test ou le nom, ouvre **Source** sur cette ligne. Un problème dans un nœud que ton brouillon n’a plus indique « Modifie-le avec ton agent de code. »
+Sélectionne une entrée, ou appuie sur Entrée dessus, pour t’y rendre : le nœud s’ouvre, son champ reçoit le focus et la partie en cause est sélectionnée. Un problème sans champ à lui, par exemple un modèle que ton organisation ne sert pas, figure sous **Problèmes de ce nœud** en haut des champs du nœud. Un problème dans les entrées ouvre **Début**, un problème dans la sortie ouvre **Fin**, un problème dans un test ouvre ce test sous **Tests**, l’endroit sélectionné dans son YAML, et un problème dans une autre partie du document, comme le nom, ouvre **Source** sur cette ligne. Un problème dans un nœud que ton brouillon n’a plus indique « Modifie-le avec ton agent de code. »
 
 Tant qu’il reste des erreurs, **Enregistrer** est désactivé et en donne la raison, par exemple « Corrige 1 erreur pour enregistrer ». Sur un téléphone, où **Enregistrer** se trouve sous les champs d’un nœud, **Afficher les problèmes** à côté de cette raison ouvre la liste. Les avertissements ne bloquent jamais l’enregistrement ni la mise en service. Si Tale ne peut pas vérifier le brouillon, par exemple parce que la connexion a été coupée, le bouton affiche **Vérification impossible** et tu peux quand même enregistrer : chaque enregistrement est vérifié à nouveau sur le serveur. Quand un enregistrement ou une mise en service est refusé à cause d’erreurs, la liste s’ouvre avec les problèmes renvoyés par le serveur, en commençant par la première erreur.
 
@@ -205,6 +205,8 @@ Pour un workflow qui exige `owner` et `repo`, les données pourraient être :
 Utilise le schéma réel du workflow. Un champ numérique attend un nombre JSON, pas une chaîne entre guillemets. Vérifie aussi le périmètre lorsqu’un sélecteur de projet est proposé.
 
 **Essai** utilise la version enregistrée sélectionnée et des simulations déterministes. Aucun e-mail n’est envoyé et aucune fiche externe n’est modifiée. Un brouillon peut être testé avant sa mise en service. Une simulation réussie ne vérifie pas les identifiants réels ni les services externes.
+
+Pour vérifier les mêmes cas à chaque enregistrement et avant chaque mise en service, écris-les sous forme de tests : [Tester une automatisation](/fr/platform/automations/testing) montre comment.
 
 <Frame caption="Pour un workflow avec des données d’entrée, saisis le JSON et vérifie le schéma avant le test.">
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyEditorSearchChange,
   automationEditorSearchSchema,
   automationVersionCompareSearchSchema,
+  editorSearchForVersion,
   versionParam,
 } from './editor-search';
 
@@ -48,6 +50,41 @@ describe('automationEditorSearchSchema', () => {
     expect(automationEditorSearchSchema.parse({ node: '__gate:x' })).toEqual(
       {},
     );
+  });
+
+  it('opens a panel, and a test by its place', () => {
+    expect(
+      automationEditorSearchSchema.parse({ panel: 'tests', test: 2 }),
+    ).toEqual({ panel: 'tests', test: 2 });
+    expect(
+      automationEditorSearchSchema.parse({ panel: 'tests', test: -1 }),
+    ).toEqual({ panel: 'tests' });
+    expect(automationEditorSearchSchema.parse({ panel: 'paths' })).toEqual({});
+  });
+});
+
+describe('the Editor tab’s link as the reader moves', () => {
+  it('sets and clears each part, and leaves the rest', () => {
+    const start = { version: 3, view: 'canvas' as const, node: 'fetch' };
+    expect(applyEditorSearchChange(start, { panel: 'tests', test: 1 })).toEqual(
+      { ...start, panel: 'tests', test: 1 },
+    );
+    expect(
+      applyEditorSearchChange(
+        { ...start, panel: 'tests', test: 1 },
+        { panel: null, test: null, node: null },
+      ),
+    ).toEqual({ version: 3, view: 'canvas' });
+  });
+
+  it('keeps the view, the node, the panel and the test on another version', () => {
+    expect(
+      editorSearchForVersion(
+        { version: 3, history: true, panel: 'tests', test: 0, view: 'list' },
+        5,
+      ),
+    ).toEqual({ view: 'list', panel: 'tests', test: 0, version: 5 });
+    expect(editorSearchForVersion({ version: 3 }, undefined)).toEqual({});
   });
 });
 

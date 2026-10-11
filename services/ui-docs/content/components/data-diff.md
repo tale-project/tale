@@ -32,6 +32,10 @@ The counts line reads like "1 added, 1 removed, 2 changed, 1 changed type", leav
 
 Lists pair their items by a key every item carries, such as `id`, so an item that moved reads as "the same items in a different order" rather than as every item after it changing. Pass `options` for the comparison: `arrays: 'index'` to pair by position, `keyFields`, `maxChanges`, and `unknownAt` for the places a recorder cut or hid on either side, which read "not compared, part of it wasn't kept" and never as changed. A diff computed elsewhere, such as one shared by a compare page, goes in as `result`.
 
+## Compare against an expectation
+
+When `before` is what was expected and `after` is what came, such as a test's expected output and the output its run returned, pass `wording="expectation"`. Each sentence then says what the expectation asked for and what came instead: `total: expected 21, got 14`, `currency: expected "CHF", missing`, `note: not expected, got "late"`. The counts line reads like "1 different, 1 missing, 1 unexpected". Name the sides with `labels`, such as "Expected" and "Got", for the side-by-side layout.
+
 ## Put two values side by side
 
 <Demo name="data-diff/split" />
@@ -71,5 +75,6 @@ The changes are a list of sentences named by `aria-label`: a screen reader reads
 | `mode`                                    | `'values'`      | `'shape'` compares the inferred shapes.                |
 | `layout` / `onLayoutChange`               | `'list'`        | `'split'` from 48rem; the switch when given.           |
 | `labels`                                  | Before / After  | The two sides' names.                                  |
+| `wording`                                 | `'change'`      | `'expectation'`: expected and got, not from and to.    |
 | `showUnchanged` / `onShowUnchangedChange` | closed          | The unchanged fields' row.                             |
 | `emptyMessage` / `unrelatedMessage`       | —               | Instead of "No changes" and the no-structure sentence. |

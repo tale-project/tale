@@ -44,6 +44,53 @@ describe('DataDiff', () => {
     ).toBeInTheDocument();
   });
 
+  it("speaks of an expectation as expected and got, a test's words", () => {
+    render(
+      <DataDiff
+        before={BEFORE}
+        after={AFTER}
+        wording="expectation"
+        aria-label="Changes"
+      />,
+    );
+    expect(sentences()).toEqual([
+      'title: expected "Fix login", got "Fix login bug"',
+      'labels: expected text, got list of texts: a list of 3 items',
+      'owner.team: expected "core", got "web"',
+      'score: not expected, got 7',
+      'draft: expected "old", missing',
+      '2 unchanged fields',
+    ]);
+    expect(
+      screen.getByText(
+        '1 unexpected, 1 missing, 2 different, 1 of another type',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('compares only what an expectation names, and counts the rest', () => {
+    render(
+      <DataDiff
+        before={{ total: 21, customer: { name: 'Ada' } }}
+        after={{
+          total: 14,
+          currency: 'CHF',
+          customer: { name: 'Ada', id: 'c-1' },
+        }}
+        options={{ mode: 'includes' }}
+        wording="expectation"
+        aria-label="Changes"
+      />,
+    );
+    expect(sentences()).toEqual([
+      'total: expected 21, got 14',
+      '1 unchanged field',
+    ]);
+    expect(
+      screen.getByText('2 other fields are not checked'),
+    ).toBeInTheDocument();
+  });
+
   it('folds the unchanged fields into one row that opens', async () => {
     const onShowUnchangedChange = vi.fn();
     const { user } = render(

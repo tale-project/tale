@@ -108,6 +108,23 @@ export function useAutomationVersionHistory(
   );
 }
 
+/** What a saved version's tests found the last time they ran — at a save,
+ * at the deploy gate or by hand — and the report it came from. Skipped
+ * without a version, or while `enabled` is false. */
+export function useAutomationTestReport(
+  organizationId: string,
+  name: string,
+  version: number | undefined,
+  enabled = true,
+) {
+  return useBackendQuery(
+    'automations/queries:getAutomationTestReport',
+    version === undefined || !enabled
+      ? 'skip'
+      : { organizationId, name, version },
+  );
+}
+
 /** What is live now — since when, by whom, with how many of its runs still
  * going — and the deploy that put it live, which says what it replaced. */
 export function useAutomationLiveDeployment(

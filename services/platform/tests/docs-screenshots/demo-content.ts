@@ -630,6 +630,63 @@ output: '{{ nodes.digest.output }}'
 } as const;
 
 /**
+ * The testing page's demo: a small automation that works out an order's
+ * volume discount, with two tests. The small order's passes; the big
+ * order's expects 10 % off where the code gives 5 %, so the Tests panel
+ * shows one test failing with what it expected and what it got.
+ * Transforms only — it answers the same on every stack.
+ */
+export const DEMO_TESTS = {
+  automation: 'order-discounts',
+  name: 'Order discounts',
+  failing: 'Big order gets 10% off',
+  document: {
+    version: 1,
+    name: 'order-discounts',
+    description: "Works out an order's volume discount and its total.",
+    inputs: {
+      type: 'object',
+      required: ['quantity', 'unitPrice'],
+      properties: {
+        quantity: { type: 'integer' },
+        unitPrice: { type: 'number' },
+      },
+    },
+    nodes: [
+      {
+        id: 'discount',
+        type: 'transform',
+        input: { quantity: '{{ input.quantity }}' },
+        code: 'return { rate: input.quantity >= 100 ? 0.05 : 0 };',
+      },
+      {
+        id: 'total',
+        type: 'transform',
+        input: {
+          quantity: '{{ input.quantity }}',
+          unitPrice: '{{ input.unitPrice }}',
+          rate: '{{ nodes.discount.output.rate }}',
+        },
+        code: 'const gross = input.quantity * input.unitPrice;\nreturn { gross, discount: gross * input.rate, total: gross * (1 - input.rate) };',
+      },
+    ],
+    output: '{{ nodes.total.output }}',
+    tests: [
+      {
+        name: 'Small order pays full price',
+        input: { quantity: 3, unitPrice: 20 },
+        expect: { output: { gross: 60, discount: 0, total: 60 } },
+      },
+      {
+        name: 'Big order gets 10% off',
+        input: { quantity: 120, unitPrice: 20 },
+        expect: { outputIncludes: { discount: 240, total: 2160 } },
+      },
+    ],
+  },
+} as const;
+
+/**
  * The HTTP page's demo: a credential for a shop's API (an API key sent in a
  * header, under a base URL) and a small automation whose first step reads
  * that API as the credential. The automation is only ever opened in the
