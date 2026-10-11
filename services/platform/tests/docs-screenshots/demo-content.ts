@@ -779,6 +779,13 @@ export const DEMO_NOTIFY = {
   },
 } as const;
 
+/** The write the pull-request review pack may make without a person:
+ * posting its review. */
+export const DEMO_APPROVAL_ALLOWANCE = {
+  automation: 'github-review-pull-requests',
+  type: 'github.create_pull_request_review',
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */

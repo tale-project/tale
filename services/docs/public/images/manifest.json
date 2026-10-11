@@ -73,6 +73,19 @@
       "height": 1800
     },
     {
+      "file": "images/platform/automation-approval-allowances.webp",
+      "shot": "automation-approval-allowances",
+      "route": "/dashboard/:orgId/automations/github-review-pull-requests/general",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1474,
+      "height": 236,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-editor-canvas-mobile.webp",
       "shot": "automation-editor-canvas-mobile",
       "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",

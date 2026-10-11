@@ -27,6 +27,12 @@ You cannot revise parameters on the approval card. Reject an incorrect request, 
 
 A write that waits for a person on every run — a morning digest posting to Slack — can be allowed for that one automation. Open the automation's **General** tab: **Runs without approval** lists each write to an outside system its latest version makes; a write on Tale's own surface, such as creating a task, never waits by default. An Owner or Admin turns the write on and saves; from then on, its live runs make that write straight away, and its box on the canvas says **Runs without approval**. Every other automation, and every other write of this one, still asks.
 
+<Frame caption="The General tab of the automation that reviews pull requests: it may submit its review without approval, and the line under the switch says who allowed it and when.">
+
+![The section Runs without approval with one row, GitHub · Submit pull request review, its switch on and the line Allowed by Alex Rivera with the date under it.](/images/platform/automation-approval-allowances.webp)
+
+</Frame>
+
 A rule of the [approval policy](/self-hosted/configuration/approvals) that requires a person for the action still wins over an allowance. Each grant and withdrawal is recorded in the [audit log](/platform/admin/governance/audit-logs), and deleting the automation removes its allowances.
 
 ## Answer an agent’s question
