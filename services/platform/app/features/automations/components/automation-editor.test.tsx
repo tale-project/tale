@@ -362,6 +362,7 @@ vi.mock('./automation-canvas', () => ({
     topStart,
     topEnd,
     toolbar,
+    allowedWrites,
   }: {
     automation: { nodes: readonly { id: string; when?: string }[] };
     layoutKey: string;
@@ -373,6 +374,7 @@ vi.mock('./automation-canvas', () => ({
     topStart?: React.ReactNode;
     topEnd?: React.ReactNode;
     toolbar?: React.ReactNode;
+    allowedWrites?: ReadonlySet<string>;
   }) => (
     <div
       data-testid="canvas"
@@ -382,6 +384,7 @@ vi.mock('./automation-canvas', () => ({
       data-changed={
         changed === undefined ? undefined : [...changed.ids].sort().join(',')
       }
+      data-allowed-writes={[...(allowedWrites ?? [])].sort().join(',')}
     >
       <div data-testid="canvas-top-start">{topStart}</div>
       <div data-testid="canvas-top-end">{topEnd}</div>
@@ -1279,6 +1282,34 @@ describe('AutomationEditor', () => {
     expect(
       screen.queryByText(/without a pinned provider/, { exact: false }),
     ).toBeNull();
+  });
+
+  it('marks only the writes that run without approval, never one a policy rule still holds [APV-R13]', () => {
+    const granted = {
+      grantedBy: 'user-a',
+      grantedByName: 'Ada',
+      grantedAt: 1_700_000_000_000,
+    };
+    projectsData.allowances = [
+      {
+        type: 'slack.send_message',
+        used: true,
+        policy: null,
+        allowance: granted,
+      },
+      {
+        type: 'github.create_issue',
+        used: true,
+        policy: 'requires',
+        allowance: granted,
+      },
+      { type: 'http.send', used: true, policy: null, allowance: null },
+    ];
+    renderPage();
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-allowed-writes',
+      'slack.send_message',
+    );
   });
 
   it('test-runs the version on screen, not the deployed one', async () => {

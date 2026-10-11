@@ -611,7 +611,9 @@ function AutomationEditorScope({
     (id: string) => modelNames.get(id),
     [modelNames],
   );
-  // What this automation may write without a person: its boxes say so.
+  // What this automation may write without a person: its boxes say so. A
+  // rule of the organization's approval policy that requires a person wins
+  // over an allowance, so such a write keeps its plain mark.
   const allowancesQuery = useApprovalAllowances(
     organizationId,
     automationSlug,
@@ -621,7 +623,10 @@ function AutomationEditorScope({
     () =>
       new Set(
         (allowancesQuery.data?.actions ?? [])
-          .filter((action) => action.allowance !== null)
+          .filter(
+            (action) =>
+              action.allowance !== null && action.policy !== 'requires',
+          )
           .map((action) => action.type),
       ),
     [allowancesQuery.data],
