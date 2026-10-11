@@ -48,6 +48,18 @@ has, its own or an earlier one, is left as it is.
 - **Example**: A new organization gets the Gmail sync automation → its five-minute schedule is
   there and off. Ada deploys a version → the editor offers to turn the schedule on.
 
+### PROVN-R8 · A shipped automation is given a model the organization serves
+
+When none of the organization's providers serves the model a shipped automation's model step
+names, the step is given one they do serve, of the same size — the pick the chat makes on Auto —
+and the automation's first version says which. A model the organization serves stays, and so
+does one that cannot be checked because a provider could not be reached; an automation the
+organization already has is never changed.
+
+- **Example**: An organization that connected only OpenAI is given the inbox triage automation →
+  its model step uses an OpenAI model, and its first version reads "Model
+  anthropic/claude-haiku-4-5 isn't served here; using gpt-5-mini."
+
 ## Starter content
 
 ### PROVN-R5 · Starter content is added only to an organization that has no project

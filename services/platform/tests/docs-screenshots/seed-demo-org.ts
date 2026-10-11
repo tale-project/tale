@@ -38,6 +38,8 @@ import {
   DEMO_HTTP,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_SEARCH,
+  DEMO_NOTIFY,
+  DEMO_TASK_CREATE,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
   DEMO_EMBEDDING_MODEL,
@@ -2020,19 +2022,46 @@ async function ensureAutomationFailedRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/** A demo automation the docs show a live run of. */
+interface LiveRunDemo {
+  readonly automation: string;
+  readonly name: string;
+  readonly project: string;
+  readonly document: unknown;
+  /** The run's input, given the id of the project it runs in. */
+  readonly input: (projectId: string) => Record<string, unknown>;
+}
+
 /**
- * The knowledge search page's run (DEMO_KNOWLEDGE_SEARCH): saved, installed
- * in its project and deployed through the app API, then run live in that
- * project once, after the documents above are indexed.
+ * A demo automation saved, installed in its project and deployed through
+ * the app API, then run live in that project once — after the documents
+ * above are indexed, for a run that reads them.
  */
-async function ensureKnowledgeSearchRun(
+async function ensureLiveRun(
   page: Page,
   orgId: string,
   projects: ReadonlyMap<string, string>,
+  demo: LiveRunDemo,
 ): Promise<void> {
-  const { automation, document, input, name, project } = DEMO_KNOWLEDGE_SEARCH;
+  const { automation, document, name, project } = demo;
   await page.goto(`/dashboard/${orgId}/automations`);
-  if (await hasRun(page, orgId, automation)) return;
+  const latest = async (): Promise<unknown> => {
+    const answer = await appApi(
+      page,
+      orgId,
+      `/automations/runs?limit=1&name=${automation}`,
+    );
+    const runs =
+      typeof answer.body === 'object' &&
+      answer.body !== null &&
+      'runs' in answer.body &&
+      Array.isArray(answer.body.runs)
+        ? (answer.body.runs as { status?: unknown }[])
+        : [];
+    return runs[0]?.status;
+  };
+  // A run the docs show must have succeeded: a failed one is run again.
+  if ((await latest()) === 'success') return;
   const projectId = projects.get(project);
   if (projectId === undefined) {
     throw new Error(`The project ${project} was not seeded`);
@@ -2058,22 +2087,10 @@ async function ensureKnowledgeSearchRun(
   await appApiOk(page, orgId, `/automations/${automation}/start`, {
     mode: 'live',
     projectId,
-    input,
+    input: demo.input(projectId),
   });
   await expect(async () => {
-    const answer = await appApi(
-      page,
-      orgId,
-      `/automations/runs?limit=1&name=${automation}`,
-    );
-    const runs =
-      typeof answer.body === 'object' &&
-      answer.body !== null &&
-      'runs' in answer.body &&
-      Array.isArray(answer.body.runs)
-        ? (answer.body.runs as { status?: unknown }[])
-        : [];
-    expect(runs[0]?.status).toBe('success');
+    expect(await latest()).toBe('success');
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
@@ -2514,7 +2531,23 @@ export async function seedDemoOrg(
   );
   await step('HTTP automation', () => ensureHttpAutomation(page, orgId));
   await step('knowledge search run', () =>
-    ensureKnowledgeSearchRun(page, orgId, projects),
+    ensureLiveRun(page, orgId, projects, {
+      ...DEMO_KNOWLEDGE_SEARCH,
+      input: () => DEMO_KNOWLEDGE_SEARCH.input,
+    }),
+  );
+  await step('task creation run', () =>
+    ensureLiveRun(page, orgId, projects, {
+      ...DEMO_TASK_CREATE,
+      input: (projectId) => ({ ...DEMO_TASK_CREATE.input, projectId }),
+    }),
+  );
+  // Last of the runs, so its message tops the owner's bell.
+  await step('notify run', () =>
+    ensureLiveRun(page, orgId, projects, {
+      ...DEMO_NOTIFY,
+      input: () => DEMO_NOTIFY.input,
+    }),
   );
   if (relaunchId) {
     await step('launch task brief + ownership + discussion', () =>

@@ -20,7 +20,10 @@ import type { SkillSummaryView } from '../../core/skills/views.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
-import { getAccessibleModelsForUser } from '../governance/service.ts';
+import {
+  getAccessibleModelsForMembers,
+  getAccessibleModelsForUser,
+} from '../governance/service.ts';
 import {
   listServingCredentialFacts,
   resolveCatalogBearer,
@@ -121,12 +124,13 @@ async function listConnectorCapabilities(
 }
 
 /** The walk behind every model listing: the servable catalog, projected per
- * (provider, model) and filtered by the member's model access — plus the
- * shim it read through and whether a direct credential can synthesize
- * speech, which the composer also answers. */
+ * (provider, model) and filtered by the member's model access — or, with no
+ * member named, by the access every member has — plus the shim it read
+ * through and whether a direct credential can synthesize speech, which the
+ * composer also answers. */
 async function walkGovernedChatModels(
   sql: Sql,
-  args: { organizationId: string; userId: string },
+  args: { organizationId: string; userId?: string },
 ): Promise<{
   models: ComposerModelOption[];
   ttsAvailable: boolean;
@@ -163,11 +167,16 @@ async function walkGovernedChatModels(
   ];
   if (candidateIds.length > 0) {
     const accessible = new Set(
-      await getAccessibleModelsForUser(sql, {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        modelIds: candidateIds,
-      }),
+      args.userId === undefined
+        ? await getAccessibleModelsForMembers(sql, {
+            organizationId: args.organizationId,
+            modelIds: candidateIds,
+          })
+        : await getAccessibleModelsForUser(sql, {
+            organizationId: args.organizationId,
+            userId: args.userId,
+            modelIds: candidateIds,
+          }),
     );
     for (const [key, option] of byId) {
       if (!accessible.has(option.id)) byId.delete(key);
@@ -193,6 +202,19 @@ export async function listGovernedChatModels(
   args: { organizationId: string; userId: string },
 ): Promise<ComposerModelOption[]> {
   return (await walkGovernedChatModels(sql, args)).models;
+}
+
+/**
+ * The chat models the organization serves to its members as a whole — the
+ * composer's listing under the access every member has — for a choice made
+ * for the organization rather than for one person: the model a shipped
+ * pack is given when the one it names is not served.
+ */
+export async function listOrganizationChatModels(
+  sql: Sql,
+  organizationId: string,
+): Promise<ComposerModelOption[]> {
+  return (await walkGovernedChatModels(sql, { organizationId })).models;
 }
 
 /** One harness the managed lane can run, as the agent pickers list it. */

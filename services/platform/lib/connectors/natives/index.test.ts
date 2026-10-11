@@ -21,6 +21,7 @@ import {
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
   type WorkflowKnowledgeSearch,
+  type WorkflowNotifyStore,
   type WorkflowTaskStore,
 } from './index';
 
@@ -248,6 +249,12 @@ const NATIVE_ACTIONS: Array<{
     action: 'query_sync_cursor',
     input: { connectorSlug: 'gmail', direction: 'inbound' },
   },
+  {
+    impl: 'notify.member',
+    connector: 'notify',
+    action: 'member',
+    input: { to: ['ada@example.com'], title: 'Weekly report ready' },
+  },
 ];
 
 /** The store double: enough shape for the actions, no Convex. */
@@ -344,6 +351,16 @@ const scriptRunner: SandboxScriptRunner = ({ skill, entry }) =>
 
 /** Task and document store doubles — the declared shapes, no Convex. */
 const taskStore: WorkflowTaskStore = {
+  create: ({ projectId, title }) =>
+    Promise.resolve({
+      ok: true,
+      task: {
+        taskId: 'task_created',
+        number: 7,
+        title,
+        url: `/dashboard/org_1/projects/${projectId}/tasks?task=task_created`,
+      },
+    }),
   upsertIssues: ({ issues }) =>
     Promise.resolve(
       issues.map((issue) => ({
@@ -431,6 +448,18 @@ const knowledgeStore: WorkflowKnowledgeSearch = {
           similarity: 0.78,
         },
       ],
+    }),
+};
+
+const notifyStore: WorkflowNotifyStore = {
+  notify: ({ to }) =>
+    Promise.resolve({
+      ok: true,
+      delivered: to.map((recipient, at) => ({
+        to: recipient,
+        userId: `usr_${at}`,
+      })),
+      skipped: [],
     }),
 };
 
@@ -538,6 +567,7 @@ beforeEach(() => {
     documents: documentStore,
     conversations: conversationStore,
     knowledge: knowledgeStore,
+    notify: notifyStore,
     mailAttachments,
     mailTransport: transport,
     mailConfig: () => ({
@@ -584,6 +614,7 @@ describe('registration', () => {
       documents: documentStore,
       conversations: conversationStore,
       knowledge: knowledgeStore,
+      notify: notifyStore,
       mailAttachments,
       mailTransport: transport,
     });
@@ -637,6 +668,7 @@ describe('dispatching the shipped native actions', () => {
       documents: documentStore,
       conversations: conversationStore,
       knowledge: knowledgeStore,
+      notify: notifyStore,
       mailAttachments,
       mailTransport: transport,
     });
@@ -676,6 +708,7 @@ describe('dispatching the shipped native actions', () => {
         documents: documentStore,
         conversations: conversationStore,
         knowledge: knowledgeStore,
+        notify: notifyStore,
         mailAttachments,
         mailTransport: transport,
         tasks: {

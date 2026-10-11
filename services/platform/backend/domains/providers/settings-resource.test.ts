@@ -182,9 +182,11 @@ describe('defining a provider', () => {
       'PROVIDER_NAME_RESERVED',
     ],
     [
+      // A password in an address is a secret: refused as one, before the
+      // writer's own check of an endpoint would refuse it too.
       'an endpoint carrying a password',
       set({ ...definition, baseUrl: 'https://u:p@models.example.test/v1' }),
-      'PROVIDER_ENDPOINT_INVALID',
+      'SECRET_ARGUMENT_REFUSED',
     ],
     [
       'a field a provider does not have',

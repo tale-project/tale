@@ -86,6 +86,7 @@ const PREF_FIELD: Record<string, string> = {
   automation_failed: 'automation_alerts',
   conversation_message: 'conversation_messages',
   conversation_assigned: 'conversation_messages',
+  automation_message: 'automation_messages',
 };
 
 /** Tri-state preference resolution: undefined → default ON. The review
@@ -102,7 +103,7 @@ async function isNotificationAllowed(
   const rows = await db<Record<string, boolean | null>[]>`
     SELECT task_assigned, task_status_changed, task_commented, mention,
            task_deadlines, escalation, automation_alerts,
-           conversation_messages
+           conversation_messages, automation_messages
     FROM app.notification_preferences
     WHERE user_id = ${userId} AND org_id = ${organizationId}
     LIMIT 1
@@ -625,6 +626,7 @@ export async function getNotificationPreferences(
            task_deadlines AS "taskDeadlines", task_review AS "taskReview",
            escalation, automation_alerts AS "automationAlerts",
            conversation_messages AS "conversationMessages",
+           automation_messages AS "automationMessages",
            actionable_email AS "actionableEmail"
     FROM app.notification_preferences
     WHERE user_id = ${userId} AND org_id = ${organizationId}
@@ -647,14 +649,15 @@ export async function setNotificationPreferences(
     INSERT INTO app.notification_preferences (
       user_id, org_id, task_assigned, task_status_changed, task_commented,
       mention, task_deadlines, task_review, escalation, automation_alerts,
-      conversation_messages, actionable_email, updated_at_ms
+      conversation_messages, automation_messages, actionable_email,
+      updated_at_ms
     ) VALUES (
       ${userId}, ${organizationId}, ${value('taskAssigned')},
       ${value('taskStatusChanged')}, ${value('taskCommented')},
       ${value('mention')}, ${value('taskDeadlines')}, ${value('taskReview')},
       ${value('escalation')}, ${value('automationAlerts')},
-      ${value('conversationMessages')}, ${value('actionableEmail')},
-      ${Date.now()}
+      ${value('conversationMessages')}, ${value('automationMessages')},
+      ${value('actionableEmail')}, ${Date.now()}
     )
     ON CONFLICT (user_id, org_id) DO UPDATE SET
       task_assigned = COALESCE(EXCLUDED.task_assigned, app.notification_preferences.task_assigned),
@@ -666,6 +669,7 @@ export async function setNotificationPreferences(
       escalation = COALESCE(EXCLUDED.escalation, app.notification_preferences.escalation),
       automation_alerts = COALESCE(EXCLUDED.automation_alerts, app.notification_preferences.automation_alerts),
       conversation_messages = COALESCE(EXCLUDED.conversation_messages, app.notification_preferences.conversation_messages),
+      automation_messages = COALESCE(EXCLUDED.automation_messages, app.notification_preferences.automation_messages),
       actionable_email = COALESCE(EXCLUDED.actionable_email, app.notification_preferences.actionable_email),
       updated_at_ms = EXCLUDED.updated_at_ms
   `;
@@ -938,6 +942,108 @@ export async function dismissTriggerPausedNotifications(
     rows.map((row) => row.userId),
   );
   return rows.length;
+}
+
+/** What an automation step's message did, by recipient. */
+export type AutomationMessageOutcome =
+  | {
+      ok: true;
+      /** Told now, or by an earlier try of the same step execution. */
+      delivered: string[];
+      /** They switched automation messages off: nothing was written. */
+      muted: string[];
+    }
+  /** Sending would take the run past its cap; nothing was written. `sent`
+   * is what the run had sent before. */
+  | { ok: false; sent: number };
+
+/**
+ * A message an automation step sends to members (`notify.member`): one bell
+ * row per recipient, the author's title and words in the frame that names
+ * the automation, emailed as every actionable type is. The recipients are
+ * members the caller already resolved.
+ *
+ * `deliveryKey` names the step execution. A retry of it finds the rows the
+ * earlier try wrote and writes none twice, so its recipients read as
+ * delivered whatever their switch says now. `runCap` bounds the rows one run
+ * writes — a step in a loop must not flood the organization's bells — and a
+ * send that would pass it writes nothing at all. The run's lock, held to the
+ * end of the caller's transaction, serializes its steps' sends, so the count
+ * holds when steps of one run send at once.
+ */
+export async function notifyAutomationMessage(
+  db: TransactionSql,
+  args: {
+    organizationId: string;
+    runId: string;
+    deliveryKey: string;
+    userIds: readonly string[];
+    /** The automation's name, which the frame shows. */
+    automation: string;
+    title: string;
+    message?: string;
+    link?: string;
+    runCap: number;
+  },
+): Promise<AutomationMessageOutcome> {
+  await db`SELECT pg_advisory_xact_lock(hashtextextended(${`automation-messages:${args.organizationId}:${args.runId}`}, 0))`;
+  const sent = await db<{ userId: string; deliveryKey: string | null }[]>`
+    SELECT user_id AS "userId", params->>'deliveryKey' AS "deliveryKey"
+    FROM app.user_notifications
+    WHERE org_id = ${args.organizationId}
+      AND type = 'automation_message' AND resource_id = ${args.runId}
+  `;
+  const already = new Set(
+    sent
+      .filter((row) => row.deliveryKey === args.deliveryKey)
+      .map((row) => row.userId),
+  );
+  const recipients = [...new Set(args.userIds)];
+  const fresh = recipients.filter((id) => !already.has(id));
+  const allowed: string[] = [];
+  const muted: string[] = [];
+  for (const userId of fresh) {
+    const on = await isNotificationAllowed(
+      db,
+      userId,
+      args.organizationId,
+      'automation_message',
+    );
+    (on ? allowed : muted).push(userId);
+  }
+  if (sent.length + allowed.length > args.runCap) {
+    return { ok: false, sent: sent.length };
+  }
+  for (const userId of allowed) {
+    await writeCoalescedNotification(db, {
+      userId,
+      organizationId: args.organizationId,
+      type: 'automation_message',
+      titleKey: 'automationMessage',
+      bodyKey:
+        args.message === undefined
+          ? 'automationMessageBodyNoText'
+          : 'automationMessageBody',
+      params: {
+        automation: args.automation,
+        runId: args.runId,
+        title: args.title,
+        ...(args.message !== undefined && { message: args.message }),
+        ...(args.link !== undefined && { link: args.link }),
+        deliveryKey: args.deliveryKey,
+      },
+      resourceType: 'automation_run',
+      resourceId: args.runId,
+      actorType: 'system',
+    });
+  }
+  return {
+    ok: true,
+    delivered: recipients.filter(
+      (id) => already.has(id) || allowed.includes(id),
+    ),
+    muted,
+  };
 }
 
 // ---------------------------------------------------------- task emitters

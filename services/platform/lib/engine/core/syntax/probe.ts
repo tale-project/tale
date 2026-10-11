@@ -41,8 +41,8 @@ import type {
 } from 'estree';
 import { walk } from 'zimmerframe';
 
+import { secretMemberName } from '../../../shared/secret-scan';
 import { isRecord } from '../../../utils/type-utils';
-import { secretMemberName } from '../secret-patterns';
 import type { ParseResult } from './parse';
 import { SCOPE_ROOTS } from './walk';
 

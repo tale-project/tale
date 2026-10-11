@@ -285,7 +285,7 @@ async function storedIntakeDescription(
  * On the rebuilt engine the workflow slug IS the automation's store name: a
  * DEPLOYED automation of that name owns the tasks it operates.
  */
-async function automationOwnerOfWorkflowSlug(
+export async function automationOwnerOfWorkflowSlug(
   tx: TransactionSql,
   organizationId: string,
   workflowSlug: string,

@@ -84,9 +84,10 @@ function isEmptyList(value: unknown): boolean {
 }
 
 /** Actual native history, never the legacy denormalized run counter. The
- * caller holds the task's UPDATE fence, which both engines use on start. */
+ * writer holds the task's UPDATE fence, which both engines use on start; a
+ * plan reads it without the fence. */
 async function assertPristineReviewContext(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   task: TaskRow,
   reviewerAgentId: string,
 ) {
@@ -146,6 +147,44 @@ async function assertPristineReviewContext(
       'TASK_REVIEW_INVALID',
       'A task with execution, review or child-task history cannot become a review context',
       409,
+    );
+}
+
+/**
+ * What a review context change must be, given the context the task holds
+ * now (`prior`, null for none), reading only: the reviewer of an enrolled
+ * task stays the one it was enrolled with, a task enrolled anew has no
+ * work, review or child-task history, and a context that is enabled — or
+ * new — names a project agent that may review. The writer checks it under
+ * its locks; a settings plan checks it before anything is applied.
+ */
+export async function assertTaskReviewContextChange(
+  db: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  task: TaskRow,
+  prior: ManagedTaskReviewContext | null,
+  config: ManagedTaskReviewContext,
+): Promise<void> {
+  if (prior !== null && prior.reviewerAgentId !== config.reviewerAgentId)
+    throw new TaskError(
+      'TASK_REVIEW_INVALID',
+      'A managed review context cannot change its reviewer identity',
+      409,
+    );
+  if (prior === null)
+    await assertPristineReviewContext(db, task, config.reviewerAgentId);
+  if (
+    (prior === null || config.enabled) &&
+    (await agentReviewerEligibility(db, {
+      organizationId: auth.organizationId,
+      projectId: config.projectId,
+      agentId: config.reviewerAgentId,
+    })) !== 'eligible'
+  )
+    throw new TaskError(
+      'TASK_REVIEW_FORBIDDEN',
+      'The context needs an available project reviewer with task_review',
+      403,
     );
 }
 
@@ -225,27 +264,7 @@ export async function updateTaskReviewContextConfiguration(
   assertTaskNotArchived(task);
   const prior = await readReviewContext(tx, auth.organizationId, task.id);
   assertExpectedHash(managedConfigurationHash(prior), expectedHash);
-  if (prior !== null && prior.reviewerAgentId !== config.reviewerAgentId)
-    throw new TaskError(
-      'TASK_REVIEW_INVALID',
-      'A managed review context cannot change its reviewer identity',
-      409,
-    );
-  if (prior === null)
-    await assertPristineReviewContext(tx, task, config.reviewerAgentId);
-  if (
-    (prior === null || config.enabled) &&
-    (await agentReviewerEligibility(tx, {
-      organizationId: auth.organizationId,
-      projectId: config.projectId,
-      agentId: config.reviewerAgentId,
-    })) !== 'eligible'
-  )
-    throw new TaskError(
-      'TASK_REVIEW_FORBIDDEN',
-      'The context needs an available project reviewer with task_review',
-      403,
-    );
+  await assertTaskReviewContextChange(tx, auth, task, prior, config);
   if (prior?.enabled === config.enabled) return;
   if (prior === null)
     await tx`UPDATE app.tasks SET review_context = true

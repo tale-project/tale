@@ -70,6 +70,9 @@ apiKeyCreatedForYou: Clé API créée pour toi
 apiKeyCreatedForYouBody: '{name} a créé la clé API « {keyName} » pour toi. Elle agit en ton nom dans cette organisation ; si tu n’en as pas besoin, révoque-la sous Paramètres > API > REST.'
 automationTriggerPaused: Planification en pause
 automationTriggerPausedBody: '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.'
+automationMessage: '{title}'
+automationMessageBody: "{message}\n\nEnvoyé par l’automatisation « {automation} »."
+automationMessageBodyNoText: 'Envoyé par l’automatisation « {automation} ».'
 agentRunFailed: Échec de l’exécution de l’agent
 agentRunFailedBody: 'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.'
 agentRunFailedBudgetBody: 'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.'
@@ -77,6 +80,7 @@ agentRunFailedSetupBody: 'Il manque quelque chose à l’agent de « {title} �
 agentRunFailedInputBody: 'Une pièce jointe de « {title} » n’est plus dans le stockage. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.'
 email:
   cta: Ouvrir dans Tale
+  openLink: Ouvrir le lien
   footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
 conversationTeamAssigned: Conversation assignée à ton équipe
 conversationTeamAssignedBody:

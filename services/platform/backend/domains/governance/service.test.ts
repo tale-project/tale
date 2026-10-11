@@ -28,7 +28,10 @@ vi.mock('../../auth/membership.ts', () => ({
 }));
 vi.mock('../../lib/org-config.ts', () => ({ readGovernancePolicyForOrg }));
 
-import { resolveModelGovernanceForUser } from './service.ts';
+import {
+  getAccessibleModelsForMembers,
+  resolveModelGovernanceForUser,
+} from './service.ts';
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every db read is mocked above; the handle is never dereferenced
 const sql = {} as Sql;
@@ -187,5 +190,46 @@ describe('resolveModelGovernanceForUser — candidate ids over the ref grammar',
     });
     expect(result.defaultModel).toBeUndefined();
     expect(result.accessibleModelRefs).toEqual(['z-ai/glm-5.1']);
+  });
+});
+
+describe('the models every member may use', () => {
+  it('reads the rules every member is under, never a team, a role above member or a person', async () => {
+    policies({
+      model_access: {
+        enabled: true,
+        mode: 'allowlist',
+        rules: [
+          { scope: 'default', allowedModels: ['gpt-5.5'] },
+          {
+            scope: 'role',
+            scopeId: 'member',
+            allowedModels: ['gpt-5.5', 'glm-5.1'],
+          },
+          { scope: 'role', scopeId: 'admin', allowedModels: CANDIDATES },
+          { scope: 'team', scopeId: 'team-x', allowedModels: CANDIDATES },
+          { scope: 'user', scopeId: USER, allowedModels: CANDIDATES },
+        ],
+      },
+    });
+    await expect(
+      getAccessibleModelsForMembers(sql, {
+        organizationId: ORG,
+        modelIds: CANDIDATES,
+      }),
+    ).resolves.toEqual(['glm-5.1', 'gpt-5.5']);
+    // Nobody's membership is read: the audience is no one in particular.
+    expect(findOrganizationMember).not.toHaveBeenCalled();
+    expect(getUserTeamIds).not.toHaveBeenCalled();
+  });
+
+  it('keeps every candidate when no policy restricts them', async () => {
+    policies({});
+    await expect(
+      getAccessibleModelsForMembers(sql, {
+        organizationId: ORG,
+        modelIds: CANDIDATES,
+      }),
+    ).resolves.toEqual(CANDIDATES);
   });
 });

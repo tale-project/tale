@@ -157,6 +157,28 @@ describe('renderActionableEmailContent', () => {
     expect(content.text).toContain('{title} assigned you to');
   });
 
+  it("keeps an automation message's line breaks in the html lane, escaped [NOTIF-R1]", () => {
+    const { text, html, subject } = renderActionableEmailContent('en', {
+      titleKey: 'automationMessage',
+      bodyKey: 'automationMessageBody',
+      params: {
+        automation: 'reports/weekly',
+        title: 'Weekly report ready',
+        message: 'Revenue is up.\n<b>Three</b> invoices are overdue.',
+      },
+      deepLink: 'https://reports.example.com/weekly',
+      ctaKey: 'email.openLink',
+    });
+    expect(subject).toBe('Weekly report ready');
+    expect(html).toContain(
+      '<p>Revenue is up.<br>&lt;b&gt;Three&lt;/b&gt; invoices are overdue.<br><br>Sent by the automation "reports/weekly".</p>',
+    );
+    expect(html).toContain(
+      '<a href="https://reports.example.com/weekly">Open the link</a>',
+    );
+    expect(text).toContain('Open the link: https://reports.example.com/weekly');
+  });
+
   it('falls back to the escaped key in the html lane for an unknown body key', () => {
     const content = renderActionableEmailContent('en', {
       titleKey: 'taskAssigned',

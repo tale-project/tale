@@ -40,6 +40,9 @@ fields:
   automationAlerts:
     label: Alertes d'automatisation
     description: Quand la planification d'une automatisation se met en pause parce que ses exécutions échouent sans cesse.
+  automationMessages:
+    label: Messages des automatisations
+    description: Quand une automatisation t'envoie un message, par exemple sur un rapport prêt.
   conversationMessages:
     label: Messages de conversation
     description: Quand un message d'un contact arrive dans Conversations.

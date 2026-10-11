@@ -13,6 +13,7 @@ import type { Method } from '../engine/api/methods';
 import { RUN_STATUSES } from '../engine/api/run-statuses';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
 import { automationPresentationSchema } from '../shared/schemas/automation_presentation';
+import { unstorableTextProblem } from '../shared/utils/storable-text';
 import { MCP_DOC_TOPICS } from './docs/topics';
 import { CATALOG_KINDS } from './resources';
 import { triggerArgSchema } from './trigger-args';
@@ -523,8 +524,20 @@ const settingsKind = z
   .enum(SETTINGS_KINDS.map((descriptor) => descriptor.kind))
   .describe('The kind of setting; get_settings without kinds lists them.');
 
-/** A resource's id within its kind. */
-const settingsId = nonBlank().max(600);
+/** A resource's id within its kind: text Postgres can store, since an id
+ * reaches the native reads' queries. */
+const settingsId = nonBlank()
+  .max(600)
+  .superRefine((id, ctx) => {
+    const problem = unstorableTextProblem(id);
+    if (problem !== null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: problem,
+        params: { code: 'unstorable_text' },
+      });
+    }
+  });
 
 /**
  * One settings change. Which operations and actions a kind takes is the

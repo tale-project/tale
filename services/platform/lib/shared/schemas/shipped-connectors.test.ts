@@ -43,6 +43,7 @@ const EXPECTED_SLUGS = [
   'imap-smtp',
   'jev',
   'knowledge',
+  'notify',
   'outlook',
   'sandbox',
   'shopify',

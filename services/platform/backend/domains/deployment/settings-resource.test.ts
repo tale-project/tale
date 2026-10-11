@@ -110,6 +110,84 @@ describe('who reads and changes the deployment settings [MCP-R10]', () => {
   });
 });
 
+/**
+ * A caller acting as Mia through `key`: a developer of the key's own
+ * organization, an admin of another one, and on the editor allowlist — so
+ * her own key reads and changes the deployment settings, as she does in
+ * the app.
+ */
+function miaThrough(
+  owner: 'member' | 'team' | 'project' | 'organization' | undefined,
+): SettingsContext {
+  const caller: McpCaller = {
+    organizationId: 'org-1',
+    orgSlug: 'acme',
+    userId: 'user-mia',
+    role: 'developer',
+    credential: {
+      kind: 'api-key',
+      apiKeyId: 'key-billing',
+      ...(owner === undefined ? {} : { owner }),
+    },
+  };
+  const tag = async (strings: TemplateStringsArray) => {
+    const text = strings.join('?');
+    if (text.includes('FROM "member"')) {
+      return [
+        { organizationId: 'org-1', role: 'developer' },
+        { organizationId: 'org-2', role: 'admin' },
+      ];
+    }
+    if (text.includes('FROM "user"')) return [{ email: OPERATOR }];
+    return [];
+  };
+  const sql = Object.assign(tag, {
+    begin: (work: (tx: unknown) => Promise<unknown>) => work(tag),
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { sql: sql as unknown as Sql, caller };
+}
+
+describe('a key that is not its person’s own [MCP-R29]', () => {
+  it('lets Mia’s own key read and change what she may in the app', async () => {
+    expect(await deploymentSettings.access(miaThrough(undefined))).toEqual({
+      read: true,
+      write: true,
+    });
+  });
+
+  it.each(['member', 'team', 'project', 'organization'] as const)(
+    'reaches no deployment setting through a key made for %s',
+    async (owner) => {
+      const ctx = miaThrough(owner);
+      expect(await deploymentSettings.access(ctx)).toEqual({
+        read: false,
+        write: false,
+      });
+      const read = await getSettings(ctx, registry, { kinds: ['deployment'] });
+      expect(read.resources).toEqual([]);
+      expect(read.refused).toEqual([
+        expect.objectContaining({ code: 'FORBIDDEN_INSTANCE_ADMIN' }),
+      ]);
+      const plan = await planSettings(ctx, registry, [
+        change({ version: 1, sandboxRuntime: { tier: 'runc' } }),
+      ]);
+      expect(plan.changes[0]?.refusal).toMatchObject({
+        code: 'FORBIDDEN_INSTANCE_ADMIN',
+      });
+      const answer = await applySettings(
+        ctx,
+        registry,
+        [change({ version: 1, sandboxRuntime: { tier: 'runc' } })],
+        { deployment: null },
+      );
+      expect(answer).toMatchObject({ code: 'FORBIDDEN_INSTANCE_ADMIN' });
+      expect(await deploymentSettings.read(operator(), null)).toBeNull();
+      expect(createAuditLog).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('planning a change of the deployment settings', () => {
   it('says that a new sandbox runtime takes effect after a restart', async () => {
     const plan = await planSettings(operator(), registry, [

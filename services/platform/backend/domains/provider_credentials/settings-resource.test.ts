@@ -435,3 +435,75 @@ describe('applying a credential change', () => {
     expect(deleteCredential).toHaveBeenCalledOnce();
   });
 });
+
+describe('what the credential writers refuse, planned before anything is applied [MCP-R11]', () => {
+  const second = {
+    ...ENV_KEY,
+    name: 'Backup key',
+    envName: 'TALE_PROVIDER_KEY_OPENAI_BACKUP',
+  };
+  const SECOND_ID = 'openai/Backup%20key';
+
+  it('refuses a second default, a disabled default, and taking the default from what the embedding model resolves', async () => {
+    stored('cred-env', {});
+    const plan = await planSettings(contextOf('admin'), registry, [
+      { kind: 'provider-credential', op: 'set', config: second },
+      {
+        kind: 'provider-credential',
+        op: 'set',
+        config: {
+          ...second,
+          name: 'Spare key',
+          status: 'disabled',
+          isDefault: true,
+        },
+      },
+    ]);
+    expect(plan.changes.map((change) => change.refusal?.code)).toEqual([
+      'CREDENTIAL_DEFAULT_CONFLICT',
+      'CREDENTIAL_DISABLED_DEFAULT',
+    ]);
+    usedByEmbedding.add('cred-env');
+    const taken = await planSettings(contextOf('admin'), registry, [
+      {
+        kind: 'provider-credential',
+        op: 'set',
+        config: { ...ENV_KEY, isDefault: false },
+      },
+    ]);
+    expect(taken.changes[0]?.refusal?.code).toBe('CREDENTIAL_IN_USE');
+    expect(createCredential).not.toHaveBeenCalled();
+    expect(updateCredential).not.toHaveBeenCalled();
+  });
+
+  it('takes a new default once an earlier change in the call clears the old one, and not before', async () => {
+    stored('cred-env', {});
+    const cleared = await planSettings(contextOf('admin'), registry, [
+      {
+        kind: 'provider-credential',
+        op: 'set',
+        config: { ...ENV_KEY, isDefault: false },
+      },
+      { kind: 'provider-credential', op: 'set', config: second },
+    ]);
+    expect(cleared.ok).toBe(true);
+    const removed = await planSettings(contextOf('admin'), registry, [
+      { kind: 'provider-credential', id: ENV_ID, op: 'delete' },
+      { kind: 'provider-credential', op: 'set', config: second },
+    ]);
+    expect(removed.ok).toBe(true);
+    const late = await planSettings(contextOf('admin'), registry, [
+      { kind: 'provider-credential', op: 'set', config: second },
+      {
+        kind: 'provider-credential',
+        op: 'set',
+        config: { ...ENV_KEY, isDefault: false },
+      },
+    ]);
+    expect(late.changes.map((change) => change.refusal?.code)).toEqual([
+      'CREDENTIAL_DEFAULT_CONFLICT',
+      undefined,
+    ]);
+    expect(late.changes[0]?.key).toBe(`provider-credential/${SECOND_ID}`);
+  });
+});

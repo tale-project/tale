@@ -518,6 +518,44 @@ export type CreateCredentialArgs = z.infer<
   typeof providerCredentialCreateSchema
 >;
 
+/**
+ * The status and default a new credential takes among its provider's
+ * credentials (`siblings`), or the writer's refusal: a name another one
+ * carries, a disabled default, or a second default. Reads nothing:
+ * `createCredential` decides it before it inserts, and a settings plan
+ * before anything in its call is applied.
+ */
+export function newCredentialStanding(
+  siblings: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+    readonly isDefault: boolean;
+  }>,
+  args: {
+    readonly name: string;
+    readonly status?: 'active' | 'disabled';
+    readonly isDefault?: boolean;
+  },
+): { status: 'active' | 'disabled'; isDefault: boolean } {
+  assertProviderCredentialNameFree(siblings, args.name);
+  const status = args.status ?? 'active';
+  const isDefault =
+    args.isDefault ?? (siblings.length === 0 && status === 'active');
+  if (isDefault && status === 'disabled')
+    throw new CredentialAdminError(
+      'CREDENTIAL_DISABLED_DEFAULT',
+      'A disabled credential cannot be the default.',
+      400,
+    );
+  if (isDefault && siblings.some((row) => row.isDefault))
+    throw new CredentialAdminError(
+      'CREDENTIAL_DEFAULT_CONFLICT',
+      'A default credential already exists. Review that credential before changing the default.',
+      409,
+    );
+  return { status, isDefault };
+}
+
 export async function createCredential(
   tx: TransactionSql,
   scope: CredentialScope,
@@ -564,22 +602,11 @@ export async function createCredential(
       siblings.find((row) => row.name === name)?.id ?? null,
       expectedHash,
     );
-  assertProviderCredentialNameFree(siblings, name);
-  const status = args.status ?? 'active';
-  const isDefault =
-    args.isDefault ?? (siblings.length === 0 && status === 'active');
-  if (isDefault && status === 'disabled')
-    throw new CredentialAdminError(
-      'CREDENTIAL_DISABLED_DEFAULT',
-      'A disabled credential cannot be the default.',
-      400,
-    );
-  if (isDefault && siblings.some((row) => row.isDefault))
-    throw new CredentialAdminError(
-      'CREDENTIAL_DEFAULT_CONFLICT',
-      'A default credential already exists. Review that credential before changing the default.',
-      409,
-    );
+  const { status, isDefault } = newCredentialStanding(siblings, {
+    name,
+    ...(args.status === undefined ? {} : { status: args.status }),
+    ...(args.isDefault === undefined ? {} : { isDefault: args.isDefault }),
+  });
   const now = Date.now();
   let rows: { id: string }[];
   try {
@@ -690,56 +717,24 @@ export async function updateCredential(
   }
   if (expectedHash !== undefined)
     assertExpectedHash(credentialHash(row), expectedHash);
-  // The documented contract: a disabled credential cannot become (or stay
-  // being promoted as) the default — serving reads the ACTIVE default only,
-  // so a disabled default is a connector that serves nothing.
-  if (patch.isDefault === true && (patch.status ?? row.status) === 'disabled') {
-    throw new CredentialAdminError(
-      'CREDENTIAL_DISABLED_DEFAULT',
-      'A disabled credential cannot be the default — enable it first',
-    );
-  }
-  // Disabling the row, or taking its default away, leaves the embedding
-  // model's resolver with nothing exactly as a delete would — the same
-  // guard, before any write.
-  const losesDefault = patch.isDefault === false && row.isDefault;
-  const getsDisabled = patch.status === 'disabled' && row.status === 'active';
-  if (losesDefault || getsDisabled) {
-    await assertCredentialUnused(tx, scope, credentialId);
-  }
-  if (patch.envName !== undefined) {
-    if (row.authMethod !== 'env') {
-      throw new CredentialAdminError(
-        'CREDENTIAL_ENV_NAME_INVALID',
-        'Only an environment-variable credential carries an env name',
-      );
-    }
-    assertProviderKeyEnvName(patch.envName);
-  }
-  // The symmetric guard: an env credential stores no secret — the resolver
-  // reads only its env name — so a rotated secret on such a row would be
-  // ciphertext nothing reads, acknowledged with an audit row that records
-  // a change in behaviour that never happened.
-  if (patch.secret !== undefined && row.authMethod === 'env') {
-    throw new CredentialAdminError(
-      'CREDENTIAL_SECRET_INVALID',
-      'An environment-variable credential has no stored secret — edit its env name instead',
-    );
-  }
+  // What the checks read: whether the embedding model resolves this row,
+  // when the edit disables it or takes its default away, and the other
+  // defaults of its provider, when a reviewed edit makes it the default.
+  const { usedBy } = editLeavesResolver(row, patch)
+    ? await credentialDependents(tx, scope, credentialId)
+    : { usedBy: [] };
+  const otherDefaults =
+    patch.isDefault === true && expectedHash !== undefined
+      ? (
+          await tx<{ id: string }[]>`
+            SELECT id FROM app.provider_credentials
+            WHERE org_id = ${scope.organizationId} AND provider_slug = ${row.providerSlug}
+              AND is_default AND id <> ${credentialId}
+          `
+        ).length
+      : 0;
+  assertCredentialEdit(row, patch, { usedBy, otherDefaults });
   if (patch.isDefault === true) {
-    if (expectedHash !== undefined) {
-      const defaults = await tx<{ id: string }[]>`
-        SELECT id FROM app.provider_credentials
-        WHERE org_id = ${scope.organizationId} AND provider_slug = ${row.providerSlug}
-          AND is_default AND id <> ${credentialId}
-      `;
-      if (defaults.length > 0)
-        throw new CredentialAdminError(
-          'CREDENTIAL_DEFAULT_CONFLICT',
-          'Another default credential exists. Review that credential before changing the default.',
-          409,
-        );
-    }
     await tx`
       UPDATE app.provider_credentials SET is_default = false,
         updated_at_ms = ${Date.now()}
@@ -915,6 +910,19 @@ export async function credentialDependents(
   return { usedBy: isActiveDefault ? ['embedding'] : [] };
 }
 
+/** The refusal of a write that would leave what depends on a credential
+ * without it. */
+function credentialInUse(
+  usedBy: readonly CredentialDependent[],
+): CredentialAdminError {
+  return new CredentialAdminError(
+    'CREDENTIAL_IN_USE',
+    'The knowledge embedding model uses this credential. Choose another credential for it under Settings → Data residency → Embedding model first.',
+    409,
+    { usedBy },
+  );
+}
+
 /**
  * Refuse a write that would leave the embedding model without its
  * credential: the delete, and the edit that disables the row or takes its
@@ -927,12 +935,83 @@ async function assertCredentialUnused(
   credentialId: string,
 ): Promise<void> {
   const { usedBy } = await credentialDependents(tx, scope, credentialId);
-  if (usedBy.length > 0) {
+  if (usedBy.length > 0) throw credentialInUse(usedBy);
+}
+
+/** Whether an edit disables a stored credential or takes its default
+ * away — what leaves the resolver of something that depends on it with
+ * nothing, as a delete would. */
+export function editLeavesResolver(
+  row: { readonly isDefault: boolean; readonly status: string },
+  patch: UpdateCredentialPatch,
+): boolean {
+  return (
+    (patch.isDefault === false && row.isDefault) ||
+    (patch.status === 'disabled' && row.status === 'active')
+  );
+}
+
+/**
+ * The checks an edit of a stored credential passes before anything is
+ * written, in the order its writer makes them, from what was read for it:
+ * a disabled credential as the default, disabling — or taking the default
+ * from — what the embedding model resolves (`usedBy`), an env name only on
+ * an environment credential, no secret on one, and a second default
+ * (`otherDefaults`, the provider's other defaults when the edit names the
+ * hash it read). `updateCredential` checks it after its compare-and-set;
+ * a settings plan before anything in its call is applied.
+ */
+export function assertCredentialEdit(
+  row: {
+    readonly authMethod: string;
+    readonly isDefault: boolean;
+    readonly status: string;
+  },
+  patch: UpdateCredentialPatch,
+  facts: {
+    readonly usedBy: readonly CredentialDependent[];
+    readonly otherDefaults: number;
+  },
+): void {
+  // The documented contract: a disabled credential cannot become (or stay
+  // being promoted as) the default — serving reads the ACTIVE default only,
+  // so a disabled default is a connector that serves nothing.
+  if (patch.isDefault === true && (patch.status ?? row.status) === 'disabled') {
     throw new CredentialAdminError(
-      'CREDENTIAL_IN_USE',
-      'The knowledge embedding model uses this credential. Choose another credential for it under Settings → Data residency → Embedding model first.',
+      'CREDENTIAL_DISABLED_DEFAULT',
+      'A disabled credential cannot be the default — enable it first',
+    );
+  }
+  // Disabling the row, or taking its default away, leaves the embedding
+  // model's resolver with nothing exactly as a delete would — the same
+  // guard, before any write.
+  if (editLeavesResolver(row, patch) && facts.usedBy.length > 0) {
+    throw credentialInUse(facts.usedBy);
+  }
+  if (patch.envName !== undefined) {
+    if (row.authMethod !== 'env') {
+      throw new CredentialAdminError(
+        'CREDENTIAL_ENV_NAME_INVALID',
+        'Only an environment-variable credential carries an env name',
+      );
+    }
+    assertProviderKeyEnvName(patch.envName);
+  }
+  // The symmetric guard: an env credential stores no secret — the resolver
+  // reads only its env name — so a rotated secret on such a row would be
+  // ciphertext nothing reads, acknowledged with an audit row that records
+  // a change in behaviour that never happened.
+  if (patch.secret !== undefined && row.authMethod === 'env') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_SECRET_INVALID',
+      'An environment-variable credential has no stored secret — edit its env name instead',
+    );
+  }
+  if (patch.isDefault === true && facts.otherDefaults > 0) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_DEFAULT_CONFLICT',
+      'Another default credential exists. Review that credential before changing the default.',
       409,
-      { usedBy },
     );
   }
 }

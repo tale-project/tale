@@ -1,16 +1,18 @@
 import type { OrgNotificationLink } from '../../../backend/core/notifications/org_notification_link';
 import { automationSlugToParam } from '../../automations/slug';
 import { isRecord } from '../../utils/type-utils';
+import { classifyMessageLink } from './message-link';
 
 /** Same route/params/search descriptor as the bell, serialized for external readers. */
 export function notificationTargetPath(target: NotificationTarget): string {
   const pathname = target.to.replace(
-    /\$([A-Za-z]+)/g,
-    (_match, name: string) => {
-      const value: unknown = Reflect.get(target.params, name);
+    /\$([A-Za-z]+)|\$$/g,
+    (_match, name: string | undefined) => {
+      const value: unknown = Reflect.get(target.params, name ?? '_splat');
       if (typeof value !== 'string')
         throw new Error('Missing notification route parameter');
-      return encodeURIComponent(value);
+      // The catch-all's `_splat` is a path of its own: its slashes stay.
+      return name === undefined ? value : encodeURIComponent(value);
     },
   );
   const search = new URLSearchParams();
@@ -94,6 +96,14 @@ export type NotificationTarget =
       params: { id: string };
       search?: { status?: string };
     }
+  // A page of the organization an automation's message links to
+  // (`automation_message`): the catch-all route, which the router resolves
+  // to the page itself — concrete routes always win over it.
+  | {
+      to: '/dashboard/$id/$';
+      params: { id: string; _splat: string };
+      search: Record<string, string>;
+    }
   // An automation run — the landing for an escalation with no task and no
   // project, whose row carries the run id and its automation's name.
   | {
@@ -160,6 +170,18 @@ export function personalNotificationTarget(args: {
     typeof params?.conversationId === 'string'
       ? params.conversationId
       : undefined;
+
+  // An automation's message (`automation_message`) opens the page of the
+  // organization its step linked to. A link to the web opens beside the
+  // row, from the bell's own action. Mirrors `buildPersonalNotificationUrl`.
+  const link = classifyMessageLink(params?.link, id);
+  if (link?.kind === 'app' && link.splat !== '') {
+    return {
+      to: '/dashboard/$id/$',
+      params: { id, _splat: link.splat },
+      search: link.search,
+    };
+  }
 
   // A conversation notification (inbound message / assignment) opens the thread
   // in the Inbox. The stamped `conversationStatus` doubles as the `$status` URL

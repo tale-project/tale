@@ -47,6 +47,7 @@ import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { useToast } from '@tale/ui/use-toast';
 import {
+  ArrowLeftRight,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -73,6 +74,7 @@ import {
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
+import { llmModelSteps } from '@/lib/automations/model-defaults';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { diffAutomationDocuments } from '@/lib/engine/core/diff/automation';
 import { changedNodeIds } from '@/lib/engine/core/diff/changes';
@@ -160,6 +162,7 @@ import { AutomationSourceView } from './automation-source-view';
 import { AutomationVersionPicker } from './automation-version-picker';
 import { CodingAgentButton } from './coding-agent-entry';
 import { EndFields, EndInspector } from './end-inspector';
+import { LlmModelSwapDialog } from './llm-model-swap-dialog';
 import {
   NodeFields,
   NodeInspector,
@@ -846,6 +849,7 @@ function AutomationEditorScope({
     });
   }, [issueViews, selectedId]);
   const [problemsOpen, setProblemsOpen] = useState(false);
+  const [modelSwapOpen, setModelSwapOpen] = useState(false);
   /** Which problems the panel shows; every open and every refusal starts
    * on all of them, so no filter hides what the reader came for. */
   const [problemsFilter, setProblemsFilter] = useState<ProblemsFilter>('all');
@@ -1042,6 +1046,21 @@ function AutomationEditorScope({
       editDraft((raw) => applyNodePatch(raw, selectedId, patch));
     },
     [editDraft, selectedId],
+  );
+  /** Another model in every llm step that names `from`: one draft edit,
+   * reviewed and kept like any other. */
+  const swapModel = useCallback(
+    (from: string, to: string) => {
+      editDraft((raw) =>
+        llmModelSteps(raw)
+          .filter((step) => step.model === from)
+          .reduce(
+            (doc, step) => applyNodePatch(doc, step.nodeId, { model: to }),
+            raw,
+          ),
+      );
+    },
+    [editDraft],
   );
   /** Start edits the run input's schema, End the output. */
   const onChangeDocument = useCallback(
@@ -1553,6 +1572,20 @@ function AutomationEditorScope({
           {t('detail.runLive')}
         </Button>
       )}
+      {canAuthor &&
+        rawDocument !== null &&
+        llmModelSteps(rawDocument).length > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={ArrowLeftRight}
+            onClick={() => {
+              setModelSwapOpen(true);
+            }}
+          >
+            {t('editor.modelSwap.open')}
+          </Button>
+        )}
       {canAuthor && (
         // Last of the automation's own verbs, right before Save: what the
         // check found decides whether Save can act.
@@ -2060,6 +2093,16 @@ function AutomationEditorScope({
           />
         </Field>
       </Dialog>
+
+      {rawDocument !== null && (
+        <LlmModelSwapDialog
+          open={modelSwapOpen}
+          onOpenChange={setModelSwapOpen}
+          organizationId={organizationId}
+          document={rawDocument}
+          onApply={swapModel}
+        />
+      )}
 
       {runRequest !== null && (
         <AutomationRunDialog

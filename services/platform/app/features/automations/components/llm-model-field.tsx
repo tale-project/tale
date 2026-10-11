@@ -19,11 +19,11 @@ import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { SearchableSelect } from '@tale/ui/searchable-select';
-import { useId, useMemo, useState } from 'react';
+import { useId, useState } from 'react';
 
-import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
 import { useT } from '@/lib/i18n/client';
-import { toModelOptions } from '@/lib/shared/harness-offer';
+
+import { useLlmModelOptions } from '../hooks/use-llm-model-options';
 
 export function LlmModelField({
   organizationId,
@@ -41,35 +41,13 @@ export function LlmModelField({
   const { t } = useT('automations');
   const { t: tProjects } = useT('projects');
   const inputId = useId();
-  const roster = useProjectHarnesses(organizationId);
+  const { options, loaded } = useLlmModelOptions(organizationId);
   const [typing, setTyping] = useState(false);
-
-  // One entry per model id — the llm walk picks the provider itself, so two
-  // providers serving the same id are one choice here. Direct lanes only.
-  const options = useMemo(() => {
-    const byId = new Map<string, { label: string; providers: string[] }>();
-    for (const option of toModelOptions(roster.data?.models ?? [])) {
-      if (option.subscription !== undefined) continue;
-      const entry = byId.get(option.id);
-      if (entry) entry.providers.push(option.providerLabel);
-      else {
-        byId.set(option.id, {
-          label: option.label,
-          providers: [option.providerLabel],
-        });
-      }
-    }
-    return [...byId.entries()].map(([id, entry]) => ({
-      value: id,
-      label: entry.label,
-      description: entry.providers.join(', '),
-    }));
-  }, [roster.data]);
 
   const listed = options.some((option) => option.value === model);
   // Only claim "not listed" once the roster has answered — an empty list
   // while it loads is not a missing model.
-  const unlisted = roster.data !== undefined && model !== '' && !listed;
+  const unlisted = loaded && model !== '' && !listed;
   const freeText = typing || unlisted;
 
   return (

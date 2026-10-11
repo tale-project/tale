@@ -123,9 +123,16 @@ describe('knowledge.search', () => {
   it.each<[KnowledgeRunRefusal, string, Record<string, unknown>]>([
     [{ kind: 'not_configured' }, 'KNOWLEDGE_NOT_CONFIGURED', {}],
     [
-      { kind: 'unavailable', detail: 'the provider answered 503' },
+      {
+        kind: 'unavailable',
+        detail: 'the provider answered 503',
+        providerCode: 'EMBEDDING_UPSTREAM_ERROR',
+      },
       'KNOWLEDGE_UNAVAILABLE',
-      { detail: 'the provider answered 503' },
+      {
+        detail: 'the provider answered 503',
+        providerCode: 'EMBEDDING_UPSTREAM_ERROR',
+      },
     ],
     [
       {

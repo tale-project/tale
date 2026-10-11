@@ -49,6 +49,12 @@ export type NotificationType =
   // 0.4 group (budget_alert / runtime_offline) never made the port.
   // Actionable.
   | 'automation_failed'
+  // A message an automation step sent (`notify.member`): the author's own
+  // title and words in a frame that names the automation, one row per
+  // recipient and step execution — each is news, so it never collapses.
+  // Gated by the `automation_messages` preference. Actionable: a person an
+  // automation names is being asked to look.
+  | 'automation_message'
   // RETIRED — no emitter writes this type anymore (the digest automation was
   // removed). The literal stays so stored rows keep typing; drop it once the
   // stored rows are gone.

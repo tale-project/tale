@@ -37,6 +37,10 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   // until an owner or admin fixes it and turns it back on — the work it did
   // has silently stopped, so it leaves the app too.
   'automation_failed',
+  // An automation step named the member and told them something: the
+  // author sent it so that this person looks now, and the bell alone only
+  // reaches someone already in Tale — so it leaves the app too.
+  'automation_message',
 ] as const;
 
 const ACTIONABLE_SET = new Set<string>(ACTIONABLE_NOTIFICATION_TYPES);

@@ -122,6 +122,18 @@ again, the unread notices about its pause are marked as read.
 - **Example**: A schedule turns itself off after repeated failures → every owner and admin
   who has not muted automation alerts gets a notice with a link to the trigger.
 
+### COLLAB-R13 · A message an automation sends reaches each member it names once
+
+Each member is told in the app and by email: the automation's title and words, framed by the
+automation's name, with the link the step gave — a page of the organization opens in place, a
+web page in a new tab, named by its site. Someone who switched off messages from automations is
+skipped, and the step lists them. A retry of the same step execution writes nothing twice. One
+run sends a bounded number of messages; a step that would pass the bound sends none.
+
+- **Example**: The weekly report automation tells Ada and Noah "Weekly report ready", and Noah
+  has switched off messages from automations → Ada is told in the app and by email; Noah is
+  listed as skipped.
+
 ## Not yet
 
 - **A person's list of notifications**: paging, marking as read, and the limits of a request

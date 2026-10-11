@@ -22,7 +22,7 @@ Tale lit et écrit chaque type de paramètre avec son propre code et les contrô
 | `agent-model` | L’environnement d’agent (harness), le modèle et le fournisseur avec lesquels travaille un agent de projet. Un changement s’applique aux exécutions qu’il lance ensuite. | Définir | Qui peut modifier le projet |
 | `task-instructions` | La description d’une tâche. | Définir | Qui peut modifier la tâche |
 | `task-review-context` | Si le travail d’une tâche passe par une relecture indépendante d’un autre agent de projet, et lequel. Une fois défini, l’agent relecteur reste le même. | Définir | Qui peut modifier le projet |
-| `deployment` | Les paramètres propres au déploiement, communs à toutes les organisations qu’il héberge, comme l’environnement d’exécution des sandboxes. | Définir | Tout propriétaire ou admin d’une organisation du déploiement peut les lire ; seules les adresses de la liste d’autorisation des éditeurs du déploiement peuvent les modifier |
+| `deployment` | Les paramètres propres au déploiement, communs à toutes les organisations qu’il héberge, comme l’environnement d’exécution des sandboxes. | Définir | Tout propriétaire ou admin d’une organisation du déploiement peut les lire, avec sa propre clé API ; seules les adresses de la liste d’autorisation des éditeurs du déploiement peuvent les modifier. Une clé créée pour un autre membre, une équipe, un projet ou l’organisation n’en atteint aucun |
 
 Une ressource a un identifiant au sein de son type : un fournisseur, son nom ; des identifiants, `<provider>/<name>` avec le nom encodé en URI ; une politique, sa clé, comme `password_policy` ; un projet, son identifiant ; un agent, `<projectId>/<agentId>` ; une tâche, `<projectId>/<taskId>`. Le modèle d’embedding, le branding et les paramètres du déploiement n’ont pas d’identifiant. `get_settings` liste les paramètres des projets et des agents page par page, sur les projets que tu peux lire ; il ne lit la description d’une tâche et son contexte de relecture que par l’identifiant de la tâche.
 
@@ -109,7 +109,7 @@ La référence des paramètres que `get_docs` renvoie pour le sujet `settings` (
 
 ## Secrets {#secrets}
 
-Aucun secret n’entre dans un appel de paramètres ni n’en sort. Un secret enregistré se lit `{"masked": true, "preview": "…"}`, de même que tout identifiant trouvé ailleurs dans un paramètre enregistré, par exemple une clé que quelqu’un a collée dans une politique dans Tale. Renvoie cette valeur telle quelle pour garder ce qui y est enregistré. Une modification qui contient un secret est refusée avec `SECRET_ARGUMENT_REFUSED`, qui indique où le secret a été trouvé, jamais sa valeur. Une personne saisit un nouveau secret dans Tale.
+Aucun secret n’entre dans un appel de paramètres ni n’en sort. Un secret enregistré se lit `{"masked": true, "preview": "…"}`, de même que tout ce qu’un paramètre enregistré contient et que Tale ne montre jamais dans l’enregistrement d’une exécution : une clé que quelqu’un a collée dans une politique ou une instruction, une clé saisie dans un en-tête dont le nom dit qu’il en contient une, ou un mot de passe dans une adresse. Un en-tête qui ne fait que nommer le secret enregistré, comme `Bearer {{secret}}`, se lit tel qu’il est enregistré. Une clé dans un texte plus long masque tout le texte. Renvoie une valeur masquée telle quelle pour garder ce qui y est enregistré, ou remplace toute la valeur. Une modification qui contient un secret est refusée avec `SECRET_ARGUMENT_REFUSED`, qui indique où le secret a été trouvé, jamais sa valeur. Une personne saisit un nouveau secret dans Tale.
 
 ## Quand une modification est refusée {#refusals}
 
@@ -118,7 +118,7 @@ Un refus arrive sous forme de données, avec un `error`, un `code`, un `hint` et
 | Code | Ce qu’il signifie |
 | --- | --- |
 | `SETTINGS_STALE` | La ressource a changé depuis sa lecture. Relis-la, planifie par rapport à ce qui est enregistré maintenant et applique avec `data.currentHash`. |
-| `SETTINGS_INVALID` | La configuration ne correspond pas au type. `data.issues` indique chaque problème avec son emplacement dans la configuration, y compris un champ que le paramètre ne connaît pas. |
+| `SETTINGS_INVALID` | La configuration ne correspond pas au type. `data.issues` indique chaque problème avec son emplacement dans la configuration, y compris un champ que le paramètre ne connaît pas et un texte que Tale ne peut pas enregistrer, comme un caractère NUL. |
 | `SECRET_ARGUMENT_REFUSED` | La modification contient un secret. `data.places` indique où. |
 | `SETTINGS_TALE_ONLY` | Cette modification se fait uniquement dans Tale, par exemple pour des identifiants avec une clé. |
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | Le rôle de la personne ne permet pas non plus cette modification dans Tale. Réessayer ne sert à rien. |

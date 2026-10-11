@@ -5,6 +5,7 @@
  */
 
 import { automationSlugToParam } from '../../../lib/automations/slug';
+import { classifyMessageLink } from '../../../lib/shared/notifications/message-link';
 import {
   canonicalOrigin,
   publicBaseUrlFor,
@@ -42,6 +43,12 @@ export function buildPersonalNotificationUrl(args: {
   const projectId = args.params?.projectId;
   const threadId = args.params?.threadId;
   const base = notificationBase(args.siteUrl);
+
+  // An automation's message opens the page of the organization its step
+  // linked to — parity with `personalNotificationTarget`. A link to the web
+  // is the email's own button (`email-sink.ts`).
+  const link = classifyMessageLink(args.params?.link, args.organizationId);
+  if (link?.kind === 'app') return `${base}${link.path}`;
 
   if (args.params?.chat === true && typeof threadId === 'string') {
     return `${base}/dashboard/${args.organizationId}/chat/${encodeURIComponent(threadId)}`;

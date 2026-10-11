@@ -49,6 +49,7 @@ import {
 import { pgWebdavStore } from '../webdav/connector-store.ts';
 import { connectorBlobSink } from './blob-sink.ts';
 import { pgDocumentStore } from './document-store.ts';
+import { pgNotifyStore } from './notify-store.ts';
 import { pgTaskStore } from './task-store.ts';
 
 /**
@@ -296,6 +297,8 @@ function assembleConnectorHost(sql: Sql): void {
     conversations: pgConversationStore(sql),
     // A search step searches as its run: the run's scope and its spend.
     knowledge: knowledgeSearchForRuns(sql),
+    // A message step sends as its run: its automation, cap and starter.
+    notify: pgNotifyStore(sql),
     // Outbound mail attachments read from the org's own blob store — the
     // files domain refuses a ref outside the org before any byte moves.
     mailAttachments: ({ organizationId, storageRef }) =>

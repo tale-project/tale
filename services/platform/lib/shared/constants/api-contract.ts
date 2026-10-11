@@ -651,5 +651,18 @@
  * status the service answered (`CONNECTOR_AUTH`, `CONNECTOR_NOT_FOUND`,
  * `CONNECTOR_RATE_LIMITED`, `CONNECTOR_UNREACHABLE`, `CONNECTOR_FAILED`),
  * as a test run's always was; it read `UNKNOWN`.
+ *
+ * 3.34.0 — 2026-10-10: a `task.create` connector node type creates a task in
+ * a project its automation is installed in — title, description, assignee
+ * (a member's email or user id, or an agent of the project), status, due
+ * date and labels — one per execution of the step, naming the automation as
+ * its creator. `StepFailure.reason` gains `TASK_PROJECT_NOT_BOUND` and
+ * `TASK_ASSIGNEE_UNKNOWN`.
+ *
+ * 3.35.0 — 2026-10-11: a `notify.member` connector node type tells members of
+ * the organization something from an automation — a title, words and a link
+ * (a page of the organization or an https address), in their notifications
+ * and by email — and answers who got it and who was skipped.
+ * `StepFailure.reason` gains `NOTIFY_NOT_A_MEMBER` and `NOTIFY_RUN_LIMIT`.
  */
-export const API_CONTRACT_VERSION = '3.33.0';
+export const API_CONTRACT_VERSION = '3.35.0';

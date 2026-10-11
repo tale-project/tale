@@ -538,6 +538,18 @@ editor:
     typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
     modelIdLabel: Modell-ID
     modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
+  # Ein anderes Modell in jedem llm-Schritt, der ein Modell nennt: Es
+  # ändert den Entwurf, und Speichern behält ihn.
+  modelSwap:
+    open: Modell wechseln
+    title: Ein anderes Modell in allen Schritten verwenden
+    description: Ersetze ein Modell in jedem Sprachmodell-Schritt, der es nennt. Die Änderung bleibt ein Entwurf, bis du speicherst.
+    from: Ersetzen
+    fromOption: '{model} · {count, plural, one {# Schritt} other {# Schritte}}'
+    to: Durch
+    steps: Schritte, die sich ändern
+    cancel: Abbrechen
+    apply: Dieses Modell verwenden
   resolvedInput: Aufgelöste Eingabe
   output: Ausgabe
   fields:

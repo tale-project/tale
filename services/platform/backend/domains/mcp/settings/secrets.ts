@@ -1,16 +1,27 @@
 /**
  * No secret crosses MCP, in or out. A secret a resource stores reads as a
- * masked value wherever a settings tool answers it, and so does any string
- * the credential detector recognises elsewhere in a stored config — a key
- * someone pasted into an instruction in Tale. A change may carry a masked
- * value back unchanged, which keeps what is stored there, and nothing else
- * in a secret's place; every string a change carries also goes through the
- * credential detector, so a key pasted into a description is refused the
- * same way. A refusal names where a secret was found and what it looked
- * like, never the value.
+ * masked value wherever a settings tool answers it, and so does anything
+ * else in a stored config a reader is never shown — the run recorder's own
+ * rule (`withholdSecrets`, `lib/shared/secret-scan.ts`): a key someone
+ * pasted into an instruction, a key typed into a header whose name says it
+ * holds one, a password in an address. A change may carry a masked value
+ * back unchanged, which keeps what is stored there, and nothing else in a
+ * secret's place; everything a change carries is held to the same rule, so
+ * a key pasted into a description is refused the same way. A refusal names
+ * where a secret was found and what it looked like, never the value.
+ *
+ * A setting's own fields are declared by its kind's schema, and a field's
+ * name says nothing of a secret there (a provider's `auth` methods, the
+ * `credentialId` an embedding model resolves): those are judged by their
+ * text alone, while a map's keys, such as a header's name, are judged by
+ * name as well.
  */
 
-import { findSecrets } from '../../../../lib/shared/secret-scan.ts';
+import {
+  findWithheld,
+  looksLikeCredential,
+  withheldCredentialKind,
+} from '../../../../lib/shared/secret-scan.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
 import { maskSecret } from '../../../core/provider_credentials/masking.ts';
 import type { McpRefusal } from '../refusals.ts';
@@ -129,19 +140,26 @@ export function secretPlaces(
   return [...places];
 }
 
+/** No declared member names: every name is judged. */
+const NO_NAMES: ReadonlySet<string> = new Set();
+
 /**
  * Every place a settings tool masks in a stored config: each place a
- * secret path names, and every string the credential detector recognises
- * wherever it sits — a key someone pasted into a description or a header
- * in Tale is masked on the way out, as it is refused on the way in.
+ * secret path names, and every place a reader is never shown wherever it
+ * sits — a key someone pasted into a description or typed into a header in
+ * Tale is masked on the way out, as it is refused on the way in. Where a
+ * member's own name looks like a credential, the object holding it is
+ * masked whole. `declaredNames` are the member names the kind's schema
+ * declares.
  */
 export function maskedPlaces(
   value: unknown,
   secretPaths: readonly string[],
+  declaredNames: ReadonlySet<string> = NO_NAMES,
 ): string[] {
   const places = new Set(secretPlaces(value, secretPaths));
-  for (const hit of findSecrets(value)) {
-    if (hit.pointer !== '') places.add(hit.pointer);
+  for (const place of findWithheld(value, { declaredNames })) {
+    if (place.pointer !== '') places.add(place.pointer);
   }
   return [...places];
 }
@@ -151,8 +169,9 @@ export function maskedPlaces(
 export function maskSecrets(
   config: unknown,
   secretPaths: readonly string[],
+  declaredNames: ReadonlySet<string> = NO_NAMES,
 ): unknown {
-  const places = maskedPlaces(config, secretPaths);
+  const places = maskedPlaces(config, secretPaths, declaredNames);
   if (places.length === 0) return config;
   const masked = structuredClone(config);
   for (const place of places) {
@@ -189,28 +208,56 @@ function secretRefusal(places: readonly SecretPlace[]): McpRefusal {
 
 /**
  * The refusal of a change that carries a secret — anything but the masked
- * value at a secret's place, or a credential anywhere in what it sends —
- * or null when it carries none.
+ * value at a secret's place, or anything a reader is never shown in what
+ * it sends — or null when it carries none. A masked value sent back keeps
+ * what is stored at its place (`restoreMaskedSecrets` checks that), and
+ * its preview is still read for a credential smuggled into it.
+ * `declaredNames` are the member names the kind's schema declares; an
+ * action's arguments declare none.
  */
 export function secretArgumentRefusal(
   change: { readonly config?: unknown; readonly args?: unknown },
   secretPaths: readonly string[],
+  declaredNames: ReadonlySet<string> = NO_NAMES,
 ): McpRefusal | null {
   const places = new Map<string, SecretPlace>();
+  const add = (pointer: string, kind: string): void => {
+    if (!places.has(pointer)) places.set(pointer, { pointer, kind });
+  };
+  const read = (
+    root: unknown,
+    prefix: '/config' | '/args',
+    names: ReadonlySet<string>,
+  ): void => {
+    for (const place of findWithheld(root, { declaredNames: names })) {
+      const sent = valueAt(root, place.pointer);
+      if (sent.found && isMaskedSecret(sent.value)) continue;
+      add(`${prefix}${place.pointer}`, place.label);
+    }
+    for (const place of maskedValuePlaces(root)) {
+      const sent = valueAt(root, place);
+      const preview =
+        sent.found && isMaskedSecret(sent.value)
+          ? sent.value.preview
+          : undefined;
+      if (preview !== undefined && looksLikeCredential(preview)) {
+        add(
+          `${prefix}${place}/preview`,
+          withheldCredentialKind(preview) ?? 'a credential',
+        );
+      }
+    }
+  };
   if (change.config !== undefined) {
     for (const place of secretPlaces(change.config, secretPaths)) {
       const sent = valueAt(change.config, place);
       if (sent.found && !isMaskedSecret(sent.value)) {
-        const pointer = `/config${place}`;
-        places.set(pointer, { pointer, kind: 'a secret value' });
+        add(`/config${place}`, 'a secret value');
       }
     }
+    read(change.config, '/config', declaredNames);
   }
-  for (const hit of findSecrets({ config: change.config, args: change.args })) {
-    if (!places.has(hit.pointer)) {
-      places.set(hit.pointer, { pointer: hit.pointer, kind: hit.label });
-    }
-  }
+  if (change.args !== undefined) read(change.args, '/args', NO_NAMES);
   return places.size === 0 ? null : secretRefusal([...places.values()]);
 }
 
@@ -244,10 +291,11 @@ export function restoreMaskedSecrets(
   config: unknown,
   stored: unknown,
   secretPaths: readonly string[],
+  declaredNames: ReadonlySet<string> = NO_NAMES,
 ): { readonly config: unknown } | { readonly refusal: McpRefusal } {
   const places = maskedValuePlaces(config);
   if (places.length === 0) return { config };
-  const kept = new Set(maskedPlaces(stored, secretPaths));
+  const kept = new Set(maskedPlaces(stored, secretPaths, declaredNames));
   const restored = structuredClone(config);
   const missing: SecretPlace[] = [];
   for (const place of places) {

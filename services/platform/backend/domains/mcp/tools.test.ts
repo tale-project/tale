@@ -459,6 +459,33 @@ describe('settings over MCP', () => {
     expect(platform).not.toHaveBeenCalled();
   });
 
+  it('refuses an id Postgres could not store, naming where it is', async () => {
+    const platform = vi.fn(host.platform);
+    const reply = await callTool(
+      caller,
+      get,
+      { kinds: ['task-instructions'], ids: ['p1/t\u0000', 'p1/t\ud800'] },
+      { host: { ...host, platform }, requestId: 'r' },
+    );
+    if (reply.kind !== 'answer') throw new Error('not admitted');
+    const answer = JSON.parse(reply.answer.result.content[0]?.text ?? '{}');
+    expect(answer.code).toBe('INVALID_ARGUMENTS');
+    expect(answer.data.issues).toEqual([
+      {
+        path: 'ids.0',
+        code: 'unstorable_text',
+        message: 'must not contain a NUL character (U+0000)',
+      },
+      {
+        path: 'ids.1',
+        code: 'unstorable_text',
+        message:
+          'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored',
+      },
+    ]);
+    expect(platform).not.toHaveBeenCalled();
+  });
+
   it('reads one kind’s pages or ids only, never several kinds’ at once', async () => {
     const reply = await callTool(
       caller,

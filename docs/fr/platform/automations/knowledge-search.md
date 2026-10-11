@@ -1,5 +1,5 @@
 ---
-title: Chercher dans tes connaissances depuis une automatisation
+title: Chercher tes connaissances depuis une automatisation
 description: Trouve avec l’étape knowledge.search les passages de tes documents et de tes sites indexés qui répondent à une question, utilise-les dans une étape suivante, et sache ce qu’une recherche peut lire.
 ---
 
@@ -69,8 +69,8 @@ Elle ne lit jamais une bibliothèque d’équipe qui n’est pas donnée à l’
 
 La page de l’exécution dit pourquoi une étape de recherche a échoué et comment y remédier.
 
-| Échec                                                        | Ce qui s’est passé                                                                                                                                                       |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **La recherche dans les connaissances n’est pas configurée** | L’organisation n’a pas de modèle d’embedding. Un administrateur en choisit un dans **Paramètres › Résidence des données**.                                               |
-| **La recherche dans les connaissances a échoué**             | Le fournisseur du modèle d’embedding a refusé l’appel ou a échoué.                                                                                                       |
-| **Une limite d’utilisation a arrêté l’étape**                | Une limite qui s’applique à l’exécution n’a plus de marge. Elle compte comme une limite, pas comme un échec qui se répète, donc aucune planification ne se met en pause. |
+| Échec                                                        | Ce qui s’est passé                                                                                                                                                                  |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **La recherche dans les connaissances n’est pas configurée** | L’organisation n’a pas de modèle d’embedding. Un administrateur en choisit un dans **Paramètres › Résidence des données**.                                                          |
+| **La recherche dans les connaissances a échoué**             | Le fournisseur du modèle d’embedding a refusé l’appel ou a échoué. Un échec de son côté ne compte pas pour la mise en pause d’une planification ; un compte ou une clé refusés, si. |
+| **Une limite d’utilisation a arrêté l’étape**                | Une limite qui s’applique à l’exécution n’a plus de marge. Elle compte comme une limite, pas comme un échec qui se répète, donc aucune planification ne se met en pause.            |

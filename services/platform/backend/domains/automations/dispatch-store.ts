@@ -19,27 +19,21 @@ import {
   boundRunTrace,
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
-import { walkLlmServing } from '../../core/automations/llm_call.ts';
-import type { ActionCtx } from '../../core/lib/ctx.ts';
 import {
   mintCursorFor,
   verifyCursorFor,
 } from '../../core/lib/signed_cursor.ts';
 import { toJson } from '../../db/sql.ts';
-import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { chatShimHandlers } from '../chat/shim.ts';
 import {
   assertWritable,
   getProjectAuthContext,
   type ProjectAuthContext,
 } from '../projects/service.ts';
-import {
-  credentialShimHandlers,
-  listServingCredentialFacts,
-} from '../provider_credentials/service.ts';
+import { listServingCredentialFacts } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
 import { listDeployments } from './audit.ts';
+import { walkLlmServingForOrganization } from './llm-serving.ts';
 import { nodeRunBytes, writeNodeRunsInTx } from './node-runs.ts';
 import { readOrgFacts } from './org-facts.ts';
 import {
@@ -88,6 +82,7 @@ import {
   beginRunIdempotent,
   beginRunIdempotentInTx,
 } from './store.ts';
+import { withinBudget } from './within-budget.ts';
 import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
@@ -195,27 +190,6 @@ export const MODEL_AVAILABILITY_BUDGET_MS = 5_000;
  * stops asking: the same idiom as the model check — a slow read is a
  * warning not given, never a save held. */
 export const ORG_FACTS_BUDGET_MS = 5_000;
-
-/** `work()`'s answer, or `undefined` ("cannot tell") once the budget is
- * spent — the work itself is not cancelled, only no longer waited for. */
-function withinBudget<T>(
-  budgetMs: number,
-  work: () => Promise<T>,
-  what = 'model availability',
-): Promise<T | undefined> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const expiry = new Promise<undefined>((resolve) => {
-    timer = setTimeout(() => {
-      console.warn(
-        `[automations] ${what} not answered within ${budgetMs} ms; cannot tell`,
-      );
-      resolve(undefined);
-    }, budgetMs);
-  });
-  return Promise.race([work(), expiry]).finally(() => {
-    if (timer !== undefined) clearTimeout(timer);
-  });
-}
 
 export interface PgStoreScope {
   organizationId: string;
@@ -342,13 +316,8 @@ export function pgAutomationStore(
     let pending = modelAnswers.get(key);
     if (pending === undefined) {
       pending = withinBudget(MODEL_AVAILABILITY_BUDGET_MS, async () => {
-        const shim = createCtxShim({
-          ...chatShimHandlers(sql),
-          ...credentialShimHandlers(sql),
-        });
-        const walk = await walkLlmServing(
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 walk; its ctx reads (the org slug, the default credential rows) are covered by these handlers
-          shim as unknown as ActionCtx,
+        const walk = await walkLlmServingForOrganization(
+          sql,
           organizationId,
           modelId,
         );

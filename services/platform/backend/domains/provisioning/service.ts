@@ -2,8 +2,14 @@ import { automationSettingsSchema } from '@tale/shared/schemas/automation-settin
 import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import type { Sql } from 'postgres';
 
+import {
+  applyModelDefaults,
+  llmModelSteps,
+  modelDefaultsMessage,
+} from '../../../lib/automations/model-defaults.ts';
 import { automationPresentationSchema } from '../../../lib/shared/schemas/automation_presentation.ts';
 import { loadSeedablePacks } from '../../core/provisioning/provision_default_automations.ts';
+import { resolveModelReplacements } from '../automations/model-defaults.ts';
 import { saveVersion, setTrigger } from '../automations/store.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import {
@@ -26,6 +32,8 @@ import { EXAMPLE_TASKS } from './starter-content.ts';
  *    saving the name again clears it),
  *  - a pack's trigger is bound once, while the org has none for it, and
  *    switched off unless the pack says otherwise,
+ *  - a pack's model step whose model the org does not serve is given one
+ *    it does serve, and the version says which (PROVN-R8),
  *  - starter content seeds only while the org has no project at all.
  *
  * The 0.4 default-AGENT provisioner is not ported: it had already been
@@ -65,6 +73,9 @@ export async function seedDefaultAutomationPacks(
   }
   const provisioned: string[] = [];
   const skipped: string[] = [];
+  // What each model a pack names is replaced with — null keeps it — asked
+  // once per model however many packs name it.
+  const decided = new Map<string, string | null>();
   for (const pack of packs) {
     const document = pack.document;
     const name = document.name ?? '';
@@ -127,13 +138,33 @@ export async function seedDefaultAutomationPacks(
       automationPresentationSchema,
       'presentation',
     );
+    const undecided = [
+      ...new Set(llmModelSteps(document).map((step) => step.model)),
+    ].filter((model) => !decided.has(model));
+    if (undecided.length > 0) {
+      const replacements = await resolveModelReplacements(
+        sql,
+        organizationId,
+        undecided,
+      );
+      for (const model of undecided) {
+        decided.set(model, replacements.get(model) ?? null);
+      }
+    }
+    const seeded = applyModelDefaults(
+      document,
+      (model) => decided.get(model) ?? null,
+    );
     await saveVersion(sql, {
       organizationId,
       name,
-      document,
+      document: seeded.document,
       actor: 'system:provisioning',
       origin: { via: 'system' },
-      message: 'Shipped default pack',
+      message:
+        seeded.changes.length === 0
+          ? 'Shipped default pack'
+          : `Shipped default pack. ${modelDefaultsMessage(seeded.changes)}`,
       ...(contract !== undefined ? { taskContract: contract } : {}),
       ...(settings !== undefined ? { settings } : {}),
       ...(presentation !== undefined ? { presentation } : {}),

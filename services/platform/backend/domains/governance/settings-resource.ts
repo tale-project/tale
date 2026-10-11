@@ -119,7 +119,7 @@ function record(value: unknown): Record<string, unknown> {
 
 /** Whether a change of the approval rules lets through without a person
  * something that needed one: a target that required approval no longer
- * does. */
+ * does, or a target is newly waived. */
 function approvalLoosened(before: unknown, after: unknown): boolean {
   const decisions = (policy: unknown) =>
     new Map(
@@ -128,11 +128,20 @@ function approvalLoosened(before: unknown, after: unknown): boolean {
         return [`${String(connector)}|${String(action)}`, decision] as const;
       }),
     );
+  const was = decisions(before);
   const now = decisions(after);
-  return [...decisions(before)].some(
+  // A target that waited for a person and no longer does…
+  const lifted = [...was].some(
     ([target, decision]) =>
       decision === 'require_approval' && now.get(target) !== 'require_approval',
   );
+  // …or one that now runs unseen where it did not: without a rule, a write
+  // leaving the platform waits for a person, so a new waiver lifts that too.
+  const waived = [...now].some(
+    ([target, decision]) =>
+      decision === 'auto_approve' && was.get(target) !== 'auto_approve',
+  );
+  return lifted || waived;
 }
 
 /** Whether a change of the review rules lets someone sign off agent work

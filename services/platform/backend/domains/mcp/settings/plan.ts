@@ -15,9 +15,11 @@ import {
   type SettingsRisk,
 } from '@tale/shared/schemas/settings-kinds';
 
+import { declaredSettingsNames } from '../../../../lib/mcp/settings-schemas.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
 import { type McpRefusal, refusalFromThrown } from '../refusals.ts';
 import { diffConfigs, type SettingsDiffEntry } from './diff.ts';
+import { unstorableTextRefusal } from './kit.ts';
 import {
   type HandlerPlan,
   type SettingsChange,
@@ -227,7 +229,16 @@ async function planOne(
   if (handler === undefined || refusal !== undefined) {
     return refused(id, refusal ?? unavailable(change.kind));
   }
-  const secret = secretArgumentRefusal(change, descriptor.secretPaths);
+  const unstorable = unstorableTextRefusal(change);
+  if (unstorable !== null) return refused(id, refusalOrThrow(unstorable));
+  // The member names the resource's schema declares: judged by their text
+  // alone, never taken for a secret by name.
+  const declared = declaredSettingsNames(change.kind, id);
+  const secret = secretArgumentRefusal(
+    change,
+    descriptor.secretPaths,
+    declared,
+  );
   if (secret !== null) return refused(id, secret);
   let current: SettingsResource | null;
   try {
@@ -245,6 +256,7 @@ async function planOne(
       change.config,
       current?.config ?? null,
       descriptor.secretPaths,
+      declared,
     );
     if ('refusal' in restored) {
       return refused(id, restored.refusal, currentHash);
@@ -274,7 +286,7 @@ async function planOne(
   const before =
     current === null
       ? null
-      : maskSecrets(current.config, descriptor.secretPaths);
+      : maskSecrets(current.config, descriptor.secretPaths, declared);
   const after =
     action === 'delete'
       ? null
@@ -285,6 +297,7 @@ async function planOne(
               : before
             : plan.after,
           descriptor.secretPaths,
+          declared,
         );
   // A created resource reads member by member; a removed one, whole.
   const { diff, truncated } =
@@ -324,7 +337,11 @@ export async function prepareChanges(
   const prepared: PreparedChange[] = [];
   const seen = new Set<string>();
   for (const [index, change] of changes.entries()) {
-    const outcome = await planOne(ctx, registry, change);
+    const outcome = await planOne(
+      { ...ctx, call: { changes, index } },
+      registry,
+      change,
+    );
     const { key } = outcome.planned;
     const twice = seen.has(key);
     seen.add(key);

@@ -29,7 +29,11 @@ import {
  * (`deployment`): one resource for every organization on the deployment,
  * read and saved through the writer the operator's settings use, behind the
  * same gate — reading takes an owner or admin of any organization, changing
- * additionally an address on the deployment's editor allowlist.
+ * additionally an address on the deployment's editor allowlist. That gate
+ * weighs a person's standing in every organization they belong to, so only
+ * a person's own key passes it: a key made for a member, a team, a project
+ * or the organization works in its own organization alone, and the
+ * deployment is no one organization's.
  */
 
 /** The person behind the call as the deployment's gate reads them. */
@@ -37,6 +41,13 @@ async function instanceAdmin(
   ctx: SettingsContext,
   write: boolean,
 ): Promise<InstanceAdminAuth> {
+  if (ctx.caller.credential.owner !== undefined) {
+    throw new DeploymentError(
+      'FORBIDDEN_INSTANCE_ADMIN',
+      "The deployment settings are read and changed only with a person's own API key; this key works in its organization alone.",
+      403,
+    );
+  }
   const email = (await callerEmail(ctx)) ?? '';
   return requireInstanceAdmin(
     ctx.sql,
@@ -78,7 +89,7 @@ function asRefusal(error: unknown): unknown {
 /** What the person behind a refused call can do about the gate. */
 const GATE_HINTS: Readonly<Record<string, string>> = {
   FORBIDDEN_INSTANCE_ADMIN:
-    'the deployment settings are read by an owner or admin of an organization on this deployment',
+    "the deployment settings are read by an owner or admin of an organization on this deployment, with that person's own API key",
   FORBIDDEN_DEPLOYMENT_EDITOR:
     "they are changed only by the addresses on the deployment's editor allowlist, which whoever runs this Tale keeps",
 };

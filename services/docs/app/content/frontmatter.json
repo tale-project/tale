@@ -460,6 +460,14 @@
       "description": "Verstehe die Standardregeln, veranlasse eine Richtlinienänderung und unterscheide Operationsfreigaben von anderen Prüfungen."
     }
   },
+  "de:platform/automations/add-tasks": {
+    "slug": "platform/automations/add-tasks",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Aufgaben aus einer Automatisierung anlegen",
+      "description": "Erstelle mit dem Schritt task.create eine Aufgabe in einem Projekt — mit Titel, zuständiger Person, Status, Fälligkeitsdatum und Labels — einmal pro Ausführung des Schritts, und erfahre, was abgelehnt wird."
+    }
+  },
   "de:platform/automations/approvals-in-workflows": {
     "slug": "platform/automations/approvals-in-workflows",
     "locale": "de",
@@ -530,6 +538,14 @@
     "frontmatter": {
       "title": "Dein Wissen aus einer Automatisierung durchsuchen",
       "description": "Finde mit dem Schritt knowledge.search die Passagen deiner Dokumente und indexierten Websites, die zu einer Frage passen, verwende sie in einem späteren Schritt und erfahre, was eine Suche lesen darf."
+    }
+  },
+  "de:platform/automations/notify-members": {
+    "slug": "platform/automations/notify-members",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Mitglieder aus einer Automatisierung benachrichtigen",
+      "description": "Teile Mitgliedern mit dem Schritt notify.member etwas aus einer Automatisierung mit — Titel, Text und Link, in ihren Benachrichtigungen und per E-Mail — und erfahre, wer übersprungen und was abgelehnt wird."
     }
   },
   "de:platform/automations/triggers": {
@@ -1636,6 +1652,14 @@
       "description": "Understand the default approval rules, request a policy change, and distinguish operation approvals from other reviews."
     }
   },
+  "en:platform/automations/add-tasks": {
+    "slug": "platform/automations/add-tasks",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Add tasks from an automation",
+      "description": "Create a task in a project with the task.create step — its title, assignee, status, due date and labels — once each time the step runs, and know what is refused."
+    }
+  },
   "en:platform/automations/approvals-in-workflows": {
     "slug": "platform/automations/approvals-in-workflows",
     "locale": "en",
@@ -1706,6 +1730,14 @@
     "frontmatter": {
       "title": "Search your knowledge from an automation",
       "description": "Find the passages of your documents and indexed websites that match a question with the knowledge.search step, use them in a later step, and know what a search may read."
+    }
+  },
+  "en:platform/automations/notify-members": {
+    "slug": "platform/automations/notify-members",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Notify members from an automation",
+      "description": "Tell members something from an automation with the notify.member step — a title, words and a link, in their notifications and by email — and know who is skipped and what is refused."
     }
   },
   "en:platform/automations/triggers": {
@@ -2812,6 +2844,14 @@
       "description": "Comprends les règles par défaut, demande une modification de politique et distingue les approbations des autres revues."
     }
   },
+  "fr:platform/automations/add-tasks": {
+    "slug": "platform/automations/add-tasks",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Ajouter des tâches depuis une automatisation",
+      "description": "Crée une tâche dans un projet avec l’étape task.create — titre, personne assignée, statut, échéance et libellés — une fois à chaque exécution de l’étape, et sache ce qui est refusé."
+    }
+  },
   "fr:platform/automations/approvals-in-workflows": {
     "slug": "platform/automations/approvals-in-workflows",
     "locale": "fr",
@@ -2880,8 +2920,16 @@
     "slug": "platform/automations/knowledge-search",
     "locale": "fr",
     "frontmatter": {
-      "title": "Chercher dans tes connaissances depuis une automatisation",
+      "title": "Chercher tes connaissances depuis une automatisation",
       "description": "Trouve avec l’étape knowledge.search les passages de tes documents et de tes sites indexés qui répondent à une question, utilise-les dans une étape suivante, et sache ce qu’une recherche peut lire."
+    }
+  },
+  "fr:platform/automations/notify-members": {
+    "slug": "platform/automations/notify-members",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Notifier des membres depuis une automatisation",
+      "description": "Fais savoir quelque chose à des membres depuis une automatisation avec l’étape notify.member — un titre, un texte et un lien, dans leurs notifications et par e-mail — et sache qui est ignoré et ce qui est refusé."
     }
   },
   "fr:platform/automations/triggers": {

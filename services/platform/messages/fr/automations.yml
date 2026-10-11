@@ -538,6 +538,18 @@ editor:
     typeUnlisted: Saisir un modèle qui n’est pas listé
     modelIdLabel: Identifiant du modèle
     modelIdHint: Exactement tel que le fournisseur l’écrit, p. ex. fournisseur/nom-du-modele.
+  # Un autre modèle dans chaque étape llm qui nomme un modèle : cela
+  # modifie le brouillon, et Enregistrer le garde.
+  modelSwap:
+    open: Changer de modèle
+    title: Utiliser un autre modèle dans toutes les étapes
+    description: Remplace un modèle dans chaque étape de modèle de langage qui le nomme. Le changement reste un brouillon jusqu’à ce que tu l’enregistres.
+    from: Remplacer
+    fromOption: '{model} · {count, plural, one {# étape} other {# étapes}}'
+    to: Par
+    steps: Étapes qui changent
+    cancel: Annuler
+    apply: Utiliser ce modèle
   resolvedInput: Entrée résolue
   output: Sortie
   fields:

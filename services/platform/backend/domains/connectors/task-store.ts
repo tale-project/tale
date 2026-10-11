@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
@@ -9,13 +11,19 @@ import type { Sql, TransactionSql } from 'postgres';
 import type { ConnectorCaller } from '../../../lib/connectors/dispatcher.ts';
 import type {
   WorkflowAgentStart,
+  WorkflowTaskCreated,
   WorkflowTaskStore,
 } from '../../../lib/connectors/natives/index.ts';
 import type { WorkflowIssueInput } from '../../../lib/connectors/natives/platform-tasks.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import {
+  truncateImportedDescription,
+  truncateImportedTitle,
+} from '../../core/tasks/helpers.ts';
 import { taskMentionPlainText } from '../../core/tasks/mentions.ts';
 import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import {
+  AutomationError,
   bindingProjectIds,
   getRun,
   resolveRunProject,
@@ -37,13 +45,17 @@ import {
   startDelegatedAgentRun,
   withStartWait,
 } from '../tasks/delegated-start.ts';
-import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
+import {
+  automationOwnerOfWorkflowSlug,
+  upsertTaskByExternalRef,
+} from '../tasks/external-ref.ts';
 import { readImportCursor, saveImportCursor } from '../tasks/import-cursors.ts';
 import {
   agentUpdateTaskStatusTrusted,
   assertTaskCreatable,
   assertTaskWorkable,
   boardTaskAccess,
+  createTask,
   loadTaskOrThrow,
   TaskError,
   type TaskRow,
@@ -180,6 +192,84 @@ function workflowAgentStartOf(
 /** The task natives over the 0.5 tasks domain — trusted writes (the
  * connector door's callers own authorization), the 0.4 platform-store
  * semantics. */
+/**
+ * The id a step's task takes: the same for every attempt of one execution
+ * (the run ledger's key for it), so a retry after the insert finds the task
+ * it made instead of making a second. A name-based UUID, version 5 shape.
+ */
+function stepTaskId(organizationId: string, idempotencyKey: string): string {
+  const hex = createHash('sha256')
+    .update(`task.create\u0000${organizationId}\u0000${idempotencyKey}`)
+    .digest('hex');
+  const variant = ((Number.parseInt(hex.slice(16, 18), 16) & 0x3f) | 0x80)
+    .toString(16)
+    .padStart(2, '0');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `5${hex.slice(13, 16)}`,
+    `${variant}${hex.slice(18, 20)}`,
+    hex.slice(20, 32),
+  ].join('-');
+}
+
+/**
+ * Who a step names as a task's assignee: a member by email or user id, or
+ * an agent of the project by id, handle or name (case-insensitive). Whether
+ * that one may work in the project is the task domain's own check.
+ */
+async function resolveStepAssignee(
+  tx: TransactionSql,
+  organizationId: string,
+  projectId: string,
+  assignee: string,
+): Promise<{ assigneeType: 'user' | 'agent'; assigneeId: string }> {
+  const ref = assignee.trim();
+  const folded = ref.toLowerCase();
+  if (ref.includes('@') && !ref.startsWith('@')) {
+    const members = await tx<{ id: string }[]>`
+      SELECT u.id FROM "user" u
+      JOIN "member" m ON m."userId" = u.id
+      WHERE m."organizationId" = ${organizationId}
+        AND lower(u.email) = ${folded}
+      LIMIT 1
+    `;
+    const member = members[0];
+    if (member !== undefined) {
+      return { assigneeType: 'user', assigneeId: member.id };
+    }
+  } else {
+    const members = await tx<{ userId: string }[]>`
+      SELECT "userId" FROM "member"
+      WHERE "organizationId" = ${organizationId} AND "userId" = ${ref}
+      LIMIT 1
+    `;
+    const member = members[0];
+    if (member !== undefined) {
+      return { assigneeType: 'user', assigneeId: member.userId };
+    }
+    const handle = folded.replace(/^@/, '');
+    const agents = await tx<{ id: string }[]>`
+      SELECT id FROM app.project_agents
+      WHERE org_id = ${organizationId} AND project_id = ${projectId}
+        AND (id = ${ref} OR lower(handle) = ${handle}
+          OR lower(name) = ${folded})
+      ORDER BY (id = ${ref}) DESC, (lower(handle) = ${handle}) DESC, id
+      LIMIT 1
+    `;
+    const agent = agents[0];
+    if (agent !== undefined) {
+      return { assigneeType: 'agent', assigneeId: agent.id };
+    }
+  }
+  throw new TaskError(
+    'TASK_ASSIGNEE_UNKNOWN',
+    'No member of the organization and no agent of the project answers to that name',
+    404,
+    { assignee: ref },
+  );
+}
+
 export function pgTaskStore(sql: Sql): WorkflowTaskStore {
   const systemAuth = async (organizationId: string) =>
     getProjectAuthContext(sql, {
@@ -417,6 +507,133 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         );
         return persistIssue(tx, organizationId, caller, scope, input);
       });
+    },
+    async create({ organizationId, caller, idempotencyKey, ...input }) {
+      if (caller.kind !== 'workflow') {
+        throw new TaskError(
+          'TASK_CREATE_FORBIDDEN',
+          'Only an automation step creates a task through this action',
+          403,
+        );
+      }
+      const taskId = stepTaskId(organizationId, idempotencyKey);
+      const made = async (tx: TransactionSql) => {
+        const rows = await tx<
+          { number: number; title: string; projectId: string }[]
+        >`
+          SELECT number, title, project_id AS "projectId" FROM app.tasks
+          WHERE id = ${taskId} AND org_id = ${organizationId}
+          LIMIT 1
+        `;
+        const row = rows[0];
+        if (row === undefined) return null;
+        const task: WorkflowTaskCreated = {
+          taskId,
+          number: row.number,
+          title: row.title,
+          url: `/dashboard/${organizationId}/projects/${row.projectId}/tasks?task=${taskId}`,
+        };
+        return task;
+      };
+      try {
+        const task = await sql.begin(async (tx) => {
+          // A retry of an execution whose task was already made answers it.
+          const earlier = await made(tx);
+          if (earlier !== null) return earlier;
+          const scope = await authorizeProject(
+            tx,
+            organizationId,
+            input.projectId,
+            caller,
+          );
+          const run = await getRun(tx, organizationId, caller.runId);
+          const owner =
+            run === null
+              ? null
+              : await automationOwnerOfWorkflowSlug(
+                  tx,
+                  organizationId,
+                  run.name,
+                );
+          const assignee =
+            input.assignee === undefined
+              ? undefined
+              : await resolveStepAssignee(
+                  tx,
+                  organizationId,
+                  input.projectId,
+                  input.assignee,
+                );
+          await createTask(
+            tx,
+            scope.person ?? (await systemAuth(organizationId)),
+            {
+              projectId: input.projectId,
+              title: truncateImportedTitle(input.title),
+              ...(input.description !== undefined && {
+                description: truncateImportedDescription(input.description),
+              }),
+              ...(input.status !== undefined && { status: input.status }),
+              ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
+              ...(input.labels !== undefined && { labels: input.labels }),
+              ...(assignee !== undefined && assignee),
+            },
+            {
+              taskId,
+              // Labels the catalog lacks are added for a writer who may edit
+              // the project — or for the automation alone, on a trigger's
+              // run — as an import adds them.
+              mintLabels:
+                scope.person === null ||
+                boardTaskAccess(scope.project, scope.person).canEdit,
+              // The automation that made it, as an import names it.
+              creator:
+                owner !== null
+                  ? { id: owner, type: 'app' }
+                  : { id: 'workflow', type: 'agent' },
+            },
+          );
+          const stored = await made(tx);
+          if (stored === null) {
+            throw new Error('task.create stored no task under its id');
+          }
+          return stored;
+        });
+        return { ok: true, task };
+      } catch (error) {
+        // Refused before anything stayed written (the transaction rolled
+        // back): said in the run record's words, not as a crash.
+        // The run's binding: a project it is not installed in, or one it may
+        // not reach.
+        if (
+          error instanceof AutomationError &&
+          (error.code === 'PROJECT_NOT_FOUND' ||
+            error.code === 'AUTOMATION_PROJECT_FORBIDDEN')
+        ) {
+          return {
+            ok: false,
+            refusal: { kind: 'project', detail: error.message },
+          };
+        }
+        if (error instanceof TaskError) {
+          if (error.code === 'PROJECT_NOT_FOUND') {
+            return {
+              ok: false,
+              refusal: { kind: 'project', detail: error.message },
+            };
+          }
+          if (
+            error.code === 'TASK_ASSIGNEE_UNKNOWN' ||
+            error.code.startsWith('ASSIGNEE_')
+          ) {
+            return {
+              ok: false,
+              refusal: { kind: 'assignee', detail: error.message },
+            };
+          }
+        }
+        throw error;
+      }
     },
     async get({ organizationId, taskId }) {
       let task: Awaited<ReturnType<typeof loadTaskOrThrow>>;

@@ -37,6 +37,8 @@ import {
   DEMO_HTTP,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_SEARCH,
+  DEMO_NOTIFY,
+  DEMO_TASK_CREATE,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
   DEMO_ORG_NAME,
@@ -1655,6 +1657,44 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // The Editor of the Gmail inbox triage with Change model open on the
+    // model its two language model steps name: the steps that change, and a
+    // model the organization's provider serves, picked to use instead.
+    name: 'automation-model-swap',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await page
+        .getByRole('button', {
+          name: t('automations.editor.modelSwap.open'),
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('automations.editor.modelSwap.title'),
+      });
+      await dialog
+        .getByText(t('automations.editor.llm.modelPlaceholder'))
+        .click();
+      await page
+        .getByRole('option', { name: /sonnet/i })
+        .first()
+        .click();
+    },
+    // Ready once a model is picked: the apply button is enabled.
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('automations.editor.modelSwap.title') })
+        .locator('button:enabled', {
+          hasText: t('automations.editor.modelSwap.apply'),
+        }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('automations.editor.modelSwap.title'),
+      }),
+  },
+  {
     // The Editor's Problems list under the canvas: a draft whose triage
     // prompt reads a node that does not exist — the node's error chip, the
     // reason under the Prompt field, Save waiting with its reason, and the
@@ -2189,6 +2229,62 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByText(t('automationRuns.data.returned'), { exact: true }),
+  },
+  {
+    // The seeded live run of the task creation demo in Customer onboarding
+    // portal, with its step selected: what the step received, and the task
+    // it returned — its id, number, title and the link that opens it.
+    name: 'automation-task-create-run',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TASK_CREATE.automation}/runs`,
+    prepare: async (page) => {
+      await runRow(page, 'success').click();
+      await page
+        .locator(
+          `[data-flow-node="${DEMO_TASK_CREATE.node}"][data-flow-state="succeeded"]`,
+        )
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByText(t('automationRuns.data.returned'), { exact: true }),
+  },
+  {
+    // The seeded live run of the notify demo, with its step selected: what
+    // the step sent, and whom it reached — the owner, who started the run.
+    name: 'automation-notify-run',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_NOTIFY.automation}/runs`,
+    prepare: async (page) => {
+      await runRow(page, 'success').click();
+      await page
+        .locator(
+          `[data-flow-node="${DEMO_NOTIFY.node}"][data-flow-state="succeeded"]`,
+        )
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByText(t('automationRuns.data.returned'), { exact: true }),
+  },
+  {
+    // The owner's bell, open on the notify demo's message: the step's title
+    // and words in the frame that names the automation, and the action that
+    // opens the report's site in a new tab.
+    name: 'automation-notify-bell',
+    section: 'platform',
+    route: '/dashboard/:orgId',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', {
+          name: new RegExp(`^${t('navigation.notifications')}`),
+        })
+        .click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('navigation.notifications') })
+        .getByText(DEMO_NOTIFY.title, { exact: true }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('navigation.notifications') }),
   },
   {
     // Settings > API > MCP — outbound MCP-server management is retired, so the

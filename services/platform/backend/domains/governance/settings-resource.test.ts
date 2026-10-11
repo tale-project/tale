@@ -504,6 +504,30 @@ describe('what a policy change does', () => {
       'removes-human-approval',
     ]);
     expect(governanceEffects('approval_policy', null, gated)).toEqual([]);
+    // Without a rule, a write leaving the platform waits for a person, so a
+    // rule that lets one run unseen removes that approval too.
+    const waived = { connector: 'github', decision: 'auto_approve' };
+    expect(
+      governanceEffects('approval_policy', null, { rules: [waived] }),
+    ).toEqual(['removes-human-approval']);
+    expect(
+      governanceEffects('approval_policy', gated, {
+        rules: [
+          ...gated.rules,
+          { action: 'imap-smtp.send', decision: 'auto_approve' },
+        ],
+      }),
+    ).toEqual(['removes-human-approval']);
+    // Keeping a waiver and adding an approval removes none.
+    expect(
+      governanceEffects(
+        'approval_policy',
+        { rules: [waived] },
+        {
+          rules: [waived, { connector: 'slack', decision: 'require_approval' }],
+        },
+      ),
+    ).toEqual([]);
     expect(
       governanceEffects(
         'review_policy',
@@ -512,5 +536,98 @@ describe('what a policy change does', () => {
       ),
     ).toEqual(['removes-human-approval']);
     expect(governanceEffects('budgets', null, { rules: [] })).toEqual([]);
+  });
+});
+
+describe('a moderation provider whose keys were typed into Tale [MCP-R12]', () => {
+  /** A vendor key of the shape a header carries. */
+  const KEY = '0123456789abcdef0123456789abcdef';
+  const policy = {
+    enabled: true,
+    appliesTo: ['input'],
+    endpoint: {
+      url: 'https://moderation.example.invalid/v1/analyze',
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': KEY,
+        'x-api-key': KEY,
+        Authorization: 'Bearer {{secret}}',
+        'Content-Type': 'application/json',
+      },
+      requestTemplate: '{"input": {{text}}}',
+      timeoutMs: 3000,
+      maxResponseBytes: 262_144,
+      bufferPolicy: {
+        minFlushChars: 120,
+        maxBufferChars: 800,
+        idleFlushMs: 400,
+        perStreamMaxConcurrent: 2,
+      },
+    },
+    responseShape: { type: 'openai_moderation' },
+    categoryMappings: [],
+    failBehavior: { input: 'open', output: 'closed' },
+    configVersion: 1,
+  };
+
+  beforeEach(() => {
+    stored.set('moderation_provider', policy);
+  });
+
+  it('reads with the typed keys masked and the stored secret’s placeholder shown', async () => {
+    const read = await getSettings(contextOf('admin'), registry, {
+      kinds: ['governance'],
+      ids: ['moderation_provider'],
+    });
+    expect(JSON.stringify(read)).not.toContain(KEY);
+    expect(read.resources).toEqual([
+      expect.objectContaining({
+        config: expect.objectContaining({
+          endpoint: expect.objectContaining({
+            headers: {
+              'Ocp-Apim-Subscription-Key': { masked: true, preview: '0123…ef' },
+              'x-api-key': { masked: true, preview: '0123…ef' },
+              Authorization: 'Bearer {{secret}}',
+              'Content-Type': 'application/json',
+            },
+          }),
+        }),
+      }),
+    ]);
+  });
+
+  it('keeps the typed keys when the read is sent back, and refuses a new one', async () => {
+    const read = await getSettings(contextOf('admin'), registry, {
+      kinds: ['governance'],
+      ids: ['moderation_provider'],
+    });
+    const [resource] = read.resources as Array<{ config: unknown }>;
+    const kept = await planSettings(contextOf('admin'), registry, [
+      {
+        kind: 'governance',
+        id: 'moderation_provider',
+        op: 'set',
+        config: resource?.config,
+      },
+    ]);
+    expect(kept.changes[0]).toMatchObject({ action: 'unchanged' });
+    const typed = await planSettings(contextOf('admin'), registry, [
+      {
+        kind: 'governance',
+        id: 'moderation_provider',
+        op: 'set',
+        config: {
+          ...policy,
+          endpoint: {
+            ...policy.endpoint,
+            headers: { ...policy.endpoint.headers, 'X-Goog-Api-Key': KEY },
+          },
+        },
+      },
+    ]);
+    expect(typed.changes[0]?.refusal).toMatchObject({
+      code: 'SECRET_ARGUMENT_REFUSED',
+    });
+    expect(JSON.stringify(typed)).not.toContain(KEY);
   });
 });

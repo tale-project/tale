@@ -8,7 +8,7 @@ import { createNativeHttp, type NativeFetch } from '../config/native-http';
 import { verifyRelease } from '../config/releases/deploy';
 import { loadClient, stableJson, valueHash } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
-import { relativePath, sha, slug } from '../config/releases/model';
+import { gitSha, relativePath, sha, slug } from '../config/releases/model';
 import { verifyStage } from '../config/releases/stage';
 import {
   deploymentLockFileNames,
@@ -36,6 +36,7 @@ const metadataSchema = z.object({
   clientId: slug,
   automationName: slug,
   artifactSha256: sha,
+  deploymentRef: gitSha.optional(),
   files: z
     .array(
       z.object({
@@ -241,11 +242,14 @@ async function readNativeDeployment(
   let total = 0;
   for (const record of records) {
     const receipt = record.proof.value;
+    const deploymentRef = receipt.deployment?.deploymentRef;
     const matching = candidates.filter(
       ({ metadata }) =>
         metadata.clientId === record.client &&
         metadata.automationName === receipt.target.automationName &&
-        metadata.artifactSha256 === receipt.artifactSha256,
+        metadata.artifactSha256 === receipt.artifactSha256 &&
+        (deploymentRef === undefined ||
+          metadata.deploymentRef === deploymentRef),
     );
     if (matching.length === 0) return unavailable('retained_stage_missing');
     if (matching.length !== 1)
@@ -277,6 +281,7 @@ async function readNativeDeployment(
       releaseRef: receipt.releaseRef,
       configVersion: receipt.configVersion,
       artifactSha256: receipt.artifactSha256,
+      deploymentRef,
     });
     const release = loadRelease(
       stage.manifestPath,

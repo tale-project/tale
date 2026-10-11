@@ -36,6 +36,9 @@ fields:
   automationAlerts:
     label: Automation alerts
     description: When an automation's schedule pauses itself because its runs keep failing.
+  automationMessages:
+    label: Messages from automations
+    description: When an automation sends you a message, such as a report that is ready.
   conversationMessages:
     label: Conversation messages
     description: When a contact message arrives in Conversations.

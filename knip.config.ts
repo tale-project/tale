@@ -292,7 +292,11 @@ export default {
       // platform source. A CLI-only filtered install must provide those
       // runtime edges, even though this workspace does not import them
       // directly.
+      // The CLI's relative platform imports reach the expression probe, which
+      // imports this package by its public data subpath. Keep the workspace
+      // link in the filtered native install without treating the edge as dead.
       ignoreDependencies: [
+        '@tale/ui',
         'ajv',
         'acorn',
         'is-reference',

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 180 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 185 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1326,6 +1326,42 @@ output:
       unavailable, run again later), the second as
       `automationRuns.runFailure.codes.connector_error`; both steps explain
       `automationRuns.reasons.HTTP_STATUS` with the status the API answered.
+- [ ] `AUTO-F130` · **In an automation installed in Customer onboarding
+      portal, add a `task.create` step with `title: Reply to {{ input.from }}`,
+      `assignee` your own email, `status: todo`, `dueDate: 2026-10-17` and
+      `labels: [support]`, deploy and **Run live** in that project** → a task
+      appears on the project's board in To do, assigned to you, due 17
+      October, labelled support, its creator shown as the automation; the
+      step's output carries its `taskId`, `number`, `title` and a `url` that
+      opens it. A **Test run** creates nothing and answers with the mock.
+- [ ] `AUTO-F131` · **Run the same step with `assignee: nobody@example.com`,
+      then in a project the automation is not installed in** → the first run
+      fails at the step with `automationRuns.reasons.TASK_ASSIGNEE_UNKNOWN`,
+      the second with `automationRuns.reasons.TASK_PROJECT_NOT_BOUND`;
+      neither leaves a task or a new label on any board.
+- [ ] `AUTO-F132` · **Add a `notify.member` step with `to: [run-starter]`,
+      `title: Weekly report ready`, a `message` and
+      `link: /dashboard/{org}/documents`, deploy and run it live** → your bell
+      shows **Weekly report ready** with the message and "Sent by the
+      automation" naming it (`inbox.automationMessageBody`); clicking the row
+      opens Documents. The step's output lists you under `delivered`. Change
+      the link to `https://example.com/report` → the row offers **Open
+      example.com** (`notifications.openWebLink`), which opens a new tab. A
+      **Test run** tells nobody and answers with the mock.
+- [ ] `AUTO-F133` · **Switch off Messages from automations
+      (`notificationPreferences.fields.automationMessages.label`) in
+      Settings › Notifications and run the step again** → no row reaches your
+      bell; the step's output lists you under `skipped` with
+      `reason: preference`. Name `nobody@example.com` beside you → the run
+      fails at the step with `automationRuns.reasons.NOTIFY_NOT_A_MEMBER` and
+      nobody is told. Started by a schedule, `run-starter` is listed as
+      skipped with `reason: no_starter`.
+- [ ] `AUTO-F134` · **In an automation whose `llm` steps name a model,
+      click Change model (`automations.editor.modelSwap.open`)** → a
+      dialog lists the model with its count of steps and the steps that
+      change; pick another model with the keyboard and Use this model →
+      both steps show it, Save and Discard arm, and Discard brings the old
+      model back. The button is absent when no `llm` step names a model.
 
 ## Boundary & error tests
 

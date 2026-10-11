@@ -517,8 +517,15 @@ export async function checkStandingRoleWakeScenarios(
    * (`rest/v1-automations.ts`, POST /api/v1/automations/:name/projects/:id):
    * SERIALIZABLE, the project read first (it takes the snapshot), the
    * definition check, then the bind under the automation's name lock.
-   * `attempts` counts the serializable retries' runs of the body. */
-  const restInstall = (name: string, projectId: string) => {
+   * `attempts` counts the serializable retries' runs of the body. The
+   * optional snapshot gate is test-only: it pauses immediately after that
+   * first project read so a race can release its writer and then let this
+   * stale snapshot continue without depending on pool scheduling. */
+  const restInstall = (
+    name: string,
+    projectId: string,
+    snapshotGate?: number,
+  ) => {
     let attempts = 0;
     const outcome = getProjectAuthContext(sql, {
       organizationId: orgId,
@@ -531,6 +538,11 @@ export async function checkStandingRoleWakeScenarios(
           const project = await loadRestProject(tx, auth, projectId, {
             write: true,
           });
+          if (snapshotGate !== undefined) {
+            await tx`
+              SELECT pg_advisory_xact_lock(${BARRIER_CLASS}, ${snapshotGate})
+            `;
+          }
           if (!(await automationExists(tx, auth.organizationId, name)))
             return null;
           return bindProjectInTx(tx, {
@@ -1880,23 +1892,31 @@ export async function checkStandingRoleWakeScenarios(
         async () => (await waitersAt(22)) === 1,
         WAIT_MS,
       );
-      const first = restInstall(xName, y.project);
-      const firstWaits = await waitFor(
-        async () => (await keyWaiters(xLock)) === 1,
+      // Do not infer that the REST transaction took its snapshot from an
+      // advisory-lock waiter. Under CI pool pressure it can be queued on a
+      // different connection for the whole timeout. The explicit gate is
+      // reached after loadRestProject, so its serializable snapshot is
+      // definitely older than the save that is still held at barrier 22.
+      const snapshotUnlock = await holdBarrier(220);
+      const first = restInstall(xName, y.project, 220);
+      const firstSnapshot = await waitFor(
+        async () => (await waitersAt(220)) === 1,
         WAIT_MS,
       );
       await unlock();
-      const [saved, installed] = await Promise.all([created, first.outcome]);
+      const saved = await created;
+      await snapshotUnlock();
+      const installed = await first.outcome;
       await dropBarrier();
       const afterFirst = await state();
       record(
         'standing-role wake: a REST install whose snapshot predates its automation’s first opted-in trigger retries and answers 409 in a project another schedule wakes — no false binding commits (W22a, R4-F1)',
         fencePresent &&
           saveHeld &&
-          firstWaits &&
+          firstSnapshot &&
           saved === 'saved' &&
           settledAs(afterFirst, installed, first.attempts()),
-        `fencePresent=${fencePresent} saveHeld=${saveHeld} installWaits=${firstWaits} save=${said(saved)} install=${said(installed)} attempts=${first.attempts()} state=${show(afterFirst)} (want the save, then a retried install answering 409; no x binding in y's project, y its one claim, x claiming its home)`,
+        `fencePresent=${fencePresent} saveHeld=${saveHeld} snapshotGate=${firstSnapshot} save=${said(saved)} install=${said(installed)} attempts=${first.attempts()} state=${show(afterFirst)} (want the save, then a retried install answering 409; no x binding in y's project, y its one claim, x claiming its home)`,
       );
 
       // (b) delete and recreate: x opted out; after the install took its

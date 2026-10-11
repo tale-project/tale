@@ -18,6 +18,7 @@ let prefsFixture:
       taskReview?: boolean;
       mention?: boolean;
       automationAlerts?: boolean;
+      automationMessages?: boolean;
     }
   | undefined = {};
 
@@ -225,5 +226,40 @@ describe('NotificationPreferencesSettings', () => {
         ).toBeInTheDocument();
       },
     );
+  });
+
+  // Any member may be named by an automation's message (`automation_message`),
+  // so everyone gets its switch — on until they turn it off.
+  describe('Messages from automations', () => {
+    it.each(['member', 'editor', 'developer', 'admin', 'owner'])(
+      'offers the switch to a %s and saves it',
+      async (role) => {
+        viewer.role = role;
+        prefsFixture = {};
+
+        const { user } = render(<NotificationPreferencesSettings />);
+
+        const messages = screen.getByRole('switch', {
+          name: 'Messages from automations',
+        });
+        expect(messages).toBeChecked();
+        await user.click(messages);
+
+        expect(mockSave).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          automationMessages: false,
+        });
+      },
+    );
+
+    it('shows a switch turned off as off', () => {
+      prefsFixture = { automationMessages: false };
+
+      render(<NotificationPreferencesSettings />);
+
+      expect(
+        screen.getByRole('switch', { name: 'Messages from automations' }),
+      ).not.toBeChecked();
+    });
   });
 });

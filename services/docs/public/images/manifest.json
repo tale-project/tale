@@ -240,6 +240,45 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-model-swap.webp",
+      "shot": "automation-model-swap",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox/editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1024,
+      "height": 828,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-notify-bell.webp",
+      "shot": "automation-notify-bell",
+      "route": "/dashboard/:orgId",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 896,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/automation-notify-run.webp",
+      "shot": "automation-notify-run",
+      "route": "/dashboard/:orgId/automations/weekly-report-ready/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-run-detail.webp",
       "shot": "automation-run-detail",
       "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
@@ -276,6 +315,19 @@
       "dpr": 2,
       "width": 768,
       "height": 1332
+    },
+    {
+      "file": "images/platform/automation-task-create-run.webp",
+      "shot": "automation-task-create-run",
+      "route": "/dashboard/:orgId/automations/support-follow-ups/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/automation-trigger-event.webp",
