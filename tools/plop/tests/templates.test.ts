@@ -63,6 +63,17 @@ describe('scaffolded image version metadata preserves filesystem caches', () => 
       expect(label).toContain(
         'org.opencontainers.image.description="Billing service"',
       );
+      // The rest of the set every Tale image carries; the repository guard
+      // (tools/cli/scripts/oci-image-metadata.test.ts) holds the shipped
+      // images to the same values.
+      for (const [key, value] of Object.entries({
+        source: 'https://github.com/tale-project/tale',
+        url: 'https://tale.dev',
+        documentation: 'https://docs.tale.dev',
+        vendor: 'Tale',
+        licenses: 'MIT',
+      }))
+        expect(label).toContain(`org.opencontainers.image.${key}="${value}"`);
       expect(
         metadata.filter((line) => line.startsWith('ENV TALE_VERSION=')),
       ).toEqual(['ENV TALE_VERSION=${VERSION}']);
@@ -71,6 +82,27 @@ describe('scaffolded image version metadata preserves filesystem caches', () => 
       ]);
     });
   }
+});
+
+test('a service description must be one an image label can carry', () => {
+  const { prompts } = captureConfig(registerService);
+  if (!Array.isArray(prompts)) throw new Error('expected static prompts');
+  const validate = prompts.find(
+    (prompt) => prompt.name === 'description',
+  )?.validate;
+  if (!validate) throw new Error('the description prompt validates nothing');
+  for (const accepted of ['Tale service', 'Billing service', 'x'.repeat(160)])
+    expect(validate(accepted), accepted).toBe(true);
+  for (const refused of [
+    '',
+    'too short',
+    'x'.repeat(161),
+    'says "quoted" things',
+    'costs $5 a month',
+    'ends with a backslash \\',
+    'two\nlines of text here',
+  ])
+    expect(validate(refused), refused).toEqual(expect.any(String));
 });
 
 interface Answers {

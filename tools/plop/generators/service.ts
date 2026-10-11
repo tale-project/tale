@@ -116,6 +116,13 @@ export function registerService(plop: NodePlopAPI): void {
         name: 'description',
         message: 'One-line description:',
         default: 'Tale service',
+        // It becomes the image's org.opencontainers.image.description label,
+        // which the build repeats as a manifest annotation. The bounds are the
+        // ones tools/cli/scripts/oci-image-metadata.test.ts holds every
+        // Dockerfile to; a quote or `$` would also break the LABEL itself.
+        validate: (v: string) =>
+          /^[^\n"\\$]{10,160}$/.test(v) ||
+          'Use 10–160 characters, without quotes, backslashes or $',
       },
       {
         type: 'list',

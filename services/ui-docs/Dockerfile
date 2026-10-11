@@ -103,7 +103,12 @@ RUN chmod +x ./docker-entrypoint.sh
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-ui-docs" \
-      org.opencontainers.image.description="Tale design-system documentation site (ui.tale.dev)"
+      org.opencontainers.image.description="Tale design-system documentation site (ui.tale.dev)" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 ENV TALE_VERSION=${VERSION}
 
 USER app

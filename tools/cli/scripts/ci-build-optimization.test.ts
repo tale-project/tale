@@ -58,7 +58,9 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
-test.each([
+// These runtimes read their release from TALE_VERSION. The rest of the sandbox
+// family ships it as the OCI version label alone.
+const versionInEnvironment = [
   'db',
   'proxy',
   'platform',
@@ -67,6 +69,13 @@ test.each([
   'docs',
   'ui-docs',
   'ai-gateway',
+];
+test.each([
+  ...versionInEnvironment,
+  'sandbox-llm-gateway',
+  'sandbox-egress',
+  'sandbox-buildkitd',
+  'sandbox-runtime',
 ])(
   '%s version metadata does not invalidate runtime filesystem work',
   async (service) => {
@@ -101,9 +110,10 @@ test.each([
         .filter((line) => !/^\s*#/.test(line))
         .join('\n')
         .replace(/\\\r?\n\s*/g, ' ');
-      expect(metadata).toMatch(
-        /^ENV\s+[^\n]*\bTALE_VERSION=\$\{VERSION\}(?:\s|$)/m,
-      );
+      if (versionInEnvironment.includes(service))
+        expect(metadata).toMatch(
+          /^ENV\s+[^\n]*\bTALE_VERSION=\$\{VERSION\}(?:\s|$)/m,
+        );
       if (/^LABEL\s/m.test(metadata)) {
         expect(metadata).toContain(
           'org.opencontainers.image.version="${VERSION}"',

@@ -94,7 +94,12 @@ RUN mkdir -p /data && chown app:app /data
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-ai-gateway" \
-      org.opencontainers.image.description="Multi-provider AI subscription credential gateway"
+      org.opencontainers.image.description="Multi-provider AI subscription credential gateway" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 ENV TALE_VERSION=${VERSION}
 
 VOLUME ["/data"]

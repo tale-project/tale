@@ -64,6 +64,17 @@ COPY services/sandbox-buildkitd/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-buildkitd/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
 
+# Keep version metadata after filesystem work so new releases reuse its layers.
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-sandbox-buildkitd" \
+      org.opencontainers.image.description="Tale sandbox BuildKit daemon — one organization's shared build cache for its sandbox sessions" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
+
 # gRPC endpoint sessions connect their remote buildx builder to (on the internal
 # sandbox network only — never published to the host).
 EXPOSE 1234

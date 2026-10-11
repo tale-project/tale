@@ -467,8 +467,10 @@ ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
       io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
       org.opencontainers.image.title="tale-platform" \
-      org.opencontainers.image.description="Tale Platform — TanStack Start SPA + Postgres backend" \
+      org.opencontainers.image.description="Tale Platform — Vite SPA and Postgres backend (web, API and worker roles)" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
 ENV TALE_VERSION=${VERSION}
@@ -485,10 +487,20 @@ CMD ["/app/docker-entrypoint.sh"]
 FROM scratch
 COPY --from=runner / /
 
+# A scratch stage drops the runner's labels with the rest of its image config,
+# and this stage is what ships: it carries the whole OCI label set itself
+# (tools/cli/scripts/oci-image-metadata.test.ts holds it to that).
 ARG VERSION=dev
 ARG AUTOMATION_WRITER_PROTOCOL
 LABEL org.opencontainers.image.version="${VERSION}" \
-      io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}"
+      io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
+      org.opencontainers.image.title="tale-platform" \
+      org.opencontainers.image.description="Tale Platform — Vite SPA and Postgres backend (web, API and worker roles)" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app
 

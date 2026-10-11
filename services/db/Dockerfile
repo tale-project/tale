@@ -101,6 +101,8 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-db" \
       org.opencontainers.image.description="Tale DB — ParadeDB (pg_search BM25 + pgvector) on PostgreSQL 16" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
 

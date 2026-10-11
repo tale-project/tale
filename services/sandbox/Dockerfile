@@ -90,6 +90,8 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-sandbox" \
       org.opencontainers.image.description="Tale Sandbox Spawner — stateless docker-run service for artifact_run" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.url="https://tale.dev" \
+      org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
 
