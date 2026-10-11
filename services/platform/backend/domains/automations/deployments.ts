@@ -72,7 +72,7 @@ const MAX_PAGE = 200;
 
 /** How many deploys `list_versions` answers beside the versions — the
  * recent ones a rollback chooses from. */
-export const RECENT_DEPLOYMENTS = 20;
+const RECENT_DEPLOYMENTS = 20;
 
 /** The door a pointer with no event names: the platform's own writes say
  * so in their actor; any other door is not known. */
