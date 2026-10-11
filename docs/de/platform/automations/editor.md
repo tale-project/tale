@@ -14,7 +14,7 @@ Im Workflow-Editor liest du, was eine Automatisierung tut, änderst ihre Felder 
 | **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
 | **Versionen** | Sehen, was live ist, alle gespeicherten Versionen und Live-Schaltungen prüfen und eine Version live schalten, zurückholen oder wiederherstellen. |
 
-Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs Editor, Allgemein und Läufe. Sie zeigt Versionsnachrichten, Datum, Testergebnisse und die Live-Markierung. Wähle eine Zeile, um diese Version zu öffnen. **Versionen** zeigt stattdessen den ganzen Verlauf; siehe [Versionen und Live-Schaltungen](#versions). Am Desktop stehen die Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs Editor, Allgemein und Läufe. Sie zeigt zu jeder Version die Notiz, wer sie wann gespeichert hat, das Testergebnis und die Live-Markierung; **Stellt v3 wieder her** und **Basiert auf v1** kennzeichnen Versionen, die eine ältere zurückholen oder auf ihr aufbauen. Wähle eine Zeile, um diese Version zu öffnen. **Alle Versionen und Änderungen** am Ende der Liste öffnet **Versionen** mit dem ganzen Verlauf; siehe [Versionen und Live-Schaltungen](#versions). Am Desktop stehen die Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
 
 Auf dem Smartphone startet eine geöffnete Automatisierung mit kompakter Navigation. Der Canvas des Editors nutzt die verfügbare Höhe, und Lauf- und Bereitstellungsaktionen stehen in einer Leiste am unteren Rand des Canvas. Wenn du eine Node auswählst, öffnen sich ihre Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
 
@@ -82,7 +82,7 @@ Mit dem Ansichtsschalter oben links im Canvas wechselst du zwischen **Canvas**, 
 
 ### Wenn eine neue Version eintrifft {#new-versions}
 
-Während du die Automatisierung ansiehst, kann jemand eine neue Version speichern, etwa ein Coding-Agent über MCP. Siehst du die neueste Version an und hast keine ungespeicherten Änderungen, wechselt der Canvas zur neuen: Die Kästen gleiten an ihre neuen Plätze, neue Kästen blenden sich ein, geänderte erhalten einmal einen Ring, und ein Screenreader hört „Jetzt wird v6 angezeigt.“. Die geöffnete Node bleibt offen, solange es sie noch gibt. Hast du ungespeicherte Änderungen, bewegt sich nichts. Ein Hinweis über dem Canvas meldet **Eine neuere Version wurde gespeichert**, und **v6 zeigen und Entwurf verwerfen** wechselt zu ihr.
+Während du die Automatisierung ansiehst, kann jemand eine neue Version speichern, etwa ein Coding-Agent über MCP. Siehst du die neueste Version an und hast keine ungespeicherten Änderungen, wechselt der Canvas zur neuen: Die Kästen gleiten an ihre neuen Plätze, neue Kästen blenden sich ein, geänderte erhalten einmal einen Ring, und ein Screenreader hört „Jetzt wird v6 angezeigt.“. Die geöffnete Node bleibt offen, solange es sie noch gibt. Hast du ungespeicherte Änderungen, bewegt sich nichts. Ein Hinweis über dem Canvas meldet **Eine neuere Version wurde gespeichert** und nennt die Version, auf der dein Entwurf basiert, wer die neue gespeichert hat und was sie ändert. **Ansehen, was sich in v6 geändert hat** öffnet den Vergleich in einem neuen Tab, sodass dein Entwurf offen bleibt, und **v6 zeigen und Entwurf verwerfen** wechselt zur neuen Version.
 
 ## Den möglichen Pfaden folgen {#paths}
 
@@ -189,7 +189,7 @@ Die Prüfung läuft nur für Entwickler, Admins und Inhaber, also die Rollen, di
 ## Eine Version speichern und testen
 
 1. Ändere die nötigen Felder und klicke auf **Speichern**.
-2. Erkläre die Änderung in der **Notiz zur Version** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten. Hat jemand während deiner Bearbeitung eine andere Version gespeichert, lehnt Tale das Speichern ab und fragt nach: **Meine Änderungen verwerfen und neu laden** zeigt die neuere Version, **Trotzdem speichern** legt deine Version darüber an — die neuere bleibt im Versionsverlauf, die aktuelle Version ist dann aber deine.
+2. Erkläre die Änderung in der **Notiz zur Version** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten. Der Dialog nennt die Version, die dabei entsteht, etwa **Wird als v6 gespeichert.**, und **Änderungen prüfen** listet auf, was dein Entwurf ändert, in derselben Form wie [Zwei Versionen vergleichen](#compare). Hat jemand während deiner Bearbeitung eine andere Version gespeichert, lehnt Tale das Speichern ab und sagt, wer welche Version wann gespeichert hat; **Ansehen, was sich in v6 geändert hat** öffnet ihre Änderungen in einem neuen Tab. **Meine Änderungen verwerfen und neu laden** zeigt die neuere Version, **Trotzdem speichern** legt deine Version darüber an — die neuere bleibt im Versionsverlauf, die aktuelle Version ist dann aber deine.
 3. Klicke auf **Testlauf**. Hat der Workflow ein Eingabeschema, tippe die Eingabe als JSON in **Eingabe für den Lauf (JSON)**; beim Tippen eines Schlüssels schlägt das Feld die Feldnamen des Schemas vor, und ⌘Enter (Strg+Enter) startet den Lauf. Öffne **Eingabeschema**, um Pflichtfelder und Typen zu sehen. Ungültiges JSON oder unpassende Werte verhindern den Start.
 4. Starte den Test, wechsle zum Tab **Läufe** und öffne seinen Eintrag. Vergleiche aufgelöste Eingabe, Ausgabe und geplante Aktionen mit dem erwarteten Ergebnis.
 
@@ -212,9 +212,17 @@ Maßgeblich ist das tatsächliche Schema des Workflows. Ein Zahlenfeld braucht e
 
 </Frame>
 
+### Von einer älteren Version ausgehen {#older-version}
+
+Zeigt **Version** eine ältere als die neueste Version, sagt ein Band über dem Canvas das, etwa **Du siehst v2. Die neueste ist v5.** **v5 anzeigen** wechselt zur neuesten Version, und **v2 mit v5 vergleichen** zeigt, was sich seither geändert hat.
+
+Du kannst die ältere Version trotzdem bearbeiten. Das Band ergänzt dann **Beim Speichern entsteht v6 aus v2.**, und genau das geschieht beim Speichern, ohne dass Tale dich zum Neuladen auffordert. Der Speicherdialog meldet **Wird als v6 gespeichert, basierend auf v2.** und warnt mit einem Link zum Vergleich, dass die Änderungen aus v3 bis v5 nicht in deinem Entwurf sind. Im Versionsverlauf trägt die neue Version **Basiert auf v2**. Willst du diese Änderungen behalten, wechsle vor dem Bearbeiten zur neuesten Version.
+
 ## Bereitstellen und live ausführen
 
-Wähle die getestete Fassung unter **Version** und klicke auf die Schaltfläche daneben, die diese Version nennt, etwa **v3 live schalten**. Die Kennzeichnung **Live** markiert die bereitgestellte Version. Sind die gespeicherten Tests einer Version fehlgeschlagen, lässt sie sich nicht bereitstellen. Behebe die Ursache und speichere eine neue Version. Du kannst jede gespeicherte Version auch unter **Versionen** live schalten, wie [Mit einem Klick live schalten oder zurückkehren](#deploy-in-one-click) beschreibt.
+Wähle die getestete Fassung unter **Version** und klicke auf die Schaltfläche daneben, die diese Version nennt, etwa **v3 live schalten**; bei einer älteren Version als der Live-Version heißt sie **Zurück zu v2**. Die Kennzeichnung **Live** markiert die bereitgestellte Version. Das Live-Schalten funktioniert wie unter **Versionen**: Ein Hinweis bestätigt es und bietet **Rückgängig** an. Ist inzwischen eine andere Version live gegangen, ändert sich nichts, und der Hinweis nennt, wer sie live geschaltet hat. Du kannst jede gespeicherte Version auch unter **Versionen** live schalten, wie [Mit einem Klick live schalten oder zurückkehren](#deploy-in-one-click) beschreibt.
+
+Sind die gespeicherten Tests einer Version fehlgeschlagen, lässt sie sich nicht bereitstellen. Behebe die Ursache und speichere eine neue Version. Besteht die Version die heutigen Prüfungen nicht mehr, lehnt Tale das Live-Schalten ab, und **Probleme** listet auf, was zu beheben ist; hast du ungespeicherte Änderungen, verwirf sie zuerst, um diese Liste zu sehen.
 
 **Live ausführen** startet die bereitgestellte Version, auch wenn du eine andere ansiehst. Die Bestätigung zeigt den Umfang und bei Bedarf **Eingabe für den Lauf (JSON)** für genau diese Version. Prüfe beides vor dem Bestätigen. Live-Läufe können verbundene Systeme verändern und auf eine [Freigabe](/de/platform/approvals/concepts) warten.
 
@@ -272,6 +280,6 @@ Wechsle zu **Läufe** und öffne den vollständigen Datensatz. Die Tabs bleiben 
 
 ## Zu einer früheren Version zurückkehren oder löschen
 
-Für eine Rückkehr öffne **Versionen** und nutze die Karte oben oder das Zeilenmenü einer Version, wie [Mit einem Klick live schalten oder zurückkehren](#deploy-in-one-click) beschreibt. Du kannst eine frühere Fassung auch über **Version** im **Editor** öffnen und dort auf die Schaltfläche klicken, die sie live schaltet, etwa **v2 live schalten**. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
+Für eine Rückkehr öffne **Versionen** und nutze die Karte oben oder das Zeilenmenü einer Version, wie [Mit einem Klick live schalten oder zurückkehren](#deploy-in-one-click) beschreibt. Du kannst eine frühere Fassung auch über **Version** im **Editor** öffnen und dort auf ihre Schaltfläche klicken, etwa **Zurück zu v2**. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
 
 Zum Löschen gehe zur Liste zurück, öffne das Zeilenmenü und wähle **Löschen**. Lies die Bestätigung mit dem Namen der Automatisierung. Versionen, Bereitstellung, Trigger und Projektzuordnungen werden entfernt. Ein offener Lauf blockiert das Löschen; beende ihn oder warte seinen Abschluss ab. Frühere Läufe unterliegen weiter der Aufbewahrung. Bereits ausgeführte Aktionen werden durch das Löschen nicht rückgängig gemacht.

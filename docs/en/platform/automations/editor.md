@@ -14,7 +14,7 @@ Open **Automations**, then select an automation. It opens on **Editor**. An auto
 | **Runs** | Inspect recent executions and open a run’s full record. |
 | **Versions** | See what is live, every saved version and every deployment, and deploy, roll back or restore a version. |
 
-The **Version** selector stays at the right of the Editor, General and Runs tabs on desktop and mobile. Open it to read version messages, dates, test results and the live marker, then select a row to open that version. **Versions** shows the whole history instead; see [Versions and deployments](#versions). On desktop, run actions sit beside the tabs together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
+The **Version** selector stays at the right of the Editor, General and Runs tabs on desktop and mobile. Open it to read each version's message, who saved it and when, its test result and the live marker; **Restores v3** and **Based on v1** mark a version restored from, or built on, an older one. Select a row to open that version. **All versions and changes** at the foot of the list opens **Versions**, which shows the whole history; see [Versions and deployments](#versions). On desktop, run actions sit beside the tabs together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
 
 On a phone, opening an automation starts with compact navigation. The editor canvas fills the available height, and its run and deploy controls sit in a toolbar at the bottom of the canvas. Selecting a node opens its fields — and Save and Discard — in a panel at the bottom of the screen.
 
@@ -82,7 +82,7 @@ The view switch at the top left of the canvas changes between **Canvas**, **List
 
 ### When a new version arrives {#new-versions}
 
-Someone can save a new version while you look at the automation, for example a coding agent through MCP. If you are looking at the latest version and have no unsaved changes, the canvas switches to the new one: boxes glide to their new places, new boxes fade in, changed ones are ringed once, and a screen reader hears "Now showing v6.". The node you had open stays open if it still exists. If you have unsaved changes, nothing moves. A notice above the canvas says **A newer version was saved**, and **Show v6 and discard my draft** switches to it.
+Someone can save a new version while you look at the automation, for example a coding agent through MCP. If you are looking at the latest version and have no unsaved changes, the canvas switches to the new one: boxes glide to their new places, new boxes fade in, changed ones are ringed once, and a screen reader hears "Now showing v6.". The node you had open stays open if it still exists. If you have unsaved changes, nothing moves. A notice above the canvas says **A newer version was saved**, which version your draft is based on, who saved the new one and what it changed. **See what changed in v6** opens the comparison in a new tab, so your draft stays open, and **Show v6 and discard my draft** switches to the new version.
 
 ## Follow the possible paths {#paths}
 
@@ -189,7 +189,7 @@ The check runs only for Developers, Admins and Owners, the roles that can save. 
 ## Save and test a version
 
 1. Edit the required fields and click **Save**.
-2. Enter a **Version message** that explains the change, then **Save version**. This appends a version and preserves earlier ones. If someone saved another version while you were editing, Tale refuses the save and asks: **Discard my changes and reload** shows the newer version, **Save anyway** appends your version on top of it — the newer one stays in the version history, but the latest version is then yours.
+2. Enter a **Version message** that explains the change, then **Save version**. This appends a version and preserves earlier ones. The dialog names the version you create, such as **Saves as v6.**, and **Review changes** lists what your draft changes, as [Compare two versions](#compare) shows them. If someone saved another version while you were editing, Tale refuses the save and says which version was saved, by whom and when; **See what changed in v6** opens its changes in a new tab. **Discard my changes and reload** shows the newer version, **Save anyway** appends your version on top of it — the newer one stays in the version history, but the latest version is then yours.
 3. Click **Test run**. If the workflow declares an input schema, type the input as JSON in **Run input (JSON)**; the field suggests the schema's field names as you type a key, and ⌘Enter (Ctrl+Enter) starts the run. Expand **Input schema** to see the required fields and their types. Invalid JSON or a schema mismatch prevents the start.
 4. Start the test, switch to the **Runs** tab and inspect its row. Open it to compare the resolved input, output, and proposed operations with your expected result.
 
@@ -212,9 +212,17 @@ Use the workflow's actual schema. A field typed as a number must receive a JSON 
 
 </Frame>
 
+### Start from an older version {#older-version}
+
+When **Version** shows an older version than the latest, a band above the canvas says so, such as **You're viewing v2. The latest is v5.** **Show v5** switches to the latest version, and **Compare v2 with v5** shows what changed since.
+
+You can still edit the older version. The band then adds **Saving creates v6 from v2.**, and saving does exactly that without asking you to reload. The save dialog says **Saves as v6, based on v2.** and warns that the changes made in v3 to v5 are not in your draft, with a link to compare them. In the version history, the new version carries **Based on v2**. To keep those changes, switch to the latest version before you edit.
+
 ## Deploy and run live
 
-Choose the tested version under **Version** and click the deploy button beside it, which names that version, such as **Deploy v3**. The **Live** badge marks the deployed version. A version whose saved tests failed cannot be deployed; correct the cause and save a new version. You can also deploy any saved version from **Versions**, as [Deploy or roll back in one click](#deploy-in-one-click) describes.
+Choose the tested version under **Version** and click the deploy button beside it, which names that version, such as **Deploy v3**; for a version older than the live one, it reads **Roll back to v2**. The **Live** badge marks the deployed version. The deploy works as on **Versions**: a notice confirms it and offers **Undo**, and if another version went live in the meantime, nothing changes and the notice says who deployed it. You can also deploy any saved version from **Versions**, as [Deploy or roll back in one click](#deploy-in-one-click) describes.
+
+A version whose saved tests failed cannot be deployed; correct the cause and save a new version. If the version no longer passes today's checks, the deploy is refused and **Problems** lists what to fix; with unsaved changes on screen, discard them first to see that list.
 
 **Run live** starts the deployed version, even if you are viewing another one. Its confirmation shows the scope and, when required, **Run input (JSON)** for that deployed version. Check both before confirming. Live runs may act on connected systems and may wait for an [approval](/platform/approvals/concepts).
 
@@ -272,6 +280,6 @@ Switch to **Runs** and open a row for the full record. The tabs remain visible w
 
 ## Roll back or delete
 
-To roll back, open **Versions** and use the top card or a version’s row menu, as [Deploy or roll back in one click](#deploy-in-one-click) describes. You can also open an earlier version in **Editor** with **Version** and click its deploy button there, such as **Deploy v2**. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
+To roll back, open **Versions** and use the top card or a version’s row menu, as [Deploy or roll back in one click](#deploy-in-one-click) describes. You can also open an earlier version in **Editor** with **Version** and click its button there, such as **Roll back to v2**. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
 
 To delete the automation, return to the list, open its row menu, and select **Delete**. Read the named confirmation. All versions, deployment, trigger, and project bindings are removed. An unfinished run blocks deletion; stop it or let it finish first. Past runs remain subject to retention. Deleting an automation does not undo the actions its runs already performed.

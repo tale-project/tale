@@ -45,6 +45,10 @@ const {
     deployedDocument: undefined as unknown,
     version: 3,
     deployedVersion: 2 as number | undefined,
+    /** The newest version, when the test reads an older one. */
+    latestVersion: undefined as number | undefined,
+    /** What the version read changed against the one before it. */
+    changes: undefined as unknown,
     /** Agent nodes of the DEPLOYED version without a provider pin. */
     deployedUnpinnedAgentNodes: undefined as string[] | undefined,
     /** A `?version=` the read refuses with `AUTOMATION_VERSION_UNKNOWN`. */
@@ -85,7 +89,7 @@ const {
   }>,
   saveMutation: { mutateAsync: vi.fn(), isPending: false },
   startRun: { mutate: vi.fn(), isPending: false },
-  deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
+  deploy: { mutateAsync: vi.fn(), isPending: false },
   /** Turning on the trigger a deploy found off. */
   setTriggerMutation: { mutateAsync: vi.fn(), isPending: false },
   toastSpy: vi.fn(),
@@ -233,6 +237,16 @@ vi.mock('../hooks/queries', async (importOriginal) => {
                         : state.document,
                     version: version ?? state.version,
                     deployedVersion: state.deployedVersion,
+                    ...(state.latestVersion !== undefined && {
+                      latestVersion: state.latestVersion,
+                    }),
+                    ...(state.changes !== undefined && {
+                      changes: state.changes,
+                    }),
+                    // Who saved it, as every version read says.
+                    createdBy: 'user-me',
+                    createdAt: 1_791_000_000_000,
+                    createdVia: 'app',
                     ...(state.presentation !== undefined
                       ? { presentation: state.presentation }
                       : {}),
@@ -315,6 +329,13 @@ vi.mock('../hooks/queries', async (importOriginal) => {
     }),
   };
 });
+
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({ members: [] }),
+}));
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
+}));
 
 vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => saveMutation,
@@ -538,7 +559,13 @@ beforeEach(() => {
     (_args: unknown, callbacks: { onSuccess?: () => void }) =>
       callbacks.onSuccess?.(),
   );
-  deploy.mutate.mockReset();
+  deploy.mutateAsync.mockReset();
+  deploy.mutateAsync.mockResolvedValue({
+    name: 'billing/dunning',
+    version: 3,
+    previousVersion: 2,
+    kind: 'deploy',
+  });
   projectsData.list = [];
   projectsData.bound = [];
   projectsData.models = [];
@@ -555,6 +582,8 @@ beforeEach(() => {
   state.deployedDocument = undefined;
   state.version = 3;
   state.deployedVersion = 2;
+  state.latestVersion = undefined;
+  state.changes = undefined;
   state.deployedUnpinnedAgentNodes = undefined;
   state.missingVersion = undefined;
   state.detailError = undefined;
@@ -597,6 +626,8 @@ function automationResponse() {
     document: state.document,
     version: state.version,
     deployedVersion: state.deployedVersion,
+    createdBy: 'user-me',
+    createdAt: 1_791_000_000_000,
   });
 }
 
@@ -988,64 +1019,67 @@ describe('AutomationEditor', () => {
       screen.queryByRole('button', { name: /^Deploy$/ }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
-    expect(deploy.mutate).toHaveBeenCalledWith(
-      {
-        organizationId: 'org-1',
-        name: 'billing/dunning',
-        version: 3,
-      },
-      expect.objectContaining({ onError: expect.any(Function) }),
+    // Against the live version on screen, so a deploy made meanwhile is
+    // refused rather than undone.
+    expect(deploy.mutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      name: 'billing/dunning',
+      version: 3,
+      expectedDeployedVersion: 2,
+    });
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'v3 is live.' }),
+      ),
     );
   });
 
-  it("surfaces the deploy gate's own refusal, not a generic error", async () => {
-    deploy.mutate.mockImplementation(
-      (
-        _args: unknown,
-        handlers: { onError: (error: unknown) => void } | undefined,
-      ) => {
-        handlers?.onError({
-          data: {
-            code: 'AUTOMATION_DEPLOY_REJECTED',
-            message:
-              'deploy gate: billing/dunning@3 was saved with failing tests — fix them and save a new version',
-          },
-        });
+  it('says why a version whose tests fail cannot go live, in a dialog', async () => {
+    deploy.mutateAsync.mockRejectedValue({
+      data: {
+        code: 'AUTOMATION_DEPLOY_REJECTED',
+        message:
+          'deploy gate: billing/dunning@3 was saved with failing tests — fix them and save a new version',
       },
-    );
+    });
     const { user } = renderPage();
     await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: "v3 can't go live",
+    });
     expect(
-      screen.getByText(
-        'deploy gate: billing/dunning@3 was saved with failing tests — fix them and save a new version',
-      ),
+      within(dialog).getByText("The tests of v3 fail, so it can't go live."),
     ).toBeVisible();
+  });
+
+  it('rolls back to an older version than the live one, by name', async () => {
+    state.deployedVersion = 4;
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Roll back to v3' }));
+    expect(deploy.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ version: 3, expectedDeployedVersion: 4 }),
+    );
   });
 
   // Leo deploys a pack whose schedule was created off: the editor says so
   // and offers to turn it on, instead of letting him think it now runs.
   it('offers to turn on the trigger a deploy found off, and hands it the focus', async () => {
-    deploy.mutate.mockImplementation(
-      (
-        _args: unknown,
-        handlers: { onSuccess?: (result: unknown) => void } | undefined,
-      ) => {
-        handlers?.onSuccess?.({
-          name: 'billing/dunning',
-          version: 3,
-          trigger: {
-            kind: 'schedule',
-            enabled: false,
-            nextRunAt: null,
-            warnings: [],
-          },
-        });
+    deploy.mutateAsync.mockResolvedValue({
+      name: 'billing/dunning',
+      version: 3,
+      trigger: {
+        kind: 'schedule',
+        enabled: false,
+        nextRunAt: null,
+        warnings: [],
       },
-    );
+    });
     setTriggerMutation.mutateAsync.mockResolvedValue({});
     const { user, rerender } = renderPage();
     await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
-    const title = screen.getByRole('heading', { name: 'Its trigger is off' });
+    const title = await screen.findByRole('heading', {
+      name: 'Its trigger is off',
+    });
     expect(
       screen.getByText('The schedule starts no runs until you turn it on.'),
     ).toBeVisible();
@@ -1073,7 +1107,11 @@ describe('AutomationEditor', () => {
       },
     });
     expect(await screen.findByText('The trigger is on.')).toBeVisible();
-    expect(toastSpy).not.toHaveBeenCalled();
+    // The deploy says it went live; turning the trigger on adds nothing.
+    expect(toastSpy).toHaveBeenCalledTimes(1);
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'v3 is live.' }),
+    );
   });
 
   it.each([
@@ -1082,18 +1120,11 @@ describe('AutomationEditor', () => {
   ])(
     'says nothing more after a deploy when the trigger is %s',
     async (_case, trigger) => {
-      deploy.mutate.mockImplementation(
-        (
-          _args: unknown,
-          handlers: { onSuccess?: (result: unknown) => void } | undefined,
-        ) => {
-          handlers?.onSuccess?.({
-            name: 'billing/dunning',
-            version: 3,
-            trigger,
-          });
-        },
-      );
+      deploy.mutateAsync.mockResolvedValue({
+        name: 'billing/dunning',
+        version: 3,
+        trigger,
+      });
       const { user } = renderPage();
       await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
       expect(screen.queryByText('Its trigger is off')).toBeNull();
@@ -1646,8 +1677,10 @@ describe('AutomationEditor', () => {
     expect(saveMutation.mutateAsync).toHaveBeenCalledWith({
       organizationId: 'org-1',
       message: 'tighten the prompt',
-      // The version the draft was built on rides along.
+      // The latest version when the draft started, and the one it was
+      // built from, ride along.
       baseVersion: 3,
+      basedOnVersion: 3,
       automation: expect.objectContaining({
         name: 'billing/dunning',
         nodes: [expect.objectContaining({ id: 'summary', when: 'x' })],
@@ -1793,9 +1826,10 @@ describe('AutomationEditor', () => {
       ).toBeVisible();
     });
     expect(toastSpy).not.toHaveBeenCalled();
+    // In the reader's words, never the store's own sentence.
     expect(
       screen.getByText(
-        'v4 of "billing/dunning" was saved after your draft started from v3.',
+        /^v4 was saved while you were editing\. Your changes are based on v3\./,
       ),
     ).toBeVisible();
 
@@ -1835,7 +1869,7 @@ describe('AutomationEditor', () => {
       await user.paste('Submitted draft');
       await user.click(saveButton());
       await user.click(screen.getByRole('button', { name: 'Save version' }));
-      await screen.findByText('v4 landed.');
+      await screen.findByText(/^v4 was saved while you were editing\./);
       await user.click(screen.getByRole('button', { name: 'Save anyway' }));
 
       saveMutation.isPending = true;
@@ -1929,7 +1963,7 @@ describe('AutomationEditor', () => {
       await user.paste('Submitted draft');
       await user.click(saveButton());
       await user.click(screen.getByRole('button', { name: 'Save version' }));
-      await screen.findByText('v4 landed.');
+      await screen.findByText(/^v4 was saved while you were editing\./);
       await user.click(screen.getByRole('button', { name: 'Save anyway' }));
       saveMutation.isPending = true;
       rerender(page());
@@ -1976,7 +2010,9 @@ describe('AutomationEditor', () => {
       expect(discardButton()).toBeEnabled();
       await user.click(saveButton());
       await user.click(screen.getByRole('button', { name: 'Save version' }));
-      await screen.findByText('v5 landed after v2.');
+      await screen.findByText(
+        /^v5 was saved while you were editing\. Your changes are based on v2\./,
+      );
       expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
         expect.objectContaining({
           baseVersion: 2,
@@ -2004,7 +2040,7 @@ describe('AutomationEditor', () => {
     await editTheNode(user);
     await user.click(saveButton());
     await user.click(screen.getByRole('button', { name: 'Save version' }));
-    await screen.findByText('v4 landed.');
+    await screen.findByText(/^v4 was saved while you were editing\./);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(whenField()).toHaveValue('x');
@@ -2028,7 +2064,9 @@ describe('AutomationEditor', () => {
     await user.click(saveButton());
     await user.click(screen.getByRole('button', { name: 'Save version' }));
     await waitFor(() => {
-      expect(screen.getByText('v4 landed.')).toBeVisible();
+      expect(
+        screen.getByText(/^v4 was saved while you were editing\./),
+      ).toBeVisible();
     });
 
     await user.click(
@@ -2203,18 +2241,11 @@ describe('AutomationEditor problems', () => {
   });
 
   it('points a refused deploy at Problems', async () => {
-    deploy.mutate.mockImplementation(
-      (
-        _args: unknown,
-        handlers: { onError: (error: unknown) => void } | undefined,
-      ) => {
-        handlers?.onError(refusal());
-      },
-    );
+    deploy.mutateAsync.mockRejectedValue(refusal());
     const { user } = renderPage();
     await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
     expect(
-      screen.getByText(
+      await screen.findByText(
         'This version has problems that block deploying it. Problems lists them.',
       ),
     ).toBeVisible();
@@ -2268,14 +2299,7 @@ describe('AutomationEditor problems', () => {
   });
 
   it('says a refused deploy once: the alert names it, the announcer counts', async () => {
-    deploy.mutate.mockImplementation(
-      (
-        _args: unknown,
-        handlers: { onError: (error: unknown) => void } | undefined,
-      ) => {
-        handlers?.onError(refusal());
-      },
-    );
+    deploy.mutateAsync.mockRejectedValue(refusal());
     const { user } = renderPage();
     await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
     await waitFor(() =>
@@ -2284,19 +2308,12 @@ describe('AutomationEditor problems', () => {
   });
 
   it('words a refused deploy with a draft on screen in the reader’s language', async () => {
-    deploy.mutate.mockImplementation(
-      (
-        _args: unknown,
-        handlers: { onError: (error: unknown) => void } | undefined,
-      ) => {
-        handlers?.onError(refusal());
-      },
-    );
+    deploy.mutateAsync.mockRejectedValue(refusal());
     const { user } = renderPage();
     await editTheNode(user);
     await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
     expect(
-      screen.getByText(
+      await screen.findByText(
         'This version has problems that block deploying it. Discard your draft to see them in Problems.',
       ),
     ).toBeVisible();
@@ -2422,6 +2439,7 @@ describe('AutomationEditor canvas', () => {
 
     state.version = 4;
     state.document = twoNodes;
+    state.changes = { nodes: { added: 1, removed: 0, changed: 0 } };
     rerender(page());
 
     expect(screen.getByText('A newer version was saved')).toBeVisible();
@@ -2429,6 +2447,14 @@ describe('AutomationEditor canvas', () => {
       screen.getByText(
         'v4 was saved while you were editing. Your draft is based on v3.',
       ),
+    ).toBeVisible();
+    // Who saved it and what it changed, and the way to its changes.
+    expect(screen.getByText('Saved by')).toBeVisible();
+    expect(
+      screen.getByRole('group', { name: 'What changed' }),
+    ).toHaveTextContent('1 added');
+    expect(
+      screen.getByRole('link', { name: 'See what changed in v4' }),
     ).toBeVisible();
     // Nothing on the canvas moved: the draft is still what it shows.
     expect(screen.queryByRole('button', { name: 'select notify' })).toBeNull();
@@ -2694,5 +2720,126 @@ describe('Start, End and the Source view', () => {
     ).toBeVisible();
     await user.click(screen.getByRole('radio', { name: 'Canvas' }));
     expect(screen.getByTestId('canvas')).toBeInTheDocument();
+  });
+});
+
+describe('AutomationEditor on an older version', () => {
+  beforeEach(() => {
+    state.latestVersion = 5;
+  });
+
+  it('says which version is on screen, and leads to the latest or what changed since', async () => {
+    const { user } = renderPage({ version: 3 });
+    expect(
+      screen.getByText("You're viewing v3. The latest is v5."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: 'Compare v3 with v5' }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Show v5' }));
+    expect(onSelectVersion).toHaveBeenLastCalledWith(5);
+  });
+
+  it('saves an edit of an older version as the next one, based on it, without a stale refusal', async () => {
+    const { user } = renderPage({ version: 3 });
+    await editTheNode(user);
+    expect(screen.getByText('Saving creates v6 from v3.')).toBeVisible();
+    await user.click(saveButton());
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Save a new version',
+    });
+    expect(within(dialog).getByText('Saves as v6, based on v3.')).toBeVisible();
+    expect(
+      within(dialog).getByText(
+        /^Changes made in v4 to v5 are not in this draft\./,
+      ),
+    ).toBeVisible();
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Save version' }),
+    );
+    await waitFor(() =>
+      expect(saveMutation.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ baseVersion: 5, basedOnVersion: 3 }),
+      ),
+    );
+  });
+});
+
+describe('AutomationEditor save review', () => {
+  it('reviews what a save adds against the version on screen', async () => {
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Save a new version',
+    });
+    expect(within(dialog).getByText('Saves as v4.')).toBeVisible();
+    await user.click(within(dialog).getByText('Review changes'));
+    expect(
+      within(dialog).getByRole('group', { name: 'What changed' }),
+    ).toHaveTextContent('1 changed');
+  });
+
+  it('counts on from a version saved meanwhile, and reviews only what the draft changed', async () => {
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+    // Another tab saves v4 with a node of its own: the read now answers v4,
+    // while the draft stays built on v3.
+    state.version = 4;
+    state.document = {
+      name: 'billing/dunning',
+      description: 'Chases unpaid invoices.',
+      nodes: [
+        { id: 'summary', type: 'llm', prompt: 'One sentence, please.' },
+        { id: 'archive', type: 'llm', prompt: 'Keep a copy.' },
+      ],
+    };
+    rerender(page());
+    await user.click(saveButton());
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Save a new version',
+    });
+    expect(within(dialog).getByText('Saves as v5, based on v3.')).toBeVisible();
+    expect(
+      within(dialog).getByText(/^Changes made in v4 are not in this draft\./),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole('link', { name: 'Compare v3 with v4' }),
+    ).toBeVisible();
+    await user.click(within(dialog).getByText('Review changes'));
+    // The node v4 added is not the draft's doing, so nothing reads removed.
+    const summary = within(dialog).getByRole('group', {
+      name: 'What changed',
+    });
+    expect(summary).toHaveTextContent('1 changed');
+    expect(summary).not.toHaveTextContent('removed');
+  });
+
+  it('names who saved the version that overtook the draft, and links its changes', async () => {
+    const at = new Date();
+    at.setHours(14, 5, 0, 0);
+    saveMutation.mutateAsync = vi.fn().mockRejectedValueOnce({
+      data: {
+        code: 'AUTOMATION_VERSION_STALE',
+        message: 'v4 landed.',
+        latestVersion: 4,
+        baseVersion: 3,
+        latestCreatedBy: 'user-me',
+        latestCreatedAt: at.getTime(),
+        latestVia: 'app',
+      },
+    });
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    expect(
+      await screen.findByText(
+        /^You saved v4 at 2:05 PM while you were editing\. Your changes are based on v3\./,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: 'See what changed in v4' }),
+    ).toBeVisible();
   });
 });

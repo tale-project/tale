@@ -4,7 +4,7 @@ import { toast } from '@tale/ui/use-toast';
 import { act, type ReactElement, useLayoutEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render } from '@/tests/utils/render';
+import { cleanup, render } from '@/tests/utils/render';
 
 import { type DeployVersion, useDeployVersion } from './use-deploy-version';
 
@@ -179,6 +179,29 @@ describe('useDeployVersion', () => {
     expect(api.refusal).toMatchObject({ version: 2, kind: 'invalid' });
     act(() => api.closeRefusal());
     expect(api.refusal).toBeNull();
+  });
+
+  it('leaves a refusal the page says itself to the page', async () => {
+    cleanup();
+    const onRefused = vi.fn(() => true);
+    function Own() {
+      const deployer = useDeployVersion({
+        organizationId: 'org-1',
+        automationSlug: 'ops/digest',
+        onRefused,
+      });
+      useLayoutEffect(() => {
+        api = deployer;
+      });
+      return null;
+    }
+    render(<Own />);
+    const refusal = { data: { code: 'AUTOMATION_INVALID', errors: [] } };
+    mutateAsync.mockRejectedValueOnce(refusal);
+    await deploy(2, 5);
+    expect(onRefused).toHaveBeenCalledWith(refusal, 2);
+    expect(api.refusal).toBeNull();
+    expect(toast).not.toHaveBeenCalled();
   });
 
   it('says any other failure in a toast with the reason', async () => {

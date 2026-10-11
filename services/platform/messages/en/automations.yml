@@ -151,13 +151,19 @@ detail:
   saveDialog:
     title: Save a new version
     description: Saves a new version. Any run already in progress keeps using the deployed version.
+    creates: 'Saves as v{next}{base, select, none {} other {, based on v{base}}}.'
+    review: Review changes
+    notIncluded: '{count, plural, one {Changes made in v{from} are not in this draft.} other {Changes made in v{from} to v{to} are not in this draft.}}'
+    draftLabel: Your draft
   switchVersion:
     title: Show another version?
     description: Switching versions discards any unsaved changes you've made.
     confirm: Discard and switch
   staleVersion:
     title: This automation changed while you were editing
-    description: "{message}"
+    body: '{who, select, you {You saved v{latest} at {time} while you were editing.} other {{author} saved v{latest} at {time} while you were editing.}} Your changes are based on v{base}.'
+    changed: 'v{latest} was saved while you were editing. Your changes are based on v{base}.'
+    seeChanges: 'See what changed in v{latest}'
     reload: Discard my changes and reload
     saveAnyway: Save anyway
   showLastRun: Show last run
@@ -468,6 +474,8 @@ canvas:
     title: A newer version was saved
     body: 'v{version} was saved while you were editing. Your draft is based on v{base}.'
     show: 'Show v{version} and discard my draft'
+    savedBy: Saved by
+    seeChanges: 'See what changed in v{version}'
   start:
     manual: By hand, the API or MCP
     manualOnly: Only by hand, the API or MCP — no trigger
@@ -494,6 +502,11 @@ canvas:
     someEmpty: Some runs return empty values
     failedAt: 'Failed at {node}'
 editor:
+  oldVersion:
+    title: "You're viewing v{version}. The latest is v{latest}."
+    draft: 'Saving creates v{next} from v{version}.'
+    showLatest: 'Show v{latest}'
+    compare: 'Compare v{version} with v{latest}'
   unknownType: 'Unknown node type: {type}'
   catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
   invalidJson: This is not valid JSON yet, so the node was not changed.
@@ -705,6 +718,7 @@ versions:
     restore: Restore as new version
     downloadYaml: Download YAML
     history: Version history
+    allVersions: All versions and changes
     downloadFailed: 'v{version} could not be downloaded'
     whatChanged: What changed
     compareWithLive: Compare with live

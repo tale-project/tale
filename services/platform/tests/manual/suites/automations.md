@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 208 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 214 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -296,9 +296,11 @@ output:
       the header; the **Version** button does not say Live (not `Live: v{n}`);
       versions saved with passing/failing acceptance tests carry
       `automations.versions.testsPassed` / `automations.versions.testsFailed`
-      badges — deploying a failed one is refused
-      (`automations.versions.deployRefused` alert). Version history rows have no
-      **Deploy** control.
+      badges — deploying a failed one is refused in a dialog
+      (`automations.deploy.refused.title`) that offers only Close, and a
+      version that fails today's checks gets the
+      `automations.versions.deployRefused` alert with Problems open. Version
+      history rows have no **Deploy** control.
 - [ ] `AUTO-F18` · **Test run (mock)** — On `qa/manual-probe` (undeployed is
   fine) → **Test run** (`automations.detail.runMock`); when the saved version declares inputs, fill **Run input (JSON)** (`automations.detail.runInput.label`) using **Input schema** (`automations.detail.runInput.schema`) — missing required fields and invalid JSON keep confirmation disabled → A run starts on the
   version on screen; the canvas shows it at once, each node's strip saying
@@ -895,8 +897,12 @@ output:
 - [ ] `AUTO-F78` · **With a draft open, save another version through MCP** →
       an info notice above the canvas says
       `automations.canvas.newerVersion.title` with
-      `automations.canvas.newerVersion.show`; nothing on the canvas moves
-      until you choose it, and choosing it shows the new version.
+      `automations.canvas.newerVersion.show`; it names the version the draft
+      is based on, who saved the new one
+      (`automations.canvas.newerVersion.savedBy`) and what it changed, and
+      `automations.canvas.newerVersion.seeChanges` opens the comparison in a
+      new tab with the draft left in place. Nothing on the canvas moves
+      until you choose Show, and choosing it shows the new version.
 - [ ] `AUTO-F79` · **In a Prompt, type `{{` then `nodes.`** → the field reads
       `{{  }}` with the caret inside and suggestions open; after `nodes.` only
       nodes that run earlier are offered, never the node itself or a later
@@ -1477,6 +1483,38 @@ output:
       Deployments row** → each opens the comparison: the row's version
       against the one before, against the live one, the live version
       against the one it replaced, a deploy against the version it replaced.
+- [ ] `AUTO-F154` · **Open an older version in the Editor (v2 of v5)** → an
+      info band above the canvas reads `automations.editor.oldVersion.title`;
+      **Show v5** (`automations.editor.oldVersion.showLatest`) switches to
+      the latest, asking first while a draft is open, and **Compare v2 with
+      v5** (`automations.editor.oldVersion.compare`) opens that comparison.
+      The latest version shows no band.
+- [ ] `AUTO-F155` · **Edit that older version and save it** → the band adds
+      `automations.editor.oldVersion.draft`; the save dialog reads
+      `automations.detail.saveDialog.creates` with "based on v2" and warns
+      `automations.detail.saveDialog.notIncluded` with a compare link.
+      **Save version** saves v6 without a stale dialog; the canvas shows v6,
+      and the picker and the Versions tab mark it
+      `automations.versions.basedOn`.
+- [ ] `AUTO-F156` · **Open Review changes in the save dialog**
+      (`automations.detail.saveDialog.review`) → chips and a change list of
+      what the draft changes in the version it started from; a row opens its
+      fields before and after. With a version saved through MCP while the
+      draft was open, the dialog counts on from that version and the review
+      lists none of its changes.
+- [ ] `AUTO-F157` · **In the Editor, deploy a version older than the live
+      one, then a newer one** → the button reads **Roll back to v**_n_
+      (`automations.deploy.rollBack`) or **Deploy v**_n_; a notice confirms
+      each deploy with **Undo**, which puts the replaced version back. Deploy
+      from a second tab first → the click changes nothing, the notice names
+      who deployed which version, and **Show deployments** opens the
+      Versions tab on Deployments.
+- [ ] `AUTO-F158` · **Open the Version picker** → each row shows its message,
+      who saved it and when on one line, its test result and the live
+      marker, with **Restores v**_n_ or **Based on v**_n_ where they apply;
+      **All versions and changes**
+      (`automations.versions.actions.allVersions`) at its foot opens the
+      Versions tab, and rows stay one compact line each.
 
 ## Boundary & error tests
 
@@ -1509,10 +1547,15 @@ output:
       automation's workbench in tabs A and B (both on the latest version). In
       B, edit a node and leave it unsaved. In A, edit another node → **Save**
       → **Save version** (a new version lands; B's version switcher follows
-      it live). Now save in B → The save is refused with the dialog **This
-      automation changed while you were editing**
-      (`automations.detail.staleVersion.title`) naming the version that
-      landed; **Discard my changes and reload**
+      it live). Now save in B → the save dialog counts on from A's version
+      (`automations.detail.saveDialog.creates`) and warns
+      `automations.detail.saveDialog.notIncluded`; confirm → The save is
+      refused with the dialog **This automation changed while you were
+      editing** (`automations.detail.staleVersion.title`) saying who saved
+      which version at what time and what B's changes are based on
+      (`automations.detail.staleVersion.body`), with
+      `automations.detail.staleVersion.seeChanges` opening that version's
+      comparison in a new tab; **Discard my changes and reload**
       (`automations.detail.staleVersion.reload`) drops B's draft and shows
       A's version with A's change intact; **Save anyway**
       (`automations.detail.staleVersion.saveAnyway`) appends B's version on
@@ -1791,6 +1834,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       the chart is reachable and a box opens its changes with Enter. At
       390 px the page opens on Changes, the header's buttons wrap under the
       title, and nothing scrolls the page sideways.
+- [ ] `AUTO-A23` · **The old-version band and the save review by keyboard and
+      on a phone** → Tab reaches the band's two actions in reading order and
+      the save dialog's **Review changes**, which opens with Enter or Space;
+      focus stays in the dialog. At 390 px the band's actions wrap under its
+      text, and the review scrolls inside the dialog without sideways
+      scrolling.
 
 ## Performance
 
