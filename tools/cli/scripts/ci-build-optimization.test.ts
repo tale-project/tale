@@ -511,7 +511,6 @@ test.skipIf(process.platform === 'win32')(
       const result = await execute(prepare, {
         EVENT_NAME: 'workflow_dispatch',
         INPUT_VERSION: 'v1.2.3',
-        SOURCE_SHA: 'a'.repeat(40),
         SITES_ONLY: sites,
         SOURCE_SHA: source,
         GH_TOKEN: 'fixture-token',
