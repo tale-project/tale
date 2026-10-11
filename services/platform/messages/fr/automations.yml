@@ -147,6 +147,7 @@ detail:
   deployVersion: 'Mettre v{version} en service'
   runMock: Essai
   saveVersion: Enregistrer une version
+  saveVersionTesting: Enregistrement et exécution des tests…
   saveMessageLabel: Note de version
   saveMessageDescription: Ce qui a changé, pour garder la liste des versions lisible.
   saveDialog:
@@ -711,6 +712,8 @@ versions:
   deployRefused: Cette version n’a pas été mise en service
   testsPassed: Tests réussis
   testsFailed: Tests en échec
+  testsCount: '{passed, plural, one {# test sur {total} réussi} other {# tests sur {total} réussis}}'
+  testsChecked: '{via, select, save {vérifié à l’enregistrement} deploy {vérifié à la mise en service} manual {vérifié manuellement} other {vérifié}} · {date}'
   noMessage: Aucune note
   caption: Versions de cette automatisation
   description: Chaque version enregistrée, celle qui est en service et quand chacune a été mise en service. Une exécution garde la version avec laquelle elle a démarré.
@@ -1147,14 +1150,17 @@ tests:
   showOnCanvas: Afficher sur le canevas
   rowActions: 'Plus pour {name}'
   deleted: 'Test {name} supprimé.'
+  deployRefused: '{count, plural, one {Un de ses tests échoue. Tu le trouves dans Tests.} other {# de ses tests échouent. Tu les trouves dans Tests.}}'
+  deployRefusedNoCount: Ses tests échouent. Tu les trouves dans Tests.
+  savedWithTests: '{passed, plural, one {Version {version} enregistrée · # test sur {total} réussi} other {Version {version} enregistrée · # tests sur {total} réussis}}'
   unnamed: 'Test {number}'
   empty:
     title: Aucun test pour l’instant
-    body: Un test exécute cette automatisation avec une entrée de ton choix et vérifie ce qui en ressort. Les tests s’exécutent à l’enregistrement, puis à nouveau avant chaque déploiement.
+    body: Un test exécute cette automatisation avec une entrée de ton choix et vérifie ce qui en ressort. Les tests s’exécutent à l’enregistrement, puis à nouveau avant chaque mise en service.
   source:
     notRun: Pas encore exécuté
     draft: Exécuté sur ton brouillon
-    checked: '{via, select, save {Vérifié à l’enregistrement de la version {version}} deploy {Vérifié au déploiement de la version {version}} other {Vérifié manuellement}} · {date}'
+    checked: '{via, select, save {Vérifié à l’enregistrement de la version {version}} deploy {Vérifié à la mise en service de la version {version}} manual {Vérifié manuellement} other {Vérifié}} · {date}'
   runFailed: Impossible d’exécuter les tests.
   invalid: '{count, plural, one {Les tests s’exécutent dès que l’automatisation passe ses vérifications. Problèmes indique le # problème à corriger.} other {Les tests s’exécutent dès que l’automatisation passe ses vérifications. Problèmes indique les # problèmes à corriger.}}'
   rateLimited: '{seconds, plural, one {Beaucoup de tests viennent de s’exécuter. Réessaie dans # seconde.} other {Beaucoup de tests viennent de s’exécuter. Réessaie dans # secondes.}}'

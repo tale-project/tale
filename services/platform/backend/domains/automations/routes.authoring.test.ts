@@ -100,8 +100,23 @@ describe('app automation acceptance gate', () => {
         expect.anything(),
         expect.objectContaining({ testsPassed: verdict }),
       );
+      // The editor says how many passed: failing tests save all the same.
+      expect(await result.json()).toMatchObject({
+        version: 2,
+        testsPassed: verdict,
+        tests: { passed: verdict ? 1 : 0, failed: verdict ? 0 : 1, total: 1 },
+      });
     },
   );
+  it('answers no test counts for a document without tests', async () => {
+    const { tests: _tests, ...untested } = document(2);
+    const result = await post('/double/save', { document: untested });
+    expect(result.status).toBe(201);
+    const answer = await result.json();
+    expect(answer).toMatchObject({ name: 'double', version: 2 });
+    expect(answer).not.toHaveProperty('tests');
+    expect(answer).not.toHaveProperty('testsPassed');
+  });
   it('refuses an untested stored version whose declared tests fail and records the verdict [AUTO-R4]', async () => {
     io.document = document(3);
     const result = await post('/double/deploy', { version: 2 });

@@ -600,6 +600,20 @@ describe('version history adapters [AUTO-R47]', () => {
     expect(jsonBody(fetchSpy.mock.calls[1]?.[1])).toEqual({ version: 2 });
   });
 
+  it('refreshes the reads on a deploy its tests refuse, and on no other refusal', () => {
+    const deploy =
+      automationWriteAdapters['automations/mutations:deployAutomation'];
+    expect(
+      deploy?.refusalInvalidates?.({
+        data: { code: 'AUTOMATION_TESTS_FAILING' },
+      }),
+    ).toBe(true);
+    expect(
+      deploy?.refusalInvalidates?.({ data: { code: 'AUTOMATION_INVALID' } }),
+    ).toBe(false);
+    expect(deploy?.refusalInvalidates?.(new Error('offline'))).toBe(false);
+  });
+
   it('records what a draft was built from on a save', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')

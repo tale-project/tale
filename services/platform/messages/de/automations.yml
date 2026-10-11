@@ -147,6 +147,7 @@ detail:
   deployVersion: 'v{version} live schalten'
   runMock: Testlauf
   saveVersion: Version speichern
+  saveVersionTesting: Wird gespeichert und getestet…
   saveMessageLabel: Notiz zur Version
   saveMessageDescription: Was sich geändert hat, damit die Versionsliste lesbar bleibt.
   saveDialog:
@@ -710,6 +711,8 @@ versions:
   deployRefused: Diese Version wurde nicht live geschaltet
   testsPassed: Tests bestanden
   testsFailed: Tests fehlgeschlagen
+  testsCount: '{total, plural, one {{passed} von # Test bestanden} other {{passed} von # Tests bestanden}}'
+  testsChecked: '{via, select, save {beim Speichern geprüft} deploy {beim Live-Schalten geprüft} manual {von Hand geprüft} other {geprüft}} · {date}'
   noMessage: Keine Notiz
   caption: Versionen dieser Automatisierung
   description: Jede gespeicherte Version, die live geschaltete und wann welche live ging. Ein Lauf behält die Version, mit der er gestartet ist.
@@ -1145,6 +1148,9 @@ tests:
   showOnCanvas: Auf dem Canvas zeigen
   rowActions: 'Mehr zu {name}'
   deleted: 'Test {name} gelöscht.'
+  deployRefused: '{count, plural, one {Einer ihrer Tests schlägt fehl. Du findest ihn unter Tests.} other {# ihrer Tests schlagen fehl. Du findest sie unter Tests.}}'
+  deployRefusedNoCount: Seine Tests schlagen fehl. Du findest sie unter Tests.
+  savedWithTests: '{total, plural, one {Version {version} gespeichert · {passed} von # Test bestanden} other {Version {version} gespeichert · {passed} von # Tests bestanden}}'
   unnamed: 'Test {number}'
   empty:
     title: Noch keine Tests
@@ -1152,7 +1158,7 @@ tests:
   source:
     notRun: Noch nicht ausgeführt
     draft: Auf deinem Entwurf ausgeführt
-    checked: '{via, select, save {Geprüft beim Speichern von Version {version}} deploy {Geprüft beim Live-Schalten von Version {version}} other {Von Hand geprüft}} · {date}'
+    checked: '{via, select, save {Geprüft beim Speichern von Version {version}} deploy {Geprüft beim Live-Schalten von Version {version}} manual {Von Hand geprüft} other {Geprüft}} · {date}'
   runFailed: Die Tests konnten nicht ausgeführt werden.
   invalid: '{count, plural, one {Die Tests laufen, sobald die Automatisierung ihre Prüfungen besteht. Unter Probleme findest du das # Problem, das du beheben musst.} other {Die Tests laufen, sobald die Automatisierung ihre Prüfungen besteht. Unter Probleme findest du die # Probleme, die du beheben musst.}}'
   rateLimited: '{seconds, plural, one {Gerade liefen viele Tests. Versuche es in # Sekunde erneut.} other {Gerade liefen viele Tests. Versuche es in # Sekunden erneut.}}'

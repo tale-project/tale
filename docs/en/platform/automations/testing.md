@@ -9,7 +9,7 @@ A test runs an automation with an input you choose and checks what comes out: th
 
 In the [workflow editor](/platform/automations/editor), select **Tests** beside **Problems**. The button counts the results, such as two green ticks and one red cross, and opens the **Tests** tab of the panel under the canvas; **Problems** is the other tab. On a phone, the list opens in a panel of its own.
 
-Each row is one test, in the order the document lists them: its status, its name, and for a test that failed, the first thing that went wrong. The line above the list says where the results come from: **Run on your draft**, or the version's last check, such as **Checked when version 3 was deployed** with the date. A test reads **Not run yet** until it has a result, **Couldn't run** when the automation itself could not run, and **Changed since this result** once the automation or the test changed after its run; that result still shows, so you can see what changed it.
+Each row is one test, in the order the document lists them: its status, its name, and for a test that failed, the first thing that went wrong. The line above the list says where the results come from: **Run on your draft**, or the version's last check, such as **Checked when deploying version 3** with the date. A test reads **Not run yet** until it has a result, **Couldn't run** when the automation itself could not run, and **Changed since this result** once the automation or the test changed after its run; that result still shows, so you can see what changed it.
 
 <Frame caption="Run all on the order discounts: the big order's test fails, and its result says what the output should have been.">
 
@@ -83,6 +83,8 @@ Once tests have run, the line above the list says how many of the automation's p
 ## Run the tests
 
 **Run all** runs every test, and **Run** in a row's menu or in the open test runs one. With unsaved changes, the tests run on your draft. Without, they run on the version shown, and a run of all its tests becomes that version's test result, marked **Checked by hand**.
+
+Each version keeps its last check, and [Versions](/platform/automations/editor#versions) shows it, such as **2 of 3 tests passed · checked on deploy**. When failing tests stop a deploy, **Tests** opens with focus on the first test that failed.
 
 Tests always run simulated: a connector, a model or an agent answers with a stand-in, and nothing is sent or changed outside Tale. A test stops after 10 seconds, and a run of all tests after 60 seconds. If many tests ran in your organization just before, Tale asks you to wait a few seconds and says how many.
 

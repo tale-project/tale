@@ -85,6 +85,34 @@ describe('VersionList', () => {
     expect(screen.getByRole('img', { name: 'Tests passed' })).toBeVisible();
   });
 
+  it('counts the tests that passed and says which act checked them, and when', () => {
+    render(
+      <VersionList
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        versions={[
+          {
+            version: 3,
+            message: 'raise the threshold',
+            testsPassed: false,
+            testsCheckedAt: Date.UTC(2023, 10, 14, 12, 0),
+            tests: { passed: 2, failed: 1, total: 3, via: 'deploy' },
+            createdBy: 'user:a',
+            createdAt: 1_700_000_150_000,
+          },
+        ]}
+        currentVersion={3}
+        deployedVersion={undefined}
+        headingId="versions-heading"
+      />,
+    );
+    expect(
+      screen.getByRole('img', {
+        name: /^2 of 3 tests passed · checked on deploy · November 14, 2023/,
+      }),
+    ).toBeVisible();
+  });
+
   it('shows the version messages so the history reads', () => {
     renderList();
     expect(screen.getByText('add the digest step')).toBeVisible();

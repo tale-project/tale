@@ -121,7 +121,10 @@ import {
   VALIDATION_DEBOUNCE_MS,
 } from '../hooks/use-automation-validation';
 import { useDeployVersion } from '../hooks/use-deploy-version';
-import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
+import {
+  focusAutomationNode,
+  isTypingTarget,
+} from '../hooks/use-deselect-on-escape';
 import { useTimelineWords } from '../hooks/use-timeline-words';
 import { coveredCount, pathCoverage } from '../lib/automation-tests/coverage';
 import { runInputSources } from '../lib/automation-tests/run-sources';
@@ -166,6 +169,7 @@ import type {
 } from '../lib/editor-search';
 import {
   automationErrorCode,
+  automationErrorFailedTests,
   automationErrorIssues,
   automationErrorLatestVersion,
   automationErrorMessage,
@@ -260,6 +264,11 @@ import {
  * cannot carry an empty value, so the org-wide option needs a real sentinel
  * that maps back to an omitted `projectId`. */
 const RUN_SCOPE_ORG_WIDE = '__org_wide__';
+
+/** How long a refused deploy waits for its failing test to be listed before
+ * it gives up on moving focus there: a report that never comes must not
+ * leave the move armed for a later run. */
+const REFUSAL_FOCUS_WINDOW_MS = 10_000;
 
 /** A run's status in words, as a run to start from names it. */
 const RUN_STATUS_KEYS = {
@@ -484,7 +493,12 @@ function AutomationEditorScope({
   const [refusal, setRefusal] = useState<string | null>(null);
   /** A refused DEPLOY from the looking-vs-live control — the only deploy
    * control there is; the version history rows never deploy. */
-  const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
+  const [deployRefusal, setDeployRefusal] = useState<{
+    version: number;
+    text: string;
+    /** What refused it: the Problems list, or the version's tests. */
+    kind: 'problems' | 'tests';
+  } | null>(null);
   /** The trigger a deploy left off, for the automation it was deployed
    * for: the notice offers to turn it on. */
   const [deployNotice, setDeployNotice] = useState<{
@@ -509,6 +523,8 @@ function AutomationEditorScope({
   } | null>(null);
   /** A node being tested alone: what its test needs. */
   const [stepTest, setStepTest] = useState<StepTestNeeds | null>(null);
+  /** A deploy was refused for failing tests: focus goes to the first. */
+  const [focusFailingTest, setFocusFailingTest] = useState(false);
   // A run the route names later (a second Save as test) is read too; the
   // route forgets it once taken, so a reload does not ask again.
   const [takenSaveRun, setTakenSaveRun] = useState(saveRunParam);
@@ -1237,7 +1253,7 @@ function AutomationEditorScope({
         off === null ? null : { name: automationSlug, trigger: off },
       );
     },
-    onRefused: (error) => {
+    onRefused: (error, refusedVersion) => {
       // The version on screen no longer passes the check: its problems land
       // in Problems, and the alert points there. With a draft on screen they
       // would describe another document, so the alert says so instead.
@@ -1247,11 +1263,45 @@ function AutomationEditorScope({
         // The alert says the deploy was refused (it is read out); the
         // announcer adds only the counts.
         showRefusal(refused, hash);
-        setDeployRefusal(t('problems.refusedDeploy'));
+        setDeployRefusal({
+          version: refusedVersion,
+          text: t('problems.refusedDeploy'),
+          kind: 'problems',
+        });
         return true;
       }
       if (automationErrorCode(error) === 'AUTOMATION_INVALID') {
-        setDeployRefusal(t('problems.refusedDeployDraft'));
+        setDeployRefusal({
+          version: refusedVersion,
+          text: t('problems.refusedDeployDraft'),
+          kind: 'problems',
+        });
+        return true;
+      }
+      // Its tests fail: the gate kept its check on the version on screen,
+      // and the write's hint brings it to the Tests panel, where focus goes
+      // to the first one that did not pass.
+      if (
+        automationErrorCode(error) === 'AUTOMATION_TESTS_FAILING' &&
+        draft === null &&
+        refusedVersion === automationQuery.data?.version
+      ) {
+        const failed = automationErrorFailedTests(error);
+        setProblemsOpen(false);
+        // A test open in its own sheet (a phone) keeps the screen: the
+        // list's sheet would only stand on top of it.
+        if (!isWorkbenchCompact || selectedTest === null) {
+          setTestsOpen(true);
+          setFocusFailingTest(true);
+        }
+        setDeployRefusal({
+          version: refusedVersion,
+          text:
+            failed === undefined
+              ? t('tests.deployRefusedNoCount')
+              : t('tests.deployRefused', { count: failed }),
+          kind: 'tests',
+        });
         return true;
       }
       return false;
@@ -1407,6 +1457,40 @@ function AutomationEditorScope({
     editDraft,
     text: testText,
   });
+  // A deploy refused for failing tests hands focus to the first test that
+  // did not pass (one that could not run counts, as the gate counts it),
+  // once the panel has the deploy's check to list. It waits a frame: below
+  // `lg` the list is in a sheet, which mounts a render later and focuses its
+  // first row as it opens. A reader typing somewhere keeps their place.
+  useEffect(() => {
+    if (!focusFailingTest) return undefined;
+    const giveUp = window.setTimeout(
+      () => setFocusFailingTest(false),
+      REFUSAL_FOCUS_WINDOW_MS,
+    );
+    return () => window.clearTimeout(giveUp);
+  }, [focusFailingTest]);
+  useEffect(() => {
+    if (!focusFailingTest) return undefined;
+    // Closed before the check came in: nothing to move focus into.
+    if (dockPanel !== 'tests') {
+      setFocusFailingTest(false);
+      return undefined;
+    }
+    const failing = tests.rows.find(
+      (row) => row.status === 'failed' || row.status === 'error',
+    );
+    if (failing === undefined) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const list = testsListRef.current;
+      // The list is not mounted yet: wait for the rows to change again, or
+      // for the window to close.
+      if (list === null) return;
+      setFocusFailingTest(false);
+      if (!isTypingTarget(document.activeElement)) list.focus(failing.id);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusFailingTest, dockPanel, tests.rows]);
   /** The open test, while the document on screen still has it. */
   const shownTest =
     selectedTest !== null && selectedTest < tests.tests.length
@@ -2277,6 +2361,19 @@ function AutomationEditorScope({
         basis: validation.errors,
       });
     }
+    // The save ran the draft's tests: a polite word says how they went,
+    // since failing tests are no failed save.
+    const savedTests = saved.tests;
+    if (savedTests !== undefined) {
+      setTestsNews((previous) => ({
+        text: t('tests.savedWithTests', {
+          version: saved.version,
+          passed: savedTests.passed,
+          total: savedTests.total,
+        }),
+        key: previous.key + 1,
+      }));
+    }
     draftBaseRef.current = saved.version;
     setDraftBase(saved.version);
     draftBasedOnRef.current = saved.version;
@@ -2357,6 +2454,12 @@ function AutomationEditorScope({
   // The notice of the automation on screen; another one's is dropped.
   const shownDeployNotice =
     deployNotice?.name === automationSlug ? deployNotice.trigger : null;
+  // A refusal belongs to the version it refused: a newer one saved to fix it
+  // does not show it.
+  const shownDeployRefusal =
+    deployRefusal !== null && deployRefusal.version === lookingVersion
+      ? deployRefusal
+      : null;
 
   // Whether a live run is actually possible right now, not just wishful:
   // there has to be a deployed version, and it has to have loaded.
@@ -2791,7 +2894,7 @@ function AutomationEditorScope({
             The alerts keep the page inset, in a band above the workbench. */}
         {(viewingOld ||
           refusal !== null ||
-          deployRefusal !== null ||
+          shownDeployRefusal !== null ||
           deployedReadError ||
           shownDeployNotice !== null ||
           newerVersion !== null) && (
@@ -2927,11 +3030,11 @@ function AutomationEditorScope({
             {refusal !== null && (
               <Alert variant="destructive" description={refusal} />
             )}
-            {deployRefusal !== null && (
+            {shownDeployRefusal !== null && (
               <Alert
                 variant="destructive"
                 title={t('versions.deployRefused')}
-                description={deployRefusal}
+                description={shownDeployRefusal.text}
               />
             )}
             {shownDeployNotice !== null && (
@@ -3103,6 +3206,9 @@ function AutomationEditorScope({
             if (!open) setTestsOpen(false);
           }}
           handingOn={testsHandingOn}
+          {...(shownDeployRefusal?.kind === 'tests' && {
+            notice: `${t('versions.deployRefused')}. ${shownDeployRefusal.text}`,
+          })}
           {...testsPanel}
         />
       )}
@@ -3281,7 +3387,11 @@ function AutomationEditorScope({
               isLoading={save.isPending}
               onClick={() => void confirmSave()}
             >
-              {t('detail.saveVersion')}
+              {/* A save runs the draft's tests too: it says so while it
+                  waits for them. */}
+              {save.isPending && tests.tests.length > 0
+                ? t('detail.saveVersionTesting')
+                : t('detail.saveVersion')}
             </Button>
           </>
         }

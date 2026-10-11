@@ -84,6 +84,8 @@ Sobald Tests gelaufen sind, sagt die Zeile über der Liste, wie viele der mögli
 
 **Alle ausführen** führt jeden Test aus, und **Ausführen** im Menü einer Zeile oder im geöffneten Test führt einen einzelnen aus. Mit ungespeicherten Änderungen laufen die Tests auf deinem Entwurf. Ohne laufen sie auf der angezeigten Version, und ein Lauf aller ihrer Tests wird zum Testergebnis dieser Version, markiert mit **Von Hand geprüft**.
 
+Jede Version behält ihre letzte Prüfung, und [Versionen](/de/platform/automations/editor#versions) zeigt sie, etwa **2 von 3 Tests bestanden · beim Live-Schalten geprüft**. Verhindern fehlschlagende Tests ein Live-Schalten, öffnet sich **Tests** mit dem Fokus auf dem ersten fehlgeschlagenen Test.
+
 Tests laufen immer simuliert: Ein Connector, ein Modell oder ein Agent antwortet mit einem Platzhalter, und außerhalb von Tale wird nichts gesendet oder geändert. Ein Test stoppt nach 10 Sekunden, ein Lauf aller Tests nach 60 Sekunden. Liefen in deiner Organisation gerade viele Tests, bittet Tale dich, ein paar Sekunden zu warten, und sagt, wie viele.
 
 ## Ein Ergebnis lesen

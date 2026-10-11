@@ -77,7 +77,7 @@ export interface AutomationTests {
   running: ReadonlySet<number>;
   failure: TestRunFailure | null;
   /** Where the results come from: "Not run yet", "Run on your draft",
-   * "Checked when version 7 was deployed · Today, 14:02". */
+   * "Checked when deploying version 7 · Today, 14:02". */
   source: string;
   /** Changes once per run that finished, for the announcer. */
   announceKey: number;

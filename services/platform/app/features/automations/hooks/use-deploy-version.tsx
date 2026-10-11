@@ -60,8 +60,9 @@ export interface UseDeployVersionOptions {
   onTriggerOff?: (trigger: DeployedTrigger | null) => void;
   /** A refusal the page says its own way — the editor lists a version's
    * problems in its Problems panel. Answers whether it did; the hook then
-   * says nothing more. A deploy someone else overtook is always the
-   * hook's to say. */
+   * says nothing more. Asked when the answer arrives, so it sees the page
+   * as it is then. A deploy someone else overtook is always the hook's to
+   * say. */
   onRefused?: (error: unknown, version: number) => boolean;
 }
 
@@ -108,6 +109,15 @@ export function useDeployVersion({
   const inFlight = useRef(false);
   const [pendingVersion, setPendingVersion] = useState<number | null>(null);
   const [refusal, setRefusal] = useState<DeployRefusal | null>(null);
+
+  // The answer can come long after the click: the deploy gate runs the
+  // tests, and the reader may have begun an edit meanwhile. The page's
+  // callbacks are asked as the page is when the answer arrives, not as it
+  // was at the click.
+  const page = useRef({ onRefused, onTriggerOff });
+  useLayoutEffect(() => {
+    page.current = { onRefused, onTriggerOff };
+  });
 
   const staleText = useCallback(
     (stale: StaleChange): string => {
@@ -174,7 +184,7 @@ export function useDeployVersion({
               ),
             }),
           });
-          onTriggerOff?.(triggerOffAfterDeploy(result.trigger));
+          page.current.onTriggerOff?.(triggerOffAfterDeploy(result.trigger));
         },
         (error: unknown) => {
           const stale = automationDeploymentStale(error);
@@ -200,7 +210,7 @@ export function useDeployVersion({
             });
             return;
           }
-          if (onRefused?.(error, version) === true) return;
+          if (page.current.onRefused?.(error, version) === true) return;
           const code = automationErrorCode(error);
           if (
             code === 'AUTOMATION_TESTS_FAILING' ||
