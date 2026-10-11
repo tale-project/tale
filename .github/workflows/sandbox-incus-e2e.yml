@@ -212,6 +212,22 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      - name: The fence and the ETag
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/fencing.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/fencing.log"
+
+      - name: Keep the output of the fence and the ETag
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-fencing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
       - name: Network containment
         if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
         working-directory: services/sandbox
@@ -260,18 +276,34 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      - name: Re-adoption and fencing
+      - name: Re-adoption and a peer that replaced a session
         if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
         working-directory: services/sandbox
         run: |
           set -euo pipefail
           bun test --timeout 1800000 ./e2e/incus/suites/adoption.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/adoption.log"
 
-      - name: Keep the output of re-adoption and fencing
+      - name: Keep the output of re-adoption and a peer that replaced a session
         if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: suite-adoption-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.INCUS_E2E_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Endings that are not a clean destroy
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        working-directory: services/sandbox
+        run: |
+          set -euo pipefail
+          bun test --timeout 1800000 ./e2e/incus/suites/failures.e2e.ts 2>&1 | tee "$INCUS_E2E_DIR/logs/failures.log"
+
+      - name: Keep the output of endings that are not a clean destroy
+        if: ${{ !cancelled() && steps.lab.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: suite-failures-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.INCUS_E2E_DIR }}/logs
           retention-days: 14
           if-no-files-found: warn

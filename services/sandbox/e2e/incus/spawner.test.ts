@@ -28,6 +28,7 @@ const LAB: LabConfig = {
   gatewayAddress: '10.20.0.3',
   backendAddress: '10.20.0.4',
   egressInstance: 'egress',
+  egressImage: 'tale-sandbox-egress',
 };
 
 let saved: Record<string, string | undefined>;

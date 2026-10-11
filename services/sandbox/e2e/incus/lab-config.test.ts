@@ -27,6 +27,7 @@ const LAB = {
   gatewayAddress: '10.20.0.3',
   backendAddress: '10.20.0.4',
   egressInstance: 'egress',
+  egressImage: 'tale-sandbox-egress',
 };
 
 describe('parseLab', () => {

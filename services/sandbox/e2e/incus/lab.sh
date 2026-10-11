@@ -371,7 +371,7 @@ write_lab_file() {
     --arg egressProxy "http://${EGRESS_ADDRESS}:3128" \
     --arg bridgeAddress "$BRIDGE_ADDRESS" --arg egressAddress "$EGRESS_ADDRESS" \
     --arg gatewayAddress "$GATEWAY_ADDRESS" --arg backendAddress "$BACKEND_ADDRESS" \
-    --arg egressInstance "$EGRESS_INSTANCE" \
+    --arg egressInstance "$EGRESS_INSTANCE" --arg egressImage "$EGRESS_ALIAS" \
     '{stateDir: $stateDir, endpoint: $endpoint, project: $project, profile: $profile,
       network: $network, pool: $pool, acl: $acl, image: $image,
       imageSource: $imageSource, clientCertFile: $clientCertFile,
@@ -380,7 +380,7 @@ write_lab_file() {
       otherServerCertFile: $otherServerCertFile, egressProxy: $egressProxy,
       bridgeAddress: $bridgeAddress, egressAddress: $egressAddress,
       gatewayAddress: $gatewayAddress, backendAddress: $backendAddress,
-      egressInstance: $egressInstance}' >"$dir/lab.json"
+      egressInstance: $egressInstance, egressImage: $egressImage}' >"$dir/lab.json"
   cat "$dir/lab.json"
 }
 

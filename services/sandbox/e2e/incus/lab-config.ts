@@ -35,6 +35,8 @@ export interface LabConfig {
   backendAddress: string;
   /** The egress proxy's instance, in the default project. */
   egressInstance: string;
+  /** The image alias of the egress proxy, in the default project. */
+  egressImage: string;
 }
 
 const FIELDS = [
@@ -58,6 +60,7 @@ const FIELDS = [
   'gatewayAddress',
   'backendAddress',
   'egressInstance',
+  'egressImage',
 ] as const satisfies readonly (keyof LabConfig)[];
 
 export function parseLab(raw: unknown): LabConfig {
@@ -93,6 +96,7 @@ export function parseLab(raw: unknown): LabConfig {
     gatewayAddress: read('gatewayAddress'),
     backendAddress: read('backendAddress'),
     egressInstance: read('egressInstance'),
+    egressImage: read('egressImage'),
   };
 }
 
