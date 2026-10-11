@@ -79,6 +79,7 @@ describe('the starters the gallery lists', () => {
       'answer-questions',
       'inbox-summary',
       'notify-reviewer',
+      'task-digest',
       'triage-new-tasks',
       'webhook-create-task',
     ]);
