@@ -382,6 +382,10 @@ export interface ChangeItem {
   detail?: ReactNode;
   /** The item's own glyph, beside its title. */
   icon?: ComponentType<{ className?: string }>;
+  /** `false`: the row offers no action (`activateLabel`) — what it changed
+   *  has no place elsewhere to show — and a row without details is not
+   *  chosen at all. */
+  activatable?: boolean;
 }
 
 export interface ChangeSection {
@@ -486,7 +490,11 @@ export const ChangeList: ForwardRefExoticComponent<
     () =>
       shown
         .flatMap((section) => section.items)
-        .filter((item) => item.detail !== undefined || onActivate !== undefined)
+        .filter(
+          (item) =>
+            item.detail !== undefined ||
+            (onActivate !== undefined && item.activatable !== false),
+        )
         .map((item) => item.id),
     [shown, onActivate],
   );
@@ -629,7 +637,9 @@ export const ChangeList: ForwardRefExoticComponent<
                     </span>
                   </>
                 );
-                const actionable = hasDetail || onActivate !== undefined;
+                const activatable =
+                  onActivate !== undefined && item.activatable !== false;
+                const actionable = hasDetail || activatable;
                 const isActive = item.id === activeId;
                 return (
                   <li key={item.id} data-change-item={item.id}>
@@ -668,13 +678,12 @@ export const ChangeList: ForwardRefExoticComponent<
                         className={cn('space-y-2 pr-3 pb-3 pl-9', REVEAL)}
                       >
                         {item.detail}
-                        {onActivate !== undefined &&
-                        activateLabel !== undefined ? (
+                        {activatable && activateLabel !== undefined ? (
                           <div>
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => onActivate(item)}
+                              onClick={() => onActivate?.(item)}
                             >
                               {activateLabel}
                             </Button>
