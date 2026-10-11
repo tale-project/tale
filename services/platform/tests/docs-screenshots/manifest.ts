@@ -2329,6 +2329,21 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // A test's Setup beside the canvas: the big order's input as JSON, the
+    // pickers for the steps it simulates, and its expectation of the
+    // output, compared with Includes.
+    name: 'automation-test-setup',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TESTS.automation}/editor?panel=tests&test=1`,
+    prepare: settleAutomationEditor,
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.tests.fields.name'),
+        exact: true,
+      }),
+    viewport: { width: 1440, height: 1100 },
+  },
+  {
     // A test run of v1 and one of v2 of the weekly digest compared: what
     // differs, with the way to the versions' comparison, and both runs on
     // the steps of both versions — Summarize, which v1 lacks, dashed for A.

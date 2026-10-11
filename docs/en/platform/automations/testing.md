@@ -20,10 +20,16 @@ Each row is one test, in the order the document lists them: its status, its name
 ## Add a test
 
 1. In the **Tests** tab, select **Add test**. A test named **New test** opens beside the canvas, with a placeholder for each field the run input requires.
-2. In **Setup**, write the test as YAML. Your changes go into the draft as you type; while the text doesn't parse, the test keeps its last version that did.
+2. In **Setup**, fill in the test: its **Name**, the **Input** the run receives as JSON, the **Simulated outputs** and **Simulated failures** that stand in for steps, and under **Expectations** what the run must do. Your changes go into the draft as you type.
 3. Save the draft to keep the test. Saving runs every test and records the result with the version.
 
-A test has a `name`, the `input` the run receives, and `expect`, what the run must do:
+<Frame caption="A test's Setup: the run's input as JSON, the steps it simulates, and what it expects of the run.">
+
+![The Setup tab of the test Big order gets 10% off beside the canvas of Order discounts: Name, an empty Description, an Input with quantity 120 and unitPrice 20, Simulated outputs and Simulated failures with a picker each, and Expectations, where the output is checked with Includes.](/images/platform/automation-test-setup.webp)
+
+</Frame>
+
+**Edit as YAML** shows the same test as text, for a part the form has no control for; while the text doesn't parse, the test keeps its last version that did. In YAML, a test has a `name`, the `input` the run receives, and `expect`, what the run must do:
 
 ```yaml
 name: Big order gets 10% off

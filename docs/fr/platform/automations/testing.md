@@ -20,10 +20,16 @@ Chaque ligne est un test, dans l’ordre du document : son statut, son nom et, 
 ## Ajouter un test
 
 1. Dans l’onglet **Tests**, sélectionne **Ajouter un test**. Un test nommé **Nouveau test** s’ouvre à côté du canevas, avec un espace réservé pour chaque champ que l’entrée de l’exécution exige.
-2. Dans **Configuration**, écris le test en YAML. Tes modifications passent dans le brouillon au fil de la saisie ; tant que le texte ne se lit pas, le test garde sa dernière version lisible.
+2. Dans **Configuration**, remplis le test : son **Nom**, l’**Entrée** que reçoit l’exécution en JSON, les **Sorties simulées** et les **Échecs simulés** qui remplacent des étapes, et sous **Attentes** ce que l’exécution doit faire. Tes modifications passent dans le brouillon au fil de la saisie.
 3. Enregistre le brouillon pour garder le test. L’enregistrement exécute tous les tests et consigne le résultat avec la version.
 
-Un test a un `name`, l’`input` que reçoit l’exécution, et `expect`, ce que l’exécution doit faire :
+<Frame caption="La configuration d’un test : l’entrée de l’exécution en JSON, les étapes qu’il simule et ce qu’il attend de l’exécution.">
+
+![L’onglet Setup du test Big order gets 10% off à côté du canevas d’Order discounts : Name, une Description vide, un Input avec quantity 120 et unitPrice 20, Simulated outputs et Simulated failures avec chacun un sélecteur, et Expectations, où la sortie est vérifiée avec Includes.](/images/platform/automation-test-setup.webp)
+
+</Frame>
+
+**Modifier en YAML** affiche le même test sous forme de texte, pour une partie que le formulaire ne montre pas ; tant que le texte ne se lit pas, le test garde sa dernière version lisible. En YAML, un test a un `name`, l’`input` que reçoit l’exécution, et `expect`, ce que l’exécution doit faire :
 
 ```yaml
 name: Big order gets 10% off
