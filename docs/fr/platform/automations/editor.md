@@ -108,7 +108,7 @@ Trois onglets suivent :
 
 - **Champs** contient ce que tu peux modifier. Un `transform` possède du **Code** ; un `llm`, **Prompt**, **Prompt système**, **Modèle** et **Schéma de sortie** ; un `agent` y ajoute l’environnement d’agent et l’équipement. **Entrée** contient les valeurs JSON et références transmises au nœud.
 - **Structure** montre ce que le nœud reçoit et renvoie, d’où Tale tient cette structure et quels nœuds lisent sa sortie. Sélectionne un lecteur pour l’ouvrir. **Afficher en TypeScript** montre la même structure sous forme de type.
-- **Dernière exécution** montre l’**Entrée résolue**, la **Sortie** et les effets du nœud dans l’exécution affichée sur le canevas. L’onglet apparaît tant que le canevas montre une exécution.
+- **Dernière exécution** montre l’**Entrée résolue**, la **Sortie** et les effets du nœud dans l’exécution affichée sur le canevas. L’onglet apparaît tant que le canevas montre une exécution, et s’appelle **Test non enregistré** pour un [essai du brouillon](#try-the-draft) et **Dans ce test** pour l’exécution d’un test.
 
 <Frame caption="L’onglet Structure : ce que Triage renvoie, d’où vient cette structure et quels nœuds la lisent.">
 
@@ -211,6 +211,18 @@ Pour vérifier les mêmes cas à chaque enregistrement et avant chaque mise en s
 <Frame caption="Pour un workflow avec des données d’entrée, saisis le JSON et vérifie le schéma avant le test.">
 
 ![Le dialogue de test montre les valeurs JSON owner et repo dans l’éditeur de code et le schéma des données déplié sous forme de liste de champs.](/images/platform/automation-run-input.webp)
+
+</Frame>
+
+### Essayer le brouillon {#try-the-draft}
+
+Avec des modifications non enregistrées, **Essai** demande d’abord **Ce qui s’exécute**. **Ce brouillon (non enregistré)** exécute une fois tes modifications avec les mêmes simulations, sans les enregistrer : l’exécution n’est conservée nulle part et n’apparaît pas sous **Exécutions**. L’autre choix, par exemple **Version 3**, exécute la version enregistrée affichée, comme plus haut. L’entrée est vérifiée par rapport au schéma d’entrée de ce que tu choisis.
+
+L’exécution du brouillon s’affiche ensuite sur le canevas à la place de la dernière exécution, sous une bande **Test non enregistré** qui indique comment elle s’est terminée et quand, par exemple **Réussi en 12 ms** ou **Échec à Score**, et elle se rejoue étape par étape comme une exécution enregistrée. Sélectionne un nœud pour voir ce qu’il a reçu et renvoyé dans son onglet **Test non enregistré**. Dès que tu modifies le brouillon, la bande indique **Le brouillon a changé depuis cet essai.** **Réessayer** exécute le brouillon tel qu’il est maintenant, avec la même entrée ; ⌘⇧Entrée (Ctrl+Maj+Entrée) fait de même tant que le canevas ou l’inspecteur a le focus. **Masquer le résultat** ramène la dernière exécution. Un essai s’arrête après 20 secondes.
+
+<Frame caption="Un essai du brouillon des remises de commande : la bande indique comment il s’est terminé, et Review, que seule une commande d’au moins mille unités atteint, montre dans son onglet Test non enregistré ce qu’il a reçu.">
+
+![L’éditeur d’Order discounts avec une bande Unsaved test au-dessus du canevas qui indique Succeeded in 13 ms, avec Try again et un bouton qui masque le résultat. Sur le canevas, Discount, Total et Review ont réussi, la condition de Review, quantity of the run input is at least 1,000, indique Yes, et la barre de lecture est à la fin de l’exécution. À côté du canevas, l’onglet Unsaved test de Review montre l’entrée résolue total 22800 et la sortie note Wholesale order of 22800: sales confirms the price.](/images/platform/automation-try-draft.webp)
 
 </Frame>
 

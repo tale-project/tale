@@ -81,6 +81,10 @@ Wähle einen Test, um ihn neben dem Canvas zu öffnen. Ein Test mit Ergebnis öf
 
 **Simuliert** nennt die Schritte, für die der Test einspringt, und **Nicht verwendet** die, die der Lauf übersprungen hat. **Technische Details** zeigt die eigene Meldung der Engine. Ein Ergebnis aus der letzten Prüfung der Version behält keine Schritte; führ den Test aus, um sie zu sehen.
 
+### Den Lauf eines Tests auf dem Canvas zeigen {#show-on-canvas}
+
+**Auf dem Canvas zeigen** im Tab **Ergebnis** oder im Menü einer Testzeile legt den letzten Lauf des Tests anstelle des letzten Laufs auf den Canvas, wo er sich wie ein aufgezeichneter Lauf Schritt für Schritt abspielen lässt. Ein Streifen über dem Canvas nennt den Test, etwa **Test: Big order gets 10% off**, und sagt, wann er lief und ob er bestanden hat: **Bestanden in 4 ms** oder sein erster Fehler. Ein Schritt, für den der Test einspringt, trägt **Simulierte Ausgabe** oder **Simulierter Fehler**. Wähle einen Schritt, um auf seinem Tab **In diesem Test** zu sehen, was er erhalten und zurückgegeben hat. **Ausführen** im Streifen führt den Test erneut aus und zeigt den neuen Lauf, und **Ergebnis ausblenden** zeigt wieder den letzten Lauf. Sobald sich die Automatisierung oder der Test ändert, sagt der Streifen das: Der Lauf zeigt dann nicht mehr, was der Entwurf tut.
+
 ## Ein Problem in einem Test beheben
 
 Tale prüft Tests so wie den Rest des Entwurfs. Ein Test, der nie bestehen kann, etwa weil er einen Schritt simuliert, den die Automatisierung nicht hat, oder ein unbekanntes Feld nennt, steht unter **Probleme** mit dem, was zu beheben ist. Wähle das Problem, um den Test an dieser Stelle in seinem YAML zu öffnen.

@@ -81,6 +81,10 @@ Select a test to open it beside the canvas. A test with a result opens on **Resu
 
 **Simulated** names the steps the test stands in for, and **Not used** the ones the run skipped. **Technical details** shows the engine's own message. A result from the version's last check keeps no steps; run the test to see them.
 
+### Show a test's run on the canvas {#show-on-canvas}
+
+**Show on the canvas**, on **Result** or in a test's row menu, lays the test's latest run over the canvas in place of the last run, to play back step by step like a recorded run. A strip above the canvas names the test, such as **Test: Big order gets 10% off**, and says when it ran and whether it passed: **Passed in 4 ms**, or its first failure. A step the test stands in for carries **Simulated output** or **Simulated failure**. Select a step to see what it received and returned on its **In this test** tab. **Run** in the strip runs the test again and shows the new run, and **Hide result** brings back the last run. Once the automation or the test changes, the strip says so: the run no longer shows what the draft does.
+
 ## Fix a problem in a test
 
 Tale checks tests as it checks the rest of the draft. A test that can never pass, for example one that simulates a step the automation doesn't have or names an unknown field, shows in **Problems** with what to fix. Select the problem to open the test at that place in its YAML.

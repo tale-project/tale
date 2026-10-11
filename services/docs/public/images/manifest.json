@@ -513,6 +513,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-try-draft.webp",
+      "shot": "automation-try-draft",
+      "route": "/dashboard/:orgId/automations/order-discounts/editor?panel=tests",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-version-compare.webp",
       "shot": "automation-version-compare",
       "route": "/dashboard/:orgId/automations/weekly-digest/versions/4?from=3",

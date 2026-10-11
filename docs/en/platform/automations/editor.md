@@ -108,7 +108,7 @@ Three tabs follow:
 
 - **Fields** holds what you can change. A `transform` has **Code**; an `llm` has **Prompt**, **System prompt**, **Model** and **Output schema**; an `agent` also has its agent runtime and equipment. **Input** contains the JSON values and references passed to the node.
 - **Shape** shows what the node receives and returns, where Tale got that shape from, and which nodes read its output. Select a reader to open it. **Show as TypeScript** shows the same shape as a type.
-- **Last run** shows the node's **Resolved input**, **Output** and effects in the run shown on the canvas. It appears while the canvas shows a run.
+- **Last run** shows the node's **Resolved input**, **Output** and effects in the run shown on the canvas. It appears while the canvas shows a run, and is named **Unsaved test** for a [try of the draft](#try-the-draft) and **In this test** for a test's run.
 
 <Frame caption="The Shape tab: what Triage returns, where that shape comes from, and the nodes that read it.">
 
@@ -211,6 +211,18 @@ To check the same cases on every save and before every deploy, write them as tes
 <Frame caption="For an input-driven workflow, supply JSON and inspect its schema before starting the test.">
 
 ![The Test run dialog shows owner and repo JSON values in the code editor and the expanded input schema as a list of fields.](/images/platform/automation-run-input.webp)
+
+</Frame>
+
+### Try the draft {#try-the-draft}
+
+With unsaved changes, **Test run** first asks **What runs**. **This draft (not saved)** runs your changes once with the same mocks, without saving them: the run is kept nowhere and does not appear under **Runs**. The other choice, such as **Version 3**, runs the saved version on screen, as above. The run input is checked against the input schema of the one you choose.
+
+The draft's run then lies over the canvas in place of the last run, under an **Unsaved test** strip that says how it ended and when, such as **Succeeded in 12 ms** or **Failed at Score**, and it plays back step by step like a recorded run. Select a node to see what it received and returned on its **Unsaved test** tab. Once you change the draft, the strip says **The draft changed since this try.** **Try again** runs the draft as it is now, with the same input; ⌘⇧Enter (Ctrl+Shift+Enter) does the same while the canvas or the inspector has focus. **Hide result** brings back the last run. A try stops after 20 seconds.
+
+<Frame caption="A try of the draft on the order discounts: the strip says how it ended, and Review, which only an order of a thousand or more reaches, shows what it got on its Unsaved test tab.">
+
+![The editor of Order discounts with an Unsaved test strip above the canvas reading Succeeded in 13 ms, with Try again and a button to hide the result. On the canvas, Discount, Total and Review succeeded, Review's condition, quantity of the run input is at least 1,000, reads Yes, and the playback bar rests at the run's end. Beside the canvas, Review's Unsaved test tab shows the resolved input total 22800 and the output note Wholesale order of 22800: sales confirms the price.](/images/platform/automation-try-draft.webp)
 
 </Frame>
 

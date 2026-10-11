@@ -81,6 +81,10 @@ Sélectionne un test pour l’ouvrir à côté du canevas. Un test qui a un rés
 
 **Simulés** nomme les étapes que le test remplace, et **Non utilisés** celles que l’exécution a ignorées. **Détails techniques** affiche le message du moteur lui-même. Un résultat issu de la dernière vérification de la version ne conserve pas les étapes ; exécute le test pour les voir.
 
+### Afficher l’exécution d’un test sur le canevas {#show-on-canvas}
+
+**Afficher sur le canevas**, dans **Résultat** ou dans le menu de la ligne d’un test, affiche la dernière exécution du test sur le canevas à la place de la dernière exécution, pour la rejouer étape par étape comme une exécution enregistrée. Une bande au-dessus du canevas nomme le test, par exemple **Test : Big order gets 10% off**, et indique quand il s’est exécuté et s’il a réussi : **Réussi en 4 ms**, ou son premier échec. Une étape que le test simule porte **Sortie simulée** ou **Échec simulé**. Sélectionne une étape pour voir ce qu’elle a reçu et renvoyé dans son onglet **Dans ce test**. **Exécuter** dans la bande relance le test et affiche la nouvelle exécution, et **Masquer le résultat** ramène la dernière exécution. Dès que l’automatisation ou le test change, la bande le dit : l’exécution ne montre plus ce que fait le brouillon.
+
 ## Corriger un problème dans un test
 
 Tale vérifie les tests comme le reste du brouillon. Un test qui ne peut jamais réussir, par exemple parce qu’il simule une étape que l’automatisation n’a pas ou qu’il nomme un champ inconnu, figure dans **Problèmes** avec ce qu’il faut corriger. Sélectionne le problème pour ouvrir le test à cet endroit de son YAML.
