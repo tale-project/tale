@@ -273,7 +273,7 @@ export function inspectIncus(
       list(nic?.['security.acls']).length > 0 ||
       list(network.config['security.acls']).length > 0;
     if (!acls) {
-      const text = `no network ACL applies to sessions: neither network ${incus.network} nor profile ${incus.profile}'s NIC sets security.acls, so a session could reach every address its bridge can. Attach an ACL that admits only the egress proxy, the resolver and the platform (docs/incus.md)`;
+      const text = `no network ACL applies to sessions: neither network ${incus.network} nor profile ${incus.profile}'s NIC sets security.acls, so a session could reach every address its bridge can. Attach an ACL that admits only the egress proxy, the resolver and the platform (services/sandbox/docs/incus.md has an example)`;
       if (incus.allowUnfilteredNetwork) {
         warnings.push(
           `${text} — SANDBOX_INCUS_ALLOW_UNFILTERED_NETWORK is set, so this is allowed`,

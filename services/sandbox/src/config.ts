@@ -788,7 +788,7 @@ export function loadConfig(): SpawnerConfig {
     }
     if (dockerInContainer) {
       console.warn(
-        '[sandbox.config] WARNING: Docker inside a session runs on an Incus OCI container, which this backend has not proven yet; check the manual test box for it (docs/incus.md) before relying on it',
+        '[sandbox.config] WARNING: Docker inside a session runs on an Incus OCI container, which this backend has not proven yet; check the node checks for it in services/sandbox/docs/incus.md before relying on it',
       );
     }
   }
