@@ -139,6 +139,15 @@ async function dumpState(why: string): Promise<void> {
         `-- instance ${instance.name}: ${instance.status}, ${instance.addresses.join(' ') || 'no address'}, session ${label(instance.config, LABEL.session) ?? '-'}`,
       );
     }
+    // What each instance said on its console: the end of it, for the first few.
+    for (const instance of (await admin.instances()).slice(0, 6)) {
+      const tail = (await admin.consoleLog(instance.name))
+        .trim()
+        .split('\n')
+        .slice(-25)
+        .join('\n');
+      lines.push(`-- console of ${instance.name}:\n${tail}`);
+    }
     for (const volume of await admin.volumes()) {
       lines.push(`-- volume ${volume.name}: ${JSON.stringify(volume.config)}`);
     }

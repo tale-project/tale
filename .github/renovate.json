@@ -34,6 +34,15 @@
         "(?<depName>registry):(?<currentValue>\\d+\\.\\d+\\.\\d+)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The OCI registry the Incus end-to-end lab pushes its images to, pinned by version and digest in lab.sh as a shell constant rather than an image key, so no built-in manager sees it",
+      "managerFilePatterns": ["/^services/sandbox/e2e/incus/lab\\.sh$/"],
+      "matchStrings": [
+        "(?<depName>ghcr\\.io/distribution/distribution):(?<currentValue>\\d+\\.\\d+\\.\\d+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [

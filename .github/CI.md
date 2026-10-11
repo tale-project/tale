@@ -174,6 +174,17 @@ authorized credential as described above.
   suites use two workers. Ordinary interactive web journeys await a test-only root
   snapshot marker being removed by the client commit, so prerendered nodes cannot
   satisfy their readiness check. Cold-start tests still exercise the transition itself.
+- **Sandbox Incus E2E** stands alone: it is no part of CI ready, the candidate
+  receipts or the required checks. On a hosted runner it builds the Incus node
+  `services/sandbox/docs/incus.md` describes (Zabbly's pinned build, a ZFS pool on a
+  file, and the document's own operator block, run verbatim), builds the runtime and
+  egress images from the checkout into a local registry that Incus pulls from, starts
+  the spawner from the checkout and drives its signed HTTP API through the session
+  contract. Path-filtered to the sandbox, runtime and egress services and its own
+  file, it runs on drafts too, and it reads Build's layer caches and writes none. Each
+  suite leaves its log as an artifact the moment it ends, so a run in progress can be
+  read; the job summary holds the timings. `services/sandbox/e2e/incus/README.md` says
+  what each suite proves and how to make the workflow required.
 - **Build** distinguishes the platform stack from standalone sites. Site-only changes run
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates

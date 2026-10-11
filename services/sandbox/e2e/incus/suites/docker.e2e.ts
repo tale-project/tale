@@ -112,6 +112,25 @@ describe('Docker inside a session on a real node', () => {
   });
 
   step(
+    'with Docker inside, the processes keep the privileges to grow',
+    async () => {
+      // The session user's own commands still cannot gain privilege, but what the
+      // inner engine runs needs to, so the bit is off for the processes above it.
+      const status = await sh(
+        api,
+        ID,
+        `for p in /proc/[0-9]*; do
+         if tr '\\0' ' ' < "$p/cmdline" 2>/dev/null | grep -q '[d]ockerd'; then
+           echo "dockerd \${p#/proc/}"; grep -E '^(NoNewPrivs|Uid):' "$p/status"
+         fi
+       done`,
+      );
+      report.fact('dockerd process', status.replaceAll('\n', ' '));
+      expect(status).toContain('NoNewPrivs:\t0');
+    },
+  );
+
+  step(
     'docker run works: pulled through the proxy, run in a nested container',
     async () => {
       const started = performance.now();

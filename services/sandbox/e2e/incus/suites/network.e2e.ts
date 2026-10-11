@@ -282,6 +282,24 @@ describe('a session on the sandbox bridge', () => {
     },
   );
 
+  step(
+    'the session user cannot take the redirect or the firewall away',
+    async () => {
+      // The redirect is installed by the entrypoint as root; the user the agent
+      // runs as has no capability to change it.
+      const flush = await api.exec(A, {
+        shell:
+          '/usr/sbin/iptables -t nat -F 2>&1; echo "rc=$?"; /usr/sbin/iptables -t nat -S 2>&1 | head -n 3',
+      });
+      expect(flush.stdout).not.toContain('rc=0');
+      // And the request that follows still goes out through the proxy.
+      expect(await http(A, 'https://github.com/robots.txt')).toEqual({
+        code: 0,
+        stdout: '200',
+      });
+    },
+  );
+
   step('sessions have no IPv6', async () => {
     expect(
       (await sh(api, A, 'cat /proc/sys/net/ipv6/conf/all/disable_ipv6')).trim(),

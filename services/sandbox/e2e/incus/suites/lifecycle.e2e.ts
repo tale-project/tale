@@ -292,9 +292,13 @@ describe('a session on a real Incus node', () => {
       const reply = await api.call('GET', `/v1/sessions/${S1}/exec/${execId}`);
       return field(reply.json, 'state') !== 'running' || undefined;
     });
-    expect(
-      (await sh(api, S1, 'ps -eo comm= | grep -cx sleep || true')).trim(),
-    ).toBe('0');
+    // No `sleep` is left: the cancel ended the command and what it started.
+    const left = await sh(
+      api,
+      S1,
+      'n=0; for p in /proc/[0-9]*; do [ "$(cat "$p/comm" 2>/dev/null)" = sleep ] && n=$((n+1)); done; echo $n',
+    );
+    expect(left.trim()).toBe('0');
   });
 
   step('files are staged, listed, read back and deleted', async () => {
@@ -632,6 +636,56 @@ describe('a session on a real Incus node', () => {
     expect(await sessionVolume(RENDER)).toBeUndefined();
     expect(await sessionInstance(RENDER)).toBeUndefined();
   });
+
+  step(
+    'three sessions created at once each get an address, a workspace and a host uid range of their own',
+    async () => {
+      const ids = [sessionId('par'), sessionId('par'), sessionId('par')];
+      const started = performance.now();
+      const results = await Promise.all(
+        ids.map((id) =>
+          api.create({
+            sessionId: id,
+            organizationId: ORG,
+            profile: 'agent-light',
+          }),
+        ),
+      );
+      for (const [index, result] of results.entries()) {
+        expectStatus(result.reply, 201, `create ${ids[index]}`);
+      }
+      report.add(
+        'three creates at once (wall time)',
+        performance.now() - started,
+        results
+          .map((result) => `${Math.round(result.elapsedMs)} ms`)
+          .join(', '),
+      );
+      const addresses = await Promise.all(
+        ids.map(async (id) => (await sessionInstance(id))?.addresses[0]),
+      );
+      expect(new Set(addresses).size).toBe(3);
+      await Promise.all(
+        ids.map((id, index) => sh(api, id, `echo ${index} > /agent/who`)),
+      );
+      for (const [index, id] of ids.entries()) {
+        expect(await sh(api, id, 'cat /agent/who')).toBe(`${index}\n`);
+      }
+      // Isolated idmaps: no two sessions share a range of host uids.
+      const bases = await Promise.all(
+        ids.map((id) =>
+          sh(api, id, "awk '$1 == 0 { print $2 }' /proc/self/uid_map"),
+        ),
+      );
+      expect(new Set(bases.map((base) => base.trim())).size).toBe(3);
+      report.fact(
+        'host uid bases of three sessions',
+        bases.map((base) => base.trim()).join(', '),
+      );
+      for (const id of ids)
+        expectStatus(await api.destroy(id), 200, `destroy ${id}`);
+    },
+  );
 
   step(
     'destroy removes the instance and the workspace, and says so',
