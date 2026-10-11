@@ -10,10 +10,12 @@ import { IncusApiError, incusStatus } from './incus-api.ts';
 import {
   IncusClient,
   isIncusImageMissing,
+  isIncusNameConflict,
   type IncusFetch,
   type IncusRequestInit,
   type IncusTlsMaterial,
 } from './incus-client.ts';
+import { rejection } from './incus-test-support.ts';
 import {
   makeTestCertificates,
   type TestCertificates,
@@ -120,18 +122,6 @@ const instance = (name: string, extra: Record<string, unknown> = {}) => ({
   created_at: '2026-10-11T12:00:00Z',
   ...extra,
 });
-
-async function rejection(promise: Promise<unknown>): Promise<Error> {
-  try {
-    await promise;
-  } catch (error) {
-    if (error instanceof Error) return error;
-    throw new Error(`rejected with a non-Error: ${String(error)}`, {
-      cause: error,
-    });
-  }
-  throw new Error('expected the promise to reject');
-}
 
 describe('how a call is shaped', () => {
   test('every project-scoped call names the project, and the path is escaped', async () => {
@@ -338,6 +328,20 @@ describe('how an answer is read', () => {
       isIncusImageMissing(new IncusApiError('Profile not found', 404)),
     ).toBe(false);
     expect(isIncusImageMissing(new Error('image not found'))).toBe(false);
+  });
+
+  test('a taken name is recognised from either of the ways Incus words it', () => {
+    // One check answers a plain error (a 500), another a 409.
+    expect(
+      isIncusNameConflict(
+        new IncusApiError('Instance "tale-sbx-ses-1" already exists', 500),
+      ),
+    ).toBe(true);
+    expect(isIncusNameConflict(new IncusApiError('Conflict', 409))).toBe(true);
+    expect(
+      isIncusNameConflict(new IncusApiError('Instance not found', 404)),
+    ).toBe(false);
+    expect(isIncusNameConflict(new Error('already exists'))).toBe(false);
   });
 });
 

@@ -16,7 +16,7 @@
 // a new image) or has stood too long is replaced.
 
 import type { SpawnerConfig } from '../../types.ts';
-import { INCUS_STATUS, incusStatus, type IncusInstance } from './incus-api.ts';
+import { INCUS_STATUS, type IncusInstance } from './incus-api.ts';
 import type { IncusClient } from './incus-client.ts';
 import {
   incusPoolInstanceName,
@@ -25,6 +25,7 @@ import {
   label,
   LABEL,
 } from './incus-naming.ts';
+import { removeIncusInstance } from './incus-remove.ts';
 import {
   buildClaim,
   buildPoolInstance,
@@ -287,37 +288,12 @@ export class IncusPool {
     }
   }
 
-  /** Remove a standby (or the debris of one); true when it existed. */
+  /** Remove a standby (or the debris of one); false when it could not be. */
   private async discard(name: string): Promise<boolean> {
     this.ready.delete(name);
     try {
-      try {
-        await this.client.changeInstanceState(name, 'stop', {
-          force: true,
-          waitMs: OPERATION_WAIT_MS,
-        });
-      } catch (error) {
-        // Already stopped, or already gone: the delete below settles which.
-        const message = error instanceof Error ? error.message : String(error);
-        if (
-          incusStatus(error) !== 404 &&
-          !/already stopped|not running/i.test(message)
-        ) {
-          console.warn(
-            `[sandbox.incus.pool] stopping ${name}:`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-      }
-      // An ephemeral instance deletes itself once stopped; give it a moment,
-      // then take it out if it is still there.
-      for (let i = 0; i < 20; i += 1) {
-        if ((await this.client.getInstance(name)) === undefined) return true;
-        await this.sleep(100);
-        if (i === 4) await this.client.deleteInstance(name, OPERATION_WAIT_MS);
-      }
-      console.warn(`[sandbox.incus.pool] ${name} is still there after removal`);
-      return false;
+      await removeIncusInstance(this.client, name, { sleep: this.sleep });
+      return true;
     } catch (error) {
       console.warn(`[sandbox.incus.pool] removing ${name} failed:`, error);
       return false;

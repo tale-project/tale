@@ -869,14 +869,15 @@ export class FakeIncus {
       throw new FakeFailure(400, `Invalid instance name "${body.name}"`);
     }
     if (this.instances.has(body.name)) {
-      throw new FakeFailure(409, `Instance "${body.name}" already exists`);
+      // Incus's own pre-check is a plain error, which surfaces as a 500.
+      throw new FakeFailure(500, `Instance "${body.name}" already exists`);
     }
     if (!this.aliases.has(body.source.alias))
       throw new FakeFailure(404, 'Image not found');
     if (!body.profiles.includes(this.options.profile))
       throw new FakeFailure(404, 'Profile not found');
     this.checkRestrictions(body.name, body.config, body.devices);
-    this.checkVolumes(body.name, body.devices);
+    this.checkVolumes(body.devices);
     const instance = this.newInstance({
       name: body.name,
       config: body.config,
@@ -890,7 +891,10 @@ export class FakeIncus {
     });
   }
 
-  private checkVolumes(name: string, devices: IncusDevices): void {
+  /** A pool-backed disk needs its volume. A filesystem volume may serve any
+   * number of instances at once (only block volumes are exclusive), so this
+   * is no arbiter between two instances that mount the same workspace. */
+  private checkVolumes(devices: IncusDevices): void {
     for (const device of Object.values(devices)) {
       if (
         device.type !== 'disk' ||
@@ -901,15 +905,6 @@ export class FakeIncus {
       const source = device.source ?? '';
       if (!this.volumes.has(source)) {
         throw new FakeFailure(404, `Storage volume "${source}" not found`);
-      }
-      const users = this.volumeUsedBy(source).filter(
-        (url) => !url.includes(`/instances/${name}?`),
-      );
-      if (users.length > 0) {
-        throw new FakeFailure(
-          400,
-          `Storage volume "${source}" is in use by another instance`,
-        );
       }
     }
   }
@@ -1000,7 +995,7 @@ export class FakeIncus {
     }
     const devices = { ...instance.devices, ...devicesOf(body.devices) };
     this.checkRestrictions(name, config, devices);
-    this.checkVolumes(name, devices);
+    this.checkVolumes(devices);
     instance.config = config;
     instance.devices = devices;
     instance.version += 1;

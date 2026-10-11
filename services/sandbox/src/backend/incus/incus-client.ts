@@ -141,6 +141,14 @@ export function isIncusImageMissing(error: unknown): boolean {
   );
 }
 
+/** Does this failure say the name is taken? Incus answers a create under an
+ * existing instance name with a plain error (an HTTP 500 carrying "already
+ * exists") from one check and with a 409 from another, so both count. */
+export function isIncusNameConflict(error: unknown): boolean {
+  if (!(error instanceof IncusApiError)) return false;
+  return error.status === 409 || /already exists/i.test(error.message);
+}
+
 async function readBounded(res: Response, max: number): Promise<Uint8Array> {
   const declared = Number(res.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > max) {
