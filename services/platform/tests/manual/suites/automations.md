@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 189 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 190 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1386,6 +1386,14 @@ output:
       address once. POST `{"title":"Server down"}` to it → a task Server down
       appears in the project. A POST without a title starts no run, and the
       trigger's last start on the General tab says it was refused.
+- [ ] `AUTO-F138` · **Create Daily task digest from a starter for a
+      project with a task created today, sending it to yourself, then Run
+      live from the editor** → the run succeeds, and its Tasks step
+      (`task.list`) returns the project's tasks of the last 24 hours, newest
+      first, archived ones left out. Your notifications show the message
+      title (`New tasks`) with a line per task and the automation's name, and
+      it opens the project's tasks. Run it for a project with no new task →
+      the run succeeds and nothing is sent.
 
 ## Boundary & error tests
 
