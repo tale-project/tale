@@ -27,6 +27,7 @@ import {
   STANDBY_CLAIM_FILE,
   STANDBY_READY_FILE,
 } from './incus-standby.ts';
+import { incusSizeBytes } from './incus-units.ts';
 
 export interface RecordedRequest {
   method: string;
@@ -95,6 +96,7 @@ export interface FailureRule {
 }
 
 const DEFAULT_EXTENSIONS = [
+  'storage_shifted',
   'instance_oci',
   'instance_oci_entrypoint',
   'oci_network_config',
@@ -197,6 +199,7 @@ export class FakeIncus {
 
   /** What the server says it is. */
   auth = 'trusted';
+  kernelFeatures: Record<string, string> = { idmapped_mounts: 'true' };
   extensions: string[] = [...DEFAULT_EXTENSIONS];
   projectConfig: IncusConfigMap = {
     'features.images': 'true',
@@ -382,7 +385,11 @@ export class FakeIncus {
       return syncOk({
         api_extensions: this.extensions,
         auth: this.auth,
-        environment: { server_name: 'fake-node', server_version: '7.5.1' },
+        environment: {
+          server_name: 'fake-node',
+          server_version: '7.5.1',
+          kernel_features: this.kernelFeatures,
+        },
       });
     }
     if (this.auth !== 'trusted') throw new FakeFailure(403, 'not authorized');
@@ -617,6 +624,17 @@ export class FakeIncus {
       if (method === 'POST') {
         const body = asRecord(request.body);
         const volumeName = requiredText(body, 'name');
+        const diskLimited = Object.keys(this.projectConfig).some(
+          (key) =>
+            (key === 'limits.disk' || key.startsWith('limits.disk.pool.')) &&
+            this.projectConfig[key] !== '',
+        );
+        if (diskLimited && stringMap(body.config).size === undefined) {
+          throw new FakeFailure(
+            400,
+            `Custom volume "${volumeName}" in project "${this.options.project}" has no "size" config set`,
+          );
+        }
         if (this.volumes.has(volumeName)) {
           throw new FakeFailure(
             409,
@@ -879,6 +897,7 @@ export class FakeIncus {
     if (!body.profiles.includes(this.options.profile))
       throw new FakeFailure(404, 'Profile not found');
     this.checkRestrictions(body.name, body.config, body.devices);
+    this.checkProjectLimits(body);
     this.checkVolumes(body.devices);
     const instance = this.newInstance({
       name: body.name,
@@ -891,6 +910,69 @@ export class FakeIncus {
     return this.startOperation(async () => {
       if (body.start) await this.start(instance);
     });
+  }
+
+  /**
+   * Incus's project limits. A count limit is checked against the instances
+   * there are. An aggregate limit (cpu, memory, processes) is the sum of the
+   * same instance limit over all instances, and Incus refuses an instance that
+   * does not define the limit itself or through its profile; a disk limit
+   * likewise wants a size on the root device.
+   */
+  private checkProjectLimits(body: CreateBody): void {
+    const config = this.projectConfig;
+    const project = this.options.project;
+    const existing = [...this.instances.values()];
+    for (const key of ['limits.instances', 'limits.containers']) {
+      const limit = config[key];
+      if (
+        limit !== undefined &&
+        limit !== '' &&
+        existing.length + 1 > Number(limit)
+      ) {
+        throw new FakeFailure(
+          400,
+          `Reached maximum number of instances in project "${project}"`,
+        );
+      }
+    }
+    for (const key of ['limits.cpu', 'limits.memory', 'limits.processes']) {
+      const limit = config[key];
+      if (limit === undefined || limit === '') continue;
+      const own = body.config[key] ?? this.profileConfig[key] ?? '';
+      if (own === '') {
+        throw new FakeFailure(
+          400,
+          `Instance "${body.name}" in project "${project}" has no "${key}" config, either directly or via a profile`,
+        );
+      }
+      const value = (text: string) =>
+        key === 'limits.memory' ? (incusSizeBytes(text) ?? 0) : Number(text);
+      let total = value(own);
+      for (const other of existing) {
+        total += value(other.config[key] ?? this.profileConfig[key] ?? '0');
+      }
+      if (total > value(limit)) {
+        throw new FakeFailure(
+          400,
+          `Reached maximum aggregate value "${limit}" for "${key}" in project "${project}"`,
+        );
+      }
+    }
+    const diskLimited = Object.keys(config).some(
+      (key) =>
+        (key === 'limits.disk' || key.startsWith('limits.disk.pool.')) &&
+        config[key] !== '',
+    );
+    if (diskLimited) {
+      const root = { ...this.profileDevices.root, ...body.devices.root };
+      if ((root.size ?? '') === '') {
+        throw new FakeFailure(
+          400,
+          `Instance "${body.name}" in project "${project}" has no "size" config set on the root device either directly or via a profile`,
+        );
+      }
+    }
   }
 
   /** A pool-backed disk needs its volume. A filesystem volume may serve any

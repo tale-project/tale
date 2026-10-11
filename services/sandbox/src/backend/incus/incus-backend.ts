@@ -26,6 +26,7 @@ import {
 } from './incus-naming.ts';
 import { removeIncusInstance } from './incus-remove.ts';
 import { getIncusRuntime, type IncusRuntime } from './incus-runtime.ts';
+import { buildWarmupInstance } from './incus-session-spec.ts';
 
 /** A runtime image is several GiB: a pull waits this long. */
 const PULL_WAIT_MS = 20 * 60_000;
@@ -180,21 +181,12 @@ export class IncusBackend implements HostBackend {
     fingerprint: string,
   ): Promise<void> {
     if (this.prepared.has(fingerprint)) return;
-    const { image, profile } = this.runtime.incus;
     const name = incusWarmupInstanceName(
       this.runtime.attemptId().replaceAll('-', '').slice(0, 12),
     );
     try {
       await client.createInstance(
-        {
-          name,
-          ephemeral: false,
-          profiles: [profile],
-          config: {},
-          devices: {},
-          source: { type: 'image', alias: image },
-          start: false,
-        },
+        buildWarmupInstance(this.cfg, name),
         WARMUP_WAIT_MS,
       );
       this.prepared.add(fingerprint);

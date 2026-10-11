@@ -496,6 +496,35 @@ export function buildPoolInstance(
 }
 
 /**
+ * The throwaway instance that has Incus unpack the runtime image into the
+ * pool before the first session needs it. It is never started. It carries the
+ * limits a project may add up over all its instances (memory, processes), or
+ * a project limit would refuse it: Incus refuses an instance that lacks the
+ * limit a project aggregates.
+ */
+export function buildWarmupInstance(
+  cfg: SpawnerConfig,
+  name: string,
+): IncusInstanceCreate {
+  const incus = incusOf(cfg);
+  const limits = resourceConfig(cfg, poolShape(cfg));
+  const config: IncusConfigMap = {};
+  for (const key of ['limits.memory', 'limits.processes']) {
+    const value = limits[key];
+    if (value !== undefined) config[key] = value;
+  }
+  return {
+    name,
+    ephemeral: false,
+    profiles: [incus.profile],
+    config,
+    devices: {},
+    source: { type: 'image', alias: incus.image },
+    start: false,
+  };
+}
+
+/**
  * What turns a standby into a session: the labels and the workspace volume
  * (one instance PATCH — an emptied pool label reads as removed) and the claim
  * file the standby script is waiting for.

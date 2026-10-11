@@ -12,7 +12,8 @@ import type {
   IncusServerInfo,
   IncusStoragePool,
 } from './incus-api.ts';
-import { incusOf } from './incus-session-spec.ts';
+import { incusOf, sessionShape } from './incus-session-spec.ts';
+import { incusSizeBytes } from './incus-units.ts';
 
 /** API extensions every Incus deployment of the backend needs (all in
  * Incus 7.0). */
@@ -24,6 +25,8 @@ const REQUIRED_EXTENSIONS = [
   'oci_network_config',
   // A create that starts in the same operation.
   'instance_create_start',
+  // A workspace volume several isolated instances can mount in turn.
+  'storage_shifted',
   // The owner of a new workspace volume, and the creation time the platform's
   // cleanup protects a young workspace by.
   'storage_initial_owner',
@@ -55,6 +58,64 @@ function list(value: string | undefined): string[] {
     .filter((item) => item !== '');
 }
 
+/** A project limit that holds a whole number, or undefined. */
+function countOf(value: string | undefined): number | undefined {
+  if (value === undefined || !/^[0-9]+$/.test(value)) return undefined;
+  return Number(value);
+}
+
+/**
+ * Incus refuses a create once the instances of a project would pass one of the
+ * project's own limits, and the spawner admits by its session capacity alone.
+ * A limit below what the capacity can add up to is not an error — an operator
+ * may mean it — but a create past it fails with an Incus message, so boot says
+ * so. Standbys and sessions together stay within the capacity; a warm-up
+ * instance comes on top for a moment.
+ */
+function warnProjectCapacity(
+  cfg: SpawnerConfig,
+  projectConfig: Record<string, string>,
+  projectName: string,
+  warnings: string[],
+): void {
+  const capacity = cfg.session.maxSessions;
+  const shape = sessionShape(cfg, 'agent');
+  const instances = countOf(projectConfig['limits.instances']);
+  if (instances !== undefined && instances < capacity + 1) {
+    warnings.push(
+      `project ${projectName} allows ${instances} instances (limits.instances), fewer than SANDBOX_MAX_SESSIONS (${capacity}) plus the image warm-up's: a create past the limit fails`,
+    );
+  }
+  const containers = countOf(projectConfig['limits.containers']);
+  if (containers !== undefined && containers < capacity + 1) {
+    warnings.push(
+      `project ${projectName} allows ${containers} containers (limits.containers), fewer than SANDBOX_MAX_SESSIONS (${capacity}) plus the image warm-up's: a create past the limit fails`,
+    );
+  }
+  const memoryLimit = projectConfig['limits.memory'];
+  const memory =
+    memoryLimit === undefined ? undefined : incusSizeBytes(memoryLimit);
+  const perSession = incusSizeBytes(shape.limits.memory);
+  if (
+    memory !== undefined &&
+    perSession !== undefined &&
+    memory < capacity * perSession
+  ) {
+    warnings.push(
+      `project ${projectName} caps the sessions' memory limits at ${memoryLimit} (limits.memory), less than SANDBOX_MAX_SESSIONS (${capacity}) times ${shape.limits.memory}: a create fails once their limits add up to it`,
+    );
+  }
+  const processes = countOf(projectConfig['limits.processes']);
+  const pids = shape.dind
+    ? Math.max(shape.limits.pidsLimit, 16384)
+    : shape.limits.pidsLimit;
+  if (processes !== undefined && processes < capacity * pids) {
+    warnings.push(
+      `project ${projectName} caps the sessions' process limits at ${processes} (limits.processes), less than SANDBOX_MAX_SESSIONS (${capacity}) times ${pids}: a create fails once their limits add up to it`,
+    );
+  }
+}
+
 export function inspectIncus(
   cfg: SpawnerConfig,
   survey: IncusSurvey,
@@ -74,6 +135,15 @@ export function inspectIncus(
   if (missing.length > 0) {
     errors.push(
       `Incus ${server.serverVersion || '(unknown version)'} lacks the API extensions ${missing.join(', ')}; Incus 7.0 or newer has them all`,
+    );
+  }
+
+  // A workspace volume is shifted so that each instance, with an idmap of its
+  // own, mounts it without a recursive chown. Incus does that with idmapped
+  // mounts, which the kernel and the volume's filesystem must support.
+  if (server.kernelFeatures.idmapped_mounts === 'false') {
+    warnings.push(
+      `the Incus server reports no idmapped mounts (kernel_features), which a shifted workspace volume needs: a session's workspace may fail to mount or not be writable. They need Linux 5.12 or newer and a storage driver that supports them`,
     );
   }
 
@@ -139,6 +209,40 @@ export function inspectIncus(
     }
   }
 
+  // ---- the project's aggregate limits ----------------------------------------
+  // Incus adds up an instance limit over every instance of a project that
+  // carries a project limit of the same name, and refuses an instance that
+  // does not define it itself or through its profile. Sessions define
+  // limits.memory and limits.processes (and the volumes their size), and limit
+  // CPU through limits.cpu.allowance, not limits.cpu.
+  const rootDevice = Object.values(profile.devices).find(
+    (device) => device.type === 'disk' && device.path === '/',
+  );
+  const cpuLimit = project.config['limits.cpu'];
+  if (
+    cpuLimit !== undefined &&
+    cpuLimit !== '' &&
+    (profile.config['limits.cpu'] ?? '') === ''
+  ) {
+    errors.push(
+      `project ${projectName} sets limits.cpu (${cpuLimit}), so Incus refuses every instance that does not define limits.cpu itself, and this backend limits CPU with limits.cpu.allowance. Run: incus project unset ${projectName} limits.cpu`,
+    );
+  }
+  const diskLimit = Object.keys(project.config).find(
+    (key) =>
+      (key === 'limits.disk' || key.startsWith('limits.disk.pool.')) &&
+      (project.config[key] ?? '') !== '',
+  );
+  if (
+    diskLimit !== undefined &&
+    (rootDevice?.size === undefined || rootDevice.size === '')
+  ) {
+    errors.push(
+      `project ${projectName} sets ${diskLimit}, so Incus refuses every instance whose root disk has no size, and profile ${incus.profile}'s root disk has none. Run: incus profile device set ${incus.profile} root size=30GiB --project ${projectName}`,
+    );
+  }
+  warnProjectCapacity(cfg, project.config, projectName, warnings);
+
   // ---- the network and the profile that owns the NIC -----------------------
   if (!network.managed) {
     errors.push(
@@ -186,9 +290,7 @@ export function inspectIncus(
       );
     }
   }
-  const root = Object.values(profile.devices).find(
-    (device) => device.type === 'disk' && device.path === '/',
-  );
+  const root = rootDevice;
   if (root === undefined || root.pool !== incus.storagePool) {
     warnings.push(
       `profile ${incus.profile}'s root disk is not on pool ${incus.storagePool} (SANDBOX_INCUS_STORAGE_POOL)${root?.pool === undefined ? '' : `: it is on ${root.pool}`}; instances then copy the image instead of cloning it`,

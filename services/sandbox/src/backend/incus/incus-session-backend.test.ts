@@ -398,6 +398,29 @@ describe('a create that fails', () => {
     expect(f.fake.instances.has(NAME)).toBe(false);
   });
 
+  test('a create past the project’s memory cap fails with Incus’s words and removes nothing it should keep', async () => {
+    const f = sessionFixture();
+    // Room for one 4 GiB session.
+    f.fake.projectConfig['limits.memory'] = '6GiB';
+    await f.backend.createSession(specOf('first'));
+    const error = await rejection(f.backend.createSession(specOf(ID)));
+    expect(error.message).toContain('Reached maximum aggregate value');
+    expect(error.message).toContain('limits.memory');
+    // The session that fit runs on; the one that did not left only its
+    // workspace volume, for a retry.
+    expect(f.fake.instances.has(incusInstanceName('first'))).toBe(true);
+    expect(f.fake.instances.has(NAME)).toBe(false);
+    expect(f.fake.volumes.has(VOLUME)).toBe(true);
+  });
+
+  test('every create is refused in a project that sets limits.cpu, as the boot check says', async () => {
+    const f = sessionFixture();
+    f.fake.projectConfig['limits.cpu'] = '64';
+    const error = await rejection(f.backend.createSession(specOf(ID)));
+    expect(error.message).toContain('has no "limits.cpu" config');
+    expect(f.fake.instances.size).toBe(0);
+  });
+
   test('hears of a missing runtime image, and fails', async () => {
     const f = sessionFixture();
     f.fake.aliases.clear();

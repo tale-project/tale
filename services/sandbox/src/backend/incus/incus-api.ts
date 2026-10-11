@@ -47,6 +47,9 @@ export function incusStatus(error: unknown): number | undefined {
 
 export interface IncusServerInfo {
   apiExtensions: readonly string[];
+  /** The optional kernel features the server reports (`kernel_features`):
+   * name to `true`/`false`; empty when the server says nothing. */
+  kernelFeatures: Readonly<Record<string, string>>;
   /** `trusted` once the client certificate is in the server's trust store. */
   auth: string;
   serverName: string;
@@ -191,6 +194,7 @@ export function parseServerInfo(raw: unknown): IncusServerInfo {
   const environment = isRecord(obj.environment) ? obj.environment : {};
   return {
     apiExtensions: stringList(obj.api_extensions),
+    kernelFeatures: stringMap(environment.kernel_features),
     auth: optionalText(obj, 'auth'),
     serverName: optionalText(environment, 'server_name'),
     serverVersion: optionalText(environment, 'server_version'),

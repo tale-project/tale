@@ -15,6 +15,7 @@ import {
 import {
   buildClaim,
   buildPoolInstance,
+  buildWarmupInstance,
   buildSessionInstance,
   buildWorkspaceVolume,
   pinnedEgressAddress,
@@ -439,6 +440,24 @@ describe('the warm pool', () => {
     expect(keys).not.toContain('user.tale.session');
     expect(body.devices.workspace).toBeUndefined();
     expect(isPoolInstance(body.config, '')).toBe(true);
+  });
+
+  test('the warm-up instance is never started, and carries the limits a project adds up', () => {
+    const body = buildWarmupInstance(incusTestConfig(), 'tale-sbx-warm-ab12');
+    expect(body).toEqual({
+      name: 'tale-sbx-warm-ab12',
+      ephemeral: false,
+      profiles: ['sandbox'],
+      config: { 'limits.memory': '4GiB', 'limits.processes': '512' },
+      devices: {},
+      source: { type: 'image', alias: 'tale-sandbox-runtime' },
+      start: false,
+    });
+    const docker = buildWarmupInstance(dockerCapable(), 'tale-sbx-warm-ab12');
+    expect(docker.config).toEqual({
+      'limits.memory': '8GiB',
+      'limits.processes': '16384',
+    });
   });
 
   test('the fingerprint follows what a standby is made of, and nothing else', () => {

@@ -25,3 +25,27 @@ export function toIncusSize(quantity: string): string | undefined {
   const unit = DOCKER_UNITS[(docker[2] ?? '').toLowerCase()];
   return unit === undefined ? undefined : `${docker[1]}${unit}`;
 }
+
+const INCUS_SIZE_BYTES: Record<string, number> = {
+  B: 1,
+  kB: 1000,
+  MB: 1000 ** 2,
+  GB: 1000 ** 3,
+  TB: 1000 ** 4,
+  KiB: 1024,
+  MiB: 1024 ** 2,
+  GiB: 1024 ** 3,
+  TiB: 1024 ** 4,
+};
+
+/** The bytes in a size, in Incus's syntax or a Docker quantity; undefined for
+ * anything else (a percentage, zero, a unit this backend never writes). */
+export function incusSizeBytes(size: string): number | undefined {
+  const incus = toIncusSize(size);
+  if (incus === undefined) return undefined;
+  const match = INCUS_SIZE_RE.exec(incus);
+  const unit = INCUS_SIZE_BYTES[match?.[2] ?? ''];
+  return match === null || unit === undefined
+    ? undefined
+    : Number(match[1]) * unit;
+}

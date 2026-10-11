@@ -61,6 +61,28 @@ describe('the server', () => {
     expect(errors[0]).toContain('storage_volumes_created_at');
   });
 
+  test('is refused without shifted volumes', async () => {
+    const fake = new FakeIncus();
+    fake.extensions = fake.extensions.filter(
+      (extension) => extension !== 'storage_shifted',
+    );
+    const { errors } = await inspect(fake);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('storage_shifted');
+  });
+
+  test('is warned about when the kernel has no idmapped mounts, and silent when it says nothing', async () => {
+    const fake = new FakeIncus();
+    fake.kernelFeatures = { idmapped_mounts: 'false' };
+    const { errors, warnings } = await inspect(fake);
+    expect(errors).toEqual([]);
+    expect(matching(warnings, 'idmapped mounts')).toHaveLength(1);
+    fake.kernelFeatures = {};
+    expect((await inspect(fake)).warnings).toEqual([]);
+    fake.kernelFeatures = { idmapped_mounts: 'true' };
+    expect((await inspect(fake)).warnings).toEqual([]);
+  });
+
   test('is not asked for the tmpfs extension when the shm device is off', async () => {
     const fake = new FakeIncus();
     fake.extensions = fake.extensions.filter(
@@ -166,6 +188,98 @@ describe('the project', () => {
     );
     expect(errors).toEqual([]);
     expect(matching(warnings, 'not restricted')).toHaveLength(1);
+  });
+});
+
+describe('the project’s aggregate limits', () => {
+  test('refuses a project that sets limits.cpu, which would refuse every create', async () => {
+    const fake = new FakeIncus();
+    fake.projectConfig['limits.cpu'] = '64';
+    const { errors } = await inspect(fake);
+    expect(matching(errors, 'limits.cpu')).toHaveLength(1);
+    expect(errors[0]).toContain('incus project unset sandbox-pr limits.cpu');
+  });
+
+  test('takes limits.cpu when the profile gives every instance one', async () => {
+    const fake = new FakeIncus();
+    fake.projectConfig['limits.cpu'] = '64';
+    fake.profileConfig['limits.cpu'] = '2';
+    expect((await inspect(fake)).errors).toEqual([]);
+  });
+
+  test('refuses a disk limit while the profile’s root disk has no size', async () => {
+    const fake = new FakeIncus();
+    fake.projectConfig['limits.disk'] = '2TiB';
+    const root = fake.profileDevices.root;
+    if (root === undefined) throw new Error('no root');
+    delete root.size;
+    const { errors } = await inspect(fake);
+    expect(matching(errors, 'limits.disk')).toHaveLength(1);
+    expect(errors[0]).toContain('incus profile device set sandbox root size=');
+    // The same limit on one pool.
+    fake.projectConfig['limits.disk'] = '';
+    fake.projectConfig['limits.disk.pool.tank'] = '1TiB';
+    expect(
+      matching((await inspect(fake)).errors, 'limits.disk.pool.tank'),
+    ).toHaveLength(1);
+  });
+
+  test('takes a disk limit once the root disk has a size', async () => {
+    const fake = new FakeIncus();
+    fake.projectConfig['limits.disk'] = '2TiB';
+    expect((await inspect(fake)).errors).toEqual([]);
+  });
+
+  test('warns about count limits below the capacity and its warm-up', async () => {
+    const fake = new FakeIncus();
+    // The test config's capacity is 10.
+    fake.projectConfig['limits.instances'] = '10';
+    fake.projectConfig['limits.containers'] = '5';
+    const { errors, warnings } = await inspect(fake);
+    expect(errors).toEqual([]);
+    expect(matching(warnings, 'limits.instances')).toHaveLength(1);
+    expect(matching(warnings, 'limits.containers')).toHaveLength(1);
+    fake.projectConfig['limits.instances'] = '11';
+    fake.projectConfig['limits.containers'] = '300';
+    expect((await inspect(fake)).warnings).toEqual([]);
+  });
+
+  test('warns about a memory cap below the capacity times a session’s limit', async () => {
+    const fake = new FakeIncus();
+    // 10 sessions of 4 GiB.
+    fake.projectConfig['limits.memory'] = '39GiB';
+    const { warnings } = await inspect(fake);
+    expect(matching(warnings, 'limits.memory')).toHaveLength(1);
+    expect(warnings[0]).toContain('SANDBOX_MAX_SESSIONS (10) times 4g');
+    fake.projectConfig['limits.memory'] = '40GiB';
+    expect((await inspect(fake)).warnings).toEqual([]);
+    // Docker inside raises a session's limit to 8 GiB.
+    const docker = incusTestConfig({}, dockerCapableOverrides());
+    expect(
+      matching((await inspect(fake, docker)).warnings, 'limits.memory'),
+    ).toHaveLength(1);
+  });
+
+  test('warns about a process cap below the capacity times a session’s limit', async () => {
+    const fake = new FakeIncus();
+    fake.projectConfig['limits.processes'] = '5119';
+    expect(
+      matching((await inspect(fake)).warnings, 'limits.processes'),
+    ).toHaveLength(1);
+    fake.projectConfig['limits.processes'] = '5120';
+    expect((await inspect(fake)).warnings).toEqual([]);
+    // Docker inside raises it to 16384 a session.
+    const docker = incusTestConfig({}, dockerCapableOverrides());
+    expect(
+      matching((await inspect(fake, docker)).warnings, 'limits.processes'),
+    ).toHaveLength(1);
+  });
+
+  test('says nothing about limits it cannot read', async () => {
+    const fake = new FakeIncus();
+    fake.projectConfig['limits.memory'] = '50%';
+    fake.projectConfig['limits.instances'] = 'many';
+    expect((await inspect(fake)).warnings).toEqual([]);
   });
 });
 

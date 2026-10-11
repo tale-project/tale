@@ -92,6 +92,14 @@ describe('init', () => {
     expect(error.message.split('\n- ').length).toBeGreaterThanOrEqual(4);
   });
 
+  test('refuses a project whose limits.cpu would refuse every create', async () => {
+    const f = hostFixture();
+    f.fake.projectConfig['limits.cpu'] = '64';
+    const error = await rejection(f.host.init());
+    expect(error.message).toContain('limits.cpu');
+    expect(error.message).toContain('incus project unset');
+  });
+
   test('warns, but goes on, about what is allowed and worth knowing', async () => {
     const f = hostFixture({ incus: { poolSize: 0 } });
     f.fake.projectConfig['features.images'] = 'false';
@@ -209,6 +217,16 @@ describe('warmImage', () => {
     f.fake.pullFailure = 'registry unreachable';
     const error = await rejection(f.host.warmImage());
     expect(error.message).toContain('registry unreachable');
+  });
+
+  test('unpacks under a project that adds up memory and processes, which a bare instance would not pass', async () => {
+    const f = hostFixture();
+    f.fake.projectConfig['limits.memory'] = '64GiB';
+    f.fake.projectConfig['limits.processes'] = '100000';
+    await f.host.warmImage();
+    expect(warn).not.toHaveBeenCalled();
+    expect(f.fake.seen('POST /1.0/instances')).toHaveLength(1);
+    expect(f.fake.instances.size).toBe(0);
   });
 
   test('does not fail for an unpack that fails: the first session pays for it', async () => {

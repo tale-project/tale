@@ -463,6 +463,44 @@ describe('background operations', () => {
   });
 });
 
+describe('what the server reports about itself', () => {
+  test('its extensions, version, trust and the kernel features it names', async () => {
+    const { client } = scripted([
+      sync({
+        api_extensions: ['instance_oci', 'storage_shifted'],
+        auth: 'trusted',
+        environment: {
+          server_name: 'node',
+          server_version: '7.0.1',
+          kernel_features: {
+            idmapped_mounts: 'true',
+            seccomp_listener: 'false',
+          },
+        },
+      }),
+    ]);
+    expect(await client.getServer()).toEqual({
+      apiExtensions: ['instance_oci', 'storage_shifted'],
+      kernelFeatures: { idmapped_mounts: 'true', seccomp_listener: 'false' },
+      auth: 'trusted',
+      serverName: 'node',
+      serverVersion: '7.0.1',
+    });
+  });
+
+  test('no kernel features when the server names none, and text only', async () => {
+    const { client } = scripted([
+      sync({ api_extensions: [], auth: 'trusted' }),
+      sync({
+        auth: 'trusted',
+        environment: { kernel_features: { ok: 'true', odd: 7, nested: {} } },
+      }),
+    ]);
+    expect((await client.getServer()).kernelFeatures).toEqual({});
+    expect((await client.getServer()).kernelFeatures).toEqual({ ok: 'true' });
+  });
+});
+
 describe('retries and cancellation', () => {
   test('a read survives a dropped connection and a gateway error', async () => {
     const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
