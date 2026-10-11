@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { TestStatusIcon, type TestStatus } from '@tale/ui/test-results';
-import { FlaskConical, RotateCcw, X } from 'lucide-react';
+import { FlaskConical, RotateCcw, Save, X } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -38,6 +38,8 @@ export interface TransientRunBannerProps {
   onTryAgain?: () => void;
   /** The words of that action, when not "Try again" (a test's "Run"). */
   againLabel?: string;
+  /** Saves the run as a test; left out, the banner offers no Save as test. */
+  onSaveAsTest?: () => void;
   /** Takes the run off the canvas, back to the last stored run. */
   onClear: () => void;
 }
@@ -55,6 +57,7 @@ export function TransientRunBanner({
   changed,
   onTryAgain,
   againLabel,
+  onSaveAsTest,
   onClear,
 }: TransientRunBannerProps) {
   const { t } = useT('automations');
@@ -95,6 +98,18 @@ export function TransientRunBanner({
         <span className="text-muted-foreground text-xs">{changed}</span>
       )}
       <span className="ml-auto flex items-center gap-1">
+        {onSaveAsTest !== undefined && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            icon={Save}
+            disabled={state.kind === 'running'}
+            onClick={onSaveAsTest}
+          >
+            {t('try.saveAsTest')}
+          </Button>
+        )}
         {onTryAgain !== undefined && (
           <Button
             type="button"

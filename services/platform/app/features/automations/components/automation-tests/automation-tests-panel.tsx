@@ -19,6 +19,7 @@ import {
   EllipsisVertical,
   Eye,
   FlaskConical,
+  History,
   Play,
   Plus,
   Route,
@@ -88,6 +89,8 @@ export interface TestsPanelProps {
 export interface AddTestSources {
   /** The input the bound trigger hands a run. */
   trigger?: () => void;
+  /** The newest runs, each saved as a test. */
+  runs?: ReadonlyArray<{ id: string; label: string; onSelect: () => void }>;
   /** The possible paths no test goes down yet, each a test for it. */
   paths?: ReadonlyArray<{ id: string; label: string; onSelect: () => void }>;
 }
@@ -105,7 +108,12 @@ function AddTestControl({
 }) {
   const { t } = useT('automations');
   const paths = addFrom?.paths;
-  if (addFrom?.trigger === undefined && paths === undefined) {
+  const runs = addFrom?.runs ?? [];
+  if (
+    addFrom?.trigger === undefined &&
+    paths === undefined &&
+    runs.length === 0
+  ) {
     return (
       <Button
         type="button"
@@ -143,6 +151,22 @@ function AddTestControl({
                   label: t('tests.addFrom.trigger'),
                   icon: Zap,
                   onClick: addFrom.trigger,
+                },
+              ]),
+          ...(runs.length === 0
+            ? []
+            : [
+                {
+                  type: 'sub' as const,
+                  label: t('tests.addFrom.run'),
+                  icon: History,
+                  items: [
+                    runs.map((run) => ({
+                      type: 'item' as const,
+                      label: run.label,
+                      onClick: run.onSelect,
+                    })),
+                  ],
                 },
               ]),
           ...(paths === undefined

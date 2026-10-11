@@ -231,3 +231,28 @@ describe('RunActions — Compare', () => {
     ).toBeNull();
   });
 });
+
+describe('RunActions — Save as test', () => {
+  it('saves the run as a test for a reader who may edit the automation', async () => {
+    const onSaveAsTest = vi.fn();
+    const { user } = renderActions({ onSaveAsTest });
+    await user.click(
+      screen.getByRole('button', { name: 'More ways to run again' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Save as test…' }),
+    );
+    expect(onSaveAsTest).toHaveBeenCalled();
+  });
+
+  it('offers no Save as test to a reader who may not edit', async () => {
+    const { user } = renderActions();
+    await user.click(
+      screen.getByRole('button', { name: 'More ways to run again' }),
+    );
+    await screen.findByRole('menuitem', { name: 'Copy run ID' });
+    expect(
+      screen.queryByRole('menuitem', { name: 'Save as test…' }),
+    ).toBeNull();
+  });
+});

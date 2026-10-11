@@ -12,6 +12,7 @@ import {
   ArrowLeftRight,
   Copy,
   EllipsisVertical,
+  FlaskConical,
   Link2,
   Pencil,
   RotateCw,
@@ -61,6 +62,9 @@ export interface RunActionsProps {
   /** Opens the comparison of the run before this one with this one; left
    *  out when there is none. */
   onComparePrevious?: () => void;
+  /** Saves the run as a test of the automation; left out for a reader who
+   *  cannot edit it. */
+  onSaveAsTest?: () => void;
   onStarted: (started: ReplayStarted) => void;
 }
 
@@ -81,6 +85,7 @@ export function RunActions({
   writes,
   href,
   onComparePrevious,
+  onSaveAsTest,
   onStarted,
 }: RunActionsProps) {
   const { t } = useT('automationRuns');
@@ -270,11 +275,23 @@ export function RunActions({
             aria-label={t('again.menu')}
           />
         }
-        items={
-          compareItems.length > 0
-            ? [items, compareItems, copyItems]
-            : [items, copyItems]
-        }
+        items={[
+          items,
+          ...(onSaveAsTest === undefined
+            ? []
+            : [
+                [
+                  {
+                    type: 'item' as const,
+                    label: t('again.saveAsTest'),
+                    icon: FlaskConical,
+                    onClick: onSaveAsTest,
+                  },
+                ],
+              ]),
+          ...(compareItems.length > 0 ? [compareItems] : []),
+          copyItems,
+        ]}
       />
       {editing && (
         <RunEditInputDialog

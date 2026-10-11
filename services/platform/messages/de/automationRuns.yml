@@ -18,6 +18,7 @@ again:
   idCopied: Lauf-ID kopiert
   copyLink: Link kopieren
   linkCopied: Link kopiert
+  saveAsTest: Als Test speichern…
 failure:
   title: Der Lauf ist bei {step} fehlgeschlagen
   titleRun: Der Lauf ist fehlgeschlagen

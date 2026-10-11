@@ -1172,6 +1172,38 @@ tests:
     allTested: Chaque chemin a un test
     pathName: 'Suit le chemin {number}'
     pathItem: '{path} : {clauses}'
+    run: À partir d’une exécution
+  fromRun:
+    title: Enregistrer l’exécution comme test
+    description: Le test s’exécute avec l’entrée de cette exécution et vérifie ce que tu choisis ci-dessous.
+    defaultName: 'À partir de l’exécution du {when}'
+    confirm: Ajouter le test
+    expect:
+      label: Le test attend
+      equals: Elle renvoie cette sortie
+      includes: Sa sortie contient ceci
+      succeeds: Elle réussit
+      succeedsHelp: L’exécution a échoué, donc le test échoue tant que ce n’est pas corrigé.
+      failsHere: 'Elle échoue à {node}'
+      none: Rien pour l’instant
+    simulate:
+      label: Simuler avec les données de cette exécution
+      output: Répond avec la sortie qu’il a renvoyée dans l’exécution.
+      failure: Échoue comme dans l’exécution.
+      code: Ton code est ce que le test vérifie.
+      tooLarge: 'Trop volumineux pour être gardé dans l’automatisation ({size}).'
+      notInDocument: Absent de cette version.
+    actions: Attendre aussi les mêmes actions
+    actionsHelp: Chaque action de l’exécution, sans son entrée.
+    warnings:
+      redacted: '{count, plural, one {# valeur ressemblait à un identifiant et est laissée de côté.} many {# valeurs ressemblaient à des identifiants et sont laissées de côté.} other {# valeurs ressemblaient à des identifiants et sont laissées de côté.}}'
+      liveRun: 'C’était une exécution réelle : dans le test, {nodes} répondent avec des substituts, pas comme ici.'
+      tooLarge: '{part, select, input {L’entrée} output {La sortie} other {Le test}} est volumineux ({size}).'
+      dropped: '{nodes} ne peuvent pas répondre comme dans cette exécution, donc le test les exécute normalement.'
+    target: Ajoute le test à ton brouillon.
+    targetOtherVersion: 'Cette exécution utilisait la version {run} ; le test est ajouté à ton brouillon de la version {version}.'
+    privacy: L’entrée de l’exécution et les sorties que tu gardes font partie de l’automatisation. Toute personne qui peut ouvrir l’automatisation peut les lire.
+    readFailed: Impossible de lire cette exécution. Réessaie depuis la liste des exécutions.
   pathNeed:
     when: '{value, select, true {Rends vraie la condition de {node}, pour qu’il s’exécute.} other {Rends fausse la condition de {node}, pour qu’il soit ignoré.}}'
   fields:
@@ -1359,3 +1391,4 @@ try:
   changed: Le brouillon a changé depuis cet essai.
   again: Réessayer
   clear: Masquer le résultat
+  saveAsTest: Enregistrer comme test

@@ -52,7 +52,23 @@ Ohne `expect` besteht ein Test, wenn der Lauf erfolgreich ist. Im Menü einer Ze
 
 ### Vom Trigger oder einem Pfad ausgehen
 
-Gibt es mehr, wovon ein Test ausgehen kann, öffnet **Test hinzufügen** ein Menü. **Leerer Test** fügt den oben beschriebenen Test hinzu. **Aus der Eingabe des Triggers** beginnt mit der Eingabe, die der gebundene Trigger einem Lauf übergibt: ein Zeitplan, der zu einem festen Zeitpunkt auslöst, die Beispielzustellung eines Webhooks oder das Beispiel eines Ereignisses – so erhält der Test bei jedem Lauf dieselbe Eingabe. **Für einen ungetesteten Pfad** listet die möglichen Pfade, die noch kein Test nimmt, in den Worten der [Pfadliste](/de/platform/automations/editor#paths); hat jeder Pfad einen, steht dort stattdessen **Jeder Pfad hat einen Test**. Der neue Test simuliert jeden Fehler, den der Pfad braucht, und erwartet den Zustand jedes Schritts darauf; seine Beschreibung sagt, welche Bedingungen die Eingabe wahr oder falsch machen muss.
+Gibt es mehr, wovon ein Test ausgehen kann, öffnet **Test hinzufügen** ein Menü. **Leerer Test** fügt den oben beschriebenen Test hinzu. **Aus der Eingabe des Triggers** beginnt mit der Eingabe, die der gebundene Trigger einem Lauf übergibt: ein Zeitplan, der zu einem festen Zeitpunkt auslöst, die Beispielzustellung eines Webhooks oder das Beispiel eines Ereignisses – so erhält der Test bei jedem Lauf dieselbe Eingabe. **Für einen ungetesteten Pfad** listet die möglichen Pfade, die noch kein Test nimmt, in den Worten der [Pfadliste](/de/platform/automations/editor#paths); hat jeder Pfad einen, steht dort stattdessen **Jeder Pfad hat einen Test**. Der neue Test simuliert jeden Fehler, den der Pfad braucht, und erwartet den Zustand jedes Schritts darauf; seine Beschreibung sagt, welche Bedingungen die Eingabe wahr oder falsch machen muss. **Aus einem Lauf** speichert einen der fünf neuesten Läufe als Test, wie [Einen Lauf als Test speichern](#save-a-run) beschreibt.
+
+### Einen Lauf als Test speichern {#save-a-run}
+
+Ein Lauf, der getan hat, was er sollte, oder einer, der schiefging, wird zu einem eigenen Test. **Aus einem Lauf** im Menü **Test hinzufügen** listet die fünf neuesten Läufe, die Seite eines Laufs bietet **Als Test speichern…** in ihrem Menü, und ein [Versuch mit dem Entwurf](/de/platform/automations/editor#try-the-draft) bietet **Als Test speichern** in seinem Streifen. Der Dialog macht aus dem Lauf einen Test, mit seiner Eingabe:
+
+- **Der Test erwartet** folgt dem Ende des Laufs: **Er gibt diese Ausgabe zurück** oder **Seine Ausgabe enthält das** bei einem erfolgreichen Lauf; **Er ist erfolgreich** bei einem fehlgeschlagenen, sodass der Test fehlschlägt, bis der Fehler behoben ist, oder **Er schlägt bei Score fehl**, wenn er bei Score fehlschlug. **Noch nichts** prüft nur, dass der Lauf erfolgreich ist.
+- **Mit den Daten dieses Laufs simulieren** listet die Schritte, die ein Modell, einen Agenten, einen Connector oder eine andere Automatisierung aufgerufen haben, jeweils standardmäßig eingeschaltet: Im Test antworten sie so wie im Lauf. Ein Code-Schritt bleibt aus, denn dein Code ist das, was der Test prüft.
+- **Auch dieselben Aktionen erwarten** erwartet jede Aktion des Laufs, ohne ihre Eingabe.
+
+**Test hinzufügen** legt den Test in deinen Entwurf und öffnet ihn unter **Einrichtung**; mit dem Speichern des Entwurfs bleibt er erhalten. Werte, die wie Zugangsdaten aussehen, werden weggelassen, und der Dialog sagt, wie viele. Die Eingabe des Laufs und die Ausgaben, die du behältst, werden Teil der Automatisierung, also können alle, die sie öffnen können, sie lesen.
+
+<Frame caption="Ein Live-Lauf von Answer launch questions als Test gespeichert: Er erwartet, was der Lauf zurückgab, und die Suche antwortet wie im Lauf.">
+
+![Der Dialog Save the run as a test: Name From the run of Oct 11, 2026, 12:29 PM; unter The test expects ist It returns this output gewählt; unter Simulate with this run's data ist Related eingeschaltet und antwortet mit der Ausgabe aus dem Lauf; Also expect the same actions ist aus; danach die Zeile dazu, wohin der Test kommt und wer ihn lesen kann, mit Cancel und Add test.](/images/platform/automation-save-as-test.webp)
+
+</Frame>
 
 ### Sehen, was die Tests abdecken
 

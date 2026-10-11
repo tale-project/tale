@@ -22,7 +22,8 @@ export const Route = createFileRoute(
 
 function AutomationEditorPage() {
   const { id: organizationId, automationSlug } = Route.useParams();
-  const { version, history, view, node, panel, test } = Route.useSearch();
+  const { version, history, view, node, panel, test, saveRun } =
+    Route.useSearch();
   const navigate = Route.useNavigate();
   const onSelectVersion = useCallback(
     (next: number | undefined) => {
@@ -58,6 +59,7 @@ function AutomationEditorPage() {
       {...(node !== undefined && { node })}
       {...(panel !== undefined && { panel })}
       {...(test !== undefined && { test })}
+      {...(saveRun !== undefined && { saveRun })}
       onSearchChange={onSearchChange}
     />
   );

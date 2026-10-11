@@ -6,9 +6,11 @@ import { z } from 'zod';
  * view or the Source view; `?node=<id>` opens a node (or `__start`,
  * `__end`) on load, so a link lands on it; `?panel=` opens the panel under
  * the canvas on Problems or Tests, and `?test=<n>` opens the test at that
- * place (counted from 0, as the document's pointers count it). A malformed
- * value reads as absent rather than failing the route — a bad link should
- * still open the automation.
+ * place (counted from 0, as the document's pointers count it);
+ * `?saveRun=<id>` opens that run saved as a test, to add to the draft (the
+ * run page's Save as test lands here). A malformed value reads as absent
+ * rather than failing the route — a bad link should still open the
+ * automation.
  */
 export const automationEditorSearchSchema = z.object({
   history: z.boolean().optional().catch(undefined),
@@ -21,6 +23,7 @@ export const automationEditorSearchSchema = z.object({
     .catch(undefined),
   panel: z.enum(['problems', 'tests']).optional().catch(undefined),
   test: z.number().int().min(0).max(49).optional().catch(undefined),
+  saveRun: z.string().min(1).max(128).optional().catch(undefined),
 });
 
 export type AutomationEditorSearch = z.infer<
@@ -40,6 +43,7 @@ export interface AutomationEditorSearchChange {
   node?: string | null;
   panel?: AutomationEditorPanel | null;
   test?: number | null;
+  saveRun?: null;
 }
 
 /** The search after the reader moved: each change set or cleared, the rest
@@ -56,6 +60,7 @@ export function applyEditorSearchChange(
   else if (change.panel !== undefined) next.panel = change.panel;
   if (change.test === null) delete next.test;
   else if (change.test !== undefined) next.test = change.test;
+  if (change.saveRun === null) delete next.saveRun;
   return next;
 }
 

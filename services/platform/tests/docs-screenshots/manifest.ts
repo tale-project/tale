@@ -2625,6 +2625,29 @@ export const SHOTS: readonly Shot[] = [
       page.getByText(t('automationRuns.data.returned'), { exact: true }),
   },
   {
+    // That live run saved as a test from its page: the editor opens with
+    // the run, the test expects what the run returned, and the search
+    // answers in the test as it did in the run.
+    name: 'automation-save-as-test',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_KNOWLEDGE_SEARCH.automation}/runs`,
+    prepare: async (page) => {
+      await runRow(page, 'success').click();
+      await page
+        .getByRole('button', { name: t('automationRuns.again.menu') })
+        .click();
+      await page
+        .getByRole('menuitem', { name: t('automationRuns.again.saveAsTest') })
+        .click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('automations.tests.fromRun.title') })
+        .getByRole('checkbox', { name: 'Related' }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('automations.tests.fromRun.title') }),
+  },
+  {
     // The seeded live run of the task creation demo in Customer onboarding
     // portal, with its step selected: what the step received, and the task
     // it returned — its id, number, title and the link that opens it.

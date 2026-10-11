@@ -358,6 +358,19 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/automation-save-as-test.webp",
+      "shot": "automation-save-as-test",
+      "route": "/dashboard/:orgId/automations/launch-questions/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 1208,
+      "locale": "en"
+    },
+    {
       "file": "images/platform/automation-starter-gallery.webp",
       "shot": "automation-starter-gallery",
       "route": "/dashboard/:orgId/automations",

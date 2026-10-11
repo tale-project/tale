@@ -86,6 +86,7 @@ import { readStateOf } from '@/app/lib/backend/read-state';
 import { llmModelSteps } from '@/lib/automations/model-defaults';
 import { testForPath } from '@/lib/automations/tests/path-test';
 import { triggerTestInput } from '@/lib/automations/tests/samples';
+import type { RunForTest } from '@/lib/automations/tests/test-from-run';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { diffAutomationDocuments } from '@/lib/engine/core/diff/automation';
 import {
@@ -127,6 +128,10 @@ import {
   runInputSources,
   type SourceBench,
 } from '../lib/automation-tests/run-sources';
+import {
+  runForTestOfDetail,
+  runForTestOfTry,
+} from '../lib/automation-tests/save-as-test';
 import { testsOf } from '../lib/automation-tests/test-draft';
 import { formOwnsPlace, readTestForm } from '../lib/automation-tests/test-form';
 import {
@@ -213,6 +218,7 @@ import {
 } from './automation-run-dialog';
 import { AutomationSourceView } from './automation-source-view';
 import { AutomationTestsSheet } from './automation-tests/automation-tests-panel';
+import { SaveAsTestDialog } from './automation-tests/save-as-test-dialog';
 import {
   TestFields,
   TestInspector,
@@ -286,6 +292,8 @@ interface AutomationEditorProps {
   panel?: AutomationEditorPanel;
   /** The route's `?test=`: the test to open on load, by its place. */
   test?: number;
+  /** The route's `?saveRun=`: a run to save as a test, once. */
+  saveRun?: string;
   /** The reader switched the view, opened a node, a panel or a test
    * (`null`: closed it); the route keeps it in the URL without a history
    * entry. */
@@ -389,6 +397,7 @@ function AutomationEditorScope({
   node: nodeParam,
   panel: panelParam,
   test: testParam,
+  saveRun: saveRunParam,
   onSearchChange,
 }: AutomationEditorProps) {
   const { t } = useT('automations');
@@ -485,6 +494,25 @@ function AutomationEditorScope({
   const [overlay, setOverlay] = useState<TransientOverlay | null>(null);
   /** Why a try of the draft was refused, said in the run dialog. */
   const [tryRefusal, setTryRefusal] = useState<string | null>(null);
+  /** A run being saved as a test: one read by its id first (a run of the
+   * Add test menu, the run page's Save as test), or a try of the draft. */
+  const [savingRunId, setSavingRunId] = useState<string | null>(
+    saveRunParam ?? null,
+  );
+  const [saving, setSaving] = useState<{
+    run: RunForTest;
+    runVersion?: number;
+  } | null>(null);
+  // A run the route names later (a second Save as test) is read too; the
+  // route forgets it once taken, so a reload does not ask again.
+  const [takenSaveRun, setTakenSaveRun] = useState(saveRunParam);
+  if (saveRunParam !== undefined && saveRunParam !== takenSaveRun) {
+    setTakenSaveRun(saveRunParam);
+    setSavingRunId(saveRunParam);
+  }
+  useEffect(() => {
+    if (saveRunParam !== undefined) onSearchChange?.({ saveRun: null });
+  }, [saveRunParam, onSearchChange]);
   const [runRequest, setRunRequest] = useState<AutomationRunRequest | null>(
     null,
   );
@@ -611,6 +639,27 @@ function AutomationEditorScope({
       : undefined,
   );
   const shownRunDetail = runDetailQuery.data ?? undefined;
+  // A run chosen to save as a test is read whole, then handed to the
+  // dialog; one that cannot be read says so where runs are refused.
+  const savingRunQuery = useAutomationRun(
+    organizationId,
+    savingRunId ?? undefined,
+  );
+  const savingRunDetail = savingRunQuery.data;
+  const savingRunFailed = savingRunQuery.isError || savingRunDetail === null;
+  useEffect(() => {
+    if (savingRunId === null) return;
+    if (savingRunDetail !== undefined && savingRunDetail !== null) {
+      setSavingRunId(null);
+      setSaving({
+        run: runForTestOfDetail(savingRunDetail),
+        runVersion: savingRunDetail.version,
+      });
+    } else if (savingRunFailed) {
+      setSavingRunId(null);
+      setRefusal(t('tests.fromRun.readFailed'));
+    }
+  }, [savingRunId, savingRunDetail, savingRunFailed, t]);
   const lastRunProjection = useMemo(
     () => projectRun(showLastRun ? lastRun : null),
     [showLastRun, lastRun],
@@ -1616,6 +1665,10 @@ function AutomationEditorScope({
         {...(bannerChanged !== undefined && { changed: bannerChanged })}
         {...(tryAgain !== undefined && { onTryAgain: tryAgain })}
         {...(overlay.kind === 'test' && { againLabel: t('tests.run') })}
+        {...(overlay.kind === 'try' &&
+          canAuthor && {
+            onSaveAsTest: () => setSaving({ run: runForTestOfTry(overlay) }),
+          })}
         onClear={() => setOverlay(null)}
       />
     );
@@ -1679,7 +1732,28 @@ function AutomationEditorScope({
           event: boundTrigger.event ?? null,
           input: boundTrigger.input ?? null,
         });
+  const runTime = new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  /** The newest runs as a menu names them: how each ended, and when. */
+  const recentRuns = runs.map((run) => ({
+    id: run.id,
+    label: t('detail.runSource.runLabel', {
+      status: t(RUN_STATUS_KEYS[run.status]),
+      time: runTime.format(run.startedAt),
+    }),
+  }));
   const addFrom = {
+    ...(recentRuns.length > 0 &&
+      canAuthor && {
+        runs: recentRuns.map((run) => ({
+          ...run,
+          onSelect: () => setSavingRunId(run.id),
+        })),
+      }),
     ...(triggerInput !== null && {
       trigger: () =>
         addTest({
@@ -1738,21 +1812,9 @@ function AutomationEditorScope({
   };
   // Where a test run's input can start from: the tests, the five newest
   // runs, the bound trigger's input, nothing, or the required fields.
-  const runTime = new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
   const runSources = runInputSources({
     tests: tests.tests,
-    runs: runs.map((run) => ({
-      id: run.id,
-      label: t('detail.runSource.runLabel', {
-        status: t(RUN_STATUS_KEYS[run.status]),
-        time: runTime.format(run.startedAt),
-      }),
-    })),
+    runs: recentRuns,
     trigger:
       triggerInput === null
         ? null
@@ -3244,6 +3306,26 @@ function AutomationEditorScope({
           onConfirm={(input, target, bench) =>
             confirmRun(runRequest, input, target, bench)
           }
+        />
+      )}
+
+      {saving !== null && automation !== null && (
+        <SaveAsTestDialog
+          run={saving.run}
+          {...(saving.runVersion !== undefined && {
+            runVersion: saving.runVersion,
+          })}
+          document={{ nodes: automation.nodes }}
+          {...(lookingVersion !== undefined && {
+            version: draftBase ?? lookingVersion,
+          })}
+          onClose={() => setSaving(null)}
+          onAdd={(test) => {
+            setSaving(null);
+            setProblemsOpen(false);
+            setTestsOpen(true);
+            addTest(test);
+          }}
         />
       )}
 

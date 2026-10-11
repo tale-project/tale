@@ -52,7 +52,23 @@ Sans `expect`, un test réussit quand l’exécution réussit. Le menu d’une l
 
 ### Partir du déclencheur ou d’un chemin
 
-Quand l’automatisation offre plus d’un point de départ, **Ajouter un test** ouvre un menu. **Test vide** ajoute le test décrit plus haut. **À partir de l’entrée du déclencheur** commence avec l’entrée que le déclencheur lié donne à une exécution : une planification qui se déclenche à un moment fixe, la livraison d’exemple d’un webhook ou l’exemple d’un événement, si bien que le test reçoit la même entrée à chaque exécution. **Pour un chemin non testé** liste les chemins possibles qu’aucun test ne suit encore, dans les mots de la [liste des chemins](/fr/platform/automations/editor#paths) ; une fois que chaque chemin en a un, le menu indique **Chaque chemin a un test** à la place. Le nouveau test simule chaque échec dont le chemin a besoin et attend l’état de chaque étape sur ce chemin ; sa description dit quelles conditions l’entrée doit rendre vraies ou fausses.
+Quand l’automatisation offre plus d’un point de départ, **Ajouter un test** ouvre un menu. **Test vide** ajoute le test décrit plus haut. **À partir de l’entrée du déclencheur** commence avec l’entrée que le déclencheur lié donne à une exécution : une planification qui se déclenche à un moment fixe, la livraison d’exemple d’un webhook ou l’exemple d’un événement, si bien que le test reçoit la même entrée à chaque exécution. **Pour un chemin non testé** liste les chemins possibles qu’aucun test ne suit encore, dans les mots de la [liste des chemins](/fr/platform/automations/editor#paths) ; une fois que chaque chemin en a un, le menu indique **Chaque chemin a un test** à la place. Le nouveau test simule chaque échec dont le chemin a besoin et attend l’état de chaque étape sur ce chemin ; sa description dit quelles conditions l’entrée doit rendre vraies ou fausses. **À partir d’une exécution** enregistre l’une des cinq exécutions les plus récentes comme test, comme le décrit [Enregistrer une exécution comme test](#save-a-run).
+
+### Enregistrer une exécution comme test {#save-a-run}
+
+Une exécution qui a fait ce qu’il fallait, ou une qui a mal tourné, devient un test à part entière. **À partir d’une exécution** dans le menu **Ajouter un test** liste les cinq exécutions les plus récentes, la page d’une exécution propose **Enregistrer comme test…** dans son menu, et un [essai du brouillon](/fr/platform/automations/editor#try-the-draft) propose **Enregistrer comme test** dans sa bande. La boîte de dialogue fait de l’exécution un test, avec son entrée :
+
+- **Le test attend** suit la façon dont l’exécution s’est terminée : **Elle renvoie cette sortie**, ou **Sa sortie contient ceci**, pour une exécution réussie ; **Elle réussit** pour une exécution en échec, si bien que le test échoue tant que l’échec n’est pas corrigé, ou **Elle échoue à Score** quand elle a échoué à Score. **Rien pour l’instant** vérifie seulement que l’exécution réussit.
+- **Simuler avec les données de cette exécution** liste les étapes qui ont appelé un modèle, un agent, un connector ou une autre automatisation, chacune activée par défaut : dans le test, elle répond comme dans l’exécution. Une étape de code reste désactivée, car ton code est ce que le test vérifie.
+- **Attendre aussi les mêmes actions** attend chaque action de l’exécution, sans son entrée.
+
+**Ajouter le test** place le test dans ton brouillon et l’ouvre sur **Configuration** ; enregistrer le brouillon le conserve. Les valeurs qui ressemblent à des identifiants sont laissées de côté, et la boîte de dialogue dit combien. L’entrée de l’exécution et les sorties que tu gardes font partie de l’automatisation, donc toute personne qui peut l’ouvrir peut les lire.
+
+<Frame caption="Une exécution réelle d’Answer launch questions enregistrée comme test : elle attend ce que l’exécution a renvoyé, et la recherche répond comme dans l’exécution.">
+
+![La boîte de dialogue Save the run as a test : Name From the run of Oct 11, 2026, 12:29 PM ; sous The test expects, It returns this output est choisi ; sous Simulate with this run's data, Related est activé et répond avec la sortie renvoyée dans l’exécution ; Also expect the same actions est désactivé ; puis la ligne sur l’endroit où va le test et qui peut le lire, avec Cancel et Add test.](/images/platform/automation-save-as-test.webp)
+
+</Frame>
 
 ### Voir ce que les tests couvrent
 
