@@ -31,9 +31,11 @@ export function isTurnBudgetExceededError(
 }
 
 /** Narrow the shim's answer — a foreign shape (an older backend, a test
- * stub) must never read as an allowance. */
+ * stub) must never read as an allowance. Cost-free subscription turns opt in
+ * to a zero-cent allowance; paid gateway keys still require a positive one. */
 export function readReserveTurnBudgetResult(
   value: unknown,
+  options: { allowZero?: boolean } = {},
 ): ReserveTurnBudgetResult {
   if (typeof value === 'object' && value !== null) {
     const record = value as {
@@ -45,7 +47,8 @@ export function readReserveTurnBudgetResult(
       record.allowed === true &&
       typeof record.budgetCents === 'number' &&
       Number.isFinite(record.budgetCents) &&
-      record.budgetCents > 0
+      (record.budgetCents > 0 ||
+        (options.allowZero === true && record.budgetCents === 0))
     ) {
       return { allowed: true, budgetCents: record.budgetCents };
     }

@@ -610,6 +610,7 @@ describe('a task agent start', () => {
       name: 'Team subscription',
       secret: 'synthetic-subscription-key',
     } as never);
+    io.reservation = { allowed: true, budgetCents: 0 };
     const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
 
     await startTaskAgentTurnImpl(ctx, {
