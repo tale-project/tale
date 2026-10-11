@@ -145,11 +145,11 @@ describe('saveVersion', () => {
     const current = fakeStore([4, 5, 6]);
     await expect(
       saveVersion(current.sql, args({ baseVersion: 6 })),
-    ).resolves.toEqual({ name: 'ops/greet', version: 7 });
+    ).resolves.toMatchObject({ name: 'ops/greet', version: 7 });
     // The builder's autosave, an upload and MCP pass no base: last write
     // wins, as before.
     const blind = fakeStore([4, 5, 6]);
-    await expect(saveVersion(blind.sql, args())).resolves.toEqual({
+    await expect(saveVersion(blind.sql, args())).resolves.toMatchObject({
       name: 'ops/greet',
       version: 7,
     });
@@ -159,9 +159,9 @@ describe('saveVersion', () => {
     const fresh = fakeStore([]);
     await expect(
       saveVersion(fresh.sql, args({ create: true })),
-    ).resolves.toEqual({ name: 'ops/greet', version: 1 });
+    ).resolves.toMatchObject({ name: 'ops/greet', version: 1 });
     const append = fakeStore([3]);
-    await expect(saveVersion(append.sql, args())).resolves.toEqual({
+    await expect(saveVersion(append.sql, args())).resolves.toMatchObject({
       name: 'ops/greet',
       version: 4,
     });
@@ -186,9 +186,10 @@ describe('saveVersion', () => {
     const bare = unjudged.statements.find((statement) =>
       statement.text.includes('INSERT INTO app.automations'),
     );
-    // message, the verdict and its time, the three version fields, and the
-    // key and client of a save from the app, which names neither (0181).
-    expect(bare?.values.filter((value) => value === null).length).toBe(8);
+    // message, the verdict and its time, the three version fields, the
+    // key and client of a save from the app, which names neither (0181),
+    // and the version it was based on or restored from, none (0198).
+    expect(bare?.values.filter((value) => value === null).length).toBe(10);
   });
 
   it('binds the install project to version 1 only', async () => {
@@ -346,7 +347,7 @@ describe('saveVersion carry mode', () => {
   it("Ada's agent saves v6 with only a new node: v6 keeps v5's settings, task contract and presentation", async () => {
     const fake = carryStore(5);
     const saved = await saveVersion(fake.sql, carryArgs({}));
-    expect(saved).toEqual({
+    expect(saved).toMatchObject({
       name: 'billing/dunning',
       version: 6,
       carried: ['settings', 'taskContract', 'presentation'],
@@ -446,7 +447,11 @@ describe('saveVersion carry mode', () => {
   it('carries nothing into a first version', async () => {
     const fake = carryStore(null);
     const saved = await saveVersion(fake.sql, carryArgs({}));
-    expect(saved).toEqual({ name: 'billing/dunning', version: 1, carried: [] });
+    expect(saved).toMatchObject({
+      name: 'billing/dunning',
+      version: 1,
+      carried: [],
+    });
     expect(inserted(fake.statements)).toMatchObject({
       settings: null,
       taskContract: null,
@@ -460,7 +465,8 @@ describe('saveVersion carry mode', () => {
       fake.sql,
       carryArgs({ metadataMode: 'explicit' }),
     );
-    expect(saved).toEqual({ name: 'billing/dunning', version: 6 });
+    expect(saved).toMatchObject({ name: 'billing/dunning', version: 6 });
+    expect(saved.carried).toBeUndefined();
     expect(inserted(fake.statements)).toMatchObject({
       settings: null,
       taskContract: null,
@@ -508,9 +514,159 @@ describe('saveVersion carry mode', () => {
       metadata: {
         version: 6,
         baseVersion: 5,
+        basedOnVersion: 5,
+        changes: expect.objectContaining({ nodes: expect.any(Object) }),
         carried: ['settings', 'taskContract', 'presentation'],
         testsPassed: true,
       },
     });
+  });
+});
+
+describe('saveVersion lineage and what a version changed [AUTO-R47]', () => {
+  const NODE_A = { id: 'a', type: 'transform', code: 'return 1;' };
+  const NODE_B = { id: 'b', type: 'transform', code: 'return 2;' };
+  const PREVIOUS = {
+    name: 'ops/greet',
+    version: 3,
+    document: { version: 1, name: 'ops/greet', nodes: [NODE_A] },
+    message: null,
+    testsPassed: null,
+    testsCheckedAt: null,
+    taskContract: null,
+    settings: null,
+    presentation: null,
+    createdBy: 'user_ben',
+    createdAt: 1_000,
+    createdVia: 'mcp',
+    apiKeyId: 'key_1',
+    clientName: 'Claude Code',
+  };
+
+  /** Scripted `sql` whose latest version is PREVIOUS (or none). */
+  function lineageStore(latest: typeof PREVIOUS | null) {
+    const statements: Statement[] = [];
+    const tx = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<unknown[]> => {
+      const text = strings.join('?');
+      statements.push({ text, values });
+      if (text.includes('SELECT max(version)')) {
+        return Promise.resolve([{ latest: latest?.version ?? null }]);
+      }
+      if (text.includes('FROM app.automations') && text.includes('ORDER BY')) {
+        return Promise.resolve(latest === null ? [] : [latest]);
+      }
+      if (text.includes('INSERT INTO app.automations')) {
+        return Promise.resolve([{ version: (latest?.version ?? 0) + 1 }]);
+      }
+      return Promise.resolve([]);
+    };
+    tx.json = (value: unknown): unknown => value;
+    const sql = {
+      begin: (callback: (handle: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+    };
+    return { sql: sql as unknown as Sql, statements };
+  }
+  /** based_on_version, restored_from_version, change_summary: the INSERT's
+   * bound values before its WHERE's organization and name. */
+  const lineage = (statements: Statement[]) =>
+    statements
+      .find((s) => s.text.includes('INSERT INTO app.automations'))
+      ?.values.slice(-5, -2);
+  const document = (nodes: unknown[]) => ({
+    version: 1,
+    name: 'ops/greet',
+    nodes,
+  });
+
+  it('records the version a draft started from, and what it changed against the latest', async () => {
+    const fake = lineageStore(PREVIOUS);
+    const saved = await saveVersion(
+      fake.sql,
+      args({ baseVersion: 3, document: document([NODE_A, NODE_B]) }),
+    );
+    expect(saved.changes).toEqual({
+      nodes: { added: 1, removed: 0, changed: 0 },
+    });
+    expect(lineage(fake.statements)).toEqual([3, null, saved.changes]);
+  });
+
+  it('marks a first version, counting the nodes it starts with', async () => {
+    const fake = lineageStore(null);
+    const saved = await saveVersion(
+      fake.sql,
+      args({ document: document([NODE_A, NODE_B]) }),
+    );
+    expect(saved.changes).toEqual({
+      first: true,
+      nodes: { added: 2, removed: 0, changed: 0 },
+    });
+    expect(lineage(fake.statements)?.slice(0, 2)).toEqual([null, null]);
+  });
+
+  it('names who saved the newer version, when and through which door, when a stale save is refused [AUTO-R3]', async () => {
+    const fake = lineageStore(PREVIOUS);
+    const refused = await saveVersion(
+      fake.sql,
+      args({ baseVersion: 2, document: document([NODE_A, NODE_B]) }),
+    ).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(AutomationError);
+    expect(refused).toMatchObject({
+      code: 'AUTOMATION_VERSION_STALE',
+      data: {
+        latestVersion: 3,
+        baseVersion: 2,
+        latestCreatedBy: 'user_ben',
+        latestCreatedAt: 1_000,
+        latestVia: 'mcp',
+        latestClient: 'Claude Code',
+      },
+    });
+    expect(lineage(fake.statements)).toBeUndefined();
+  });
+
+  it('saves nothing when a restore brings back what is already the latest [AUTO-R48]', async () => {
+    const fake = lineageStore(PREVIOUS);
+    const saved = await saveVersion(
+      fake.sql,
+      args({
+        document: PREVIOUS.document,
+        restoredFromVersion: 1,
+        basedOnVersion: 1,
+        unlessIdentical: true,
+      }),
+    );
+    expect(saved).toEqual({ name: 'ops/greet', version: 3, unchanged: true });
+    expect(lineage(fake.statements)).toBeUndefined();
+  });
+
+  it('records a restore as one, from the version it copies [AUTO-R48]', async () => {
+    vi.mocked(auditDefinitionWrite).mockClear();
+    const fake = lineageStore(PREVIOUS);
+    const saved = await saveVersion(
+      fake.sql,
+      args({
+        document: document([NODE_B]),
+        message: 'Restore v1',
+        restoredFromVersion: 1,
+        basedOnVersion: 1,
+        unlessIdentical: true,
+      }),
+    );
+    expect(saved.version).toBe(4);
+    expect(lineage(fake.statements)?.slice(0, 2)).toEqual([1, 1]);
+    expect(auditDefinitionWrite).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'automation.version.restored',
+        metadata: expect.objectContaining({
+          basedOnVersion: 1,
+          restoredFromVersion: 1,
+        }),
+      }),
+    );
   });
 });

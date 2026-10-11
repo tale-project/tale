@@ -31,6 +31,11 @@ import type {
   LegacyRunQuarantine,
   RunSummary,
 } from '../../../lib/engine/api/dispatch.ts';
+import { diffAutomationDocuments } from '../../../lib/engine/core/diff/automation.ts';
+import {
+  changeSummaryOf,
+  type ChangeSummary,
+} from '../../../lib/engine/core/diff/changes.ts';
 import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
 import type { NodeRunWrite } from '../../../lib/engine/core/record/recorder.ts';
 import type { Issue } from '../../../lib/engine/core/types.ts';
@@ -84,7 +89,11 @@ import {
 import { jsonParam, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { engineVersion, instanceId } from '../../lib/instance.ts';
-import type { WriteOrigin, WriteVia } from '../../lib/write-origin.ts';
+import {
+  inferVia,
+  type WriteOrigin,
+  type WriteVia,
+} from '../../lib/write-origin.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -196,8 +205,30 @@ export const RESERVED_AUTOMATION_SEGMENTS: readonly string[] = [
 ];
 
 /**
+ * Last path segments the automations API keeps: its suffix routes that
+ * share a method with the bare `GET` and `DELETE /:name{.+}` routes
+ * (`GET /:name{.+}/versions`, `DELETE /:name{.+}/trigger`, …) are matched
+ * first, so an automation whose name ENDS with one of them would save fine
+ * and then open as another automation's versions — or, deleted, have
+ * another automation's trigger removed instead. `deployments` is kept for
+ * the deployment history's route. `routes.reserved-segments.test.ts`
+ * asserts every such suffix lives here.
+ */
+export const RESERVED_TRAILING_PATHS: readonly string[] = [
+  'approval-allowances',
+  'configuration',
+  'deployments',
+  'projects',
+  'trigger',
+  'trigger/runs',
+  'triggers',
+  'versions',
+];
+
+/**
  * The create-time half of the name rule: a valid name whose first segment
- * the router keeps for itself. Checked when the FIRST version of a name is
+ * the router keeps for itself, or whose end one of its suffix routes keeps,
+ * is refused. Checked when the FIRST version of a name is
  * saved (see `saveVersion`), so no one creates an automation they can never
  * open — and only then, so a row that predates the rule stays saveable and
  * runnable instead of turning into a stranded record.
@@ -209,6 +240,15 @@ export function assertAutomationNameCreatable(name: string): string {
     throw new AutomationError(
       'AUTOMATION_NAME_RESERVED',
       `"${valid}" cannot be an automation name — "${first}" is a word the platform keeps for its own pages. Start the name with a different segment, for example "ops/${valid}".`,
+    );
+  }
+  const trailing = RESERVED_TRAILING_PATHS.find((path) =>
+    valid.endsWith(`/${path}`),
+  );
+  if (trailing !== undefined) {
+    throw new AutomationError(
+      'AUTOMATION_NAME_RESERVED',
+      `"${valid}" cannot be an automation name — "${trailing}" at its end is a word the platform keeps for its own pages. End the name with a different segment, for example "${valid}-flow".`,
     );
   }
   return valid;
@@ -254,12 +294,23 @@ export interface SaveVersionArgs {
   presentation?: unknown;
   /** The version the saver's draft started from. When given and the name's
    * latest version is another one, the save is refused with
-   * `AUTOMATION_VERSION_STALE` (409, `data.latestVersion`) instead of
-   * appending a version built on stale content — two editor tabs used to
-   * silently revert each other's work (2026-09-26 evaluation, D-15). A
-   * saver that passes none (the builder's autosave, an upload, MCP)
-   * appends as before. */
+   * `AUTOMATION_VERSION_STALE` (409, `data.latestVersion`, and who saved it
+   * when through which door) instead of appending a version built on stale
+   * content — two editor tabs used to silently revert each other's work
+   * (2026-09-26 evaluation, D-15). A saver that passes none (the builder's
+   * autosave, an upload, MCP) appends as before. */
   baseVersion?: number;
+  /** The version the content was built from, recorded on the new version
+   * (`based_on_version`, 0198) without any check; defaults to
+   * `baseVersion`. */
+  basedOnVersion?: number;
+  /** A restore: the older version the content is a copy of
+   * (`restored_from_version`). Audited as a restore. */
+  restoredFromVersion?: number;
+  /** Save nothing when the content — the document and the package data —
+   * equals the latest version's, and answer that version `unchanged`
+   * (a restore of what is already the latest). */
+  unlessIdentical?: boolean;
   /** How `settings`, `taskContract` and `presentation` are read. `explicit`
    * (the default — the editor, an upload, managed configuration): an absent
    * field stores none. `carry` (a coding agent's save, which sends only
@@ -285,6 +336,12 @@ export interface SavedVersion {
   name: string;
   version: number;
   carried?: CarriedVersionField[];
+  /** What the version changed against the one before it (`change_summary`);
+   * absent for a managed save that changed nothing. */
+  changes?: ChangeSummary;
+  /** `unlessIdentical` found the content equal to the latest version, which
+   * `version` names; nothing was saved. */
+  unchanged?: true;
 }
 
 /** The version fields a carry-mode save stores: an absent field is copied
@@ -445,6 +502,13 @@ export async function saveVersion(
         409,
       );
     }
+    // The latest version, read once under the lock: what a stale save is
+    // told about, what a carry-mode save keeps, and what the new version's
+    // change summary compares against.
+    const previous =
+      latest === null
+        ? null
+        : await versionRow(tx, args.organizationId, name, latest);
     if (args.baseVersion !== undefined && latest !== args.baseVersion) {
       throw new AutomationError(
         'AUTOMATION_VERSION_STALE',
@@ -452,27 +516,52 @@ export async function saveVersion(
           ? `"${name}" has no version any more — your draft started from v${args.baseVersion}. Save it under a new name, or save anyway to recreate the automation from it.`
           : `v${latest} of "${name}" was saved after your draft started from v${args.baseVersion}. Reload to see it, or save anyway to append your version on top of it.`,
         409,
-        { latestVersion: latest, baseVersion: args.baseVersion },
+        {
+          latestVersion: latest,
+          baseVersion: args.baseVersion,
+          // Who saved the newer version, when and through which door, so
+          // the refused saver can say it in words.
+          ...(previous !== null && {
+            latestCreatedBy: previous.createdBy,
+            latestCreatedAt: previous.createdAt,
+            latestVia: previous.createdVia ?? inferVia(previous.createdBy),
+            latestClient: previous.clientName,
+          }),
+        },
       );
     }
     // A carry-mode save keeps what it does not restate, read from the
     // latest version under the lock this transaction holds.
     const carry =
-      args.metadataMode === 'carry'
-        ? carryVersionFields(
-            args,
-            latest === null
-              ? null
-              : await versionRow(tx, args.organizationId, name, latest),
-          )
-        : null;
+      args.metadataMode === 'carry' ? carryVersionFields(args, previous) : null;
     const stored = carry?.fields ?? args;
+    const changes = changeSummaryOf(
+      diffAutomationDocuments(
+        previous === null ? null : documentOf(previous.document),
+        documentOf(args.document),
+        {
+          beforePackage: previous === null ? null : packageOf(previous),
+          afterPackage: packageOf(stored),
+        },
+      ),
+      { first: previous === null },
+    );
+    if (
+      args.unlessIdentical === true &&
+      previous !== null &&
+      changes.identical === true &&
+      changes.package === undefined
+    ) {
+      return { name, version: previous.version, unchanged: true };
+    }
+    const basedOn = args.basedOnVersion ?? args.baseVersion ?? null;
     const now = Date.now();
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,
         tests_checked_at_ms, task_contract, settings, presentation,
-        created_by, created_at_ms, created_via, api_key_id, client_name
+        created_by, created_at_ms, created_via, api_key_id, client_name,
+        based_on_version, restored_from_version, change_summary
       )
       SELECT ${args.organizationId}, ${name},
              coalesce(max(version), 0) + 1,
@@ -483,7 +572,9 @@ export async function saveVersion(
              ${stored.settings === undefined || stored.settings === null ? null : tx.json(toJson(stored.settings))},
              ${stored.presentation === undefined || stored.presentation === null ? null : tx.json(toJson(stored.presentation))},
              ${args.origin.actor}, ${now}, ${args.origin.via},
-             ${args.origin.apiKeyId ?? null}, ${args.origin.clientName ?? null}
+             ${args.origin.apiKeyId ?? null}, ${args.origin.clientName ?? null},
+             ${basedOn}, ${args.restoredFromVersion ?? null},
+             ${tx.json(toJson(changes))}
       FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
       RETURNING version
@@ -498,7 +589,10 @@ export async function saveVersion(
     await auditDefinitionWrite(tx, {
       organizationId: args.organizationId,
       origin: args.origin,
-      action: 'automation.version.saved',
+      action:
+        args.restoredFromVersion === undefined
+          ? 'automation.version.saved'
+          : 'automation.version.restored',
       name,
       version,
       newState: { version },
@@ -507,6 +601,11 @@ export async function saveVersion(
         ...(args.baseVersion === undefined
           ? {}
           : { baseVersion: args.baseVersion }),
+        ...(basedOn === null ? {} : { basedOnVersion: basedOn }),
+        ...(args.restoredFromVersion === undefined
+          ? {}
+          : { restoredFromVersion: args.restoredFromVersion }),
+        changes,
         ...(carry === null ? {} : { carried: carry.carried }),
         ...(args.testsPassed === undefined
           ? {}
@@ -553,9 +652,29 @@ export async function saveVersion(
     return {
       name,
       version,
+      changes,
       ...(carry === null ? {} : { carried: carry.carried }),
     };
   });
+}
+
+/** A stored or saved document as the diff reads it: an object, else none. */
+function documentOf(document: unknown): Readonly<Record<string, unknown>> {
+  return isRecord(document) ? document : {};
+}
+
+/** The package data a version keeps beside its document, as the diff
+ * compares it: `settings`, `taskContract` and `presentation`. */
+function packageOf(fields: {
+  settings?: unknown;
+  taskContract?: unknown;
+  presentation?: unknown;
+}): Readonly<Record<string, unknown>> {
+  return {
+    settings: fields.settings ?? null,
+    taskContract: fields.taskContract ?? null,
+    presentation: fields.presentation ?? null,
+  };
 }
 
 /**

@@ -2,7 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
 import {
-  WRITE_VIAS,
+  parseWriteVia,
   type WriteOrigin,
   type WriteVia,
 } from '../../lib/write-origin.ts';
@@ -74,13 +74,6 @@ const MAX_PAGE = 200;
  * recent ones a rollback chooses from. */
 export const RECENT_DEPLOYMENTS = 20;
 
-const VIA_SET: ReadonlySet<string> = new Set(WRITE_VIAS);
-
-function viaOf(raw: string | null): WriteVia | null {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a member of WRITE_VIAS, checked on the line
-  return raw !== null && VIA_SET.has(raw) ? (raw as WriteVia) : null;
-}
-
 /** The door a pointer with no event names: the platform's own writes say
  * so in their actor; any other door is not known. */
 function pointerVia(pointer: DeploymentPointer): WriteVia | null {
@@ -136,7 +129,7 @@ function toRow(record: EventRecord): DeploymentEventRow {
     kind,
     synthesized: false,
     actor: record.actor,
-    via: viaOf(record.via),
+    via: parseWriteVia(record.via),
     apiKeyId: record.apiKeyId,
     clientName: record.client,
     at: Number(record.atMs),

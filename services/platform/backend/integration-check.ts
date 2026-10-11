@@ -86,6 +86,7 @@ import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-gith
 import { checkAutomationTemplates } from './domains/automations/templates.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
+import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
@@ -65070,6 +65071,7 @@ async function main(): Promise<void> {
         'checkDeploymentHistory',
         () => checkDeploymentHistory(sql, authCtx, record),
       ],
+      ['checkVersionHistory', () => checkVersionHistory(sql, authCtx, record)],
       [
         'checkAutomationTemplates',
         () => checkAutomationTemplates(sql, baseUrl, authCtx, record),

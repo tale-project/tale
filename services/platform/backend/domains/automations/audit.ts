@@ -29,6 +29,7 @@ import type { AuditLogActorType } from '../audit_logs/types.ts';
 /** The definition writes that are audited, and nothing else. */
 export type AutomationDefinitionAction =
   | 'automation.version.saved'
+  | 'automation.version.restored'
   | 'automation.deployed'
   | 'automation.rolled_back'
   | 'automation.deleted'

@@ -54,6 +54,19 @@ export interface WriteOrigin {
   readonly clientName?: string;
 }
 
+const VIAS: ReadonlySet<string> = new Set(WRITE_VIAS);
+
+function isWriteVia(raw: string): raw is WriteVia {
+  return VIAS.has(raw);
+}
+
+/** A door as stored (`created_via`, a deployment's `via`): one of the six,
+ * else not known — a row written before doors were recorded, or a door a
+ * newer release added. */
+export function parseWriteVia(raw: string | null | undefined): WriteVia | null {
+  return raw !== null && raw !== undefined && isWriteVia(raw) ? raw : null;
+}
+
 /** A person's write in the app: the editor (`app`), a package they upload
  * (`upload`), or the managed configuration they apply (`managed`). */
 export function appOrigin(

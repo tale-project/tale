@@ -1378,6 +1378,7 @@ logs:
       automation.run.replayed: Automation run started again
       automation.run.in_doubt_resolved: Interrupted automation step decided
       automation.version.saved: Automation version saved
+      automation.version.restored: Automation version restored
       automation.deployed: Automation deployed
       automation.rolled_back: Automation rolled back to an earlier version
       automation.deleted: Automation deleted

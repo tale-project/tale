@@ -1435,6 +1435,7 @@ logs:
       automation.run.replayed: Automatisierungslauf erneut gestartet
       automation.run.in_doubt_resolved: Über unterbrochenen Automatisierungsschritt entschieden
       automation.version.saved: Automatisierungsversion gespeichert
+      automation.version.restored: Automatisierungsversion wiederhergestellt
       automation.deployed: Automatisierung live geschaltet
       automation.rolled_back: Automatisierung auf frühere Version zurückgesetzt
       automation.deleted: Automatisierung gelöscht

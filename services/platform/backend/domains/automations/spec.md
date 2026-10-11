@@ -140,6 +140,43 @@ history goes with the automation (`AUTO-R15`).
   version 7 by Ben; version 6 by Ben. Ada deploys version 6 again → no new row, and version 6 is
   still live since her rollback.
 
+### AUTO-R47 · A version says what it was based on and what it changed
+
+Every version records the version its content was built from (the one an editor's draft
+started from, or the one a restore copies) and what it changed against the version saved
+before it: how many nodes were added, removed, changed and renamed, and whether the inputs,
+the output, the description, the tests or the package data changed — never the content itself.
+The first version counts the nodes it starts with. Versions are kept until the automation is
+deleted. A history is read a page at a time, newest first, each version with who saved it and
+through which door; a version saved before doors were recorded reads its door from who saved
+it, marked as inferred.
+
+- **Example**: Ada opens version 5, adds a step and saves → version 6 is based on 5 and reads
+  "1 node added". Her coding agent then saves version 7 without saying where it started → it
+  reads what changed against version 6, and no base.
+
+### AUTO-R48 · Restoring a version saves it again as the newest
+
+Restoring an older version saves a copy of its content (the document and the package data) as a
+new version, restored from and based on the older one, with the message "Restore vN" unless
+another is given. When that content is already the latest version's, nothing is saved. A
+restore never deploys: the live version stays live until someone deploys the new one.
+
+- **Example**: Version 9 broke the dunning letters. Ben restores version 7 → version 10 is a
+  copy of version 7, "Restore v7", restored from 7. He restores version 7 again → nothing is
+  saved, because version 10 already has its content.
+
+### AUTO-R49 · A name cannot end in a word an automation's own pages use
+
+A new automation cannot have a name that ends, after another segment, in a word the platform
+keeps at the end of an automation's address: `versions`, `deployments`, `projects`, `triggers`,
+`trigger`, `trigger/runs`, `configuration` or `approval-allowances` (`AUTOMATION_NAME_RESERVED`).
+Such an automation would save and then open as another automation's versions, or, deleted,
+remove another automation's trigger. A name saved before the rule keeps saving.
+
+- **Example**: Noah creates `ops/versions` → refused, naming `versions`. He creates
+  `ops/version-history` → it saves.
+
 ## Creating from a starter
 
 A starter is a working automation the platform ships with a few questions: the project it
