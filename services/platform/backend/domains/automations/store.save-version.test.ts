@@ -186,10 +186,37 @@ describe('saveVersion', () => {
     const bare = unjudged.statements.find((statement) =>
       statement.text.includes('INSERT INTO app.automations'),
     );
-    // message, the verdict and its time, the three version fields, the
-    // key and client of a save from the app, which names neither (0181),
-    // and the version it was based on or restored from, none (0198).
-    expect(bare?.values.filter((value) => value === null).length).toBe(10);
+    // message, the verdict and its time, the tests' report, act and
+    // checker (0200), the three version fields, the key and client of a
+    // save from the app, which names neither (0181), and the version it
+    // was based on or restored from, none (0198).
+    expect(bare?.values.filter((value) => value === null).length).toBe(13);
+  });
+
+  it('keeps the report its verdict came from, the act and who [AUTO-R50]', async () => {
+    const judged = fakeStore([]);
+    await saveVersion(
+      judged.sql,
+      args({
+        testsPassed: false,
+        testReport: {
+          passed: 0,
+          failed: 1,
+          results: [{ name: 'greets', index: 0, pass: false, ms: 2 }],
+        },
+      }),
+    );
+    const insert = judged.statements.find((statement) =>
+      statement.text.includes('INSERT INTO app.automations'),
+    );
+    const at = insert?.values.indexOf(false) ?? -1;
+    const [checkedAt, report, via, by] = insert?.values.slice(at + 1) ?? [];
+    expect(JSON.parse(String(report))).toMatchObject({
+      checkedAt,
+      failed: 1,
+      results: [{ name: 'greets', pass: false }],
+    });
+    expect([via, by]).toEqual(['save', args().origin.actor]);
   });
 
   it('binds the install project to version 1 only', async () => {
@@ -248,9 +275,10 @@ describe('saveVersion presentation', () => {
     const insert = statements.find((s) =>
       s.text.includes('INSERT INTO app.automations'),
     );
-    // org, name, document, message, testsPassed, testsCheckedAt,
-    // taskContract, settings, presentation, …
-    return insert?.values[8];
+    // org, name, document, message, testsPassed, testsCheckedAt, the
+    // tests' report, act and checker, taskContract, settings,
+    // presentation, …
+    return insert?.values[11];
   };
 
   it.each([undefined, null])('stores SQL NULL for %s', async (presentation) => {
@@ -319,21 +347,21 @@ describe('saveVersion carry mode', () => {
     };
     return { sql: sql as unknown as Sql, statements };
   }
-  /** org, name, document, message, testsPassed, testsCheckedAt,
-   * taskContract, settings, presentation, createdBy, createdAt, via, key,
-   * client — the INSERT's bound values. */
+  /** org, name, document, message, testsPassed, testsCheckedAt, the
+   * tests' report, act and checker, taskContract, settings, presentation,
+   * createdBy, createdAt, via, key, client — the INSERT's bound values. */
   const inserted = (statements: Statement[]) => {
     const insert = statements.find((s) =>
       s.text.includes('INSERT INTO app.automations'),
     );
     const values = insert?.values ?? [];
     return {
-      taskContract: values[6],
-      settings: values[7],
-      presentation: values[8],
-      via: values[11],
-      apiKeyId: values[12],
-      clientName: values[13],
+      taskContract: values[9],
+      settings: values[10],
+      presentation: values[11],
+      via: values[14],
+      apiKeyId: values[15],
+      clientName: values[16],
     };
   };
   const carryArgs = (overrides: Partial<Parameters<typeof saveVersion>[1]>) =>

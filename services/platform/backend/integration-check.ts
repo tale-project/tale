@@ -85,6 +85,7 @@ import { checkAutomationNodeRuns } from './domains/automations/node-runs.integra
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-github-schedules.integration.ts';
 import { checkAutomationTemplates } from './domains/automations/templates.integration.ts';
+import { checkTestReports } from './domains/automations/test-reports.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
@@ -65076,6 +65077,7 @@ async function main(): Promise<void> {
         () => checkDeploymentHistory(sql, authCtx, record),
       ],
       ['checkVersionHistory', () => checkVersionHistory(sql, authCtx, record)],
+      ['checkTestReports', () => checkTestReports(sql, authCtx, record)],
       [
         'checkAutomationTemplates',
         () => checkAutomationTemplates(sql, baseUrl, authCtx, record),

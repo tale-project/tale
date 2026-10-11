@@ -81,6 +81,8 @@ describe('save_automation', () => {
     );
     expect(save).toHaveBeenCalledWith(DOC, 'add a reminder', {
       testsPassed: true,
+      // The report the verdict came from, for the host to keep.
+      testReport: expect.objectContaining({ passed: 1, failed: 0 }),
       baseVersion: 7,
       projectId: 'p-1',
       metadata: { taskContract: { workflow: NAME } },
@@ -103,6 +105,7 @@ describe('save_automation', () => {
     );
     expect(save).toHaveBeenCalledWith(DOC, '', {
       testsPassed: true,
+      testReport: expect.objectContaining({ passed: 1 }),
       metadata: { settings: null },
     });
   });
@@ -219,7 +222,11 @@ describe('test_automation of a saved version', () => {
       { name: NAME, version: 6 },
       { store: store({ recordTestVerdict }) },
     );
-    expect(recordTestVerdict).toHaveBeenCalledWith(NAME, 6, false);
+    // Recorded as a check made by hand, with the report it came from.
+    expect(recordTestVerdict).toHaveBeenCalledWith(NAME, 6, false, {
+      via: 'manual',
+      report: expect.objectContaining({ failed: 1 }),
+    });
     expect(result).toMatchObject({ name: NAME, version: 6, failed: 1 });
   });
 
@@ -262,6 +269,7 @@ describe('deploy_automation', () => {
     );
     expect(deploy).toHaveBeenCalledWith(NAME, 7, {
       testsPassed: true,
+      testReport: expect.objectContaining({ passed: 1, failed: 0 }),
       expectedDeployedVersion: 5,
     });
     expect(result).toMatchObject({

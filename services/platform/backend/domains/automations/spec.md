@@ -170,7 +170,8 @@ restore never deploys: the live version stays live until someone deploys the new
 
 A new automation cannot have a name that ends, after another segment, in a word the platform
 keeps at the end of an automation's address: `versions`, `deployments`, `projects`, `triggers`,
-`trigger`, `trigger/runs`, `configuration` or `approval-allowances` (`AUTOMATION_NAME_RESERVED`).
+`trigger`, `trigger/runs`, `configuration`, `approval-allowances` or `test-report`
+(`AUTOMATION_NAME_RESERVED`).
 Such an automation would save and then open as another automation's versions, or, deleted,
 remove another automation's trigger. A name saved before the rule keeps saving.
 
@@ -268,6 +269,19 @@ run and count as failed.
 
 - **Example**: Noah renames the node `fetch` to `list`. His test still simulates `fetch` → the
   test fails, saying it simulates "fetch", which is not a node of the automation.
+
+### AUTO-R50 · A version keeps what its latest test check found, and who made it
+
+Each time a version's tests are judged — when it is saved, by the deploy gate, or when someone
+runs them by hand — the verdict is kept with the report it came from: each test, whether it
+passed, and for one that failed what kind of failure it was, never a run's output. The report
+names the act that made it and who. A verdict that arrives without a report, such as one an
+older server writes during an upgrade, leaves no report behind: an earlier report never reads as
+the current one. Running a draft's tests, or only some of a version's, records nothing.
+
+- **Example**: Ada runs the tests of v4 by hand and one fails → v4 reads as failing, its
+  report names the failing test and says Ada ran them by hand; the report of the save before is
+  gone.
 
 ## Starting a run
 

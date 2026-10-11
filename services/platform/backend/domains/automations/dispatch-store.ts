@@ -481,6 +481,9 @@ export function pgAutomationStore(
         ...(options?.testsPassed !== undefined
           ? { testsPassed: options.testsPassed }
           : {}),
+        ...(options?.testReport !== undefined
+          ? { testReport: options.testReport }
+          : {}),
         ...(options?.baseVersion !== undefined
           ? { baseVersion: options.baseVersion }
           : {}),
@@ -504,8 +507,21 @@ export function pgAutomationStore(
             }),
       });
     },
-    recordTestVerdict: (name, version, testsPassed) =>
-      recordTestVerdict(sql, { organizationId, name, version, testsPassed }),
+    recordTestVerdict: (name, version, testsPassed, check) =>
+      recordTestVerdict(sql, {
+        organizationId,
+        name,
+        version,
+        testsPassed,
+        // Who ran them: the caller this store acts for.
+        ...(check !== undefined && {
+          check: {
+            via: check.via,
+            by: origin.actor,
+            ...(check.report !== undefined && { report: check.report }),
+          },
+        }),
+      }),
     deploy: (name, version, options) =>
       deployVersion(sql, {
         organizationId,
@@ -514,6 +530,9 @@ export function pgAutomationStore(
         origin,
         ...(options?.testsPassed !== undefined
           ? { testsPassed: options.testsPassed }
+          : {}),
+        ...(options?.testReport !== undefined
+          ? { testReport: options.testReport }
           : {}),
         ...(options?.expectedDeployedVersion !== undefined
           ? { expectedDeployedVersion: options.expectedDeployedVersion }

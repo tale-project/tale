@@ -2,6 +2,10 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import type { ChangeSummary } from '../../../lib/engine/core/diff/changes.ts';
 import {
+  type StoredTestReport,
+  storedTestReportSchema,
+} from '../../../lib/shared/schemas/automation-tests.ts';
+import {
   inferVia,
   parseWriteVia,
   type WriteOrigin,
@@ -47,10 +51,29 @@ export interface VersionHistoryRow {
   changes: ChangeSummary | null;
   testsPassed: boolean | null;
   testsCheckedAt: number | null;
+  /** The counts of the report its verdict came from, which act made it and
+   * who — null while the verdict has no report of its own (0200). */
+  tests: TestsSummary | null;
   /** The version live triggers and live runs use now. */
   live: boolean;
   /** When it last went live, or null when it never did. */
   lastDeployedAt: number | null;
+}
+
+/** A version's latest test check in counts. */
+export interface TestsSummary {
+  passed: number;
+  failed: number;
+  total: number;
+  via?: 'save' | 'deploy' | 'manual';
+  by?: string;
+}
+
+/** Which act checked a version's tests, as stored; else none known. */
+function checkVia(raw: string | null): TestsSummary['via'] | undefined {
+  return raw === 'save' || raw === 'deploy' || raw === 'manual'
+    ? raw
+    : undefined;
 }
 
 /** A history page's default size, and the most one read answers. */
@@ -70,6 +93,10 @@ interface HistoryRecord {
   changes: unknown;
   testsPassed: boolean | null;
   testsCheckedAt: string | number | null;
+  testsPassedCount: number | null;
+  testsFailedCount: number | null;
+  testsVia: string | null;
+  testsBy: string | null;
   lastDeployedAt: string | number | null;
 }
 
@@ -81,6 +108,21 @@ function changesOf(raw: unknown): ChangeSummary | null {
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- written by changeSummaryOf (0198); only its node counts are checked here
   return raw as ChangeSummary;
+}
+
+/** A history record's test counts, while its verdict has a report. */
+function testsSummaryOf(record: HistoryRecord): TestsSummary | null {
+  if (record.testsPassedCount === null || record.testsFailedCount === null) {
+    return null;
+  }
+  const via = checkVia(record.testsVia);
+  return {
+    passed: record.testsPassedCount,
+    failed: record.testsFailedCount,
+    total: record.testsPassedCount + record.testsFailedCount,
+    ...(via !== undefined && { via }),
+    ...(record.testsBy !== null && { by: record.testsBy }),
+  };
 }
 
 /**
@@ -112,6 +154,18 @@ export async function listVersionHistory(
            a.restored_from_version AS "restoredFromVersion",
            a.change_summary AS changes, a.tests_passed AS "testsPassed",
            a.tests_checked_at_ms AS "testsCheckedAt",
+           -- The report's counts while it is the verdict's own: one written
+           -- with an older verdict says nothing about the current one.
+           CASE WHEN (a.tests_report->>'checkedAt')::float8
+                     = a.tests_checked_at_ms
+                THEN (a.tests_report->>'passed')::int END
+             AS "testsPassedCount",
+           CASE WHEN (a.tests_report->>'checkedAt')::float8
+                     = a.tests_checked_at_ms
+                THEN (a.tests_report->>'failed')::int END
+             AS "testsFailedCount",
+           a.tests_checked_via AS "testsVia",
+           a.tests_checked_by AS "testsBy",
            (
              SELECT max(e.at_ms) FROM app.automation_deployment_events e
              WHERE e.org_id = a.org_id AND e.name = a.name
@@ -152,6 +206,7 @@ export async function listVersionHistory(
       testsPassed: record.testsPassed,
       testsCheckedAt:
         record.testsCheckedAt === null ? null : Number(record.testsCheckedAt),
+      tests: testsSummaryOf(record),
       live,
       lastDeployedAt,
     };
@@ -188,8 +243,68 @@ export function versionHistoryWire(row: VersionHistoryRow) {
     ...(row.testsCheckedAt === null
       ? {}
       : { testsCheckedAt: row.testsCheckedAt }),
+    tests: row.tests,
     deployed: row.live,
     lastDeployedAt: row.lastDeployedAt,
+  };
+}
+
+/** A version's latest test check: its verdict, when and how it was made
+ * and by whom, and the report it came from — null when the verdict has
+ * none of its own (made before reports were kept, or by an older image). */
+export interface VersionTestReport {
+  report: StoredTestReport | null;
+  testsPassed: boolean | null;
+  testsCheckedAt: number | null;
+  via: 'save' | 'deploy' | 'manual' | null;
+  by: string | null;
+}
+
+/** The latest test check of one saved version; undefined when the version
+ * does not exist. A stored report that does not read, or belongs to an
+ * earlier verdict, answers as no report. */
+export async function readTestReport(
+  sql: Sql,
+  organizationId: string,
+  name: string,
+  version: number,
+): Promise<VersionTestReport | undefined> {
+  const rows = await sql<
+    {
+      testsPassed: boolean | null;
+      testsCheckedAt: string | number | null;
+      report: unknown;
+      via: string | null;
+      by: string | null;
+    }[]
+  >`
+    SELECT tests_passed AS "testsPassed",
+           tests_checked_at_ms AS "testsCheckedAt",
+           tests_report AS report, tests_checked_via AS via,
+           tests_checked_by AS by
+    FROM app.automations
+    WHERE org_id = ${organizationId} AND name = ${name}
+      AND version = ${version}
+  `;
+  const row = rows[0];
+  if (row === undefined) return undefined;
+  const checkedAt =
+    row.testsCheckedAt === null ? null : Number(row.testsCheckedAt);
+  const parsed = storedTestReportSchema.safeParse(row.report);
+  if (row.report !== null && !parsed.success) {
+    console.warn(
+      `[automations] the stored test report of ${name} v${version} does not read`,
+      parsed.error.issues.slice(0, 3),
+    );
+  }
+  const report =
+    parsed.success && parsed.data.checkedAt === checkedAt ? parsed.data : null;
+  return {
+    report,
+    testsPassed: row.testsPassed,
+    testsCheckedAt: checkedAt,
+    via: checkVia(row.via) ?? null,
+    by: row.by,
   };
 }
 

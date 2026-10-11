@@ -31,6 +31,7 @@ import type {
   LegacyRunQuarantine,
   RunSummary,
 } from '../../../lib/engine/api/dispatch.ts';
+import type { TestReport } from '../../../lib/engine/api/tests.ts';
 import { diffAutomationDocuments } from '../../../lib/engine/core/diff/automation.ts';
 import {
   changeSummaryOf,
@@ -57,6 +58,7 @@ import {
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import { storedTestReport } from '../../../lib/shared/schemas/automation-tests.ts';
 import { localDateIn } from '../../../lib/shared/zoned-time.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
@@ -219,6 +221,7 @@ export const RESERVED_TRAILING_PATHS: readonly string[] = [
   'configuration',
   'deployments',
   'projects',
+  'test-report',
   'trigger',
   'trigger/runs',
   'triggers',
@@ -289,6 +292,8 @@ export interface SaveVersionArgs {
    * an MCP save of a document with tests); stamps `tests_checked_at_ms`
    * beside it. Absent = no verdict yet. */
   testsPassed?: boolean;
+  /** The report that verdict came from: kept trimmed beside it (0200). */
+  testReport?: TestReport;
   taskContract?: unknown;
   settings?: unknown;
   presentation?: unknown;
@@ -559,7 +564,8 @@ export async function saveVersion(
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,
-        tests_checked_at_ms, task_contract, settings, presentation,
+        tests_checked_at_ms, tests_report, tests_checked_via,
+        tests_checked_by, task_contract, settings, presentation,
         created_by, created_at_ms, created_via, api_key_id, client_name,
         based_on_version, restored_from_version, change_summary
       )
@@ -568,6 +574,13 @@ export async function saveVersion(
              ${tx.json(toJson(args.document))}, ${args.message ?? null},
              ${args.testsPassed ?? null},
              ${args.testsPassed === undefined ? null : now},
+             ${
+               args.testsPassed === undefined || args.testReport === undefined
+                 ? null
+                 : jsonParam(tx, storedTestReport(args.testReport, now))
+             },
+             ${args.testsPassed === undefined ? null : 'save'},
+             ${args.testsPassed === undefined ? null : args.origin.actor},
              ${stored.taskContract === undefined || stored.taskContract === null ? null : tx.json(toJson(stored.taskContract))},
              ${stored.settings === undefined || stored.settings === null ? null : tx.json(toJson(stored.settings))},
              ${stored.presentation === undefined || stored.presentation === null ? null : tx.json(toJson(stored.presentation))},
@@ -815,6 +828,15 @@ export async function deployedVersion(
   return rows[0]?.version;
 }
 
+/** A check of a version's tests: what it found, which act made it — a save,
+ * the deploy gate or someone running them — and who, in `created_by`'s
+ * vocabulary. */
+export interface TestCheck {
+  report?: TestReport;
+  via: 'save' | 'deploy' | 'manual';
+  by?: string;
+}
+
 /**
  * Record the tests verdict a gate just reached for one saved version — the
  * LATEST verdict wins, `false` included, and `tests_checked_at_ms` says
@@ -832,12 +854,24 @@ export async function setTestsVerdict(
     version: number;
     testsPassed: boolean;
     at?: number;
+    /** What the check found, which act made it and who: kept beside the
+     * verdict (0200). Without it, the verdict stands alone and an earlier
+     * report goes with the verdict it belonged to. */
+    check?: TestCheck;
   },
 ): Promise<void> {
+  const at = args.at ?? Date.now();
+  const report =
+    args.check?.report === undefined
+      ? null
+      : jsonParam(sql, storedTestReport(args.check.report, at));
   await sql`
     UPDATE app.automations
     SET tests_passed = ${args.testsPassed},
-        tests_checked_at_ms = ${args.at ?? Date.now()}
+        tests_checked_at_ms = ${at},
+        tests_report = ${report},
+        tests_checked_via = ${args.check?.via ?? null},
+        tests_checked_by = ${args.check?.by ?? null}
     WHERE org_id = ${args.organizationId} AND name = ${args.name}
       AND version = ${args.version}
   `;
@@ -853,6 +887,9 @@ export async function recordTestVerdict(
     name: string;
     version: number;
     testsPassed: boolean;
+    /** When it was judged; now by default. */
+    at?: number;
+    check?: TestCheck;
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
@@ -876,6 +913,8 @@ export async function deploy(
      * run's word; without a fresh verdict a version saved with failing
      * tests stays refused. */
     testsPassed?: boolean;
+    /** The report the deploy gate's verdict came from (0200). */
+    testReport?: TestReport;
     /** Compare-and-set on the live version: the version the caller read as
      * deployed (`null`: nothing deployed). Another one live now refuses the
      * deploy with `AUTOMATION_DEPLOYMENT_STALE` (409, `data.deployedVersion`)
@@ -1039,6 +1078,11 @@ export async function deploy(
         name: args.name,
         version: args.version,
         testsPassed: args.testsPassed,
+        check: {
+          via: 'deploy',
+          by: args.origin.actor,
+          ...(args.testReport !== undefined && { report: args.testReport }),
+        },
       });
     }
     // The live version again: it stays live since it went live, by whom it

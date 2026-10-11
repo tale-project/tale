@@ -300,7 +300,11 @@ describe('every refusal carries a code and a hint', () => {
     });
     // The refusal is the version's verdict from now on (2026-09-13
     // evaluation, E4-04): the row used to keep `null` after the gate said no.
-    expect(recordTestVerdict).toHaveBeenCalledWith(SAVED, 1, false);
+    // It keeps the report the gate refused with [AUTO-R50].
+    expect(recordTestVerdict).toHaveBeenCalledWith(SAVED, 1, false, {
+      via: 'deploy',
+      report: expect.objectContaining({ failed: 1 }),
+    });
     expect(deploy).not.toHaveBeenCalled();
   });
 
@@ -317,7 +321,10 @@ describe('every refusal carries a code and a hint', () => {
       { store: fullStore({ deploy }) },
     );
     expect(result).toMatchObject({ deployed: { name: SAVED, version: 1 } });
-    expect(deploy).toHaveBeenCalledWith(SAVED, 1, { testsPassed: true });
+    expect(deploy).toHaveBeenCalledWith(SAVED, 1, {
+      testsPassed: true,
+      testReport: { passed: 1, failed: 0, results: [] },
+    });
   });
 
   // The ledger's `duplicate` marker used to be dropped on this door alone:
@@ -611,7 +618,11 @@ describe('save_automation records the save’s own test verdict', () => {
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ name: DOC_EXAMPLE.automation.name }),
       'why',
-      { testsPassed: false, metadata: {} },
+      {
+        testsPassed: false,
+        testReport: expect.objectContaining({ failed: 1 }),
+        metadata: {},
+      },
     );
     expect(result).toEqual({
       name: SAVED,

@@ -95,8 +95,44 @@ describe('deploy — the tests verdict', () => {
     expect(update?.text).toContain('tests_checked_at_ms = ?');
     expect(update?.values.slice(0, 1)).toEqual([true]);
     expect(update?.values[1]).toBeGreaterThanOrEqual(before);
-    expect(update?.values.slice(2)).toEqual(['org_1', 'ops/greet', 1]);
+    // No report came with the verdict, so none is kept; the act that made
+    // it and who are [AUTO-R50].
+    expect(update?.values.slice(2)).toEqual([
+      null,
+      'deploy',
+      'u',
+      'org_1',
+      'ops/greet',
+      1,
+    ]);
     expect(deployed(fake.statements)).toBe(true);
+  });
+
+  it('keeps the report the gate judged by beside its verdict [AUTO-R50]', async () => {
+    const fake = fakeStore(null);
+    await deploy(fake.sql, {
+      ...args,
+      testsPassed: true,
+      testReport: {
+        passed: 1,
+        failed: 0,
+        results: [{ name: 'greets', index: 0, pass: true, ms: 3 }],
+      },
+    });
+    const update = stamp(fake.statements);
+    const kept = JSON.parse(String(update?.values[2])) as {
+      checkedAt: number;
+      passed: number;
+      results: unknown[];
+    };
+    // Stamped with the verdict's own time, so a reader can tell it is the
+    // report of this verdict.
+    expect(kept.checkedAt).toBe(update?.values[1]);
+    expect(kept).toMatchObject({
+      passed: 1,
+      results: [{ name: 'greets', pass: true }],
+    });
+    expect(update?.values.slice(3, 5)).toEqual(['deploy', 'u']);
   });
 
   it('lets a fresh passing run lift a false an earlier gate recorded — the latest verdict wins', async () => {
@@ -139,9 +175,13 @@ describe('setTestsVerdict / recordTestVerdict — the gate’s refusal persists'
       testsPassed: false,
       at: 1_789_000_000_000,
     });
+    // A verdict without a check clears the report, the act and who.
     expect(stamp(fake.statements)?.values).toEqual([
       false,
       1_789_000_000_000,
+      null,
+      null,
+      null,
       'org_1',
       'ops/greet',
       1,

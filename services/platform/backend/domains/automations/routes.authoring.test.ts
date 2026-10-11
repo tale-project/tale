@@ -110,14 +110,21 @@ describe('app automation acceptance gate', () => {
       error: 'AUTOMATION_TESTS_FAILING',
     });
     expect(io.deploy).not.toHaveBeenCalled();
-    expect(io.verdict).toHaveBeenCalledWith('double', 2, false);
+    // The verdict keeps the report the gate reached it with.
+    expect(io.verdict).toHaveBeenCalledWith('double', 2, false, {
+      via: 'deploy',
+      report: expect.objectContaining({ passed: 0, failed: 1 }),
+    });
   });
   it('deploys a passing version with a fresh server verdict', async () => {
     io.document = document(2);
     const result = await post('/double/deploy', { version: 2 });
     expect(result.status).toBe(200);
     expect(await result.json()).toEqual({ name: 'double', version: 2 });
-    expect(io.deploy).toHaveBeenCalledWith('double', 2, { testsPassed: true });
+    expect(io.deploy).toHaveBeenCalledWith('double', 2, {
+      testsPassed: true,
+      testReport: expect.objectContaining({ passed: 1, failed: 0 }),
+    });
   });
   it('names the missing document instead of saving nothing', async () => {
     const result = await post('/double/save', { testsPassed: true });
@@ -277,7 +284,10 @@ describe('app automation acceptance gate', () => {
     io.document = warned;
     const deployed = await post('/double/deploy', { version: 2 });
     expect(deployed.status).toBe(200);
-    expect(io.deploy).toHaveBeenCalledWith('double', 2, { testsPassed: true });
+    expect(io.deploy).toHaveBeenCalledWith('double', 2, {
+      testsPassed: true,
+      testReport: expect.objectContaining({ passed: 1, failed: 0 }),
+    });
   });
   it('preserves a store refusal after the shared deploy gate', async () => {
     io.document = document(2);
