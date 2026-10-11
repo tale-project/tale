@@ -55,7 +55,7 @@ export function optionLabel(
 /** Whether a question must be answered before the create. A schedule
  * question is the form's own draft, and keeps the starter's schedule
  * untouched. */
-export function isRequiredField(field: StarterField): boolean {
+function isRequiredField(field: StarterField): boolean {
   if (field.kind === 'text') return field.required !== false;
   return field.kind !== 'schedule';
 }
