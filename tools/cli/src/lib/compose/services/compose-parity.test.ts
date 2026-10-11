@@ -856,6 +856,7 @@ function resolveRelease(source: string, sitesOnly: boolean) {
         EVENT_NAME: 'workflow_dispatch',
         INPUT_VERSION: 'v0.5.15-sites.1',
         SITES_ONLY: String(sitesOnly),
+        SOURCE_SHA: 'b'.repeat(40),
         GITHUB_OUTPUT: output,
       },
     });
@@ -994,6 +995,7 @@ fi
             outputs: {
               version_number: '0.5.43',
               service_names: JSON.stringify(services),
+              source_sha: CI_SOURCE,
             },
           },
           changes: { outputs: { source_sha: CI_SOURCE, candidate_sha: '' } },
