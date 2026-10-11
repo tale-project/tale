@@ -8,7 +8,13 @@ import {
   type WriteVia,
 } from '../../lib/write-origin.ts';
 import { readDeploymentPointer } from './deployments.ts';
-import { AutomationError, saveVersion, versionRow } from './store.ts';
+import {
+  AutomationError,
+  saveVersion,
+  versionRow,
+  type SaveVersionArgs,
+  type VersionRow,
+} from './store.ts';
 
 /**
  * An automation's versions as a history reads them — who saved each,
@@ -161,13 +167,90 @@ export async function listVersionHistory(
 }
 
 /**
- * Bring an older version back: save its content — the document and the
- * package data — as the newest version, restored from and based on it. A
- * version whose content is already the latest's saves nothing and answers
- * that version `unchanged`. Without a message the version reads
- * "Restore v{N}". `baseVersion` refuses the restore, as it does a save,
- * when someone saved since the caller read the history.
+ * A history row as the doors answer it (`versionHistoryRowSchema`): the
+ * door as `createdVia`, live as `deployed`. A message, a tests verdict and
+ * its time that a version does not have are left out, as the version list
+ * has always answered them.
  */
+export function versionHistoryWire(row: VersionHistoryRow) {
+  return {
+    version: row.version,
+    ...(row.message === null ? {} : { message: row.message }),
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    createdVia: row.via,
+    viaInferred: row.viaInferred,
+    clientName: row.clientName,
+    basedOnVersion: row.basedOnVersion,
+    restoredFromVersion: row.restoredFromVersion,
+    changes: row.changes,
+    ...(row.testsPassed === null ? {} : { testsPassed: row.testsPassed }),
+    ...(row.testsCheckedAt === null
+      ? {}
+      : { testsCheckedAt: row.testsCheckedAt }),
+    deployed: row.live,
+    lastDeployedAt: row.lastDeployedAt,
+  };
+}
+
+/** The version a restore brings back, read before the save: a saved version
+ * never changes, so it needs no lock. */
+export async function readRestoreSource(
+  sql: Sql,
+  organizationId: string,
+  name: string,
+  version: number,
+): Promise<VersionRow> {
+  const source = await versionRow(sql, organizationId, name, version);
+  if (source === null) {
+    throw new AutomationError(
+      'AUTOMATION_VERSION_UNKNOWN',
+      `"${name}" has no version ${String(version)} to restore.`,
+      404,
+    );
+  }
+  return source;
+}
+
+/**
+ * What a restore of `source` saves: its content — the document and the
+ * package data — as the newest version, restored from and based on it,
+ * "Restore v{N}" unless the caller names a message, and nothing when that
+ * content is already the latest's (`unlessIdentical`). `baseVersion` refuses
+ * the restore, as it does a save, when someone saved since the caller read
+ * the history. The app's door hands it to the shared save path, which adds
+ * the version's own tests verdict.
+ */
+export function restoreSaveArgs(
+  source: VersionRow,
+  request: {
+    organizationId: string;
+    name: string;
+    origin: WriteOrigin;
+    message?: string;
+    baseVersion?: number;
+  },
+): SaveVersionArgs {
+  return {
+    organizationId: request.organizationId,
+    name: request.name,
+    document: source.document,
+    origin: request.origin,
+    message: request.message ?? `Restore v${String(source.version)}`,
+    taskContract: source.taskContract,
+    settings: source.settings,
+    presentation: source.presentation,
+    basedOnVersion: source.version,
+    restoredFromVersion: source.version,
+    unlessIdentical: true,
+    ...(request.baseVersion === undefined
+      ? {}
+      : { baseVersion: request.baseVersion }),
+  };
+}
+
+/** Bring an older version back as the newest, without running its tests
+ * (the store's own door; the app's runs them through the save path). */
 export async function restoreVersion(
   sql: Sql,
   args: {
@@ -185,35 +268,14 @@ export async function restoreVersion(
   restoredFrom: number;
   unchanged?: true;
 }> {
-  // A saved version never changes, so it is read outside the save's lock.
-  const source = await versionRow(
+  const source = await readRestoreSource(
     sql,
     args.organizationId,
     args.name,
     args.version,
   );
-  if (source === null) {
-    throw new AutomationError(
-      'AUTOMATION_VERSION_UNKNOWN',
-      `"${args.name}" has no version ${String(args.version)} to restore.`,
-      404,
-    );
-  }
   const saved = await saveVersion(sql, {
-    organizationId: args.organizationId,
-    name: args.name,
-    document: source.document,
-    origin: args.origin,
-    message: args.message ?? `Restore v${String(args.version)}`,
-    taskContract: source.taskContract,
-    settings: source.settings,
-    presentation: source.presentation,
-    basedOnVersion: args.version,
-    restoredFromVersion: args.version,
-    unlessIdentical: true,
-    ...(args.baseVersion === undefined
-      ? {}
-      : { baseVersion: args.baseVersion }),
+    ...restoreSaveArgs(source, args),
     ...(args.testsPassed === undefined
       ? {}
       : { testsPassed: args.testsPassed }),

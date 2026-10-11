@@ -39,6 +39,10 @@ export type {
 } from '@/lib/engine/core/record/read';
 export type { ReplayKind, ReplayPlan } from '@/lib/engine/core/record/replay';
 
+import type {
+  DeploymentHistory,
+  VersionHistory,
+} from '@/lib/shared/schemas/automation-versions';
 import type { NodeTypeCatalog } from '@/lib/shared/schemas/node-type-catalog';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 
@@ -227,7 +231,15 @@ export interface AutomationsContract {
   };
   'automations/mutations:deployAutomation': {
     kind: 'mutation';
-    args: { organizationId: string; name: string; version: number };
+    /** `expectedDeployedVersion` is the version the caller read as live
+     * (`null`: nothing deployed); another one live refuses the deploy
+     * (`AUTOMATION_DEPLOYMENT_STALE`, naming who put it live). */
+    args: {
+      organizationId: string;
+      name: string;
+      version: number;
+      expectedDeployedVersion?: number | null;
+    };
     /** `trigger` is what starts the automation now that this version runs:
      * whether it is on, its next start, and what this version would make
      * of what it sends (`TRIGGER_INPUT_MISMATCH`,
@@ -235,12 +247,42 @@ export interface AutomationsContract {
     returns: {
       name: string;
       version: number;
+      /** What was live before; null when nothing was. */
+      previousVersion?: number | null;
+      /** `rollback` put an older version back; `unchanged` changed nothing,
+       * the version was live already. */
+      kind?: 'deploy' | 'rollback' | 'unchanged';
+      deploymentId?: string | null;
       trigger?: {
         kind: TriggerView['kind'];
         enabled: boolean;
         nextRunAt: number | null;
         warnings: Issue[];
       } | null;
+    };
+  };
+  /** Bring an older version back as the newest: it passes the save's own
+   * checks and runs its tests, then saves restored from that version —
+   * or nothing (`unchanged`) when its content is the latest already. */
+  'automations/mutations:restoreAutomationVersion': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      name: string;
+      version: number;
+      /** "Restore v{N}" when left out. */
+      message?: string;
+      /** The latest version the caller read; a version saved since refuses
+       * the restore (`AUTOMATION_VERSION_STALE`). */
+      baseVersion?: number;
+    };
+    returns: {
+      name: string;
+      version: number;
+      restoredFrom: number;
+      unchanged?: true;
+      testsPassed?: boolean;
+      warnings?: unknown[];
     };
   };
   'automations/mutations:saveAutomation': {
@@ -253,12 +295,24 @@ export interface AutomationsContract {
       settings?: unknown;
       presentation?: unknown;
       create?: boolean;
+      /** The version the draft started from; another one saved since
+       * refuses the save (`AUTOMATION_VERSION_STALE`). */
+      baseVersion?: number;
+      /** The version the draft was built from, recorded without a check —
+       * "save anyway" after a stale refusal. */
+      basedOnVersion?: number;
       organizationId: string;
       automation: unknown;
     };
     /** `warnings` are the problems the save let through — they never
-     * refuse one (`lib/shared/schemas/automation-issues.ts` reads them). */
-    returns: { name: string; version: number; warnings?: unknown[] };
+     * refuse one (`lib/shared/schemas/automation-issues.ts` reads them);
+     * `changes`, what the version changed against the one before it. */
+    returns: {
+      name: string;
+      version: number;
+      warnings?: unknown[];
+      changes?: VersionHistory['versions'][number]['changes'];
+    };
   };
   'automations/mutations:setApprovalAllowances': {
     kind: 'mutation';
@@ -344,6 +398,16 @@ export interface AutomationsContract {
       name: string;
       version: number;
       document: unknown;
+      /** The newest saved version, so a reader of an older one knows. */
+      latestVersion?: number;
+      /** The door the shown version was saved through, its client, what it
+       * was based on or restored from, and what it changed. */
+      createdVia?: VersionHistory['versions'][number]['createdVia'];
+      viaInferred?: boolean;
+      clientName?: string | null;
+      basedOnVersion?: number | null;
+      restoredFromVersion?: number | null;
+      changes?: VersionHistory['versions'][number]['changes'];
     };
   };
   'automations/queries:getLiveRunForTask': {
@@ -635,6 +699,30 @@ export interface AutomationsContract {
       deliverySource: 'header' | 'body' | null;
       header: string | null;
     }>;
+  };
+  /** A page of the version history, newest first: `before` is the
+   * `nextBefore` the last page answered. */
+  'automations/queries:listVersionHistory': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      name: string;
+      limit: number;
+      before?: number;
+    };
+    returns: VersionHistory;
+  };
+  /** When each version went live, newest first, a page at a time, and what
+   * is live now with its runs still going. */
+  'automations/queries:listDeployments': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      name: string;
+      limit?: number;
+      before?: { at: number; id: string };
+    };
+    returns: DeploymentHistory;
   };
   'automations/queries:listVersions': {
     kind: 'query';

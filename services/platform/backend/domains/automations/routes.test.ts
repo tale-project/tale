@@ -47,6 +47,18 @@ vi.mock('./store.ts', async (importOriginal) => {
   };
 });
 
+// The shown version's history row: none here — these tests read the
+// version itself, and the history's own test reads the rest.
+vi.mock('./versions.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./versions.ts')>()),
+  listVersionHistory: vi.fn(async () => ({
+    versions: [],
+    nextBefore: null,
+    latestVersion: null,
+    deployedVersion: null,
+  })),
+}));
+
 vi.mock('../projects/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../projects/service.ts')>()),
   getProjectAuthContext: vi.fn(async () => ({

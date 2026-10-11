@@ -255,3 +255,9 @@ export const deploymentHistorySchema = z.object({
   deployments: z.array(deploymentEntrySchema),
   nextBefore: orNull(z.object({ at: z.number(), id: z.string() })),
 });
+
+/** A page of an automation's version history, as the app reads it. */
+export type VersionHistory = z.infer<typeof versionHistorySchema>;
+
+/** A page of an automation's deployment history, as the app reads it. */
+export type DeploymentHistory = z.infer<typeof deploymentHistorySchema>;

@@ -354,3 +354,187 @@ describe('node-type catalog adapter', () => {
     });
   });
 });
+
+describe('version history adapters [AUTO-R47]', () => {
+  it('reads a page of versions, parsing each row at the boundary', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        versions: [
+          {
+            version: 4,
+            createdBy: 'u2',
+            createdAt: 1_000,
+            createdVia: 'mcp',
+            viaInferred: false,
+            clientName: 'Claude Code',
+            basedOnVersion: 3,
+            restoredFromVersion: null,
+            changes: { nodes: { added: 1, removed: 0, changed: 0 } },
+            deployed: true,
+            lastDeployedAt: 9_000,
+          },
+        ],
+        nextBefore: 4,
+        latestVersion: 5,
+        deployedVersion: 4,
+      }),
+    );
+    const read = automationReadAdapters[
+      'automations/queries:listVersionHistory'
+    ]?.(
+      { organizationId: 'org-1', name: 'ops/greet', limit: 1, before: 5 },
+      {},
+    );
+    expect(read?.queryKey).toEqual(
+      backendKey('org-1', 'automation', 'versions', 'ops/greet', {
+        limit: 1,
+        before: 5,
+      }),
+    );
+    const page = (await read?.queryFn()) as {
+      versions: Array<Record<string, unknown>>;
+      nextBefore: number | null;
+    };
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/greet/versions?limit=1&before=5&orgId=org-1',
+    );
+    // A field the server left out reads as unknown, never as absent.
+    expect(page.versions[0]).toMatchObject({
+      version: 4,
+      createdVia: 'mcp',
+      message: null,
+      testsPassed: null,
+      deployed: true,
+    });
+    expect(page.nextBefore).toBe(4);
+  });
+
+  it('refuses a page in a shape it does not read, instead of casting it', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, { versions: [{ version: 'four' }] }),
+    );
+    const read = automationReadAdapters[
+      'automations/queries:listVersionHistory'
+    ]?.({ organizationId: 'org-1', name: 'ops/greet', limit: 1 }, {});
+    await expect(read?.queryFn()).rejects.toThrow();
+  });
+
+  it('reads the deployment history from where the last page ended', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        live: {
+          version: 4,
+          deployedAt: 9_000,
+          deployedBy: 'u2',
+          via: 'app',
+          clientName: null,
+          activeRuns: 1,
+        },
+        deployments: [
+          {
+            id: 'e-4',
+            version: 4,
+            previousVersion: 5,
+            kind: 'rollback',
+            synthesized: false,
+            deployedAt: 9_000,
+            deployedBy: 'u2',
+            via: 'app',
+            clientName: null,
+          },
+        ],
+        nextBefore: null,
+      }),
+    );
+    const read = automationReadAdapters[
+      'automations/queries:listDeployments'
+    ]?.(
+      {
+        organizationId: 'org-1',
+        name: 'ops/greet',
+        limit: 10,
+        before: { at: 9_500, id: 'e-5' },
+      },
+      {},
+    );
+    const history = (await read?.queryFn()) as {
+      deployments: Array<{ kind: string }>;
+    };
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/ops/greet/deployments?limit=10&before=9500%3Ae-5&orgId=org-1',
+    );
+    expect(history.deployments[0]?.kind).toBe('rollback');
+  });
+
+  it('restores a version through its door', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(
+        jsonResponse(201, { name: 'ops/greet', version: 6, restoredFrom: 2 }),
+      );
+    await automationWriteAdapters[
+      'automations/mutations:restoreAutomationVersion'
+    ]?.run(
+      {
+        organizationId: 'org-1',
+        name: 'ops/greet',
+        version: 2,
+        baseVersion: 5,
+      },
+      {},
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/app/automations/ops/greet/restore?orgId=org-1',
+      expect.anything(),
+    );
+    expect(jsonBody(fetchSpy.mock.calls[0]?.[1])).toEqual({
+      version: 2,
+      baseVersion: 5,
+    });
+  });
+
+  it('carries the live version a deploy expects, null included', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(async () =>
+        jsonResponse(200, { name: 'ops/greet', version: 2 }),
+      );
+    const deploy =
+      automationWriteAdapters['automations/mutations:deployAutomation'];
+    await deploy?.run(
+      {
+        organizationId: 'org-1',
+        name: 'ops/greet',
+        version: 2,
+        expectedDeployedVersion: null,
+      },
+      {},
+    );
+    await deploy?.run(
+      { organizationId: 'org-1', name: 'ops/greet', version: 2 },
+      {},
+    );
+    expect(jsonBody(fetchSpy.mock.calls[0]?.[1])).toEqual({
+      version: 2,
+      expectedDeployedVersion: null,
+    });
+    expect(jsonBody(fetchSpy.mock.calls[1]?.[1])).toEqual({ version: 2 });
+  });
+
+  it('records what a draft was built from on a save', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(201, { name: 'ops/greet', version: 7 }));
+    await automationWriteAdapters['automations/mutations:saveAutomation']?.run(
+      {
+        organizationId: 'org-1',
+        automation: { version: 1, name: 'ops/greet', nodes: [] },
+        basedOnVersion: 5,
+      },
+      {},
+    );
+    expect(jsonBody(fetchSpy.mock.calls[0]?.[1])).toMatchObject({
+      basedOnVersion: 5,
+    });
+  });
+});

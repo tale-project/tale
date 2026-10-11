@@ -9,6 +9,10 @@
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import {
+  deploymentHistorySchema,
+  versionHistorySchema,
+} from '@/lib/shared/schemas/automation-versions';
+import {
   nodeTypeCatalogSchema,
   type NodeTypeCatalog,
 } from '@/lib/shared/schemas/node-type-catalog';
@@ -46,6 +50,8 @@ type AutomationCapabilitiesResult =
   ReturnsOf<'chat/composer:listAutomationCapabilities'>;
 type SaveAutomationResult = ReturnsOf<'automations/mutations:saveAutomation'>;
 type DeployResult = ReturnsOf<'automations/mutations:deployAutomation'>;
+type RestoreResult =
+  ReturnsOf<'automations/mutations:restoreAutomationVersion'>;
 type SetTriggerResult = ReturnsOf<'automations/mutations:setTrigger'>;
 type CancelRunResult = ReturnsOf<'automations/mutations:cancelRun'>;
 type DeleteAutomationResult =
@@ -114,6 +120,67 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<GetAutomationResult>(
           `/automations/${namePath(name)}${version === undefined ? '' : `?version=${version}`}`,
           { orgId },
+        ),
+    };
+  },
+  // A page of the version history: the rows parsed at the boundary, so a
+  // field the server leaves out reads as unknown (null) rather than absent.
+  'automations/queries:listVersionHistory': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    const limit = args.limit;
+    if (
+      orgId === undefined ||
+      typeof name !== 'string' ||
+      typeof limit !== 'number'
+    ) {
+      return null;
+    }
+    const before = typeof args.before === 'number' ? args.before : undefined;
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (before !== undefined) query.set('before', String(before));
+    return {
+      queryKey: backendKey(orgId, 'automation', 'versions', name, {
+        limit,
+        before: before ?? null,
+      }),
+      queryFn: async () =>
+        versionHistorySchema.parse(
+          await backendFetch<unknown>(
+            `/automations/${namePath(name)}/versions?${query.toString()}`,
+            { orgId },
+          ),
+        ),
+    };
+  },
+  'automations/queries:listDeployments': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    const query = new URLSearchParams();
+    if (typeof args.limit === 'number') query.set('limit', String(args.limit));
+    const before = args.before;
+    const position =
+      before !== null &&
+      typeof before === 'object' &&
+      'at' in before &&
+      'id' in before &&
+      typeof before.at === 'number' &&
+      typeof before.id === 'string'
+        ? `${String(before.at)}:${before.id}`
+        : undefined;
+    if (position !== undefined) query.set('before', position);
+    return {
+      queryKey: backendKey(orgId, 'automation', 'deployments', name, {
+        limit: query.get('limit'),
+        before: position ?? null,
+      }),
+      queryFn: async () =>
+        deploymentHistorySchema.parse(
+          await backendFetch<unknown>(
+            `/automations/${namePath(name)}/deployments${query.toString() === '' ? '' : `?${query.toString()}`}`,
+            { orgId },
+          ),
         ),
     };
   },
@@ -669,6 +736,11 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
             ...(typeof args.baseVersion === 'number'
               ? { baseVersion: args.baseVersion }
               : {}),
+            // What the draft was built from, without a check: "save
+            // anyway" after a stale refusal still records it.
+            ...(typeof args.basedOnVersion === 'number'
+              ? { basedOnVersion: args.basedOnVersion }
+              : {}),
           },
         },
       );
@@ -681,7 +753,34 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
         `/automations/${namePath(stringArg(args, 'name'))}/deploy`,
         {
           orgId: requireOrg(args, ctx),
-          body: { version: args.version },
+          body: {
+            version: args.version,
+            // Compare-and-set on the live version; `null` is "nothing
+            // live", so it rides as is.
+            ...(args.expectedDeployedVersion === null ||
+            typeof args.expectedDeployedVersion === 'number'
+              ? { expectedDeployedVersion: args.expectedDeployedVersion }
+              : {}),
+          },
+        },
+      ),
+    invalidate: invalidateAutomations,
+  },
+  'automations/mutations:restoreAutomationVersion': {
+    run: (args, ctx) =>
+      backendFetch<RestoreResult>(
+        `/automations/${namePath(stringArg(args, 'name'))}/restore`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            version: args.version,
+            ...(typeof args.message === 'string'
+              ? { message: args.message }
+              : {}),
+            ...(typeof args.baseVersion === 'number'
+              ? { baseVersion: args.baseVersion }
+              : {}),
+          },
         },
       ),
     invalidate: invalidateAutomations,
