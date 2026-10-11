@@ -1,7 +1,11 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
-import { forbiddenNameCharKind } from '../../../lib/shared/utils/plain-name.ts';
+import {
+  FOLDER_NAME_MAX,
+  folderNameReason,
+  type FolderNameReason,
+} from '../../../lib/shared/utils/folder-name.ts';
 import { audienceMirror, normalizeTeamIds } from '../../core/lib/audience.ts';
 
 /**
@@ -18,16 +22,10 @@ import { audienceMirror, normalizeTeamIds } from '../../core/lib/audience.ts';
  */
 
 export const MAX_FOLDER_DEPTH = 20;
-const FOLDER_NAME_MAX = 128;
 
 /** Why a folder name was refused — each reason has the one sentence a
  * refusal shows a person, so `FOLDER_NAME_INVALID` says what to fix. */
-export type FolderNameReason =
-  | 'blank'
-  | 'too_long'
-  | 'separator'
-  | 'control'
-  | 'dot';
+export type { FolderNameReason } from '../../../lib/shared/utils/folder-name.ts';
 
 const FOLDER_NAME_RULES: Readonly<Record<FolderNameReason, string>> = {
   blank: 'must not be blank',
@@ -65,15 +63,6 @@ export function validateFolderName(name: string): string {
   const reason = folderNameReason(canonical);
   if (reason !== undefined) throw new FolderNameError(reason);
   return canonical;
-}
-
-function folderNameReason(name: string): FolderNameReason | undefined {
-  if (name.length === 0) return 'blank';
-  if (name.length > FOLDER_NAME_MAX) return 'too_long';
-  const kind = forbiddenNameCharKind(name);
-  if (kind !== undefined) return kind;
-  if (name === '.' || name === '..') return 'dot';
-  return undefined;
 }
 
 async function findHubChild(

@@ -10,12 +10,9 @@ import * as z from 'zod';
 
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useT } from '@/lib/i18n/client';
-import { hasForbiddenNameChar } from '@/lib/shared/utils/plain-name';
+import { folderNameSchema } from '@/lib/shared/utils/folder-name';
 
 import { useRenameFolder } from '../hooks/mutations';
-
-/** The backend's cap on a folder name (`FOLDER_NAME_MAX`). */
-const FOLDER_NAME_MAX = 128;
 
 interface RenameFolderDialogProps {
   open: boolean;
@@ -40,16 +37,10 @@ export function RenameFolderDialog({
   const schema = useMemo(
     () =>
       z.object({
-        name: z
-          .string()
-          .trim()
-          .min(1, t('folder.nameRequired'))
-          .max(FOLDER_NAME_MAX, t('folder.invalidName'))
-          .refine(
-            (name) =>
-              !hasForbiddenNameChar(name) && name !== '.' && name !== '..',
-            t('folder.invalidName'),
-          ),
+        name: folderNameSchema(
+          t('folder.nameRequired'),
+          t('folder.invalidName'),
+        ),
       }),
     [t],
   );
