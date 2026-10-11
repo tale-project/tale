@@ -162,7 +162,7 @@ export interface SessionInfo {
   /** Whether this incarnation has inner Docker; absent on older spawners. */
   docker?: boolean;
   state: SandboxSessionState;
-  backend: 'docker' | 'kubernetes';
+  backend: 'docker' | 'kubernetes' | 'incus';
   createdAtMs: number;
   expiresAtMs: number;
   idleTimeoutMs: number;

@@ -18,7 +18,7 @@ import {
   sessionInstanceFilter,
 } from './session/session-naming.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
-import type { SpawnerConfig } from './types.ts';
+import type { SandboxBackendKind, SpawnerConfig } from './types.ts';
 
 export type RuntimeState = 'running' | 'starting' | 'stopped';
 
@@ -50,8 +50,10 @@ export interface HostResources {
 export interface SandboxCapacity {
   status: 'available';
   observedAt: number;
-  backend: 'docker' | 'kubernetes';
-  scope: 'host' | 'namespace';
+  backend: SandboxBackendKind;
+  /** What the session counts cover: the Docker host, a Kubernetes namespace
+   * or an Incus project. */
+  scope: 'host' | 'namespace' | 'project';
   sessions: {
     running: number;
     starting: number;
@@ -86,6 +88,11 @@ interface HostFacts {
   /** This process's /proc describes the Docker host: the standard local
    * socket and the daemon's own kernel. Totals must still agree per read. */
   local: boolean;
+}
+
+function capacityScope(backend: SandboxBackendKind): SandboxCapacity['scope'] {
+  if (backend === 'docker') return 'host';
+  return backend === 'incus' ? 'project' : 'namespace';
 }
 
 function unavailableResources(): HostResources {
@@ -243,7 +250,7 @@ export class CapacityReader {
       status: 'available',
       observedAt: snapshot.observedAt,
       backend: this.cfg.backend,
-      scope: this.cfg.backend === 'docker' ? 'host' : 'namespace',
+      scope: capacityScope(this.cfg.backend),
       sessions: {
         running: count(all, 'running'),
         starting: count(all, 'starting'),

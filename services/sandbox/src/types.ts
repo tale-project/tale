@@ -4,11 +4,16 @@
 
 import type { RuntimeTier } from './runtime-tier.ts';
 
+/** Where a deployment's session compute runs (env SANDBOX_BACKEND). */
+export type SandboxBackendKind = 'docker' | 'kubernetes' | 'incus';
+
 export interface SpawnerConfig {
   // Execution backend (env SANDBOX_BACKEND). 'docker' spawns sibling
   // containers via the host docker socket (Compose, the default);
-  // 'kubernetes' runs each execution as a Pod (Helm, Phase 2).
-  backend: 'docker' | 'kubernetes';
+  // 'kubernetes' runs each execution as a Pod (Helm, Phase 2); 'incus' runs
+  // each session as an Incus instance, reached over the Incus REST API with a
+  // project-restricted client certificate (docs/incus.md).
+  backend: SandboxBackendKind;
   port: number;
   // The shared HMAC secret (env SANDBOX_TOKEN) every state-changing route is
   // verified against, and the key the per-session runnerd tokens derive from.
@@ -128,6 +133,9 @@ export interface SpawnerConfig {
     tolerations?: readonly K8sToleration[];
     priorityClassName?: string;
   };
+  // Incus-backend settings (env SANDBOX_INCUS_*). Present only when
+  // backend === 'incus': they have no defaults to fall back on.
+  incus?: IncusConfig;
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls
   // in-place via a serialized drain — no blue/green colour, so no per-colour
@@ -167,6 +175,51 @@ export interface SpawnerConfig {
   // session routes + session backends only — the one-shot /v1/execute path
   // never reads these.
   session: SessionConfig;
+}
+
+/**
+ * The Incus backend's settings, validated by `readIncusConfig`
+ * (backend/incus/incus-config.ts). Every name is one the operator created on
+ * the Incus side (docs/incus.md lists them); the backend only looks them up.
+ */
+export interface IncusConfig {
+  /** Origin of the Incus REST API, `https://host:port`. */
+  endpoint: string;
+  /** The project every session instance, workspace volume and image lives in
+   * (a restricted project the spawner's client certificate is limited to). */
+  project: string;
+  /** Profile applied to every session; it owns the NIC with its ACL. */
+  profile: string;
+  /** The managed network the profile's NIC must be on. */
+  network: string;
+  /** Storage pool of the workspace volumes. */
+  storagePool: string;
+  /** Local image alias the sessions are created from. */
+  image: string;
+  /** Where the alias is pulled from while it is missing (an OCI registry). */
+  imageSource?: { server: string; alias: string };
+  /** PEM files, mounted read-only into the spawner. */
+  clientCertFile: string;
+  clientKeyFile: string;
+  /** The server certificate the connection is pinned to. */
+  serverCertFile: string;
+  /** Started standby instances kept ready for a handout; 0 turns the pool off. */
+  poolSize: number;
+  /** Quota of a workspace volume, as Incus reads sizes (`10GiB`). */
+  workspaceSize: string;
+  /** Give a session a `/dev/shm` tmpfs of its own (Chromium crashes on the
+   * 64 MiB the image mounts). It needs the project to admit tmpfs disks. */
+  shmDevice: boolean;
+  /** Its size, as Incus reads sizes; unset, the session profile's own. */
+  shmSize?: string;
+  /** Nameservers handed to a session (default: the egress proxy's address). */
+  dns: readonly string[];
+  /** Instance config added to a session with Docker inside. */
+  dockerConfig: Readonly<Record<string, string>>;
+  /** Lab escape hatch: run without an ACL on the sandbox network. */
+  allowUnfilteredNetwork: boolean;
+  /** Budget of one Incus API request. */
+  apiTimeoutMs: number;
 }
 
 /** A Pod toleration, as the apiserver accepts it (validated by loadConfig). */
