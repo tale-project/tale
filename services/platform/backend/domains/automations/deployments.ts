@@ -329,6 +329,34 @@ export async function listDeploymentEvents(
   return { live, events, nextBefore };
 }
 
+/** A history event as the doors answer it (`deploymentEntrySchema`): its
+ * time as `deployedAt`, who as `deployedBy`. */
+export function deploymentEventWire(event: DeploymentEventRow) {
+  return {
+    id: event.id,
+    version: event.version,
+    previousVersion: event.previousVersion,
+    kind: event.kind,
+    synthesized: event.synthesized,
+    deployedAt: event.at,
+    deployedBy: event.actor,
+    via: event.via,
+    clientName: event.clientName,
+  };
+}
+
+/** What is live as the doors answer it (the history's `live`). */
+export function liveDeploymentWire(live: LiveDeployment) {
+  return {
+    version: live.version,
+    deployedAt: live.since,
+    deployedBy: live.actor,
+    via: live.via,
+    clientName: live.clientName,
+    activeRuns: live.activeRuns,
+  };
+}
+
 /** One deploy as `list_versions` answers it beside the versions. */
 export interface RecentDeployment {
   version: number;

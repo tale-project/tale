@@ -66,6 +66,7 @@ import {
   deleteTrigger,
   deployedVersion,
   deploy as deployVersion,
+  type DeployResult,
   getPendingAskForRun,
   getRun,
   listAutomations,
@@ -224,10 +225,24 @@ function asJsonObject(value: object | null): Record<string, unknown> | null {
   return value === null ? null : Object.fromEntries(Object.entries(value));
 }
 
+/** The engine store over Postgres: a `DispatchStore` whose deploy answers
+ * the store's whole result — the deployment's kind and id, and the trigger
+ * that starts the version now — for the app's door to answer in full. */
+export type PgAutomationStore = Omit<DispatchStore, 'deploy'> & {
+  deploy(
+    name: string,
+    version: number,
+    options?: {
+      testsPassed?: boolean;
+      expectedDeployedVersion?: number | null;
+    },
+  ): Promise<DeployResult>;
+};
+
 export function pgAutomationStore(
   sql: Sql,
   scope: PgStoreScope,
-): DispatchStore {
+): PgAutomationStore {
   const { organizationId, origin } = scope;
   const { actor } = origin;
   // Who reads, and which projects they can read — asked once per store

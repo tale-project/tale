@@ -42,6 +42,11 @@ import {
   readApprovalAllowanceRows,
   setApprovalAllowances,
 } from './approval-allowances.ts';
+import {
+  deploymentEventWire,
+  listDeploymentEvents,
+  liveDeploymentWire,
+} from './deployments.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { legacyRunStopSchema } from './legacy-quarantine.ts';
 import {
@@ -86,7 +91,6 @@ import {
   listRunsPage,
   listTriggerRuns,
   listTriggers,
-  listVersions,
   saveVersion,
   setAutomationProjects,
   setTrigger,
@@ -96,9 +100,17 @@ import {
   versionRow,
   deployedVersion,
   bindingProjectIds,
+  type DeployResult,
+  type SavedVersion,
 } from './store.ts';
 import { listTemplateCards, prepareTemplateInstance } from './templates.ts';
 import { uploadAutomationPg } from './upload.ts';
+import {
+  listVersionHistory,
+  readRestoreSource,
+  restoreSaveArgs,
+  versionHistoryWire,
+} from './versions.ts';
 
 /**
  * The open in-doubt write as the app reads it: the ledger's attempt, plus
@@ -140,9 +152,36 @@ const saveSchema = z.object({
   // The version the editor's draft started from; the store refuses the save
   // (409 AUTOMATION_VERSION_STALE) when another version landed since.
   baseVersion: z.number().int().min(1).optional(),
+  // The version the draft was built from, recorded on the new version without
+  // a check — "save anyway" after a stale refusal saves without a base, but
+  // its draft still started from that version.
+  basedOnVersion: z.number().int().min(1).optional(),
 });
 
-const deploySchema = z.object({ version: z.number().int().min(1) });
+const deploySchema = z.object({
+  version: z.number().int().min(1),
+  // Compare-and-set on the live version: the one the caller read as live
+  // (`null`: nothing deployed). Another one live refuses the deploy (409
+  // AUTOMATION_DEPLOYMENT_STALE, naming who put it live). Absent, no check.
+  expectedDeployedVersion: z.number().int().min(1).nullable().optional(),
+});
+
+// An older version brought back as the newest: the message it gets ("Restore
+// vN" when left out), and the latest version the caller read — a version
+// saved since refuses the restore, as it does a save.
+const restoreSchema = z.object({
+  version: z.number().int().min(1),
+  message: z.string().trim().min(1).max(500).optional(),
+  baseVersion: z.number().int().min(1).optional(),
+});
+
+/** A history page's size and position from the query string: `limit` a
+ * whole number from 1, `before` what the last page answered. Absent or
+ * unreadable, none. */
+function pageLimit(raw: string | undefined): number | undefined {
+  const limit = Number(raw ?? Number.NaN);
+  return Number.isInteger(limit) && limit >= 1 ? limit : undefined;
+}
 
 // A draft checked without saving it: the document as the editor holds it, and
 // which parts of the analysis to answer beside the issues (the analysis by
@@ -1115,6 +1154,7 @@ export function createAutomationRoutes(deps: {
       };
       const store = pgAutomationStore(deps.sql, scope);
       let storeError: unknown;
+      let saved: SavedVersion | undefined;
       const result = await dispatch(
         'save_automation',
         {
@@ -1151,15 +1191,33 @@ export function createAutomationRoutes(deps: {
                 ...(body.data.baseVersion !== undefined
                   ? { baseVersion: body.data.baseVersion }
                   : {}),
-              }).catch((error: unknown) => {
-                storeError = error;
-                throw error;
-              }),
+                ...(body.data.basedOnVersion !== undefined
+                  ? { basedOnVersion: body.data.basedOnVersion }
+                  : {}),
+              }).then(
+                (answer) => {
+                  saved = answer;
+                  return answer;
+                },
+                (error: unknown) => {
+                  storeError = error;
+                  throw error;
+                },
+              ),
           },
         },
       );
       if (storeError !== undefined) throw storeError;
-      return authoringRefusal(c, result) ?? c.json(result, 201);
+      // What the new version changed, beside the engine's answer.
+      return (
+        authoringRefusal(c, result) ??
+        c.json(
+          isRecord(result) && saved?.changes !== undefined
+            ? { ...result, changes: saved.changes }
+            : result,
+          201,
+        )
+      );
     } catch (error) {
       return handleError(c, error);
     }
@@ -1214,27 +1272,128 @@ export function createAutomationRoutes(deps: {
         origin: editorOrigin(c),
       });
       let storeError: unknown;
+      let deployed: DeployResult | undefined;
       const result = await dispatch(
         'deploy_automation',
         {
           name: nameFrom(c, 'deploy'),
           version: body.data.version,
+          ...(body.data.expectedDeployedVersion !== undefined && {
+            expectedDeployedVersion: body.data.expectedDeployedVersion,
+          }),
         },
         {
           store: {
             ...store,
             deploy: (...args) =>
-              store.deploy(...args).catch((error: unknown) => {
-                storeError = error;
-                throw error;
-              }),
+              store.deploy(...args).then(
+                (answer) => {
+                  deployed = answer;
+                  return answer;
+                },
+                (error: unknown) => {
+                  storeError = error;
+                  throw error;
+                },
+              ),
           },
         },
       );
       if (storeError !== undefined) throw storeError;
+      // The store's whole answer: what was live before, whether it rolled
+      // back or changed nothing, and the trigger that starts the version now
+      // — the editor's notice when that trigger is off.
       return (
         authoringRefusal(c, result) ??
-        c.json(isRecord(result) ? result.deployed : result)
+        c.json(deployed ?? (isRecord(result) ? result.deployed : result))
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Bring an older version back as the newest. Its document passes the
+  // save's own checks and runs its own tests, as any save does, and is then
+  // saved restored from that version (201) — or nothing is saved when its
+  // content is the latest already (200, `unchanged`). Never a deploy: the
+  // live version stays live.
+  app.post('/:name{.+}/restore', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = restoreSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      assembleAutomationAuthoringHost();
+      const organizationId = c.get('orgId');
+      const name = nameFrom(c, 'restore');
+      const source = await readRestoreSource(
+        deps.sql,
+        organizationId,
+        name,
+        body.data.version,
+      );
+      const restore = restoreSaveArgs(source, {
+        organizationId,
+        name,
+        origin: editorOrigin(c),
+        ...(body.data.message !== undefined && { message: body.data.message }),
+        ...(body.data.baseVersion !== undefined && {
+          baseVersion: body.data.baseVersion,
+        }),
+      });
+      const store = pgAutomationStore(deps.sql, {
+        organizationId,
+        origin: restore.origin,
+      });
+      let storeError: unknown;
+      let saved: SavedVersion | undefined;
+      const result = await dispatch(
+        'save_automation',
+        { automation: source.document, message: restore.message },
+        {
+          store: {
+            ...store,
+            save: (automation, _message, options) =>
+              saveVersion(deps.sql, {
+                ...restore,
+                document: automation,
+                ...(options?.testsPassed !== undefined
+                  ? { testsPassed: options.testsPassed }
+                  : {}),
+              }).then(
+                (answer) => {
+                  saved = answer;
+                  return answer;
+                },
+                (error: unknown) => {
+                  storeError = error;
+                  throw error;
+                },
+              ),
+          },
+        },
+      );
+      if (storeError !== undefined) throw storeError;
+      const refused = authoringRefusal(c, result);
+      if (refused !== null) return refused;
+      if (saved === undefined) {
+        throw new Error('the restore passed its checks but saved nothing');
+      }
+      const unchanged = saved.unchanged === true;
+      return c.json(
+        {
+          name,
+          version: saved.version,
+          restoredFrom: source.version,
+          ...(unchanged && { unchanged: true }),
+          ...(isRecord(result) && typeof result.testsPassed === 'boolean'
+            ? { testsPassed: result.testsPassed }
+            : {}),
+          ...(isRecord(result) && Array.isArray(result.warnings)
+            ? { warnings: result.warnings }
+            : {}),
+        },
+        unchanged ? 200 : 201,
       );
     } catch (error) {
       return handleError(c, error);
@@ -1367,13 +1526,74 @@ export function createAutomationRoutes(deps: {
     }
   });
 
+  // The version history, newest first: who saved each version, through
+  // which door, what it was based on and changed, its tests, whether it is
+  // live. `limit` asks for a page (`before`: the oldest version the last
+  // page answered); without it the answer holds every version, as the
+  // version picker has always read it.
   app.get('/:name{.+}/versions', async (c) => {
+    const orgId = c.get('orgId');
+    const name = nameFrom(c, 'versions');
+    const limit = pageLimit(c.req.query('limit'));
+    const before = pageLimit(c.req.query('before'));
+    if (limit !== undefined) {
+      const page = await listVersionHistory(deps.sql, orgId, name, {
+        limit,
+        ...(before !== undefined && { before }),
+      });
+      return c.json({
+        versions: page.versions.map(versionHistoryWire),
+        nextBefore: page.nextBefore,
+        latestVersion: page.latestVersion,
+        deployedVersion: page.deployedVersion,
+      });
+    }
+    const all = await listVersionHistory(deps.sql, orgId, name, {
+      limit: 200,
+    });
+    const versions = [...all.versions];
+    let next = all.nextBefore;
+    while (next !== null) {
+      const page = await listVersionHistory(deps.sql, orgId, name, {
+        limit: 200,
+        before: next,
+      });
+      versions.push(...page.versions);
+      next = page.nextBefore;
+    }
     return c.json({
-      versions: await listVersions(
-        deps.sql,
-        c.get('orgId'),
-        nameFrom(c, 'versions'),
-      ),
+      versions: versions.map(versionHistoryWire),
+      nextBefore: null,
+      latestVersion: all.latestVersion,
+      deployedVersion: all.deployedVersion,
+    });
+  });
+
+  // When each version went live, newest first, a page at a time (`before`:
+  // `<at>:<id>` of the oldest event the last page answered), and what is
+  // live now with its runs still going.
+  app.get('/:name{.+}/deployments', async (c) => {
+    const raw = c.req.query('before') ?? '';
+    const split = raw.indexOf(':');
+    const at = Number(split > 0 ? raw.slice(0, split) : Number.NaN);
+    const before =
+      Number.isSafeInteger(at) && split < raw.length - 1
+        ? { at, id: raw.slice(split + 1) }
+        : undefined;
+    const limit = pageLimit(c.req.query('limit'));
+    const history = await listDeploymentEvents(
+      deps.sql,
+      c.get('orgId'),
+      nameFrom(c, 'deployments'),
+      {
+        ...(limit !== undefined && { limit }),
+        ...(before !== undefined && { before }),
+      },
+    );
+    return c.json({
+      live: history.live === null ? null : liveDeploymentWire(history.live),
+      deployments: history.events.map(deploymentEventWire),
+      nextBefore: history.nextBefore,
     });
   });
 
@@ -1536,6 +1756,14 @@ export function createAutomationRoutes(deps: {
           : await versionRow(deps.sql, orgId, name, deployed);
     const unpinned =
       deployedRow === null ? [] : unpinnedAgentNodeIds(deployedRow.document);
+    // The shown version as its history reads it: the door it was saved
+    // through, its lineage and what it changed; and which version is the
+    // latest, so a reader of an older one knows it is not.
+    const history = await listVersionHistory(deps.sql, orgId, name, {
+      before: row.version + 1,
+      limit: 1,
+    });
+    const shown = history.versions[0];
     return c.json({
       name: row.name,
       version: row.version,
@@ -1555,6 +1783,17 @@ export function createAutomationRoutes(deps: {
       ...(unpinned.length > 0 ? { deployedUnpinnedAgentNodes: unpinned } : {}),
       createdBy: row.createdBy,
       createdAt: row.createdAt,
+      ...(history.latestVersion !== null && {
+        latestVersion: history.latestVersion,
+      }),
+      ...(shown?.version === row.version && {
+        createdVia: shown.via,
+        viaInferred: shown.viaInferred,
+        clientName: shown.clientName,
+        basedOnVersion: shown.basedOnVersion,
+        restoredFromVersion: shown.restoredFromVersion,
+        changes: shown.changes,
+      }),
     });
   });
 
