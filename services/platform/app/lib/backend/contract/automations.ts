@@ -7,11 +7,13 @@
  * actually serve them.
  */
 
+import type { TemplateAnswers } from '@tale/shared/schemas/automation-template';
 import type {
   TriggerView,
   TriggerWrite,
 } from '@tale/shared/schemas/automation-trigger';
 
+import type { AutomationTemplateCard } from '@/backend/domains/automations/templates';
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 import type { Issue } from '@/lib/engine/core/types';
 export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
@@ -265,6 +267,21 @@ export interface AutomationsContract {
     args: { organizationId: string; name: string; allowed: string[] };
     returns: { granted: string[]; withdrawn: string[] };
   };
+  'automations/mutations:createAutomationFromTemplate': {
+    kind: 'mutation';
+    /** Create an automation from the starter `slug`, with the answers to
+     * its questions; `locale` words the defaults the starter offers in the
+     * creator's language. */
+    args: {
+      organizationId: string;
+      slug: string;
+      name: string;
+      displayName: string;
+      answers: TemplateAnswers;
+      locale?: string;
+    };
+    returns: { name: string; version: number; warnings?: unknown[] };
+  };
   'automations/mutations:setAutomationProjects': {
     kind: 'mutation';
     args: { organizationId: string; name: string; projectIds: string[] };
@@ -478,6 +495,11 @@ export interface AutomationsContract {
       /** Whether the reader may change them: an owner or an admin. */
       canGrant: boolean;
     };
+  };
+  'automations/queries:listAutomationTemplates': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: { templates: AutomationTemplateCard[] };
   };
   'automations/queries:listAutomationProjects': {
     kind: 'query';

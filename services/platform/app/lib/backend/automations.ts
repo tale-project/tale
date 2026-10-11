@@ -178,6 +178,18 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         }>(`/automations/${namePath(name)}/approval-allowances`, { orgId }),
     };
   },
+  'automations/queries:listAutomationTemplates': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'automation', 'templates'),
+      queryFn: () =>
+        backendFetch<ReturnsOf<'automations/queries:listAutomationTemplates'>>(
+          '/automation-templates',
+          { orgId },
+        ),
+    };
+  },
   'automations/queries:listAutomationProjects': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const name = args.name;
@@ -709,6 +721,25 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
           orgId: requireOrg(args, ctx),
           method: 'PUT',
           body: { allowed: args.allowed ?? [] },
+        },
+      ),
+    invalidate: invalidateAutomations,
+  },
+  'automations/mutations:createAutomationFromTemplate': {
+    run: (args, ctx) =>
+      backendFetch<
+        ReturnsOf<'automations/mutations:createAutomationFromTemplate'>
+      >(
+        `/automation-templates/${encodeURIComponent(stringArg(args, 'slug'))}/instantiate`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'POST',
+          body: {
+            name: stringArg(args, 'name'),
+            displayName: stringArg(args, 'displayName'),
+            answers: args.answers ?? {},
+            ...(typeof args.locale === 'string' && { locale: args.locale }),
+          },
         },
       ),
     invalidate: invalidateAutomations,

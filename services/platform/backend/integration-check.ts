@@ -82,6 +82,7 @@ import { checkManagedAutomationConfiguration } from './domains/automations/manag
 import { checkAutomationNodeRuns } from './domains/automations/node-runs.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-github-schedules.integration.ts';
+import { checkAutomationTemplates } from './domains/automations/templates.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
@@ -65059,6 +65060,10 @@ async function main(): Promise<void> {
       [
         'checkApprovalAllowances',
         () => checkApprovalAllowances(sql, authCtx, record),
+      ],
+      [
+        'checkAutomationTemplates',
+        () => checkAutomationTemplates(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskSourceThread',

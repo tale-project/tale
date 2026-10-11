@@ -21,7 +21,10 @@ import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createApiKeyRoutes } from './domains/api_keys/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
-import { createAutomationRoutes } from './domains/automations/routes.ts';
+import {
+  createAutomationRoutes,
+  createAutomationTemplateRoutes,
+} from './domains/automations/routes.ts';
 import { createWebhookRoutes } from './domains/automations/triggers.ts';
 import { createBrandingRoutes } from './domains/branding/routes.ts';
 import { createChangelogRoutes } from './domains/changelog/routes.ts';
@@ -395,6 +398,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/deployment', createDeploymentRoutes(deps));
   app.route('/api/app/object-storage', createObjectStorageRoutes(deps));
   app.route('/api/app/automations', createAutomationRoutes(deps));
+  app.route(
+    '/api/app/automation-templates',
+    createAutomationTemplateRoutes(deps),
+  );
   app.route('/api/app/chat', createChatRoutes(deps));
   app.route('/api/app/changelog', createChangelogRoutes(deps));
   app.route('/api/app/collab', createCollabRoutes(deps));

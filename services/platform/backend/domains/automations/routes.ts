@@ -1,5 +1,6 @@
 import { REPLAY_KINDS } from '@tale/shared/automation-replay';
 import { appReplayRequestSchema } from '@tale/shared/schemas/automation-replay';
+import { templateAnswersSchema } from '@tale/shared/schemas/automation-template';
 import { triggerWriteSchema } from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
@@ -95,6 +96,7 @@ import {
   deployedVersion,
   bindingProjectIds,
 } from './store.ts';
+import { listTemplateCards, prepareTemplateInstance } from './templates.ts';
 import { uploadAutomationPg } from './upload.ts';
 
 /**
@@ -1547,6 +1549,122 @@ export function createAutomationRoutes(deps: {
       createdBy: row.createdBy,
       createdAt: row.createdAt,
     });
+  });
+
+  return app;
+}
+
+/** A create from a starter: the automation's name and shown name, the
+ * answers to the starter's questions, and the creator's language. */
+const instantiateSchema = z.object({
+  name: z.string().min(1).max(200),
+  displayName: z.string().trim().min(1).max(200),
+  answers: templateAnswersSchema,
+  locale: z
+    .string()
+    .regex(/^[a-z]{2}(-[A-Z]{2})?$/)
+    .optional(),
+});
+
+/**
+ * The starters a person creates an automation from (`templates.ts`), at
+ * `/api/app/automation-templates` — beside the automations' own routes, so
+ * no automation name is taken from authors. Authors list them and create
+ * from one: the first version is saved through the editor's save — checked,
+ * its tests run — installed in the project the answers name, and the
+ * starter's trigger is set, off until a deploy turns it on.
+ */
+export function createAutomationTemplateRoutes(deps: {
+  sql: Sql;
+  auth: Auth;
+}): Hono<OrgEnv> {
+  const app = new Hono<OrgEnv>();
+  app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+
+  const requireAuthor = (c: Context<OrgEnv>): Response | null =>
+    isAdminOrDeveloperRole(c.get('orgMember').role)
+      ? null
+      : c.json({ error: 'admin or developer role required' }, 403);
+
+  app.get('/', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    return c.json({
+      templates: await listTemplateCards(deps.sql, c.get('orgId')),
+    });
+  });
+
+  app.post('/:slug/instantiate', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = instantiateSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const organizationId = c.get('orgId');
+      const actor = c.get('sessionBundle').user.id;
+      const prepared = await prepareTemplateInstance(deps.sql, {
+        organizationId,
+        slug: c.req.param('slug'),
+        name: body.data.name,
+        displayName: body.data.displayName,
+        answers: body.data.answers,
+        ...(body.data.locale !== undefined && { locale: body.data.locale }),
+        visibleProjectIds: await readableProjectIds(
+          deps.sql,
+          await getProjectAuthContext(deps.sql, {
+            organizationId,
+            userId: actor,
+            role: c.get('orgMember').role,
+          }),
+        ),
+      });
+      assembleAutomationAuthoringHost();
+      const scope = { organizationId, actor };
+      const store = pgAutomationStore(deps.sql, scope);
+      let storeError: unknown;
+      const result = await dispatch(
+        'save_automation',
+        { automation: prepared.document, message: prepared.message },
+        {
+          store: {
+            ...store,
+            save: (automation, message, options) =>
+              saveVersion(deps.sql, {
+                ...scope,
+                name: body.data.name,
+                document: automation,
+                origin: { via: 'app' },
+                create: true,
+                presentation: prepared.presentation,
+                ...(message !== undefined ? { message } : {}),
+                ...(options?.testsPassed !== undefined
+                  ? { testsPassed: options.testsPassed }
+                  : {}),
+                ...(prepared.projectId !== undefined
+                  ? { projectId: prepared.projectId }
+                  : {}),
+              }).catch((error: unknown) => {
+                storeError = error;
+                throw error;
+              }),
+          },
+        },
+      );
+      if (storeError !== undefined) throw storeError;
+      const refused = authoringRefusal(c, result);
+      if (refused !== null) return refused;
+      if (prepared.trigger !== undefined) {
+        await setTrigger(deps.sql, {
+          organizationId,
+          name: body.data.name,
+          trigger: prepared.trigger,
+          actor,
+        });
+      }
+      return c.json(result, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   return app;
