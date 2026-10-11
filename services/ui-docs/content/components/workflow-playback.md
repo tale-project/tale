@@ -36,6 +36,22 @@ Each box shows its state's glyph and says its state in its name, such as "Classi
 
 When the run failed, the canvas brings forward the way the run took to the first failure and steps back from the rest. The line into the failed node turns red. Without an error line, the failed node's strip says "The run stopped here". Set `focusFailure={false}` to show the run without the focus. A `highlight` you pass wins over it.
 
+## Show simulated and held-back nodes
+
+<Demo name="flow/stand-ins" />
+
+A test or a preview does not always do a node's real work. Give the node's run info a `substitute` to say what stood in for it: a `kind`, and your words as `label`. The canvas shows a chip with the kind's glyph and your words at the start of the node's strip, at the strip's height, so no box changes size. The words are also said in the node's description and in its List view lines.
+
+| `kind` | When | The box |
+| --- | --- | --- |
+| `simulated` | A test gave the node's output. | A flask on the chip |
+| `pinned` | The node's output was kept from an earlier run. | A pin on the chip |
+| `failure` | A test made the node fail. | A lightning bolt on the chip; the failed frame stays |
+| `held` | A preview held back a write. | A pause sign on the chip |
+| `left-out` | A test leaves the node out. | A dashed circle on the chip and a dashed border, as a node that does not run |
+
+Choose **A preview** in the example to see a held-back write. Write the label in the reader's language, such as "Simulated output" or "Not sent — preview"; the package adds no words of its own to the chip.
+
 ## Replay a run
 
 <Demo name="flow/playback" />

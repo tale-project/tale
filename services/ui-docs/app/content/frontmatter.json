@@ -139,6 +139,13 @@
       "description": "Choose local panels or route navigation, preserve drafts deliberately, and keep every destination reachable."
     }
   },
+  "components/test-results": {
+    "slug": "components/test-results",
+    "frontmatter": {
+      "title": "Test results",
+      "description": "List the results of a run of tests, count and announce the run, and say how much of a document the tests cover."
+    }
+  },
   "components/thread": {
     "slug": "components/thread",
     "frontmatter": {
@@ -165,6 +172,13 @@
     "frontmatter": {
       "title": "Value tree",
       "description": "Show a JSON value a person can read and walk with the keyboard, with what a recorder left out as chips and highlights by JSON pointer."
+    }
+  },
+  "components/workbench-dock": {
+    "slug": "components/workbench-dock",
+    "frontmatter": {
+      "title": "Workbench dock",
+      "description": "Dock panels such as Problems and Tests under an editor's canvas, switch between them, and show them as a sheet where there is no room."
     }
   },
   "components/workflow-canvas": {

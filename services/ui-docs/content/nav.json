@@ -35,6 +35,8 @@
         "components/change-list",
         "components/format-duration",
         "components/issue-list",
+        "components/test-results",
+        "components/workbench-dock",
         "components/flow-node-issues",
         "components/workflow-canvas",
         "components/workflow-paths",

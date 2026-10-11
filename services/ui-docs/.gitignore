@@ -4,7 +4,9 @@ storybook-static
 .turbo
 .vite
 *.tsbuildinfo
-test-results
+# Playwright writes its output beside its config; anchored, so a demo
+# family of the same name stays tracked.
+/test-results
 playwright-report
 .env
 .env.local
