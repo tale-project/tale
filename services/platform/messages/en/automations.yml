@@ -706,6 +706,8 @@ versions:
     downloadYaml: Download YAML
     history: Version history
     downloadFailed: 'v{version} could not be downloaded'
+    whatChanged: What changed
+    compareWithLive: Compare with live
 deployments:
   caption: When each version went live
   empty: No version has gone live yet.
@@ -716,6 +718,7 @@ deployments:
     title: 'v{version} is live'
     since: 'Since {date}'
     activeRuns: '{count, plural, =0 {No runs of v{version} are in progress.} one {# run of v{version} is in progress; it finishes on v{version}.} other {# runs of v{version} are in progress; they finish on v{version}.}}'
+    compare: 'Compare v{from} with v{to}'
   none: No version is live yet. Triggers and live runs start only after you deploy one.
   kind:
     deploy: 'Deployed v{version}'
@@ -763,6 +766,60 @@ restore:
     saved: 'v{next} saved from v{version}.'
     unchanged: 'v{latest} already matches v{version}. Nothing was saved.'
     open: 'Open v{next}'
+compare:
+  title: 'Changes from v{from} to v{to}'
+  missing: 'There is no v{version} of this automation.'
+  backToVersions: Back to the versions
+  moreActions: 'More actions for v{version}'
+  from:
+    label: Compare with
+    none: Nothing to compare with
+  option:
+    previous: 'v{version} · the version before'
+    live: 'v{version} · live'
+    basedOn: 'v{version} · based on'
+  summary:
+    label: What changed
+    node: '{fields} changed'
+    references: Reads a renamed node by its new name
+  views:
+    label: View
+    graph: Graph
+    changes: Changes
+    yaml: YAML
+  graph:
+    ariaLabel: 'Changes from {from} to {to}'
+    side: Show
+  side:
+    changes: Changes
+  identical:
+    title: 'No differences between v{from} and v{to}'
+    messageOnly: Only the message is different.
+  firstVersion: 'v{version} is the first version; everything in it is new.'
+  panel:
+    label: Changes of the node
+    close: Hide the node's changes
+    unchanged: This node did not change.
+  sections:
+    start: 'Start: run inputs'
+    nodes: Nodes
+    end: 'End: output'
+    tests: Tests
+    package: Package data
+  inputs:
+    schema: The input schema
+    nowRequired: Now required
+    noLongerRequired: No longer required
+    type: 'Type {before} → {after}'
+  package:
+    settings: Settings
+    taskContract: Task contract
+    presentation: Presentation
+  renamedFrom: 'Was {name}'
+  alsoUpdated: '{count, plural, one {Also updated in # node that reads it} other {Also updated in # nodes that read it}}'
+  showOnGraph: Show on the graph
+  footer:
+    notVersioned: Triggers and projects belong to the automation, not to a version.
 upload:
   trigger: Upload package
   title: Upload package

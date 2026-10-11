@@ -163,10 +163,26 @@ describe('VersionHistoryTable', () => {
     expect(within(row(/^v5/)).getByText('No result')).toBeVisible();
   });
 
-  it('opens a version in the editor from its row', async () => {
+  it('opens what a version changed from its row, and compares it with live from its menu', async () => {
     const { user } = renderTable();
     await user.click(within(row(/^v2/)).getByText('Change 2'));
     expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/automations/$automationSlug/versions/$version',
+      params: { id: 'org-1', automationSlug: 'ops__digest', version: '2' },
+      search: {},
+    });
+    await user.click(screen.getByRole('button', { name: 'Actions for v2' }));
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Compare with live' }),
+    );
+    expect(navigate).toHaveBeenLastCalledWith({
+      to: '/dashboard/$id/automations/$automationSlug/versions/$version',
+      params: { id: 'org-1', automationSlug: 'ops__digest', version: '2' },
+      search: { from: 4 },
+    });
+    await user.click(screen.getByRole('button', { name: 'Actions for v2' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Open in editor' }));
+    expect(navigate).toHaveBeenLastCalledWith({
       to: '/dashboard/$id/automations/$automationSlug/editor',
       params: { id: 'org-1', automationSlug: 'ops__digest' },
       search: { version: 2 },
@@ -210,7 +226,12 @@ describe('VersionHistoryTable', () => {
     );
     expect(
       screen.getAllByRole('menuitem').map((item) => item.textContent),
-    ).toEqual(['Open in editor', 'Download YAML']);
+    ).toEqual([
+      'What changed',
+      'Compare with live',
+      'Open in editor',
+      'Download YAML',
+    ]);
     await second.user.click(
       screen.getByRole('menuitem', { name: 'Download YAML' }),
     );

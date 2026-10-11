@@ -31,10 +31,11 @@ Pass `sections` and an `aria-label`. Each section has a `title`, an optional `de
 | `summary`  | A few words on the row's trailing edge, such as "Model changed".         |
 | `detail`   | What opening the row shows: its fields' changes.                         |
 | `icon`     | The item's own glyph, beside its title.                                  |
+| `activatable` | `false` when the item has nothing to show elsewhere: no action.       |
 
 A row with a `detail` opens with Enter, Space or a click, below itself, and closes the same way. The details fade in; their height is never animated, and under reduced motion they are there at once. `defaultExpanded` opens `none`, the `first` row or `all` of them at the start; pass `expanded` and `onExpandedChange` to hold the open rows yourself.
 
-Pass `onActivate` and `activateLabel`, such as "Show on the graph", and an open row offers that action below its details. A row without details does the action when it is chosen, and a row with neither details nor an action is plain text, not a control. Pass the id of the item you show as `activeId`: its row is marked with `aria-current`, and the keyboard starts there next time.
+Pass `onActivate` and `activateLabel`, such as "Show on the graph", and an open row offers that action below its details. A row without details does the action when it is chosen, and a row with neither details nor an action is plain text, not a control. Set an item's `activatable` to `false` when what it changed has no place to be shown, such as a test on a page whose graph shows only nodes: its row offers no action. Pass the id of the item you show as `activeId`: its row is marked with `aria-current`, and the keyboard starts there next time.
 
 ## Move through the list with the keyboard
 

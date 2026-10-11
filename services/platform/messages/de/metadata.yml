@@ -32,6 +32,9 @@ automationRuns:
 automationVersions:
   title: Automatisierungsversionen
   description: Sieh jede Version der Automatisierung, was live ist und wann welche Version live ging.
+automationVersionCompare:
+  title: Automatisierungsversionen vergleichen
+  description: Sieh, was sich zwischen zwei Versionen einer Automatisierung geändert hat.
 documents:
   title: Dokumente
   description: deine Wissensdatenbank-Dokumente verwalten.

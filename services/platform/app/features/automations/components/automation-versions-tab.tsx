@@ -3,19 +3,14 @@
 import { ContentArea } from '@tale/ui/content-area';
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
-import { toast } from '@tale/ui/use-toast';
-import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
-import { ensureAdaptedQueryData } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomation, useAutomationLiveDeployment } from '../hooks/queries';
 import { useDeployVersion } from '../hooks/use-deploy-version';
-import { rawDocumentOf } from '../lib/draft-document';
-import { automationErrorMessage } from '../lib/errors';
-import { downloadYaml, sourceFileName, yamlSource } from '../lib/yaml-source';
+import { useDownloadVersion } from '../hooks/use-download-version';
 import {
   type DeployedTrigger,
   TriggerDeployNotice,
@@ -56,7 +51,6 @@ export function AutomationVersionsTab({
   const { t } = useT('automations');
   const ability = useAbility();
   const canAuthor = ability.can('read', 'developerSettings');
-  const queryClient = useQueryClient();
   const automationQuery = useAutomation(organizationId, automationSlug);
   const liveQuery = useAutomationLiveDeployment(organizationId, automationSlug);
   // A failed read's retry hands its focus here once the rows arrive.
@@ -87,37 +81,7 @@ export function AutomationVersionsTab({
   const latestVersion =
     automationQuery.data?.latestVersion ?? automationQuery.data?.version;
 
-  const download = useCallback(
-    (version: number) => {
-      ensureAdaptedQueryData(queryClient, 'automations/queries:getAutomation', {
-        organizationId,
-        name: automationSlug,
-        version,
-      })
-        .then((detail) => {
-          const document = rawDocumentOf(detail?.document);
-          if (document === null) {
-            throw new Error(`v${version} has no document to download`);
-          }
-          downloadYaml(
-            yamlSource(document),
-            sourceFileName(automationSlug, version, false),
-          );
-        })
-        .catch((error: unknown) => {
-          console.warn(
-            '[automations] a version could not be downloaded',
-            error,
-          );
-          toast({
-            title: t('versions.actions.downloadFailed', { version }),
-            description: automationErrorMessage(error),
-            variant: 'destructive',
-          });
-        });
-    },
-    [queryClient, organizationId, automationSlug, t],
-  );
+  const download = useDownloadVersion(organizationId, automationSlug);
 
   const restoreVersion = useCallback((version: number) => {
     setRestoring(version);
@@ -137,6 +101,7 @@ export function AutomationVersionsTab({
       <LiveVersionCard
         organizationId={organizationId}
         automationSlug={automationSlug}
+        projectId={projectId}
         canAuthor={canAuthor}
         latestVersion={latestVersion}
         deployer={deployer}

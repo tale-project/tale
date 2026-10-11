@@ -8,7 +8,7 @@ import { TableTimestampCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
-import { History, Rocket, SquarePen, Undo2 } from 'lucide-react';
+import { GitCompare, History, Rocket, SquarePen, Undo2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import type { PageItemOf } from '@/app/lib/backend/contract';
@@ -16,7 +16,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useAutomationDeployments } from '../../hooks/queries';
 import type { DeployVersion } from '../../hooks/use-deploy-version';
-import { editorVersionLink } from '../../lib/detail-paths';
+import { compareVersionLink, editorVersionLink } from '../../lib/detail-paths';
 import { VersionAuthor } from './version-author';
 import { VersionRowMenu } from './version-row-menu';
 
@@ -34,8 +34,9 @@ const KIND_KEY = {
  * Every time a version of the automation went live, newest first, a page at
  * a time: when, which version and whether it rolled back to an older one,
  * what it replaced, and who put it live through what. A version found live
- * before the history was kept reads as such. A row's menu puts its version
- * live again in one click, or opens it in the editor.
+ * before the history was kept reads as such. A row opens what its version
+ * changed against the one it replaced; its menu puts the version live again
+ * in one click, or opens it in the editor.
  */
 export function DeploymentHistoryTable({
   organizationId,
@@ -144,6 +145,21 @@ export function DeploymentHistoryTable({
               label={t('deployments.actions.menu', { version })}
               actions={(button) => [
                 {
+                  key: 'changes',
+                  label: t('versions.actions.whatChanged'),
+                  icon: GitCompare,
+                  onClick: () =>
+                    void navigate(
+                      compareVersionLink({
+                        organizationId,
+                        automationSlug,
+                        projectId,
+                        version,
+                        from: row.original.previousVersion ?? undefined,
+                      }),
+                    ),
+                },
+                {
                   key: 'deploy',
                   label: back
                     ? t('deploy.rollBack', { version })
@@ -218,13 +234,15 @@ export function DeploymentHistoryTable({
           row.id ?? `${String(row.deployedAt)}:${String(row.version)}`
         }
         clickableRows
+        // A deploy opens what it changed against the version it replaced.
         onRowClick={(row) => {
           void navigate(
-            editorVersionLink({
+            compareVersionLink({
               organizationId,
               automationSlug,
               projectId,
               version: row.original.version,
+              from: row.original.previousVersion ?? undefined,
             }),
           );
         }}

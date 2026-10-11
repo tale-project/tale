@@ -716,6 +716,8 @@ versions:
     downloadYaml: Télécharger le YAML
     history: Historique des versions
     downloadFailed: 'La v{version} n’a pas pu être téléchargée'
+    whatChanged: Ce qui a changé
+    compareWithLive: Comparer avec la version en service
 deployments:
   caption: Quand chaque version a été mise en service
   empty: Aucune version n’a encore été mise en service.
@@ -726,6 +728,7 @@ deployments:
     title: 'La v{version} est en service'
     since: 'Depuis le {date}'
     activeRuns: '{count, plural, =0 {Aucune exécution de la v{version} n’est en cours.} one {# exécution de la v{version} est en cours ; elle se termine sur la v{version}.} other {# exécutions de la v{version} sont en cours ; elles se terminent sur la v{version}.}}'
+    compare: 'Comparer la v{from} avec la v{to}'
   none: Aucune version n’est encore en service. Les déclencheurs et les exécutions réelles ne démarrent qu’après une mise en service.
   kind:
     deploy: 'v{version} mise en service'
@@ -773,6 +776,60 @@ restore:
     saved: 'La v{next} a été enregistrée à partir de la v{version}.'
     unchanged: 'La v{latest} correspond déjà à la v{version}. Rien n’a été enregistré.'
     open: 'Ouvrir la v{next}'
+compare:
+  title: 'Modifications de la v{from} à la v{to}'
+  missing: 'Cette automatisation n’a pas de v{version}.'
+  backToVersions: Retour aux versions
+  moreActions: 'Autres actions pour la v{version}'
+  from:
+    label: Comparer avec
+    none: Rien à comparer
+  option:
+    previous: 'v{version} · la version précédente'
+    live: 'v{version} · en service'
+    basedOn: 'v{version} · version de base'
+  summary:
+    label: Ce qui a changé
+    node: '{count, plural, one {{fields} modifié} other {{fields} modifiés}}'
+    references: Lit un nœud renommé sous son nouveau nom
+  views:
+    label: Vue
+    graph: Graphique
+    changes: Modifications
+    yaml: YAML
+  graph:
+    ariaLabel: 'Modifications de {from} à {to}'
+    side: Afficher
+  side:
+    changes: Modifications
+  identical:
+    title: 'Aucune différence entre la v{from} et la v{to}'
+    messageOnly: Seule la note diffère.
+  firstVersion: 'La v{version} est la première version : tout y est nouveau.'
+  panel:
+    label: Modifications du nœud
+    close: Masquer les modifications du nœud
+    unchanged: Ce nœud n’a pas changé.
+  sections:
+    start: 'Début : entrées de l’exécution'
+    nodes: Nœuds
+    end: 'Fin : sortie'
+    tests: Tests
+    package: Données du paquet
+  inputs:
+    schema: Le schéma des entrées
+    nowRequired: Désormais obligatoire
+    noLongerRequired: Plus obligatoire
+    type: 'Type {before} → {after}'
+  package:
+    settings: Paramètres
+    taskContract: Contrat de tâche
+    presentation: Présentation
+  renamedFrom: 'Avant : {name}'
+  alsoUpdated: '{count, plural, one {Aussi mis à jour dans # nœud qui le lit} other {Aussi mis à jour dans # nœuds qui le lisent}}'
+  showOnGraph: Afficher sur le graphique
+  footer:
+    notVersioned: Les déclencheurs et les projets appartiennent à l’automatisation, pas à une version.
 upload:
   trigger: Téléverser un paquet
   title: Téléverser un paquet

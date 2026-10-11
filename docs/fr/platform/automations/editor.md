@@ -222,7 +222,7 @@ Un déclencheur utilise aussi la version déployée. Configure-le lorsque tu es 
 
 ## Versions et mises en service {#versions}
 
-**Versions** montre ce qui s’exécute en service et comment l’automatisation en est arrivée là. La carte du haut nomme la version en service, depuis quand elle l’est, qui l’a mise en service et comment, par exemple **dans l’app** ou **avec Claude Code via MCP**, et combien de ses exécutions sont encore en cours. Ces exécutions se terminent sur la version avec laquelle elles ont démarré, quelle que soit la version mise en service ensuite. Tant qu’aucune version n’est en service, la carte propose de mettre en service la plus récente.
+**Versions** montre ce qui s’exécute en service et comment l’automatisation en est arrivée là. La carte du haut nomme la version en service, depuis quand elle l’est, qui l’a mise en service et comment, par exemple **dans l’app** ou **avec Claude Code via MCP**, et combien de ses exécutions sont encore en cours. Ces exécutions se terminent sur la version avec laquelle elles ont démarré, quelle que soit la version mise en service ensuite. **Comparer la v1 avec la v2** montre ce que la version en service a changé par rapport à celle qu’elle a remplacée. Tant qu’aucune version n’est en service, la carte propose de mettre en service la plus récente.
 
 La liste **Versions** sous la carte affiche chaque version enregistrée, de la plus récente à la plus ancienne :
 
@@ -232,9 +232,9 @@ La liste **Versions** sous la carte affiche chaque version enregistrée, de la p
 - **Modifications** compte les nœuds ajoutés, supprimés et modifiés par rapport à la version précédente, et nomme les autres parties modifiées, par exemple **Sortie** ou **Tests**. La première version porte **Première version** ; les versions enregistrées avant ce résumé affichent **Non enregistré**.
 - **Tests** affiche **Réussi** ou **Échoué** selon le résultat des tests de la version à son enregistrement. **Aucun résultat** signifie qu’aucun verdict n’a été conservé, par exemple parce que la version n’a pas de tests.
 
-Sélectionne une ligne pour ouvrir cette version dans **Éditeur**. Son menu propose aussi **Télécharger le YAML**, qui enregistre la version dans un fichier nommé d’après l’automatisation et la version, par exemple `weekly-digest-v3.yml`.
+Sélectionne une ligne pour voir ce que cette version a changé, comme le décrit [Comparer deux versions](#compare). Son menu propose aussi **Comparer avec la version en service**, **Ouvrir dans l’éditeur** et **Télécharger le YAML**, qui enregistre la version dans un fichier nommé d’après l’automatisation et la version, par exemple `weekly-digest-v3.yml`.
 
-Choisis **Mises en service** au-dessus de la liste pour voir chaque mise en service : quand, quelle version, s’il s’agissait d’un retour en arrière, quelle version elle a remplacée et qui l’a faite. Une version déjà en service avant que Tale ne tienne cet historique apparaît comme **La v4 était en service**, avec la mention **Enregistré avant le début de l’historique.**
+Choisis **Mises en service** au-dessus de la liste pour voir chaque mise en service : quand, quelle version, s’il s’agissait d’un retour en arrière, quelle version elle a remplacée et qui l’a faite. Une version déjà en service avant que Tale ne tienne cet historique apparaît comme **La v4 était en service**, avec la mention **Enregistré avant le début de l’historique.** Sélectionne une ligne pour voir ce que cette mise en service a changé par rapport à la version remplacée.
 
 La liste des automatisations mène aussi ici : sélectionne le nombre de versions d’une ligne, ou **Historique des versions** dans son menu.
 
@@ -251,6 +251,18 @@ Tale compare la version en service affichée sur ton écran à celle qui est en 
 Pour faire d’une ancienne version la plus récente, choisis **Restaurer comme nouvelle version** dans le menu de sa ligne. Tale en enregistre une copie par-dessus la dernière version, et les versions intermédiaires restent dans l’historique. La **Note de version** commence par **Restauration de la v3** ; tu peux la modifier. La version en service ne change pas, sauf si tu coches aussi **Mettre la v5 en service tout de suite**.
 
 Après **Restaurer**, un message confirme la nouvelle version, et **Ouvrir la v5** l’affiche dans l’éditeur. Si la dernière version correspond déjà à celle que tu restaures, rien n’est enregistré. Si quelqu’un enregistre une version pendant que la boîte de dialogue est ouverte, celle-ci indique qui et propose de restaurer par-dessus cette version.
+
+### Comparer deux versions {#compare}
+
+La page d’une version montre ce qu’elle a changé. Son en-tête nomme la version, sa note, qui l’a enregistrée et comment, et propose **Ouvrir dans l’éditeur**, le bouton qui la met en service ou y revient, et dans son menu **Restaurer comme nouvelle version** et **Télécharger le YAML**. **Comparer avec** choisit la version avec laquelle comparer ; la version précédente, la version en service et la version de base viennent en premier. Les pastilles à côté comptent les nœuds ajoutés, supprimés, modifiés et renommés, et nomment les autres parties modifiées, par exemple **Entrées** ou **Tests**.
+
+Choisis comment lire les modifications :
+
+- **Graphique** dessine les deux versions sur un même graphique. Un bloc ajouté a un cadre vert et **Ajouté**, un bloc supprimé est rouge et barré, un bloc modifié est orangé avec ce qui a changé à son pied, et un bloc renommé indique son ancien nom, par exemple **Avant : Post**. Un trait que seule une version trace porte un plus ou un moins. Le sélecteur au-dessus du graphique montre le graphique propre à chaque version, avec les modifications mises en avant. Sélectionne un bloc pour voir ses modifications à côté du graphique : Début montre les entrées modifiées, Fin la sortie.
+- **Modifications** liste chaque modification selon son emplacement : **Début : entrées de l’exécution**, **Nœuds**, **Fin : sortie**, **Tests** et **Données du paquet**. Ouvre une ligne pour voir ses champs avant et après ; le code, les prompts et les conditions sont comparés ligne par ligne. **Afficher sur le graphique** sélectionne le bloc auquel une modification appartient.
+- **YAML** compare la source des deux versions ligne par ligne, l’une sous l’autre ou côte à côte.
+
+Sur un téléphone, la page s’ouvre sur **Modifications**. Deux versions au contenu identique indiquent **Aucune différence entre la v3 et la v5**, et la page précise quand seules leurs notes diffèrent. La première version n’est comparée à rien : tout y est nouveau. Les déclencheurs et les projets appartiennent à l’automatisation, pas à une version ; une comparaison ne les montre donc jamais.
 
 ## Examiner un résultat
 

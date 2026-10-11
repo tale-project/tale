@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 201 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 208 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -32,6 +32,7 @@ the two runs as `?a={runId}&b={runId}`.
 | Editor tab (default)      | `/dashboard/{org}/automations/{slug}/editor` — `?version={n}` pins a stored version on the canvas                                            |
 | General tab               | `/dashboard/{org}/automations/{slug}/general`                                                                                                |
 | Versions tab              | `/dashboard/{org}/automations/{slug}/versions` — `?tab=deployments` shows the deployments                                                  |
+| Version comparison        | `/dashboard/{org}/automations/{slug}/versions/{n}` — `?from={m}` compares with v{m} (default the version before), `?view=graph\|changes\|yaml`, `?node={id}` |
 | Runs tab                  | `/dashboard/{org}/automations/{slug}/runs`                                                                                                   |
 | Run detail                | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                                                           |
 | Compare runs              | `/dashboard/{org}/automations/{slug}/runs/compare?a={runId}&b={runId}`                                                                       |
@@ -1444,6 +1445,38 @@ output:
 - [ ] `AUTO-F147` · **In the automation list, select a row's version count,
       then Version history in its row menu** → both open its Versions tab,
       inside the project shell for a row bound to one project.
+- [ ] `AUTO-F148` · **Select a version's row on the Versions tab** → its
+      comparison opens (`…/versions/{n}`): the version, its message, who
+      saved it and how, **Open in editor**, its deploy or rollback button,
+      and **Compare with** set to the version before (`automations.compare.option.previous`),
+      with chips counting what was added, removed, changed and renamed.
+      Pick the live version in **Compare with** → `?from=` follows and the
+      chips change.
+- [ ] `AUTO-F149` · **On Graph, compare a version that added, removed,
+      changed and renamed nodes** → **Added** boxes are green, **Removed**
+      red and struck through, **Changed** amber with what changed at their
+      foot, a renamed one says its old name; lines only one version draws
+      carry a sign. The switch shows each version's own chart. Select a box
+      → its changes open beside the chart (`?node=`); Start shows the inputs
+      that changed, End the output, an unchanged box
+      `automations.compare.panel.unchanged`.
+- [ ] `AUTO-F150` · **On Changes, open each row** → rows sit under Start,
+      Nodes, End, Tests and Package data; code, prompts and conditions are
+      compared line by line, JSON value by value; **Show on the graph**
+      selects the box (Start for an input, End for the output) and a test's
+      row offers no such action.
+- [ ] `AUTO-F151` · **On YAML** → the two versions' source compared line by
+      line; the layout switch shows them side by side on a wide screen.
+- [ ] `AUTO-F152` · **Compare a restored copy with its source, v1, and
+      `…/versions/99`** → `automations.compare.identical.title` (with
+      `automations.compare.identical.messageOnly` when only the message
+      differs); the first version's note and a plain chart; a dead end
+      naming v99 with **Back to the versions**.
+- [ ] `AUTO-F153` · **From the Versions tab, use What changed and Compare
+      with live in a row menu, the live card's Compare link, and a
+      Deployments row** → each opens the comparison: the row's version
+      against the one before, against the live one, the live version
+      against the one it replaced, a deploy against the version it replaced.
 
 ## Boundary & error tests
 
@@ -1752,6 +1785,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       dialog traps focus and returns it to the menu's button on close; toasts
       are announced. At 390 px the card's button sits under its text at full
       width and the tables scroll sideways inside their frame, not the page.
+- [ ] `AUTO-A22` · **A comparison by keyboard and on a phone** → Tab
+      reaches **Compare with**, the Graph/Changes/YAML switch and the list;
+      the list is one Tab stop with ↑/↓ between rows and Enter to open one;
+      the chart is reachable and a box opens its changes with Enter. At
+      390 px the page opens on Changes, the header's buttons wrap under the
+      title, and nothing scrolls the page sideways.
 
 ## Performance
 

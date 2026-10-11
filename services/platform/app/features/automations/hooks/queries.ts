@@ -70,9 +70,9 @@ export function useAutomation(
   });
 }
 
-/** The deployed version's document, for what the trigger checks against;
- * skipped while nothing is deployed. */
-export function useDeployedAutomation(
+/** One stored version's document; skipped while there is no version to
+ * read — nothing deployed yet, or no version before the first. */
+export function useAutomationAtVersion(
   organizationId: string,
   name: string,
   version: number | undefined,
@@ -82,6 +82,9 @@ export function useDeployedAutomation(
     version === undefined ? 'skip' : { organizationId, name, version },
   );
 }
+
+/** The deployed version's document, for what the trigger checks against. */
+export const useDeployedAutomation = useAutomationAtVersion;
 
 /** The immutable version history of one automation, oldest first. */
 export function useAutomationVersions(organizationId: string, name: string) {

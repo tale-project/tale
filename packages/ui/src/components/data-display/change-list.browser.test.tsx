@@ -271,6 +271,54 @@ describe('ChangeList', () => {
     );
   });
 
+  it('offers no action on a row whose change has nowhere else to show', async () => {
+    const onActivate = vi.fn();
+    render(
+      <ChangeList
+        sections={[
+          {
+            id: 'tests',
+            title: 'Tests',
+            items: [
+              {
+                id: 'test:greets',
+                kind: 'changed',
+                title: 'greets',
+                activatable: false,
+                detail: (
+                  <FieldChangeRow
+                    label="Input"
+                    kind="changed"
+                    before="{}"
+                    after="{ week }"
+                  />
+                ),
+              },
+              {
+                id: 'test:old',
+                kind: 'removed',
+                title: 'old',
+                activatable: false,
+              },
+            ],
+          },
+        ]}
+        aria-label="Changes"
+        onActivate={onActivate}
+        activateLabel="Show on the graph"
+      />,
+    );
+    await userEvent.click(rowOf(/greets/));
+    expect(rowOf(/greets/)).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.queryByRole('button', { name: 'Show on the graph' }),
+    ).toBeNull();
+    // Nothing to open and nothing to do: plain text, not a control.
+    expect(screen.queryByRole('button', { name: /old/ })).toBeNull();
+    expect(screen.getByText('old')).toBeVisible();
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
   it('opens the first or every row at first, or the host’s', async () => {
     render(
       <ChangeList

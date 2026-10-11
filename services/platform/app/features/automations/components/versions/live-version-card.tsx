@@ -7,31 +7,37 @@ import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-com
 import { SKELETON_PULSE } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { Link } from '@tanstack/react-router';
 import { CircleDashed, Loader2, Radio, Rocket, Undo2 } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationLiveDeployment } from '../../hooks/queries';
 import type { DeployVersion } from '../../hooks/use-deploy-version';
+import { compareVersionLink } from '../../lib/detail-paths';
 import { VersionAuthor } from './version-author';
 
 /**
  * What is live: the version, since when, who put it live and through what,
  * and how many of its runs are still going (they finish on it whatever goes
- * live next). An author can put back the version it replaced in one click —
- * **Roll back to vN** — or, while nothing is live, deploy the latest. The
+ * live next), with a link to what it changed against the version it
+ * replaced. An author can put that version back in one click — **Roll back
+ * to vN** — or, while nothing is live, deploy the latest. The
  * deploy names the live version the card shows, so a deploy someone made
  * meanwhile is never undone unseen.
  */
 export function LiveVersionCard({
   organizationId,
   automationSlug,
+  projectId,
   canAuthor,
   latestVersion,
   deployer,
 }: {
   organizationId: string;
   automationSlug: string;
+  /** Keep the comparison link inside the project shell. */
+  projectId?: string | undefined;
   /** May deploy and roll back (an owner, admin or developer). */
   canAuthor: boolean;
   /** The newest version, which a first deploy offers. */
@@ -167,15 +173,34 @@ export function LiveVersionCard({
           </Text>
         </div>
       </div>
-      {canAuthor &&
-        replaced !== null &&
-        actionButton(
-          replaced,
-          replaced < live.version
-            ? t('deploy.rollBack', { version: replaced })
-            : t('detail.deployVersion', { version: replaced }),
-          replaced < live.version ? Undo2 : Rocket,
-        )}
+      {replaced !== null && (
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button asChild variant="ghost" size="sm">
+            <Link
+              {...compareVersionLink({
+                organizationId,
+                automationSlug,
+                projectId,
+                version: live.version,
+                from: replaced,
+              })}
+            >
+              {t('deployments.live.compare', {
+                from: replaced,
+                to: live.version,
+              })}
+            </Link>
+          </Button>
+          {canAuthor &&
+            actionButton(
+              replaced,
+              replaced < live.version
+                ? t('deploy.rollBack', { version: replaced })
+                : t('detail.deployVersion', { version: replaced }),
+              replaced < live.version ? Undo2 : Rocket,
+            )}
+        </div>
+      )}
     </Card>
   );
 }

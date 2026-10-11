@@ -32,6 +32,9 @@ automationRuns:
 automationVersions:
   title: Automation versions
   description: See every version of the automation, what is live and when each version went live.
+automationVersionCompare:
+  title: Compare automation versions
+  description: See what changed between two versions of an automation.
 documents:
   title: Documents
   description: Manage your knowledge base documents.
