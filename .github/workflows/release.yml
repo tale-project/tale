@@ -25,6 +25,10 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
+  # The org.opencontainers.image.* metadata every published image carries,
+  # without the prefix: the Dockerfiles declare the static keys, the build
+  # steps below the dynamic ones (tools/cli/scripts/oci-image-metadata.test.ts).
+  OCI_METADATA_KEYS: created revision source version title description url documentation vendor licenses
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -491,7 +495,7 @@ jobs:
           echo "Release image validation status: ${{ job.status }} (${{ needs.prepare.outputs.version }})" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Create multi-arch manifests (:version and :latest) per service.
+  # Publish one OCI image index (:version and :latest) per service.
   # ---------------------------------------------------------------------------
   manifest:
     name: Manifest ${{ matrix.service }}
@@ -513,30 +517,87 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push manifest
+      # One call writes the index and every tag, so :version and :latest name
+      # the same index digest, and a re-run of this job over the same images
+      # writes the same bytes. `docker manifest` has no way to put annotations
+      # on an index; imagetools does, and GitHub documents that a multi-arch
+      # package takes its description from the index's annotations. They repeat
+      # the OCI labels of the pushed amd64 image config, so the index cannot
+      # drift from the image it describes.
+      - name: Create and push the OCI image index
         env:
+          SERVICE: ${{ matrix.service }}
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}
+          VERSION: ${{ needs.prepare.outputs.version_number }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           SITES_ONLY: ${{ needs.prepare.outputs.sites_only }}
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}"
-          VERSION="${{ needs.prepare.outputs.version_number }}"
+          set -euo pipefail
+          docker buildx version
+          AMD64="${IMAGE}:${VERSION}-amd64"
+          ARM64="${IMAGE}:${VERSION}-arm64"
 
-          docker manifest create ${IMAGE}:${VERSION} \
-            ${IMAGE}:${VERSION}-amd64 \
-            ${IMAGE}:${VERSION}-arm64
+          # An image missing part of the metadata set stops here, before a tag moves.
+          CONFIG=$(docker buildx imagetools inspect "$AMD64" --format '{{json .Image}}')
+          jq -e --arg keys "$OCI_METADATA_KEYS" '
+            (.config.Labels // {}) as $labels
+            | all(($keys | split(" "))[]; ($labels["org.opencontainers.image." + .] // "") != "")
+          ' <<< "$CONFIG" > /dev/null || {
+            echo "::error::${AMD64} lacks an org.opencontainers.image label of: ${OCI_METADATA_KEYS}"
+            exit 1
+          }
+          # Only what Tale declares: a base image's own labels (base.digest,
+          # for one) describe one architecture's build, not the index.
+          LABELS=$(jq -r --arg keys "$OCI_METADATA_KEYS" '
+            ($keys | split(" ") | map("org.opencontainers.image." + .)) as $declared
+            | (.config.Labels // {}) | to_entries | sort_by(.key)[]
+            | select(.key as $key | ($declared | index($key)) != null or ($key | startswith("io.tale.")))
+            | "\(.key)=\(.value)"
+          ' <<< "$CONFIG")
+          ANNOTATIONS=()
+          while IFS= read -r LABEL; do
+            ANNOTATIONS+=(--annotation "index:${LABEL}")
+          done <<< "$LABELS"
 
-          docker manifest push ${IMAGE}:${VERSION}
-          docker manifest inspect ${IMAGE}:${VERSION} >/dev/null
+          TAGS=(--tag "${IMAGE}:${VERSION}")
+          if [ "$SITES_ONLY" != true ]; then TAGS+=(--tag "${IMAGE}:latest"); fi
+          docker buildx imagetools create "${TAGS[@]}" "${ANNOTATIONS[@]}" "$AMD64" "$ARM64"
+
+          # The proof: the tag is an OCI image index of exactly the two native
+          # images this run pushed, annotated with this release, and every tag
+          # written names that one index.
+          INDEX=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --raw)
+          jq -e --arg version "$VERSION" --arg revision "$SOURCE_SHA" '
+            .mediaType == "application/vnd.oci.image.index.v1+json"
+            and ([.manifests[] | "\(.platform.os)/\(.platform.architecture)"] | sort) == ["linux/amd64", "linux/arm64"]
+            and .annotations["org.opencontainers.image.version"] == $version
+            and .annotations["org.opencontainers.image.revision"] == $revision
+          ' <<< "$INDEX" > /dev/null || {
+            echo "::error::${IMAGE}:${VERSION} is not the expected annotated OCI image index"
+            exit 1
+          }
+          for ARCH in amd64 arm64; do
+            CHILD=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}-${ARCH}" --format '{{.Manifest.Digest}}')
+            jq -e --arg digest "$CHILD" --arg arch "$ARCH" \
+              'any(.manifests[]; .digest == $digest and .platform.architecture == $arch)' <<< "$INDEX" > /dev/null || {
+              echo "::error::${IMAGE}:${VERSION} does not index the ${ARCH} image this run pushed"
+              exit 1
+            }
+          done
+          DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{.Manifest.Digest}}')
           if [ "$SITES_ONLY" != true ]; then
-            docker manifest create ${IMAGE}:latest \
-              ${IMAGE}:${VERSION}-amd64 \
-              ${IMAGE}:${VERSION}-arm64
-            docker manifest push ${IMAGE}:latest
+            LATEST=$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}')
+            [ "$LATEST" = "$DIGEST" ] || {
+              echo "::error::${IMAGE}:latest does not name the ${VERSION} index"
+              exit 1
+            }
           fi
 
           {
-            echo "### ${{ matrix.service }}"
+            echo "### ${SERVICE}"
             echo "- **Version**: ${VERSION}"
-            echo "- **Revision**: ${{ needs.prepare.outputs.source_sha }}"
+            echo "- **Revision**: ${SOURCE_SHA}"
+            echo "- **Index**: \`${IMAGE}@${DIGEST}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------

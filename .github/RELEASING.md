@@ -231,6 +231,15 @@ publish anything: Release in Prepare, and Publish packages before it pins `ui-vX
 tags from that tag push. The two workflows run independently: package tags can already exist
 when Release fails after Prepare.
 
+`Manifest <service>` publishes one OCI image index per service with
+`docker buildx imagetools create`. `:X.Y.Z` and, unless the release is sites-only, `:latest`
+are written by one call, so they name the same index digest. The index carries the image's
+`org.opencontainers.image.*` labels as annotations (GHCR reads a multi-arch package's
+description, license and repository link from the index) and indexes exactly this run's
+`X.Y.Z-amd64` and `X.Y.Z-arm64` images. The job reads the index back and fails unless it is
+that annotated OCI index. `docker manifest inspect` lists the index but hides its annotations;
+`docker buildx imagetools inspect --raw` shows both.
+
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
 
