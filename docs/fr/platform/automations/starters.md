@@ -15,7 +15,7 @@ Un modèle d’automatisation est une automatisation que Tale fournit prête à 
 
 <Frame caption="Chaque modèle dit en une ligne ce qu’il fait.">
 
-![La boîte de dialogue Choose a starter avec un champ de recherche et cinq modèles : Answer questions from your documents, Create tasks from a webhook, Summarize the inbox, Tell the reviewer et Triage new tasks, chacun avec une ligne de description.](/images/platform/automation-starter-gallery.webp)
+![La boîte de dialogue Choose a starter avec un champ de recherche et six modèles : Answer questions from your documents, Create tasks from a webhook, Daily task digest, Summarize the inbox, Tell the reviewer et Triage new tasks, chacun avec une ligne de description.](/images/platform/automation-starter-gallery.webp)
 
 </Frame>
 
@@ -37,8 +37,9 @@ Quand Tale ne peut pas utiliser une réponse — un projet que tu ne peux pas ou
 | --- | --- | --- |
 | **Répondre aux questions avec tes documents** | Quand une tâche est créée dans le projet | Pour une tâche dont le titre se termine par un point d’interrogation, il cherche dans les documents de l’organisation et commente une réponse tirée uniquement de ce qu’il a trouvé, en citant ses sources. Les autres nouvelles tâches ne sont pas touchées. |
 | **Créer des tâches par webhook** | À chaque envoi vers son adresse webhook | Crée une tâche dans le projet : le `title` du JSON de l’envoi lui donne son nom, et sa `description` son texte. Un envoi sans titre est refusé et ne crée rien. |
+| **Récapitulatif quotidien des tâches** | Selon son horaire — chaque jour à 09:00 dans ton fuseau horaire, tant que tu ne le changes pas | Liste les tâches créées dans le projet au cours des 24 heures précédant l’exécution et les envoie au membre choisi en un seul message, une ligne chacune, avec un lien vers les tâches du projet. Un jour sans nouvelle tâche n’envoie rien. |
 | **Résumer la boîte de réception** | Selon son horaire — les jours ouvrés à 08:00 dans ton fuseau horaire, tant que tu ne le changes pas | Résume en une ligne chacune, la plus urgente d’abord, les conversations de la boîte choisie qui attendent encore une réponse, et envoie le résumé au membre choisi. |
 | **Prévenir le relecteur** | Quand une tâche du projet change de statut | Quand la tâche passe à **En revue**, il prévient le membre choisi, avec un lien vers la tâche. |
 | **Trier les nouvelles tâches** | Quand une tâche est créée dans le projet | Commente la tâche avec une priorité suggérée et une première étape, dans la langue de la tâche. Rien d’autre ne change sur la tâche. |
 
-Les messages de **Résumer la boîte de réception** et **Prévenir le relecteur** arrivent dans les notifications du membre, et par e-mail si ses réglages en envoient un ; [Notifier des membres depuis une automatisation](/fr/platform/automations/notify-members) explique qui est ignoré. Un modèle d’automatisation nomme un modèle de langage pour ses étapes qui en appellent un : quand aucun de tes fournisseurs ne le sert, chacune de ces étapes reçoit un modèle comparable qu’ils servent, et le message de la version 1 dit lequel.
+Les messages de **Récapitulatif quotidien des tâches**, **Résumer la boîte de réception** et **Prévenir le relecteur** arrivent dans les notifications du membre, et par e-mail si ses réglages en envoient un ; [Notifier des membres depuis une automatisation](/fr/platform/automations/notify-members) explique qui est ignoré. Un modèle d’automatisation nomme un modèle de langage pour ses étapes qui en appellent un : quand aucun de tes fournisseurs ne le sert, chacune de ces étapes reçoit un modèle comparable qu’ils servent, et le message de la version 1 dit lequel.

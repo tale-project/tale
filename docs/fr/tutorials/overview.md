@@ -31,6 +31,7 @@ Ces tutoriels demandent des droits supplémentaires ou un service déjà configu
 | --- | --- | --- |
 | Déléguer une tâche de projet | [Exécuter ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) | Le droit de configurer les agents du projet, un modèle et un environnement d’agent opérationnel |
 | Vérifier une action avant son exécution | [Créer un workflow avec approbations](/fr/tutorials/editor/workflow-with-approvals) | Le droit de modifier les automatisations et une personne autorisée à approuver |
+| Recevoir chaque jour les nouvelles tâches d’un projet | [Ta première automatisation : un récapitulatif quotidien des tâches](/fr/tutorials/developer/first-automation) | Le rôle Propriétaire, Admin ou Développeur et un projet avec une tâche récente |
 | Envoyer un message depuis ton programme | [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script) | Une instance opérationnelle, un modèle, une clé API et Python |
 | Lancer une automatisation depuis un autre système | [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook) | Une automatisation publiée et un identifiant de webhook conservé en lieu sûr |
 | Connecter un serveur de modèles local | [Connecter un fournisseur local](/fr/tutorials/admin/connect-local-provider) | Les droits d'administration et un serveur de modèles accessible depuis Tale |

@@ -84,6 +84,7 @@ describe('the shipped starters', () => {
       'answer-questions',
       'inbox-summary',
       'notify-reviewer',
+      'task-digest',
       'triage-new-tasks',
       'webhook-create-task',
     ]);

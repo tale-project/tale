@@ -1,0 +1,100 @@
+name: Daily task digest
+description: Sends a member the tasks created in a project during the last day, every morning.
+icon: newspaper
+scope: project
+requires:
+  connectors:
+    - task
+    - notify
+triggers:
+  - kind: schedule
+    repeat:
+      frequency: daily
+      interval: 1
+      times:
+        - '09:00'
+    timezone: UTC
+i18n:
+  de:
+    name: Tägliche Aufgabenübersicht
+    description: Schickt einem Mitglied jeden Morgen die Aufgaben, die am Vortag in einem Projekt erstellt wurden.
+  fr:
+    name: Récapitulatif quotidien des tâches
+    description: >-
+      Envoie chaque matin à un membre les tâches créées la veille dans un projet.
+template:
+  details: >-
+    On the schedule you set — every day at 09:00 to start with — the automation lists the tasks
+    created in the project you pick during the 24 hours before the run, and the member you
+    choose gets them as one message in Tale, a line each, with a link to the project's tasks.
+    A day without new tasks sends nothing.
+  i18n:
+    de:
+      details: >-
+        Nach dem gewählten Zeitplan — anfangs jeden Tag um 09:00 — listet die Automatisierung
+        die Aufgaben, die in den 24 Stunden vor dem Lauf im gewählten Projekt erstellt wurden,
+        und das gewählte Mitglied bekommt sie als eine Nachricht in Tale, je eine Zeile, mit
+        einem Link zu den Aufgaben des Projekts. Ein Tag ohne neue Aufgaben sendet nichts.
+    fr:
+      details: >-
+        Selon l’horaire choisi — chaque jour à 09:00 pour commencer —, l’automatisation liste les tâches créées dans le projet choisi au cours des 24 heures précédant l’exécution, et le membre choisi les reçoit en un seul message dans Tale, une ligne chacune, avec un lien vers les tâches du projet. Un jour sans nouvelle tâche n’envoie rien.
+  fields:
+    - id: project
+      kind: project
+      label: Project
+      description: The project whose new tasks are sent.
+      writes:
+        - node: window
+          pointer: /input/projectId
+        - node: tasks
+          pointer: /input/projectId
+      i18n:
+        de:
+          label: Projekt
+          description: Das Projekt, dessen neue Aufgaben gesendet werden.
+        fr:
+          label: Projet
+          description: Le projet dont les nouvelles tâches sont envoyées.
+    - id: recipient
+      kind: member
+      label: Send to
+      description: Who gets the digest.
+      writes:
+        - node: notify
+          pointer: /input/to
+      i18n:
+        de:
+          label: Senden an
+          description: Wer die Übersicht bekommt.
+        fr:
+          label: Envoyer à
+          description: Qui reçoit le récapitulatif.
+    - id: schedule
+      kind: schedule
+      label: When
+      description: When the digest is sent; it lists the tasks of the 24 hours before.
+      i18n:
+        de:
+          label: Wann
+          description: Wann die Übersicht gesendet wird; sie listet die Aufgaben der 24 Stunden davor.
+        fr:
+          label: Quand
+          description: Quand le récapitulatif est envoyé ; il liste les tâches des 24 heures précédentes.
+    - id: title
+      kind: text
+      label: Message title
+      description: The title of the message the digest arrives in.
+      default: New tasks
+      maxLength: 200
+      writes:
+        - node: notify
+          pointer: /input/title
+      i18n:
+        de:
+          label: Titel der Nachricht
+          description: Der Titel der Nachricht, in der die Übersicht ankommt.
+          default: Neue Aufgaben
+        fr:
+          label: Titre du message
+          description: Le titre du message qui apporte le récapitulatif.
+          default: Nouvelles tâches

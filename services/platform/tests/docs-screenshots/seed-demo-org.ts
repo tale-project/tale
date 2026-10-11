@@ -41,6 +41,7 @@ import {
   DEMO_KNOWLEDGE_SEARCH,
   DEMO_NOTIFY,
   DEMO_TASK_CREATE,
+  DEMO_TASK_DIGEST,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
   DEMO_EMBEDDING_MODEL,
@@ -2098,6 +2099,81 @@ async function ensureLiveRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/**
+ * A demo created from a starter as a reader creates one — the gallery's own
+ * door, answering its project and telling the owner — then deployed and run
+ * live once in that project.
+ */
+async function ensureStarterRun(
+  page: Page,
+  orgId: string,
+  projects: ReadonlyMap<string, string>,
+  demo: typeof DEMO_TASK_DIGEST,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/automations`);
+  const latest = async (): Promise<unknown> => {
+    const answer = await appApi(
+      page,
+      orgId,
+      `/automations/runs?limit=1&name=${demo.automation}`,
+    );
+    const runs =
+      typeof answer.body === 'object' &&
+      answer.body !== null &&
+      'runs' in answer.body &&
+      Array.isArray(answer.body.runs)
+        ? (answer.body.runs as { status?: unknown }[])
+        : [];
+    return runs[0]?.status;
+  };
+  if ((await latest()) === 'success') return;
+  const projectId = projects.get(demo.project);
+  if (projectId === undefined) {
+    throw new Error(`The project ${demo.project} was not seeded`);
+  }
+  const members = await appApiOk(page, orgId, '/members');
+  const owner =
+    typeof members === 'object' &&
+    members !== null &&
+    'members' in members &&
+    Array.isArray(members.members)
+      ? (members.members as { userId?: unknown; email?: unknown }[]).find(
+          (member) => member.email === DEMO_OWNER.email,
+        )
+      : undefined;
+  if (typeof owner?.userId !== 'string') {
+    throw new Error('The demo owner is not a member of the organization');
+  }
+  const created = await appApi(
+    page,
+    orgId,
+    `/automation-templates/${demo.starter}/instantiate`,
+    {
+      name: demo.automation,
+      displayName: demo.name,
+      answers: { project: projectId, recipient: owner.userId },
+      locale: 'en',
+    },
+  );
+  // 201 is the new automation; 409: an earlier seed created it already.
+  if (created.status !== 201 && created.status !== 409) {
+    throw new Error(
+      `Creating ${demo.automation} answered ${created.status}: ${JSON.stringify(created.body)}`,
+    );
+  }
+  await appApiOk(page, orgId, `/automations/${demo.automation}/deploy`, {
+    version: await latestVersion(page, orgId, demo.automation),
+  });
+  await appApiOk(page, orgId, `/automations/${demo.automation}/start`, {
+    mode: 'live',
+    projectId,
+    input: {},
+  });
+  await expect(async () => {
+    expect(await latest()).toBe('success');
+  }).toPass({ timeout: TIMEOUT.EXECUTION });
+}
+
 /** The HTTP page's automation (DEMO_HTTP), uploaded as a draft and never run. */
 async function ensureHttpAutomation(page: Page, orgId: string): Promise<void> {
   const editorRoute = `/dashboard/${orgId}/automations/${DEMO_HTTP.automation}/editor`;
@@ -2556,6 +2632,10 @@ export async function seedDemoOrg(
       'PUT',
     );
   });
+  // Before the notify run, whose message must top the owner's bell.
+  await step('task digest run', () =>
+    ensureStarterRun(page, orgId, projects, DEMO_TASK_DIGEST),
+  );
   // Last of the runs, so its message tops the owner's bell.
   await step('notify run', () =>
     ensureLiveRun(page, orgId, projects, {

@@ -635,6 +635,95 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         throw error;
       }
     },
+    async list({
+      organizationId,
+      caller,
+      projectId,
+      statuses,
+      createdSince,
+      limit,
+    }) {
+      try {
+        return await sql.begin(async (tx) => {
+          await authorizeProject(tx, organizationId, projectId, caller);
+          const rows = await tx<
+            {
+              taskId: string;
+              number: number | null;
+              title: string;
+              status: string;
+              priority: string | null;
+              assigneeType: string | null;
+              assigneeId: string | null;
+              assigneeName: string | null;
+              dueDateMs: number | null;
+              createdAtMs: number;
+            }[]
+          >`
+            SELECT t.id AS "taskId", t.number, t.title, t.status, t.priority,
+                   t.assignee_type AS "assigneeType", t.assignee_id AS "assigneeId",
+                   CASE t.assignee_type
+                     WHEN 'user' THEN COALESCE(u.name, u.email)
+                     WHEN 'agent' THEN a.name
+                   END AS "assigneeName",
+                   t.due_date_ms::float8 AS "dueDateMs",
+                   t.created_at_ms::float8 AS "createdAtMs"
+            FROM app.tasks t
+            LEFT JOIN "user" u
+              ON t.assignee_type = 'user' AND u.id = t.assignee_id
+            LEFT JOIN app.project_agents a
+              ON t.assignee_type = 'agent' AND a.id = t.assignee_id
+                 AND a.project_id = t.project_id
+            WHERE t.org_id = ${organizationId} AND t.project_id = ${projectId}
+              AND t.archived_at_ms IS NULL
+              AND ${statuses === undefined ? tx`TRUE` : tx`t.status = ANY(${[...statuses]})`}
+              AND ${createdSince === undefined ? tx`TRUE` : tx`t.created_at_ms >= ${createdSince}`}
+            ORDER BY t.created_at_ms DESC, t.id DESC
+            LIMIT ${limit + 1}
+          `;
+          return {
+            ok: true as const,
+            tasks: rows.slice(0, limit).map((row) => ({
+              taskId: row.taskId,
+              number: row.number,
+              title: row.title,
+              status: row.status,
+              priority: row.priority,
+              assignee:
+                row.assigneeType === null || row.assigneeId === null
+                  ? null
+                  : {
+                      type: row.assigneeType,
+                      id: row.assigneeId,
+                      name: row.assigneeName,
+                    },
+              dueDate:
+                row.dueDateMs === null
+                  ? null
+                  : new Date(row.dueDateMs).toISOString().slice(0, 10),
+              createdAt: new Date(row.createdAtMs).toISOString(),
+              url: `/dashboard/${organizationId}/projects/${projectId}/tasks?task=${row.taskId}`,
+            })),
+            hasMore: rows.length > limit,
+          };
+        });
+      } catch (error) {
+        // A project the run may not read answers in the run record's words,
+        // as a create there does.
+        if (
+          (error instanceof AutomationError &&
+            (error.code === 'PROJECT_NOT_FOUND' ||
+              error.code === 'AUTOMATION_PROJECT_FORBIDDEN')) ||
+          (error instanceof TaskError && error.code === 'PROJECT_NOT_FOUND')
+        ) {
+          return {
+            ok: false as const,
+            refusal: { kind: 'project' as const, detail: error.message },
+          };
+        }
+        throw error;
+      }
+    },
     async get({ organizationId, taskId }) {
       let task: Awaited<ReturnType<typeof loadTaskOrThrow>>;
       try {

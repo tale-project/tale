@@ -1,6 +1,6 @@
 ---
 title: Ajouter des tâches depuis une automatisation
-description: Crée une tâche dans un projet avec l’étape task.create — titre, personne assignée, statut, échéance et libellés — une fois à chaque exécution de l’étape, et sache ce qui est refusé.
+description: Crée une tâche dans un projet avec l’étape task.create — titre, personne assignée, statut, échéance et libellés — une fois à chaque exécution de l’étape, liste les tâches d’un projet avec task.list, et sache ce qui est refusé.
 ---
 
 Utilise une étape `task.create` quand une automatisation doit confier du travail à une personne ou à un agent : une réponse que demande un e-mail, un formulaire à relancer, une vérification qui a échoué. Elle crée la tâche dans un projet où l’automatisation est installée, et la tâche nomme l’automatisation comme sa créatrice. Une exécution en direct la crée ; une exécution de test répond avec un mock.
@@ -44,6 +44,36 @@ L’étape renvoie `{ taskId, number, title, url }` ; `url` ouvre la tâche dan
 L’étape crée une tâche à chaque exécution : une fois par exécution, et une fois par élément ou par passage dans une boucle. Quand une exécution est interrompue après la création de la tâche puis reprend, l’étape renvoie la tâche déjà créée au lieu d’en créer une deuxième.
 
 La tâche est créée avec les droits de la personne qui a lancé l’exécution, comme sur le tableau ; une exécution lancée par un déclencheur la crée en tant qu’automatisation. D’autres automatisations peuvent démarrer à sa création, qu’elles voient comme faite par une automatisation.
+
+## Lister les tâches d’un projet
+
+Une étape `task.list` lit les tâches d’un projet, la plus récente d’abord, pour en rendre compte — un récapitulatif quotidien, le nombre de tâches qui attendent une relecture. Elle lit un projet comme une création y est permise, et ne change rien : elle n’attend donc jamais d’approbation.
+
+```yaml
+nodes:
+  - id: open
+    type: task.list
+    input:
+      projectId: '{{ input.projectId }}'
+      status: [todo, in_progress]
+      createdSince: '2026-10-17'
+      limit: 20
+```
+
+| Entrée         | Ce qu’elle contient                                                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`    | Le projet à lire.                                                                                                                                     |
+| `status`       | Seulement les tâches dans ces statuts — `backlog`, `todo`, `in_progress`, `in_review`, `done` et `cancelled` ; tous les statuts s’il est omis.        |
+| `createdSince` | Seulement les tâches créées à partir de ce moment : des millisecondes epoch, une date comme `2026-10-17` (son début, en UTC) ou une date et heure ISO. |
+| `limit`        | Au plus ce nombre de tâches, jusqu’à 200 ; 50 s’il est omis.                                                                                          |
+
+L’étape renvoie `{ tasks, hasMore }`. Chaque tâche porte son `taskId`, `number`, `title`, `status`, `priority`, `assignee` (son `type`, `id` et `name`), `dueDate`, `createdAt` et l’`url` qui l’ouvre. Les tâches archivées sont omises, et `hasMore` indique que plus de tâches correspondent que `limit` n’en a renvoyé. Le [modèle d’automatisation](/fr/platform/automations/starters) **Récapitulatif quotidien des tâches** repose dessus.
+
+<Frame caption="L’exécution de Daily task digest, avec son étape Tasks sélectionnée : le projet et le moment à partir duquel elle a lu, et les sept tâches qu’elle a renvoyées.">
+
+![La page d’une exécution réussie en direct de Daily task digest avec l’étape Tasks sélectionnée, une étape Tasks · List tasks. Son onglet Last run indique qu’elle a exécuté task.list et lu since depuis l’étape Window ; sous Received figurent projectId, createdSince et limit 50, et sous Returned une liste de 7 tâches.](/images/platform/automation-task-list-run.webp)
+
+</Frame>
 
 ## Quand une étape échoue
 

@@ -31,6 +31,7 @@ Für diese Tutorials brauchst du zusätzliche Rechte oder einen eingerichteten D
 | --- | --- | --- |
 | Eine Projektaufgabe delegieren | [Den ersten Agenten ausführen](/de/tutorials/editor/first-agent-end-to-end) | Rechte zum Einrichten von Projektagenten, ein Modell und eine funktionierende Agent-Laufzeit |
 | Eine Workflow-Aktion vor der Ausführung prüfen | [Einen Workflow mit Freigaben erstellen](/de/tutorials/editor/workflow-with-approvals) | Bearbeitungsrechte für Automatisierungen und eine freigabeberechtigte Person |
+| Eine tägliche Übersicht der neuen Aufgaben eines Projekts bekommen | [Deine erste Automatisierung: eine tägliche Aufgabenübersicht](/de/tutorials/developer/first-automation) | Die Rolle Inhaber, Admin oder Entwickler und ein Projekt mit einer neuen Aufgabe |
 | Eine Nachricht aus einem eigenen Programm senden | [Tale per Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) | Eine laufende Instanz, ein Modell, ein API-Schlüssel und Python |
 | Eine Automatisierung aus einem anderen System starten | [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) | Eine veröffentlichte Automatisierung und sicher gespeicherte Webhook-Zugangsdaten |
 | Einen lokalen Modellserver verbinden | [Einen lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider) | Verwaltungsrechte und ein von Tale erreichbarer Modellserver |

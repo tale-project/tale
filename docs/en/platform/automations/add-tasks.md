@@ -1,6 +1,6 @@
 ---
 title: Add tasks from an automation
-description: Create a task in a project with the task.create step — its title, assignee, status, due date and labels — once each time the step runs, and know what is refused.
+description: Create a task in a project with the task.create step — its title, assignee, status, due date and labels — once each time the step runs, list a project's tasks with task.list, and know what is refused.
 ---
 
 Use a `task.create` step when an automation should hand work to a person or an agent: a reply an email asks for, a form to follow up, a check that failed. It creates the task in a project the automation is installed in, and the task names the automation as its creator. A live run creates it; a test run answers with a mock.
@@ -44,6 +44,36 @@ The step returns `{ taskId, number, title, url }`; `url` opens the task in Tale.
 The step creates one task each time it runs: once per run, and once per item or pass in a loop. When a run is interrupted after the task was created and resumes, the step answers the task it already made instead of creating a second one.
 
 The task is created with the rights of the person who started the run, as on the board; a run a trigger started creates it as the automation. Other automations can start on its creation, which they see as made by an automation.
+
+## List a project's tasks
+
+A `task.list` step reads a project's tasks, newest first, to report on them — a daily digest, a count of what waits for review. It reads a project the way a create there does, and it changes nothing, so it never waits for approval.
+
+```yaml
+nodes:
+  - id: open
+    type: task.list
+    input:
+      projectId: '{{ input.projectId }}'
+      status: [todo, in_progress]
+      createdSince: '2026-10-17'
+      limit: 20
+```
+
+| Input          | What it holds                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`    | The project to read.                                                                                                                        |
+| `status`       | Only tasks in these statuses — any of `backlog`, `todo`, `in_progress`, `in_review`, `done` and `cancelled`; every status when left out.    |
+| `createdSince` | Only tasks created at or after this moment: epoch milliseconds, a date such as `2026-10-17` (its start, in UTC), or an ISO date and time.   |
+| `limit`        | At most this many tasks, up to 200; 50 when left out.                                                                                       |
+
+The step returns `{ tasks, hasMore }`. Each task carries its `taskId`, `number`, `title`, `status`, `priority`, `assignee` (its `type`, `id` and `name`), `dueDate`, `createdAt` and the `url` that opens it. Archived tasks are left out, and `hasMore` says that more tasks match than `limit` returned. The **Daily task digest** [starter](/platform/automations/starters) is built on it.
+
+<Frame caption="The Daily task digest's run, with its Tasks step selected: the project and the moment it read from, and the seven tasks it returned.">
+
+![The page of a succeeded live run of Daily task digest with its Tasks step selected, a Tasks · List tasks step. Its Last run tab says it ran task.list and read since from the Window step; under Received are the projectId, createdSince and limit 50, and under Returned a list of 7 tasks.](/images/platform/automation-task-list-run.webp)
+
+</Frame>
 
 ## When a step fails
 

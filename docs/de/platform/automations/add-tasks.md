@@ -1,6 +1,6 @@
 ---
 title: Aufgaben aus einer Automatisierung anlegen
-description: Erstelle mit dem Schritt task.create eine Aufgabe in einem Projekt — mit Titel, zuständiger Person, Status, Fälligkeitsdatum und Labels — einmal pro Ausführung des Schritts, und erfahre, was abgelehnt wird.
+description: Erstelle mit dem Schritt task.create eine Aufgabe in einem Projekt — mit Titel, zuständiger Person, Status, Fälligkeitsdatum und Labels — einmal pro Ausführung des Schritts, liste mit task.list die Aufgaben eines Projekts auf und erfahre, was abgelehnt wird.
 ---
 
 Verwende einen `task.create`-Schritt, wenn eine Automatisierung Arbeit an eine Person oder einen Agenten übergeben soll: eine Antwort, um die eine E-Mail bittet, ein Formular zum Nachfassen, eine fehlgeschlagene Prüfung. Er erstellt die Aufgabe in einem Projekt, in dem die Automatisierung installiert ist, und die Aufgabe nennt die Automatisierung als ihre Erstellerin. Ein Live-Lauf erstellt sie, ein Testlauf antwortet mit einem Mock.
@@ -44,6 +44,36 @@ Der Schritt gibt `{ taskId, number, title, url }` zurück; `url` öffnet die Auf
 Der Schritt erstellt bei jeder Ausführung eine Aufgabe: einmal pro Lauf und in einer Schleife einmal pro Element oder Durchgang. Wird ein Lauf unterbrochen, nachdem die Aufgabe erstellt wurde, und läuft er weiter, gibt der Schritt die schon erstellte Aufgabe zurück, statt eine zweite zu erstellen.
 
 Die Aufgabe wird mit den Rechten der Person erstellt, die den Lauf gestartet hat, wie auf dem Board; ein Lauf, den ein Trigger gestartet hat, erstellt sie als die Automatisierung. Andere Automatisierungen können bei ihrer Erstellung starten und sehen sie als von einer Automatisierung erstellt.
+
+## Die Aufgaben eines Projekts auflisten
+
+Ein Schritt `task.list` liest die Aufgaben eines Projekts, die neueste zuerst, um über sie zu berichten — eine tägliche Übersicht, die Zahl der Aufgaben, die auf eine Prüfung warten. Er liest ein Projekt so, wie ein Erstellen dort es darf, und ändert nichts; deshalb wartet er nie auf eine Freigabe.
+
+```yaml
+nodes:
+  - id: open
+    type: task.list
+    input:
+      projectId: '{{ input.projectId }}'
+      status: [todo, in_progress]
+      createdSince: '2026-10-17'
+      limit: 20
+```
+
+| Eingabe        | Was sie enthält                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`    | Das Projekt, das gelesen wird.                                                                                                                    |
+| `status`       | Nur Aufgaben in diesen Status — `backlog`, `todo`, `in_progress`, `in_review`, `done` und `cancelled`; fehlt es, jeder Status.                    |
+| `createdSince` | Nur Aufgaben, die ab diesem Zeitpunkt erstellt wurden: Epoch-Millisekunden, ein Datum wie `2026-10-17` (sein Beginn in UTC) oder Datum und Uhrzeit nach ISO. |
+| `limit`        | Höchstens so viele Aufgaben, bis zu 200; fehlt es, 50.                                                                                            |
+
+Der Schritt gibt `{ tasks, hasMore }` zurück. Jede Aufgabe trägt ihre `taskId`, `number`, `title`, `status`, `priority`, `assignee` (mit `type`, `id` und `name`), `dueDate`, `createdAt` und die `url`, die sie öffnet. Archivierte Aufgaben fehlen, und `hasMore` sagt, dass mehr Aufgaben passen, als `limit` zurückgegeben hat. Die [Vorlage](/de/platform/automations/starters) **Tägliche Aufgabenübersicht** baut darauf auf.
+
+<Frame caption="Der Lauf der Daily task digest mit ausgewähltem Schritt Tasks: das Projekt und der Zeitpunkt, ab dem er las, und die sieben Aufgaben, die er zurückgab.">
+
+![Die Seite eines erfolgreichen Live-Laufs von Daily task digest mit ausgewähltem Schritt Tasks, einem Schritt Tasks · List tasks. Sein Tab Last run sagt, dass er task.list ausgeführt und since aus dem Schritt Window gelesen hat; unter Received stehen projectId, createdSince und limit 50, unter Returned eine Liste mit 7 Aufgaben.](/images/platform/automation-task-list-run.webp)
+
+</Frame>
 
 ## Wenn ein Schritt scheitert
 

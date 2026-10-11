@@ -382,6 +382,24 @@ const taskStore: WorkflowTaskStore = {
       externalId: 'fld_quarter',
       externalUrl: 'fld_setup',
     }),
+  list: ({ projectId }) =>
+    Promise.resolve({
+      ok: true,
+      tasks: [
+        {
+          taskId: 'task_listed',
+          number: 3,
+          title: 'Draft the launch announcement',
+          status: 'todo',
+          priority: null,
+          assignee: null,
+          dueDate: null,
+          createdAt: '2026-10-10T08:00:00.000Z',
+          url: `/dashboard/org/projects/${projectId}/tasks?task=task_listed`,
+        },
+      ],
+      hasMore: false,
+    }),
   updateStatus: () => Promise.resolve({ ok: true }),
   comment: () => Promise.resolve({ messageId: 'msg_1' }),
   listComments: () =>

@@ -260,6 +260,18 @@ the call began — a label it minted — stays written.
 - **Example**: Noah's step assigns the task to `nobody@example.com` → the run fails at the step,
   saying the task's assignee isn't known and how to name one.
 
+### CONN-R27 · A task listing reads only a project its run may read, newest first
+
+A `task.list` step lists a project's tasks, newest first and archived ones left out, narrowed to
+the statuses and the creation moment it names, at most 200 per call with `hasMore` when more
+match. It reads a project as the run creates there: one its automation is installed in, or any
+when it is installed in none, within the rights of the person who started the run. Any other
+project fails the step with `TASK_PROJECT_NOT_BOUND`.
+
+- **Example**: Noah's morning digest lists the To do tasks of Website relaunch created since
+  yesterday → it gets them newest first; pointed at Customer onboarding portal, where it is not
+  installed, the run fails at the step and says so.
+
 ## Telling members from an automation
 
 A `notify.member` step sends a message to members of the organization, as its automation run:

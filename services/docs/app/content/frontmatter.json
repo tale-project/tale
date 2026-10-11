@@ -465,7 +465,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Aufgaben aus einer Automatisierung anlegen",
-      "description": "Erstelle mit dem Schritt task.create eine Aufgabe in einem Projekt — mit Titel, zuständiger Person, Status, Fälligkeitsdatum und Labels — einmal pro Ausführung des Schritts, und erfahre, was abgelehnt wird."
+      "description": "Erstelle mit dem Schritt task.create eine Aufgabe in einem Projekt — mit Titel, zuständiger Person, Status, Fälligkeitsdatum und Labels — einmal pro Ausführung des Schritts, liste mit task.list die Aufgaben eines Projekts auf und erfahre, was abgelehnt wird."
     }
   },
   "de:platform/automations/approvals-in-workflows": {
@@ -1061,6 +1061,14 @@
     "frontmatter": {
       "title": "Tale aus einem Skript aufrufen",
       "description": "Erstelle einen API-Schlüssel, wähle ein verfügbares Modell und gib eine fertige Antwort mit Python aus."
+    }
+  },
+  "de:tutorials/developer/first-automation": {
+    "slug": "tutorials/developer/first-automation",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Deine erste Automatisierung: eine tägliche Aufgabenübersicht",
+      "description": "Lege aus der Vorlage Tägliche Aufgabenübersicht eine Automatisierung an, führe sie einmal von Hand aus und finde die Übersicht in deinen Benachrichtigungen."
     }
   },
   "de:tutorials/developer/trigger-automation-via-webhook": {
@@ -1665,7 +1673,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Add tasks from an automation",
-      "description": "Create a task in a project with the task.create step — its title, assignee, status, due date and labels — once each time the step runs, and know what is refused."
+      "description": "Create a task in a project with the task.create step — its title, assignee, status, due date and labels — once each time the step runs, list a project's tasks with task.list, and know what is refused."
     }
   },
   "en:platform/automations/approvals-in-workflows": {
@@ -2261,6 +2269,14 @@
     "frontmatter": {
       "title": "Call Tale from a script",
       "description": "Create an API key, choose an available model and print a completed assistant reply with Python."
+    }
+  },
+  "en:tutorials/developer/first-automation": {
+    "slug": "tutorials/developer/first-automation",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Your first automation: a daily task digest",
+      "description": "Create an automation from the Daily task digest starter, run it once by hand, and find the digest it sent in your notifications."
     }
   },
   "en:tutorials/developer/trigger-automation-via-webhook": {
@@ -2865,7 +2881,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Ajouter des tâches depuis une automatisation",
-      "description": "Crée une tâche dans un projet avec l’étape task.create — titre, personne assignée, statut, échéance et libellés — une fois à chaque exécution de l’étape, et sache ce qui est refusé."
+      "description": "Crée une tâche dans un projet avec l’étape task.create — titre, personne assignée, statut, échéance et libellés — une fois à chaque exécution de l’étape, liste les tâches d’un projet avec task.list, et sache ce qui est refusé."
     }
   },
   "fr:platform/automations/approvals-in-workflows": {
@@ -3461,6 +3477,14 @@
     "frontmatter": {
       "title": "Appeler Tale depuis un script",
       "description": "Crée une clé API, choisis un modèle disponible et affiche une réponse terminée avec Python."
+    }
+  },
+  "fr:tutorials/developer/first-automation": {
+    "slug": "tutorials/developer/first-automation",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Ta première automatisation : un récapitulatif quotidien des tâches",
+      "description": "Crée une automatisation à partir du modèle Récapitulatif quotidien des tâches, exécute-la une fois à la main et retrouve le récapitulatif dans tes notifications."
     }
   },
   "fr:tutorials/developer/trigger-automation-via-webhook": {

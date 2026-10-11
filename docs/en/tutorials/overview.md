@@ -31,6 +31,7 @@ These tutorials need additional permissions or a configured service. Check the p
 | --- | --- | --- |
 | Delegate a project task | [Run your first agent](/tutorials/editor/first-agent-end-to-end) | Permission to configure project agents, a model, and a working agent runtime |
 | Review a workflow action before it runs | [Build a workflow with approvals](/tutorials/editor/workflow-with-approvals) | Automation editing access and an eligible approver |
+| Get a daily digest of a project's new tasks | [Your first automation: a daily task digest](/tutorials/developer/first-automation) | The Owner, Admin or Developer role and a project with a recent task |
 | Send a message from your own program | [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) | A running instance, a model, an API key, and Python |
 | Start an automation from another system | [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) | A published automation and a securely stored webhook credential |
 | Connect a local model server | [Connect a local provider](/tutorials/admin/connect-local-provider) | Administrative access and a model server reachable from Tale |

@@ -138,6 +138,74 @@ actions:
       kind: native
       impl: task.get
     exampleInput: { taskId: 'tsk_1' }
+  - name: list
+    title: List tasks
+    i18n:
+      de:
+        title: Aufgaben auflisten
+      fr:
+        title: Lister les tâches
+    description: >-
+      List a project's tasks, newest first: each one's number, title, status,
+      priority, assignee, due date and creation time, with a link to it.
+      Narrow it to some statuses, or to tasks created at or after a moment
+      (epoch milliseconds or an ISO date and time). Archived tasks are left
+      out. A run reads only a project its automation is installed in, or any
+      project when it is installed in none, within the rights of the person
+      who started it; at most 200 tasks per call, and hasMore says when more
+      match.
+    effects: read
+    input:
+      type: object
+      required: [projectId]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1, description: The project id. }
+        status:
+          {
+            type: array,
+            minItems: 1,
+            maxItems: 6,
+            items:
+              {
+                type: string,
+                enum: [backlog, todo, in_progress, in_review, done, cancelled],
+              },
+            description: Only tasks in these statuses; every status when left out.,
+          }
+        createdSince:
+          {
+            type: [number, string],
+            description: 'Only tasks created at or after this moment: epoch milliseconds, or an ISO date such as 2026-10-17 or a date and time.',
+          }
+        limit:
+          {
+            type: integer,
+            minimum: 1,
+            maximum: 200,
+            description: At most this many tasks; 50 when left out.,
+          }
+    output: '{ tasks: Array<{ taskId: string, number: number | null, title: string, status: string, priority: string | null, assignee: { type: string, id: string, name: string | null } | null, dueDate: string | null, createdAt: string, url: string }>, hasMore: boolean }'
+    mock: |
+      const statuses = Array.isArray(input.status) ? input.status : ['todo'];
+      const tasks = [
+        {
+          taskId: 'tsk_mock_1',
+          number: 7,
+          title: 'Draft the launch announcement',
+          status: statuses[0],
+          priority: 'p1',
+          assignee: { type: 'user', id: 'usr_mock_1', name: 'Mock Member' },
+          dueDate: '2026-10-17',
+          createdAt: '2026-10-10T08:00:00.000Z',
+          url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=tsk_mock_1',
+        },
+      ];
+      return { tasks: tasks.slice(0, input.limit ?? 50), hasMore: false };
+    backend:
+      kind: native
+      impl: task.list
+    exampleInput: { projectId: 'prj_1', status: [todo], limit: 20 }
   - name: update_status
     title: Change task status
     i18n:

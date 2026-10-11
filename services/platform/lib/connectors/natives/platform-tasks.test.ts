@@ -761,3 +761,105 @@ describe('task.create as an automation step', () => {
     },
   );
 });
+
+describe('task.list as an automation step [CONN-R27]', () => {
+  const step = {
+    organizationId: 'org-1',
+    caller: { kind: 'workflow', runId: 'run-1', nodeId: 'tasks' },
+    idempotencyKey: 'run-1/tasks/0/0',
+  };
+  const listed = {
+    taskId: 'task-1',
+    number: 12,
+    title: 'Reply to Ada',
+    status: 'todo',
+    priority: 'p1',
+    assignee: { type: 'user', id: 'user-1', name: 'Ada Lovelace' },
+    dueDate: '2026-10-17',
+    createdAt: '2026-10-10T08:00:00.000Z',
+    url: '/dashboard/org-1/projects/project-1/tasks?task=task-1',
+  };
+  const nativeWith = (list: ReturnType<typeof vi.fn>) =>
+    platformTaskNatives({ list } as never)['task.list'];
+
+  it('reads as the run, with its filters, and answers the tasks', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [listed], hasMore: true });
+    await expect(
+      nativeWith(list)?.(
+        {
+          projectId: 'project-1',
+          status: ['todo', 'in_progress'],
+          createdSince: '2026-10-10',
+          limit: 20,
+        },
+        step as never,
+      ),
+    ).resolves.toEqual({ tasks: [listed], hasMore: true });
+    expect(list).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller: step.caller,
+      projectId: 'project-1',
+      statuses: ['todo', 'in_progress'],
+      // A day alone is its start, in UTC.
+      createdSince: Date.parse('2026-10-10T00:00:00Z'),
+      limit: 20,
+    });
+  });
+
+  it('takes a moment in epoch milliseconds, and 50 tasks when no limit is named', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, tasks: [], hasMore: false });
+    await nativeWith(list)?.(
+      { projectId: 'project-1', createdSince: 1_791_000_000_000 },
+      step as never,
+    );
+    expect(list.mock.calls[0]?.[0]).toMatchObject({
+      createdSince: 1_791_000_000_000,
+      limit: 50,
+    });
+  });
+
+  it.each([
+    [{ projectId: 'project-1', createdSince: 'yesterday' }],
+    [{ projectId: 'project-1', status: ['open'] }],
+    [{ projectId: 'project-1', limit: 500 }],
+    [{ projectId: '' }],
+  ])('refuses %j before the store is asked', async (input) => {
+    const list = vi.fn();
+    await expect(
+      nativeWith(list)?.(input, step as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it('refuses a call that is not an automation step', async () => {
+    const list = vi.fn();
+    await expect(
+      nativeWith(list)?.({ projectId: 'project-1' }, {
+        ...step,
+        caller: { kind: 'user', userId: 'user-1' },
+      } as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it('fails a project the run may not read with its cause', async () => {
+    const list = vi.fn().mockResolvedValue({
+      ok: false,
+      refusal: { kind: 'project', detail: 'Project not found' },
+    });
+    await expect(
+      nativeWith(list)?.({ projectId: 'project-9' }, step as never),
+    ).rejects.toMatchObject({
+      connector: 'task',
+      action: 'list',
+      failure: {
+        reason: 'TASK_PROJECT_NOT_BOUND',
+        params: { projectId: 'project-9' },
+      },
+    });
+  });
+});
