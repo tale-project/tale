@@ -67,6 +67,7 @@ export function flowLooks({
           : 'none',
     };
     if (info?.decision !== undefined) look.decision = info.decision;
+    if (info?.substitute !== undefined) look.substitute = info.substitute;
     const compared = compare?.nodes[node.id];
     if (compared?.absentIn !== undefined) look.absent = true;
     else if (compared?.differs === true) look.differs = true;
@@ -78,7 +79,8 @@ export function flowLooks({
       look.highlighted !== 'none' ||
       look.differs === true ||
       look.absent === true ||
-      look.diff !== undefined
+      look.diff !== undefined ||
+      look.substitute !== undefined
     )
       nodes.set(node.id, look);
   }

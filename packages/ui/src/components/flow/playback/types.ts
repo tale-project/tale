@@ -11,6 +11,22 @@ import type { FlowNodeState } from '../node-status';
  * a reader can follow, and maps back to real time for the clock.
  */
 
+/** What stood in for a node's real work: a test's simulated output, a
+ *  pinned one, a simulated failure, a write a preview held back, or a node
+ *  the test leaves out. */
+export type FlowSubstituteKind =
+  | 'simulated'
+  | 'pinned'
+  | 'failure'
+  | 'held'
+  | 'left-out';
+
+export interface FlowNodeSubstitute {
+  kind: FlowSubstituteKind;
+  /** The host's words, shown on the chip ("Simulated output"). */
+  label: string;
+}
+
 /** Where one node stands in a run. */
 export interface FlowNodeRunInfo {
   state: FlowNodeState;
@@ -33,6 +49,13 @@ export interface FlowNodeRunInfo {
    * lines.
    */
   explanation?: string;
+  /**
+   * What stood in for the node's real work. A chip on the strip in the
+   * host's words, said in the node's description and List view lines too;
+   * the box keeps its size. `left-out` also dashes the border, as a node
+   * that does not run; a simulated `failure` keeps the failed frame.
+   */
+  substitute?: FlowNodeSubstitute;
 }
 
 /** A run shown without time: an old run without timings, an editor's

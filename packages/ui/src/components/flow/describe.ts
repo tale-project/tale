@@ -117,6 +117,9 @@ interface RunWords {
   strip: string;
   sentences: readonly string[];
   explanations: readonly string[];
+  /** What stood in for its real work, in the host's words: the strip
+   *  shows it as a chip, so it is said here instead of in the strip. */
+  substitute?: string;
 }
 
 const NO_RUN_WORDS: RunWords = {
@@ -281,6 +284,9 @@ export function describeFlowGraph(
     return {
       stateName,
       strip: runText,
+      ...(info.substitute !== undefined && {
+        substitute: info.substitute.label,
+      }),
       // Said once more in the description only when it adds something to
       // the name's state word.
       sentences: runText === stateName || runText === '' ? [] : [runText],
@@ -370,6 +376,7 @@ export function describeFlowGraph(
       strip,
       sentences,
       explanations: why,
+      substitute,
     } = words.get(node.id) ?? NO_RUN_WORDS;
     const base =
       stateName === ''
@@ -378,7 +385,7 @@ export function describeFlowGraph(
     names.set(node.id, issueText === '' ? base : `${base} ${issueText}`);
     if (why.length > 0) explanations.set(node.id, why);
     const reason = reasons?.[node.id];
-    const extra = [...sentences, ...why, reason ?? ''];
+    const extra = [substitute, ...sentences, ...why, reason ?? ''];
 
     const parts: (string | null | undefined)[] = [
       t('node.position', { index: index + 1, count }),
@@ -397,6 +404,7 @@ export function describeFlowGraph(
       if (node.unreachable) parts.push(t('node.unreachable'));
       parts.push(node.description);
       listLines = [
+        substitute,
         ...(sentences.length > 0 ? sentences : [strip]),
         ...why,
         reason,

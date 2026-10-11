@@ -2,7 +2,16 @@
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Handle, Position } from '@xyflow/react';
-import { Info, TriangleAlert } from 'lucide-react';
+import {
+  CircleDashed,
+  CirclePause,
+  FlaskConical,
+  Info,
+  Pin,
+  TriangleAlert,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   createContext,
   useContext,
@@ -22,6 +31,7 @@ import type { FlowDiffKind } from '../diff/diff';
 import { FLOW_MOTION_CLASS, FLOW_STRIP_SETTLE } from '../motion/flow-motion';
 import { flowNodeIssueFrameClass } from '../node-issue-marker';
 import { FLOW_NODE_STATE, type FlowNodeState } from '../node-status';
+import type { FlowNodeSubstitute, FlowSubstituteKind } from '../playback/types';
 import type { FlowNotice } from '../types';
 import { FLOW_DIFF_FRAME, FLOW_DIFF_HATCH, FLOW_NODE_DASHED } from './chrome';
 
@@ -44,6 +54,9 @@ export interface FlowNodeLook {
    *  change's colour and its badge; a removed box hatched, its title
    *  struck through. */
   diff?: FlowDiffKind;
+  /** What stood in for its real work in the run shown: a chip on its
+   *  strip; `left-out` dashes it. */
+  substitute?: FlowNodeSubstitute;
 }
 
 /** How a line looks right now. */
@@ -305,6 +318,7 @@ export function FlowNodeButton({
       data-flow-differs={look.differs || undefined}
       data-flow-absent={look.absent || undefined}
       data-flow-diff={look.diff}
+      data-flow-substitute={look.substitute?.kind}
       tabIndex={!leaving && context.tabStopId === id ? 0 : -1}
       inert={leaving || undefined}
       aria-hidden={leaving || undefined}
@@ -329,6 +343,7 @@ export function FlowNodeButton({
         (dashed ||
           look.quiet ||
           look.absent === true ||
+          look.substitute?.kind === 'left-out' ||
           PASSED_BY.has(look.state)) &&
           FLOW_NODE_DASHED,
         // The frame takes the worst problem's colour; the selection ring
@@ -406,6 +421,35 @@ export function FlowNodeButton({
  * plays on, new words settle in softly; scrubbing back and reduced motion
  * swap them at once.
  */
+/** One glyph per stand-in; the chip always says it in words too. */
+const SUBSTITUTE_ICON: Readonly<Record<FlowSubstituteKind, LucideIcon>> = {
+  simulated: FlaskConical,
+  pinned: Pin,
+  failure: Zap,
+  held: CirclePause,
+  'left-out': CircleDashed,
+};
+
+/** What stood in for a box's real work, on the strip's leading edge: the
+ *  same 20 px as a chip on the box's face, in the neutral tone. */
+function FlowSubstituteChip({
+  substitute,
+}: {
+  substitute: FlowNodeSubstitute;
+}) {
+  const Icon = SUBSTITUTE_ICON[substitute.kind];
+  return (
+    <span
+      data-slot="flow-node-substitute"
+      data-kind={substitute.kind}
+      className="border-border text-foreground inline-flex h-5 max-w-[60%] shrink-0 items-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap"
+    >
+      <Icon aria-hidden="true" className="size-3 shrink-0" />
+      <span className="truncate">{substitute.label}</span>
+    </span>
+  );
+}
+
 export function FlowNodeStrip({
   id,
   notice,
@@ -414,8 +458,9 @@ export function FlowNodeStrip({
   /** Start's or End's notice: it takes the place of the strip's words. */
   notice?: FlowNotice;
 }) {
-  const { strips, stripSettle, compare } = useFlowRender();
+  const { strips, stripSettle, compare, looks } = useFlowRender();
   const text = strips.get(id) ?? '';
+  const substitute = looks.get(id)?.substitute;
   const face = compare?.faces.get(id);
   const ref = useRef<HTMLSpanElement>(null);
   const shown = useRef(text);
@@ -463,9 +508,12 @@ export function FlowNodeStrip({
   return (
     <span
       data-slot="flow-node-strip"
-      className="border-border text-muted-foreground flex h-7 shrink-0 items-center border-t px-3 text-xs"
+      className="border-border text-muted-foreground flex h-7 shrink-0 items-center gap-1.5 border-t px-3 text-xs"
     >
-      <span ref={ref} className="truncate">
+      {substitute !== undefined && (
+        <FlowSubstituteChip substitute={substitute} />
+      )}
+      <span ref={ref} className="min-w-0 truncate">
         {text}
       </span>
     </span>
