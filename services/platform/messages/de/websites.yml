@@ -110,6 +110,7 @@ searchNotice:
 pagesDialog:
   title: Website-Seiten
   noPages: Noch keine Seiten gecrawlt
+  loadFailed: Die Seiten der Website konnten nicht geladen werden.
   loadMore: Mehr laden
   wordCount: '{count} Wörter'
   chunks: '{count} Chunks'
