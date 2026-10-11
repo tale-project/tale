@@ -67,3 +67,19 @@ export function incusTestConfig(
     ...overrides,
   };
 }
+
+/** What loadConfig makes of a deployment that allows Docker inside: the
+ * agent profile gets the bigger memory, and keeps 4g for a session without. */
+export function dockerCapableOverrides(): Partial<SpawnerConfig> {
+  return {
+    dockerInContainer: true,
+    session: {
+      ...TEST_SESSION_CONFIG,
+      agentProfile: {
+        ...TEST_SESSION_CONFIG.agentProfile,
+        memory: '8g',
+        memoryWithoutDocker: '4g',
+      },
+    },
+  };
+}

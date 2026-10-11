@@ -3,7 +3,6 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import {
   incusInstanceName,
   incusPoolInstanceName,
@@ -26,24 +25,15 @@ import {
   type SessionInstanceInput,
 } from './incus-session-spec.ts';
 import { STANDBY_COMMAND } from './incus-standby.ts';
-import { incusTestConfig, INCUS_TEST_ADDRESS } from './incus-test-config.ts';
+import {
+  dockerCapableOverrides,
+  incusTestConfig,
+  INCUS_TEST_ADDRESS,
+} from './incus-test-config.ts';
 import { toIncusSize } from './incus-units.ts';
 
-/** What loadConfig makes of a deployment that allows Docker inside: the
- * agent profile gets the bigger memory, and keeps 4g for a session without. */
 function dockerCapable(incus = {}, overrides = {}) {
-  return incusTestConfig(incus, {
-    dockerInContainer: true,
-    session: {
-      ...TEST_SESSION_CONFIG,
-      agentProfile: {
-        ...TEST_SESSION_CONFIG.agentProfile,
-        memory: '8g',
-        memoryWithoutDocker: '4g',
-      },
-    },
-    ...overrides,
-  });
+  return incusTestConfig(incus, { ...dockerCapableOverrides(), ...overrides });
 }
 
 const input: SessionInstanceInput = {
