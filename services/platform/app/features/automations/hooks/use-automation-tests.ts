@@ -87,8 +87,9 @@ export interface AutomationTests {
   runOne: (index: number) => void;
   /** Runs again what the last run that did not finish asked for. */
   retry: () => void;
-  /** Adds a blank test at the end; its place. */
-  add: () => number | null;
+  /** Adds a test at the end — `from`, under a name no test has, or a
+   * blank one; its place. */
+  add: (from?: Readonly<Record<string, unknown>>) => number | null;
   /** Copies a test right after itself; the copy's place. */
   duplicate: (index: number) => number | null;
   remove: (index: number) => void;
@@ -307,20 +308,29 @@ export function useAutomationTests(args: {
     void run(lastAsked.current);
   }, [run]);
 
-  const add = useCallback((): number | null => {
-    // The draft applies the edit at once, so its place is known on return;
-    // -1 while the editor has no document to add to.
-    let at = -1;
-    editDraft((current) => {
-      const next = addTest(
-        current,
-        blankTest(current, unusedTestName(current, t('tests.newName'))),
-      );
-      at = next.index;
-      return next.document;
-    });
-    return at < 0 ? null : at;
-  }, [editDraft, t]);
+  const add = useCallback(
+    (from?: Readonly<Record<string, unknown>>): number | null => {
+      // The draft applies the edit at once, so its place is known on
+      // return; -1 while the editor has no document to add to.
+      let at = -1;
+      editDraft((current) => {
+        const name = unusedTestName(
+          current,
+          typeof from?.name === 'string' && from.name !== ''
+            ? from.name
+            : t('tests.newName'),
+        );
+        const next = addTest(
+          current,
+          from === undefined ? blankTest(current, name) : { ...from, name },
+        );
+        at = next.index;
+        return next.document;
+      });
+      return at < 0 ? null : at;
+    },
+    [editDraft, t],
+  );
   const duplicate = useCallback(
     (index: number): number | null => {
       const raw = latest.current.document;

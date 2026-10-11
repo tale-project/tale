@@ -107,6 +107,33 @@ describe('automationPaths', () => {
     ]);
   });
 
+  it('says which tests go down each path, and which path none does', () => {
+    const flow = analyzeFlow(inbox.nodes);
+    const [first, second] = flow?.paths ?? [];
+    const coverage = new Map([
+      [first?.id ?? '', ['triages a reply', 'triages a newsletter']],
+      [second?.id ?? '', ['survives a failed proposal']],
+    ]);
+    const { paths: result } = paths(inbox, { coverage });
+    const [list] = result.sections;
+    expect(
+      list?.rows.map((row) => {
+        const tested = row.clauses?.at(-1);
+        return `${tested?.label} (${tested?.tone})`;
+      }),
+    ).toEqual([
+      'Tested by triages a reply and triages a newsletter (positive)',
+      'Tested by survives a failed proposal (positive)',
+      'Not tested (neutral)',
+    ]);
+    // Without tests, no row speaks of them.
+    expect(
+      paths(inbox).paths.sections[0]?.rows.every((row) =>
+        row.clauses?.every((clause) => !clause.id.startsWith('tests:')),
+      ),
+    ).toBe(true);
+  });
+
   it('says why a halting node fails once the server said', () => {
     const { paths: result } = paths(inbox, {
       halts: [{ nodeId: 'inbox', reasons: ['external', 'input-contract'] }],

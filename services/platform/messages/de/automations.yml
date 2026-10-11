@@ -1130,6 +1130,16 @@ tests:
   badges:
     simulates: '{count, plural, one {Simuliert # Node} other {Simuliert # Nodes}}'
     failures: '{count, plural, one {Simuliert # Fehler} other {Simuliert # Fehler}}'
+  addFrom:
+    blank: Leerer Test
+    trigger: Aus der Eingabe des Triggers
+    triggerName: Aus dem Trigger
+    path: Für einen ungetesteten Pfad
+    allTested: Jeder Pfad hat einen Test
+    pathName: 'Nimmt Pfad {number}'
+    pathItem: '{path}: {clauses}'
+  pathNeed:
+    when: '{value, select, true {Mach die Bedingung von {node} wahr, damit sie läuft.} other {Mach die Bedingung von {node} falsch, damit sie übersprungen wird.}}'
   fields:
     name: Name
     description: Beschreibung
@@ -1269,6 +1279,8 @@ paths:
     skipped: '{node} wird übersprungen'
     fails: '{node} schlägt fehl, der Lauf geht weiter'
     succeeds: '{node} läuft erfolgreich'
+    tested: 'Getestet von {names}'
+    untested: Nicht getestet
   more: '{count, plural, one {# weiterer Pfad ist nicht aufgeführt} other {# weitere Pfade sind nicht aufgeführt}}'
   truncated: Diese Automatisierung hat {count} Bedingungen – zu viele, um jeden Pfad aufzuführen. Jede Node zeigt trotzdem, wann sie läuft.
   halts:
