@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 30 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -231,6 +231,19 @@ single warm sample.
   refusal the api logs one `fatal startup error`, sends one error-level event
   tagged `tale.lane: boot` and exits; Docker starts it again, and that start
   waits another minute.
+- [ ] `PERF-B10` · **Database restart as the job engine starts** — Follow
+  `docker compose logs -f backend-api`. In a `psql` session on the app
+  database (`docker compose exec db psql -U tale -d tale_app`) run `BEGIN;
+  LOCK TABLE pgboss.version IN ACCESS EXCLUSIVE MODE;`, so the next pg-boss
+  start waits on it. Restart the api (`docker restart $(docker compose ps -q
+  backend-api)`), note its `docker inspect --format '{{.RestartCount}}'`, and
+  once its log shows the migrations done but no `api listening` yet, run
+  `docker compose restart db`. → The restart ends the `psql` session and cuts
+  pg-boss's start mid-statement, and the api does not exit: its log shows `[db]
+  transient error on attempt …, retrying in …ms: terminating connection due to
+  administrator command`, then, once `db` answers, `api listening on :3005`.
+  The restart count has not moved, and with `SENTRY_DSN` set no event arrives
+  — none titled `error: terminating connection due to administrator command`.
 - [ ] `PERF-B8` · **A write and a list while the app tier is away** — With
   `SENTRY_DSN` pointing at a project you can read, open a project's task
   board, open **Create task** and type a title, then run `docker compose stop

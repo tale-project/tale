@@ -1,6 +1,7 @@
 import { PgBoss } from 'pg-boss';
 import type { Sql } from 'postgres';
 
+import type { BootDatabaseWait } from '../db/boot-wait.ts';
 import { appPoolMax } from '../db/sql.ts';
 import { resolvePostgresConnection } from '../db/ssl.ts';
 import {
@@ -111,6 +112,42 @@ function withoutWorkerSuffix(error: unknown): unknown {
   return message.endsWith(suffix)
     ? { ...error, message: message.slice(0, -suffix.length) }
     : error;
+}
+
+/**
+ * Start this process's pg-boss and make sure its queues exist — the boot's
+ * next use of the database after the migrations. A database that goes away
+ * meanwhile is waited out through the boot's wait (`db/boot-wait.ts`), as at
+ * the migrations: a restart that catches pg-boss's start or a queue's
+ * creation mid-statement (57P01 `terminating connection due to administrator
+ * command`), or refuses it (57P03, a refused connection), no longer fails the
+ * boot, which reported the driver's error and exited. A failed start leaves
+ * a half-started instance — its pool, its timers, perhaps its LISTEN
+ * connection — so it is stopped, and the next attempt starts a fresh one.
+ * Creating the queues again is what a concurrent boot does anyway
+ * (`ensureQueues`).
+ */
+export async function startBoss(
+  databaseUrl: string,
+  options: { supervise: boolean; wait: BootDatabaseWait },
+): Promise<PgBoss> {
+  const boss = await options.wait(async () => {
+    const attempt = createBoss(databaseUrl, { supervise: options.supervise });
+    try {
+      await attempt.start();
+    } catch (error) {
+      await attempt.stop({ graceful: false }).catch((stopError: unknown) => {
+        console.warn(
+          '[backend] pg-boss: could not stop a failed start (ignored):',
+          stopError,
+        );
+      });
+      throw error;
+    }
+    return attempt;
+  });
+  await options.wait(() => ensureQueues(boss));
+  return boss;
 }
 
 /**

@@ -66,6 +66,7 @@ import {
   taskLimitText,
 } from './core/tasks/helpers.ts';
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
+import { createBootDatabaseWait } from './db/boot-wait.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
@@ -208,7 +209,7 @@ import {
   checkAutomationProtocolQueues,
   checkAutomationProtocolReadback,
 } from './jobs/automation-protocol.integration.ts';
-import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
+import { alignQueuePolicies, startBoss } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -64111,9 +64112,12 @@ async function main(): Promise<void> {
   });
 
   console.log('[itest] starting pg-boss (installs its own schema)…');
-  const boss = createBoss(databaseUrl, { supervise: true });
-  await boss.start();
-  await ensureQueues(boss);
+  // The boot's own start (`startBoss`), so the job engine boots here the way
+  // `main.ts` boots it.
+  const boss = await startBoss(databaseUrl, {
+    supervise: true,
+    wait: createBootDatabaseWait(),
+  });
   await alignQueuePolicies(sql);
   await registerSchedules(boss);
   const triggerSchedules = await boss.getSchedules('automation.trigger_scan');

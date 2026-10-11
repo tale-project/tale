@@ -8,10 +8,12 @@ import {
 } from 'node:net';
 
 import pg from 'pg';
-import type { PgBoss, WipData } from 'pg-boss';
+import { PgBoss, type WipData } from 'pg-boss';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { createBoss } from './boss.ts';
+import { createBootDatabaseWait } from '../db/boot-wait.ts';
+import { createBoss, startBoss } from './boss.ts';
+import { TASK_QUEUE_OPTIONS } from './tasks.ts';
 
 /** A local server; `answer` gets each connection. */
 async function listen(
@@ -273,5 +275,201 @@ describe('createBoss error log', () => {
     fail();
     fail();
     expect(warn).toHaveBeenCalledTimes(2);
+  });
+});
+
+/** 57P01, what PostgreSQL sends every session as it shuts down — fast or
+ * smart — and what an administrator's `pg_terminate_backend` sends. */
+const TERMINATED = fatal(
+  '57P01',
+  'terminating connection due to administrator command',
+);
+const BAD_PASSWORD = fatal(
+  '28P01',
+  'password authentication failed for user "tale"',
+);
+
+/** AuthenticationOk, then ReadyForQuery: a session the server accepted. */
+const ACCEPTED = Buffer.from([
+  0x52, 0, 0, 0, 8, 0, 0, 0, 0, 0x5a, 0, 0, 0, 5, 0x49,
+]);
+
+/**
+ * A database shutting down under a booting process: it accepts each
+ * connection, then terminates it at its first statement with 57P01, as
+ * PostgreSQL does a session whose statement is in flight when the stop
+ * begins. Once `refuseWith` is called, it refuses every startup with that
+ * FATAL instead.
+ */
+async function shuttingDownServer(): Promise<{
+  url: string;
+  refuseWith: (answer: Buffer) => void;
+  openSockets: () => number;
+  close: () => void;
+}> {
+  let refusal: Buffer | null = null;
+  const sockets = new Set<Socket>();
+  const { server, port } = await listen((socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+    socket.once('data', () => {
+      if (refusal !== null) {
+        socket.end(refusal);
+        return;
+      }
+      socket.write(ACCEPTED);
+      socket.once('data', () => {
+        socket.end(TERMINATED);
+      });
+    });
+  });
+  return {
+    url: `postgres://tale:pw@127.0.0.1:${port}/tale`,
+    refuseWith: (answer) => {
+      refusal = answer;
+    },
+    openSockets: () => sockets.size,
+    close: () => {
+      for (const socket of sockets) socket.destroy();
+      server.close();
+    },
+  };
+}
+
+describe('startBoss, while the database restarts', () => {
+  const closers: (() => void)[] = [];
+  afterEach(() => {
+    for (const close of closers.splice(0)) close();
+    vi.restoreAllMocks();
+  });
+
+  it('meets a stop that cuts pg-boss’s start with the error GlitchTip titles “error: terminating connection due to administrator command”', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const server = await shuttingDownServer();
+    closers.push(server.close);
+    // What the boot awaited before the job engine's start was waited out.
+    const boss = createBoss(server.url, { supervise: false });
+
+    const failure = await boss.start().then(
+      () => new Error('the start was expected to fail'),
+      (error: unknown) => error,
+    );
+    await boss.stop({ graceful: false });
+
+    // node-postgres names its server errors `error`: the event's type, and
+    // so the first half of its title.
+    expect(failure).toBeInstanceOf(pg.DatabaseError);
+    expect(failure).toMatchObject({ code: '57P01' });
+    expect(String(failure)).toBe(
+      'error: terminating connection due to administrator command',
+    );
+  });
+
+  it('waits out a stop that cuts pg-boss’s start, on a fresh instance each attempt', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stop = vi.spyOn(PgBoss.prototype, 'stop');
+    const server = await shuttingDownServer();
+    closers.push(server.close);
+    // The database terminates the start until the second pause, then answers
+    // again — with a refusal no wait can fix, so the start stops there and
+    // the test needs no server that hosts pg-boss's schema.
+    const sleep = vi.fn(async () => {
+      if (sleep.mock.calls.length === 2) server.refuseWith(BAD_PASSWORD);
+    });
+
+    const failure = await startBoss(server.url, {
+      supervise: false,
+      wait: createBootDatabaseWait({ sleep }),
+    }).then(
+      () => new Error('the start was expected to fail'),
+      (caught: unknown) => caught,
+    );
+
+    // Two cut starts waited out, 1 s then 2 s apart, then the real failure —
+    // rejected at once, as the boot reports it.
+    expect(failure).toMatchObject({ code: '28P01' });
+    expect(sleep.mock.calls).toEqual([[1000], [2000]]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'retrying in 1000ms: terminating connection due to administrator command',
+      ),
+    );
+    expect(error).not.toHaveBeenCalled();
+    // Every failed start's instance was stopped, so none is left with a pool
+    // or a connection beside the next attempt's.
+    expect(stop).toHaveBeenCalledTimes(3);
+    await vi.waitFor(() => {
+      expect(server.openSockets()).toBe(0);
+    });
+  });
+
+  it('still fails the boot once the outage outlasts the wait', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const server = await shuttingDownServer();
+    closers.push(server.close);
+    let now = 0;
+    const sleep = vi.fn(async (ms: number) => {
+      now += ms;
+    });
+
+    const failure = await startBoss(server.url, {
+      supervise: false,
+      wait: createBootDatabaseWait({ waitMs: 20_000, sleep, now: () => now }),
+    }).then(
+      () => new Error('the start was expected to fail'),
+      (error: unknown) => error,
+    );
+
+    // Starts cut at 0, 1, 3, 7, 12, 17 and 22 s; the last is past the wait,
+    // and that error is what the boot reports.
+    expect(String(failure)).toBe(
+      'error: terminating connection due to administrator command',
+    );
+    expect(sleep.mock.calls).toEqual([
+      [1000],
+      [2000],
+      [4000],
+      [5000],
+      [5000],
+      [5000],
+    ]);
+  });
+
+  it('creates the queues again when the stop cuts their creation', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // A start the database answered (a local server cannot host pg-boss's
+    // schema), then a stop that cuts the first queue's creation and the
+    // check that a concurrent boot created it.
+    vi.spyOn(PgBoss.prototype, 'start').mockImplementation(
+      async function started(this: PgBoss) {
+        return this;
+      },
+    );
+    const shutdown = new pg.DatabaseError(
+      'terminating connection due to administrator command',
+      0,
+      'error',
+    );
+    shutdown.code = '57P01';
+    const createQueue = vi
+      .spyOn(PgBoss.prototype, 'createQueue')
+      .mockRejectedValueOnce(shutdown)
+      .mockResolvedValue(undefined);
+    const getQueue = vi
+      .spyOn(PgBoss.prototype, 'getQueue')
+      .mockRejectedValueOnce(shutdown);
+    const sleep = vi.fn(async () => {});
+
+    await startBoss('postgres://tale:pw@127.0.0.1:1/tale', {
+      supervise: false,
+      wait: createBootDatabaseWait({ sleep }),
+    });
+
+    expect(sleep.mock.calls).toEqual([[1000]]);
+    expect(getQueue).toHaveBeenCalledTimes(1);
+    expect(createQueue).toHaveBeenCalledTimes(
+      Object.keys(TASK_QUEUE_OPTIONS).length + 1,
+    );
   });
 });
