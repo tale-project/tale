@@ -18,6 +18,7 @@ import {
   STANDBY_CLAIM_FILE,
   STANDBY_READY_FILE,
   STANDBY_SCRIPT_PATH,
+  standbyScriptDigest,
 } from './incus-standby.ts';
 import { incusTestConfig } from './incus-test-config.ts';
 
@@ -78,6 +79,15 @@ const claimInput: SessionInstanceInput = {
   egressAddress: '10.9.0.2',
   startupDeadlineMs: 1_700_000_006_000,
 };
+
+/** Waits until the fake has seen `count` requests matching `match`. */
+async function until(fake: FakeIncus, match: string, count: number) {
+  const deadline = Date.now() + 2_000;
+  while (fake.seen(match).length < count) {
+    if (Date.now() > deadline) throw new Error(`never saw ${match}`);
+    await Bun.sleep(2);
+  }
+}
 
 function standbys(fake: FakeIncus) {
   return [...fake.instances.values()].filter((i) => i.config[LABEL.pool]);
@@ -258,6 +268,17 @@ describe('keeping the pool current', () => {
     expect(fake.instances.has('tale-sbx-pool-other')).toBe(true);
   });
 
+  test('a standby running another script is replaced: the script is part of what it is made of', async () => {
+    const { cfg } = fixture(1);
+    expect(poolFingerprint(cfg, poolShape(cfg), 'another-script')).not.toBe(
+      poolFingerprint(cfg, poolShape(cfg)),
+    );
+    expect(poolFingerprint(cfg, poolShape(cfg))).toBe(
+      poolFingerprint(cfg, poolShape(cfg), standbyScriptDigest()),
+    );
+    expect(standbyScriptDigest()).toMatch(/^[0-9a-f]{16}$/);
+  });
+
   test('the fingerprint on a standby is the one the config makes', async () => {
     const { fake, pool, cfg } = fixture(1);
     await pool.reconcile();
@@ -338,57 +359,113 @@ describe('claiming a standby', () => {
     expect(names.every((name) => name !== undefined)).toBe(true);
   });
 
-  test('a claim that fails removes the standby and leaves the session to start cold', async () => {
+  test('a claim the node refuses leaves the standby a standby, and the session starts cold', async () => {
     const { fake, pool, cfg } = fixture(1);
     await pool.reconcile();
     const [only] = standbys(fake);
     if (only === undefined) throw new Error('no standby');
-    // No volume to mount: the hot-plug is refused.
+    // No volume to mount: the hot-plug is refused, and the standby is as it
+    // was.
     const name = await pool.claim(claimInput, sessionShape(cfg, 'agent'));
     expect(name).toBeUndefined();
-    expect(fake.instances.has(only.name)).toBe(false);
-    // Nothing of the failed claim is left on a session's name.
+    expect(fake.instances.get(only.name)?.status).toBe('Running');
+    expect(fake.instances.get(only.name)?.config[LABEL.pool]).toBeDefined();
+    // Nothing of the refused claim is left on a session's name.
     expect(
       [...fake.instances.values()].filter(
         (i) => i.config[LABEL.session] !== undefined,
       ),
     ).toEqual([]);
-    await pool.reconcile();
+    // Once the volume is there, the same standby is claimed.
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    expect(await pool.claim(claimInput, sessionShape(cfg, 'agent'))).toBe(
+      only.name,
+    );
   });
 
-  test('a standby changed by someone else since it was read is refused, not overwritten', async () => {
-    const { fake, pool, cfg } = fixture(1);
+  test('a standby changed by someone else since it was read is passed over, not overwritten or removed', async () => {
+    const { fake, pool, cfg } = fixture(2);
     await pool.reconcile();
     fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
-    const [only] = standbys(fake);
-    if (only === undefined) throw new Error('no standby');
-    // A peer claims between this spawner's read and its write.
+    // A peer claims the first standby between this spawner's read and write.
     fake.fail({
       match: 'PATCH /1.0/instances/*',
       status: 412,
       message: "ETag doesn't match",
     });
+    const name = await pool.claim(claimInput, sessionShape(cfg, 'agent'));
+    // The next standby is tried, and claimed.
+    expect(name).toBeDefined();
+    const others = standbys(fake);
+    expect(others).toHaveLength(1);
+    // The one that was passed over is still there, untouched by the claim.
+    expect(fake.instances.size).toBe(2);
+    expect(others[0]?.files.has(STANDBY_CLAIM_FILE)).toBe(false);
+  });
+
+  test('gives up after three standbys that cannot be claimed, and the session starts cold', async () => {
+    const { fake, pool, cfg } = fixture(4);
+    await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    fake.fail({
+      match: 'PATCH /1.0/instances/*',
+      status: 412,
+      message: "ETag doesn't match",
+      times: 10,
+    });
     expect(
       await pool.claim(claimInput, sessionShape(cfg, 'agent')),
     ).toBeUndefined();
-    expect(fake.instances.has(only.name)).toBe(false);
-    expect(only.files.has(STANDBY_CLAIM_FILE)).toBe(false);
-    await pool.reconcile();
+    expect(fake.seen('PATCH /1.0/instances/*')).toHaveLength(3);
+    expect(fake.instances.size).toBe(4);
   });
 
-  test('a standby that has stopped waiting is not handed out', async () => {
+  test('a standby that has stopped waiting is passed over, and left to the pool’s next pass', async () => {
     const { fake, pool, cfg } = fixture(1);
     await pool.reconcile();
     fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
     const [only] = standbys(fake);
     if (only === undefined) throw new Error('no standby');
     only.status = 'Stopped';
-    only.ephemeral = false;
     expect(
       await pool.claim(claimInput, sessionShape(cfg, 'agent')),
     ).toBeUndefined();
+    // Not this claim's to remove.
+    expect(fake.instances.has(only.name)).toBe(true);
+    const report = await pool.reconcile();
+    expect(report.removed).toBe(1);
     expect(fake.instances.has(only.name)).toBe(false);
+  });
+
+  test('a standby that a peer already turned into a session is never taken, nor removed', async () => {
+    const { fake, pool, cfg } = fixture(1);
     await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    only.config[LABEL.sandboxSession] = '1';
+    only.config[LABEL.session] = 'a_live_session';
+    only.config[LABEL.pool] = '';
+    expect(
+      await pool.claim(claimInput, sessionShape(cfg, 'agent')),
+    ).toBeUndefined();
+    expect(fake.instances.get(only.name)?.status).toBe('Running');
+    expect(fake.instances.get(only.name)?.config[LABEL.session]).toBe(
+      'a_live_session',
+    );
+  });
+
+  test('a standby being retired is never claimed', async () => {
+    const { fake, pool, cfg } = fixture(1);
+    await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    only.config[LABEL.poolRetired] = '1';
+    expect(
+      await pool.claim(claimInput, sessionShape(cfg, 'agent')),
+    ).toBeUndefined();
+    expect(fake.seen('PATCH /1.0/instances/*')).toHaveLength(0);
   });
 
   test('a standby the claim pushes into before it fails to start is not left claimed', async () => {
@@ -406,9 +483,186 @@ describe('claiming a standby', () => {
       await pool.claim(claimInput, sessionShape(cfg, 'agent')),
     ).toBeUndefined();
     // The labels were already written: the instance must not stay a session
-    // nobody is booting.
+    // nobody is booting. It is removed because it carries this claim's attempt.
     expect(fake.instances.has(only.name)).toBe(false);
     await pool.reconcile();
+  });
+
+  test('what a failed delivery finds under another attempt’s label is not removed', async () => {
+    const { fake, pool, cfg } = fixture(1);
+    await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    const release = fake.hold('POST /1.0/instances/*/files');
+    fake.fail({
+      match: 'POST /1.0/instances/*/files',
+      status: 500,
+      message: 'forkfile failed',
+    });
+    const claiming = pool.claim(claimInput, sessionShape(cfg, 'agent'));
+    // Held at the delivery, after the claim's write: another attempt takes the
+    // instance over before the failure is cleaned up after.
+    await until(fake, 'POST /1.0/instances/*/files', 2);
+    only.config[LABEL.createAttempt] = 'a-different-attempt';
+    release();
+    expect(await claiming).toBeUndefined();
+    expect(fake.instances.has(only.name)).toBe(true);
+  });
+});
+
+describe('a claim and a removal meeting on one standby', () => {
+  test('the claim writes first: the removal is refused and leaves the session alone', async () => {
+    const { fake, pool, poolFor, cfg } = fixture(1);
+    await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    const release = fake.hold('PATCH /1.0/instances/*');
+    const claiming = pool.claim(claimInput, sessionShape(cfg, 'agent'));
+    await until(fake, 'PATCH /1.0/instances/*', 1);
+    // A replacement spawner (another config: every standby is stale) reads the
+    // same standby and means to retire it.
+    const moved = poolFor(
+      incusTestConfig({ poolSize: 1 }, { egressProxy: 'http://10.9.0.3:3128' }),
+    );
+    const removing = moved.reconcile();
+    await until(fake, 'PATCH /1.0/instances/*', 2);
+    release();
+    expect(await claiming).toBe(only.name);
+    const report = await removing;
+    expect(report.removed).toBe(0);
+    expect(fake.instances.get(only.name)?.status).toBe('Running');
+    expect(fake.instances.get(only.name)?.config[LABEL.session]).toBe(
+      'sess_claimed',
+    );
+    expect(
+      fake.instances.get(only.name)?.config[LABEL.poolRetired],
+    ).toBeUndefined();
+  });
+
+  test('the removal writes first: the claim is refused and the session starts cold', async () => {
+    const { fake, pool, poolFor, cfg } = fixture(1);
+    await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    const release = fake.hold('PATCH /1.0/instances/*');
+    const moved = poolFor(
+      incusTestConfig({ poolSize: 1 }, { egressProxy: 'http://10.9.0.3:3128' }),
+    );
+    const removing = moved.reconcile();
+    await until(fake, 'PATCH /1.0/instances/*', 1);
+    const claiming = pool.claim(claimInput, sessionShape(cfg, 'agent'));
+    await until(fake, 'PATCH /1.0/instances/*', 2);
+    release();
+    expect(await claiming).toBeUndefined();
+    await removing;
+    // The retired standby is gone, and it never became a session.
+    expect(fake.instances.has(only.name)).toBe(false);
+    expect(
+      [...fake.instances.values()].filter(
+        (i) => i.config[LABEL.session] === 'sess_claimed',
+      ),
+    ).toEqual([]);
+  });
+
+  test('a removal that was interrupted after its mark is finished by the next pass', async () => {
+    const { fake, pool } = fixture(1);
+    await pool.reconcile();
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    only.config[LABEL.poolRetired] = '1';
+    const report = await pool.reconcile();
+    expect(report.removed).toBe(1);
+    expect(fake.instances.has(only.name)).toBe(false);
+    // And the pool made another to take its place.
+    expect(report.created).toBe(1);
+    expect(standbys(fake)).toHaveLength(1);
+  });
+
+  test('marks a standby retired under its ETag before anything is stopped', async () => {
+    const { fake, pool } = fixture(1);
+    await pool.reconcile();
+    const [only] = standbys(fake);
+    if (only === undefined) throw new Error('no standby');
+    only.config[LABEL.pool] = 'stale';
+    const before = fake.requests.length;
+    await pool.reconcile();
+    const mark = fake
+      .seen('PATCH /1.0/instances/*')
+      .find((request) =>
+        JSON.stringify(request.body).includes(LABEL.poolRetired),
+      );
+    expect(mark?.headers['if-match']).toBeDefined();
+    const order = fake.requests
+      .slice(before)
+      .filter((request) => ['PATCH', 'PUT', 'DELETE'].includes(request.method))
+      .filter((request) => request.path.includes(only.name))
+      .map((request) => request.method);
+    expect(order.indexOf('PATCH')).toBeLessThan(order.indexOf('PUT'));
+    expect(order.indexOf('PUT')).toBeLessThan(order.indexOf('DELETE'));
+  });
+});
+
+describe('a pool that is stopped', () => {
+  test('does nothing more, and keeps what it has', async () => {
+    const { fake, pool } = fixture(2);
+    await pool.reconcile();
+    pool.stop();
+    const [first] = standbys(fake);
+    if (first === undefined) throw new Error('no standby');
+    fake.instances.delete(first.name);
+    const requests = fake.requests.length;
+    const report = await pool.reconcile();
+    expect(report).toMatchObject({ created: 0, removed: 0 });
+    expect(standbys(fake)).toHaveLength(1);
+    // It does not even look: a stopped pool asks the node nothing.
+    expect(fake.requests).toHaveLength(requests);
+  });
+
+  test('a claim after the stop does not refill the pool', async () => {
+    const { fake, pool, cfg } = fixture(2);
+    await pool.reconcile();
+    fake.seedVolume(incusWorkspaceVolumeName('sess_claimed'), {});
+    pool.stop();
+    expect(
+      await pool.claim(claimInput, sessionShape(cfg, 'agent')),
+    ).toBeDefined();
+    await Bun.sleep(20);
+    expect(standbys(fake)).toHaveLength(1);
+    expect(fake.instances.size).toBe(2);
+  });
+
+  test('a pass under way ends at its next step, not after the whole refill', async () => {
+    const { fake, pool } = fixture(8, { maxSessions: 20 });
+    const release = fake.hold('POST /1.0/instances');
+    const pass = pool.reconcile();
+    const deadline = Date.now() + 2_000;
+    while (fake.seen('POST /1.0/instances').length < 4) {
+      if (Date.now() > deadline) throw new Error('the first batch never began');
+      await Bun.sleep(2);
+    }
+    pool.stop();
+    release();
+    const report = await pass;
+    // The first batch of four was under way; the second never began.
+    expect(report.created).toBe(4);
+    expect(standbys(fake)).toHaveLength(4);
+  });
+
+  test('keeps the pool again once it is started', async () => {
+    const { fake, pool } = fixture(1);
+    pool.stop();
+    expect(await pool.reconcile()).toMatchObject({ created: 0 });
+    pool.start();
+    const deadline = Date.now() + 2_000;
+    while (standbys(fake).length < 1) {
+      if (Date.now() > deadline) throw new Error('the pool never filled');
+      await Bun.sleep(5);
+    }
+    pool.stop();
+    expect(standbys(fake)).toHaveLength(1);
   });
 });
 
@@ -446,13 +700,7 @@ describe('the pool’s own work', () => {
     // Held at the re-read that precedes the removal.
     const release = fake.hold(`GET /1.0/instances/${only.name}`);
     const pass = moved.reconcile();
-    const until = Date.now() + 2_000;
-    while (
-      fake.seen(`GET /1.0/instances/${only.name}`).length === 0 &&
-      Date.now() < until
-    ) {
-      await Bun.sleep(5);
-    }
+    await until(fake, `GET /1.0/instances/${only.name}`, 1);
     // A peer spawner claims it in the meantime.
     only.config[LABEL.sandboxSession] = '1';
     only.config[LABEL.session] = 'a_live_session';

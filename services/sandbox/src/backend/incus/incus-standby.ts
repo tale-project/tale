@@ -11,6 +11,7 @@
 // would have started.
 //
 //   standby instance:  oci.entrypoint = /bin/bash /usr/local/lib/tale/standby.sh
+//                      (under `setpriv --no-new-privs`, like a session)
 //   spawner, at claim: labels + workspace volume (instance PATCH), then
 //                      POST /files  /run/tale-standby/claim.env
 //   script:            sources the claim, removes it, cd /agent, exec's
@@ -18,6 +19,8 @@
 //
 // bash waits with `read -t` on a FIFO it holds open, which wakes up without
 // forking, so an idle standby costs next to nothing.
+
+import { createHash } from 'node:crypto';
 
 export const STANDBY_SCRIPT_PATH = '/usr/local/lib/tale/standby.sh';
 const STANDBY_DIR = '/run/tale-standby';
@@ -49,7 +52,7 @@ export function standbyScript(options: StandbyScriptOptions = {}): string {
   const workdir = options.workdir ?? '/agent';
   return `#!/bin/bash
 # Tale sandbox standby: wait for the spawner's claim, then become the session.
-# Written by services/sandbox (incus-standby.ts); see docs/incus.md.
+# Written by services/sandbox (incus-standby.ts); see services/sandbox/docs/incus.md.
 set -u
 dir='${dir}'
 claim="$dir/claim.env"
@@ -72,6 +75,16 @@ if [ -n "\${TALE_STANDBY_UID:-}" ]; then
 fi
 exec '${entrypoint}' daemon
 `;
+}
+
+/** A digest of the script a standby runs. It is part of what a standby is made
+ * of (the pool's fingerprint), so that a spawner whose script changed replaces
+ * the standbys that run the old one instead of claiming them. */
+export function standbyScriptDigest(): string {
+  return createHash('sha256')
+    .update(standbyScript())
+    .digest('hex')
+    .slice(0, 16);
 }
 
 const NAME_RE = /^[A-Z][A-Z0-9_]*$/;

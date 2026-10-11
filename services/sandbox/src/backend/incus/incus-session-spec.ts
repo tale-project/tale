@@ -55,7 +55,11 @@ import {
   incusWorkspaceVolumeName,
   LABEL,
 } from './incus-naming.ts';
-import { claimFile, STANDBY_COMMAND } from './incus-standby.ts';
+import {
+  claimFile,
+  STANDBY_COMMAND,
+  standbyScriptDigest,
+} from './incus-standby.ts';
 import { toIncusSize } from './incus-units.ts';
 
 /** Where a session's workspace volume is mounted. */
@@ -447,7 +451,11 @@ function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function standbyStaticSpec(cfg: SpawnerConfig, shape: SessionShape) {
+function standbyStaticSpec(
+  cfg: SpawnerConfig,
+  shape: SessionShape,
+  script: string,
+) {
   const incus = incusOf(cfg);
   return {
     profiles: [incus.profile],
@@ -457,18 +465,21 @@ function standbyStaticSpec(cfg: SpawnerConfig, shape: SessionShape) {
     }),
     devices: sharedDevices(cfg, shape),
     image: incus.image,
+    script,
   };
 }
 
 /** A fingerprint of everything a standby is made of apart from its name: a
- * standby made under another config (a moved proxy, a new limit) no longer
- * matches and is replaced. */
+ * standby made under another config (a moved proxy, a new limit) or running
+ * another script no longer matches and is replaced. `script` is the digest of
+ * the standby script (tests give another one). */
 export function poolFingerprint(
   cfg: SpawnerConfig,
   shape: SessionShape,
+  script: string = standbyScriptDigest(),
 ): string {
   return createHash('sha256')
-    .update(stable(standbyStaticSpec(cfg, shape)))
+    .update(stable(standbyStaticSpec(cfg, shape, script)))
     .digest('hex')
     .slice(0, 16);
 }
@@ -481,7 +492,7 @@ export function buildPoolInstance(
   shape: SessionShape,
   entry: { name: string; imageFingerprint: string; nowMs: number },
 ): IncusInstanceCreate {
-  const spec = standbyStaticSpec(cfg, shape);
+  const spec = standbyStaticSpec(cfg, shape, standbyScriptDigest());
   return {
     name: entry.name,
     ephemeral: false,

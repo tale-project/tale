@@ -13,11 +13,17 @@
 // together never exceed the spawner's session capacity, so a burst of
 // sessions takes the capacity back from the pool (makeRoom), and a standby
 // that no longer matches what a session would be made of today (a moved proxy,
-// a new image) or has stood too long is replaced.
+// a new image, another standby script) or has stood too long is replaced.
+//
+// A claim and a removal can meet on one standby (a create admitted before a
+// drain, a replacement spawner clearing stale standbys). Both write the
+// instance under the ETag they read it with, and Incus lets only the first
+// through: a removal marks the standby retired before it deletes it, and a
+// claim that finds the mark, or loses the write, passes that standby over.
 
 import { outsideOperationBudget } from '../../operation-budget.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { INCUS_STATUS, type IncusInstance } from './incus-api.ts';
+import { INCUS_STATUS, incusStatus, type IncusInstance } from './incus-api.ts';
 import type { IncusClient } from './incus-client.ts';
 import {
   incusPoolInstanceName,
@@ -52,6 +58,9 @@ const STANDBY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 /** A standby that is not waiting for a claim by then is stuck. */
 const STANDBY_STARTUP_MS = 90_000;
 const OPERATION_WAIT_MS = 120_000;
+/** Standbys a claim passes over (gone, retired, changed by another) before
+ * the session starts cold. */
+const MAX_CLAIM_ATTEMPTS = 3;
 
 export interface PoolDeps {
   now?: () => number;
@@ -82,6 +91,7 @@ export class IncusPool {
   private readonly claiming = new Set<string>();
   private reconciling: Promise<PoolReport> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private stopped = false;
 
   constructor(
     private readonly cfg: SpawnerConfig,
@@ -103,6 +113,7 @@ export class IncusPool {
   /** Begin keeping the pool full; the first pass runs at once, beside boot. */
   start(): void {
     if (this.size === 0 || this.timer !== null) return;
+    this.stopped = false;
     this.timer = setInterval(
       () => void this.reconcileQuietly(),
       RECONCILE_INTERVAL_MS,
@@ -111,7 +122,15 @@ export class IncusPool {
     void this.reconcileQuietly();
   }
 
+  /**
+   * Stop keeping the pool: the timer ends, a pass under way winds down at its
+   * next step, and a claim no longer refills. The standbys stay, for whichever
+   * spawner keeps the pool next. A draining spawner stops its pool: its
+   * replacement keeps one, and two spawners each filling the pool to its
+   * target would pass the session capacity between them.
+   */
   stop(): void {
+    this.stopped = true;
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
   }
@@ -145,7 +164,12 @@ export class IncusPool {
     return (await this.client.getImageAlias(incusOf(this.cfg).image))?.target;
   }
 
+  private report(created: number, removed: number): PoolReport {
+    return { created, removed, ready: this.ready.size };
+  }
+
   private async reconcileNow(): Promise<PoolReport> {
+    if (this.stopped) return this.report(0, 0);
     const instances = await this.client.listInstances();
     const spawner = this.cfg.instance;
     const standbys = instances.filter((i) => isPoolInstance(i.config, spawner));
@@ -182,7 +206,9 @@ export class IncusPool {
         (image !== undefined &&
           label(standby.config, LABEL.poolImage) !== image) ||
         age > STANDBY_MAX_AGE_MS;
-      if (dead || stale || this.size === 0) {
+      // A retired standby is what an interrupted removal left.
+      const retired = label(standby.config, LABEL.poolRetired) !== undefined;
+      if (dead || stale || retired || this.size === 0) {
         doomed.push(standby);
         continue;
       }
@@ -215,16 +241,15 @@ export class IncusPool {
 
     let removed = 0;
     for (const standby of doomed) {
-      if (await this.discard(standby.name, { unlessClaimed: true })) {
-        removed += 1;
-      }
+      if (this.stopped) return this.report(0, removed);
+      if (await this.retire(standby.name)) removed += 1;
     }
 
     let created = 0;
     if (image !== undefined) {
       let missing =
         Math.min(target, this.size) - keep.length - this.making.size;
-      while (missing > 0) {
+      while (missing > 0 && !this.stopped) {
         const batch = Math.min(missing, MAX_PARALLEL_CREATES);
         const results = await Promise.all(
           Array.from({ length: batch }, () => this.makeStandby(image)),
@@ -235,7 +260,7 @@ export class IncusPool {
         if (!results.some(Boolean)) break;
       }
     }
-    return { created, removed, ready: this.ready.size };
+    return this.report(created, removed);
   }
 
   /** Is the standby up and waiting for a claim? */
@@ -289,7 +314,7 @@ export class IncusPool {
         error,
         await this.consoleTail(name),
       );
-      await this.discard(name);
+      await this.retire(name);
       return false;
     } finally {
       this.making.delete(name);
@@ -298,7 +323,7 @@ export class IncusPool {
 
   /** What the standby printed last, for the log of a standby that failed: the
    * instance is not ephemeral, so its console outlives the failure until it is
-   * discarded. Empty when it cannot be read. */
+   * removed. Empty when it cannot be read. */
   private async consoleTail(name: string): Promise<string> {
     try {
       const tail = await this.client.getConsoleLog(name, 2_000);
@@ -313,28 +338,42 @@ export class IncusPool {
   }
 
   /**
-   * Remove a standby (or the debris of one); false when it could not be. With
-   * `unlessClaimed`, an instance that has become a session since it was listed
-   * (a peer spawner claimed it) is left alone: a standby chosen for removal
-   * from a listing must not take a live session with it.
+   * Remove a standby (or the debris of one); false when it could not be. The
+   * standby is marked retired under the ETag it was read with before anything
+   * is stopped, which settles a race with a claim: a claim that read it
+   * earlier loses its write, and a standby that was claimed since it was
+   * listed is no longer one and is left alone.
    */
-  private async discard(
-    name: string,
-    options: { unlessClaimed?: boolean } = {},
-  ): Promise<boolean> {
+  private async retire(name: string): Promise<boolean> {
     this.ready.delete(name);
     try {
-      if (options.unlessClaimed === true) {
-        const found = await this.client.getInstance(name);
-        if (found === undefined) return true;
-        if (!isPoolInstance(found.instance.config, this.cfg.instance)) {
+      const found = await this.client.getInstance(name);
+      if (found === undefined) return true;
+      if (!isPoolInstance(found.instance.config, this.cfg.instance)) {
+        console.warn(
+          `[sandbox.incus.pool] ${name} is no longer a standby (claimed meanwhile); left in place`,
+        );
+        return false;
+      }
+      if (label(found.instance.config, LABEL.poolRetired) === undefined) {
+        try {
+          await this.client.patchInstance(
+            name,
+            { config: { [LABEL.poolRetired]: '1' } },
+            found.etag === undefined ? {} : { ifMatch: found.etag },
+          );
+        } catch (error) {
+          if (incusStatus(error) !== 412) throw error;
           console.warn(
-            `[sandbox.incus.pool] ${name} is no longer a standby (claimed meanwhile); left in place`,
+            `[sandbox.incus.pool] ${name} changed since it was read (claimed meanwhile); left in place`,
           );
           return false;
         }
       }
-      await removeIncusInstance(this.client, name, { sleep: this.sleep });
+      await removeIncusInstance(this.client, name, {
+        sleep: this.sleep,
+        createdAt: found.instance.createdAt,
+      });
       return true;
     } catch (error) {
       console.warn(`[sandbox.incus.pool] removing ${name} failed:`, error);
@@ -344,47 +383,126 @@ export class IncusPool {
 
   /**
    * Make the next session out of a waiting standby, or answer undefined when
-   * there is none (or the claim failed, in which case the standby is gone and
-   * the caller creates the session cold). On success the instance is labelled
-   * as the session, holds its workspace and has been told to boot as it.
+   * there is none to claim (the caller then creates the session cold). On
+   * success the instance is labelled as the session, holds its workspace and
+   * has been told to boot as it.
+   *
+   * A standby that cannot be claimed (gone, not running, retired, changed by
+   * another since it was read) is passed over and the next one tried; it is
+   * never removed here, because it is not this claim's to remove. A claim the
+   * node refuses for its own reasons (the workspace volume is missing) leaves
+   * the standby a standby. Only an instance this claim already turned into the
+   * session, whose claim file then could not be pushed, is removed.
    */
   async claim(
     input: SessionInstanceInput,
     shape: SessionShape,
   ): Promise<string | undefined> {
-    const name = this.takeReady();
-    if (name === undefined) return undefined;
     try {
-      const found = await this.client.getInstance(name);
-      if (
-        found === undefined ||
-        found.instance.statusCode !== INCUS_STATUS.running ||
-        !isPoolInstance(found.instance.config, this.cfg.instance)
-      ) {
-        throw new Error('the standby is gone or no longer waiting');
+      for (let attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt += 1) {
+        const name = this.takeReady();
+        if (name === undefined) return undefined;
+        const readySince = this.now();
+        try {
+          const outcome = await this.claimOne(name, input, shape);
+          if (outcome === 'claimed') return name;
+          if (outcome === 'refused') {
+            // The node refused this claim, not the standby: it still waits.
+            this.ready.set(name, readySince);
+            return undefined;
+          }
+          if (outcome === 'abandoned') return undefined;
+        } catch (error) {
+          console.warn(
+            `[sandbox.incus.pool] claiming ${name} for ${input.sessionId} failed; the session starts cold:`,
+            error,
+          );
+          return undefined;
+        } finally {
+          this.claiming.delete(name);
+        }
       }
-      const claim = buildClaim(this.cfg, shape, input);
-      // The ETag makes the claim exclusive: a peer that claimed the same
-      // standby between the read and this write is refused.
-      await this.client.patchInstance(name, claim.patch, {
-        ifMatch: found.etag,
-      });
+      return undefined;
+    } finally {
+      void this.reconcileQuietly();
+    }
+  }
+
+  /** One standby, one try: `claimed`; `passed` when this standby cannot be
+   * claimed and another may be tried; `refused` when the node refused the
+   * claim itself, which another standby would meet too, and the standby is as
+   * it was; `abandoned` when the claim was written but could not be delivered,
+   * and the instance it made a session of was removed. */
+  private async claimOne(
+    name: string,
+    input: SessionInstanceInput,
+    shape: SessionShape,
+  ): Promise<'claimed' | 'passed' | 'refused' | 'abandoned'> {
+    const found = await this.client.getInstance(name);
+    if (
+      found === undefined ||
+      found.instance.statusCode !== INCUS_STATUS.running ||
+      !isPoolInstance(found.instance.config, this.cfg.instance) ||
+      label(found.instance.config, LABEL.poolRetired) !== undefined
+    ) {
+      return 'passed';
+    }
+    const claim = buildClaim(this.cfg, shape, input);
+    try {
+      // The ETag makes the claim exclusive: a peer that claimed, or a removal
+      // that retired, the same standby between the read and this write wins,
+      // and this write is refused.
+      await this.client.patchInstance(
+        name,
+        claim.patch,
+        found.etag === undefined ? {} : { ifMatch: found.etag },
+      );
+    } catch (error) {
+      if (incusStatus(error) === 412) return 'passed';
+      console.warn(
+        `[sandbox.incus.pool] the node refused to hand ${name} to ${input.sessionId}; the session starts cold:`,
+        error instanceof Error ? error.message : error,
+      );
+      return 'refused';
+    }
+    try {
       await this.client.pushFile(name, STANDBY_CLAIM_FILE, claim.file, {
         mode: '0600',
         uid: 0,
         gid: 0,
       });
-      return name;
     } catch (error) {
       console.warn(
-        `[sandbox.incus.pool] claiming ${name} for ${input.sessionId} failed; the session starts cold:`,
+        `[sandbox.incus.pool] the claim of ${name} for ${input.sessionId} could not be delivered; the session starts cold:`,
+        error instanceof Error ? error.message : error,
+      );
+      await this.abandon(name, input.createAttemptId);
+      return 'abandoned';
+    }
+    return 'claimed';
+  }
+
+  /** Remove an instance this claim made the session of, after the rest of the
+   * claim failed. Only that: what carries another attempt's label is not ours. */
+  private async abandon(name: string, attemptId: string): Promise<void> {
+    try {
+      const found = await this.client.getInstance(name);
+      if (found === undefined) return;
+      if (label(found.instance.config, LABEL.createAttempt) !== attemptId) {
+        console.warn(
+          `[sandbox.incus.pool] ${name} no longer carries this claim's attempt; left in place`,
+        );
+        return;
+      }
+      await removeIncusInstance(this.client, name, {
+        sleep: this.sleep,
+        createdAt: found.instance.createdAt,
+      });
+    } catch (error) {
+      console.warn(
+        `[sandbox.incus.pool] removing the failed claim ${name} failed:`,
         error,
       );
-      await this.discard(name);
-      return undefined;
-    } finally {
-      this.claiming.delete(name);
-      void this.reconcileQuietly();
     }
   }
 
@@ -420,7 +538,7 @@ export class IncusPool {
     );
     for (const standby of standbys.slice(0, over)) {
       if (this.claiming.has(standby.name)) continue;
-      await this.discard(standby.name, { unlessClaimed: true });
+      await this.retire(standby.name);
     }
   }
 }

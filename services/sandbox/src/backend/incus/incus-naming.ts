@@ -81,6 +81,9 @@ export const LABEL = {
   poolImage: 'user.tale.pool-image',
   /** On a standby instance: when it was made (epoch ms). */
   poolSince: 'user.tale.pool-since',
+  /** On a standby instance the pool is removing: set under the instance's
+   * ETag before the removal, so that a claim racing it loses. */
+  poolRetired: 'user.tale.pool-retired',
 } as const;
 
 /** A label's value; an empty value reads as absent, because Incus treats

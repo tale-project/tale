@@ -190,7 +190,7 @@ describe('a create the pool cannot serve', () => {
     );
   });
 
-  test('falls back to a cold start when the claim fails, and drops that standby', async () => {
+  test('falls back to a cold start when the node refuses the claim, and the standby stays', async () => {
     const { f } = await filled();
     const before = standbys(f).map((s) => s.name);
     f.fake.fail({
@@ -202,9 +202,27 @@ describe('a create the pool cannot serve', () => {
     expect(result.resumed).toBe(false);
     expect(f.fake.instances.has(COLD_NAME)).toBe(true);
     expect(f.fake.instances.get(COLD_NAME)?.status).toBe('Running');
-    // The standby that failed to be claimed is gone.
-    const survivors = new Set(standbys(f).map((s) => s.name));
-    expect(before.filter((name) => !survivors.has(name))).toHaveLength(1);
+    // The standby was not at fault: it is still one.
+    expect(standbys(f).map((s) => s.name)).toEqual(before);
+  });
+
+  test('falls back to a cold start, and drops the instance, when the claim could not be delivered', async () => {
+    const { f } = await filled();
+    f.fake.fail({
+      match: 'POST /1.0/instances/*/files',
+      status: 500,
+      message: 'forkfile failed',
+    });
+    const result = await f.backend.createSession(specOf(ID));
+    expect(result.resumed).toBe(false);
+    expect(f.fake.instances.get(COLD_NAME)?.status).toBe('Running');
+    // The one the claim turned into this session's was removed, and nothing
+    // else carries the session's label.
+    expect(
+      sessions(f).filter(
+        (i) => i.config[LABEL.session] === ID && i.name !== COLD_NAME,
+      ),
+    ).toEqual([]);
   });
 
   test('a cold start gives a standby’s slot back when the capacity is full', async () => {
