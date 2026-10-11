@@ -19,7 +19,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // `audit.test.ts`); this double answers no audit-chain query.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 import { hashWebhookToken } from '../../core/automations/webhook_token.ts';

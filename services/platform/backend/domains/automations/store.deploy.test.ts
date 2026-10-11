@@ -18,7 +18,6 @@ import { describe, expect, it, vi } from 'vitest';
 // `audit.test.ts`); this double answers no audit-chain query.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 vi.mock('../../realtime/outbox.ts', () => ({
@@ -57,6 +56,10 @@ function fakeStore(testsPassed: boolean | null): {
           createdAt: 1,
         },
       ]);
+    }
+    // The deployment history's new event.
+    if (text.includes('RETURNING id')) {
+      return Promise.resolve([{ id: 'deployment-1' }]);
     }
     return Promise.resolve([]);
   };

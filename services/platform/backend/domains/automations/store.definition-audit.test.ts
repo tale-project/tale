@@ -18,7 +18,6 @@ vi.mock('../../realtime/outbox.ts', () => ({
 }));
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 import { appOrigin, mcpOrigin } from '../../lib/write-origin.ts';
@@ -100,7 +99,11 @@ describe('deploy', () => {
   it('audits what was live and what is live now, after the name, with no organization-wide lock [AUTO-R28]', async () => {
     const fake = fakeSql([
       ['FROM app.automations WHERE org_id', [VERSION_ROW]],
-      ['SELECT version FROM app.automation_deployments', [{ version: 1 }]],
+      [
+        'deployed_by AS "deployedBy"',
+        [{ version: 1, deployedBy: 'user_ben', deployedAtMs: 1_000 }],
+      ],
+      ['RETURNING id', [{ id: 'deployment-2' }]],
     ]);
     const result = await deploy(fake.sql, {
       organizationId: 'org_1',
@@ -112,6 +115,8 @@ describe('deploy', () => {
       name: 'ops/greet',
       version: 2,
       previousVersion: 1,
+      kind: 'deploy',
+      deploymentId: 'deployment-2',
       trigger: null,
     });
     const { chain, nameLock, firstLock } = lockOrder(
@@ -129,14 +134,21 @@ describe('deploy', () => {
       version: 2,
       previousState: { deployedVersion: 1 },
       newState: { deployedVersion: 2 },
-      metadata: { fromVersion: 1, toVersion: 2 },
+      metadata: {
+        fromVersion: 1,
+        toVersion: 2,
+        deploymentId: 'deployment-2',
+      },
     });
   });
 
   it('refuses a deploy that expected another live version, and moves nothing', async () => {
     const fake = fakeSql([
       ['FROM app.automations WHERE org_id', [VERSION_ROW]],
-      ['SELECT version FROM app.automation_deployments', [{ version: 6 }]],
+      [
+        'deployed_by AS "deployedBy"',
+        [{ version: 6, deployedBy: 'user_ben', deployedAtMs: 1_000 }],
+      ],
     ]);
     const refused = await deploy(fake.sql, {
       organizationId: 'org_1',
@@ -149,7 +161,16 @@ describe('deploy', () => {
     expect(refused).toMatchObject({
       code: 'AUTOMATION_DEPLOYMENT_STALE',
       status: 409,
-      data: { deployedVersion: 6 },
+      // Who put the other version live, and when: the refused caller
+      // says it in words. No event says its door.
+      data: {
+        deployedVersion: 6,
+        expectedDeployedVersion: 5,
+        deployedBy: 'user_ben',
+        deployedAt: 1_000,
+        deployedVia: null,
+        deployedClient: null,
+      },
     });
     expect(
       fake.statements.some((s) =>
@@ -162,6 +183,7 @@ describe('deploy', () => {
   it('takes an expected null as "nothing is live"', async () => {
     const fake = fakeSql([
       ['FROM app.automations WHERE org_id', [VERSION_ROW]],
+      ['RETURNING id', [{ id: 'deployment-1' }]],
     ]);
     await expect(
       deploy(fake.sql, {
@@ -175,6 +197,8 @@ describe('deploy', () => {
       name: 'ops/greet',
       version: 2,
       previousVersion: null,
+      kind: 'deploy',
+      deploymentId: 'deployment-1',
       trigger: null,
     });
   });

@@ -33,7 +33,7 @@ import {
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
-import { listDeployments } from './audit.ts';
+import { recentDeployments } from './deployments.ts';
 import { walkLlmServingForOrganization } from './llm-serving.ts';
 import { nodeRunBytes, writeNodeRunsInTx } from './node-runs.ts';
 import { readOrgFacts } from './org-facts.ts';
@@ -945,7 +945,7 @@ export function pgAutomationStore(
       };
     },
     listDeployments: async (name): Promise<DeploymentEntry[]> =>
-      (await hidden(name)) ? [] : listDeployments(sql, organizationId, name),
+      (await hidden(name)) ? [] : recentDeployments(sql, organizationId, name),
     deleteAutomation: async (name, expectedLatestVersion) => {
       await authorizeActorRun(sql, organizationId, actor, 'developer');
       if (await hidden(name)) {

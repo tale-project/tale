@@ -95,6 +95,11 @@ import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import { auditDefinitionWrite } from './audit.ts';
 import {
+  liveDeploymentDoor,
+  readDeploymentPointer,
+  recordDeploymentInTx,
+} from './deployments.ts';
+import {
   describeLegacyQuarantine,
   legacyRunStopSchema,
 } from './legacy-quarantine.ts';
@@ -788,24 +793,54 @@ export async function deploy(
     );
   }
   let previousVersion: number | null = null;
+  // Nothing changes until a new version goes live: the live one again, or
+  // a managed definition that is already live, records nothing.
+  let outcome: Pick<DeployResult, 'kind' | 'deploymentId'> = {
+    kind: 'unchanged',
+    deploymentId: null,
+  };
   await sql.begin(async (tx) => {
     // Serialize promotion with saves and other promoters. Existing runs keep
     // their immutable version; only future admissions read this pointer.
     await lockAutomationName(tx, args.organizationId, args.name);
-    const live =
-      (await deployedVersion(tx, args.organizationId, args.name)) ?? null;
+    const pointer = await readDeploymentPointer(
+      tx,
+      args.organizationId,
+      args.name,
+    );
+    const live = pointer?.version ?? null;
     previousVersion = live;
     if (
       args.expectedDeployedVersion !== undefined &&
       args.expectedDeployedVersion !== live
     ) {
+      // Who put the other version live, when and through which door, so
+      // the refused caller can say it in words.
+      const door =
+        pointer === null
+          ? null
+          : await liveDeploymentDoor(
+              tx,
+              args.organizationId,
+              args.name,
+              pointer,
+            );
       throw new AutomationError(
         'AUTOMATION_DEPLOYMENT_STALE',
         live === null
           ? `"${args.name}" has no deployed version any more — the deploy expected v${String(args.expectedDeployedVersion)}.`
           : `v${live} of "${args.name}" is live now — the deploy expected ${args.expectedDeployedVersion === null ? 'nothing deployed' : `v${args.expectedDeployedVersion}`}.`,
         409,
-        { deployedVersion: live },
+        {
+          deployedVersion: live,
+          expectedDeployedVersion: args.expectedDeployedVersion,
+          ...(pointer !== null && {
+            deployedBy: pointer.deployedBy,
+            deployedAt: pointer.deployedAtMs,
+            deployedVia: door?.via ?? null,
+            deployedClient: door?.clientName ?? null,
+          }),
+        },
       );
     }
     if (args.managed) {
@@ -879,17 +914,6 @@ export async function deploy(
           409,
         );
     }
-    await tx`
-      INSERT INTO app.automation_deployments (
-        org_id, name, version, deployed_by, deployed_at_ms
-      ) VALUES (
-        ${args.organizationId}, ${args.name}, ${args.version},
-        ${args.origin.actor}, ${Date.now()}
-      )
-      ON CONFLICT (org_id, name) DO UPDATE SET
-        version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
-        deployed_at_ms = EXCLUDED.deployed_at_ms
-    `;
     if (args.testsPassed !== undefined) {
       await setTestsVerdict(tx, {
         organizationId: args.organizationId,
@@ -898,10 +922,43 @@ export async function deploy(
         testsPassed: args.testsPassed,
       });
     }
+    // The live version again: it stays live since it went live, by whom it
+    // went live, and the history has nothing new to say. A fresh verdict
+    // is still kept (above), and readers hear of it.
+    if (live === args.version) {
+      if (args.testsPassed !== undefined) {
+        await emitDefinitionHint(tx, args.organizationId, args.name);
+      }
+      return;
+    }
+    const now = Date.now();
+    await tx`
+      INSERT INTO app.automation_deployments (
+        org_id, name, version, deployed_by, deployed_at_ms
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${args.version},
+        ${args.origin.actor}, ${now}
+      )
+      ON CONFLICT (org_id, name) DO UPDATE SET
+        version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
+        deployed_at_ms = EXCLUDED.deployed_at_ms
+    `;
+    const event = await recordDeploymentInTx(tx, {
+      organizationId: args.organizationId,
+      name: args.name,
+      version: args.version,
+      pointer,
+      origin: args.origin,
+      atMs: now,
+    });
+    outcome = { kind: event.kind, deploymentId: event.id };
     await auditDefinitionWrite(tx, {
       organizationId: args.organizationId,
       origin: args.origin,
-      action: 'automation.deployed',
+      action:
+        event.kind === 'rollback'
+          ? 'automation.rolled_back'
+          : 'automation.deployed',
       name: args.name,
       version: args.version,
       previousState: { deployedVersion: live },
@@ -909,6 +966,7 @@ export async function deploy(
       metadata: {
         fromVersion: live,
         toVersion: args.version,
+        deploymentId: event.id,
         ...(args.testsPassed === undefined
           ? {}
           : { testsPassed: args.testsPassed }),
@@ -920,6 +978,7 @@ export async function deploy(
     name: args.name,
     version: args.version,
     previousVersion,
+    ...outcome,
     trigger: await deployedTrigger(sql, args.organizationId, args.name),
   };
 }
@@ -934,6 +993,12 @@ export interface DeployResult {
   /** The version that ran before this deploy; deploy it again to roll
    * back. Null when none was deployed. */
   previousVersion: number | null;
+  /** `deploy` put a newer version live (or the first one), `rollback` an
+   * older one; `unchanged` changed nothing — the version was live
+   * already. */
+  kind: 'deploy' | 'rollback' | 'unchanged';
+  /** The deployment history's new event; null when nothing changed. */
+  deploymentId: string | null;
   trigger: {
     kind: string;
     enabled: boolean;
@@ -4753,6 +4818,13 @@ export async function deleteAutomationCascade(
       DELETE FROM app.automation_deployments
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
       RETURNING version
+    `;
+    // Its deployment history goes with it: an automation saved later under
+    // the name starts its own, and never offers the old one's versions for
+    // a rollback.
+    await tx`
+      DELETE FROM app.automation_deployment_events
+      WHERE org_id = ${args.organizationId} AND name = ${args.name}
     `;
     const triggers = await tx<{ id: string; lastSkipReason: string | null }[]>`
       DELETE FROM app.automation_triggers

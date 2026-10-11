@@ -1436,6 +1436,7 @@ logs:
       automation.run.in_doubt_resolved: Über unterbrochenen Automatisierungsschritt entschieden
       automation.version.saved: Automatisierungsversion gespeichert
       automation.deployed: Automatisierung live geschaltet
+      automation.rolled_back: Automatisierung auf frühere Version zurückgesetzt
       automation.deleted: Automatisierung gelöscht
       automation.trigger.set: Automatisierungs-Trigger geändert
       automation.trigger.deleted: Automatisierungs-Trigger entfernt

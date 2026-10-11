@@ -125,6 +125,21 @@ A change made with an API key, through the REST API or a coding agent, is record
   "Automation deleted" by Ada, actor type API, with the key's id and the request id, so an
   admin knows which key to revoke.
 
+### AUTO-R46 · Every version that went live stays in the automation's history
+
+Deploying a version records when it went live, who put it live, through which door and client,
+and which version it replaced, for as long as the automation exists. Putting an older version
+back is recorded as a rollback. Putting the live version live again changes nothing: it stays
+live since it first went live, and the history gains no row. A version found live with no such
+record (the live one when the history began, or one an earlier release of the server put live
+while a new one was rolling out) is recorded as found, with who put it live and when. The
+history goes with the automation (`AUTO-R15`).
+
+- **Example**: Ben deploys version 6, then version 7. A test fails in production, so Ada puts
+  version 6 back → the history reads, newest first: version 6 by Ada, a rollback from 7;
+  version 7 by Ben; version 6 by Ben. Ada deploys version 6 again → no new row, and version 6 is
+  still live since her rollback.
+
 ## Creating from a starter
 
 A starter is a working automation the platform ships with a few questions: the project it
@@ -679,7 +694,8 @@ run brought along: a run is not held up or refused because of another organizati
 
 ### AUTO-R15 · Deleting an automation keeps its runs and removes everything else
 
-Its versions, its deployment, its trigger and its project installs are removed in one step.
+Its versions, its deployment and the history of its deployments, its trigger and its project
+installs are removed in one step.
 Its runs stay: they can still be listed under the automation's name, and opening the
 automation answers that it was deleted and when (`AUTOMATION_DELETED`). The delete is refused
 while one of its runs is still queued, running or waiting (`AUTOMATION_HAS_ACTIVE_RUNS`): stop

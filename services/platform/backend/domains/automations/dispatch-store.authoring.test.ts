@@ -24,7 +24,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
-import { listDeployments } from './audit.ts';
+import { recentDeployments } from './deployments.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import {
   bindingProjectIds,
@@ -61,7 +61,9 @@ vi.mock('./store.ts', async (original) => ({
 vi.mock('./ask-answer.ts', () => ({ answerRunAskAs: vi.fn() }));
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(),
-  listDeployments: vi.fn(),
+}));
+vi.mock('./deployments.ts', () => ({
+  recentDeployments: vi.fn(),
 }));
 vi.mock('../projects/service.ts', async (original) => ({
   ...(await original<typeof import('../projects/service.ts')>()),
@@ -159,7 +161,7 @@ beforeEach(() => {
   vi.mocked(deployedVersion).mockResolvedValue(6);
   vi.mocked(listTriggers).mockResolvedValue([]);
   vi.mocked(listVersions).mockResolvedValue([]);
-  vi.mocked(listDeployments).mockResolvedValue([]);
+  vi.mocked(recentDeployments).mockResolvedValue([]);
 });
 
 describe('reads follow what the app would show the person [MCP-R9]', () => {
@@ -340,6 +342,8 @@ describe('deploy and delete', () => {
       name: NAME,
       version: 7,
       previousVersion: 6,
+      kind: 'deploy',
+      deploymentId: 'deployment-1',
       trigger: null,
     });
     await store().deploy(NAME, 7, {
@@ -605,7 +609,7 @@ describe("another organization's automations, projects and runs stay out of reac
       async (_sql, org, _name, version) =>
         org === ORG ? versionOf(version ?? 7) : null,
     );
-    vi.mocked(listDeployments).mockImplementation(async (_sql, org) =>
+    vi.mocked(recentDeployments).mockImplementation(async (_sql, org) =>
       org === ORG
         ? [
             {
@@ -635,7 +639,7 @@ describe("another organization's automations, projects and runs stay out of reac
       NAME,
       undefined,
     );
-    expect(listDeployments).toHaveBeenCalledWith(
+    expect(recentDeployments).toHaveBeenCalledWith(
       expect.anything(),
       'org-2',
       NAME,

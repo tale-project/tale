@@ -19,7 +19,6 @@ import { describe, expect, it, vi } from 'vitest';
 // actual audit/name locks here while this fake handles binding statements.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 import { appOrigin } from '../../lib/write-origin.ts';

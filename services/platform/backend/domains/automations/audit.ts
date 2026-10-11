@@ -1,4 +1,4 @@
-import type { Sql, TransactionSql } from 'postgres';
+import type { TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import type { WriteOrigin } from '../../lib/write-origin.ts';
@@ -30,6 +30,7 @@ import type { AuditLogActorType } from '../audit_logs/types.ts';
 export type AutomationDefinitionAction =
   | 'automation.version.saved'
   | 'automation.deployed'
+  | 'automation.rolled_back'
   | 'automation.deleted'
   | 'automation.trigger.set'
   | 'automation.trigger.deleted'
@@ -86,88 +87,5 @@ export async function auditDefinitionWrite(
     ...(args.newState === undefined ? {} : { newState: args.newState }),
     ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
     status: 'success',
-  });
-}
-
-/** How many deploys a history read answers — the recent ones a rollback
- * chooses from. */
-const DEPLOYMENT_HISTORY_LIMIT = 20;
-
-/**
- * When each version of an automation went live, newest first, read from the
- * `automation.deployed` rows this module writes: the version, what was live
- * before it, when, who, and the door when it was a coding agent's. A deploy
- * from before these rows were written, or one the audit retention removed,
- * is not in it — and neither is one of an automation of the same name that
- * was deleted since: only the rows after the name's last
- * `automation.deleted` row, so a rollback never offers a version of the old
- * one. "After" is the order the name lock gave them: the writing
- * transaction's id (`writer_xid`), or `ts` for rows written before the
- * chain was sealed off the write path, when it rose strictly per
- * organization.
- */
-export async function listDeployments(
-  sql: Sql,
-  organizationId: string,
-  name: string,
-): Promise<
-  Array<{
-    version: number;
-    previousVersion: number | null;
-    deployedAt: number;
-    deployedBy: string;
-    via: string | null;
-  }>
-> {
-  const rows = await sql<
-    {
-      version: string | null;
-      previousVersion: string | null;
-      deployedAt: number;
-      deployedBy: string;
-      via: string | null;
-    }[]
-  >`
-    SELECT new_state->>'deployedVersion' AS version,
-           previous_state->>'deployedVersion' AS "previousVersion",
-           ts::float8 AS "deployedAt", actor_id AS "deployedBy",
-           metadata->>'via' AS via
-    FROM app.audit_logs
-    WHERE org_id = ${organizationId}
-      AND action = 'automation.deployed'
-      AND resource_type = 'automation' AND resource_id = ${name}
-      AND NOT EXISTS (
-        SELECT 1 FROM app.audit_logs d
-        WHERE d.org_id = ${organizationId}
-          AND d.action = 'automation.deleted'
-          AND d.resource_type = 'automation' AND d.resource_id = ${name}
-          AND CASE
-            WHEN d.writer_xid IS NOT NULL AND app.audit_logs.writer_xid IS NOT NULL
-              THEN d.writer_xid > app.audit_logs.writer_xid
-            WHEN d.writer_xid IS NOT NULL THEN true
-            WHEN app.audit_logs.writer_xid IS NOT NULL THEN false
-            ELSE d.ts >= app.audit_logs.ts
-          END
-      )
-    ORDER BY writer_xid DESC NULLS LAST, ts DESC
-    LIMIT ${DEPLOYMENT_HISTORY_LIMIT}
-  `;
-  /** A version number a row holds, or null for anything else. */
-  const versionOf = (raw: string | null): number | null => {
-    const value = raw === null ? Number.NaN : Number(raw);
-    return Number.isInteger(value) && value >= 1 ? value : null;
-  };
-  return rows.flatMap((row) => {
-    const version = versionOf(row.version);
-    if (version === null) return [];
-    return [
-      {
-        version,
-        previousVersion: versionOf(row.previousVersion),
-        deployedAt: row.deployedAt,
-        deployedBy: row.deployedBy,
-        via: row.via,
-      },
-    ];
   });
 }

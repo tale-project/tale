@@ -17,7 +17,6 @@ import { describe, expect, it, vi } from 'vitest';
 // `audit.test.ts`); this double answers no audit-chain query.
 vi.mock('./audit.ts', () => ({
   auditDefinitionWrite: vi.fn(async () => undefined),
-  listDeployments: vi.fn(async () => []),
 }));
 
 import { appOrigin } from '../../lib/write-origin.ts';
@@ -94,6 +93,10 @@ function fakeSql(script: {
       const rows: unknown[] & { count?: number } = [];
       rows.count = script.bindingInserted === false ? 0 : 1;
       return Promise.resolve(rows);
+    }
+    // A deploy's new history event.
+    if (text.includes('INSERT INTO app.automation_deployment_events')) {
+      return Promise.resolve([{ id: 'deployment-1' }]);
     }
     return Promise.resolve([]);
   };

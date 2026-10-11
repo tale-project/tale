@@ -75,6 +75,7 @@ import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkApprovalAllowances } from './domains/automations/approval-allowances.integration.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkDeploymentHistory } from './domains/automations/deployment-history.integration.ts';
 import { checkEventScopeAndIsolation } from './domains/automations/event-scope.integration.ts';
 import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
 import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
@@ -65065,6 +65066,10 @@ async function main(): Promise<void> {
         () => checkApprovalAllowances(sql, authCtx, record),
       ],
       ['checkTaskListStep', () => checkTaskListStep(sql, authCtx, record)],
+      [
+        'checkDeploymentHistory',
+        () => checkDeploymentHistory(sql, authCtx, record),
+      ],
       [
         'checkAutomationTemplates',
         () => checkAutomationTemplates(sql, baseUrl, authCtx, record),
