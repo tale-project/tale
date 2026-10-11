@@ -19,6 +19,11 @@
 //  - the user's seed environment: it reaches runnerd over its own API after
 //    readiness, never the instance config (anyone who can read the instance
 //    would read it).
+//
+// What it gets in their place is what Incus offers a restricted project: an
+// unprivileged container with an isolated idmap of its own, Incus's default
+// seccomp and AppArmor policy, no guest API, and `no_new_privs` on everything
+// the entrypoint starts (below), which is Docker's `no-new-privileges`.
 
 import { createHash } from 'node:crypto';
 
@@ -55,6 +60,19 @@ import { toIncusSize } from './incus-units.ts';
 
 /** Where a session's workspace volume is mounted. */
 const WORKSPACE_PATH = '/agent';
+/** The image's entrypoint and its dispatch argument. */
+const SESSION_COMMAND = '/docker-entrypoint.sh daemon';
+/**
+ * Sets `no_new_privs` before the entrypoint runs: no program it starts, however
+ * deep, gains privilege through a setuid bit or file capabilities (`su`,
+ * `newuidmap`, `mount` are in the image), which is what Docker's
+ * `no-new-privileges` does for the other backends. The entrypoint's own drop
+ * from root to the profile user is a privilege reduction, which the bit allows.
+ * Incus has no config key for it in a restricted project (`raw.lxc` is
+ * forbidden), so the entrypoint is wrapped instead. `setpriv` is util-linux's,
+ * which the image installs for exactly that drop.
+ */
+const NO_NEW_PRIVS = '/usr/bin/setpriv --no-new-privs --';
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const TOKEN_RE = /^[a-f0-9]{1,128}$/;
@@ -169,6 +187,16 @@ function sharedEnvironment(
     }
   }
   return env;
+}
+
+/**
+ * The command line of an instance's main process. A session with Docker
+ * inside keeps the privileges to grow: its inner engine runs containers whose
+ * runtime needs them, and the Docker backend leaves `no-new-privileges` off
+ * for it too.
+ */
+function launchCommand(shape: SessionShape, command: string): string {
+  return shape.dind ? command : `${NO_NEW_PRIVS} ${command}`;
 }
 
 function asConfig(env: Record<string, string>): IncusConfigMap {
@@ -336,7 +364,12 @@ export function buildSessionInstance(
     ephemeral: true,
     profiles: [incus.profile],
     config: {
-      ...baseConfig(cfg, shape, '/docker-entrypoint.sh daemon', bootUser),
+      ...baseConfig(
+        cfg,
+        shape,
+        launchCommand(shape, SESSION_COMMAND),
+        bootUser,
+      ),
       ...asConfig({
         TALE_RUNNERD_TOKEN: input.runnerdToken,
         [RUNNERD_INCARNATION_ENV]: String(input.createdAtMs),
@@ -415,7 +448,10 @@ function standbyStaticSpec(cfg: SpawnerConfig, shape: SessionShape) {
   const incus = incusOf(cfg);
   return {
     profiles: [incus.profile],
-    config: baseConfig(cfg, shape, STANDBY_COMMAND, { uid: 0, gid: 0 }),
+    config: baseConfig(cfg, shape, launchCommand(shape, STANDBY_COMMAND), {
+      uid: 0,
+      gid: 0,
+    }),
     devices: sharedDevices(cfg, shape),
     image: incus.image,
   };

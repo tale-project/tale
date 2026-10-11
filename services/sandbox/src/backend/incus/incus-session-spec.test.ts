@@ -137,8 +137,10 @@ describe('a session started cold', () => {
       'security.idmap.isolated': 'true',
       'security.guestapi': 'false',
       'boot.autostart': 'false',
-      // the entrypoint, as root so it can install the egress redirect and drop
-      'oci.entrypoint': '/docker-entrypoint.sh daemon',
+      // the entrypoint, as root so it can install the egress redirect and
+      // drop, under no_new_privs as Docker's `no-new-privileges` sets it
+      'oci.entrypoint':
+        '/usr/bin/setpriv --no-new-privs -- /docker-entrypoint.sh daemon',
       'oci.uid': '0',
       'oci.gid': '0',
       'oci.dns.nameservers': INCUS_TEST_ADDRESS,
@@ -238,6 +240,27 @@ describe('a session started cold', () => {
     // entrypoint drops after the inner engine is up.
     expect(body.config['limits.kernel.fsize']).toBeUndefined();
     expect(body.config['environment.TALE_DROP_UID']).toBeUndefined();
+  });
+
+  test('no_new_privs is on for every session but one with Docker inside, which must be able to grow privileges', () => {
+    const plain = incusTestConfig();
+    for (const profile of ['agent', 'agent-light', 'default'] as const) {
+      expect(
+        buildSessionInstance(plain, { ...input, profile }).config[
+          'oci.entrypoint'
+        ],
+      ).toBe('/usr/bin/setpriv --no-new-privs -- /docker-entrypoint.sh daemon');
+    }
+    // Docker's own backend leaves the flag off for DinD, and so does this one.
+    expect(
+      buildSessionInstance(dockerCapable(), input).config['oci.entrypoint'],
+    ).toBe('/docker-entrypoint.sh daemon');
+    // A Docker-free agent in a Docker-capable deployment is hardened again.
+    expect(
+      buildSessionInstance(dockerCapable(), { ...input, docker: false }).config[
+        'oci.entrypoint'
+      ],
+    ).toBe('/usr/bin/setpriv --no-new-privs -- /docker-entrypoint.sh daemon');
   });
 
   test('the operator’s Docker config replaces the default set', () => {
@@ -400,7 +423,8 @@ describe('the warm pool', () => {
     expect(body.start).toBe(false);
     expect(body.ephemeral).toBe(true);
     expect(body.config).toMatchObject({
-      'oci.entrypoint': STANDBY_COMMAND,
+      // the waiting script, under no_new_privs like the session it becomes
+      'oci.entrypoint': `/usr/bin/setpriv --no-new-privs -- ${STANDBY_COMMAND}`,
       'oci.uid': '0',
       'oci.gid': '0',
       'limits.memory': '4GiB',
