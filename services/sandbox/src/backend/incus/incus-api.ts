@@ -162,7 +162,7 @@ function whole(obj: Record<string, unknown>, key: string, what: string) {
 }
 
 /** Keeps the entries whose value is text; Incus config values always are. */
-function stringMap(raw: unknown): IncusConfigMap {
+export function stringMap(raw: unknown): IncusConfigMap {
   const out: IncusConfigMap = {};
   if (!isRecord(raw)) return out;
   for (const [key, value] of Object.entries(raw)) {
@@ -171,7 +171,7 @@ function stringMap(raw: unknown): IncusConfigMap {
   return out;
 }
 
-function devicesOf(raw: unknown): IncusDevices {
+export function devicesOf(raw: unknown): IncusDevices {
   const out: IncusDevices = {};
   if (!isRecord(raw)) return out;
   for (const [name, device] of Object.entries(raw)) {
